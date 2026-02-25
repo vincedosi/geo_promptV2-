@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 5.0.0 — 24 février 2026
+> **Version** : 5.1.1 — 25 février 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/GENENSIS](https://github.com/vincedosi/GENENSIS)
 
@@ -49,9 +49,11 @@ genesis_app/
 │   │   ├── ai/parse-poi-query/route.ts    ← Mistral → filtres POI (carte IA)
 │   │   ├── auth/[...auth]/route.ts        ← Auth endpoints
 │   │   ├── admin/
-│   │   │   ├── import-poi/route.ts        ← SSE import POI en base
+│   │   │   ├── import-poi/execute/route.ts ← SSE import POI en base
 │   │   │   ├── import-carreaux/route.ts   ← Import carreaux INSEE
 │   │   │   ├── sources/route.ts           ← CRUD sources
+│   │   │   ├── sources/[id]/route.ts      ← GET/PATCH/DELETE source
+│   │   │   ├── sources/[id]/meta-keys/route.ts ← Clés metadata d'une source
 │   │   │   ├── organizations/route.ts     ← CRUD organisations
 │   │   │   ├── health/route.ts            ← Health check API
 │   │   │   ├── source-filters/route.ts    ← Filtres par source
@@ -64,12 +66,16 @@ genesis_app/
 │       ├── AISearchInput.tsx               ← Barre de recherche IA (robot pixel art animé)
 │       ├── MapIntegrated.tsx               ← Carte intégrée (page d'accueil)
 │       ├── MapIntegratedClient.tsx
-│       ├── MaplibreMap.tsx                 ← Carte MapLibre
+│       ├── MaplibreMap.tsx                 ← Carte MapLibre (legacy)
 │       └── MaplibreMapClient.tsx
+├── app/
+│   ├── error.tsx                          ← Error boundary (erreurs runtime)
+│   ├── global-error.tsx                   ← Error boundary global
+│   └── not-found.tsx                      ← Page 404 custom
 ├── components/
 │   ├── GenesisNav.tsx                     ← Sidebar navigation (affiche APP_VERSION)
 │   └── map/
-│       ├── MapContainer.tsx               ← Conteneur carte MapLibre + GeoJSON layers
+│       ├── MapContainer.tsx               ← Conteneur carte MapLibre + markers DOM
 │       ├── MapSidebar.tsx                 ← Sidebar résultats carte
 │       ├── SearchBar.tsx                  ← Barre de recherche carte
 │       └── hooks/
@@ -157,22 +163,32 @@ Prompt en français → Mistral AI → filtres JSON → recherche panneaux Supab
 
 ### Carte Interactive POI (`/map`)
 - Tous les POI par catégorie avec filtres dynamiques
+- **Markers DOM** (plus de GeoJSON layers — fonctionne sans attendre le chargement du style)
 - Recherche IA en langage naturel (barre avec robot pixel art animé)
-- Clustering Supercluster pour hautes densités
-- Filtres par source de données
-- Popups détaillés au clic, sidebar résultats
+- **Filtres auto-découverts** depuis les données : colonnes directes (région, département, sous-catégorie) + champs metadata (2–50 valeurs distinctes)
+- Matching IA normalisé (accents, noms partiels)
+- Tuiles raster CARTO Light (pas besoin de glyphs/sprites)
+- Status bar : coordonnées valides, compteur filtres actifs, taille échantillon
+- Bouton "Effacer filtres" + reset auto au changement de catégories
+- Popups détaillés au clic (adresse, ville, département, catégorie)
 
 ### Import Universel (`/admin/import`)
 Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation (GPS/BAN/Lambert93) → Dry Run + aperçu carte → Import SSE temps réel.
+- **Sélection de colonnes** : tableau avec checkbox "Importer" et "Filtre" par colonne
+- Colonnes schema/géoloc verrouillées (toujours importées)
+- `importedColumns` transmis au validator — seules les colonnes cochées vont en metadata
+- `filterFields` exposés comme filtres carte
+- Boutons "Tout importer" / "Tout exclure" / "Effacer filtres"
 
 ### Import Carreaux INSEE (`/admin/carreaux-import`)
 Import données carroyées INSEE pour enrichissement géographique.
 
 ### Back-Office
-- **Sources** — CRUD, filtres, partage inter-organisations
+- **Sources** — CRUD, filtres, partage inter-organisations, **éditeur de filtres dynamique** (colonnes schema + clés metadata réelles via API `meta-keys`), boutons Tout cocher / Effacer, compteur
 - **Organisations** — Multi-tenant, gestion membres
 - **Health Check** — Diagnostic Supabase, tables, stats
 - **Auth** — Login/signup email, sessions cookies
+- **Error pages** — `error.tsx`, `global-error.tsx`, `not-found.tsx` (error boundaries Next.js)
 
 ---
 
@@ -183,7 +199,7 @@ Import données carroyées INSEE pour enrichissement géographique.
 **Fichier central** : `lib/version.ts`
 
 ```typescript
-export const APP_VERSION = '5.0.0'; // ← TOUJOURS INCRÉMENTER
+export const APP_VERSION = '5.1.1'; // ← TOUJOURS INCRÉMENTER
 ```
 
 | Type | Version | Exemple |
@@ -255,6 +271,12 @@ npx next dev
 
 | Version | Date | Changements clés |
 |---------|------|-------------------|
+| **5.1.1** | 2026-02-25 | Sources: éditeur filtres dynamique (meta-keys API), boutons Tout cocher/Effacer |
+| **5.1.0** | 2026-02-25 | Import: sélection colonnes (checkbox Importer/Filtre), importedColumns dans validator |
+| **5.0.4** | 2026-02-25 | Filtres carte auto-découverts depuis données, bouton Effacer, status bar |
+| **5.0.3** | 2026-02-25 | MapContainer: markers DOM (résout POI invisibles), couleur par catégorie |
+| **5.0.2** | 2026-02-25 | Fix carte: RASTER_STYLE inline CARTO, isStyleLoaded() fallbacks |
+| **5.0.1** | 2026-02-25 | Fix carte: buildGeoJSON Number() + null check, filtres case-insensitive, AI matching partiel |
 | **5.0.0** | 2026-02-24 | Inserter Supabase JS (HTTPS), suppression PostgreSQL direct, trigger auto_set_geom |
 | **4.2.0** | 2026-02-24 | Mega-logs SSE temps réel, journal d'erreur live dans l'UI |
 | **4.1.0** | 2026-02-24 | Renommage GEO.Prompt, Health Check page, versioning dynamique |
@@ -278,4 +300,4 @@ npx next dev
 
 ---
 
-*GEO.Prompt v5.0.0 — AI Media Planning Platform*
+*GEO.Prompt v5.1.1 — AI Media Planning Platform*
