@@ -16,6 +16,7 @@ interface UrlCheckResult {
 
 interface ImportReport {
   fichierSource?: string;
+  tableTarget?: string;
   lignesChargees?: number;
   carreauxTraites?: number;
   carreauxInseres?: number;
@@ -112,7 +113,7 @@ export default function CarreauxImportPage() {
                 </> : '→ Vérifier'}
               </button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'JetBrains Mono, monospace' }}>// formats acceptés: .zip .csv .xlsx .xls</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'JetBrains Mono, monospace' }}>// formats acceptés: .zip .csv .xlsx .xls .geojson</div>
 
             {urlCheckResult && (
               <div className={`g-alert ${urlCheckResult.valid ? 'g-alert-success' : 'g-alert-error'}`} style={{ marginTop: 12 }}>
@@ -149,7 +150,7 @@ export default function CarreauxImportPage() {
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{opt.desc}</div>
                   {opt.val === 'manual' && mode === 'manual' && (
                     <div style={{ marginTop: 10 }}>
-                      <input type="file" accept=".csv,.zip,.xlsx,.xls" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                      <input type="file" accept=".csv,.zip,.xlsx,.xls,.geojson,.json" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
                       {file && <div style={{ marginTop: 6, fontSize: 12, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</div>}
                     </div>
                   )}
@@ -222,6 +223,7 @@ export default function CarreauxImportPage() {
                   {importResult.report && (
                     <div className="g-code" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                       {importResult.report.fichierSource && <div><span style={{ color: 'var(--text-dim)' }}>fichier: </span><span style={{ color: 'var(--accent)' }}>{importResult.report.fichierSource}</span></div>}
+                      {importResult.report.tableTarget && <div><span style={{ color: 'var(--text-dim)' }}>table_créée: </span><span style={{ color: 'var(--accent)' }}>{importResult.report.tableTarget}</span></div>}
                       {importResult.report.lignesChargees !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>lignes_chargées: </span><span style={{ color: 'var(--green)' }}>{importResult.report.lignesChargees}</span></div>}
                       {importResult.report.carreauxTraites !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>carreaux_traités: </span><span style={{ color: 'var(--green)' }}>{importResult.report.carreauxTraites}</span></div>}
                       {importResult.report.carreauxInseres !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>carreaux_insérés: </span><span style={{ color: 'var(--green)' }}>{importResult.report.carreauxInseres}</span></div>}

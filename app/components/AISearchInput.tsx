@@ -9,42 +9,67 @@ interface AISearchInputProps {
   isLoading?: boolean;
 }
 
-// Pixel art frames for the little robot mascot (8x8 grid)
-const PIXEL_FRAMES = [
-  // Frame 1: idle
+// Pixel art robot — 10×10 grille, 3 frames
+const ROBOT_FRAMES = [
+  // Frame 0: idle
   [
-    '  ████  ',
-    ' █░░░░█ ',
-    '█░▓░░▓░█',
-    '█░░░░░░█',
-    '█░░██░░█',
-    ' █░░░░█ ',
-    '  █  █  ',
-    '  █  █  ',
+    [0,0,0,1,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,1,1,2,1,1,2,1,1,0],
+    [0,1,1,2,1,1,2,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,3,3,1,1,0,0],
+    [0,0,0,1,1,1,1,0,0,0],
+    [0,0,1,1,0,0,1,1,0,0],
+    [0,0,1,0,0,0,0,1,0,0],
+    [0,1,1,0,0,0,0,1,1,0],
   ],
-  // Frame 2: blink
+  // Frame 1: blink
   [
-    '  ████  ',
-    ' █░░░░█ ',
-    '█░──░──░█',
-    '█░░░░░░█',
-    '█░░██░░█',
-    ' █░░░░█ ',
-    '  █  █  ',
-    ' █    █ ',
+    [0,0,0,1,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,1,1,3,1,1,3,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,3,3,1,1,0,0],
+    [0,0,0,1,1,1,1,0,0,0],
+    [0,0,1,0,0,0,0,1,0,0],
+    [0,0,1,1,0,0,1,1,0,0],
+    [0,1,1,0,0,0,0,1,1,0],
   ],
-  // Frame 3: thinking
+  // Frame 2: thinking (sparkles)
   [
-    '  ████ ★',
-    ' █░░░░█ ',
-    '█░▓░░▓░█',
-    '█░░░░░░█',
-    '█░░▬▬░░█',
-    ' █░░░░█ ',
-    ' █    █ ',
-    '  █  █  ',
+    [0,0,0,1,1,1,1,0,4,0],
+    [0,0,1,1,1,1,1,1,0,4],
+    [0,1,1,2,1,1,2,1,1,0],
+    [0,1,1,1,2,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,0,0,1,3,3,1,0,0,0],
+    [0,0,1,1,0,0,1,1,0,0],
+    [0,1,1,0,0,0,0,1,1,0],
+    [0,1,0,0,0,0,0,0,1,0],
   ],
 ];
+
+function drawRobot(ctx: CanvasRenderingContext2D, frame: number, px: number, thinking: boolean) {
+  const colors: Record<number, string> = {
+    0: 'transparent',
+    1: thinking ? '#f59e0b' : '#6366f1',
+    2: '#10b981',
+    3: '#ffffff',
+    4: '#fbbf24',
+  };
+  const robot = ROBOT_FRAMES[Math.min(frame, 2)];
+  for (let y = 0; y < robot.length; y++) {
+    for (let x = 0; x < robot[y].length; x++) {
+      const val = robot[y][x];
+      if (val === 0) continue;
+      ctx.fillStyle = colors[val] || colors[1];
+      ctx.fillRect(x * px, y * px, px, px);
+    }
+  }
+}
 
 export default function AISearchInput({
   onSearch,
@@ -55,30 +80,32 @@ export default function AISearchInput({
   const [prompt, setPrompt] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [explanation, setExplanation] = useState('');
+  const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState<Record<string, string | string[]>>({});
   const [error, setError] = useState('');
   const [pixelFrame, setPixelFrame] = useState(0);
-  const [showPixelArt, setShowPixelArt] = useState(true);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Pixel art animation cycle
+  // Animation robot
   useEffect(() => {
-    if (isSearching) {
-      // Fast animation when searching
-      const interval = setInterval(() => {
-        setPixelFrame(prev => (prev + 1) % 3);
-      }, 200);
-      return () => clearInterval(interval);
-    } else {
-      // Slow idle blink
-      const interval = setInterval(() => {
-        setPixelFrame(prev => {
-          if (prev === 0) return Math.random() > 0.7 ? 1 : 0; // occasional blink
-          return 0;
-        });
-      }, 1500);
-      return () => clearInterval(interval);
-    }
+    const interval = setInterval(() => {
+      setPixelFrame(prev => {
+        if (isSearching) return (prev + 1) % 3;
+        return prev === 0 ? (Math.random() > 0.7 ? 1 : 0) : 0;
+      });
+    }, isSearching ? 180 : 1500);
+    return () => clearInterval(interval);
   }, [isSearching]);
+
+  // Draw robot on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawRobot(ctx, isSearching ? 2 : pixelFrame, 4, isSearching);
+  }, [pixelFrame, isSearching]);
 
   const handleSearch = async () => {
     if (!prompt.trim() || isSearching) return;
@@ -86,7 +113,8 @@ export default function AISearchInput({
     setIsSearching(true);
     setError('');
     setExplanation('');
-    setPixelFrame(2); // thinking face
+    setAppliedCategories([]);
+    setAppliedFilters({});
 
     try {
       const response = await fetch('/api/ai/parse-poi-query', {
@@ -103,89 +131,104 @@ export default function AISearchInput({
 
       if (data.success) {
         setExplanation(data.explanation || '');
+        setAppliedCategories(data.categories || []);
+        setAppliedFilters(data.filters || {});
         onSearch(data.categories || [], data.filters || {});
       } else {
         setError(data.error || 'Erreur de recherche');
       }
-    } catch (err) {
-      setError('Erreur de connexion');
-      console.error('[AISearchInput] Error:', err);
+    } catch {
+      setError('Erreur de connexion au service IA');
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch();
+  const handleReset = () => {
+    setPrompt('');
+    setExplanation('');
+    setError('');
+    setAppliedCategories([]);
+    setAppliedFilters({});
+    // Reset to all categories checked
+    onSearch([], {});
   };
+
+  const hasResult = explanation || appliedCategories.length > 0 || Object.keys(appliedFilters).length > 0;
 
   return (
     <div style={styles.container}>
       {/* Pixel Art Robot */}
-      {showPixelArt && (
-        <div style={styles.pixelArtContainer}>
-          <canvas
-            ref={(canvas) => {
-              if (!canvas) return;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) return;
-              const size = 4;
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
+      <div style={styles.robotBox}>
+        <canvas
+          ref={canvasRef}
+          width={40}
+          height={40}
+          style={styles.canvas}
+        />
+      </div>
 
-              // Draw pixel robot
-              const frame = isSearching ? 2 : pixelFrame;
-              drawPixelRobot(ctx, frame, size, isSearching);
-            }}
-            width={48}
-            height={48}
-            style={styles.pixelCanvas}
-          />
-        </div>
-      )}
-
-      {/* Search Input Area */}
+      {/* Search area */}
       <div style={styles.inputWrapper}>
         <div style={styles.inputRow}>
           <div style={styles.aiLabel}>
-            <span style={styles.aiIcon}>✨</span>
+            <span style={{ fontSize: 13 }}>✨</span>
             <span style={styles.aiText}>GEO.AI</span>
           </div>
           <input
-            ref={inputRef}
             type="text"
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="lycées de Brest et Toulon, collèges en Bretagne..."
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder="lycées IDF, collèges de Brest et Quimper, CIRFA en Bretagne..."
             style={styles.input}
             disabled={isSearching}
           />
+          {hasResult && !isSearching && (
+            <button
+              onClick={handleReset}
+              title="Réinitialiser la recherche"
+              style={styles.resetButton}
+            >
+              ✕
+            </button>
+          )}
           <button
             onClick={handleSearch}
             disabled={isSearching || !prompt.trim()}
             style={{
               ...styles.searchButton,
-              ...(isSearching ? styles.searchButtonDisabled : {}),
-              ...(!prompt.trim() && !isSearching ? styles.searchButtonEmpty : {}),
+              ...(isSearching || !prompt.trim() ? styles.searchButtonDisabled : {}),
             }}
           >
-            {isSearching ? (
-              <span style={styles.spinner}>⟳</span>
-            ) : (
-              '🔍'
-            )}
+            {isSearching ? <span style={styles.spinner}>⟳</span> : '🔍'}
           </button>
         </div>
 
-        {/* Feedback row */}
-        {(explanation || error) && (
-          <div style={styles.feedbackRow}>
-            {explanation && (
-              <span style={styles.explanation}>✓ {explanation}</span>
+        {/* Feedback */}
+        {error && (
+          <div style={styles.errorRow}>
+            ✗ {error}
+          </div>
+        )}
+        {explanation && !error && (
+          <div style={styles.resultRow}>
+            <span style={styles.explanation}>✓ {explanation}</span>
+            {/* Category tags */}
+            {appliedCategories.length > 0 && (
+              <span style={styles.tagGroup}>
+                {appliedCategories.map(c => (
+                  <span key={c} style={styles.catTag}>{c}</span>
+                ))}
+              </span>
             )}
-            {error && (
-              <span style={styles.error}>✗ {error}</span>
-            )}
+            {/* Filter tags */}
+            {Object.entries(appliedFilters).map(([field, val]) => {
+              const vals = Array.isArray(val) ? val : [val as string];
+              return vals.map(v => (
+                <span key={`${field}:${v}`} style={styles.filterTag}>{field}: {v}</span>
+              ));
+            })}
           </div>
         )}
       </div>
@@ -193,140 +236,60 @@ export default function AISearchInput({
   );
 }
 
-/**
- * Draw a pixel art robot on canvas
- */
-function drawPixelRobot(ctx: CanvasRenderingContext2D, frame: number, px: number, isSearching: boolean) {
-  const colors = {
-    body: isSearching ? '#f59e0b' : '#3b82f6',
-    eye: '#10b981',
-    mouth: '#ffffff',
-    bg: 'transparent',
-    highlight: '#60a5fa',
-    star: '#f59e0b',
-  };
-
-  // Simple 10x10 pixel robot
-  const robots = [
-    // Frame 0: idle
-    [
-      [0,0,0,1,1,1,1,0,0,0],
-      [0,0,1,1,1,1,1,1,0,0],
-      [0,1,1,2,1,1,2,1,1,0],
-      [0,1,1,2,1,1,2,1,1,0],
-      [0,1,1,1,1,1,1,1,1,0],
-      [0,0,1,1,3,3,1,1,0,0],
-      [0,0,0,1,1,1,1,0,0,0],
-      [0,0,1,1,0,0,1,1,0,0],
-      [0,0,1,0,0,0,0,1,0,0],
-      [0,1,1,0,0,0,0,1,1,0],
-    ],
-    // Frame 1: blink
-    [
-      [0,0,0,1,1,1,1,0,0,0],
-      [0,0,1,1,1,1,1,1,0,0],
-      [0,1,1,3,1,1,3,1,1,0],
-      [0,1,1,1,1,1,1,1,1,0],
-      [0,1,1,1,1,1,1,1,1,0],
-      [0,0,1,1,3,3,1,1,0,0],
-      [0,0,0,1,1,1,1,0,0,0],
-      [0,0,1,0,0,0,0,1,0,0],
-      [0,0,1,1,0,0,1,1,0,0],
-      [0,1,1,0,0,0,0,1,1,0],
-    ],
-    // Frame 2: thinking (with sparkles)
-    [
-      [0,0,0,1,1,1,1,0,4,0],
-      [0,0,1,1,1,1,1,1,0,4],
-      [0,1,1,2,1,1,2,1,1,0],
-      [0,1,1,1,2,1,1,1,1,0],
-      [0,1,1,1,1,1,1,1,1,0],
-      [0,0,1,1,1,1,1,1,0,0],
-      [0,0,0,1,3,3,1,0,0,0],
-      [0,0,1,1,0,0,1,1,0,0],
-      [0,1,1,0,0,0,0,1,1,0],
-      [0,1,0,0,0,0,0,0,1,0],
-    ],
-  ];
-
-  const robot = robots[Math.min(frame, 2)];
-  const colorMap: Record<number, string> = {
-    0: colors.bg,
-    1: colors.body,
-    2: colors.eye,
-    3: colors.mouth,
-    4: colors.star,
-  };
-
-  for (let y = 0; y < robot.length; y++) {
-    for (let x = 0; x < robot[y].length; x++) {
-      const val = robot[y][x];
-      if (val === 0) continue;
-      ctx.fillStyle = colorMap[val] || colors.body;
-      ctx.fillRect(x * px, y * px, px, px);
-    }
-  }
-}
-
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: 10,
     padding: '8px 16px',
     background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
     borderBottom: '1px solid rgba(99, 102, 241, 0.3)',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(99, 102, 241, 0.1)',
-    position: 'relative',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
     zIndex: 10,
   },
-  pixelArtContainer: {
+  robotBox: {
     flexShrink: 0,
-    width: '48px',
-    height: '48px',
+    width: 44,
+    height: 44,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '8px',
+    borderRadius: 8,
     background: 'rgba(30, 27, 75, 0.6)',
     border: '1px solid rgba(99, 102, 241, 0.2)',
   },
-  pixelCanvas: {
-    imageRendering: 'pixelated' as any,
-    width: '40px',
-    height: '40px',
-  },
+  canvas: {
+    imageRendering: 'pixelated',
+    width: 40,
+    height: 40,
+  } as React.CSSProperties,
   inputWrapper: {
     flex: 1,
     display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '4px',
+    flexDirection: 'column',
+    gap: 4,
   },
   inputRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: 8,
     background: 'rgba(15, 23, 42, 0.8)',
-    borderRadius: '12px',
+    borderRadius: 12,
     border: '1px solid rgba(99, 102, 241, 0.3)',
     padding: '4px 4px 4px 12px',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
   },
   aiLabel: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: 4,
     flexShrink: 0,
     padding: '4px 8px',
-    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
-    borderRadius: '6px',
-    border: '1px solid rgba(99, 102, 241, 0.3)',
-  },
-  aiIcon: {
-    fontSize: '14px',
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))',
+    borderRadius: 6,
+    border: '1px solid rgba(99,102,241,0.3)',
   },
   aiText: {
-    fontSize: '11px',
+    fontSize: 11,
     fontWeight: 700,
     color: '#a5b4fc',
     letterSpacing: '0.5px',
@@ -338,52 +301,88 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     outline: 'none',
     color: '#e2e8f0',
-    fontSize: '14px',
+    fontSize: 14,
     fontFamily: 'Inter, system-ui, sans-serif',
     padding: '8px 4px',
     minWidth: 0,
   },
-  searchButton: {
+  resetButton: {
     flexShrink: 0,
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: 'white',
-    fontSize: '18px',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    border: '1px solid rgba(239,68,68,0.3)',
+    background: 'rgba(239,68,68,0.1)',
+    color: '#ef4444',
+    fontSize: 13,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'transform 0.15s, box-shadow 0.15s',
-    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
+  },
+  searchButton: {
+    flexShrink: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    border: 'none',
+    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    color: 'white',
+    fontSize: 18,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
   },
   searchButtonDisabled: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-  },
-  searchButtonEmpty: {
     opacity: 0.4,
-    cursor: 'default',
+    cursor: 'not-allowed',
   },
   spinner: {
     display: 'inline-block',
     animation: 'spin 0.8s linear infinite',
-    fontSize: '20px',
+    fontSize: 20,
   },
-  feedbackRow: {
-    padding: '0 4px',
-    minHeight: '18px',
-  },
-  explanation: {
-    fontSize: '12px',
-    color: '#86efac',
-    fontFamily: 'Inter, system-ui, sans-serif',
-  },
-  error: {
-    fontSize: '12px',
+  errorRow: {
+    padding: '2px 4px',
+    fontSize: 12,
     color: '#fca5a5',
     fontFamily: 'Inter, system-ui, sans-serif',
+  },
+  resultRow: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    padding: '2px 4px',
+  },
+  explanation: {
+    fontSize: 12,
+    color: '#86efac',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    marginRight: 4,
+  },
+  tagGroup: {
+    display: 'inline-flex',
+    gap: 4,
+  },
+  catTag: {
+    fontSize: 10,
+    background: 'rgba(99,102,241,0.25)',
+    color: '#a5b4fc',
+    padding: '1px 7px',
+    borderRadius: 3,
+    border: '1px solid rgba(99,102,241,0.4)',
+    fontFamily: 'monospace',
+  },
+  filterTag: {
+    fontSize: 10,
+    background: 'rgba(16,185,129,0.15)',
+    color: '#6ee7b7',
+    padding: '1px 7px',
+    borderRadius: 3,
+    border: '1px solid rgba(16,185,129,0.3)',
+    fontFamily: 'monospace',
   },
 };

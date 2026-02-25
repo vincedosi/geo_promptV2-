@@ -397,7 +397,6 @@ export async function POST(request: NextRequest) {
     const execEnv = {
       ...process.env,
       PYTHONIOENCODING: 'utf-8',
-      SUPABASE_DB_URL: process.env.SUPABASE_DB_URL || '',
     };
 
     // Exécuter le script Python
@@ -539,6 +538,9 @@ function parseImportReport(stdout: string): any {
   for (const line of lines) {
     if (line.includes('Fichier source')) {
       report.fichierSource = line.split(':').slice(1).join(':').trim();
+    }
+    if (line.includes('Table cible')) {
+      report.tableTarget = line.split(':').slice(1).join(':').trim();
     }
     if (line.includes('Lignes chargées')) {
       report.lignesChargees = parseInt(line.split(':')[1]?.trim() || '0');

@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '5.1.1';
-export const BUILD_DATE = '2026-02-25';
+export const APP_VERSION = '5.2.3';
+export const BUILD_DATE = '2026-02-26';
 
 export interface ChangelogEntry {
   version: string;
@@ -19,6 +19,55 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.2.3',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Import carreaux: support GeoJSON (.geojson) dans le sélecteur de fichier',
+      'Import carreaux: affichage du nom de table créée dans le rapport de résultat',
+      'Import carreaux: suppression de SUPABASE_DB_URL (obsolète) de l\'env Python',
+      'Import carreaux: parsing Table cible dans le rapport Python',
+    ],
+  },
+  {
+    version: '5.2.2',
+    date: '2026-02-25',
+    type: 'patch',
+    changes: [
+      'Fix: search-poi paginé par batches de 1000 (.range()) — contourne le plafond PostgREST 1000 lignes',
+      'Fix: toutes les lignes de la base sont maintenant chargées (jusqu\'à 20 000)',
+      'Map: limite portée à 20 000 POIs par chargement',
+    ],
+  },
+  {
+    version: '5.2.1',
+    date: '2026-02-25',
+    type: 'patch',
+    changes: [
+      'Fix critique: filtres IA effacés dès que les catégories changeaient (race condition React)',
+      'Fix: pendingAIFilters ref — filtres stockés avant le fetch et appliqués après réception des données',
+      'Fix: setActiveFilters({}) ignoré si un filtre IA est en attente',
+    ],
+  },
+  {
+    version: '5.2.0',
+    date: '2026-02-25',
+    type: 'minor',
+    changes: [
+      'IA: modèle mistral-small-latest + response_format JSON garanti',
+      'IA: prompt revu — multi-villes, multi-régions, multi-départements',
+      'IA: support des alias (IDF, PACA, ARA, HDF) et numéros de département',
+      'IA: contexte des valeurs exactes disponibles transmis au modèle',
+      'Filtres: logique OR multi-valeur (ville: ["Brest","Versailles"] = l\'un OU l\'autre)',
+      'Filtres: tags supprimables dans la sidebar pour les filtres multi-valeur IA',
+      'Export: bouton Excel dans la barre de statut — exporte les POIs affichés',
+      'Export: inclut toutes les colonnes schema + colonnes metadata',
+      'AISearchInput: affichage des catégories et filtres appliqués en badges',
+      'AISearchInput: bouton reset pour revenir à la vue complète',
+      'AISearchInput: robot pixel art redessiné avec useRef canvas',
+    ],
+  },
   {
     version: '5.1.1',
     date: '2026-02-25',
