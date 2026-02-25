@@ -20,6 +20,7 @@ interface DataSource {
   error_count: number;
   mapping?: Record<string, string>;
   geo_config?: Record<string, string>;
+  filter_fields?: string[];
   ai_summary?: string;
   import_date: string;
   status: string;
@@ -33,6 +34,9 @@ interface Organization {
   name: string;
   slug: string;
 }
+
+// Schema columns meaningful as map filters (no id/lat/lng/geom)
+const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'categorie', 'sous_categorie'];
 
 // ============================================================
 // Helpers
@@ -75,6 +79,11 @@ export default function SourcesPage() {
   const [editName, setEditName] = useState('');
   const [editOrg, setEditOrg] = useState('');
   const [showEdit, setShowEdit] = useState(false);
+  const [showFilterEdit, setShowFilterEdit] = useState(false);
+  const [editFilterFields, setEditFilterFields] = useState<string[]>([]);
+  const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
+  const [isSavingFilters, setIsSavingFilters] = useState(false);
+  const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
 
   // ============================================================
   // Fetch data
@@ -196,6 +205,37 @@ export default function SourcesPage() {
         setShowEdit(false);
       }
     } catch { /* ignore */ }
+  };
+
+  // Fetch metadata keys for a source (to show available columns for filter editing)
+  const fetchMetaKeys = async (sourceId: string) => {
+    setIsLoadingMetaKeys(true);
+    setAvailableMetaKeys([]);
+    try {
+      const res = await fetch(`/api/admin/sources/${sourceId}/meta-keys`);
+      const data = await res.json();
+      if (data.success) setAvailableMetaKeys(data.keys || []);
+    } catch { /* ignore */ }
+    setIsLoadingMetaKeys(false);
+  };
+
+  const handleSaveFilterFields = async () => {
+    if (!selectedSource) return;
+    setIsSavingFilters(true);
+    try {
+      const res = await fetch(`/api/admin/sources/${selectedSource.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter_fields: editFilterFields }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSources((prev) => prev.map((s) => s.id === selectedSource.id ? { ...s, filter_fields: editFilterFields } : s));
+        setSelectedSource((prev) => prev ? { ...prev, filter_fields: editFilterFields } : prev);
+        setShowFilterEdit(false);
+      }
+    } catch { /* ignore */ }
+    setIsSavingFilters(false);
   };
 
   // ============================================================
@@ -322,6 +362,116 @@ export default function SourcesPage() {
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>Pas de resume — cliquez Generer</div>
+                  )}
+                </div>
+
+                {/* Filter Fields */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)' }}>// champs filtres</span>
+                    <button
+                      className="g-btn g-btn-ghost"
+                      onClick={() => {
+                        setShowFilterEdit(!showFilterEdit);
+                        if (!showFilterEdit) {
+                          setEditFilterFields(selectedSource.filter_fields || []);
+                          fetchMetaKeys(selectedSource.id);
+                        }
+                      }}
+                      style={{ padding: '2px 8px', fontSize: 11, marginLeft: 'auto' }}
+                    >
+                      {showFilterEdit ? 'Fermer' : 'Modifier'}
+                    </button>
+                  </div>
+                  {(selectedSource.filter_fields || []).length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                      {selectedSource.filter_fields!.map((f) => (
+                        <span key={f} className="g-badge g-badge-green" style={{ fontSize: 10 }}>{f}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 6 }}>Aucun filtre configure</div>
+                  )}
+                  {showFilterEdit && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 10, marginTop: 4 }}>
+                      {/* Header: counter + quick actions */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', flex: 1 }}>
+                          {editFilterFields.length} filtre{editFilterFields.length !== 1 ? 's' : ''}
+                        </span>
+                        <button
+                          className="g-btn g-btn-ghost"
+                          onClick={() => setEditFilterFields([...SCHEMA_FILTER_COLS, ...availableMetaKeys])}
+                          style={{ padding: '2px 6px', fontSize: 10 }}
+                        >
+                          Tout cocher
+                        </button>
+                        <button
+                          className="g-btn g-btn-ghost"
+                          onClick={() => setEditFilterFields([])}
+                          style={{ padding: '2px 6px', fontSize: 10 }}
+                        >
+                          Effacer
+                        </button>
+                      </div>
+
+                      {/* Schema columns */}
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>
+                        colonnes schema
+                      </div>
+                      {SCHEMA_FILTER_COLS.map((field) => {
+                        const isChecked = editFilterFields.includes(field);
+                        return (
+                          <label key={field} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 11 }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => setEditFilterFields((prev) => isChecked ? prev.filter((f) => f !== field) : [...prev, field])}
+                              style={{ accentColor: 'var(--accent)' }}
+                            />
+                            <span style={{ color: isChecked ? 'var(--accent)' : 'var(--text-secondary)', flex: 1 }}>{field}</span>
+                            <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>schema</span>
+                          </label>
+                        );
+                      })}
+
+                      {/* Metadata keys */}
+                      <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 8, marginBottom: 4, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+                        colonnes metadata {availableMetaKeys.length > 0 ? `(${availableMetaKeys.length})` : isLoadingMetaKeys ? '...' : '(aucune)'}
+                      </div>
+                      {isLoadingMetaKeys ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-dim)', padding: '4px 0' }}>
+                          <Spinner size={10} /> Chargement...
+                        </div>
+                      ) : availableMetaKeys.length === 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>Pas de cles metadata trouvees</div>
+                      ) : (
+                        availableMetaKeys.map((field) => {
+                          const isChecked = editFilterFields.includes(field);
+                          return (
+                            <label key={field} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 11 }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => setEditFilterFields((prev) => isChecked ? prev.filter((f) => f !== field) : [...prev, field])}
+                                style={{ accentColor: '#8b5cf6' }}
+                              />
+                              <span style={{ color: isChecked ? '#8b5cf6' : 'var(--text-secondary)', flex: 1 }}>{field}</span>
+                              <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>meta</span>
+                            </label>
+                          );
+                        })
+                      )}
+
+                      <button
+                        className="g-btn g-btn-primary"
+                        onClick={handleSaveFilterFields}
+                        disabled={isSavingFilters}
+                        style={{ fontSize: 11, width: '100%', marginTop: 10 }}
+                      >
+                        {isSavingFilters ? <><Spinner /> Sauvegarde...</> : 'Sauvegarder les filtres'}
+                      </button>
+                    </div>
                   )}
                 </div>
 

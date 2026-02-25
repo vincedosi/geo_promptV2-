@@ -3,14 +3,14 @@
  * Search POIs from Supabase poi_france table
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { categories, limit = 1000 } = body;
+    const { categories, limit = 10000 } = body;
 
-    const supabase = getSupabaseClient();
+    const supabase = createAdminClient();
 
     let query = supabase
       .from('poi_france')

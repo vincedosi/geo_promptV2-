@@ -67,6 +67,10 @@ export interface ImportConfig {
   // Back-office fields
   sourceName?: string;
   organizationId?: string;
+  // Columns to include in metadata (user-selected — all non-mapped by default)
+  importedColumns?: string[];
+  // Subset of importedColumns to expose as map filters
+  filterFields?: string[];
 }
 
 // ============================================================

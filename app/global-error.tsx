@@ -1,0 +1,24 @@
+'use client';
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <html>
+      <body style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a0f', color: '#e2e8f0', fontFamily: 'Inter, sans-serif', margin: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: '#ef4444' }}>Erreur critique</h2>
+        <p style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16 }}>{error.message || 'Erreur inattendue'}</p>
+        <button
+          onClick={reset}
+          style={{ padding: '8px 20px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+        >
+          Réessayer
+        </button>
+      </body>
+    </html>
+  );
+}

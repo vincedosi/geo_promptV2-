@@ -68,6 +68,8 @@ export async function POST(request: NextRequest) {
           {
             category: config.category,
             regie: config.regie,
+            importedColumns: config.importedColumns,
+            filterFields: config.filterFields,
             onGeoProgress: (processed, total) => {
               send({
                 type: 'geocode',
@@ -120,6 +122,7 @@ export async function POST(request: NextRequest) {
               error_count: result.missingCoords + result.invalidCount,
               mapping: config.mapping,
               geo_config: config.geolocation,
+              filter_fields: config.filterFields || [],
               status: 'active',
             })
             .select('id')

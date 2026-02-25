@@ -123,6 +123,8 @@ export async function processRows(
   options: {
     category?: string;
     regie?: string;
+    importedColumns?: string[]; // if set, only these columns go to metadata
+    filterFields?: string[];
     onGeoProgress?: (processed: number, total: number) => void;
   } = {}
 ): Promise<ProcessResult> {
@@ -193,7 +195,31 @@ export async function processRows(
       processedRow.categorie = options.category || 'autre';
       processedRow.sous_categorie = null;
       processedRow.source = 'import_universel';
-      processedRow.metadata = '{}';
+
+      // Collect ALL raw columns into metadata (unmapped + filter fields)
+      const mappedSourceCols = new Set(
+        Object.values(mapping).filter(Boolean) as string[]
+      );
+      // Also exclude geo columns
+      if (geoConfig.colLat) mappedSourceCols.add(geoConfig.colLat);
+      if (geoConfig.colLng) mappedSourceCols.add(geoConfig.colLng);
+      if (geoConfig.colX) mappedSourceCols.add(geoConfig.colX);
+      if (geoConfig.colY) mappedSourceCols.add(geoConfig.colY);
+      if (geoConfig.colAdresse) mappedSourceCols.add(geoConfig.colAdresse);
+      if (geoConfig.colCodePostal) mappedSourceCols.add(geoConfig.colCodePostal);
+      if (geoConfig.colVille) mappedSourceCols.add(geoConfig.colVille);
+
+      const meta: Record<string, string | null> = {};
+      for (const [col, val] of Object.entries(raw)) {
+        if (!mappedSourceCols.has(col)) {
+          // If importedColumns is specified, only include selected columns
+          // If not specified (legacy / dry-run), include all unmapped columns
+          if (!options.importedColumns || options.importedColumns.includes(col)) {
+            meta[col] = val;
+          }
+        }
+      }
+      processedRow.metadata = JSON.stringify(meta);
     }
 
     validRows.push(processedRow);

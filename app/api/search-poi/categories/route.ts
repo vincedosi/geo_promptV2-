@@ -3,11 +3,13 @@
  * Fetch distinct POI categories from poi_france table
  */
 import { NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createAdminClient();
 
     const { data, error } = await supabase
       .from('poi_france')

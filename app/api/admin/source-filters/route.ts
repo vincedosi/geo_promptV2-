@@ -3,11 +3,13 @@
  * Fetch filter fields and their available values for each data source
  */
 import { NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createAdminClient();
 
     // Get all data sources with filter config
     const { data: sources, error: sourcesError } = await supabase
@@ -33,15 +35,39 @@ export async function GET() {
       const filterValues: Record<string, string[]> = {};
 
       for (const field of filterFields) {
-        const { data: values, error: valuesError } = await supabase
-          .from('poi_france')
-          .select(field)
-          .eq('data_source_id', source.id)
-          .not(field, 'is', null);
+        // Check if field is a direct column (genesis fields) or metadata field
+        const genesisColumns = ['nom', 'adresse', 'ville', 'code_postal', 'departement', 'region', 'code_departement', 'categorie', 'sous_categorie'];
+        const isDirectColumn = genesisColumns.includes(field.toLowerCase());
 
-        if (!valuesError && values) {
-          const distinctValues = [...new Set(values.map((r: any) => r[field]).filter(Boolean))].sort();
-          filterValues[field] = distinctValues as string[];
+        if (isDirectColumn) {
+          const { data: values, error: valuesError } = await supabase
+            .from('poi_france')
+            .select(field)
+            .eq('data_source_id', source.id)
+            .not(field, 'is', null);
+
+          if (!valuesError && values) {
+            const distinctValues = [...new Set(values.map((r: any) => r[field]).filter(Boolean))].sort();
+            filterValues[field] = distinctValues as string[];
+          }
+        } else {
+          // Metadata JSONB field — query via Supabase JSONB arrow operator
+          const { data: rows, error: metaError } = await supabase
+            .from('poi_france')
+            .select('metadata')
+            .eq('data_source_id', source.id)
+            .not('metadata', 'is', null);
+
+          if (!metaError && rows) {
+            const vals = new Set<string>();
+            for (const row of rows) {
+              const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+              if (meta && meta[field] != null && meta[field] !== '') {
+                vals.add(String(meta[field]));
+              }
+            }
+            filterValues[field] = [...vals].sort();
+          }
         }
       }
 

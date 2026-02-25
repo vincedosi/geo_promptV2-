@@ -65,6 +65,7 @@ export async function PATCH(
     if (body.shared_with !== undefined) updates.shared_with = body.shared_with;
     if (body.status !== undefined) updates.status = body.status;
     if (body.ai_summary !== undefined) updates.ai_summary = body.ai_summary;
+    if (body.filter_fields !== undefined) updates.filter_fields = body.filter_fields;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ success: false, error: 'Rien a modifier' }, { status: 400 });

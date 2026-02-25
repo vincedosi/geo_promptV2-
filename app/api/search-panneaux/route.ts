@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/auth';
 import { z } from 'zod';
 
 // ============================================================================
@@ -84,45 +84,9 @@ export async function POST(request: NextRequest) {
     // ÉTAPE 3: Vérification des variables Supabase
     // ========================================================================
 
-    console.log(`[search-panneaux:${requestId}] Vérification des variables Supabase...`);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl) {
-      console.error(`[search-panneaux:${requestId}] NEXT_PUBLIC_SUPABASE_URL manquante`);
-      return NextResponse.json(
-        { error: 'NEXT_PUBLIC_SUPABASE_URL non configurée' },
-        { status: 500 }
-      );
-    }
-
-    if (!supabaseAnonKey) {
-      console.error(`[search-panneaux:${requestId}] SUPABASE_ANON_KEY manquante`);
-      return NextResponse.json(
-        { error: 'SUPABASE_ANON_KEY non configurée' },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[search-panneaux:${requestId}] Variables Supabase OK`);
-
-    // ========================================================================
-    // ÉTAPE 4: Initialisation Supabase
-    // ========================================================================
-
-    console.log(`[search-panneaux:${requestId}] Initialisation Supabase...`);
-    let supabase;
-
-    try {
-      supabase = createClient(supabaseUrl, supabaseAnonKey);
-      console.log(`[search-panneaux:${requestId}] Client Supabase créé`);
-    } catch (supabaseInitError) {
-      console.error(`[search-panneaux:${requestId}] Erreur init Supabase:`, supabaseInitError);
-      return NextResponse.json(
-        { error: 'Erreur initialisation Supabase', details: String(supabaseInitError) },
-        { status: 500 }
-      );
-    }
+    console.log(`[search-panneaux:${requestId}] Initialisation Supabase (service_role)...`);
+    const supabase = createAdminClient();
+    console.log(`[search-panneaux:${requestId}] Client Supabase admin créé`);
 
     // ========================================================================
     // ÉTAPE 5: Récupération des panneaux

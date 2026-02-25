@@ -105,6 +105,11 @@ export default function ImportUniverselPage() {
   const [logLines, setLogLines] = useState<{ level: string; line: string; ts: number }[]>([]);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
+  // -- Column selection: which columns to include in metadata
+  const [importedColumns, setImportedColumns] = useState<string[]>([]);
+  // -- Filter fields: subset of importedColumns to expose as map filters
+  const [filterFields, setFilterFields] = useState<string[]>([]);
+
   // -- Back-office: Source name + Organization
   const [sourceName, setSourceName] = useState('');
   const [organizationId, setOrganizationId] = useState('00000000-0000-0000-0000-000000000001');
@@ -157,6 +162,12 @@ export default function ImportUniverselPage() {
         if (suggested.x) { newGeo.colX = suggested.x; }
         if (suggested.y) { newGeo.colY = suggested.y; }
         setGeoMapping(newGeo);
+      }
+
+      // Auto-select all columns for import (user can deselect in Step 03b)
+      if (data.success && data.columns) {
+        setImportedColumns(data.columns.map((c: { name: string }) => c.name));
+        setFilterFields([]);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Erreur upload';
@@ -249,6 +260,8 @@ export default function ImportUniverselPage() {
         geolocation: buildGeoConfig(),
         sourceName: sourceName.trim() || undefined,
         organizationId,
+        importedColumns: importedColumns.length > 0 ? importedColumns : undefined,
+        filterFields: filterFields.length > 0 ? filterFields : undefined,
       };
 
       const res = await fetch('/api/admin/import-poi/execute', {
@@ -636,6 +649,190 @@ export default function ImportUniverselPage() {
             </div>
           </div>
         )}
+
+        {/* ============================================================ */}
+        {/* STEP 03b — Sélection des colonnes à importer + filtres      */}
+        {/* ============================================================ */}
+        {parseResult?.success && isStep2Valid && isStep3Valid && columns.length > 0 && (() => {
+          // Compute which columns are already handled by the schema/geo mapping
+          const mappedSourceCols = new Set<string>([
+            ...Object.values(mapping).filter(Boolean) as string[],
+            geoMapping.colLat, geoMapping.colLng,
+            geoMapping.colX, geoMapping.colY,
+            geoMapping.colAdresse, geoMapping.colCodePostal, geoMapping.colVille,
+          ].filter(Boolean));
+
+          // Build reverse map: source column → genesis field label
+          const colToSchema: Record<string, string> = {};
+          const fieldLabels: Record<string, string> = {
+            nom: 'nom', adresse: 'adresse', ville: 'ville', code_postal: 'code_postal',
+            departement: 'departement', region: 'region',
+            reference_panneau: 'reference', type_panneau: 'type_panneau',
+          };
+          Object.entries(mapping).forEach(([f, src]) => { if (src) colToSchema[src] = fieldLabels[f] || f; });
+          if (geoMapping.colLat) colToSchema[geoMapping.colLat] = 'latitude';
+          if (geoMapping.colLng) colToSchema[geoMapping.colLng] = 'longitude';
+          if (geoMapping.colX) colToSchema[geoMapping.colX] = 'X Lambert';
+          if (geoMapping.colY) colToSchema[geoMapping.colY] = 'Y Lambert';
+          if (geoMapping.colAdresse) colToSchema[geoMapping.colAdresse] = 'adresse (géoloc)';
+          if (geoMapping.colCodePostal) colToSchema[geoMapping.colCodePostal] = 'CP (géoloc)';
+          if (geoMapping.colVille) colToSchema[geoMapping.colVille] = 'ville (géoloc)';
+
+          const unmappedCols = columns.filter(c => !mappedSourceCols.has(c.name));
+          const importedCount = unmappedCols.filter(c => importedColumns.includes(c.name)).length;
+
+          const toggleImport = (colName: string) => {
+            setImportedColumns(prev => {
+              const next = prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName];
+              if (!next.includes(colName)) setFilterFields(pf => pf.filter(f => f !== colName));
+              return next;
+            });
+          };
+          const toggleFilter = (colName: string) => {
+            setFilterFields(prev => prev.includes(colName) ? prev.filter(f => f !== colName) : [...prev, colName]);
+          };
+
+          return (
+            <div className="g-card">
+              <div className="g-card-header">
+                <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03b</span>
+                <span className="g-card-title">Colonnes à importer</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <span className="g-badge g-badge-green">{importedCount + mappedSourceCols.size} importées</span>
+                  {filterFields.length > 0 && (
+                    <span className="g-badge" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>
+                      {filterFields.length} filtre{filterFields.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="g-card-body">
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 10 }}>
+                  // schema = toujours importé via champs GENESIS · cochez Importer pour metadata · Filtre = filtre sur la carte
+                </div>
+
+                {/* Table header */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
+                  gap: 4, padding: '4px 8px',
+                  fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
+                  color: 'var(--text-dim)', borderBottom: '1px solid var(--border)',
+                  marginBottom: 4,
+                }}>
+                  <span>Colonne · exemples</span>
+                  <span>Statut</span>
+                  <span style={{ textAlign: 'center' }}>Importer</span>
+                  <span style={{ textAlign: 'center' }}>Filtre</span>
+                </div>
+
+                {/* Rows */}
+                <div style={{ maxHeight: 400, overflow: 'auto' }}>
+                  {columns.map(col => {
+                    const isMapped = mappedSourceCols.has(col.name);
+                    const schemaField = colToSchema[col.name];
+                    const isImported = importedColumns.includes(col.name);
+                    const isFilter = filterFields.includes(col.name);
+
+                    return (
+                      <div key={col.name} style={{
+                        display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
+                        gap: 4, padding: '5px 8px', borderRadius: 4,
+                        background: isMapped ? 'rgba(99,102,241,0.05)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
+                        opacity: isMapped ? 0.75 : 1,
+                        borderBottom: '1px solid rgba(255,255,255,0.03)',
+                        alignItems: 'center',
+                      }}>
+                        {/* Nom + exemples */}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 12, fontWeight: 600,
+                            color: isMapped ? 'var(--accent)' : isImported ? 'var(--text-primary)' : 'var(--text-dim)',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>
+                            {col.name}
+                          </div>
+                          {col.sampleValues.length > 0 && (
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {col.sampleValues.slice(0, 2).join(' · ')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Statut */}
+                        {isMapped ? (
+                          <span style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            → schema:{schemaField}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            {isImported ? (isFilter ? 'metadata + filtre' : 'metadata') : 'exclu'}
+                          </span>
+                        )}
+
+                        {/* Importer checkbox */}
+                        <div style={{ textAlign: 'center' }}>
+                          {isMapped ? (
+                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>—</span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isImported}
+                              onChange={() => toggleImport(col.name)}
+                              style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: 14, height: 14 }}
+                            />
+                          )}
+                        </div>
+
+                        {/* Filtre checkbox */}
+                        <div style={{ textAlign: 'center' }}>
+                          {isMapped ? (
+                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>—</span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isFilter}
+                              disabled={!isImported}
+                              onChange={() => isImported && toggleFilter(col.name)}
+                              style={{ accentColor: '#10b981', cursor: isImported ? 'pointer' : 'not-allowed', width: 14, height: 14, opacity: isImported ? 1 : 0.3 }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Footer actions */}
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                  <button
+                    className="g-btn g-btn-ghost"
+                    style={{ fontSize: 10, padding: '2px 8px' }}
+                    onClick={() => setImportedColumns(unmappedCols.map(c => c.name))}
+                  >
+                    Tout importer
+                  </button>
+                  <button
+                    className="g-btn g-btn-ghost"
+                    style={{ fontSize: 10, padding: '2px 8px' }}
+                    onClick={() => { setImportedColumns([]); setFilterFields([]); }}
+                  >
+                    Tout exclure
+                  </button>
+                  <button
+                    className="g-btn g-btn-ghost"
+                    style={{ fontSize: 10, padding: '2px 8px' }}
+                    onClick={() => setFilterFields([])}
+                  >
+                    Effacer filtres
+                  </button>
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginLeft: 'auto' }}>
+                    {importedCount}/{unmappedCols.length} colonnes libres importées · {filterFields.length} filtres
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ============================================================ */}
         {/* STEP 04 — Dry-run */}
