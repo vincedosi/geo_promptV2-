@@ -172,3 +172,34 @@ export interface GeoResult {
   lng: number | null;
   score?: number;
 }
+
+// ============================================================
+// GEOCODE REVIEW (batch geocoding with detailed results)
+// ============================================================
+
+export type GeocodeStatus = 'green' | 'orange' | 'red';
+
+export interface GeocodeDetailedResult {
+  rowIndex: number;
+  inputAddress: string;
+  lat: number | null;
+  lng: number | null;
+  score: number;
+  resultLabel: string;
+  resultType: string; // housenumber, street, municipality, locality
+  resultCity: string;
+  resultPostcode: string;
+  status: GeocodeStatus;
+  manualOverride: boolean;
+}
+
+export interface GeocodeReviewData {
+  geocodeId: string;
+  totalRows: number;
+  results: GeocodeDetailedResult[];
+  stats: {
+    green: number;
+    orange: number;
+    red: number;
+  };
+}

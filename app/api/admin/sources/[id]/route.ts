@@ -95,23 +95,53 @@ export async function DELETE(
     const supabase = createAdminClient();
     const { id } = params;
 
-    // 1. Delete linked POIs
-    const poiResult = await supabase
-      .from('poi_france')
-      .delete()
-      .eq('data_source_id', id);
-    
-    console.log('[delete-source] POI delete result:', poiResult.error?.message || 'OK', 'count:', poiResult.count);
+    // Fetch source details to know the type
+    const { data: sourceData, error: sourceFetchErr } = await supabase
+      .from('data_sources')
+      .select('type, geo_config')
+      .eq('id', id)
+      .single();
 
-    // 2. Delete linked panneaux (may not exist)
-    const panneauxResult = await supabase
-      .from('panneaux_affichage')
-      .delete()
-      .eq('data_source_id', id);
-    
-    console.log('[delete-source] Panneaux delete result:', panneauxResult.error?.message || 'OK');
+    if (sourceFetchErr || !sourceData) {
+      return NextResponse.json({ success: false, error: 'Source non trouvée' }, { status: 404 });
+    }
 
-    // 3. Delete the data source itself (hard delete)
+    let deletedPoi = 0;
+    let deletedPanneaux = 0;
+    let deletedCarreaux = false;
+
+    if (sourceData.type === 'carreaux') {
+      // ── Carreaux : DROP la table dynamique via RPC ──────────────────────
+      const tableName = sourceData.geo_config?.table_name;
+      if (tableName) {
+        try {
+          await supabase.rpc('drop_carreaux_table', { table_name: tableName });
+          deletedCarreaux = true;
+          console.log(`[delete-source] Table carreaux '${tableName}' supprimée`);
+        } catch (dropErr: any) {
+          console.error(`[delete-source] Erreur DROP table '${tableName}':`, dropErr.message);
+          // Fallback: try deleting directly if RPC doesn't exist
+          // The table will be orphaned but the source entry will still be removed
+        }
+      }
+    } else {
+      // ── POI / Panneaux : supprimer les lignes liées ───────────────────
+      const poiResult = await supabase
+        .from('poi_france')
+        .delete()
+        .eq('data_source_id', id);
+      deletedPoi = poiResult.count || 0;
+      console.log('[delete-source] POI delete result:', poiResult.error?.message || 'OK', 'count:', deletedPoi);
+
+      const panneauxResult = await supabase
+        .from('panneaux_affichage')
+        .delete()
+        .eq('data_source_id', id);
+      deletedPanneaux = panneauxResult.count || 0;
+      console.log('[delete-source] Panneaux delete result:', panneauxResult.error?.message || 'OK');
+    }
+
+    // Supprimer l'entrée data_sources
     const sourceResult = await supabase
       .from('data_sources')
       .delete()
@@ -127,8 +157,9 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       deleted: {
-        poi: poiResult.count || 0,
-        panneaux: panneauxResult.count || 0,
+        poi: deletedPoi,
+        panneaux: deletedPanneaux,
+        carreaux: deletedCarreaux,
         source: true,
       },
     });

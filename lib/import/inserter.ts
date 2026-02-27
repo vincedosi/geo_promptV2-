@@ -4,6 +4,7 @@
  * Chaque INSERT → log OK / SKIP / ERR envoyé au client via callback
  */
 import { createAdminClient } from '@/lib/auth';
+import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import type { ProcessedRow, LogCallback } from './types';
 
 const BATCH_SIZE = 50;
@@ -13,7 +14,7 @@ function getSupabase() {
 }
 
 // ============================================================
-// POI Insert — poi_france table — batch via Supabase upsert
+// POI Insert — poi table — batch via Supabase upsert
 // ============================================================
 
 async function insertPoiBatch(
@@ -237,6 +238,11 @@ export async function insertRows(
   const endMsg = `====== FIN: inserted=${totalInserted}, ignored=${totalIgnored}, errors=${totalErrors} ======`;
   console.log(`[INSERTER] ${endMsg}`);
   onLog?.('info', endMsg);
+
+  // Invalider le cache des catégories pour que les nouvelles catégories soient visibles immédiatement
+  if (dataType === 'poi' && totalInserted > 0) {
+    invalidateCategoriesCache();
+  }
 
   if (firstError) {
     const errSummary = `Premiere erreur: ${firstError}`;

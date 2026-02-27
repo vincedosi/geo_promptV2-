@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { INITIAL_VIEWPORT } from '@/lib/map/config';
@@ -22,7 +22,11 @@ interface POI {
 
 interface MapContainerProps {
   pois: POI[];
+  carreauxGeoJSON?: GeoJSON.FeatureCollection | null;
+  carreauxMetric?: string;
+  carreauxVisible?: boolean;
   onCoordsInfo?: (valid: number, total: number) => void;
+  flyToTrigger?: number;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -38,6 +42,10 @@ function getCategoryColor(cat: string): string {
   return CATEGORY_COLORS[cat?.toLowerCase()] || CATEGORY_COLORS.default;
 }
 
+function formatMetricLabel(field: string): string {
+  return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function isValidPOI(p: POI): boolean {
   const lat = Number(p.lat);
   const lng = Number(p.lng);
@@ -50,16 +58,15 @@ function buildPopupHTML(p: POI, color: string): string {
     `<div style="padding:8px;font-family:sans-serif;font-size:13px;line-height:1.5">`,
     `<b>${nom}</b><br/>`,
     `<span style="color:${color};font-size:11px;text-transform:uppercase;font-weight:600">${p.categorie || ''}</span>`,
-    p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '',
-    p.adresse ? `<p style="margin:4px 0 0;color:#475569">📍 ${p.adresse}</p>` : '',
-    p.ville ? `<p style="margin:4px 0 0;color:#475569">🏙️ ${p.ville}${p.code_postal ? ` (${p.code_postal})` : ''}</p>` : '',
-    p.departement ? `<p style="margin:4px 0 0;color:#64748b;font-size:12px">${p.departement}${p.region ? ` · ${p.region}` : ''}</p>` : '',
+    p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">${'\u00b7'} ${p.sous_categorie}</span>` : '',
+    p.adresse ? `<p style="margin:4px 0 0;color:#475569">${'\ud83d\udccd'} ${p.adresse}</p>` : '',
+    p.ville ? `<p style="margin:4px 0 0;color:#475569">${'\ud83c\udfe3\ufe0f'} ${p.ville}${p.code_postal ? ` (${p.code_postal})` : ''}</p>` : '',
+    p.departement ? `<p style="margin:4px 0 0;color:#64748b;font-size:12px">${p.departement}${p.region ? ` ${'\u00b7'} ${p.region}` : ''}</p>` : '',
     `</div>`,
   ];
   return parts.join('');
 }
 
-// Raster basemap style — tiles CARTO Light
 const RASTER_STYLE = {
   version: 8 as const,
   sources: {
@@ -71,31 +78,24 @@ const RASTER_STYLE = {
         'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
-      attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://openstreetmap.org/copyright">OSM</a>',
       maxzoom: 19,
     },
   },
   layers: [{ id: 'carto-bg', type: 'raster' as const, source: 'carto' }],
 };
-
-// ─── Module-level helpers (no closure issues) ─────────────────────────────────
+// ─── Module-level helpers ────────────────────────────────────────────────────
 
 function renderMarkers(
   map: MapLibreMap,
   poiList: POI[],
   markersRef: React.MutableRefObject<maplibregl.Marker[]>
 ) {
-  // Remove old markers
   markersRef.current.forEach(m => m.remove());
   markersRef.current = [];
-
   const valid = poiList.filter(isValidPOI);
-  console.log(`[MapContainer] Rendering ${valid.length} markers`);
-
   valid.forEach(p => {
     const color = getCategoryColor(p.categorie);
-
-    // Circle marker element
     const el = document.createElement('div');
     el.style.width = '10px';
     el.style.height = '10px';
@@ -104,34 +104,177 @@ function renderMarkers(
     el.style.border = '2px solid rgba(255,255,255,0.9)';
     el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.4)';
     el.style.cursor = 'pointer';
-
     const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '280px', offset: 12 })
       .setHTML(buildPopupHTML(p, color));
-
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat([Number(p.lng), Number(p.lat)])
       .setPopup(popup)
       .addTo(map);
-
     markersRef.current.push(marker);
   });
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+const CHORO_COLORS = ['#c6dbef', '#9ecae1', '#4292c6', '#2171b5', '#08306b'];
 
-export default function MapContainer({ pois, onCoordsInfo }: MapContainerProps) {
+function buildFillColor(metric: string, min: number, max: number): maplibregl.ExpressionSpecification {
+  if (min >= max) return CHORO_COLORS[2] as unknown as maplibregl.ExpressionSpecification;
+  const step = (max - min) / (CHORO_COLORS.length - 1);
+  const stops: (number | string)[] = [];
+  CHORO_COLORS.forEach((color, i) => { stops.push(min + i * step, color); });
+  return [
+    'interpolate', ['linear'],
+    ['coalesce', ['to-number', ['get', metric], 0], 0],
+    ...stops,
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+function computeMinMax(geojson: GeoJSON.FeatureCollection, metric: string): [number, number] {
+  let min = Infinity, max = -Infinity;
+  for (const f of geojson.features) {
+    const v = Number((f.properties as Record<string, unknown>)?.[metric]);
+    if (!isNaN(v)) { if (v < min) min = v; if (v > max) max = v; }
+  }
+  return min === Infinity ? [0, 1] : [min, max];
+}
+
+function computeCarreauxBounds(geojson: GeoJSON.FeatureCollection): maplibregl.LngLatBoundsLike | null {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const f of geojson.features) {
+    const geom = f.geometry;
+    if (!geom) continue;
+    const rings = geom.type === 'Polygon'
+      ? (geom as GeoJSON.Polygon).coordinates
+      : geom.type === 'MultiPolygon'
+        ? (geom as GeoJSON.MultiPolygon).coordinates.flat()
+        : [];
+    for (const ring of rings) { for (const c of ring) { if (c[0] < w) w = c[0]; if (c[1] < s) s = c[1]; if (c[0] > e) e = c[0]; if (c[1] > n) n = c[1]; } }
+  }
+  if (w === Infinity) return null;
+  return [[w, s], [e, n]];
+}
+
+function getFeatureCenter(f: GeoJSON.Feature): [number, number] | null {
+  const g = f.geometry;
+  if (!g) return null;
+  if (g.type === 'Polygon') {
+    const ring = (g as GeoJSON.Polygon).coordinates[0];
+    if (!ring || ring.length === 0) return null;
+    return [ring.reduce((s, c) => s + c[0], 0) / ring.length, ring.reduce((s, c) => s + c[1], 0) / ring.length];
+  }
+  if (g.type === 'MultiPolygon') {
+    const ring = (g as GeoJSON.MultiPolygon).coordinates[0]?.[0];
+    if (!ring || ring.length === 0) return null;
+    return [ring.reduce((s, c) => s + c[0], 0) / ring.length, ring.reduce((s, c) => s + c[1], 0) / ring.length];
+  }
+  return null;
+}
+
+/** Clean GeoJSON: strip _meta and other non-standard props that confuse geojson-vt */
+function cleanGeoJSON(raw: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  return { type: 'FeatureCollection', features: raw.features };
+}
+// ─── Zoom intelligence ─────────────────────────────────────────────────────
+
+/**
+ * Find the centroid of the densest cluster of features using a grid.
+ * Returns the ACTUAL centroid of features in the densest cell (not cell center).
+ */
+function findDenseClusterCenter(geojson: GeoJSON.FeatureCollection): [number, number] | null {
+  const GRID = 40;
+  const fullBounds = computeCarreauxBounds(geojson);
+  if (!fullBounds) return null;
+  const bb = fullBounds as [[number, number], [number, number]];
+  const cellW = (bb[1][0] - bb[0][0]) / GRID;
+  const cellH = (bb[1][1] - bb[0][1]) / GRID;
+  if (cellW === 0 || cellH === 0) return null;
+
+  const cells = new Map<string, { count: number; sumLng: number; sumLat: number }>();
+  for (const f of geojson.features) {
+    const c = getFeatureCenter(f);
+    if (!c) continue;
+    const col = Math.min(Math.floor((c[0] - bb[0][0]) / cellW), GRID - 1);
+    const row = Math.min(Math.floor((c[1] - bb[0][1]) / cellH), GRID - 1);
+    const key = `${col},${row}`;
+    const cell = cells.get(key) || { count: 0, sumLng: 0, sumLat: 0 };
+    cell.count++;
+    cell.sumLng += c[0];
+    cell.sumLat += c[1];
+    cells.set(key, cell);
+  }
+
+  if (cells.size === 0) return null;
+
+  let bestKey = '';
+  let bestCount = 0;
+  for (const [key, cell] of cells) {
+    if (cell.count > bestCount) { bestCount = cell.count; bestKey = key; }
+  }
+
+  const best = cells.get(bestKey)!;
+  const center: [number, number] = [best.sumLng / best.count, best.sumLat / best.count];
+  console.log(`  [cluster] Grid ${GRID}x${GRID}, densest="${bestKey}" ${bestCount} features, centroid=[${center[0].toFixed(4)}, ${center[1].toFixed(4)}]`);
+  return center;
+}
+
+/**
+ * Zoom vers les carreaux.
+ * TOUJOURS zoom=14 pour que les carreaux 200m soient bien visibles (~20px).
+ * Pour donnees nationales: zoom sur le cluster le plus dense.
+ * Pour donnees locales: fitBounds.
+ */
+function _zoomToCarreaux(map: MapLibreMap, geojson: GeoJSON.FeatureCollection) {
+  const bounds = computeCarreauxBounds(geojson);
+  if (!bounds) return;
+
+  const b = bounds as [[number, number], [number, number]];
+  const spanLng = b[1][0] - b[0][0];
+  const spanLat = b[1][1] - b[0][1];
+
+  console.log(`[zoom] bbox span: ${spanLng.toFixed(2)} x ${spanLat.toFixed(2)}`);
+
+  if (spanLng > 2 || spanLat > 2) {
+    // National data: find dense cluster, flyTo at z14
+    const center = findDenseClusterCenter(geojson);
+    if (center) {
+      console.log(`[zoom] -> flyTo cluster [${center[0].toFixed(4)}, ${center[1].toFixed(4)}] z=14`);
+      map.flyTo({ center, zoom: 14, duration: 1500 });
+    } else {
+      const fc = getFeatureCenter(geojson.features[0]);
+      if (fc) {
+        console.log(`[zoom] -> flyTo first feature z=14`);
+        map.flyTo({ center: fc, zoom: 14, duration: 1500 });
+      }
+    }
+  } else {
+    console.log(`[zoom] -> fitBounds local`);
+    map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 1200 });
+  }
+}
+// ─── Component ──────────────────────────────────────────────────────────────
+
+export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, carreauxVisible = true, onCoordsInfo, flyToTrigger }: MapContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
-  // Keep a ref so init effect always sees latest pois
+  const [mapReady, setMapReady] = useState(false);
+  const popupRef = useRef<maplibregl.Popup | null>(null);
+  const carreauxZoomedRef = useRef(false);
   const poisRef = useRef(pois);
   poisRef.current = pois;
+  const [renderedCount, setRenderedCount] = useState(0);
+
+  const carreauxGeoJSONRef = useRef(carreauxGeoJSON);
+  carreauxGeoJSONRef.current = carreauxGeoJSON;
+  const carreauxMetricRef = useRef(carreauxMetric);
+  carreauxMetricRef.current = carreauxMetric;
+  const carreauxVisibleRef = useRef(carreauxVisible);
+  carreauxVisibleRef.current = carreauxVisible;
 
   // ─── Init carte (once) ──────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    console.log('[MapContainer] Creating map (marker mode)');
+    console.log('[MapContainer] Creating map');
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: RASTER_STYLE as any,
@@ -142,32 +285,236 @@ export default function MapContainer({ pois, onCoordsInfo }: MapContainerProps) 
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
     map.on('error', e => console.error('[MapContainer] MapLibre error:', e.error));
-
-    // Markers are DOM elements — they work before style is loaded
     renderMarkers(map, poisRef.current, markersRef);
 
+    map.on('load', () => {
+      console.log('=== MAP LOAD ===');
+
+      // GeoJSON source (empty)
+      map.addSource('carreaux', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      // Fill layer
+      map.addLayer({
+        id: 'carreaux-fill',
+        type: 'fill',
+        source: 'carreaux',
+        paint: { 'fill-color': '#4a90d9', 'fill-opacity': 0.7 },
+      });
+
+      // Outline layer
+      map.addLayer({
+        id: 'carreaux-line',
+        type: 'line',
+        source: 'carreaux',
+        paint: { 'line-color': '#1a3a6a', 'line-width': 1, 'line-opacity': 0.9 },
+      });
+
+      console.log('  layers:', map.getStyle()?.layers?.map(l => l.id));
+
+      const vis = carreauxVisibleRef.current ? 'visible' : 'none';
+      map.setLayoutProperty('carreaux-fill', 'visibility', vis);
+      map.setLayoutProperty('carreaux-line', 'visibility', vis);
+
+      // Click popup
+      map.on('click', 'carreaux-fill', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const props = e.features[0].properties as Record<string, unknown>;
+        const metric = carreauxMetricRef.current || '';
+        const metricVal = metric && props[metric] != null
+          ? `<b>${formatMetricLabel(metric)}</b>: ${typeof props[metric] === 'number' ? (props[metric] as number).toLocaleString('fr-FR') : props[metric]}`
+          : '';
+        const label = props.commune || props.libelle_iris || props.nom || props.idcar || '';
+        const skipKeys = new Set(['idcar', 'x', 'y', metric, 'gml_id', 'objectid']);
+        const extras: string[] = [];
+        for (const [k, v] of Object.entries(props)) {
+          if (skipKeys.has(k)) continue;
+          if (typeof v === 'number') extras.push(`${formatMetricLabel(k)}: ${v.toLocaleString('fr-FR')}`);
+          if (extras.length >= 5) break;
+        }
+        const html = `<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.5;max-width:280px">
+          <b style="color:#1e40af">${label}</b><br/>
+          <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">
+            ${metricVal ? `<span>${metricVal}</span>` : ''}
+            ${extras.map(e => `<span style="color:#475569">${e}</span>`).join('')}
+          </div></div>`;
+        popupRef.current?.remove();
+        popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
+          .setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+
+      map.on('mouseenter', 'carreaux-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'carreaux-fill', () => { map.getCanvas().style.cursor = ''; });
+
+      console.log('=== MAP READY ===');
+      setMapReady(true);
+    });
+
     return () => {
-      console.log('[MapContainer] Cleanup');
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
+      popupRef.current?.remove();
       map.remove();
       mapRef.current = null;
+      setMapReady(false);
+      carreauxZoomedRef.current = false;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Update markers when pois change ────────────────────────────
+  // ─── Update markers ────────────────────────────────────────────
   useEffect(() => {
     const validCount = pois.filter(isValidPOI).length;
     onCoordsInfo?.(validCount, pois.length);
-    console.log(`[MapContainer] pois update: ${pois.length} total, ${validCount} valid`);
-
     const map = mapRef.current;
-    if (!map) return; // Map not yet created; will render on init
-
+    if (!map) return;
     renderMarkers(map, pois, markersRef);
   }, [pois, onCoordsInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── CARREAUX: set data + choropleth + auto-zoom ──────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    console.log('=== CARREAUX EFFECT === ready:', mapReady, 'features:', carreauxGeoJSON?.features?.length ?? 0);
+
+    if (!map || !mapReady) return;
+
+    const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
+    if (!source) {
+      console.error('  source "carreaux" NOT FOUND!');
+      return;
+    }
+
+    if (!carreauxGeoJSON || carreauxGeoJSON.features.length === 0) {
+      source.setData({ type: 'FeatureCollection', features: [] });
+      carreauxZoomedRef.current = false;
+      setRenderedCount(0);
+      return;
+    }
+
+    // Log first feature
+    const f0 = carreauxGeoJSON.features[0];
+    if (f0?.geometry?.type === 'Polygon') {
+      const ring = (f0.geometry as GeoJSON.Polygon).coordinates[0];
+      console.log('  f[0] ring:', ring?.length, 'pts, first:', ring?.[0]);
+    }
+
+    // ── CRITICAL: Clean GeoJSON (remove _meta etc.) ──
+    const cleanData = cleanGeoJSON(carreauxGeoJSON);
+    console.log(`  setData(${cleanData.features.length} features)...`);
+    source.setData(cleanData);
+
+    // ── Force layers on top + visible ──
+    try { map.moveLayer('carreaux-fill'); map.moveLayer('carreaux-line'); } catch {}
+    map.setLayoutProperty('carreaux-fill', 'visibility', 'visible');
+    map.setLayoutProperty('carreaux-line', 'visibility', 'visible');
+
+    // ── Choropleth ──
+    const metric = carreauxMetric || 'ind';
+    const [mn, mx] = computeMinMax(carreauxGeoJSON, metric);
+    console.log(`  metric="${metric}" [${mn}, ${mx}]`);
+
+    if (mn < mx) {
+      try {
+        map.setPaintProperty('carreaux-fill', 'fill-color', buildFillColor(metric, mn, mx));
+      } catch (err) {
+        console.error('  choropleth error:', err);
+        map.setPaintProperty('carreaux-fill', 'fill-color', '#4a90d9');
+      }
+    } else {
+      map.setPaintProperty('carreaux-fill', 'fill-color', '#4a90d9');
+    }
+    map.setPaintProperty('carreaux-fill', 'fill-opacity', 0.7);
+
+    // ── Auto-zoom ──
+    if (!carreauxZoomedRef.current && carreauxVisible) {
+      _zoomToCarreaux(map, carreauxGeoJSON);
+      carreauxZoomedRef.current = true;
+    }
+
+    // ── Force repaint ──
+    map.triggerRepaint();
+
+    // ── Post-render check (after flyTo animation ~2s + render) ──
+    const t1 = setTimeout(() => {
+      if (!mapRef.current) return;
+      const m = mapRef.current;
+      try {
+        const rendered = m.queryRenderedFeatures(undefined as any, { layers: ['carreaux-fill'] });
+        console.log(`  POST-CHECK 3s: ${rendered.length} carreaux on screen, zoom=${m.getZoom().toFixed(1)}`);
+        setRenderedCount(rendered.length);
+        if (rendered.length === 0) {
+          console.error('  ZERO carreaux visible! zoom:', m.getZoom().toFixed(1), 'visibility:', m.getLayoutProperty('carreaux-fill', 'visibility'));
+        }
+      } catch {}
+    }, 3500);
+
+    const t2 = setTimeout(() => {
+      if (!mapRef.current) return;
+      const m = mapRef.current;
+      try {
+        const rendered = m.queryRenderedFeatures(undefined as any, { layers: ['carreaux-fill'] });
+        console.log(`  POST-CHECK 6s: ${rendered.length} carreaux on screen, zoom=${m.getZoom().toFixed(1)}`);
+        setRenderedCount(rendered.length);
+      } catch {}
+    }, 6500);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [carreauxGeoJSON, carreauxMetric, mapReady, carreauxVisible]);
+
+  // ─── Localiser (manual re-center) ──────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !flyToTrigger || !carreauxGeoJSON || carreauxGeoJSON.features.length === 0) return;
+    _zoomToCarreaux(map, carreauxGeoJSON);
+  }, [flyToTrigger, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Toggle visibility ─────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = carreauxVisible ? 'visible' : 'none';
+    try {
+      map.setLayoutProperty('carreaux-fill', 'visibility', vis);
+      map.setLayoutProperty('carreaux-line', 'visibility', vis);
+    } catch {}
+  }, [carreauxVisible, mapReady]);
+
+  // Debug overlay info
+  const debugInfo = carreauxGeoJSON && carreauxGeoJSON.features.length > 0
+    ? (() => {
+        const f0 = carreauxGeoJSON.features[0];
+        const geom0 = f0?.geometry;
+        let coordInfo = '?';
+        if (geom0?.type === 'Polygon') {
+          const pt = (geom0 as GeoJSON.Polygon).coordinates[0]?.[0];
+          if (pt) {
+            const lngOk = pt[0] >= -10 && pt[0] <= 15;
+            const latOk = pt[1] >= 40 && pt[1] <= 55;
+            coordInfo = `[${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}] ${lngOk && latOk ? 'WGS84' : 'NON-WGS84!'}`;
+          }
+        }
+        const metric = carreauxMetric || 'ind';
+        const [mn, mx] = computeMinMax(carreauxGeoJSON, metric);
+        return `${carreauxGeoJSON.features.length} carreaux | ${coordInfo} | ${metric}:[${mn}..${mx}] | rendered:${renderedCount}`;
+      })()
+    : null;
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#e8e8e8' }} />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#e8e8e8' }} />
+      {debugInfo && (
+        <div style={{
+          position: 'absolute', bottom: 8, left: 8,
+          background: 'rgba(0,0,0,0.8)', color: '#00ff88',
+          fontFamily: 'monospace', fontSize: '11px',
+          padding: '4px 8px', borderRadius: '4px',
+          pointerEvents: 'none', zIndex: 20,
+          maxWidth: '90%', whiteSpace: 'nowrap',
+          overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {debugInfo}
+        </div>
+      )}
+    </div>
   );
 }

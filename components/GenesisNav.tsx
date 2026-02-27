@@ -33,6 +33,21 @@ const navItems = [
                 badge: null,
                 badgeClass: '',
             },
+            {
+                href: '/copilote',
+                label: 'Copilote IA',
+                icon: (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z" />
+                        <path d="M8 12h8M12 8v8" strokeWidth="1.5" stroke="none" />
+                        <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
+                        <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none" />
+                        <path d="M9 15c0 0 1 1.5 3 1.5s3-1.5 3-1.5" />
+                    </svg>
+                ),
+                badge: 'NEW',
+                badgeClass: 'badge-api',
+            },
         ],
     },
     {

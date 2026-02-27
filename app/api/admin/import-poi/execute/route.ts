@@ -10,9 +10,10 @@ import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
 import { insertRows, closeConnection } from '@/lib/import/inserter';
 import { createAdminClient } from '@/lib/auth';
-import type { ImportConfig } from '@/lib/import/types';
+import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
+const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        const config: ImportConfig = await request.json();
+        const config: ImportConfig & { geocodeId?: string } = await request.json();
 
         // Validate
         if (!config.fileId) {
@@ -60,6 +61,22 @@ export async function POST(request: NextRequest) {
         // Process rows (mapping + geolocation)
         send({ type: 'progress', message: 'Traitement des coordonnees...', processed: 0, total: totalRows });
 
+        // Load precomputed geocode results if available
+        let preGeocodedResults: GeocodeDetailedResult[] | undefined;
+        if (config.geocodeId) {
+          const geocodePath = path.join(GEOCODE_DIR, `${config.geocodeId}.json`);
+          if (fs.existsSync(geocodePath)) {
+            const geocodeData = JSON.parse(fs.readFileSync(geocodePath, 'utf-8'));
+            preGeocodedResults = geocodeData.results as GeocodeDetailedResult[];
+            send({
+              type: 'progress',
+              message: `Utilisation des coordonnees pre-geocodees (${preGeocodedResults.length} resultats)`,
+              processed: 0,
+              total: totalRows,
+            });
+          }
+        }
+
         const result = await processRows(
           parsed.rows,
           config.mapping,
@@ -70,6 +87,7 @@ export async function POST(request: NextRequest) {
             regie: config.regie,
             importedColumns: config.importedColumns,
             filterFields: config.filterFields,
+            preGeocodedResults,
             onGeoProgress: (processed, total) => {
               send({
                 type: 'geocode',

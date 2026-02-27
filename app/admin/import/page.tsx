@@ -10,6 +10,7 @@ import type {
   DataType,
   FieldMapping,
   GeoConfig,
+  GeocodeDetailedResult,
 } from '@/lib/import/types';
 
 // ============================================================
@@ -30,13 +31,7 @@ const GEO_MODES: { val: GeoMode; title: string; desc: string }[] = [
   { val: 'lambert93', title: 'Lambert 93 (X, Y)', desc: 'Coordonnees projetees EPSG:2154 → WGS84' },
 ];
 
-const POI_CATEGORIES = [
-  { val: 'lycee', label: 'Lycee' },
-  { val: 'college', label: 'College' },
-  { val: 'gare', label: 'Gare' },
-  { val: 'sport', label: 'Sport' },
-  { val: 'autre', label: 'Autre' },
-];
+// POI_CATEGORIES loaded dynamically from Supabase (poi_categories table)
 
 const GENESIS_FIELDS_POI = [
   { key: 'nom', label: 'Nom', required: false },
@@ -105,17 +100,36 @@ export default function ImportUniverselPage() {
   const [logLines, setLogLines] = useState<{ level: string; line: string; ts: number }[]>([]);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
+  // -- Geocode Review (Step 03c)
+  const [geocodeId, setGeocodeId] = useState<string | null>(null);
+  const [geocodeResults, setGeocodeResults] = useState<GeocodeDetailedResult[]>([]);
+  const [geocodeStats, setGeocodeStats] = useState<{ green: number; orange: number; red: number } | null>(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [editAddress, setEditAddress] = useState('');
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
+  const [geocodeFilter, setGeocodeFilter] = useState<'all' | 'green' | 'orange' | 'red'>('all');
+  const [isUpdatingRow, setIsUpdatingRow] = useState(false);
+  const [geocodeValidated, setGeocodeValidated] = useState(false);
+
   // -- Column selection: which columns to include in metadata
   const [importedColumns, setImportedColumns] = useState<string[]>([]);
   // -- Filter fields: subset of importedColumns to expose as map filters
   const [filterFields, setFilterFields] = useState<string[]>([]);
+
+  // -- Dynamic POI categories from DB
+  const [poiCategories, setPoiCategories] = useState<{ val: string; label: string; icone: string }[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   // -- Back-office: Source name + Organization
   const [sourceName, setSourceName] = useState('');
   const [organizationId, setOrganizationId] = useState('00000000-0000-0000-0000-000000000001');
   const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
 
-  // Load organizations on mount
+  // Load organizations + categories on mount
   useEffect(() => {
     fetch('/api/admin/organizations')
       .then((res) => res.json())
@@ -125,6 +139,32 @@ export default function ImportUniverselPage() {
         }
       })
       .catch(() => { /* API pas encore configuree */ });
+
+    // Load POI categories from DB
+    fetch('/api/admin/poi-categories')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.categories) {
+          const cats = data.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
+            val: c.categorie,
+            label: c.label_fr || c.categorie,
+            icone: c.icone || '📍',
+          }));
+          setPoiCategories(cats);
+          // Auto-select first category if available
+          if (cats.length > 0 && !category) setCategory(cats[0].val);
+        }
+      })
+      .catch(() => {
+        // Fallback hardcoded if API not available
+        setPoiCategories([
+          { val: 'lycee', label: 'Lycee', icone: '🏫' },
+          { val: 'college', label: 'College', icone: '🏫' },
+          { val: 'gare', label: 'Gare', icone: '🚂' },
+          { val: 'sport', label: 'Sport', icone: '⚽' },
+          { val: 'autre', label: 'Autre', icone: '📍' },
+        ]);
+      });
   }, []);
 
   // ============================================================
@@ -206,13 +246,89 @@ export default function ImportUniverselPage() {
     ...(geoMode === 'lambert93' && { colX: geoMapping.colX, colY: geoMapping.colY }),
   });
 
+  // ============================================================
+  // Step 03c: Geocode batch (BAN API)
+  // ============================================================
+
+  const handleGeocodeBatch = async () => {
+    if (!parseResult?.fileId) return;
+    setIsGeocoding(true);
+    setGeocodeError(null);
+    setGeocodeResults([]);
+    setGeocodeStats(null);
+    setGeocodeId(null);
+    setGeocodeValidated(false);
+
+    try {
+      const gc = buildGeoConfig();
+      const body = {
+        fileId: parseResult.fileId,
+        colAdresse: gc.colAdresse,
+        colCodePostal: gc.colCodePostal,
+        colVille: gc.colVille,
+      };
+
+      const res = await fetch('/api/admin/geocode/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        setGeocodeError(data.error || 'Erreur geocodage');
+        return;
+      }
+
+      setGeocodeId(data.geocodeId);
+      setGeocodeResults(data.results);
+      setGeocodeStats(data.stats);
+    } catch (e: unknown) {
+      setGeocodeError(e instanceof Error ? e.message : 'Erreur geocodage');
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleGeocodeUpdateRow = async (rowIndex: number, action: { type: 'manual'; lat: number; lng: number } | { type: 'reGeocode'; address: string } | { type: 'ignore' }) => {
+    if (!geocodeId) return;
+    setIsUpdatingRow(true);
+
+    try {
+      const res = await fetch('/api/admin/geocode/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geocodeId, rowIndex, action }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        // Update local state
+        setGeocodeResults((prev) =>
+          prev.map((r) => (r.rowIndex === rowIndex ? data.updatedResult : r))
+        );
+        setGeocodeStats(data.stats);
+        setEditingRow(null);
+        setEditAddress('');
+        setEditLat('');
+        setEditLng('');
+      }
+    } catch { /* ignore */ } finally {
+      setIsUpdatingRow(false);
+    }
+  };
+
+  // ============================================================
+  // Step 4: Dry-run
+  // ============================================================
+
   const handleDryRun = async () => {
     if (!parseResult?.fileId) return;
     setIsDryRunning(true);
     setDryRunResult(null);
 
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         fileId: parseResult.fileId,
         dataType,
         category: dataType === 'poi' ? category : undefined,
@@ -221,6 +337,11 @@ export default function ImportUniverselPage() {
         geolocation: buildGeoConfig(),
         limit: 100,
       };
+
+      // Pass geocodeId if address mode was used with pre-geocoding
+      if (geoMode === 'address' && geocodeId) {
+        body.geocodeId = geocodeId;
+      }
 
       const res = await fetch('/api/admin/import-poi/dry-run', {
         method: 'POST',
@@ -251,7 +372,7 @@ export default function ImportUniverselPage() {
     setLogLines([]);
 
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         fileId: parseResult.fileId,
         dataType,
         category: dataType === 'poi' ? category : undefined,
@@ -263,6 +384,11 @@ export default function ImportUniverselPage() {
         importedColumns: importedColumns.length > 0 ? importedColumns : undefined,
         filterFields: filterFields.length > 0 ? filterFields : undefined,
       };
+
+      // Pass geocodeId if address mode was used with pre-geocoding
+      if (geoMode === 'address' && geocodeId) {
+        body.geocodeId = geocodeId;
+      }
 
       const res = await fetch('/api/admin/import-poi/execute', {
         method: 'POST',
@@ -385,6 +511,9 @@ export default function ImportUniverselPage() {
     : geoMode === 'address'
       ? !!(geoMapping.colAdresse || mapping.adresse || geoMapping.colVille || mapping.ville)
       : !!(geoMapping.colX && geoMapping.colY);
+
+  // For address mode: geocode step must be completed and validated before proceeding
+  const isGeocodeReady = geoMode !== 'address' || geocodeValidated;
 
   return (
     <div className="genesis-content" style={{ maxWidth: 900 }}>
@@ -543,15 +672,69 @@ export default function ImportUniverselPage() {
                 </label>
               ))}
 
-              {/* POI: category select */}
+              {/* POI: category select — loaded from DB */}
               {dataType === 'poi' && (
                 <div style={{ marginTop: 8 }}>
                   <label className="g-label">Categorie POI</label>
-                  <select className="g-input" value={category} onChange={(e) => setCategory(e.target.value)} style={{ maxWidth: 300 }}>
-                    {POI_CATEGORIES.map((c) => (
-                      <option key={c.val} value={c.val}>{c.label}</option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select className="g-input" value={category} onChange={(e) => setCategory(e.target.value)} style={{ maxWidth: 300 }}>
+                      {poiCategories.map((c) => (
+                        <option key={c.val} value={c.val}>{c.icone} {c.label}</option>
+                      ))}
+                    </select>
+                    {poiCategories.length === 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Chargement...</span>
+                    )}
+                  </div>
+                  {/* Inline: create new category */}
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>
+                      + Creer une nouvelle categorie
+                    </summary>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                      <input
+                        type="text"
+                        className="g-input"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Ex: cirfa, commerce, sante..."
+                        style={{ maxWidth: 250, fontSize: 12, padding: '4px 8px' }}
+                      />
+                      <button
+                        className="g-btn g-btn-success"
+                        style={{ fontSize: 11, padding: '4px 12px' }}
+                        disabled={!newCategoryName.trim() || isCreatingCategory}
+                        onClick={async () => {
+                          setIsCreatingCategory(true);
+                          try {
+                            const res = await fetch('/api/admin/poi-categories', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ categorie: newCategoryName.trim() }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              // Reload categories
+                              const res2 = await fetch('/api/admin/poi-categories');
+                              const data2 = await res2.json();
+                              if (data2.success) {
+                                const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
+                                  val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '📍',
+                                }));
+                                setPoiCategories(cats);
+                              }
+                              setCategory(data.categorie);
+                              setNewCategoryName('');
+                            }
+                          } catch { /* ignore */ } finally {
+                            setIsCreatingCategory(false);
+                          }
+                        }}
+                      >
+                        {isCreatingCategory ? <Spinner size={10} /> : 'Creer'}
+                      </button>
+                    </div>
+                  </details>
                 </div>
               )}
 
@@ -835,9 +1018,294 @@ export default function ImportUniverselPage() {
         })()}
 
         {/* ============================================================ */}
+        {/* STEP 03c — Geocodage adresses (BAN API)                      */}
+        {/* ============================================================ */}
+        {parseResult?.success && isStep2Valid && isStep3Valid && geoMode === 'address' && (() => {
+          const filteredResults = geocodeFilter === 'all'
+            ? geocodeResults
+            : geocodeResults.filter((r) => r.status === geocodeFilter);
+
+          // Sort: red first, then orange, then green
+          const sortedResults = [...filteredResults].sort((a, b) => {
+            const order = { red: 0, orange: 1, green: 2 };
+            return order[a.status] - order[b.status];
+          });
+
+          const statusColor = (s: string) =>
+            s === 'green' ? '#22c55e' : s === 'orange' ? '#fb923c' : '#ef4444';
+          const statusLabel = (s: string) =>
+            s === 'green' ? 'OK' : s === 'orange' ? 'Approx.' : 'Echec';
+
+          return (
+            <div className="g-card">
+              <div className="g-card-header">
+                <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03c</span>
+                <span className="g-card-title">Geocodage adresses</span>
+                {geocodeStats && (
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                    <span className="g-badge g-badge-green">{geocodeStats.green} OK</span>
+                    {geocodeStats.orange > 0 && (
+                      <span className="g-badge" style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c' }}>{geocodeStats.orange} approx.</span>
+                    )}
+                    {geocodeStats.red > 0 && (
+                      <span className="g-badge" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{geocodeStats.red} echecs</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="g-card-body">
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 10 }}>
+                  // geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV
+                </div>
+
+                {/* Launch button */}
+                {!geocodeId && (
+                  <button
+                    onClick={handleGeocodeBatch}
+                    disabled={isGeocoding}
+                    className="g-btn g-btn-success"
+                    style={{ minWidth: 250 }}
+                  >
+                    {isGeocoding ? <><Spinner /> Geocodage en cours...</> : `Lancer le geocodage (${parseResult.totalRows} adresses)`}
+                  </button>
+                )}
+
+                {geocodeError && (
+                  <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
+                    {geocodeError}
+                  </div>
+                )}
+
+                {/* Results review */}
+                {geocodeResults.length > 0 && geocodeStats && (
+                  <div style={{ marginTop: 16 }}>
+                    {/* Stats */}
+                    <div className="g-grid-3" style={{ marginBottom: 16 }}>
+                      <div className="stat-card" onClick={() => setGeocodeFilter('green')} style={{ cursor: 'pointer', outline: geocodeFilter === 'green' ? '2px solid #22c55e' : 'none', borderRadius: 6 }}>
+                        <div className="stat-label">Geocodes OK</div>
+                        <div className="stat-value" style={{ color: '#22c55e' }}>{geocodeStats.green}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score ≥ 0.6</div>
+                      </div>
+                      <div className="stat-card" onClick={() => setGeocodeFilter('orange')} style={{ cursor: 'pointer', outline: geocodeFilter === 'orange' ? '2px solid #fb923c' : 'none', borderRadius: 6 }}>
+                        <div className="stat-label">Approximatifs</div>
+                        <div className="stat-value" style={{ color: '#fb923c' }}>{geocodeStats.orange}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score 0.3–0.6</div>
+                      </div>
+                      <div className="stat-card" onClick={() => setGeocodeFilter('red')} style={{ cursor: 'pointer', outline: geocodeFilter === 'red' ? '2px solid #ef4444' : 'none', borderRadius: 6 }}>
+                        <div className="stat-label">Non trouves</div>
+                        <div className="stat-value" style={{ color: '#ef4444' }}>{geocodeStats.red}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score &lt; 0.3</div>
+                      </div>
+                    </div>
+
+                    {/* Filter bar */}
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+                      {(['all', 'red', 'orange', 'green'] as const).map((f) => (
+                        <button
+                          key={f}
+                          className={`g-btn g-btn-ghost${geocodeFilter === f ? ' selected' : ''}`}
+                          style={{
+                            fontSize: 10,
+                            padding: '3px 10px',
+                            background: geocodeFilter === f ? (f === 'all' ? 'var(--accent-dim)' : `${statusColor(f)}22`) : 'transparent',
+                            color: geocodeFilter === f ? (f === 'all' ? 'var(--accent)' : statusColor(f)) : 'var(--text-dim)',
+                            border: `1px solid ${geocodeFilter === f ? (f === 'all' ? 'var(--accent)' : statusColor(f)) : 'var(--border)'}`,
+                          }}
+                          onClick={() => setGeocodeFilter(f)}
+                        >
+                          {f === 'all' ? `Tous (${geocodeResults.length})` : `${statusLabel(f)} (${geocodeResults.filter(r => r.status === f).length})`}
+                        </button>
+                      ))}
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                        {filteredResults.length} resultats affiches
+                      </span>
+                    </div>
+
+                    {/* Results table */}
+                    <div style={{ maxHeight: 500, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                      {/* Table header */}
+                      <div style={{
+                        display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
+                        gap: 4, padding: '6px 8px',
+                        fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
+                        color: 'var(--text-dim)', borderBottom: '1px solid var(--border)',
+                        position: 'sticky', top: 0, background: 'var(--card-bg)', zIndex: 1,
+                      }}>
+                        <span>#</span>
+                        <span>Adresse saisie</span>
+                        <span>Resultat BAN</span>
+                        <span>Score</span>
+                        <span>Statut</span>
+                        <span>Actions</span>
+                      </div>
+
+                      {/* Table rows (show max 200 for performance) */}
+                      {sortedResults.slice(0, 200).map((result) => (
+                        <div key={result.rowIndex}>
+                          <div style={{
+                            display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
+                            gap: 4, padding: '5px 8px',
+                            borderBottom: '1px solid rgba(255,255,255,0.03)',
+                            alignItems: 'center',
+                            background: result.status === 'red' ? 'rgba(239,68,68,0.05)' : result.status === 'orange' ? 'rgba(251,146,60,0.03)' : 'transparent',
+                          }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{result.rowIndex + 1}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.inputAddress}>
+                              {result.inputAddress || <i style={{ color: 'var(--text-dim)' }}>vide</i>}
+                            </span>
+                            <span style={{ fontSize: 11, color: result.status === 'green' ? 'var(--text-primary)' : 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.resultLabel}>
+                              {result.resultLabel || '—'}
+                              {result.manualOverride && <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 4 }}>✎</span>}
+                            </span>
+                            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: statusColor(result.status), fontWeight: 600 }}>
+                              {result.score.toFixed(2)}
+                            </span>
+                            <span style={{ fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
+                              {statusLabel(result.status)}
+                            </span>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {result.status !== 'green' && (
+                                <>
+                                  <button
+                                    className="g-btn g-btn-ghost"
+                                    style={{ fontSize: 9, padding: '2px 6px' }}
+                                    onClick={() => {
+                                      setEditingRow(editingRow === result.rowIndex ? null : result.rowIndex);
+                                      setEditAddress(result.inputAddress);
+                                      setEditLat(result.lat?.toString() || '');
+                                      setEditLng(result.lng?.toString() || '');
+                                    }}
+                                  >
+                                    {editingRow === result.rowIndex ? 'Fermer' : 'Corriger'}
+                                  </button>
+                                  <button
+                                    className="g-btn g-btn-ghost"
+                                    style={{ fontSize: 9, padding: '2px 6px', color: 'var(--text-dim)' }}
+                                    onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'ignore' })}
+                                    disabled={isUpdatingRow}
+                                  >
+                                    Ignorer
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Inline edit form */}
+                          {editingRow === result.rowIndex && (
+                            <div style={{
+                              padding: '10px 8px 10px 58px',
+                              background: 'rgba(99,102,241,0.05)',
+                              borderBottom: '1px solid var(--border)',
+                              display: 'flex', flexDirection: 'column', gap: 8,
+                            }}>
+                              {/* Re-geocode with corrected address */}
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <label style={{ fontSize: 10, color: 'var(--text-dim)', minWidth: 80 }}>Adresse :</label>
+                                <input
+                                  type="text"
+                                  className="g-input"
+                                  value={editAddress}
+                                  onChange={(e) => setEditAddress(e.target.value)}
+                                  style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
+                                  placeholder="Corrigez l'adresse et re-geocodez"
+                                />
+                                <button
+                                  className="g-btn g-btn-success"
+                                  style={{ fontSize: 10, padding: '4px 12px' }}
+                                  disabled={!editAddress.trim() || isUpdatingRow}
+                                  onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'reGeocode', address: editAddress.trim() })}
+                                >
+                                  {isUpdatingRow ? <Spinner size={10} /> : 'Re-geocoder'}
+                                </button>
+                              </div>
+                              {/* Manual lat/lng */}
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <label style={{ fontSize: 10, color: 'var(--text-dim)', minWidth: 80 }}>Manuel :</label>
+                                <input
+                                  type="text"
+                                  className="g-input"
+                                  value={editLat}
+                                  onChange={(e) => setEditLat(e.target.value)}
+                                  style={{ width: 100, fontSize: 11, padding: '4px 8px' }}
+                                  placeholder="Latitude"
+                                />
+                                <input
+                                  type="text"
+                                  className="g-input"
+                                  value={editLng}
+                                  onChange={(e) => setEditLng(e.target.value)}
+                                  style={{ width: 100, fontSize: 11, padding: '4px 8px' }}
+                                  placeholder="Longitude"
+                                />
+                                <button
+                                  className="g-btn g-btn-success"
+                                  style={{ fontSize: 10, padding: '4px 12px' }}
+                                  disabled={!editLat || !editLng || isNaN(Number(editLat)) || isNaN(Number(editLng)) || isUpdatingRow}
+                                  onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'manual', lat: Number(editLat), lng: Number(editLng) })}
+                                >
+                                  Valider coords
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {sortedResults.length > 200 && (
+                        <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: 'var(--text-dim)' }}>
+                          ... et {sortedResults.length - 200} autres resultats (utilisez les filtres pour affiner)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Validate button */}
+                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button
+                        className="g-btn g-btn-success"
+                        style={{ minWidth: 200 }}
+                        onClick={() => setGeocodeValidated(true)}
+                        disabled={geocodeStats.green === 0}
+                      >
+                        Valider le geocodage ({geocodeStats.green + geocodeStats.orange} lignes avec coordonnees)
+                      </button>
+                      {geocodeStats.red > 0 && (
+                        <span style={{ fontSize: 11, color: '#fb923c', fontFamily: 'JetBrains Mono, monospace' }}>
+                          {geocodeStats.red} ligne{geocodeStats.red > 1 ? 's' : ''} sans coordonnees (seront exclues de l&apos;import)
+                        </span>
+                      )}
+                      {geocodeValidated && (
+                        <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>VALIDE</span>
+                      )}
+                    </div>
+
+                    {/* Re-geocode button */}
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="g-btn g-btn-ghost"
+                        style={{ fontSize: 10 }}
+                        onClick={() => {
+                          setGeocodeId(null);
+                          setGeocodeResults([]);
+                          setGeocodeStats(null);
+                          setGeocodeValidated(false);
+                          setGeocodeError(null);
+                        }}
+                      >
+                        Relancer tout le geocodage
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ============================================================ */}
         {/* STEP 04 — Dry-run */}
         {/* ============================================================ */}
-        {parseResult?.success && isStep2Valid && isStep3Valid && (
+        {parseResult?.success && isStep2Valid && isStep3Valid && isGeocodeReady && (
           <div className="g-card">
             <div className="g-card-header">
               <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>04</span>

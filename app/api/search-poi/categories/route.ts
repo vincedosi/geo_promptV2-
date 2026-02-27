@@ -1,30 +1,15 @@
 /**
  * GENESIS — API Route — GET /api/search-poi/categories
- * Fetch distinct POI categories from poi_france table
+ * Fetch distinct POI categories from poi table (cached 60s)
  */
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/auth';
+import { getDistinctCategories } from '@/lib/poi/categories';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const supabase = createAdminClient();
-
-    const { data, error } = await supabase
-      .from('poi_france')
-      .select('categorie')
-      .not('categorie', 'is', null);
-
-    if (error) {
-      console.error('[categories] Supabase error:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    // Extract unique categories
-    const categories = [...new Set((data || []).map((row: any) => row.categorie).filter(Boolean))];
-    console.log('[categories] Found categories:', categories);
-
+    const categories = await getDistinctCategories();
     return NextResponse.json({ success: true, categories });
   } catch (error) {
     console.error('[categories] Error:', error);

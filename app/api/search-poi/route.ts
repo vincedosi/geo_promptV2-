@@ -1,6 +1,6 @@
 /**
  * GEO.Prompt — API Route — POST /api/search-poi
- * Search POIs from Supabase poi_france table
+ * Search POIs from Supabase poi table
  * Uses paginated .range() calls (1000/batch) to bypass PostgREST default row cap
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,8 +10,8 @@ const BATCH_SIZE = 1000; // PostgREST max-rows per request on Supabase hosted
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { categories, limit = 20000 } = body;
+    const body = await request.json().catch(() => ({}));
+    const { categories, limit = 20000 } = body as { categories?: string[]; limit?: number };
 
     const supabase = createAdminClient();
 

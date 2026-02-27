@@ -167,6 +167,66 @@ function exportToExcel(pois: POI[], fileLabel: string) {
 
 // ─── Composant principal ───────────────────────────────────────────────────────
 
+// ─── Carreaux types ─────────────────────────────────────────────────────────
+
+interface CarreauxSource {
+  id: string;
+  name: string;
+  tableName: string;
+  count: number;
+}
+
+// Métriques numériques prioritaires pour le carreau (triées en premier)
+const PRIORITY_METRICS = [
+  // Filosofi / carroyage INSEE (ind_c = individus, men = ménages, etc.)
+  'ind_c', 'men', 'ind_r', 'ind_srf', 'ind_a15', 'ind_a15_25',
+  'ind_age6', 'ind_age7', 'men_coll', 'men_1ind', 'men_prop', 'men_basr',
+  // IRIS / données génériques
+  'population', 'menage', 'logements', 'pop_femme', 'pop_homme',
+  'pop_0_14_ans', 'pop_15_29_ans', 'pop_30_44_ans', 'pop_45_59_ans',
+  'pop_60_74_ans', 'pop_75_ans_ou_plus', 'chomeur_15_64_ans',
+  'actifs_occupes_15_64_ans', 'familles', 'appartements', 'maisons',
+];
+
+/** Découvre les champs numériques et catégoriels d'un GeoJSON carreaux */
+function analyzeCarreauxFields(geojson: GeoJSON.FeatureCollection): {
+  numericFields: string[];
+  categoricalFilters: Record<string, { label: string; values: string[] }>;
+} {
+  if (!geojson.features.length) return { numericFields: [], categoricalFilters: {} };
+
+  const SKIP = new Set(['idcar', 'gml_id', 'objectid', 'shape_len', 'shape_area', 'iris', 'triiris', 'comexcde', 'zoneexcde', 'modif_iris', 'code_insee', 'x', 'y']);
+  const sample = geojson.features.slice(0, 50);
+  const allKeys = new Set<string>();
+  sample.forEach(f => { if (f.properties) Object.keys(f.properties).forEach(k => allKeys.add(k)); });
+
+  const numericFields: string[] = [];
+  const categoricalFilters: Record<string, { label: string; values: string[] }> = {};
+
+  for (const key of allKeys) {
+    if (SKIP.has(key)) continue;
+    const vals = sample.map(f => (f.properties as Record<string, unknown>)?.[key]).filter(v => v != null);
+    if (vals.length === 0) continue;
+
+    const numCount = vals.filter(v => typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)) && v.trim() !== '')).length;
+    if (numCount > vals.length * 0.8) {
+      numericFields.push(key);
+    } else {
+      // Catégoriel : 2-80 valeurs distinctes max
+      const uniq = [...new Set(geojson.features.map(f => String((f.properties as Record<string, unknown>)?.[key] ?? '')).filter(Boolean))];
+      if (uniq.length >= 2 && uniq.length <= 80) {
+        categoricalFilters[key] = { label: formatLabel(key), values: uniq.sort() };
+      }
+    }
+  }
+
+  // Trier : métriques prioritaires d'abord
+  const priority = new Map(PRIORITY_METRICS.map((m, i) => [m, i]));
+  numericFields.sort((a, b) => (priority.get(a) ?? 999) - (priority.get(b) ?? 999));
+
+  return { numericFields, categoricalFilters };
+}
+
 export default function MapPage() {
   const [poisRaw, setPoisRaw] = useState<POI[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -176,6 +236,16 @@ export default function MapPage() {
 
   // Filtres actifs : string = valeur unique (dropdown), string[] = OR multi-valeur (IA)
   const [activeFilters, setActiveFilters] = useState<Record<string, string | string[]>>({});
+
+  // ─── État carreaux ────────────────────────────────────────────────────────
+  const [carreauxSources, setCarreauxSources] = useState<CarreauxSource[]>([]);
+  const [selectedCarreau, setSelectedCarreau] = useState<string | null>(null); // tableName
+  const [carreauxGeoJSON, setCarreauxGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [carreauxMetric, setCarreauxMetric] = useState('ind');
+  const [carreauxVisible, setCarreauxVisible] = useState(true);
+  const [carreauxFilters, setCarreauxFilters] = useState<Record<string, string>>({});
+  const [carreauxLoading, setCarreauxLoading] = useState(false);
+  const [carreauxFlyTrigger, setCarreauxFlyTrigger] = useState(0);
 
   const handleCoordsInfo = useCallback((_valid: number, _total: number) => {}, []);
 
@@ -216,17 +286,118 @@ export default function MapPage() {
           const cats: string[] = data.categories || [];
           setAvailableCategories(cats);
           const init: Record<string, boolean> = {};
-          cats.forEach(c => { init[c] = cats.length === 1; });
+          cats.forEach(c => { init[c] = true; }); // Tout cocher par défaut
           setPoiCategories(init);
         }
       })
       .catch(err => console.error('[MapPage] categories:', err));
   }, []);
 
+  // ─── Chargement des sources carreaux ──────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/carreaux')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.sources?.length > 0) {
+          setCarreauxSources(data.sources);
+          // Auto-activer la première source
+          setSelectedCarreau(data.sources[0].tableName);
+        }
+      })
+      .catch(err => console.error('[MapPage] carreaux sources:', err));
+  }, []);
+
+  // ─── Charger le GeoJSON carreaux quand une source est sélectionnée ────────
+  useEffect(() => {
+    if (!selectedCarreau) { setCarreauxGeoJSON(null); return; }
+    const controller = new AbortController();
+    setCarreauxLoading(true);
+    setCarreauxFilters({});
+    const t0 = performance.now();
+    console.log(`[MapPage] === FETCH CARREAUX START === table=${selectedCarreau}`);
+    fetch('/api/carreaux', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tableName: selectedCarreau }),
+      signal: controller.signal,
+    })
+      .then(r => {
+        console.log(`[MapPage] Carreaux response status: ${r.status} (${(performance.now() - t0).toFixed(0)}ms)`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        const elapsed = (performance.now() - t0).toFixed(0);
+        console.log(`[MapPage] Carreaux JSON parsed (${elapsed}ms)`);
+        console.log(`[MapPage]   features count: ${data.features?.length ?? 'undefined'}`);
+        console.log(`[MapPage]   _meta:`, data._meta);
+        if (data.features && data.features.length > 0) {
+          console.log(`[MapPage]   Feature[0] geom type: ${data.features[0]?.geometry?.type}`);
+          console.log(`[MapPage]   Feature[0] coords[0][0]: ${JSON.stringify(data.features[0]?.geometry?.coordinates?.[0]?.[0])}`);
+          console.log(`[MapPage]   Feature[0] properties keys: ${Object.keys(data.features[0]?.properties || {}).slice(0, 10)}`);
+          // Strip _meta — pass only standard GeoJSON to MapContainer
+          const cleanFC: GeoJSON.FeatureCollection = {
+            type: 'FeatureCollection',
+            features: data.features,
+          };
+          setCarreauxGeoJSON(cleanFC);
+          console.log(`[MapPage] ✅ setCarreauxGeoJSON called with ${cleanFC.features.length} features (clean, no _meta)`);
+        } else if (data.error) {
+          console.error('[MapPage] ❌ carreaux API error:', data.error);
+        } else {
+          console.warn('[MapPage] ⚠ carreaux: 0 features in response', data);
+        }
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error(`[MapPage] ❌ carreaux fetch FAILED (${(performance.now() - t0).toFixed(0)}ms):`, err);
+        } else {
+          console.log('[MapPage] carreaux fetch aborted');
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setCarreauxLoading(false); });
+    return () => controller.abort();
+  }, [selectedCarreau]);
+
+  // ─── Analyse des champs carreaux ──────────────────────────────────────────
+  const carreauxAnalysis = useMemo(() => {
+    if (!carreauxGeoJSON) return { numericFields: [] as string[], categoricalFilters: {} as Record<string, { label: string; values: string[] }> };
+    return analyzeCarreauxFields(carreauxGeoJSON);
+  }, [carreauxGeoJSON]);
+
+  // ─── Auto-sélection de la première métrique valide ────────────────────────
+  useEffect(() => {
+    const fields = carreauxAnalysis.numericFields;
+    if (fields.length > 0 && !fields.includes(carreauxMetric)) {
+      console.log(`[MapPage] Auto-selecting metric: ${fields[0]} (was: ${carreauxMetric})`);
+      setCarreauxMetric(fields[0]);
+    }
+  }, [carreauxAnalysis.numericFields]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── GeoJSON carreaux filtré ──────────────────────────────────────────────
+  const filteredCarreauxGeoJSON = useMemo(() => {
+    if (!carreauxGeoJSON) return null;
+    const entries = Object.entries(carreauxFilters).filter(([, v]) => v !== '');
+    if (entries.length === 0) return carreauxGeoJSON;
+    return {
+      ...carreauxGeoJSON,
+      features: carreauxGeoJSON.features.filter(f => {
+        const props = f.properties as Record<string, unknown>;
+        return entries.every(([field, value]) => {
+          const v = props[field];
+          return v != null && normalize(String(v)) === normalize(value);
+        });
+      }),
+    };
+  }, [carreauxGeoJSON, carreauxFilters]);
+
   // ─── Chargement des POIs quand catégories changent ──────────────────────────
   useEffect(() => {
     const selectedCats = Object.keys(poiCategories).filter(c => poiCategories[c]);
     if (selectedCats.length === 0) { setPoisRaw([]); setActiveFilters({}); return; }
+
+    // AbortController : annule le fetch précédent si les catégories changent avant qu'il finisse
+    const controller = new AbortController();
 
     setIsLoading(true);
     // Ne pas réinitialiser les filtres maintenant si l'IA en a défini (pendingAIFilters)
@@ -235,28 +406,50 @@ export default function MapPage() {
       setActiveFilters({});
     }
 
+    // Capturer les filtres IA au moment du fetch (évite qu'un fetch périmé les consomme)
+    const aiFiltersSnapshot = pendingAIFilters.current;
+
     fetch('/api/search-poi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ categories: selectedCats, limit: 20000 }),
+      signal: controller.signal,
     })
       .then(r => r.json())
       .then(data => {
         if (data.pois) setPoisRaw(data.pois);
         // Appliquer les filtres IA en attente APRÈS le chargement des données
-        if (pendingAIFilters.current) {
-          setActiveFilters(pendingAIFilters.current);
-          pendingAIFilters.current = null;
+        // Utilise le snapshot capturé au début — un fetch périmé ne touchera pas aux filtres
+        if (aiFiltersSnapshot) {
+          setActiveFilters(aiFiltersSnapshot);
+          // Ne nettoyer le ref que si c'est toujours la même valeur (pas remplacé par un nouveau search)
+          if (pendingAIFilters.current === aiFiltersSnapshot) {
+            pendingAIFilters.current = null;
+          }
         }
       })
-      .catch(err => console.error('[MapPage] search-poi:', err))
-      .finally(() => setIsLoading(false));
+      .catch(err => {
+        if (err.name !== 'AbortError') console.error('[MapPage] search-poi:', err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
   }, [poiCategories]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const toggleCategory = (cat: string) => {
     setPoiCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const selectAllCategories = () => {
+    setPoiCategories(prev => Object.fromEntries(Object.keys(prev).map(k => [k, true])));
+  };
+
+  const deselectAllCategories = () => {
+    setPoiCategories(prev => Object.fromEntries(Object.keys(prev).map(k => [k, false])));
   };
 
   // Dropdown — toujours valeur unique
@@ -283,9 +476,24 @@ export default function MapPage() {
 
   const clearAllFilters = () => setActiveFilters({});
 
+  // ─── Handlers carreaux ─────────────────────────────────────────────────────
+  const toggleCarreauxSource = (tableName: string) => {
+    setSelectedCarreau(prev => prev === tableName ? null : tableName);
+  };
+
+  const handleCarreauxFilterChange = (field: string, value: string) => {
+    setCarreauxFilters(prev => ({ ...prev, [field]: value }));
+  };
+
+  const clearCarreauxFilters = () => setCarreauxFilters({});
+
   // ─── Recherche IA — supporte multi-valeurs ────────────────────────────────────
   const handleAISearch = (categories: string[], filters: Record<string, string | string[]>) => {
     console.log('[MapPage] AI Search:', { categories, filters });
+
+    if (categories.length === 0) {
+      console.warn('[MapPage] AI returned empty categories — showing ALL categories');
+    }
 
     // Mise à jour des catégories cochées
     setPoiCategories(prev => {
@@ -429,12 +637,20 @@ export default function MapPage() {
 
             {/* Catégories */}
             <div style={{ marginBottom: '20px' }}>
-              <h4 style={{
-                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
-                color: '#94a3b8', marginBottom: '8px', fontFamily: 'Inter, sans-serif',
-              }}>
-                Type d&apos;établissement
-              </h4>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <h4 style={{
+                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
+                  color: '#94a3b8', margin: 0, fontFamily: 'Inter, sans-serif',
+                }}>
+                  Type d&apos;établissement
+                </h4>
+                {availableCategories.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={selectAllCategories} style={{ background: 'none', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', cursor: 'pointer', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', fontFamily: 'Inter, sans-serif' }}>Tout</button>
+                    <button onClick={deselectAllCategories} style={{ background: 'none', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', cursor: 'pointer', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', fontFamily: 'Inter, sans-serif' }}>Aucun</button>
+                  </div>
+                )}
+              </div>
               {availableCategories.length === 0 && (
                 <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>
                   Aucune catégorie en base
@@ -541,6 +757,185 @@ export default function MapPage() {
                 Sélectionnez une catégorie pour charger les données
               </div>
             )}
+
+            {/* ── Couches carreaux ── */}
+            {carreauxSources.length > 0 && (
+              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(99,102,241,0.15)', paddingTop: '16px' }}>
+                <h4 style={{
+                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
+                  color: '#94a3b8', marginBottom: '10px', fontFamily: 'Inter, sans-serif',
+                  borderLeft: '2px solid #2171b5', paddingLeft: '8px',
+                }}>
+                  Couches de données
+                </h4>
+
+                {carreauxSources.map(src => (
+                  <div key={src.tableName}>
+                    <label style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '6px 0', cursor: 'pointer', color: '#e2e8f0',
+                      fontSize: '12px', fontFamily: 'Inter, sans-serif',
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedCarreau === src.tableName}
+                          onChange={() => toggleCarreauxSource(src.tableName)}
+                          style={{ accentColor: '#2171b5' }}
+                        />
+                        <span style={{ fontSize: '11px' }}>
+                          {src.name.replace(/_/g, ' ').slice(0, 35)}
+                        </span>
+                      </span>
+                      <span style={{ color: '#64748b', fontSize: '11px' }}>
+                        {selectedCarreau === src.tableName && filteredCarreauxGeoJSON
+                          ? filteredCarreauxGeoJSON.features.length : src.count}
+                      </span>
+                    </label>
+                  </div>
+                ))}
+
+                {/* Options carreaux quand actif */}
+                {selectedCarreau && carreauxGeoJSON && (
+                  <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
+
+                    {/* Toggle visibilité */}
+                    <label style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      fontSize: '11px', color: '#94a3b8', cursor: 'pointer', marginBottom: '10px',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={carreauxVisible}
+                        onChange={() => setCarreauxVisible(v => !v)}
+                        style={{ accentColor: '#2171b5' }}
+                      />
+                      Afficher sur la carte
+                    </label>
+
+                    {/* Sélecteur de métrique */}
+                    {carreauxAnalysis.numericFields.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        <label style={{
+                          display: 'block', fontSize: '10px', color: '#64748b',
+                          textTransform: 'uppercase', letterSpacing: '0.5px',
+                          marginBottom: '4px', fontFamily: 'Inter, sans-serif',
+                        }}>
+                          Indicateur (couleur)
+                        </label>
+                        <select
+                          value={carreauxMetric}
+                          onChange={e => setCarreauxMetric(e.target.value)}
+                          style={{
+                            width: '100%', padding: '5px 8px',
+                            background: '#1a1a2e',
+                            border: '1px solid rgba(33,113,181,0.3)',
+                            borderRadius: '6px', color: '#e2e8f0',
+                            fontSize: '11px', fontFamily: 'Inter, sans-serif', outline: 'none',
+                          }}
+                        >
+                          {carreauxAnalysis.numericFields.slice(0, 40).map(f => (
+                            <option key={f} value={f}>
+                              {formatLabel(f)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Légende gradient — couleurs identiques à CHORO_COLORS dans MapContainer */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '12px',
+                      fontSize: '10px', color: '#64748b', fontFamily: 'monospace',
+                    }}>
+                      <span>Min</span>
+                      <div style={{
+                        flex: 1, height: '8px', borderRadius: '4px',
+                        background: 'linear-gradient(to right, #c6dbef, #9ecae1, #4292c6, #2171b5, #08306b)',
+                      }} />
+                      <span>Max</span>
+                    </div>
+
+                    {/* Bouton re-centrage */}
+                    <button
+                      onClick={() => setCarreauxFlyTrigger(t => t + 1)}
+                      title="Recentrer la carte sur les carreaux"
+                      style={{
+                        width: '100%', padding: '5px 8px',
+                        background: 'rgba(33,113,181,0.12)',
+                        border: '1px solid rgba(33,113,181,0.35)',
+                        borderRadius: '5px', color: '#9ecae1',
+                        fontSize: '11px', fontFamily: 'Inter, sans-serif',
+                        cursor: 'pointer', marginBottom: '10px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(33,113,181,0.22)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(33,113,181,0.12)')}
+                    >
+                      ⊙ Localiser sur la carte
+                    </button>
+
+                    {/* Filtres carreaux */}
+                    {Object.keys(carreauxAnalysis.categoricalFilters).length > 0 && (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{
+                            fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px',
+                            color: '#64748b', fontFamily: 'Inter, sans-serif',
+                          }}>
+                            Filtrer carreaux
+                          </span>
+                          {Object.values(carreauxFilters).some(v => v !== '') && (
+                            <button
+                              onClick={clearCarreauxFilters}
+                              style={{
+                                background: 'none', border: '1px solid rgba(239,68,68,0.3)',
+                                color: '#ef4444', cursor: 'pointer', padding: '1px 5px',
+                                fontSize: '9px', borderRadius: '3px',
+                              }}
+                            >
+                              Effacer
+                            </button>
+                          )}
+                        </div>
+                        {Object.entries(carreauxAnalysis.categoricalFilters).map(([field, { label, values }]) => (
+                          <div key={field} style={{ marginBottom: '8px' }}>
+                            <label style={{
+                              display: 'block', fontSize: '10px', color: '#536882',
+                              marginBottom: '3px', fontFamily: 'Inter, sans-serif',
+                            }}>
+                              {label}
+                            </label>
+                            <select
+                              value={carreauxFilters[field] || ''}
+                              onChange={e => handleCarreauxFilterChange(field, e.target.value)}
+                              style={{
+                                width: '100%', padding: '4px 6px',
+                                background: carreauxFilters[field] ? '#1a2040' : '#1a1a2e',
+                                border: `1px solid ${carreauxFilters[field] ? 'rgba(33,113,181,0.5)' : 'rgba(33,113,181,0.15)'}`,
+                                borderRadius: '5px', color: '#e2e8f0',
+                                fontSize: '11px', fontFamily: 'Inter, sans-serif', outline: 'none',
+                              }}
+                            >
+                              <option value="">— Tous ({values.length}) —</option>
+                              {values.map(v => (
+                                <option key={v} value={v}>{v}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {carreauxLoading && (
+                      <div style={{ fontSize: '11px', color: '#f59e0b', fontStyle: 'italic' }}>
+                        ⟳ Chargement des carreaux...
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -571,6 +966,11 @@ export default function MapPage() {
               </span>
             )}
             {' '}• {selectedCount} catégorie{selectedCount !== 1 ? 's' : ''}
+            {selectedCarreau && filteredCarreauxGeoJSON && (
+              <span style={{ color: '#2171b5', marginLeft: '8px' }}>
+                ■ {filteredCarreauxGeoJSON.features.length} carreaux
+              </span>
+            )}
             {pois.length > 0 && (() => {
               const validCount = pois.filter(p =>
                 p.lat != null && p.lng != null && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng))
@@ -618,7 +1018,14 @@ export default function MapPage() {
 
         {/* Map */}
         <div style={{ flex: 1, position: 'relative' }}>
-          <MapContainer pois={pois} onCoordsInfo={handleCoordsInfo} />
+          <MapContainer
+            pois={pois}
+            carreauxGeoJSON={filteredCarreauxGeoJSON}
+            carreauxMetric={carreauxMetric}
+            carreauxVisible={carreauxVisible}
+            onCoordsInfo={handleCoordsInfo}
+            flyToTrigger={carreauxFlyTrigger}
+          />
         </div>
       </div>
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile, execFileSync, execSync } from 'child_process';
+import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { createAdminClient } from '@/lib/auth';
 
 const execFileAsync = promisify(execFile);
 
@@ -313,6 +314,9 @@ export async function POST(request: NextRequest) {
     const url = formData.get('url') as string;
     const dryRun = formData.get('dryRun') === 'true';
     const limit = formData.get('limit') as string;
+    const bbox = formData.get('bbox') as string; // "west south east north" ou vide
+    const tableName = formData.get('tableName') as string; // nom de table override
+    const columns = formData.get('columns') as string; // "col1,col2,..." ou vide = toutes
     const file = formData.get('file') as File | null;
 
     // Chemin vers le projet ETL
@@ -347,7 +351,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Construire les arguments
-    let pythonArgs: string[] = ['-X', 'utf8', scriptPath];
+    // -u : force stdout/stderr non-bufferisé (critique pour le streaming SSE en temps réel)
+    let pythonArgs: string[] = ['-X', 'utf8', '-u', scriptPath];
     let csvPath = '';
 
     if (mode === 'auto') {
@@ -390,6 +395,26 @@ export async function POST(request: NextRequest) {
       pythonArgs.push('--limit', limit);
     }
 
+    // Filtre géographique bbox : "west south east north" → 4 args séparés
+    if (bbox && bbox.trim()) {
+      const parts = bbox.trim().split(/\s+/);
+      if (parts.length === 4 && parts.every(p => !isNaN(Number(p)))) {
+        pythonArgs.push('--bbox', ...parts);
+        console.log('[import-carreaux] bbox filter:', parts.join(', '));
+      }
+    }
+
+    // Nom de table override
+    if (tableName && /^[a-z0-9_]+$/.test(tableName)) {
+      pythonArgs.push('--table', tableName);
+    }
+
+    // Filtre colonnes : "col1,col2,..." → --columns col1,col2,...
+    if (columns && columns.trim()) {
+      pythonArgs.push('--columns', columns.trim());
+      console.log('[import-carreaux] colonnes sélectionnées:', columns.trim());
+    }
+
     console.log('[import-carreaux] Python:', pythonExe);
     console.log('[import-carreaux] Method:', pythonDiag?.method);
     console.log('[import-carreaux] Args:', pythonArgs);
@@ -397,127 +422,118 @@ export async function POST(request: NextRequest) {
     const execEnv = {
       ...process.env,
       PYTHONIOENCODING: 'utf-8',
+      PYTHONUNBUFFERED: '1', // Force stdout non-bufferisé — nécessaire pour le streaming SSE
     };
 
-    // Exécuter le script Python
-    // Stratégie: shell d'abord (fonctionne avec les alias Windows), puis execFile
-    try {
-      let stdout = '';
-      let stderr = '';
-      let usedMethod = '';
-      let scriptError = false;
+    // ── SSE streaming : spawn Python et streame la progression en temps réel ─
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        const send = (data: object) => {
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch {}
+        };
 
-      // Tentative 1: via shell (cmd.exe résout les alias Microsoft Store)
-      const execAsync = promisify(require('child_process').exec);
-      const shellCmd = `"${pythonExe}" ${pythonArgs.map(a => `"${a}"`).join(' ')}`;
-      console.log(`[import-carreaux] Shell command: ${shellCmd}`);
+        console.log(`[import-carreaux] spawn shell: "${pythonExe}" ${pythonArgs.join(' ')}`);
 
-      try {
-        const result = await execAsync(shellCmd, {
+        const child = spawn(pythonExe!, pythonArgs, {
+          shell: true,
           cwd: etlPath,
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 30 * 60 * 1000,
           env: execEnv,
           windowsHide: true,
         });
-        stdout = result.stdout;
-        stderr = result.stderr;
-        usedMethod = 'shell';
-      } catch (shellErr: any) {
-        // Exit code != 0 mais Python A TOURNÉ (il y a du stderr avec traceback)
-        if (shellErr.stderr && shellErr.stderr.includes('Traceback')) {
-          // Le SCRIPT a crashé, mais Python fonctionne
-          stdout = shellErr.stdout || '';
-          stderr = shellErr.stderr || '';
-          usedMethod = 'shell';
-          scriptError = true;
-        } else if (shellErr.code === 'ENOENT' || (shellErr.stderr && shellErr.stderr.includes('introuvable'))) {
-          // Python vraiment introuvable via shell, essayer execFile
-          console.warn(`[import-carreaux] Shell failed (ENOENT), trying execFile...`);
-          try {
-            const result = await execFileAsync(pythonExe, pythonArgs, {
-              cwd: etlPath,
-              maxBuffer: 10 * 1024 * 1024,
-              timeout: 30 * 60 * 1000,
-              env: execEnv,
-              windowsHide: true,
-            });
-            stdout = result.stdout;
-            stderr = result.stderr;
-            usedMethod = 'execFile';
-          } catch (execFileErr: any) {
-            if (execFileErr.stderr && execFileErr.stderr.includes('Traceback')) {
-              stdout = execFileErr.stdout || '';
-              stderr = execFileErr.stderr || '';
-              usedMethod = 'execFile';
-              scriptError = true;
-            } else {
-              return NextResponse.json(
-                {
-                  success: false,
-                  error: `Python introuvable ou inaccessible. Vérifiez PYTHON_PATH dans .env.local`,
-                  output: execFileErr.stdout || shellErr.stdout || '',
-                  errors: execFileErr.stderr || shellErr.stderr || '',
-                  pythonUsed: pythonExe,
-                  pythonMethod: pythonDiag?.method,
-                },
-                { status: 200 }
-              );
+
+        let stdoutBuf = '';
+        let stderrBuf = '';
+
+        child.stdout?.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8');
+          stdoutBuf += text;
+          for (const line of text.split('\n')) {
+            const t = line.trim();
+            if (!t) continue;
+            send({ type: 'log', line: t });
+            // Détecter la progression : "Batch X : Y/Z insérés"
+            const m = t.match(/Batch \d+ : (\d+)\/(\d+) ins/);
+            if (m) send({ type: 'progress', current: parseInt(m[1]), total: parseInt(m[2]) });
+          }
+        });
+
+        child.stderr?.on('data', (chunk: Buffer) => { stderrBuf += chunk.toString('utf-8'); });
+
+        child.on('close', async (code: number | null) => {
+          const scriptError = code !== 0;
+          const report = parseImportReport(stdoutBuf);
+
+          // Enregistrer dans data_sources si import réel (pas dry-run)
+          let dataSourceId: string | null = null;
+          if (!scriptError && !dryRun && report.carreauxInseres && report.carreauxInseres > 0 && report.tableTarget) {
+            try {
+              const supabase = createAdminClient();
+              const originalFilename = mode === 'manual' && file
+                ? file.name
+                : report.fichierSource || 'carreaux-import';
+              const { data: srcData, error: srcErr } = await supabase
+                .from('data_sources')
+                .insert({
+                  name: report.tableTarget,
+                  type: 'carreaux',
+                  category: 'carreaux',
+                  organization_id: '00000000-0000-0000-0000-000000000001',
+                  original_filename: originalFilename,
+                  file_format: path.extname(originalFilename).replace('.', '') || 'geojson',
+                  row_count: report.carreauxTraites || 0,
+                  valid_count: report.carreauxInseres || 0,
+                  error_count: (report.carreauxTraites || 0) - (report.carreauxInseres || 0),
+                  mapping: {},
+                  geo_config: { table_name: report.tableTarget },
+                  status: 'active',
+                })
+                .select('id')
+                .single();
+              if (!srcErr) {
+                dataSourceId = srcData?.id ?? null;
+                console.log('[import-carreaux] Data source enregistrée:', dataSourceId);
+              } else {
+                console.error('[import-carreaux] Erreur data_source:', srcErr.message);
+              }
+            } catch (regErr: any) {
+              console.error('[import-carreaux] Erreur data_source:', regErr.message);
             }
           }
-        } else {
-          // Autre erreur du script (exit code != 0 mais pas ENOENT)
-          stdout = shellErr.stdout || '';
-          stderr = shellErr.stderr || '';
-          usedMethod = 'shell';
-          scriptError = true;
-        }
+
+          send({
+            type: 'done',
+            success: !scriptError,
+            mode,
+            dryRun,
+            report: !scriptError ? report : null,
+            output: stdoutBuf,
+            errors: stderrBuf || null,
+            dataSourceId,
+            error: scriptError ? 'Le script Python a rencontré une erreur' : undefined,
+            hint: scriptError && stderrBuf.includes('ModuleNotFoundError')
+              ? 'Module Python manquant. Lancez: python -m pip install -r C:\\GENESIS\\genesis_etl\\requirements.txt'
+              : undefined,
+          });
+          try { controller.close(); } catch {}
+        });
+
+        child.on('error', (err: Error) => {
+          console.error('[import-carreaux] spawn error:', err);
+          send({ type: 'done', success: false, error: err.message });
+          try { controller.close(); } catch {}
+        });
       }
+    });
 
-      // Si le script a crashé, retourner l'erreur clairement
-      if (scriptError) {
-        return NextResponse.json({
-          success: false,
-          error: 'Le script Python a rencontré une erreur',
-          output: stdout,
-          errors: stderr,
-          pythonUsed: pythonExe,
-          pythonMethod: `${pythonDiag?.method} → ${usedMethod}`,
-          hint: stderr.includes('ModuleNotFoundError')
-            ? 'Module Python manquant. Lancez: python -m pip install -r C:\\GENESIS\\genesis_etl\\requirements.txt'
-            : null,
-        }, { status: 200 });
-      }
-
-      const report = parseImportReport(stdout);
-
-      return NextResponse.json({
-        success: true,
-        mode,
-        dryRun,
-        output: stdout,
-        errors: stderr || null,
-        report,
-        pythonUsed: pythonExe,
-        pythonMethod: `${pythonDiag?.method} → ${usedMethod}`,
-        csvPath: mode === 'manual' ? csvPath : null,
-      });
-    } catch (error: any) {
-      console.error('[import-carreaux] Erreur exec Python:', error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          output: error.stdout || '',
-          errors: error.stderr || '',
-          code: error.code,
-          pythonUsed: pythonExe,
-          pythonMethod: pythonDiag?.method,
-        },
-        { status: 200 }
-      );
-    }
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+      },
+    });
   } catch (error: any) {
     console.error('[import-carreaux] Erreur globale:', error);
     return NextResponse.json(

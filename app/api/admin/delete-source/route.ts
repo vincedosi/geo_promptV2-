@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     }
     const supabase = createAdminClient();
     // Delete POIs first
-    const { error: poiErr } = await supabase.from("poi_france").delete().eq("source_id", source_id);
+    const { error: poiErr } = await supabase.from("poi").delete().eq("source_id", source_id);
     if (poiErr) throw poiErr;
     // Delete the source
     const { error: srcErr } = await supabase.from("data_sources").delete().eq("id", source_id);

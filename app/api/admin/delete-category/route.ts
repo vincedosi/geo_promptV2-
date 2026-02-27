@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "category requis" }, { status: 400 });
     }
     const supabase = createAdminClient();
-    let query = supabase.from("poi_france").delete().eq("categorie", category);
+    let query = supabase.from("poi").delete().eq("categorie", category);
     if (source_id) query = query.eq("source_id", source_id);
     const { error, count } = await query;
     if (error) throw error;

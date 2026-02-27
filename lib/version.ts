@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '5.2.3';
-export const BUILD_DATE = '2026-02-26';
+export const APP_VERSION = '5.8.12';
+export const BUILD_DATE = '2026-02-27';
 
 export interface ChangelogEntry {
   version: string;
@@ -19,6 +19,237 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.8.4',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'Fix map-test: liste indicateurs disparue — numericFields scanne maintenant 5 features (pas seulement features[0])',
+      'Fix map-test: accepte les string-encoded numbers dans les métadonnées (compatibilité RPC)',
+      'Fix carreaux API: parseMeta() — metadata retourné en string JSON par certaines fonctions RPC est maintenant JSON.parse()',
+      'UX map-test: select indicateur remplacé par message contextuel quand vide (zoom trop bas / pas de données)',
+    ],
+  },
+  {
+    version: '5.8.3',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'Fix barre de progression: Python -u flag + PYTHONUNBUFFERED=1 → stdout non-bufferisé',
+      'Sans -u: Python bufferisait stdout en 4KB → logs envoyés en batch à la fin seulement',
+      'Avec -u: chaque ligne de log Python flush immédiatement → progression en temps réel',
+    ],
+  },
+  {
+    version: '5.8.2',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'Fix critique CIRAF/catégories manquantes: getDistinctCategories() paginé sur TOUTES les lignes',
+      'Avant: seulement les 1000 premières lignes scannées → catégories importées après = invisibles',
+      'Fix: pagination .range() sur poi_france comme search-poi — détecte toutes les catégories',
+      'Map /map: boutons Tout / Aucun pour sélectionner/désélectionner toutes les catégories',
+    ],
+  },
+  {
+    version: '5.8.1',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'Import carreaux: barre de progression en temps réel (SSE streaming spawn)',
+      'Import carreaux: bouton "Pas de limite" pour vider le champ limite',
+      'Route import-carreaux: exec() → spawn() shell:true + ReadableStream SSE',
+      'UI: progression type "X / Y carreaux — Z%" avec barre animée',
+      'UI: dernière ligne de log Python affichée en live sous la barre',
+    ],
+  },
+  {
+    version: '5.8.0',
+    date: '2026-02-27',
+    type: 'minor',
+    changes: [
+      'ETL carreaux_import.py: support Shapefile (.shp via ZIP), GeoPackage (.gpkg), KML, GPX',
+      'ETL: _extract_geographic_from_zip() — détecte le premier fichier geo dans un ZIP (priorité .shp > .gpkg > .geojson > .csv)',
+      'ETL: load_carreaux_data() réécrit — auto-détection format, reprojection WGS84 via geopandas',
+      'ETL: table_name_from_file() remplace table_name_from_csv() — sanitise tous les formats',
+      'Admin UI: accept étendu .shp,.gpkg,.kml,.gpx dans le sélecteur de fichier',
+      'Admin UI: hint Shapefile → zipper .shp+.dbf+.prj+.shx',
+    ],
+  },
+  {
+    version: '5.7.2',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'DIAG fort: fill carreaux forcé #ff0000 (rouge vif) pour tester le rendu',
+      'DIAG fort: overlay debug centré en haut de la carte (fond noir, texte jaune, bordure rouge)',
+      'DIAG fort: second overlay si carreauxGeoJSON=null (aide au diagnostic client)',
+      'MapContainer: commenté setPaintProperty pendant debug (conserve rouge)',
+    ],
+  },
+  {
+    version: '5.7.1',
+    date: '2026-02-27',
+    type: 'patch',
+    changes: [
+      'DIAG carreaux: logs exhaustifs dans MapContainer (coords WGS84?, metric min/max, layers visibles)',
+      'DIAG carreaux: overlay debug bas-gauche carte — affiche 1er point + WGS84 check + metric range',
+      'DIAG carreaux: logs serveur API /api/carreaux — inspect geom row[0] (type, coords, WGS84 check)',
+    ],
+  },
+  {
+    version: '5.7.0',
+    date: '2026-02-26',
+    type: 'minor',
+    changes: [
+      'Fix critique carreaux: auto-zoom vers centroïde de TOUS les carreaux à zoom 13 (carreaux 200m = ~10px, visibles)',
+      'Fix critique: zoom 11 (2.6px/carreau) remplacé par zoom 13 (10.5px/carreau) — la vraie cause de l\'invisibilité',
+      'Ajout bouton "Localiser sur la carte" — re-centre manuellement sur les carreaux actifs',
+      'Fix légende gradient: couleurs maintenant identiques à CHORO_COLORS (#c6dbef→#08306b)',
+      'MapContainer: prop flyToTrigger (number) pour re-centrage à la demande',
+      'MapContainer: fonction _zoomToCarreaux() centralisée — bbox > 4° → centroïde moyen zoom 13, sinon fitBounds',
+      'MapContainer: computeCarreauxCentroid() — calcul du centroïde moyen sur tous les polygones',
+    ],
+  },
+  {
+    version: '5.6.2',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix critique carreaux /map: auto-zoom intelligent — bbox > 4° → flyTo premier carreau zoom 11',
+      'Fix critique: fitBounds sur toute la France (zoom 5-6) rendait les carreaux 200m sub-pixel (invisibles)',
+      'Fix search-poi: handle empty body (SyntaxError: Unexpected end of JSON input)',
+    ],
+  },
+  {
+    version: '5.6.1',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix carreaux /map: palette choroplèthe CHORO_COLORS[0] #c6dbef (visible sur fond CARTO clair)',
+      'Fix carreaux /map: contour polygon #08306b + line-width 2px (plus contrasté)',
+      'API /api/carreaux POST: geom robuste — handle GeoJSON objet ET EWKT string (fallback)',
+      'API /api/carreaux POST: diagnostic _meta.nullGeomCount dans la réponse',
+      'API /api/carreaux PUT: endpoint register — enregistre une table existante dans data_sources',
+      'SQL: setup_carreaux.sql — create_carreaux_table RPC + diagnostic + repair data_sources',
+    ],
+  },
+  {
+    version: '5.6.0',
+    date: '2026-02-26',
+    type: 'minor',
+    changes: [
+      'Carte /map : couche carreaux INSEE — polygones choroplèthe sur la carte',
+      'Carte /map : sélecteur de métrique dynamique (ind_c, men, ind_r, etc.)',
+      'Carte /map : dégradé 5 niveaux bleu, légende gradient, auto-zoom sur bbox',
+      'Carte /map : filtres catégoriels pour carreaux dans la sidebar',
+      'Carte /map : popup adaptative au clic (affiche les vrais champs du carreau)',
+      'Carte /map : auto-détection de la première métrique valide (fallback si population absent)',
+      'Carte /map : toutes les catégories POI cochées par défaut (CIRFA + lycées visibles)',
+      'Copilote : bouton toggle Carreaux + choroplèthe auto (première métrique numérique)',
+      'API /api/carreaux : GET liste sources, POST retourne GeoJSON FeatureCollection',
+      'API /api/carreaux : fetch paginé (1000/batch) + strip CRS + flatten metadata',
+      'ETL carreaux_import.py : support format X,Y hectomètres (carroyage simplifié -s2)',
+      'ETL carreaux_import.py : auto-détection mode xy_hm vs idcar classique',
+      'ETL carreaux_import.py : conversion hectomètres → mètres EPSG:3035 → WGS84',
+      'MapContainer : mapReady useState (fix timing — carreaux ignorés avant map.on load)',
+      'MapContainer : computeCarreauxBounds() + fitBounds auto au premier chargement',
+    ],
+  },
+  {
+    version: '5.5.0',
+    date: '2026-02-26',
+    type: 'minor',
+    changes: [
+      'IA: support des filtres metadata (libelle_nature, hebergement, libelle_academie, etc.)',
+      'IA: "lycée professionnel à Brest" → filtre libelle_nature: LYCEE PROFESSIONNEL + ville: Brest',
+      'IA: correspondances LP, LG, LGT, SEP vers les valeurs exactes libelle_nature',
+      'IA: prompt enrichi avec section FILTRES ATTRIBUTAIRES + 15 règles critiques',
+      'IA: 3 exemples concrets ajoutés (LP Brest, LG IDF, LP+LGT Lyon)',
+    ],
+  },
+  {
+    version: '5.4.3',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix critique cercles POI : abandon setData → remove+recreate source/layers à chaque update',
+      'Données injectées directement à la création de la source (pas de setData asynchrone)',
+      'fill-opacity 0.12, line-width 3px pour meilleure visibilité',
+    ],
+  },
+  {
+    version: '5.4.2',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix critique Copilote IA : cercles POI enfin visibles',
+      'Fill-opacity réduit à 0.08 (évite effet blob avec nombreux cercles)',
+      'setData robuste : recrée source+layers si manquants (fix StrictMode)',
+      'map.triggerRepaint() forcé après setData',
+      'Zoom adaptatif au rayon_poi_metres (500m → zoom14, 1km → zoom13)',
+    ],
+  },
+  {
+    version: '5.4.1',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix tentative cercles POI : couleur fixe #6366f1 (suppression match expression)',
+      'fill-opacity 0.08→0.18, line-width 1.2→2.5, line-opacity: 1',
+    ],
+  },
+  {
+    version: '5.4.0',
+    date: '2026-02-26',
+    type: 'minor',
+    changes: [
+      'Copilote IA : cercles individuels autour de chaque POI (rayon_poi_metres)',
+      'Copilote IA : source MapLibre poi-circles (fill + outline, couleur par catégorie)',
+      'Copilote IA : ZoneCard badge ⊙ X m / POI',
+      'Copilote IA : légende carte — entrée Rayon X m / POI',
+      'Copilote IA : prompt Mistral mis à jour pour inférer rayon_poi_metres',
+      'Copilote IA : combinaison ville entière + cercles POI si rayon demandé',
+    ],
+  },
+  {
+    version: '5.3.2',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Fix critique Copilote IA : createAdminClient() au lieu de getSupabaseClient()',
+      'Fix: la clé anon était bloquée par RLS poi_france → 0 résultats',
+      'Fix: utilisation du service_role key (bypass RLS) comme search-poi route',
+    ],
+  },
+  {
+    version: '5.3.1',
+    date: '2026-02-26',
+    type: 'patch',
+    changes: [
+      'Copilote IA : connexion réelle à poi_france (Supabase bounding box)',
+      'Copilote IA : outil renommé analyser_zone_pois — retourne de vrais POIs',
+      'Copilote IA : markers POI colorés par catégorie (cohérent avec /map)',
+      'Copilote IA : ZoneCard affiche nb établissements + breakdown par catégorie',
+      'Copilote IA : légende carte dynamique (catégories présentes uniquement)',
+      'Copilote IA : résumé compact envoyé à Mistral (sans les coords, évite tokens)',
+      'Copilote IA : prompt suggestions mises à jour (lycées, scolaire)',
+    ],
+  },
+  {
+    version: '5.3.0',
+    date: '2026-02-26',
+    type: 'minor',
+    changes: [
+      'Copilote IA : nouveau layout fullscreen Chat + Carte (split 2 panneaux)',
+      'Copilote IA : Mistral mistral-small-latest via fetch direct (sans Vercel AI SDK)',
+      'Copilote IA : function calling — outil generer_zone_et_panneaux',
+      'Copilote IA : carte MapLibre réactive (cercle + markers)',
+      'Copilote IA : messages bulles + ZoneCard résultat outil + prompt suggestions',
+      'Nav : lien Copilote IA avec badge NEW',
+      '/api/chat : route POST boucle agentique max 3 tours',
+    ],
+  },
   {
     version: '5.2.3',
     date: '2026-02-26',

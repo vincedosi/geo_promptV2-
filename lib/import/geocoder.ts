@@ -2,11 +2,12 @@
  * GENESIS — Import Universel — Geocoder
  * Port TypeScript exact de genesis_etl/geocoder.py
  * - GPS validation
- * - BAN API geocoding (api-adresse.data.gouv.fr)
+ * - BAN API geocoding (api-adresse.data.gouv.fr) — single + CSV batch
  * - Lambert-93 → WGS84 conversion (proj4)
  */
 import proj4 from 'proj4';
-import type { GeoResult } from './types';
+import Papa from 'papaparse';
+import type { GeoResult, GeocodeDetailedResult, GeocodeStatus } from './types';
 
 // ============================================================
 // proj4 — Lambert-93 (EPSG:2154) definition
@@ -160,4 +161,216 @@ export function extractDeptFromCP(codePostal: string | null | undefined): string
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ============================================================
+// Score → status classification
+// ============================================================
+
+const GREEN_THRESHOLD = 0.6;
+const ORANGE_THRESHOLD = 0.3;
+
+export function scoreToStatus(score: number): GeocodeStatus {
+  if (score >= GREEN_THRESHOLD) return 'green';
+  if (score >= ORANGE_THRESHOLD) return 'orange';
+  return 'red';
+}
+
+// ============================================================
+// BAN CSV Batch — POST /search/csv/
+// Much faster than individual calls (processes thousands at once)
+// https://adresse.data.gouv.fr/api-doc/adresse (section CSV)
+// ============================================================
+
+const BAN_CSV_URL = 'https://api-adresse.data.gouv.fr/search/csv/';
+const BAN_CSV_CHUNK_SIZE = 5000;
+
+/**
+ * Escape CSV field (double-quote if contains comma, newline, or double-quote)
+ */
+function csvEscape(val: string): string {
+  if (!val) return '';
+  if (val.includes('"') || val.includes(',') || val.includes('\n') || val.includes(';')) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+/**
+ * Build a CSV string from address rows.
+ * Columns: adresse, code_postal, ville
+ */
+function buildAddressCSV(rows: Array<{ adresse?: string; code_postal?: string; ville?: string }>): string {
+  const lines: string[] = ['adresse,code_postal,ville'];
+  for (const row of rows) {
+    lines.push([
+      csvEscape(row.adresse || ''),
+      csvEscape(row.code_postal || ''),
+      csvEscape(row.ville || ''),
+    ].join(','));
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Call BAN CSV batch endpoint for a chunk of rows.
+ * Returns parsed results with lat/lng/score/label/type.
+ */
+async function geocodeChunkCSV(
+  csvContent: string,
+  retries = 2
+): Promise<Array<{
+  lat: number | null;
+  lng: number | null;
+  score: number;
+  resultLabel: string;
+  resultType: string;
+  resultCity: string;
+  resultPostcode: string;
+}>> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const formData = new FormData();
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      formData.append('data', blob, 'addresses.csv');
+
+      // Tell BAN which columns to use
+      // columns=adresse means: use 'adresse' column for full-text search
+      // postcode=code_postal means: use 'code_postal' to restrict by postal code
+      // citycode is not used; instead we let BAN use the full address + postal code
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for batch
+
+      const response = await fetch(`${BAN_CSV_URL}?columns=adresse&columns=ville&postcode=code_postal`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`BAN CSV API HTTP ${response.status}: ${await response.text()}`);
+      }
+
+      const responseText = await response.text();
+
+      // Parse the response CSV
+      const parsed = Papa.parse<Record<string, string>>(responseText, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+      });
+
+      return parsed.data.map((row) => {
+        const lat = parseFloat(row.latitude || '');
+        const lng = parseFloat(row.longitude || '');
+        const score = parseFloat(row.result_score || '0');
+
+        return {
+          lat: isNaN(lat) ? null : lat,
+          lng: isNaN(lng) ? null : lng,
+          score: isNaN(score) ? 0 : score,
+          resultLabel: row.result_label || '',
+          resultType: row.result_type || '',
+          resultCity: row.result_city || '',
+          resultPostcode: row.result_postcode || '',
+        };
+      });
+    } catch (err) {
+      if (attempt < retries) {
+        console.warn(`[GEOCODER] BAN CSV attempt ${attempt + 1} failed, retrying...`, err);
+        await sleep(2000 * (attempt + 1));
+      } else {
+        console.error('[GEOCODER] BAN CSV all retries failed:', err);
+        throw err;
+      }
+    }
+  }
+
+  return []; // Should not reach here
+}
+
+/**
+ * Geocode a batch of address rows using BAN CSV batch endpoint.
+ * Returns detailed results with scores, labels, and status classification.
+ * Processes in chunks of BAN_CSV_CHUNK_SIZE for large files.
+ */
+export async function geocodeBatchDetailed(
+  rows: Array<{ adresse?: string; code_postal?: string; ville?: string }>,
+  onProgress?: (processed: number, total: number) => void
+): Promise<GeocodeDetailedResult[]> {
+  const allResults: GeocodeDetailedResult[] = [];
+  const totalRows = rows.length;
+
+  for (let offset = 0; offset < totalRows; offset += BAN_CSV_CHUNK_SIZE) {
+    const chunk = rows.slice(offset, offset + BAN_CSV_CHUNK_SIZE);
+    const csvContent = buildAddressCSV(chunk);
+
+    try {
+      const chunkResults = await geocodeChunkCSV(csvContent);
+
+      for (let i = 0; i < chunk.length; i++) {
+        const rowIndex = offset + i;
+        const banResult = chunkResults[i];
+        const inputParts = [chunk[i].adresse, chunk[i].code_postal, chunk[i].ville].filter(Boolean);
+        const inputAddress = inputParts.join(' ');
+
+        if (banResult && banResult.lat !== null && banResult.lng !== null) {
+          const status = scoreToStatus(banResult.score);
+          allResults.push({
+            rowIndex,
+            inputAddress,
+            lat: banResult.lat,
+            lng: banResult.lng,
+            score: banResult.score,
+            resultLabel: banResult.resultLabel,
+            resultType: banResult.resultType,
+            resultCity: banResult.resultCity,
+            resultPostcode: banResult.resultPostcode,
+            status,
+            manualOverride: false,
+          });
+        } else {
+          allResults.push({
+            rowIndex,
+            inputAddress,
+            lat: null,
+            lng: null,
+            score: banResult?.score || 0,
+            resultLabel: banResult?.resultLabel || '',
+            resultType: '',
+            resultCity: '',
+            resultPostcode: '',
+            status: 'red',
+            manualOverride: false,
+          });
+        }
+      }
+    } catch (err) {
+      // If BAN CSV fails for this chunk, mark all as red
+      console.error(`[GEOCODER] Chunk ${offset}-${offset + chunk.length} failed:`, err);
+      for (let i = 0; i < chunk.length; i++) {
+        const inputParts = [chunk[i].adresse, chunk[i].code_postal, chunk[i].ville].filter(Boolean);
+        allResults.push({
+          rowIndex: offset + i,
+          inputAddress: inputParts.join(' '),
+          lat: null,
+          lng: null,
+          score: 0,
+          resultLabel: 'Erreur API BAN',
+          resultType: '',
+          resultCity: '',
+          resultPostcode: '',
+          status: 'red',
+          manualOverride: false,
+        });
+      }
+    }
+
+    if (onProgress) {
+      onProgress(Math.min(offset + chunk.length, totalRows), totalRows);
+    }
+  }
+
+  return allResults;
 }

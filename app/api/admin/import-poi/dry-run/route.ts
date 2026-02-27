@@ -8,13 +8,14 @@ import path from 'path';
 import os from 'os';
 import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
-import type { ImportConfig } from '@/lib/import/types';
+import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
+const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {
   try {
-    const config: ImportConfig = await request.json();
+    const config: ImportConfig & { geocodeId?: string } = await request.json();
 
     // Validate required fields
     if (!config.fileId) {
@@ -44,6 +45,19 @@ export async function POST(request: NextRequest) {
     const limit = config.limit || 100;
     const rowsToTest = parsed.rows.slice(0, limit);
 
+    // Load precomputed geocode results if available
+    let preGeocodedResults: GeocodeDetailedResult[] | undefined;
+    if (config.geocodeId) {
+      const geocodePath = path.join(GEOCODE_DIR, `${config.geocodeId}.json`);
+      if (fs.existsSync(geocodePath)) {
+        const geocodeData = JSON.parse(fs.readFileSync(geocodePath, 'utf-8'));
+        // Only pass results for rows in the test range
+        preGeocodedResults = (geocodeData.results as GeocodeDetailedResult[])
+          .filter((r) => r.rowIndex < limit);
+        console.log(`[DRY-RUN] Using precomputed geocode results (${preGeocodedResults.length} rows)`);
+      }
+    }
+
     // Process rows: mapping + geolocation + validation
     const result = await processRows(
       rowsToTest,
@@ -53,6 +67,7 @@ export async function POST(request: NextRequest) {
       {
         category: config.category,
         regie: config.regie,
+        preGeocodedResults,
       }
     );
 

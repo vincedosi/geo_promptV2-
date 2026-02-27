@@ -12,6 +12,7 @@ import type {
   ValidationError,
 } from './types';
 import { geocodeBatch, lambert93ToWGS84, validateGPS, extractDeptFromCP } from './geocoder';
+import type { GeocodeDetailedResult } from './types';
 
 export interface ProcessResult {
   validRows: ProcessedRow[];
@@ -126,6 +127,8 @@ export async function processRows(
     importedColumns?: string[]; // if set, only these columns go to metadata
     filterFields?: string[];
     onGeoProgress?: (processed: number, total: number) => void;
+    /** Pre-computed geocode results from /api/admin/geocode/batch (skips BAN API calls) */
+    preGeocodedResults?: GeocodeDetailedResult[];
   } = {}
 ): Promise<ProcessResult> {
   const errors: ValidationError[] = [];
@@ -135,8 +138,22 @@ export async function processRows(
   let geocodedCount = 0;
   let geocodeErrors = 0;
 
-  // 1. Extract coordinates
-  const geoResults = await extractCoordinates(rawRows, geoConfig, options.onGeoProgress);
+  // 1. Extract coordinates (use precomputed if available)
+  let geoResults: GeoResult[];
+
+  if (options.preGeocodedResults && options.preGeocodedResults.length > 0) {
+    // Use pre-computed geocode results from the review step
+    // Only include green/orange results (red = not found / ignored)
+    geoResults = rawRows.map((_row, i) => {
+      const precomputed = options.preGeocodedResults!.find((r) => r.rowIndex === i);
+      if (precomputed && precomputed.lat !== null && precomputed.lng !== null && precomputed.status !== 'red') {
+        return { lat: precomputed.lat, lng: precomputed.lng, score: precomputed.score };
+      }
+      return { lat: null, lng: null, score: precomputed?.score ?? 0 };
+    });
+  } else {
+    geoResults = await extractCoordinates(rawRows, geoConfig, options.onGeoProgress);
+  }
 
   // 2. Process each row
   for (let i = 0; i < rawRows.length; i++) {
