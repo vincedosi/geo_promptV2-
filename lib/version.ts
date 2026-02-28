@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '5.8.12';
-export const BUILD_DATE = '2026-02-27';
+export const APP_VERSION = '5.10.0';
+export const BUILD_DATE = '2026-02-28';
 
 export interface ChangelogEntry {
   version: string;
@@ -19,6 +19,63 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.10.0',
+    date: '2026-02-28',
+    type: 'minor',
+    changes: [
+      'Feature: Moteur d\'analyse spatiale piloté par Mistral AI',
+      'Feature: Voronoï par catégorie (PostGIS ST_VoronoiPolygons)',
+      'Feature: Analyse de proximité (PostGIS ST_DWithin)',
+      'Feature: Isochrone ponctuelle via ORS (walk/drive/bike)',
+      'Feature: Sauvegarde des analyses dans saved_analysis (Supabase)',
+      'API: POST/GET/DELETE /api/spatial',
+      'Lib: lib/spatial/engine.ts — agentic loop Mistral avec 4 tools',
+      'SQL: add_voronoi_spatial_engine.sql — get_voronoi_by_category + get_proximity_by_category',
+      'Fix: locationLabel déclaré avant le bloc isochrone dans chat/route.ts (ReferenceError)',
+    ],
+  },
+  {
+    version: '5.9.2',
+    date: '2026-02-28',
+    type: 'patch',
+    changes: [
+      'Fix: _fromCache + _cachedAt perdus lors de la fusion isochroneData dans le POST handler',
+      'Fix: multi-résultats isochrone (lycee + cirfa) → _fromCache=false si au moins un batch recalculé',
+      'Cache isochrone: générique pour toutes villes, durées, modes (walk/drive/bike)',
+    ],
+  },
+  {
+    version: '5.9.1',
+    date: '2026-02-28',
+    type: 'patch',
+    changes: [
+      'Isochrones: cache Supabase (table isochrones_cache) — évite les recalculs ORS coûteux',
+      'Isochrones: badge "♻️ cache" + date + bouton "Recalculer" sur l\'isochrone en cache',
+      'Isochrones: forceRecalculate=true dans /api/chat → bypass cache Supabase',
+      'Sauvegarde: table saved_maps + API /api/saved-maps (GET/POST/DELETE)',
+      'Sauvegarde: bouton 💾 + panel inline dans le header du Copilote',
+      'Chargement: bouton 📁 + liste des cartes sauvegardées avec Charger/🗑',
+      'Chargement: restaure messages, zone, carreaux et isochrones',
+      'SQL: migration add_isochrones_cache_and_saved_maps.sql',
+    ],
+  },
+  {
+    version: '5.9.0',
+    date: '2026-02-28',
+    type: 'minor',
+    changes: [
+      'Copilote IA: isochrones OpenRouteService autour des POI',
+      'Mistral: params isochrone_minutes + isochrone_mode ajoutés à analyser_zone_pois',
+      'Backend: fetchIsochrones() — batch 5 POIs/appel ORS, retry 20s sur 429 (rate limit)',
+      'Backend: troncature à 50 POIs max (10 batches), maxDuration=120s pour retries longs',
+      'Backend: profils walk → foot-walking, drive → driving-car, bike → cycling-regular',
+      'Copilote: couche MapLibre isochrones-fill + isochrones-line (couleur par mode)',
+      'Copilote: badge isochrone en haut de carte (durée + mode), bouton ✕ pour fermer',
+      'Copilote: légende isochrone dans la sidebar (couleur par mode)',
+      'Copilote: suggestions "Isochrone 5 min à pied" + "Zone 15 min voiture"',
+    ],
+  },
   {
     version: '5.8.4',
     date: '2026-02-27',

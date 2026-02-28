@@ -30,10 +30,35 @@ interface ZoneData {
   categories: Record<string, number>;
 }
 
+interface CarreauxData {
+  action: 'afficher_carreaux';
+  indicateur: string;
+  indicateur_label: string;
+  ville?: string;
+  coordonnees: { lat: number; lng: number };
+}
+
+interface IsochroneData {
+  type: 'FeatureCollection';
+  features: GeoJSON.Feature[];
+  _meta: { mode: string; minutes: number };
+  _fromCache?: boolean;
+  _cachedAt?: string;
+}
+
+interface SavedMap {
+  id: string;
+  name: string;
+  ville?: string;
+  nb_pois: number;
+  created_at: string;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   zoneData?: ZoneData;
+  carreauxData?: CarreauxData;
 }
 
 // =============================================================================
@@ -59,6 +84,19 @@ function circleGeoJSON(
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
 }
 
+// Couleurs par mode d'isochrone
+const ISOCHRONE_COLORS: Record<string, { fill: string; line: string }> = {
+  walk:  { fill: '#22c55e', line: '#16a34a' },
+  drive: { fill: '#f97316', line: '#ea580c' },
+  bike:  { fill: '#3b82f6', line: '#2563eb' },
+};
+
+const ISOCHRONE_MODE_LABELS: Record<string, string> = {
+  walk:  'À pied',
+  drive: 'Voiture',
+  bike:  'Vélo',
+};
+
 // Couleurs par catégorie (cohérent avec MapContainer.tsx)
 const CATEGORY_COLORS: Record<string, string> = {
   lycee: '#6366f1',
@@ -71,6 +109,33 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function getCatColor(cat: string): string {
   return CATEGORY_COLORS[cat?.toLowerCase()] || CATEGORY_COLORS.default;
+}
+
+function applyChoropleth(map: maplibregl.Map, features: GeoJSON.Feature[], metricKey: string) {
+  const vals = features
+    .map(f => Number((f.properties as Record<string, unknown>)?.[metricKey]))
+    .filter(n => !isNaN(n) && n > 0);
+  if (vals.length === 0) return;
+  const mn = Math.min(...vals);
+  const mx = Math.max(...vals);
+  if (mx <= mn) return;
+  const step = (mx - mn) / 4;
+  map.setPaintProperty('carreaux-fill', 'fill-color', [
+    'interpolate', ['linear'],
+    ['case', ['>', ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0],
+      ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0],
+    0,        'rgba(0,0,0,0)',   // valeur 0 = donnée supprimée INSEE → transparent
+    mn,       '#f7fbff',
+    mn + step, '#9ecae1',
+    mn + 2 * step, '#4292c6',
+    mn + 3 * step, '#2171b5',
+    mx,       '#08306b',
+  ] as unknown as maplibregl.ExpressionSpecification);
+  map.setPaintProperty('carreaux-fill', 'fill-opacity', [
+    'case',
+    ['>', ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0], 0.7,
+    0,
+  ] as unknown as maplibregl.ExpressionSpecification);
 }
 
 // Même style CARTO Light que /map
@@ -177,10 +242,38 @@ export default function CopilotePage() {
   const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Isochrones layer
+  const [isochroneVisible, setIsochroneVisible] = useState(false);
+  const [isochroneMode, setIsochroneMode] = useState<string>('walk');
+  const [isochroneMinutes, setIsochroneMinutes] = useState<number>(0);
+  const [isochroneFromCache, setIsochroneFromCache] = useState(false);
+  const [isochroneCachedAt, setIsochroneCachedAt] = useState<string>('');
+  // Derniers params isochrone reçus (pour le bouton "Recalculer")
+  const lastIsochroneDataRef = useRef<IsochroneData | null>(null);
+  const lastUserMessageRef   = useRef<string>('');
+
+  // Save / Load
+  const [savedMaps, setSavedMaps] = useState<SavedMap[]>([]);
+  const [showSavePanel, setShowSavePanel] = useState(false);
+  const [showLoadPanel, setShowLoadPanel] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Stocke les dernières données isochrone complètes pour la sauvegarde
+  const isochroneDataForSaveRef = useRef<IsochroneData | null>(null);
+  // Stocke la config carreaux courante pour la sauvegarde
+  const carreauxConfigForSaveRef = useRef<{
+    tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
+  } | null>(null);
+
   // Carreaux layer
   const [carreauxVisible, setCarreauxVisible] = useState(false);
   const [carreauxLoaded, setCarreauxLoaded] = useState(false);
   const carreauxDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
+  const [carreauxIndicateur, setCarreauxIndicateur] = useState<string>('');
+  const [carreauxLabel, setCarreauxLabel] = useState<string>('');
+  const [carreauxSources, setCarreauxSources] = useState<{ tableName: string; name: string }[]>([]);
+  const carreauxSourcesRef = useRef<{ tableName: string; name: string }[]>([]);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -192,10 +285,113 @@ export default function CopilotePage() {
   // Ref pour accéder à zoneData depuis le callback map.on('render') sans closure stale
   const zoneDataRef = useRef<ZoneData | null>(null);
 
-  // Sync ref ↔ state
+  // Sync refs ↔ states
+  useEffect(() => { zoneDataRef.current = zoneData; }, [zoneData]);
+  useEffect(() => { carreauxSourcesRef.current = carreauxSources; }, [carreauxSources]);
+
+  // ── Chargement des sources carreaux au montage ─────────────────────────────
   useEffect(() => {
-    zoneDataRef.current = zoneData;
-  }, [zoneData]);
+    fetch('/api/carreaux')
+      .then(r => r.json())
+      .then(data => {
+        if (data.sources?.length > 0) {
+          setCarreauxSources(data.sources);
+          carreauxSourcesRef.current = data.sources;
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── loadCarreauxFromAI : déclenché par la réponse Mistral ─────────────────
+  const loadCarreauxFromAI = async (cd: CarreauxData) => {
+    const map = mapRef.current;
+    const sources = carreauxSourcesRef.current;
+    if (!map || sources.length === 0) {
+      console.warn('[Copilote] Pas de source carreaux disponible');
+      return;
+    }
+
+    const tableName = sources[0].tableName;
+    const { lat, lng } = cd.coordonnees;
+
+    // Fly to city first
+    map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
+
+    // Bbox autour de la ville (~20km radius, adapté zoom 12)
+    const dlat = 0.12;
+    const dlng = 0.18 / Math.cos(lat * Math.PI / 180);
+    const bbox = [lng - dlng, lat - dlat, lng + dlng, lat + dlat];
+
+    try {
+      const res = await fetch('/api/carreaux', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableName, bbox }),
+      });
+      const gjData = await res.json();
+      if (!gjData.features || gjData.features.length === 0) {
+        console.warn('[Copilote] Aucun carreau dans la bbox');
+        return;
+      }
+
+      const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+
+      source.setData(gjData as GeoJSON.FeatureCollection);
+      applyChoropleth(map, gjData.features, cd.indicateur);
+      map.setLayoutProperty('carreaux-fill', 'visibility', 'visible');
+      map.setLayoutProperty('carreaux-line', 'visibility', 'visible');
+
+      setCarreauxVisible(true);
+      setCarreauxLoaded(true);
+      setCarreauxIndicateur(cd.indicateur);
+      setCarreauxLabel(cd.indicateur_label);
+      console.log(`[Copilote] Carreaux IA chargés : ${gjData.features.length} features, indicateur="${cd.indicateur}"`);
+    } catch (err) {
+      console.error('[Copilote] loadCarreauxFromAI error:', err);
+    }
+  };
+
+  // ── applyIsochrones : applique les polygones ORS sur la carte ─────────────
+  const applyIsochrones = (isoData: IsochroneData) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const mode   = isoData._meta?.mode ?? 'walk';
+    const colors = ISOCHRONE_COLORS[mode] ?? ISOCHRONE_COLORS.walk;
+
+    const source = map.getSource('isochrones') as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    source.setData(isoData as unknown as GeoJSON.FeatureCollection);
+    map.setPaintProperty('isochrones-fill', 'fill-color', colors.fill);
+    map.setPaintProperty('isochrones-line', 'line-color', colors.line);
+    map.setLayoutProperty('isochrones-fill', 'visibility', 'visible');
+    map.setLayoutProperty('isochrones-line', 'visibility', 'visible');
+
+    setIsochroneMode(mode);
+    setIsochroneMinutes(isoData._meta?.minutes ?? 0);
+    setIsochroneFromCache(isoData._fromCache ?? false);
+    setIsochroneCachedAt(isoData._cachedAt ?? '');
+    setIsochroneVisible(true);
+
+    // Stocker pour recalcul et sauvegarde
+    lastIsochroneDataRef.current    = isoData;
+    isochroneDataForSaveRef.current = isoData;
+
+    console.log(`[Copilote] Isochrones appliqués: ${isoData.features.length} polygones, mode=${mode}, ${isoData._meta?.minutes ?? 0}min, cache=${isoData._fromCache ?? false}`);
+  };
+
+  // ── Toggle visibilité isochrones ──────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = isochroneVisible ? 'visible' : 'none';
+    try {
+      map.setLayoutProperty('isochrones-fill', 'visibility', vis);
+      map.setLayoutProperty('isochrones-line', 'visibility', vis);
+    } catch { /* layer pas encore ajouté */ }
+  }, [isochroneVisible, mapReady]);
 
   // ── Init MapLibre ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -268,6 +464,22 @@ export default function CopilotePage() {
       });
       map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zone-circle', paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.12 } });
       map.addLayer({ id: 'zone-outline', type: 'line', source: 'zone-circle', paint: { 'line-color': '#a78bfa', 'line-width': 2, 'line-dasharray': [4, 3] } });
+
+      // Isochrones layer (empty initially)
+      map.addSource('isochrones', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'isochrones-fill', type: 'fill', source: 'isochrones',
+        paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'isochrones-line', type: 'line', source: 'isochrones',
+        paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 },
+        layout: { visibility: 'none' },
+      });
 
       // Carreaux layer (empty initially)
       map.addSource('carreaux', {
@@ -490,6 +702,7 @@ export default function CopilotePage() {
     setInput('');
     setIsLoading(true);
     setError(null);
+    lastUserMessageRef.current = text;
 
     try {
       const res = await fetch('/api/chat', {
@@ -509,15 +722,163 @@ export default function CopilotePage() {
         role: 'assistant',
         content: data.reply ?? '',
         zoneData: data.zoneData ?? undefined,
+        carreauxData: data.carreauxData ?? undefined,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
       if (data.zoneData) setZoneData(data.zoneData);
+      if (data.carreauxData) {
+        loadCarreauxFromAI(data.carreauxData);
+        // Stocker la config carreaux pour sauvegarde
+        const sources = carreauxSourcesRef.current;
+        if (sources.length > 0) {
+          carreauxConfigForSaveRef.current = {
+            tableName:       sources[0].tableName,
+            indicateur:      data.carreauxData.indicateur,
+            indicateur_label: data.carreauxData.indicateur_label,
+            coordonnees:     data.carreauxData.coordonnees,
+          };
+        }
+      }
+      if (data.isochroneData?.features?.length > 0) applyIsochrones(data.isochroneData);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ── Recalcul forcé de l'isochrone (bypass cache) ─────────────────────────
+  const recalculerIsochrone = async () => {
+    const lastMsg = lastUserMessageRef.current;
+    if (!lastMsg || isLoading) return;
+
+    const userMsg: ChatMessage = { role: 'user', content: '♻️ Recalcul de l\'isochrone...' };
+    setMessages(prev => [...prev, userMsg]);
+    setIsLoading(true);
+    setError(null);
+    setIsochroneFromCache(false);
+
+    try {
+      // Re-envoie le dernier message avec forceRecalculate=true
+      const contextMessages = messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(({ role, content }) => ({ role, content }));
+      // Ajoute une instruction explicite pour recalculer
+      contextMessages.push({ role: 'user', content: lastMsg });
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: contextMessages, forceRecalculate: true }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: data.reply ?? 'Isochrone recalculé.',
+        zoneData: data.zoneData ?? undefined,
+        carreauxData: data.carreauxData ?? undefined,
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+      if (data.zoneData) setZoneData(data.zoneData);
+      if (data.isochroneData?.features?.length > 0) applyIsochrones(data.isochroneData);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Sauvegarder la carte courante ─────────────────────────────────────────
+  const saveCurrentMap = async () => {
+    if (!saveName.trim()) { setSaveError('Entrez un nom pour cette carte'); return; }
+    setSaveLoading(true);
+    setSaveError(null);
+
+    try {
+      const res = await fetch('/api/saved-maps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:            saveName.trim(),
+          zone_data:       zoneData ?? undefined,
+          carreaux_config: carreauxConfigForSaveRef.current ?? undefined,
+          isochrone_data:  isochroneDataForSaveRef.current ?? undefined,
+          messages:        messages.map(({ role, content }) => ({ role, content })),
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setSaveName('');
+      setShowSavePanel(false);
+      // Recharger la liste
+      loadSavedMaps();
+      console.log(`[Copilote] Carte sauvegardée: "${saveName}" (${data.id})`);
+    } catch (err: any) {
+      setSaveError(err.message);
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // ── Charger la liste des cartes sauvegardées ──────────────────────────────
+  const loadSavedMaps = async () => {
+    try {
+      const res = await fetch('/api/saved-maps');
+      const data = await res.json();
+      setSavedMaps(data.maps ?? []);
+    } catch { /* silencieux */ }
+  };
+
+  // ── Charger une carte sauvegardée ─────────────────────────────────────────
+  const loadMap = async (id: string) => {
+    try {
+      const res = await fetch(`/api/saved-maps/${id}`);
+      const data = await res.json();
+      if (data.error) return;
+
+      // Restaurer messages
+      if (Array.isArray(data.messages)) {
+        setMessages(data.messages as ChatMessage[]);
+      }
+      // Restaurer zone data
+      if (data.zone_data) {
+        setZoneData(data.zone_data);
+      }
+      // Restaurer carreaux
+      if (data.carreaux_config) {
+        const cc = data.carreaux_config;
+        carreauxConfigForSaveRef.current = cc;
+        await loadCarreauxFromAI({
+          action: 'afficher_carreaux',
+          indicateur:      cc.indicateur,
+          indicateur_label: cc.indicateur_label,
+          coordonnees:     cc.coordonnees,
+        });
+      }
+      // Restaurer isochrones
+      if (data.isochrone_data?.features?.length > 0) {
+        applyIsochrones(data.isochrone_data);
+      }
+
+      setShowLoadPanel(false);
+      console.log(`[Copilote] Carte chargée: "${data.name}"`);
+    } catch (err) {
+      console.error('[Copilote] Erreur chargement carte:', err);
+    }
+  };
+
+  // ── Supprimer une carte sauvegardée ──────────────────────────────────────
+  const deleteMap = async (id: string) => {
+    await fetch(`/api/saved-maps?id=${id}`, { method: 'DELETE' });
+    setSavedMaps(prev => prev.filter(m => m.id !== id));
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -548,7 +909,7 @@ export default function CopilotePage() {
       <div style={{ width: 400, minWidth: 360, display: 'flex', flexDirection: 'column', background: '#0f0f23', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
 
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/map" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'none', fontSize: 20, lineHeight: 1, fontWeight: 300 }}>←</Link>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -558,8 +919,69 @@ export default function CopilotePage() {
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Mistral · function calling · poi_france</div>
           </div>
-          {isLoading && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3dffa0', animation: 'pulse 1.2s ease-in-out infinite' }} />}
+          {/* Boutons Save / Load */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setSaveError(null); }}
+              title="Sauvegarder la carte actuelle"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, padding: '5px 8px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+            >💾</button>
+            <button
+              onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); if (!showLoadPanel) loadSavedMaps(); }}
+              title="Charger une carte sauvegardée"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, padding: '5px 8px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+            >📁</button>
+          </div>
+          {isLoading && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3dffa0', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 }} />}
         </div>
+
+        {/* Panel Sauvegarder */}
+        {showSavePanel && (
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(124,58,237,0.08)' }}>
+            <div style={{ fontSize: 12, color: '#a78bfa', fontWeight: 600, marginBottom: 8 }}>💾 Sauvegarder cette carte</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={saveName}
+                onChange={e => setSaveName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveCurrentMap()}
+                placeholder="Nom de la carte…"
+                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, padding: '7px 10px', color: '#fff', fontSize: 12, outline: 'none' }}
+              />
+              <button
+                onClick={saveCurrentMap}
+                disabled={saveLoading || !saveName.trim()}
+                style={{ background: saveName.trim() && !saveLoading ? '#7c3aed' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, padding: '7px 12px', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+              >{saveLoading ? '…' : 'Sauvegarder'}</button>
+            </div>
+            {saveError && <div style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>⚠ {saveError}</div>}
+          </div>
+        )}
+
+        {/* Panel Charger */}
+        {showLoadPanel && (
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)', maxHeight: 240, overflowY: 'auto' }}>
+            <div style={{ padding: '10px 16px', fontSize: 12, color: '#a78bfa', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              📁 Cartes sauvegardées ({savedMaps.length})
+            </div>
+            {savedMaps.length === 0 ? (
+              <div style={{ padding: '16px', fontSize: 12, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Aucune carte sauvegardée</div>
+            ) : (
+              savedMaps.map(m => (
+                <div key={m.id} style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: '#fff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                      {m.ville && `📍 ${m.ville} · `}{m.nb_pois > 0 && `${m.nb_pois} POI · `}
+                      {new Date(m.created_at).toLocaleDateString('fr-FR')}
+                    </div>
+                  </div>
+                  <button onClick={() => loadMap(m.id)} style={{ background: 'rgba(124,58,237,0.3)', border: '1px solid rgba(124,58,237,0.5)', borderRadius: 6, padding: '4px 10px', color: '#a78bfa', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}>Charger</button>
+                  <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '4px 6px', color: '#f87171', cursor: 'pointer', fontSize: 11, flexShrink: 0 }}>🗑</button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -574,17 +996,17 @@ export default function CopilotePage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  'Lycées centre-ville de Bordeaux, 2km',
-                  'Établissements scolaires Toulouse, large',
-                  'Lycées et collèges Paris 8e, 1km',
-                  'Zone établissements Nantes agglo',
-                ].map((suggestion) => (
-                  <button key={suggestion} onClick={() => sendMessage(suggestion)} style={{
+                  { icon: '📍', text: 'Lycées et CIRFA à Brest' },
+                  { icon: '📊', text: 'Lycées à Brest + où vivent les 18-24 ans' },
+                  { icon: '⏱', text: 'Isochrone 5 min à pied autour des lycées à Brest' },
+                  { icon: '⏱', text: 'Zone 15 min voiture autour des CIRFA de Lyon' },
+                ].map(({ icon, text }) => (
+                  <button key={text} onClick={() => sendMessage(text)} style={{
                     background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: 8, padding: '9px 12px', color: 'rgba(255,255,255,0.6)',
                     cursor: 'pointer', fontSize: 12, textAlign: 'left', transition: 'background 0.15s',
                   }}>
-                    📍 {suggestion}
+                    {icon} {text}
                   </button>
                 ))}
               </div>
@@ -676,6 +1098,48 @@ export default function CopilotePage() {
           </div>
         )}
 
+        {/* Badge isochrone actif + notification cache */}
+        {isochroneVisible && isochroneMinutes > 0 && (
+          <div style={{
+            position: 'absolute', top: 16, left: zoneData ? 130 : 16, zIndex: 10,
+            background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}e6`,
+            backdropFilter: 'blur(4px)',
+            border: `1px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`,
+            borderRadius: 8, padding: '5px 10px', fontSize: 11, color: '#fff',
+            fontFamily: 'JetBrains Mono, monospace',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              ⏱ {isochroneMinutes}min — {ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode}
+              {isochroneFromCache && <span style={{ opacity: 0.75, fontSize: 10 }}>♻️ cache</span>}
+              <button onClick={() => setIsochroneVisible(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1, opacity: 0.8 }}>✕</button>
+            </div>
+            {/* Notification cache : date + bouton recalculer */}
+            {isochroneFromCache && isochroneCachedAt && (
+              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, opacity: 0.9 }}>
+                <span>Calculé le {new Date(isochroneCachedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                <button
+                  onClick={recalculerIsochrone}
+                  disabled={isLoading}
+                  style={{ background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}
+                >Recalculer</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Badge indicateur carreaux actif */}
+        {carreauxVisible && carreauxLabel && (
+          <div style={{
+            position: 'absolute', top: 56, right: 16, zIndex: 10,
+            background: 'rgba(33,113,181,0.92)', backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(33,113,181,0.6)', borderRadius: 8,
+            padding: '5px 10px', fontSize: 11, color: '#fff',
+            fontFamily: 'JetBrains Mono, monospace',
+          }}>
+            📊 {carreauxLabel}
+          </div>
+        )}
+
         {/* Carreaux toggle */}
         <button
           onClick={() => setCarreauxVisible(v => !v)}
@@ -719,6 +1183,12 @@ export default function CopilotePage() {
               <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(16,185,129,0.15)', borderRadius: '50%', border: '1.5px solid #10b981', flexShrink: 0 }} />
                 Rayon {zoneData!.rayon_poi_metres >= 1000 ? `${(zoneData!.rayon_poi_metres/1000).toFixed(1)} km` : `${zoneData!.rayon_poi_metres} m`} / POI
+              </div>
+            )}
+            {isochroneVisible && isochroneMinutes > 0 && (
+              <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}40`, borderRadius: 2, border: `1.5px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`, flexShrink: 0 }} />
+                Isochrone {isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode})
               </div>
             )}
           </div>
