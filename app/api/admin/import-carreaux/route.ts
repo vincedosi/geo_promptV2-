@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
@@ -307,6 +308,9 @@ function findPythonPath(): { pythonPath: string; diagnostic: PythonDiagnostic } 
 // =============================================================================
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const formData = await request.formData();
 
@@ -576,7 +580,10 @@ function parseImportReport(stdout: string): any {
 // GET : Diagnostic complet Python + statut du service
 // =============================================================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   const etlPath = path.join(process.cwd(), '..', 'genesis_etl');
   const scriptPath = path.join(etlPath, 'scripts', 'carreaux_import.py');
 

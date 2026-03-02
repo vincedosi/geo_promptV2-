@@ -166,9 +166,9 @@ export async function GET(request: NextRequest) {
 // Avec bbox : utilise la fonction RPC get_carreaux_bbox (index GIST, rapide).
 // Sans bbox : fallback paginé séquentiel (lent, pour debug uniquement).
 
-const BATCH_SIZE = 1000;    // Supabase PostgREST max rows per request
+const BATCH_SIZE = 1000;    // Supabase PostgREST max rows per request (hard cap)
 const DEFAULT_LIMIT = 10000;
-const BBOX_LIMIT    = 15000; // Limite pour les requêtes spatiales (viewport)
+const BBOX_LIMIT    = 8000;  // Carreaux max par viewport (paginé côté serveur)
 
 export async function POST(request: NextRequest) {
   try {
@@ -198,71 +198,89 @@ export async function POST(request: NextRequest) {
       console.log(`[carreaux] ${tableName}: bbox query [${west.toFixed(3)},${south.toFixed(3)},${east.toFixed(3)},${north.toFixed(3)}] limit=${maxRows}`);
       const t0 = Date.now();
 
-      const { data: rows, error } = await supabase.rpc('get_carreaux_bbox', {
-        p_table: tableName,
-        p_west: west,
-        p_south: south,
-        p_east: east,
-        p_north: north,
-        p_limit: maxRows,
-      });
+      // ── Pagination par boucle : PostgREST hard-cap à 1000 lignes/appel ──
+      const allBboxRows: Record<string, unknown>[] = [];
+      let bboxFrom = 0;
+      let rpcError: { message: string } | null = null;
+      let rpcMissingFlag = false;
 
-      if (error) {
-        console.error('[carreaux] RPC error:', error.message);
-        if (error.message.includes('function') || error.message.includes('does not exist') || error.message.includes('42883')) {
-          // La fonction get_carreaux_bbox n'existe pas dans Supabase.
-          // ⚠ NE PAS tomber dans le chemin séquentiel : il renverrait des données
-          // sans filtre spatial (toute la France) → aucun carreau dans le viewport.
-          console.error('[carreaux] ⚠ get_carreaux_bbox introuvable — créez la fonction SQL dans Supabase');
-          return NextResponse.json({
-            type: 'FeatureCollection',
-            features: [],
-            _meta: {
-              tableName,
-              count: 0,
-              truncated: false,
-              rpcMissing: true,
-              sql: `CREATE OR REPLACE FUNCTION get_carreaux_bbox(p_table text, p_west float8, p_south float8, p_east float8, p_north float8, p_limit int DEFAULT 15000) RETURNS TABLE(idcar text, geom geometry, metadata jsonb) LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN QUERY EXECUTE format('SELECT idcar, geom, metadata FROM %I WHERE geom && ST_MakeEnvelope($1,$2,$3,$4,4326) LIMIT $5', p_table) USING p_west, p_south, p_east, p_north, p_limit; END; $$;`,
-            },
-          });
-        } else {
-          return NextResponse.json({ error: error.message }, { status: 500 });
+      while (allBboxRows.length < maxRows) {
+        const batchTo = Math.min(bboxFrom + BATCH_SIZE - 1, maxRows - 1);
+        const { data: batchData, error: batchError } = await supabase.rpc('get_carreaux_bbox', {
+          p_table: tableName,
+          p_west: west,
+          p_south: south,
+          p_east: east,
+          p_north: north,
+          p_limit: maxRows,
+        }).range(bboxFrom, batchTo);
+
+        if (batchError) {
+          rpcError = batchError;
+          if (batchError.message.includes('function') || batchError.message.includes('does not exist') || batchError.message.includes('42883')) {
+            rpcMissingFlag = true;
+          }
+          break;
         }
+        if (!batchData || batchData.length === 0) break;
+        allBboxRows.push(...(batchData as Record<string, unknown>[]));
+        bboxFrom += batchData.length;
+        if (batchData.length < BATCH_SIZE) break; // dernière page
       }
 
-      if (rows && !error) {
-        const elapsed = Date.now() - t0;
-        let nullGeomCount = 0;
-        const features: GeoJSON.Feature[] = [];
-
-        for (const row of rows as Record<string, unknown>[]) {
-          const geom = parseGeomFromSupabase(row.geom);
-          if (!geom) { nullGeomCount++; continue; }
-          const meta = parseMeta(row.metadata);
-          features.push({
-            type: 'Feature',
-            geometry: geom,
-            properties: { idcar: row.idcar as string, ...meta },
-          });
-        }
-
-        console.log(`[carreaux] ${tableName}: ${features.length} features via bbox in ${elapsed}ms`);
-
+      if (rpcMissingFlag) {
+        console.error('[carreaux] ⚠ get_carreaux_bbox introuvable — créez la fonction SQL dans Supabase');
         return NextResponse.json({
           type: 'FeatureCollection',
-          features,
+          features: [],
           _meta: {
             tableName,
-            count: features.length,
-            rawCount: (rows as unknown[]).length,
-            nullGeomCount,
-            limit: maxRows,
-            truncated: (rows as unknown[]).length >= maxRows,
-            bbox: [west, south, east, north],
-            queryMs: elapsed,
+            count: 0,
+            truncated: false,
+            rpcMissing: true,
+            // La fonction SQL complète (avec validations de sécurité) est dans sql/002_get_carreaux_bbox.sql
+            sqlFile: 'sql/002_get_carreaux_bbox.sql',
+            message: 'Exécutez le contenu de sql/002_get_carreaux_bbox.sql dans le Supabase SQL Editor.',
           },
         });
       }
+
+      if (rpcError) {
+        console.error('[carreaux] RPC error:', rpcError.message);
+        return NextResponse.json({ error: rpcError.message }, { status: 500 });
+      }
+
+      const elapsed = Date.now() - t0;
+      let nullGeomCount = 0;
+      const features: GeoJSON.Feature[] = [];
+
+      for (const row of allBboxRows) {
+        const geom = parseGeomFromSupabase(row.geom);
+        if (!geom) { nullGeomCount++; continue; }
+        const meta = parseMeta(row.metadata);
+        features.push({
+          type: 'Feature',
+          geometry: geom,
+          properties: { idcar: row.idcar as string, ...meta },
+        });
+      }
+
+      console.log(`[carreaux] ${tableName}: ${features.length} features via bbox (${allBboxRows.length} brutes, ${allBboxRows.length / BATCH_SIZE} pages) in ${elapsed}ms`);
+
+      return NextResponse.json({
+        type: 'FeatureCollection',
+        features,
+        _meta: {
+          tableName,
+          count: features.length,
+          rawCount: allBboxRows.length,
+          nullGeomCount,
+          limit: maxRows,
+          truncated: allBboxRows.length >= maxRows,
+          bbox: [west, south, east, north],
+          queryMs: elapsed,
+        },
+      });
     }
 
     // ── Chemin classique : fetch paginé sans filtrage spatial ──

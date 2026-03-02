@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 
 interface UrlCheckResult {
   valid: boolean;
@@ -79,7 +80,7 @@ export default function CarreauxImportPage() {
     setIsCheckingUrl(true);
     setUrlCheckResult(null);
     try {
-      const res = await fetch('/api/admin/verify-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const res = await adminFetch('/api/admin/verify-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
       setUrlCheckResult(await res.json());
     } catch (e: any) {
       setUrlCheckResult({ valid: false, error: e.message });
@@ -98,7 +99,7 @@ export default function CarreauxImportPage() {
       const fd = new FormData();
       fd.append('mode', mode);
       if (file) fd.append('file', file);
-      const res = await fetch('/api/admin/preview-carreaux', { method: 'POST', body: fd });
+      const res = await adminFetch('/api/admin/preview-carreaux', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok || data.error) {
         setColumnsError(data.error || 'Erreur inconnue');
@@ -143,7 +144,7 @@ export default function CarreauxImportPage() {
       if (mode === 'auto') fd.append('url', url);
       else if (file) fd.append('file', file);
 
-      const res = await fetch('/api/admin/import-carreaux', { method: 'POST', body: fd });
+      const res = await adminFetch('/api/admin/import-carreaux', { method: 'POST', body: fd });
 
       if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
         const reader = res.body.getReader();

@@ -9,6 +9,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { parseFile } from '@/lib/import/file-parser';
 import { detectColumns, suggestMapping } from '@/lib/import/column-detector';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 // Temp directory for uploaded files
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
@@ -20,6 +21,9 @@ function ensureTempDir() {
 }
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

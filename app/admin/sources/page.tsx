@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 
 // ============================================================
 // Types
@@ -92,7 +93,7 @@ export default function SourcesPage() {
   const fetchSources = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/sources');
+      const res = await adminFetch('/api/admin/sources');
       const data = await res.json();
       if (data.success) setSources(data.sources || []);
     } catch { /* ignore */ }
@@ -101,7 +102,7 @@ export default function SourcesPage() {
 
   const fetchOrgs = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/organizations');
+      const res = await adminFetch('/api/admin/organizations');
       const data = await res.json();
       if (data.success) setOrganizations(data.organizations || []);
     } catch { /* ignore */ }
@@ -119,7 +120,7 @@ export default function SourcesPage() {
   const handleGenerateSummary = async (sourceId: string) => {
     setIsGeneratingSummary(true);
     try {
-      const res = await fetch(`/api/admin/sources/${sourceId}/summary`, { method: 'POST' });
+      const res = await adminFetch(`/api/admin/sources/${sourceId}/summary`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setSources((prev) => prev.map((s) => s.id === sourceId ? { ...s, ai_summary: data.summary } : s));
@@ -135,7 +136,7 @@ export default function SourcesPage() {
     if (!confirm('Supprimer cette source et TOUTES ses donnees ? Cette action est irreversible.')) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/sources/${sourceId}`, { method: 'DELETE' });
+      const res = await adminFetch(`/api/admin/sources/${sourceId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         setSources((prev) => prev.filter((s) => s.id !== sourceId));
@@ -159,7 +160,7 @@ export default function SourcesPage() {
 
     const newShared = [...currentShared, shareOrgId];
     try {
-      const res = await fetch(`/api/admin/sources/${sourceId}`, {
+      const res = await adminFetch(`/api/admin/sources/${sourceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shared_with: newShared }),
@@ -177,7 +178,7 @@ export default function SourcesPage() {
     if (!source) return;
     const newShared = (source.shared_with || []).filter((id) => id !== orgIdToRemove);
     try {
-      await fetch(`/api/admin/sources/${sourceId}`, {
+      await adminFetch(`/api/admin/sources/${sourceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shared_with: newShared }),
@@ -194,7 +195,7 @@ export default function SourcesPage() {
     if (Object.keys(updates).length === 0) return;
 
     try {
-      const res = await fetch(`/api/admin/sources/${selectedSource.id}`, {
+      const res = await adminFetch(`/api/admin/sources/${selectedSource.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -212,7 +213,7 @@ export default function SourcesPage() {
     setIsLoadingMetaKeys(true);
     setAvailableMetaKeys([]);
     try {
-      const res = await fetch(`/api/admin/sources/${sourceId}/meta-keys`);
+      const res = await adminFetch(`/api/admin/sources/${sourceId}/meta-keys`);
       const data = await res.json();
       if (data.success) setAvailableMetaKeys(data.keys || []);
     } catch { /* ignore */ }
@@ -223,7 +224,7 @@ export default function SourcesPage() {
     if (!selectedSource) return;
     setIsSavingFilters(true);
     try {
-      const res = await fetch(`/api/admin/sources/${selectedSource.id}`, {
+      const res = await adminFetch(`/api/admin/sources/${selectedSource.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filter_fields: editFilterFields }),

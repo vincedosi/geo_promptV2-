@@ -246,6 +246,22 @@ export default function MapPage() {
   const [carreauxFilters, setCarreauxFilters] = useState<Record<string, string>>({});
   const [carreauxLoading, setCarreauxLoading] = useState(false);
   const [carreauxFlyTrigger, setCarreauxFlyTrigger] = useState(0);
+  const mapBboxRef = useRef<[number, number, number, number] | null>(null);
+  const bboxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [carreauxRevision, setCarreauxRevision] = useState(0);
+
+  // ─── État Zones de Recrutement (Bataille d'Isochrones) ────────────────────
+  const [battleMode,      setBattleMode]      = useState<'battle' | 'isochrone'>('battle');
+  const [battleCategory,  setBattleCategory]  = useState('');
+  const [battleTransport, setBattleTransport] = useState<'drive' | 'walk' | 'bike'>('drive');
+  const [battleMaxMin,    setBattleMaxMin]    = useState(120);
+  const [battleRegion,    setBattleRegion]    = useState('');
+  const [battleDept,      setBattleDept]      = useState('');
+  const [battleLoading,   setBattleLoading]   = useState(false);
+  const [battleError,     setBattleError]     = useState<string | null>(null);
+  const [battleRings,     setBattleRings]     = useState<GeoJSON.FeatureCollection | null>(null);
+  const [battleBorders,   setBattleBorders]   = useState<GeoJSON.FeatureCollection | null>(null);
+  const [battleCirfas,    setBattleCirfas]    = useState<{ id: string; nom: string; color: string }[]>([]);
 
   const handleCoordsInfo = useCallback((_valid: number, _total: number) => {}, []);
 
@@ -310,15 +326,17 @@ export default function MapPage() {
   // ─── Charger le GeoJSON carreaux quand une source est sélectionnée ────────
   useEffect(() => {
     if (!selectedCarreau) { setCarreauxGeoJSON(null); return; }
+    if (!mapBboxRef.current) return; // attendre que la carte soit prête
     const controller = new AbortController();
     setCarreauxLoading(true);
     setCarreauxFilters({});
     const t0 = performance.now();
-    console.log(`[MapPage] === FETCH CARREAUX START === table=${selectedCarreau}`);
+    const bbox = mapBboxRef.current;
+    console.log(`[MapPage] === FETCH CARREAUX START === table=${selectedCarreau} bbox=${JSON.stringify(bbox)}`);
     fetch('/api/carreaux', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableName: selectedCarreau }),
+      body: JSON.stringify({ tableName: selectedCarreau, bbox }),
       signal: controller.signal,
     })
       .then(r => {
@@ -357,7 +375,7 @@ export default function MapPage() {
       })
       .finally(() => { if (!controller.signal.aborted) setCarreauxLoading(false); });
     return () => controller.abort();
-  }, [selectedCarreau]);
+  }, [selectedCarreau, carreauxRevision]);
 
   // ─── Analyse des champs carreaux ──────────────────────────────────────────
   const carreauxAnalysis = useMemo(() => {
@@ -481,11 +499,47 @@ export default function MapPage() {
     setSelectedCarreau(prev => prev === tableName ? null : tableName);
   };
 
+  const handleBoundsChange = useCallback((bbox: [number, number, number, number]) => {
+    mapBboxRef.current = bbox;
+    if (bboxTimerRef.current) clearTimeout(bboxTimerRef.current);
+    bboxTimerRef.current = setTimeout(() => setCarreauxRevision(r => r + 1), 400);
+  }, []);
+
   const handleCarreauxFilterChange = (field: string, value: string) => {
     setCarreauxFilters(prev => ({ ...prev, [field]: value }));
   };
 
   const clearCarreauxFilters = () => setCarreauxFilters({});
+
+  // ─── Lancer la Bataille d'Isochrones ──────────────────────────────────────
+  const launchBattle = async () => {
+    if (!battleCategory || battleLoading) return;
+    setBattleLoading(true);
+    setBattleError(null);
+    try {
+      const res = await fetch('/api/isochrone-battle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category:           battleCategory,
+          mode:               battleTransport,
+          max_minutes:        battleMaxMin,
+          metropolitaine:     true,
+          filtre_region:      battleRegion || null,
+          filtre_departement: battleDept   || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setBattleError(data.error ?? 'Erreur inconnue'); return; }
+      setBattleRings(data.battleGeoJSON   ?? null);
+      setBattleBorders(data.battleBorders ?? null);
+    } catch (e: any) {
+      setBattleError(e.message);
+    } finally {
+      setBattleLoading(false);
+    }
+  };
+
 
   // ─── Recherche IA — supporte multi-valeurs ────────────────────────────────────
   const handleAISearch = (categories: string[], filters: Record<string, string | string[]>) => {
@@ -936,7 +990,107 @@ export default function MapPage() {
                 )}
               </div>
             )}
+          {/* ── Zones de Recrutement ── */}
+          <div style={{ marginTop: 24, borderTop: '1px solid rgba(239,68,68,0.15)', paddingTop: 16 }}>
+            <h4 style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 12, fontFamily: 'Inter, sans-serif', borderLeft: '2px solid #ef4444', paddingLeft: 8, margin: '0 0 12px' }}>
+              Zones de Recrutement
+            </h4>
+
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: 'rgba(239,68,68,0.06)', borderRadius: 8, padding: 4 }}>
+              {(['battle', 'isochrone'] as const).map(m => (
+                <button key={m} onClick={() => setBattleMode(m)} style={{ flex: 1, padding: '5px 0', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, background: battleMode === m ? '#ef4444' : 'transparent', color: battleMode === m ? '#fff' : '#94a3b8', transition: 'all 0.2s' }}>
+                  {m === 'battle' ? '⚔ Bataille' : '⏱ Isochrone'}
+                </button>
+              ))}
+            </div>
+
+            {/* Catégorie */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Catégorie</label>
+              <select value={battleCategory} onChange={e => setBattleCategory(e.target.value)} style={{ width: '100%', background: '#1e293b', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, color: '#e2e8f0', padding: '6px 8px', fontSize: 12, fontFamily: 'Inter, sans-serif', outline: 'none' }}>
+                <option value="">— Choisir —</option>
+                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {/* Transport */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Transport</label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {([['drive','🚗','Voiture'],['walk','🚶','Marche'],['bike','🚲','Vélo']] as [string,string,string][]).map(([t,icon,label]) => (
+                  <button key={t} onClick={() => setBattleTransport(t as 'drive'|'walk'|'bike')} title={label} style={{ flex: 1, padding: '6px 0', border: `1px solid ${battleTransport === t ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, cursor: 'pointer', fontSize: 14, background: battleTransport === t ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.04)', color: battleTransport === t ? '#fff' : '#94a3b8', transition: 'all 0.2s' }}>{icon}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Durée max */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
+                Durée max <span style={{ color: '#ef4444', fontWeight: 700 }}>{battleMaxMin} min</span>
+              </label>
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {[60,90,120,150,180].map(m => (
+                  <button key={m} onClick={() => setBattleMaxMin(m)} style={{ padding: '4px 9px', border: `1px solid ${battleMaxMin === m ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', background: battleMaxMin === m ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.04)', color: battleMaxMin === m ? '#fff' : '#64748b', fontWeight: battleMaxMin === m ? 700 : 400, transition: 'all 0.15s' }}>{m}m</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filtres région / département */}
+            <div style={{ marginBottom: 14, display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Région</label>
+                <input value={battleRegion} onChange={e => setBattleRegion(e.target.value)} placeholder="ex : Bretagne" style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, color: '#e2e8f0', padding: '5px 7px', fontSize: 11, fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Dept.</label>
+                <input value={battleDept} onChange={e => setBattleDept(e.target.value)} placeholder="ex : 29" style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, color: '#e2e8f0', padding: '5px 7px', fontSize: 11, fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+              </div>
+            </div>
+
+            {/* Bouton lancement */}
+            <button onClick={launchBattle} disabled={!battleCategory || battleLoading} style={{ width: '100%', padding: '10px 0', background: !battleCategory || battleLoading ? 'rgba(239,68,68,0.2)' : '#dc2626', border: '1px solid rgba(239,68,68,0.5)', borderRadius: 8, cursor: !battleCategory || battleLoading ? 'not-allowed' : 'pointer', color: '#fff', fontSize: 13, fontFamily: 'Inter, sans-serif', fontWeight: 700, letterSpacing: 0.3, transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {battleLoading ? '⏳ Calcul en cours…' : battleMode === 'battle' ? '⚔ Lancer la Bataille' : '⏱ Calculer Isochrone'}
+            </button>
+
+            {/* Erreur */}
+            {battleError && (
+              <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, fontSize: 11, color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-word' }}>❌ {battleError}</div>
+            )}
+
+            {/* Légende résultats */}
+            {battleCirfas.length > 0 && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(239,68,68,0.15)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{battleCirfas.length} territoires · {battleMaxMin}min max</span>
+                  <button onClick={() => { setBattleRings(null); setBattleBorders(null); setBattleCirfas([]); setBattleError(null); }} style={{ fontSize: 11, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px' }}>✕</button>
+                </div>
+                {/* Gradient paliers */}
+                <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
+                  {[10,30,60,90,120,150,180].filter(p => p <= battleMaxMin).map((p,i,arr) => {
+                    const ops = [0.65,0.50,0.38,0.28,0.18,0.11,0.08];
+                    return (
+                      <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <span style={{ display: 'inline-block', width: 13, height: 7, background: `rgba(239,68,68,${ops[i]??0.08})`, borderRadius: 2, border: '1px solid rgba(0,0,0,0.2)' }} />
+                        <span style={{ fontSize: 7, color: '#64748b' }}>{p}m</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Liste CIRFA */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 130, overflowY: 'auto' }}>
+                  {battleCirfas.map(c => (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 9, height: 9, background: c.color + '55', borderRadius: 2, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'Inter, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+        </div>
         )}
       </div>
 
@@ -1025,6 +1179,10 @@ export default function MapPage() {
             carreauxVisible={carreauxVisible}
             onCoordsInfo={handleCoordsInfo}
             flyToTrigger={carreauxFlyTrigger}
+            onBoundsChange={handleBoundsChange}
+            battleRings={battleRings}
+            battleBorders={battleBorders}
+            onBattleCirfas={setBattleCirfas}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 
 interface Organization {
   id: string;
@@ -30,7 +31,7 @@ export default function OrganizationsPage() {
   const fetchOrgs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/organizations');
+      const res = await adminFetch('/api/admin/organizations');
       const data = await res.json();
       if (data.success) setOrgs(data.organizations || []);
     } catch { /* ignore */ }
@@ -44,7 +45,7 @@ export default function OrganizationsPage() {
     setIsCreating(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/organizations', {
+      const res = await adminFetch('/api/admin/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newOrgName.trim() }),

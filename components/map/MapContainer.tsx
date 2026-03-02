@@ -20,6 +20,9 @@ interface POI {
   [key: string]: any;
 }
 
+const BATTLE_PALETTE = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4','#8bc34a','#ff5722','#607d8b','#795548','#9c27b0','#03a9f4','#4caf50','#ff9800','#2196f3','#c0392b'];
+const BATTLE_PALIER_OPACITY: Record<number, number> = { 10: 0.65, 30: 0.50, 60: 0.38, 90: 0.28, 120: 0.18, 150: 0.11, 180: 0.08 };
+
 interface MapContainerProps {
   pois: POI[];
   carreauxGeoJSON?: GeoJSON.FeatureCollection | null;
@@ -27,6 +30,10 @@ interface MapContainerProps {
   carreauxVisible?: boolean;
   onCoordsInfo?: (valid: number, total: number) => void;
   flyToTrigger?: number;
+  onBoundsChange?: (bbox: [number, number, number, number]) => void;
+  battleRings?:   GeoJSON.FeatureCollection | null;
+  battleBorders?: GeoJSON.FeatureCollection | null;
+  onBattleCirfas?: (cirfas: { id: string; nom: string; color: string }[]) => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -252,7 +259,7 @@ function _zoomToCarreaux(map: MapLibreMap, geojson: GeoJSON.FeatureCollection) {
 }
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, carreauxVisible = true, onCoordsInfo, flyToTrigger }: MapContainerProps) {
+export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, carreauxVisible = true, onCoordsInfo, flyToTrigger, onBoundsChange, battleRings, battleBorders, onBattleCirfas }: MapContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -262,6 +269,8 @@ export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, ca
   const poisRef = useRef(pois);
   poisRef.current = pois;
   const [renderedCount, setRenderedCount] = useState(0);
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
 
   const carreauxGeoJSONRef = useRef(carreauxGeoJSON);
   carreauxGeoJSONRef.current = carreauxGeoJSON;
@@ -287,8 +296,17 @@ export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, ca
     map.on('error', e => console.error('[MapContainer] MapLibre error:', e.error));
     renderMarkers(map, poisRef.current, markersRef);
 
+    const fireBounds = () => {
+      const cb = onBoundsChangeRef.current;
+      if (!cb) return;
+      const b = map.getBounds();
+      cb([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+    };
+    map.on('moveend', fireBounds);
+
     map.on('load', () => {
       console.log('=== MAP LOAD ===');
+      fireBounds();
 
       // GeoJSON source (empty)
       map.addSource('carreaux', {
@@ -347,6 +365,33 @@ export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, ca
 
       map.on('mouseenter', 'carreaux-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'carreaux-fill', () => { map.getCanvas().style.cursor = ''; });
+
+      // ── Sources bataille d'isochrones ─────────────────────────────────
+      map.addSource('battle-rings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, generateId: true });
+      map.addLayer({ id: 'battle-fill', type: 'fill', source: 'battle-rings',
+        paint: { 'fill-color': ['get', 'battle_color'] as any, 'fill-opacity': ['get', 'battle_opacity'] as any },
+        layout: { visibility: 'none' } });
+      map.addLayer({ id: 'battle-ring-line', type: 'line', source: 'battle-rings',
+        paint: { 'line-color': 'rgba(0,0,0,0.12)', 'line-width': 0.5, 'line-opacity': 0.6 },
+        layout: { visibility: 'none' } });
+
+      map.addSource('battle-borders', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'battle-cirfa-border', type: 'line', source: 'battle-borders',
+        paint: { 'line-color': '#111827', 'line-width': 3, 'line-opacity': 0.85 },
+        layout: { visibility: 'none' } });
+
+      map.on('click', 'battle-fill', (e) => {
+        if (!e.features?.length) return;
+        const p = e.features[0].properties as Record<string, unknown>;
+        new maplibregl.Popup({ closeButton: true, maxWidth: '240px' })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6">
+            <b style="color:#1e293b">${p.nom ?? '—'}</b><br/>
+            <span style="color:#059669;font-weight:600">⏱ Anneau ${p.palier ?? '?'} min</span>
+          </div>`).addTo(map);
+      });
+      map.on('mouseenter', 'battle-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'battle-fill', () => { map.getCanvas().style.cursor = ''; });
 
       console.log('=== MAP READY ===');
       setMapReady(true);
@@ -478,6 +523,72 @@ export default function MapContainer({ pois, carreauxGeoJSON, carreauxMetric, ca
       map.setLayoutProperty('carreaux-line', 'visibility', vis);
     } catch {}
   }, [carreauxVisible, mapReady]);
+
+  // ─── Battle rings ──────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    if (!battleRings?.features?.length) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      try { map.setLayoutProperty('battle-fill', 'visibility', 'none'); map.setLayoutProperty('battle-ring-line', 'visibility', 'none'); } catch {}
+      return;
+    }
+
+    const cirfaColorMap = new Map<string, string>();
+    let colorIdx = 0;
+    const styledFeatures = battleRings.features.map(f => {
+      const p = f.properties as any;
+      const cid = String(p?.id ?? '');
+      if (cid && !cirfaColorMap.has(cid)) { cirfaColorMap.set(cid, BATTLE_PALETTE[colorIdx % BATTLE_PALETTE.length]); colorIdx++; }
+      const palier = Number(p?.palier ?? 120);
+      return { ...f, properties: { ...p, battle_color: cirfaColorMap.get(cid) ?? BATTLE_PALETTE[0], battle_opacity: BATTLE_PALIER_OPACITY[palier] ?? 0.18 } };
+    });
+
+    src.setData({ type: 'FeatureCollection', features: styledFeatures } as GeoJSON.FeatureCollection);
+    try { map.setLayoutProperty('battle-fill', 'visibility', 'visible'); map.setLayoutProperty('battle-ring-line', 'visibility', 'visible'); } catch {}
+
+    // Fit bounds
+    const bounds = new maplibregl.LngLatBounds();
+    let extended = false;
+    for (const f of styledFeatures) {
+      const geom = (f as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>).geometry;
+      if (!geom) continue;
+      const rings = geom.type === 'MultiPolygon' ? geom.coordinates.flat(1) : geom.type === 'Polygon' ? geom.coordinates : [];
+      for (const ring of rings) for (const coord of ring) { bounds.extend([coord[0], coord[1]]); extended = true; }
+    }
+    if (extended) map.fitBounds(bounds, { padding: 60, maxZoom: 11, duration: 1200 });
+
+    // Remonter la légende CIRFA
+    const legend: { id: string; nom: string; color: string }[] = [];
+    const seen = new Set<string>();
+    for (const f of styledFeatures) {
+      const p = f.properties as any;
+      const cid = String(p?.id ?? '');
+      if (cid && !seen.has(cid)) {
+        seen.add(cid);
+        legend.push({ id: cid, nom: String(p?.nom ?? cid), color: cirfaColorMap.get(cid) ?? BATTLE_PALETTE[0] });
+      }
+    }
+    onBattleCirfas?.(legend);
+  }, [battleRings, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Battle borders ────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('battle-borders') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (battleBorders?.features?.length) {
+      src.setData(battleBorders as GeoJSON.FeatureCollection);
+      try { map.setLayoutProperty('battle-cirfa-border', 'visibility', 'visible'); } catch {}
+    } else {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      try { map.setLayoutProperty('battle-cirfa-border', 'visibility', 'none'); } catch {}
+    }
+  }, [battleBorders, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debug overlay info
   const debugInfo = carreauxGeoJSON && carreauxGeoJSON.features.length > 0

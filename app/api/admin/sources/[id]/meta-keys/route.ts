@@ -5,11 +5,15 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const profile = await requireAdmin(_request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const supabase = createAdminClient();
     const { id } = params;

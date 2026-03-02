@@ -3,7 +3,6 @@
  * Supabase Auth integration
  */
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
 export interface UserProfile {
   id: string;
@@ -24,17 +23,28 @@ export function createServerClient() {
 }
 
 /**
- * Create a Supabase admin client (bypasses RLS)
- * Uses service_role key for admin operations
+ * Create a Supabase admin client (bypasses RLS).
+ * Uses the service_role key — obligatoire pour les opérations admin.
+ *
+ * ⚠️  Lance une erreur explicite si SUPABASE_SERVICE_ROLE_KEY est absent,
+ *     plutôt que de retomber silencieusement sur la clé anon (qui respecte
+ *     les RLS et ferait échouer toutes les opérations admin de façon opaque).
  */
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // Fallback to anon key if service role not configured
-  const key = serviceKey || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  if (!url) {
+    throw new Error('[auth] NEXT_PUBLIC_SUPABASE_URL manquante — impossible de créer le client admin.');
+  }
+  if (!serviceKey || serviceKey === 'A_REMPLACER') {
+    throw new Error(
+      '[auth] SUPABASE_SERVICE_ROLE_KEY manquante ou non configurée. ' +
+      'Ajoutez-la dans .env.local (Settings > API > service_role dans Supabase).'
+    );
+  }
 
-  return createClient(url, key, {
+  return createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

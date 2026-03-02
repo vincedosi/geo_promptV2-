@@ -8,10 +8,14 @@ import path from 'path';
 import os from 'os';
 import { geocodeSingle, scoreToStatus } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult, GeocodeReviewData } from '@/lib/import/types';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const body = await request.json();
     const { geocodeId, rowIndex, action } = body as {

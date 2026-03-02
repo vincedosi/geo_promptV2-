@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 import type {
   ParseResult,
   DryRunResult,
@@ -131,7 +132,7 @@ export default function ImportUniverselPage() {
 
   // Load organizations + categories on mount
   useEffect(() => {
-    fetch('/api/admin/organizations')
+    adminFetch('/api/admin/organizations')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.organizations) {
@@ -141,7 +142,7 @@ export default function ImportUniverselPage() {
       .catch(() => { /* API pas encore configuree */ });
 
     // Load POI categories from DB
-    fetch('/api/admin/poi-categories')
+    adminFetch('/api/admin/poi-categories')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.categories) {
@@ -183,7 +184,7 @@ export default function ImportUniverselPage() {
       const fd = new FormData();
       fd.append('file', uploadedFile);
 
-      const res = await fetch('/api/admin/import-poi/parse', { method: 'POST', body: fd });
+      const res = await adminFetch('/api/admin/import-poi/parse', { method: 'POST', body: fd });
       const data: ParseResult = await res.json();
       setParseResult(data);
 
@@ -268,7 +269,7 @@ export default function ImportUniverselPage() {
         colVille: gc.colVille,
       };
 
-      const res = await fetch('/api/admin/geocode/batch', {
+      const res = await adminFetch('/api/admin/geocode/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -295,7 +296,7 @@ export default function ImportUniverselPage() {
     setIsUpdatingRow(true);
 
     try {
-      const res = await fetch('/api/admin/geocode/update', {
+      const res = await adminFetch('/api/admin/geocode/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ geocodeId, rowIndex, action }),
@@ -343,7 +344,7 @@ export default function ImportUniverselPage() {
         body.geocodeId = geocodeId;
       }
 
-      const res = await fetch('/api/admin/import-poi/dry-run', {
+      const res = await adminFetch('/api/admin/import-poi/dry-run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -390,7 +391,7 @@ export default function ImportUniverselPage() {
         body.geocodeId = geocodeId;
       }
 
-      const res = await fetch('/api/admin/import-poi/execute', {
+      const res = await adminFetch('/api/admin/import-poi/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -707,7 +708,7 @@ export default function ImportUniverselPage() {
                         onClick={async () => {
                           setIsCreatingCategory(true);
                           try {
-                            const res = await fetch('/api/admin/poi-categories', {
+                            const res = await adminFetch('/api/admin/poi-categories', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ categorie: newCategoryName.trim() }),
@@ -715,7 +716,7 @@ export default function ImportUniverselPage() {
                             const data = await res.json();
                             if (data.success) {
                               // Reload categories
-                              const res2 = await fetch('/api/admin/poi-categories');
+                              const res2 = await adminFetch('/api/admin/poi-categories');
                               const data2 = await res2.json();
                               if (data2.success) {
                                 const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
