@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, zone_data, carreaux_config, isochrone_data, messages } = body;
+  const { name, zone_data, carreaux_config, isochrone_data, voronoi_data, messages } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'name requis' }, { status: 400 });
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       zone_data:       zone_data ?? null,
       carreaux_config: carreaux_config ?? null,
       isochrone_data:  isochrone_data ?? null,
+      voronoi_data:    voronoi_data ?? null,
       messages:        messages ?? [],
       updated_at:      new Date().toISOString(),
     })

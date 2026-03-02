@@ -9,11 +9,15 @@ import os from 'os';
 import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
 import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const config: ImportConfig & { geocodeId?: string } = await request.json();
 

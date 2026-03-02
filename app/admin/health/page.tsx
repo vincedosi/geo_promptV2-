@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 import { APP_VERSION, BUILD_DATE } from '@/lib/version';
 
 interface Check {
@@ -124,7 +125,7 @@ export default function HealthPage() {
   const fetchHealth = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/health');
+      const res = await adminFetch('/api/admin/health');
       const data = await res.json();
       setHealth(data);
       setLastFetch(new Date());

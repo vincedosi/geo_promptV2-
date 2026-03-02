@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth";
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 /**
  * POST /api/admin/delete-category
  * Supprime une catégorie et tous les POI associés.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const { category, source_id } = await request.json();
     if (!category) {

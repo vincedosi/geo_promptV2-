@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { parseFile } from '@/lib/import/file-parser';
 import { geocodeBatchDetailed } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult } from '@/lib/import/types';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
@@ -22,6 +23,9 @@ if (!fs.existsSync(GEOCODE_DIR)) {
 }
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const body = await request.json();
     const { fileId, colAdresse, colCodePostal, colVille } = body as {

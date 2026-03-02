@@ -11,11 +11,15 @@ import { processRows } from '@/lib/import/validator';
 import { insertRows, closeConnection } from '@/lib/import/inserter';
 import { createAdminClient } from '@/lib/auth';
 import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execFileSync, execSync, spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 // Réutilise la même logique de détection Python que import-carreaux
 function findPythonPath(): string {
@@ -47,6 +48,9 @@ function findPythonPath(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const formData = await request.formData();
     const mode = formData.get('mode') as string;

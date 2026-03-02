@@ -8,7 +8,7 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '5.10.0';
+export const APP_VERSION = '5.12.0';
 export const BUILD_DATE = '2026-02-28';
 
 export interface ChangelogEntry {
@@ -19,6 +19,76 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '5.12.0',
+    date: '2026-02-28',
+    type: 'minor',
+    changes: [
+      'SQL v5.12: table france_borders — MultiPolygon 14 polygones, mainland 2805 pts, Corse 306 pts',
+      'SQL v5.12: source france-geojson (gregoiredavid), union 13 régions, simplification 0.005 deg',
+      'SQL v5.12: get_voronoi_by_category — clip via france_borders (vraies côtes + frontières)',
+      'SQL v5.12: metropolitaine=TRUE -> ST_Union FROM france_borders (plus de polygon 38 pts hardcodé)',
+      'SQL v5.12: fallback ST_MakeEnvelope si france_borders vide',
+      'Frontend: voronoi-fill opacity 0.25 (normal) / 0.35 (hover)',
+      'Frontend: voronoi-pois-circle — 5px rouge #ef4444, bordure blanche 2px',
+      'Frontend: voronoi-pois-halo réduit (12→16px hover)',
+      'Data: data/raw/france_metro_final.wkt + scripts/gen_voronoi_sql.py',
+    ],
+  },
+  {
+    version: '5.11.1',
+    date: '2026-02-28',
+    type: 'patch',
+    changes: [
+      'Voronoï: suppression du masque rectangulaire frontend (FRANCE_MASK_GEOJSON) — clip géré uniquement par SQL ST_Intersection',
+      'Voronoï: suppression des markers HTML étoile (★) — remplacés par layer GL circle + halo lumineux',
+      'Voronoï: nouveau layer voronoi-pois-halo (circle blanc flou, rayon 13→18px hover) derrière les POI',
+      'Voronoï: voronoi-pois-circle raffiné (circle-opacity 0.95, circle-pitch-alignment:map)',
+      'Voronoï: toggle visibility inclut voronoi-pois-halo',
+      'Code: suppression voronoiMarkersRef (obsolète), FRANCE_MASK_GEOJSON (obsolète)',
+    ],
+  },
+  {
+    version: '5.11.0',
+    date: '2026-02-28',
+    type: 'minor',
+    changes: [
+      'SQL v5.11: ST_SnapToGrid(0.0001) sur les points → stabilité numérique zones denses (Paris…)',
+      'SQL v5.11: clip réel France métro (38 pts côtes+frontières) via ST_Intersection',
+      'SQL v5.11: metropolitaine=TRUE → France polygon | FALSE → bbox élargie (DROM-COM)',
+      'SQL v5.11: voronoi_data colonne dans saved_maps (ALTER TABLE + migration)',
+      'Frontend: markers HTML distinctifs pour centres de catégorie (★ rouge, scale hover)',
+      'Frontend: voronoiMarkersRef — toggle add/remove synchro avec voronoiVisible',
+      'Frontend: FRANCE_MASK_GEOJSON mis à jour — 38 pts alignés avec SQL v5.11',
+      'Frontend: sauvegarde + restauration voronoi_data via saved_maps (💾 / 📁)',
+      'API saved-maps: voronoi_data inclus dans POST/GET',
+    ],
+  },
+  {
+    version: '5.10.6',
+    date: '2026-02-28',
+    type: 'patch',
+    changes: [
+      'Voronoï: colorisation dynamique par polygone (palette Tableau-20, voronoi_color property)',
+      'Voronoï: masque France métropolitaine (monde-moins-France, opacity 0.88 — clip visuel strict)',
+      'Voronoï: POI markers via layer circle MapLibre (voronoi-pois-circle, noir/blanc, rayon 6→9px hover)',
+      'Voronoï: hover interactif sur polygones (feature-state → fill-opacity 0.18→0.45, line-width 0.9→2.5px)',
+      'Voronoï: bords fins et nets line-color #1e293b (bleu nuit), line-opacity 0.65',
+      'Voronoï: popup POI circle + hover agrandissement (mousemove/mouseleave feature-state)',
+      'Voronoï: generateId:true sur source voronoi pour feature-state hover',
+    ],
+  },
+  {
+    version: '5.10.1',
+    date: '2026-02-28',
+    type: 'patch',
+    changes: [
+      'Fix SQL: get_voronoi_by_category — LATERAL join + ORDER BY ST_Distance (robuste vs ST_Contains flottants)',
+      'Feature: voronoi_analysis tool dans chat/route.ts (copilote Mistral)',
+      'Feature: layer voronoi-fill + voronoi-line dans copilote/page.tsx',
+      'Feature: applyVoronoi() + badge Voronoï + toggle + popup + légende',
+    ],
+  },
   {
     version: '5.10.0',
     date: '2026-02-28',

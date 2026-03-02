@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth";
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 /**
  * POST /api/admin/delete-source
  * Supprime une source et tous ses POI.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const { source_id } = await request.json();
     if (!source_id) {

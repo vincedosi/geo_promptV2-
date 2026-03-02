@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 /**
  * API pour vérifier si une URL est accessible
  * POST /api/admin/verify-url
  */
 export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
   try {
     const { url } = await request.json();
     

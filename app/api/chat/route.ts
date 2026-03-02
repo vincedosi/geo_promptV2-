@@ -511,6 +511,84 @@ async function executeToolCall(
     return result;
   }
 
+  if (name === 'voronoi_analysis') {
+    const category      = args.category    ? String(args.category)    : '';
+    if (!category) return { error: 'category requis pour voronoi_analysis' };
+
+    const metropolitaine   = args.metropolitaine !== false;
+    const filtre_ville     = args.ville        ? String(args.ville)        : null;
+    const filtre_region    = args.region       ? String(args.region)       : null;
+    const filtre_dept      = args.departement  ? String(args.departement)  : null;
+
+    // Ne passer les params optionnels QUE s'ils ont une valeur réelle —
+    // rétrocompat si la fonction SQL n'a pas encore les 5 paramètres
+    const rpcArgs: Record<string, unknown> = { cat_name: category, metropolitaine };
+    if (filtre_ville)  rpcArgs.filtre_ville       = filtre_ville;
+    if (filtre_region) rpcArgs.filtre_region      = filtre_region;
+    if (filtre_dept)   rpcArgs.filtre_departement = filtre_dept;
+
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.rpc('get_voronoi_by_category', rpcArgs);
+
+    if (error) {
+      console.error('[chat/voronoi] RPC error:', error.message);
+      // Retourner l'erreur pour que Mistral puisse l'expliquer à l'utilisateur
+      return { error: error.message, nb_polygones: 0, category };
+    }
+
+    const features = Array.isArray(data) ? data : [];
+    console.log(`[chat/voronoi] "${category}" metro=${metropolitaine} ville=${filtre_ville} region=${filtre_region} dept=${filtre_dept} → ${features.length} polygones`);
+
+    // Extraire les POIs depuis les properties pour les afficher comme markers
+    const pois = features
+      .map((f: any) => ({
+        id:           f?.properties?.id        ?? String(Math.random()),
+        nom:          f?.properties?.nom       ?? 'Inconnu',
+        lat:          Number(f?.properties?.lat ?? 0),
+        lng:          Number(f?.properties?.lng ?? 0),
+        categorie:    f?.properties?.categorie ?? category,
+        adresse:      f?.properties?.adresse   ?? undefined,
+        ville:        f?.properties?.ville     ?? undefined,
+      }))
+      .filter((p: any) => p.lat !== 0 && p.lng !== 0);
+
+    const locationLabel = filtre_ville ?? filtre_region ?? filtre_dept
+      ?? (metropolitaine ? 'France métropolitaine' : 'France');
+
+    // ZoneData compatible avec le copilote (affichage canvas markers)
+    const coordonnees = pois.length > 0
+      ? {
+          lat: pois.reduce((s: number, p: any) => s + p.lat, 0) / pois.length,
+          lng: pois.reduce((s: number, p: any) => s + p.lng, 0) / pois.length,
+        }
+      : { lat: 46.8, lng: 2.3 };
+
+    const poisForMap = {
+      ville:          locationLabel,
+      region:         filtre_region ?? null,
+      departement:    filtre_dept   ?? null,
+      categorie_poi:  category,
+      rayon_metres:   null,
+      rayon_poi_metres: null,
+      coordonnees,
+      pois,
+      nb_pois:        pois.length,
+      categories:     { [category]: pois.length },
+    };
+
+    return {
+      voronoiGeoJSON: {
+        type: 'FeatureCollection' as const,
+        features,
+        _meta: { category, metropolitaine, filtre_ville, filtre_region, filtre_dept },
+      },
+      poisForMap,
+      nb_polygones: features.length,
+      category,
+      metropolitaine,
+    };
+  }
+
   if (name === 'afficher_carreaux') {
     const indicateur = args.indicateur ? String(args.indicateur) : 'ind_18_24';
     // Valider l'indicateur contre les connus, fallback si inconnu
@@ -532,6 +610,59 @@ async function executeToolCall(
       ville,
       coordonnees,
     };
+  }
+
+  if (name === 'isochrone_battle') {
+    const category = args.category ? String(args.category) : '';
+    if (!category) return { error: 'category requis pour isochrone_battle' };
+
+    const mode              = args.mode          ? String(args.mode)          : 'drive';
+    const metropolitaine    = args.metropolitaine !== false;
+    const filtre_ville      = args.ville         ? String(args.ville)         : null;
+    const filtre_region     = args.region        ? String(args.region)        : null;
+    const filtre_dept       = args.departement   ? String(args.departement)   : null;
+    const max_minutes       = args.max_minutes   ? Number(args.max_minutes)   : 120;
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+      // Timeout 280s (légèrement sous maxDuration=300 de la route battle)
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 280_000);
+      const res = await fetch(`${baseUrl}/api/isochrone-battle`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal:  controller.signal,
+        body: JSON.stringify({
+          category,
+          mode,
+          metropolitaine,
+          filtre_ville,
+          filtre_region,
+          filtre_departement: filtre_dept,
+          force_recalculate: (args as any).forceRecalculate ?? false,
+          max_minutes,
+        }),
+      }).finally(() => clearTimeout(timer));
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[chat/isochrone_battle] Erreur endpoint HTTP', res.status, ':', errText);
+        // Extraire le message JSON si possible
+        let friendlyErr = errText;
+        try { friendlyErr = JSON.parse(errText)?.error ?? errText; } catch { /* keep raw */ }
+        return { error: friendlyErr, category };
+      }
+
+      const data = await res.json();
+      console.log(`[chat/isochrone_battle] "${category}" → ${data.nb_features ?? 0} features, ${data.nb_pois ?? 0} POIs`);
+      return data;
+    } catch (e: any) {
+      const msg = e.name === 'AbortError'
+        ? 'Timeout (>280s) : trop de CIRFA à calculer sans cache. Lance la bataille depuis /map d\'abord pour remplir le cache ORS.'
+        : e.message;
+      console.error('[chat/isochrone_battle] Fetch error:', msg);
+      return { error: msg, category };
+    }
   }
 
   return { error: `Outil inconnu: ${name}` };
@@ -570,8 +701,25 @@ function buildSystemPrompt(categoriesList: string[]): string {
 
 CATÉGORIES DE POI DISPONIBLES EN BASE: ${catsFormatted}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RÈGLE DE PRIORITÉ ABSOLUE — ROUTAGE DES OUTILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SI l'utilisateur dit l'un de ces mots : "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage territorial", "cellule", "diagramme"
+→ TOUJOURS appeler voronoi_analysis. JAMAIS analyser_zone_pois.
+
+SI l'utilisateur dit "montre les XXX", "affiche les XXX", "trouve les XXX" sans "territoire/voronoï"
+→ analyser_zone_pois
+
+SI l'utilisateur dit "carreaux", "18-24 ans", "revenus", "population", "densité"
+→ afficher_carreaux
+
+SI l'utilisateur dit "isochrone", "X min à pied/voiture/vélo"
+→ ajouter isochrone_minutes/isochrone_mode à analyser_zone_pois
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ═══ OUTIL 1 : analyser_zone_pois ═══
-Appelle cet outil quand l'utilisateur demande des établissements/lieux.
+Appelle cet outil quand l'utilisateur demande des établissements/lieux à afficher sous forme de marqueurs sur la carte.
+⚠️ NE PAS utiliser si l'utilisateur mentionne "Voronoï", "territoire", "zone d'influence" ou "découpage" → utiliser voronoi_analysis à la place.
 
 PARAMÈTRES DE LOCALISATION (au moins un requis):
 - ville : ville française (ex: "Lyon", "Brest")
@@ -607,6 +755,58 @@ EXEMPLES CARREAUX:
 - "montre les 18-24 ans à Brest" → afficher_carreaux(indicateur:"ind_18_24", label:"Jeunes 18-24 ans", ville:"Brest")
 - "lycées + ind_18_24 à Brest" → analyser_zone_pois(ville:"Brest", cat:"lycee") ET afficher_carreaux(ind:"ind_18_24", label:"Jeunes 18-24 ans", ville:"Brest")
 - "montre les jeunes" → NE PAS appeler afficher_carreaux. Répondre: "Par 'jeunes', vous pensez aux 18-24 ans ?"
+
+═══ OUTIL 3 : voronoi_analysis ═══
+⚡ PRIORITÉ MAXIMALE — Appelle cet outil DÈS QUE l'un de ces mots apparaît (SANS "routier" ni "temps de trajet") :
+  "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage", "cellule(s)", "diagramme"
+Voronoï GÉOMÉTRIQUE : distance à vol d'oiseau, résultat instantané.
+Accepte un filtre région/ville/département optionnel.
+
+COMPORTEMENT PAR DÉFAUT (metropolitaine=true) :
+- France métropolitaine uniquement. Les DROM-COM (Guadeloupe, Martinique, Guyane, Réunion, Mayotte…) sont EXCLUS.
+- Dans ta réponse texte, TOUJOURS mentionner : "DROM-COM exclus — précisez si vous souhaitez les inclure."
+
+DROM-COM demandés explicitement (metropolitaine=false) :
+- Si l'utilisateur dit "DROM-COM", "outre-mer", "Guadeloupe", "Martinique", etc. → metropolitaine=false
+
+EXEMPLES OBLIGATOIRES → voronoi_analysis:
+- "Fais le Voronoï des CIRFA" → voronoi_analysis(category:"cirfa")
+- "Zone d'influence des lycées" → voronoi_analysis(category:"lycee")
+- "Montre les territoires des CIRFA de France" → voronoi_analysis(category:"cirfa")
+- "Voronoï des CIRFA de Bretagne" → voronoi_analysis(category:"cirfa", region:"Bretagne")
+- "Territoires CIRFA à Brest" → voronoi_analysis(category:"cirfa", ville:"Brest")
+- "Zone d'influence CIRFA département 29" → voronoi_analysis(category:"cirfa", departement:"29")
+- "Voronoï CIRFA outre-mer" → voronoi_analysis(category:"cirfa", metropolitaine:false)
+
+═══ OUTIL 4 : isochrone_battle ═══
+🔥 Appelle cet outil quand l'utilisateur demande la "Bataille d'Isochrones", des "anneaux de temps réel",
+   des "territoires de recrutement par paliers", ou toute sectorisation basée sur le temps de trajet routier.
+Règle : "le plus petit gagne" — chaque zone est attribuée au CIRFA/POI le plus proche en minutes réelles.
+Paliers calculés : 10, 30, 60, 90, 120 min en voiture (mode drive par défaut).
+⚠️ Avant d'appeler l'outil, avertir l'utilisateur : "Calcul en cours (~1-2 min au 1er appel, puis mis en cache)."
+⚠️ TOUJOURS appeler l'outil IMMÉDIATEMENT. NE JAMAIS demander de confirmation. L'utilisateur sait que c'est long.
+
+FILTRES ORS (passer si mentionnés, sinon France entière) :
+→ Si l'utilisateur précise une région, département ou ville : TOUJOURS passer le filtre correspondant.
+→ "France métropolitaine" ou sans filtre = metropolitaine:true, pas de filtre ville/région/dept.
+→ NE JAMAIS bloquer l'appel pour demander confirmation.
+
+🚨 GESTION D'ERREUR ABSOLUE : Si l'outil retourne { "error": "..." }, tu DOIS reproduire le message
+   d'erreur EXACTEMENT mot pour mot à l'utilisateur. NE JAMAIS dire seulement "Je n'ai pas réussi".
+   Exemple : si error = "ORS n'a retourné aucun isochrone. Vérifier ORS_API_KEY", dire exactement ça.
+
+DIFFÉRENCE avec voronoi_analysis :
+- voronoi_analysis = distance euclidienne, instantané, pas d'API ORS
+- isochrone_battle  = temps de trajet réel, anneaux 10→120 min, consomme des crédits ORS
+
+EXEMPLES OBLIGATOIRES → isochrone_battle :
+- "Bataille d'isochrones des CIRFA" → isochrone_battle(category:"cirfa") + avertir durée
+- "Bataille d'isochrones des CIRFA de France métropolitaine" → isochrone_battle(category:"cirfa", metropolitaine:true)
+- "Territoires de recrutement réels des CIRFA de Bretagne" → isochrone_battle(category:"cirfa", region:"Bretagne")
+- "Anneaux isochrones CIRFA du 29" → isochrone_battle(category:"cirfa", departement:"29")
+- "Sectorisation routière CIRFA Normandie" → isochrone_battle(category:"cirfa", region:"Normandie")
+- "Qui recrute en moins de 30 min ?" → isochrone_battle(category:"cirfa")
+- "Zones de chalandise routières des lycées" → isochrone_battle(category:"lycee")
 
 ═══ ISOCHRONES ═══
 Si l'utilisateur mentionne "isochrone", "X minutes à pied/voiture/vélo", "zone de chalandise", "zone accessible en X min" :
@@ -681,6 +881,46 @@ function buildTools(categoriesList: string[]) {
     {
       type: 'function' as const,
       function: {
+        name: 'voronoi_analysis',
+        description:
+          "⚡ PRIORITÉ MAXIMALE. Génère les polygones de Voronoï (zones d'influence territoriales) pour une catégorie de POIs, " +
+          "avec affichage des établissements en markers. " +
+          "OBLIGATOIRE pour les mots : 'Voronoï', 'voronoi', 'territoire(s)', 'zone(s) d\\'influence', 'découpage territorial', 'cellule(s)', 'diagramme'. " +
+          "Accepte un filtre optionnel ville/région/département. " +
+          "NE PAS confondre avec analyser_zone_pois (qui n'affiche que des markers sans polygones).",
+        parameters: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              description: `Catégorie EXACTE de POIs. Choisir strictement parmi : ${categoriesList.join(', ')}`,
+            },
+            ville: {
+              type: 'string',
+              description: 'Ville à analyser. Ex: "Brest", "Lyon". Optionnel — si absent, France entière.',
+            },
+            region: {
+              type: 'string',
+              description: 'Région à analyser. Ex: "Bretagne", "Île-de-France". Optionnel.',
+            },
+            departement: {
+              type: 'string',
+              description: 'Département ou code. Ex: "Finistère", "29". Optionnel.',
+            },
+            metropolitaine: {
+              type: 'boolean',
+              description:
+                "TRUE (défaut) = France métropolitaine uniquement si pas de filtre lieu. " +
+                "FALSE = inclut DROM-COM. Mettre FALSE si l'utilisateur mentionne : 'DROM-COM', 'outre-mer', 'Guadeloupe', 'Martinique', 'Réunion', 'Guyane', 'Mayotte', 'DOM-TOM'.",
+            },
+          },
+          required: ['category'],
+        },
+      },
+    },
+    {
+      type: 'function' as const,
+      function: {
         name: 'afficher_carreaux',
         description:
           'Affiche une couche choroplèthe de carreaux INSEE Filosofi 200m sur la carte avec un indicateur démographique. Appeler quand l\'utilisateur veut voir la distribution spatiale d\'une variable socio-démographique (âge, revenus, population...).',
@@ -701,6 +941,57 @@ function buildTools(categoriesList: string[]) {
             },
           },
           required: ['indicateur', 'indicateur_label'],
+        },
+      },
+    },
+    {
+      type: 'function' as const,
+      function: {
+        name: 'isochrone_battle',
+        description:
+          "🔥 Génère la 'Bataille d'Isochrones' : territoires de recrutement basés sur des anneaux " +
+          "de temps réel (10/30/60/90/120 min en voiture via ORS). " +
+          "Règle absolue : 'le plus petit gagne' — le CIRFA/POI le plus proche en temps réel " +
+          "remporte chaque zone. ZÉRO Voronoï, uniquement ST_Difference pur sur vrais isochrones ORS. " +
+          "OBLIGATOIRE pour les termes : 'bataille d'isochrones', 'anneaux isochrones', " +
+          "'territoires de recrutement réels', 'sectorisation routière', 'qui recrute en moins de Xmin', " +
+          "'paliers de temps', 'zones de chalandise routières'. " +
+          "⚠️ Calcul intensif (~1-2 min pour la France entière au 1er appel, puis mis en cache).",
+        parameters: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              description: `Catégorie EXACTE de POIs. Choisir strictement parmi : ${categoriesList.join(', ')}`,
+            },
+            mode: {
+              type: 'string',
+              enum: ['drive', 'walk', 'bike'],
+              description: "Mode de transport. Défaut: 'drive' (voiture).",
+            },
+            ville: {
+              type: 'string',
+              description: 'Filtre ville. Optionnel.',
+            },
+            region: {
+              type: 'string',
+              description: 'Filtre région. Optionnel — RECOMMANDÉ pour limiter les appels ORS.',
+            },
+            departement: {
+              type: 'string',
+              description: 'Filtre département ou code. Optionnel.',
+            },
+            metropolitaine: {
+              type: 'boolean',
+              description: 'TRUE (défaut) = France métropolitaine. FALSE = inclut DROM-COM.',
+            },
+            max_minutes: {
+              type: 'number',
+              enum: [60, 90, 120, 150, 180],
+              description: "Durée max en minutes. Défaut: 120. Demander à l'utilisateur sa préférence si non précisé dans la demande.",
+            },
+          },
+          required: ['category'],
         },
       },
     },
@@ -820,6 +1111,10 @@ export async function POST(request: NextRequest) {
     const allZoneResults: any[] = [];
     let carreauxData: any = null;
     let isochroneData: any = null;
+    let voronoiData: any = null;
+    let battleData: any        = null;
+    let battleBordersData: any = null;
+    let lastBattleError: string | null = null;
 
     // Boucle agentique (max 3 tours pour éviter les boucles infinies)
     for (let step = 0; step < 3; step++) {
@@ -844,6 +1139,56 @@ export async function POST(request: NextRequest) {
                 nb_pois: (result as any).nb_pois ?? 0,
                 categories: (result as any).categories ?? {},
               }),
+              tool_call_id: toolCall.id,
+              name: toolCall.function.name,
+            });
+          } else if (toolCall.function.name === 'voronoi_analysis') {
+            const voronoiErr = (result as any).error;
+            if (!voronoiErr) {
+              voronoiData = (result as any).voronoiGeoJSON ?? null;
+              // Pousser les POIs dans allZoneResults → affichés comme markers sur le canvas
+              if ((result as any).poisForMap) {
+                allZoneResults.push((result as any).poisForMap);
+              }
+            }
+            mistralMessages.push({
+              role: 'tool',
+              content: voronoiErr
+                ? JSON.stringify({ error: voronoiErr })
+                : JSON.stringify({
+                    nb_polygones:   (result as any).nb_polygones ?? 0,
+                    category:       (result as any).category,
+                    metropolitaine: (result as any).metropolitaine,
+                  }),
+              tool_call_id: toolCall.id,
+              name: toolCall.function.name,
+            });
+          } else if (toolCall.function.name === 'isochrone_battle') {
+            const battleErr = (result as any).error;
+            if (!battleErr) {
+              battleData        = (result as any).battleGeoJSON ?? null;
+              battleBordersData = (result as any).battleBorders  ?? null;
+              // poisForMap est rendu directement par applyIsochroneBattle côté frontend
+              // — ne pas pousser dans allZoneResults (évite ZoneCard avec nb_pois undefined)
+            } else {
+              lastBattleError = String(battleErr);
+              console.error('[chat/isochrone_battle] Erreur reçue:', battleErr);
+            }
+            mistralMessages.push({
+              role: 'tool',
+              content: battleErr
+                ? JSON.stringify({
+                    error: battleErr,
+                    conseil: 'Reproduire ce message d\'erreur EXACTEMENT à l\'utilisateur, mot pour mot.',
+                  })
+                : JSON.stringify({
+                    nb_features:    (result as any).nb_features ?? 0,
+                    nb_pois:        (result as any).nb_pois ?? 0,
+                    category:       (result as any).category,
+                    mode:           (result as any).mode ?? 'drive',
+                    levels:         (result as any).levels ?? [10, 30, 60, 90, 120],
+                    metropolitaine: (result as any).metropolitaine,
+                  }),
               tool_call_id: toolCall.id,
               name: toolCall.function.name,
             });
@@ -908,11 +1253,15 @@ export async function POST(request: NextRequest) {
         zoneData: mergedZone,
         carreauxData,
         isochroneData,
+        voronoiData,
+        battleData,
+        battleBordersData,
+        battleError: lastBattleError,
       });
     }
 
     const mergedZone = mergeZoneResults(allZoneResults);
-    return NextResponse.json({ reply: '(pas de réponse)', zoneData: mergedZone, carreauxData, isochroneData });
+    return NextResponse.json({ reply: '(pas de réponse)', zoneData: mergedZone, carreauxData, isochroneData, voronoiData, battleData, battleBordersData, battleError: lastBattleError });
   } catch (error: any) {
     console.error('[chat] Erreur:', error);
     return NextResponse.json(
