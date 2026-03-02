@@ -2,16 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url?: string;
-  created_at: string;
-  member_count: number;
-  source_count: number;
-}
+import type { Organization } from '@/types/admin';
 
 function Spinner({ size = 12 }: { size?: number }) {
   return (

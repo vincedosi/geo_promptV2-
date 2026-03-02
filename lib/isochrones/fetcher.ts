@@ -5,6 +5,10 @@
  */
 
 import { createAdminClient } from '@/lib/auth';
+import type { PoiRow } from '@/types/poi';
+
+// ── Types ────────────────────────────────────────────────────────────────────
+export type { PoiRow };
 
 // ── Profils ORS ──────────────────────────────────────────────────────────────
 export const ORS_PROFILES: Record<string, string> = {
@@ -21,18 +25,6 @@ export const ORS_RETRY_DELAY = 20_000; // 20s entre retries (rate limit ORS)
 export const ORS_MAX_POIS_CHAT = 50;
 // Limite pour /api/isochrone-battle (timeout étendu, cache prioritaire)
 export const ORS_MAX_POIS_ROUTIER = 300;
-
-// ── Types ────────────────────────────────────────────────────────────────────
-export type PoiRow = {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  categorie: string;
-  sous_categorie?: string;
-  adresse?: string;
-  ville?: string;
-};
 
 export interface IsochroneCacheCtx {
   cacheKey: string;

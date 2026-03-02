@@ -1,34 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getDistinctCategories } from '@/lib/poi/categories';
+import type { MistralToolCall, MistralMessage, MistralResponse } from '@/types/api';
+import type { PoiRow, IsochroneCacheCtx } from '@/lib/isochrones/fetcher';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
-
-// =============================================================================
-// Types Mistral API
-// =============================================================================
-
-interface MistralToolCall {
-  id: string;
-  type: 'function';
-  function: { name: string; arguments: string };
-}
-
-interface MistralMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
-  tool_calls?: MistralToolCall[];
-  tool_call_id?: string;
-  name?: string;
-}
-
-interface MistralResponse {
-  choices: {
-    message: MistralMessage;
-    finish_reason: 'stop' | 'tool_calls' | 'length';
-  }[];
-}
 
 // =============================================================================
 // Coordonnées des grandes villes françaises
@@ -152,10 +129,6 @@ const CITY_BASE_RADIUS: Record<string, number> = {
   grenoble: 4000,
 };
 
-type PoiRow = {
-  id: string; nom: string; lat: number; lng: number;
-  categorie: string; sous_categorie?: string; adresse?: string; ville?: string;
-};
 
 /**
  * Résolution de la catégorie demandée contre les catégories réelles en base.
@@ -201,11 +174,6 @@ function buildIsochCacheKey(ville: string, categorie: string | undefined, minute
   return `${vk}__${ck}__${minutes}min__${mode}`;
 }
 
-interface IsochroneCacheCtx {
-  cacheKey: string;
-  ville: string;
-  categorie?: string;
-}
 
 async function fetchIsochrones(
   pois: PoiRow[],

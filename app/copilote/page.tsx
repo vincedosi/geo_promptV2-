@@ -4,77 +4,9 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Link from 'next/link';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface POI {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  categorie: string;
-  sous_categorie?: string;
-  adresse?: string;
-  ville?: string;
-}
-
-interface ZoneData {
-  ville: string;
-  rayon_metres: number | null;
-  rayon_poi_metres: number | null;
-  coordonnees: { lat: number; lng: number };
-  pois: POI[];
-  nb_pois: number;
-  categories: Record<string, number>;
-}
-
-interface CarreauxData {
-  action: 'afficher_carreaux';
-  indicateur: string;
-  indicateur_label: string;
-  ville?: string;
-  coordonnees: { lat: number; lng: number };
-}
-
-interface IsochroneData {
-  type: 'FeatureCollection';
-  features: GeoJSON.Feature[];
-  _meta: { mode: string; minutes: number };
-  _fromCache?: boolean;
-  _cachedAt?: string;
-}
-
-interface VoronoiData {
-  type: 'FeatureCollection';
-  features: GeoJSON.Feature[];
-  _meta?: {
-    category:          string;
-    metropolitaine?:   boolean;
-    filtre_ville?:     string | null;
-    filtre_region?:    string | null;
-    filtre_dept?:      string | null;
-
-    mode?:             string;
-    levels?:           number[];
-  };
-}
-
-interface SavedMap {
-  id: string;
-  name: string;
-  ville?: string;
-  nb_pois: number;
-  created_at: string;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  zoneData?: ZoneData;
-  carreauxData?: CarreauxData;
-}
+import type {
+  ZoneData, CarreauxData, IsochroneData, VoronoiData, SavedMap, ChatMessage,
+} from '@/types/spatial';
 
 // =============================================================================
 // Helpers

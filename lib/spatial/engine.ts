@@ -5,45 +5,13 @@
  */
 
 import { createAdminClient } from '@/lib/auth';
+import type { MistralMessage, MistralResponse } from '@/types/api';
+import type { SpatialResult, GeoJSONFeatureCollection } from '@/types/spatial';
 
-// =============================================================================
-// Types
-// =============================================================================
+export type { SpatialResult };
 
-export interface SpatialMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
-  tool_calls?: MistralToolCall[];
-  tool_call_id?: string;
-  name?: string;
-}
-
-interface MistralToolCall {
-  id: string;
-  type: 'function';
-  function: { name: string; arguments: string };
-}
-
-interface MistralResponse {
-  choices: {
-    message: SpatialMessage;
-    finish_reason: 'stop' | 'tool_calls' | 'length';
-  }[];
-}
-
-export interface SpatialResult {
-  reply: string;
-  geojson?: GeoJSONFeatureCollection | null;
-  analysisType?: 'voronoi' | 'isochrone' | 'proximity' | null;
-  savedId?: string | null;
-  poiCount?: number;
-}
-
-interface GeoJSONFeatureCollection {
-  type: 'FeatureCollection';
-  features: unknown[];
-  _meta?: Record<string, unknown>;
-}
+// SpatialMessage = MistralMessage (même structure, alias sémantique pour ce module)
+export type SpatialMessage = MistralMessage;
 
 // =============================================================================
 // Prompt système

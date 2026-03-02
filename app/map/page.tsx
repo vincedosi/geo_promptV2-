@@ -15,24 +15,7 @@ const MapContainer = dynamic(() => import('@/components/map/MapContainer'), {
   ),
 });
 
-interface POI {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  categorie: string;
-  sous_categorie?: string;
-  adresse?: string;
-  ville?: string;
-  region?: string;
-  departement?: string;
-  code_departement?: string;
-  code_postal?: string;
-  date_import?: string;
-  organization_id?: string;
-  data_source_id?: string;
-  metadata?: unknown;
-}
+import type { POI } from '@/types/poi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

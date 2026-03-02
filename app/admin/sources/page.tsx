@@ -2,39 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-
-// ============================================================
-// Types
-// ============================================================
-
-interface DataSource {
-  id: string;
-  name: string;
-  description?: string;
-  type: 'panneaux' | 'poi' | 'carreaux';
-  category?: string;
-  regie?: string;
-  original_filename?: string;
-  file_format?: string;
-  row_count: number;
-  valid_count: number;
-  error_count: number;
-  mapping?: Record<string, string>;
-  geo_config?: Record<string, string>;
-  filter_fields?: string[];
-  ai_summary?: string;
-  import_date: string;
-  status: string;
-  shared_with?: string[];
-  organization_id?: string;
-  organizations?: { name: string; slug: string };
-}
-
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-}
+import type { DataSource, Organization } from '@/types/admin';
 
 // Schema columns meaningful as map filters (no id/lat/lng/geom)
 const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'categorie', 'sous_categorie'];

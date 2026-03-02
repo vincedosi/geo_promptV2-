@@ -4,21 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { INITIAL_VIEWPORT } from '@/lib/map/config';
-
-interface POI {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  categorie: string;
-  sous_categorie?: string;
-  adresse?: string;
-  ville?: string;
-  region?: string;
-  departement?: string;
-  code_postal?: string;
-  [key: string]: any;
-}
+import type { POI } from '@/types/poi';
 
 const BATTLE_PALETTE = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4','#8bc34a','#ff5722','#607d8b','#795548','#9c27b0','#03a9f4','#4caf50','#ff9800','#2196f3','#c0392b'];
 const BATTLE_PALIER_OPACITY: Record<number, number> = { 10: 0.65, 30: 0.50, 60: 0.38, 90: 0.28, 120: 0.18, 150: 0.11, 180: 0.08 };

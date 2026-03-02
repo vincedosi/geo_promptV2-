@@ -8,21 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { APP_VERSION, BUILD_DATE } from '@/lib/version';
-
-interface Check {
-  name: string;
-  status: 'OK' | 'WARN' | 'ERROR';
-  value?: string;
-  message: string;
-}
-
-interface HealthResponse {
-  success: boolean;
-  status: 'OK' | 'WARN' | 'ERROR';
-  summary: string;
-  checks: Check[];
-  timestamp: string;
-}
+import type { Check, HealthResponse } from '@/types/admin';
 
 function StatusIcon({ status }: { status: 'OK' | 'WARN' | 'ERROR' | 'loading' }) {
   if (status === 'loading') {

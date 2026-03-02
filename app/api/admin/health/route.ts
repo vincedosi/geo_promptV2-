@@ -4,13 +4,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
-
-interface Check {
-  name: string;
-  status: 'OK' | 'WARN' | 'ERROR';
-  value?: string;
-  message: string;
-}
+import type { Check } from '@/types/admin';
 
 export async function GET() {
   const checks: Check[] = [];
