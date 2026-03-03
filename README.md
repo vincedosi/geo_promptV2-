@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.0.0 — 2 mars 2026
+> **Version** : 6.5.1 — 3 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -16,7 +16,7 @@ L'utilisateur tape un prompt en français → l'IA extrait des filtres structur�
 | **Framework** | Next.js 14 (App Router, TypeScript strict, Tailwind CSS) |
 | **Base de données** | Supabase (PostgreSQL + PostGIS) |
 | **Cartographie** | MapLibre GL JS + CARTO Light raster tiles (gratuit, sans token) |
-| **IA / NLP** | Mistral AI (mistral-small-latest, JSON mode, function calling) |
+| **IA / NLP** | Mistral AI (mistral-small-latest, function calling via Vercel AI SDK v6) |
 | **Auth** | Supabase Auth (email/password, Bearer token) |
 | **Parsing fichiers** | PapaParse (CSV), SheetJS (XLSX), natif (GeoJSON) |
 | **Géocodage** | API BAN data.gouv.fr (adresses FR, gratuit) + proj4 (Lambert 93 → WGS84) |
@@ -35,7 +35,23 @@ genesis_app/
 │   ├── page.tsx                           ← Page d'accueil (Parse Prompt IA)
 │   ├── layout.tsx                         ← Layout global + GenesisNav sidebar
 │   ├── map/page.tsx                       ← Carte POI + carreaux + Bataille d'Isochrones
-│   ├── copilote/page.tsx                  ← Copilote Media IA (chat + carte split)
+│   ├── copilote/
+│   │   ├── page.tsx                       ← Orchestration (~160 lignes, 6 hooks)
+│   │   ├── _hooks/
+│   │   │   ├── useMapInit.ts              ← Init MapLibre + markers
+│   │   │   ├── useMapLayers.ts            ← Isochrones, Voronoï, Bataille, Carreaux
+│   │   │   ├── useChatControls.ts         ← useChat + DefaultChatTransport
+│   │   │   ├── useRateLimitHandler.ts     ← Countdown auto-retry Mistral 429
+│   │   │   ├── useToolProcessor.ts        ← Traitement résultats outils IA
+│   │   │   └── useSavedMaps.ts            ← Sauvegarde / chargement cartes
+│   │   ├── _components/
+│   │   │   ├── ChatPanel.tsx              ← Panel chat (messages, input, save/load)
+│   │   │   ├── MapPanel.tsx               ← Panel carte (badges, toggles, légende)
+│   │   │   ├── PromptsPanel.tsx           ← Panel aide prompts (6 catégories, 20 exemples)
+│   │   │   ├── ZoneCard.tsx               ← Carte résumé zone analysée
+│   │   │   └── TypingDots.tsx             ← Indicateur chargement IA
+│   │   └── _lib/
+│   │       └── constants.ts               ← circleGeoJSON, getCatColor
 │   ├── dashboard/page.tsx                 ← Dashboard utilisateur (auth)
 │   ├── login/page.tsx                     ← Login / Sign-up email
 │   ├── admin/
@@ -44,42 +60,37 @@ genesis_app/
 │   │   ├── sources/page.tsx               ← Gestion des sources de données
 │   │   ├── organizations/page.tsx         ← Gestion multi-tenant
 │   │   └── health/page.tsx                ← Health Check système
-│   ├── api/
-│   │   ├── parse-prompt/route.ts          ← Mistral → JSON filtres panneaux
-│   │   ├── search-panneaux/route.ts       ← Filtres → panneaux Supabase (RPC PostGIS)
-│   │   ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
-│   │   ├── search-poi/categories/route.ts ← Liste des catégories POI
-│   │   ├── carreaux/route.ts              ← GET: sources / POST: GeoJSON FeatureCollection
-│   │   ├── chat/route.ts                  ← Copilote IA (Mistral function calling, agentique)
-│   │   ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
-│   │   ├── spatial/route.ts               ← Moteur géospatial (Voronoï, isochrones, proximité)
-│   │   ├── saved-maps/route.ts            ← Sauvegarde/chargement analyses
-│   │   ├── saved-maps/[id]/route.ts       ← Détail/suppression analyse
-│   │   ├── ai/parse-poi-query/route.ts    ← Mistral → filtres POI (carte IA)
-│   │   ├── auth/[...auth]/route.ts        ← Auth endpoints
-│   │   └── admin/                         ← 🔒 Toutes protégées par requireAdmin()
-│   │       ├── import-poi/execute/route.ts ← SSE import POI en base
-│   │       ├── import-carreaux/route.ts   ← Import carreaux INSEE
-│   │       ├── sources/route.ts           ← CRUD sources
-│   │       ├── sources/[id]/route.ts      ← GET/PATCH/DELETE source
-│   │       ├── sources/[id]/meta-keys/route.ts
-│   │       ├── sources/[id]/export/route.ts
-│   │       ├── sources/[id]/summary/route.ts
-│   │       ├── organizations/route.ts     ← CRUD organisations
-│   │       ├── poi-categories/route.ts    ← CRUD catégories POI
-│   │       ├── geocode/batch/route.ts     ← Géocodage batch BAN
-│   │       ├── geocode/update/route.ts    ← Mise à jour coordonnées
-│   │       ├── source-filters/route.ts    ← Filtres par source
-│   │       ├── delete-source/route.ts     ← Suppression source
-│   │       ├── delete-category/route.ts   ← Suppression catégorie
-│   │       ├── verify-url/route.ts        ← Vérification URL
-│   │       ├── preview-carreaux/route.ts  ← Prévisualisation carreaux
-│   │       ├── health/route.ts            ← Health check (non protégé — diagnostic)
-│   │       └── init-admin/route.ts        ← Init admin (ADMIN_INIT_KEY)
-│   └── components/
-│       ├── AISearchInput.tsx              ← Barre de recherche IA (robot pixel art animé)
-│       ├── MapIntegrated.tsx / MapIntegratedClient.tsx
-│       └── MaplibreMap.tsx / MaplibreMapClient.tsx
+│   └── api/
+│       ├── parse-prompt/route.ts          ← Mistral → JSON filtres panneaux
+│       ├── search-panneaux/route.ts       ← Filtres → panneaux Supabase (RPC PostGIS)
+│       ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
+│       ├── search-poi/categories/route.ts ← Liste des catégories POI
+│       ├── carreaux/route.ts              ← GET: sources / POST: GeoJSON FeatureCollection
+│       ├── chat/route.ts                  ← Copilote IA (streamText, 5 tools Zod, rate limit)
+│       ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
+│       ├── saved-maps/route.ts            ← Sauvegarde/chargement analyses
+│       ├── saved-maps/[id]/route.ts       ← Détail/suppression analyse
+│       ├── ai/parse-poi-query/route.ts    ← Mistral → filtres POI (carte IA)
+│       ├── auth/[...auth]/route.ts        ← Auth endpoints
+│       └── admin/                         ← 🔒 Toutes protégées par requireAdmin()
+│           ├── import-poi/execute/route.ts ← SSE import POI en base
+│           ├── import-carreaux/route.ts   ← Import carreaux INSEE
+│           ├── sources/route.ts           ← CRUD sources
+│           ├── sources/[id]/route.ts      ← GET/PATCH/DELETE source
+│           ├── sources/[id]/meta-keys/route.ts
+│           ├── sources/[id]/export/route.ts
+│           ├── sources/[id]/summary/route.ts
+│           ├── organizations/route.ts     ← CRUD organisations
+│           ├── poi-categories/route.ts    ← CRUD catégories POI
+│           ├── geocode/batch/route.ts     ← Géocodage batch BAN
+│           ├── geocode/update/route.ts    ← Mise à jour coordonnées
+│           ├── source-filters/route.ts    ← Filtres par source
+│           ├── delete-source/route.ts     ← Suppression source
+│           ├── delete-category/route.ts   ← Suppression catégorie
+│           ├── verify-url/route.ts        ← Vérification URL
+│           ├── preview-carreaux/route.ts  ← Prévisualisation carreaux
+│           ├── health/route.ts            ← Health check (non protégé — diagnostic)
+│           └── init-admin/route.ts        ← Init admin (ADMIN_INIT_KEY)
 ├── components/
 │   ├── GenesisNav.tsx                     ← Sidebar navigation
 │   └── map/
@@ -97,10 +108,11 @@ genesis_app/
 │   ├── api/
 │   │   ├── middleware.ts                  ← 🔒 requireAdmin() + adminUnauthorized()
 │   │   └── errors.ts                      ← Gestion erreurs API
+│   ├── geo/
+│   │   ├── geometry.ts                    ← circleGeoJSON, tupleToGeoJSON, bboxFromPoints
+│   │   └── locations.ts                   ← resolveLocation, fetchPoisForLocation
 │   ├── isochrones/
-│   │   └── fetcher.ts                     ← ORS API (isochrones, retry, cache)
-│   ├── spatial/
-│   │   └── engine.ts                      ← Moteur Mistral géospatial (4 outils)
+│   │   └── fetcher.ts                     ← ORS API (isochrones, retry, AbortController 12s)
 │   ├── import/
 │   │   ├── file-parser.ts                 ← Parse CSV/XLSX/GeoJSON
 │   │   ├── column-detector.ts             ← Détection automatique colonnes
@@ -116,6 +128,10 @@ genesis_app/
 │   ├── geo-resolver.ts                    ← Résolution géo (dept/villes/régions)
 │   ├── supabase.ts                        ← Client Supabase partagé
 │   └── version.ts                         ← VERSION CENTRALE + changelog
+├── types/
+│   ├── poi.ts                             ← PoiRow, PoiCategory
+│   ├── spatial.ts                         ← ZoneData, IsochroneData, VoronoiData, CarreauxData, SavedMap
+│   └── api.ts                             ← ApiError, PaginatedResponse
 ├── sql/
 │   ├── 001_unify_poi_table.sql            ← Table poi_france
 │   ├── 002_get_carreaux_bbox.sql          ← RPC bbox carreaux (avec validations sécurité)
@@ -202,6 +218,7 @@ Vérifier la config : **http://localhost:3000/admin/health**
 | **organizations** | Organisations multi-tenant |
 | **profiles** | Profils utilisateurs (role: super_admin / admin / client) |
 | **saved_maps** | Analyses géospatiales sauvegardées |
+| **france_borders** | MultiPolygon France métropolitaine (clip Voronoï) |
 
 ### Fonctions PostGIS
 
@@ -209,7 +226,7 @@ Vérifier la config : **http://localhost:3000/admin/health**
 |----------|-------------|
 | `get_carreaux_bbox(table, bbox, limit)` | Carreaux dans un viewport (index GIST, validations sécurité) |
 | `get_isochrone_battle(p_rings JSONB)` | ⚔️ Bataille d'Isochrones — ST_Difference pur, zéro Voronoï |
-| `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI |
+| `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI, clip france_borders |
 | `panneaux_near_point(lat, lng, rayon_m)` | Panneaux dans un rayon GPS |
 | `create_carreaux_table(table_name)` | Crée une table carreaux dynamique |
 | `drop_carreaux_table(table_name)` | Supprime une table carreaux |
@@ -224,7 +241,7 @@ Vérifier la config : **http://localhost:3000/admin/health**
 - Tous les POI par catégorie avec filtres dynamiques
 - **Markers DOM** (pas de GeoJSON layers — robuste au chargement du style)
 - **Couche carreaux INSEE** — choroplèthe polygon, sélecteur métrique dynamique, auto-zoom
-- **Voronoï géométrique** — zones d'influence par catégorie POI
+- **Voronoï géométrique** — zones d'influence par catégorie POI, clip France métro
 - **⚔️ Bataille d'Isochrones** — sectorisation par temps de trajet réel ORS :
   - Sélecteur catégorie (CIRFA, lycée, etc.) + mode transport (🚗🚶🚲)
   - Durée configurable : 60 / 90 / 120 / 150 / 180 min
@@ -256,13 +273,18 @@ Passe 2 : union par CIRFA → feature_type: "border" (bordures 3px frontend)
 
 ### Copilote Media IA (`/copilote`)
 Chat conversationnel IA + carte interactive en split screen.
-- Mistral AI function calling — 4 outils :
-  - `analyser_zone_pois` — recherche POI par zone géographique
-  - `voronoi_analysis` — Voronoï géométrique par catégorie
-  - `isochrone_battle` — ⚔️ Bataille d'Isochrones (avec gestion erreur et timeout 280s)
-  - `afficher_carreaux` — choroplèthe INSEE sur la carte
-- ZoneCard résultats, légende dynamique, suggestions de prompts
-- Affichage de l'erreur Bataille directement dans l'UI (sans paraphrase Mistral)
+- Mistral AI function calling via **Vercel AI SDK v6** (`streamText`, `useChat`, `DefaultChatTransport`)
+- **5 outils** :
+  - `analyser_zone_pois` — recherche POI par zone géographique + isochrones ORS
+  - `voronoi_analysis` — Voronoï géométrique par catégorie (à vol d'oiseau, instantané)
+  - `isochrone_battle` — ⚔️ Voronoï Routier / Bataille d'Isochrones (temps réel ORS, ~1-2 min)
+  - `afficher_carreaux` — choroplèthe carreaux INSEE sur la carte
+  - `analyser_panneaux` — panneaux OOH géolocalisés (table panneaux_affichage)
+- **Rate limit** : 12 req/min/IP in-memory, countdown auto-retry avec délai exact
+- **AbortController ORS** : timeout 12s par batch, délai adaptatif (5s timeout / 20s rate limit)
+- **Panel Prompts `?`** : 6 catégories de prompts cliquables avec description du résultat attendu
+- ZoneCard résultats, légende dynamique, sauvegarde/chargement cartes
+- Messages d'erreur friendlys (Bataille timeout, Voronoï erreur)
 
 ### Import Universel (`/admin/import`)
 Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation (GPS/BAN/Lambert93) → Dry Run → Import SSE temps réel.
@@ -281,7 +303,7 @@ Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation (GPS/BAN/Lambe
 **Fichier central** : `lib/version.ts`
 
 ```typescript
-export const APP_VERSION = '6.0.0'; // ← TOUJOURS INCRÉMENTER
+export const APP_VERSION = '6.5.1'; // ← TOUJOURS INCRÉMENTER
 ```
 
 | Type | Version | Exemple |
@@ -308,7 +330,27 @@ import { adminFetch } from '@/lib/admin-fetch';
 const res = await adminFetch('/api/admin/sources');
 ```
 
-### 3. Logs structurés
+### 3. Vercel AI SDK v6 — Patterns
+
+```typescript
+// Backend (chat/route.ts)
+const result = streamText({
+  model: createMistral(...)('mistral-small-latest'),
+  system: '...',
+  messages: await convertToModelMessages(messages),  // ← async!
+  stopWhen: stepCountIs(3),
+  tools: { monOutil: { inputSchema: z.object({...}), execute: async (input) => {...} } }
+});
+return result.toUIMessageStreamResponse();
+
+// Frontend
+const { messages, sendMessage, status } = useChat({
+  transport: new DefaultChatTransport({ api: '/api/chat', prepareSendMessagesRequest: ... })
+});
+// Tool results dans msg.parts — type 'tool-{name}', state 'output-available', champ output
+```
+
+### 4. Logs structurés
 
 ```typescript
 // ✅ BON
@@ -328,9 +370,8 @@ console.log('done');
 | Carreaux API | `[carreaux]` |
 | Copilote IA | `[copilote]` |
 | Auth | `[auth]` |
-| Spatial | `[spatial]` |
 
-### 4. Règles générales
+### 5. Règles générales
 
 1. **Ne jamais committer les clés API** — `.env.local` est dans `.gitignore`
 2. **ON CONFLICT DO NOTHING** sur tous les inserts
@@ -356,7 +397,7 @@ npx next dev
 |-----|-------------|
 | `/` | Parse Prompt IA → recherche panneaux |
 | `/map` | Carte POI + carreaux choroplèthe + Voronoï + Bataille d'Isochrones |
-| `/copilote` | Copilote Media IA (chat + carte split screen) |
+| `/copilote` | Copilote Media IA (chat + carte split screen, 5 outils) |
 | `/dashboard` | Dashboard utilisateur |
 | `/login` | Connexion / Inscription |
 | `/admin/import` | Import Universel (CSV/XLSX/GeoJSON) |
@@ -367,16 +408,16 @@ npx next dev
 
 ---
 
-## 🔄 Plan de refactoring (itérations en cours)
+## 🔄 Plan de refactoring
 
 | # | Itération | Statut | Détail |
 |---|-----------|--------|--------|
 | 1 | **Sécurité** | ✅ Terminé | `requireAdmin()`, `adminFetch()`, fallback anon key corrigé |
-| 2 | **Contrat de Types** | ⏳ À faire | `types/poi.ts`, `types/spatial.ts`, dédupliquer définitions |
-| 3 | **Couche Service** | ⏳ À faire | `services/battle.ts`, supprimer fetch internes, thin controllers |
-| 4 | **Découpage UI** | ⏳ À faire | Découper `copilote` (2024 lignes), `MapContainer` (630 lignes) |
-| 5 | **Rate Limiting & Robustesse** | ⏳ À faire | Rate limit `/api/chat`, `/api/isochrone-battle`, logs JSON |
-| 6 | **Subprocess Python** | ⏳ À faire | Migrer `import-carreaux` vers CLI autonome cross-platform |
+| 2 | **Contrat de Types** | ✅ Terminé | `types/poi.ts`, `types/spatial.ts`, `types/api.ts` |
+| 3 | **Couche Service** | ✅ Terminé | `lib/geo/geometry.ts`, `lib/geo/locations.ts`, `lib/isochrones/fetcher.ts` |
+| 4 | **Découpage UI** | ✅ Terminé | 6 hooks, 5 composants, `page.tsx` ~160 lignes |
+| 5 | **Rate Limiting & Robustesse** | ✅ Terminé | Rate limit 12 req/min, AbortController ORS 12s, messages erreur |
+| 6 | **Subprocess Python** | 🔲 À faire | Migrer `import-carreaux` vers CLI autonome cross-platform |
 
 ---
 
@@ -384,17 +425,19 @@ npx next dev
 
 | Version | Date | Changements clés |
 |---------|------|-------------------|
-| **6.0.0** | 2026-03-02 | Audit sécurité : `requireAdmin()` sur 18 routes admin, `adminFetch()`, `createAdminClient()` strict, nouveau repo geo_promptV2- |
-| **5.10.0** | 2026-03-01 | Spatial Engine : `lib/spatial/engine.ts`, Voronoï PostGIS, saved maps, `/api/spatial` |
-| **5.9.0** | 2026-03-01 | ⚔️ Bataille d'Isochrones : `/api/isochrone-battle`, outil Mistral, layers MapLibre, page /map sidebar |
-| **5.8.0** | 2026-03-01 | ORS isochrones : `lib/isochrones/fetcher.ts`, cache `isochrones_cache`, retry logic |
-| **5.7.0** | 2026-02-28 | Voronoï géométrique : `get_voronoi_by_category` PostGIS, outil Mistral `voronoi_analysis` |
-| **5.6.0** | 2026-02-26 | Carreaux choroplèthe : sélecteur métrique dynamique, auto-zoom bbox, toggle Copilote |
-| **5.5.0** | 2026-02-26 | IA : filtres metadata, correspondances LP/LG/LGT/SEP |
-| **5.4.0** | 2026-02-26 | Copilote : cercles individuels rayon_poi_metres, légende, ZoneCard |
-| **5.3.0** | 2026-02-26 | Copilote : layout fullscreen chat+carte, Mistral function calling |
-| **5.2.0** | 2026-02-25 | IA multi-villes/régions/dept, export Excel, robot pixel art |
-| **5.1.0** | 2026-02-25 | Sources : éditeur filtres dynamique, sélection colonnes import |
+| **6.5.1** | 2026-03-03 | Fix "voronoï routier" → `isochrone_battle` + Panel Prompts `?` (6 catégories, 20 exemples cliquables) |
+| **6.5.0** | 2026-03-03 | Itér. 5 : rate limit 12 req/min/IP, AbortController ORS 12s, messages erreur friendlys, outil `analyser_panneaux` |
+| **6.4.1** | 2026-03-03 | DB audit : suppression code mort (engine.ts, spatial/route.ts) |
+| **6.4.0** | 2026-03-03 | Itér. 4 : UI decomp — 6 hooks + 5 composants + page.tsx 160 lignes |
+| **6.3.0** | 2026-03-03 | Migration Vercel AI SDK v6 : streamText, useChat, DefaultChatTransport |
+| **6.2.0** | 2026-03-03 | Itér. 3 : lib/geo/geometry.ts, lib/geo/locations.ts, lib/isochrones/fetcher.ts |
+| **6.1.0** | 2026-03-03 | Itér. 2 : types/poi.ts, types/spatial.ts, types/api.ts |
+| **6.0.0** | 2026-03-02 | Itér. 1 : requireAdmin() 18 routes, adminFetch(), createAdminClient() strict |
+| **5.12.0** | 2026-02-28 | france_borders, get_voronoi_by_category clip ST_Intersection |
+| **5.9.0** | 2026-02-28 | Isochrones ORS dans Copilote (walk/drive/bike) |
+| **5.7.0** | 2026-02-26 | Voronoï géométrique PostGIS + outil Mistral |
+| **5.6.0** | 2026-02-26 | Carreaux choroplèthe (INSEE Filosofi), sélecteur métrique |
+| **5.5.0** | 2026-02-26 | IA filtres metadata (libelle_nature, hebergement…) |
 | **5.0.0** | 2026-02-24 | Inserter Supabase JS (HTTPS), suppression PostgreSQL direct |
 | **4.1.0** | 2026-02-24 | Renommage GEO.Prompt, Health Check, versioning dynamique |
 | **4.0.0** | 2026-02-23 | Back-office complet (Organizations, Sources, Auth) |
@@ -412,10 +455,12 @@ npx next dev
 | Port 3000 occupé | Next.js passe auto sur 3001 |
 | `.env.local` pas chargé | Redémarrer le serveur Next.js |
 | Firewall bloque PostgreSQL | Résolu en v5.0 — client Supabase JS (HTTPS port 443) |
-| Bataille : "Je n'ai pas réussi" | Vérifier `ORS_API_KEY` dans `.env.local` + logs `[battle/ORS]` dans la console serveur |
+| Bataille : message brut dans le chat | Résolu en v6.5.0 — messages friendlys dans useToolProcessor |
 | Bataille timeout (>280s) | Lancer d'abord depuis `/map` pour remplir le cache ORS, puis réessayer depuis le copilote |
 | Routes admin 403 | Vérifier que `SUPABASE_SERVICE_ROLE_KEY` est configurée (non placeholder) |
+| "Voronoï routier" ne fait rien | Résolu en v6.5.1 — déclenche désormais `isochrone_battle` |
+| Nouveau fichier non chargé (dev) | Redémarrer le serveur Next.js (`Ctrl+C` puis `npm run dev`) |
 
 ---
 
-*GEO.Prompt v6.0.0 — AI Media Planning Platform*
+*GEO.Prompt v6.5.1 — AI Media Planning Platform*

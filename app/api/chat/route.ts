@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { createMistral } from '@ai-sdk/mistral';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { getDistinctCategories } from '@/lib/poi/categories';
-import type { MistralToolCall, MistralMessage, MistralResponse } from '@/types/api';
 import {
   fetchIsochrones, buildIsochCacheKey, ORS_MAX_POIS_CHAT,
   type PoiRow, type IsochroneCacheCtx,
@@ -12,6 +14,25 @@ import {
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
+
+// ── Rate limiter in-memory (12 req/min/IP) ────────────────────────────────────
+const RL_MAP = new Map<string, { count: number; resetAt: number }>();
+const RL_MAX = 12;
+const RL_WINDOW_MS = 60_000;
+
+function checkRateLimit(ip: string): { ok: boolean; retrySec: number } {
+  const now = Date.now();
+  const e   = RL_MAP.get(ip);
+  if (!e || now >= e.resetAt) {
+    RL_MAP.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return { ok: true, retrySec: 0 };
+  }
+  if (e.count >= RL_MAX) {
+    return { ok: false, retrySec: Math.ceil((e.resetAt - now) / 1000) };
+  }
+  e.count++;
+  return { ok: true, retrySec: 0 };
+}
 
 
 
@@ -39,6 +60,7 @@ async function executeToolCall(
     const isochrone_minutes_raw = args.isochrone_minutes != null ? Number(args.isochrone_minutes) : null;
     const isochrone_minutes = isochrone_minutes_raw && isochrone_minutes_raw > 0 ? isochrone_minutes_raw : null;
     const isochrone_mode = args.isochrone_mode ? String(args.isochrone_mode) : 'walk';
+    const couleur = args.couleur ? String(args.couleur) : undefined;
 
     // Déterminer les coordonnées de centrage (ville ou capitale régionale)
     const coordonnees = ville
@@ -170,6 +192,10 @@ async function executeToolCall(
       console.log(`[isochrone] Calcul: ${pois.length} POIs, ${isochrone_minutes}min, mode=${isochrone_mode}, key=${cacheKey}`);
       isochroneGeoJSON = await fetchIsochrones(pois, isochrone_minutes, isochrone_mode, cacheCtx, ORS_MAX_POIS_CHAT, options.forceRecalculate);
     }
+    // Construire couleur_overrides si une couleur est spécifiée
+    const cat = resolvedCategory ?? categorie_poi;
+    const couleur_overrides = couleur && cat ? { [cat]: couleur } : undefined;
+
     const result = {
       ville: locationLabel,
       region: region ?? null,
@@ -184,6 +210,7 @@ async function executeToolCall(
       isochrone_minutes,
       isochrone_mode,
       isochroneGeoJSON,
+      couleur_overrides,
     };
 
     const catLabel = resolvedCategory ? ` [${resolvedCategory}]` : '';
@@ -345,6 +372,69 @@ async function executeToolCall(
     }
   }
 
+  if (name === 'analyser_panneaux') {
+    const regie       = args.regie       ? String(args.regie)       : undefined;
+    const ville       = args.ville       ? String(args.ville)       : undefined;
+    const region      = args.region      ? String(args.region)      : undefined;
+    const departement = args.departement ? String(args.departement) : undefined;
+    const type_panneau= args.type_panneau? String(args.type_panneau): undefined;
+    const couleur     = args.couleur     ? String(args.couleur)     : '#f97316'; // orange OOH
+
+    const supabase = createAdminClient();
+    let q: any = supabase
+      .from('panneaux_affichage')
+      .select('id, lat, lng, reference_panneau, regie, type_panneau, ville, departement, code_departement, region')
+      .eq('actif', true);
+
+    if (regie)        q = q.ilike('regie', `%${regie}%`);
+    if (ville)        q = q.ilike('ville', `%${ville}%`);
+    if (region)       q = q.ilike('region', `%${region}%`);
+    if (departement)  q = q.or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
+    if (type_panneau) q = q.ilike('type_panneau', `%${type_panneau}%`);
+
+    const { data, error } = await q.limit(5000);
+    if (error) return { error: error.message };
+
+    const pois = (data ?? []).map((p: any) => ({
+      id:             p.id,
+      nom:            p.reference_panneau ?? p.id,
+      lat:            Number(p.lat),
+      lng:            Number(p.lng),
+      categorie:      'panneaux',
+      sous_categorie: p.type_panneau ?? null,
+      ville:          p.ville ?? undefined,
+      adresse:        p.regie ?? undefined, // régie → champ adresse pour l'affichage
+    })).filter((p: any) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0 && p.lng !== 0);
+
+    const locationLabel = ville ?? region ?? departement
+      ?? (regie ? `Panneaux ${regie}` : 'Panneaux OOH — France');
+
+    const coordonnees = pois.length > 0
+      ? {
+          lat: pois.reduce((s: number, p: any) => s + p.lat, 0) / pois.length,
+          lng: pois.reduce((s: number, p: any) => s + p.lng, 0) / pois.length,
+        }
+      : { lat: 46.8, lng: 2.3 };
+
+    console.log(`[chat] analyser_panneaux(regie=${regie ?? '*'}, ${locationLabel}) → ${pois.length} panneaux`);
+    return {
+      ville:            locationLabel,
+      region:           region      ?? null,
+      departement:      departement ?? null,
+      categorie_poi:    'panneaux',
+      rayon_metres:     null,
+      rayon_poi_metres: null,
+      coordonnees,
+      pois,
+      nb_pois:          pois.length,
+      categories:       { panneaux: pois.length },
+      isochrone_minutes: null,
+      isochrone_mode:    null,
+      isochroneGeoJSON:  null,
+      couleur_overrides: { panneaux: couleur },
+    };
+  }
+
   return { error: `Outil inconnu: ${name}` };
 }
 
@@ -387,7 +477,10 @@ RÈGLE DE PRIORITÉ ABSOLUE — ROUTAGE DES OUTILS
 SI l'utilisateur dit l'un de ces mots : "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage territorial", "cellule", "diagramme"
 → TOUJOURS appeler voronoi_analysis. JAMAIS analyser_zone_pois.
 
-SI l'utilisateur dit "montre les XXX", "affiche les XXX", "trouve les XXX" sans "territoire/voronoï"
+SI l'utilisateur dit "panneaux", "OOH", "affichage extérieur", "outdoor", "4x3", "abri-bus", "mobilier urbain", "régie", "Clear Channel", "JCDecaux", "Exterion", "Médiatransports", "afficheurs"
+→ TOUJOURS analyser_panneaux. JAMAIS analyser_zone_pois.
+
+SI l'utilisateur dit "montre les XXX", "affiche les XXX", "trouve les XXX" sans "territoire/voronoï" ni "panneau/OOH"
 → analyser_zone_pois
 
 SI l'utilisateur dit "carreaux", "18-24 ans", "revenus", "population", "densité"
@@ -407,10 +500,17 @@ PARAMÈTRES DE LOCALISATION (au moins un requis):
 - departement : département (ex: "Finistère", "29")
 - categorie_poi : type EXACT parmi ${catsFormatted}
 
+PARAMÈTRE COULEUR (optionnel):
+- couleur : couleur CSS pour les marqueurs (ex: "#000000", "red", "#3b82f6", "orange")
+- Utiliser UNIQUEMENT si l'utilisateur mentionne explicitement une couleur
+- Accepte tout format CSS : hex, rgb, noms anglais (black, red, blue, green, orange, purple…)
+
 EXEMPLES POI:
 - "les CIRFA de Bretagne" → region: "Bretagne", categorie_poi: "cirfa"
 - "les lycées de Brest" → ville: "Brest", categorie_poi: "lycee"
 - "lycées et CIRFA à Brest" → DEUX appels : (1) ville:"Brest", cat:"lycee" ET (2) ville:"Brest", cat:"cirfa"
+- "lycées en noir à Brest" → ville:"Brest", cat:"lycee", couleur:"#000000"
+- "CIRFA en bleu, lycées en vert" → appel 1: cat:"cirfa", couleur:"#3b82f6" ; appel 2: cat:"lycee", couleur:"#22c55e"
 
 ═══ OUTIL 2 : afficher_carreaux ═══
 Appelle cet outil quand l'utilisateur veut voir des données démographiques/sociales par carreau INSEE 200m.
@@ -460,7 +560,8 @@ EXEMPLES OBLIGATOIRES → voronoi_analysis:
 
 ═══ OUTIL 4 : isochrone_battle ═══
 🔥 Appelle cet outil quand l'utilisateur demande la "Bataille d'Isochrones", des "anneaux de temps réel",
-   des "territoires de recrutement par paliers", ou toute sectorisation basée sur le temps de trajet routier.
+   des "territoires de recrutement par paliers", le "Voronoï routier", ou toute sectorisation basée sur le temps de trajet routier.
+⚡ "voronoï routier", "voronoi routier" → TOUJOURS → isochrone_battle (jamais voronoi_analysis)
 Règle : "le plus petit gagne" — chaque zone est attribuée au CIRFA/POI le plus proche en minutes réelles.
 Paliers calculés : 10, 30, 60, 90, 120 min en voiture (mode drive par défaut).
 ⚠️ Avant d'appeler l'outil, avertir l'utilisateur : "Calcul en cours (~1-2 min au 1er appel, puis mis en cache)."
@@ -487,6 +588,10 @@ EXEMPLES OBLIGATOIRES → isochrone_battle :
 - "Sectorisation routière CIRFA Normandie" → isochrone_battle(category:"cirfa", region:"Normandie")
 - "Qui recrute en moins de 30 min ?" → isochrone_battle(category:"cirfa")
 - "Zones de chalandise routières des lycées" → isochrone_battle(category:"lycee")
+- "Voronoï routier des CIRFA de Bretagne" → isochrone_battle(category:"cirfa", region:"Bretagne")
+- "Voronoï routier CIRFA" → isochrone_battle(category:"cirfa")
+- "Affiche le voronoï routier des CIRFA" → isochrone_battle(category:"cirfa")
+- "Voronoi routier lycées" → isochrone_battle(category:"lycee")
 
 ═══ ISOCHRONES ═══
 Si l'utilisateur mentionne "isochrone", "X minutes à pied/voiture/vélo", "zone de chalandise", "zone accessible en X min" :
@@ -499,454 +604,170 @@ EXEMPLES ISOCHRONES:
 
 NE PAS ajouter isochrone si non demandé explicitement.
 
+═══ OUTIL 5 : analyser_panneaux ═══
+Appelle cet outil pour afficher des panneaux d'affichage OOH (Out-Of-Home) sur la carte.
+Données : table panneaux_affichage (référence, régie, type, coordonnées GPS).
+
+DÉCLENCHER pour :
+- "panneaux", "OOH", "affichage extérieur", "outdoor", "mobilier urbain"
+- Toute régie : "Clear Channel", "JCDecaux", "Exterion", "Médiatransports", "Abris Publicitaires"…
+- "4x3", "2m²", "abribus", "face A", "enseigne"
+
+FILTRES disponibles (tous optionnels) :
+- regie : nom partiel de la régie (ex: "Clear Channel", "JCDecaux")
+- ville / region / departement : filtre géographique
+- type_panneau : format du panneau (ex: "4x3", "8x3")
+- couleur : couleur des marqueurs (défaut: orange #f97316)
+
+EXEMPLES OBLIGATOIRES → analyser_panneaux :
+- "Panneaux Clear Channel à Paris" → analyser_panneaux(regie:"Clear Channel", ville:"Paris")
+- "OOH en Bretagne" → analyser_panneaux(region:"Bretagne")
+- "Affiche les panneaux 4x3 à Lyon" → analyser_panneaux(type_panneau:"4x3", ville:"Lyon")
+- "Tous les panneaux OOH de France" → analyser_panneaux()
+- "Panneaux JCDecaux du 75" → analyser_panneaux(regie:"JCDecaux", departement:"75")
+- "OOH + lycées à Brest" → analyser_panneaux(ville:"Brest") ET analyser_zone_pois(ville:"Brest", cat:"lycee")
+
 IMPORTANT:
 - Tu peux appeler les deux outils en même temps si l'utilisateur demande POI + données démographiques.
 - Pour POI: plusieurs appels si plusieurs catégories/zones.
 - Réponse texte : 1-2 phrases max, en français. Mentionne l'indicateur utilisé si tu affiches des carreaux.`;
 }
 
-function buildTools(categoriesList: string[]) {
-  const catsDescription =
-    `Le type exact de Point d'Intérêt. ATTENTION : tu DOIS choisir strictement une valeur parmi cette liste exacte : ${categoriesList.join(', ')}. N'invente AUCUN autre terme.`;
-
-  return [
-    {
-      type: 'function' as const,
-      function: {
-        name: 'analyser_zone_pois',
-        description:
-          "Génère une zone de ciblage géographique sur la carte et recherche les points d'intérêt (POI). Appeler dès qu'une localisation et/ou un type de POI sont identifiés.",
-        parameters: {
-          type: 'object',
-          properties: {
-            ville: {
-              type: 'string',
-              description: 'Nom de la ville française. Utiliser UNIQUEMENT si l\'utilisateur mentionne une ville.',
-            },
-            region: {
-              type: 'string',
-              description: 'Nom de la région française (ex: Bretagne, Normandie, Île-de-France, PACA).',
-            },
-            departement: {
-              type: 'string',
-              description: 'Nom ou numéro du département (ex: Finistère, 29).',
-            },
-            categorie_poi: {
-              type: 'string',
-              description: catsDescription,
-              enum: categoriesList,
-            },
-            rayon_metres: {
-              type: 'number',
-              description: 'Rayon en mètres autour de la ville, UNIQUEMENT si explicitement demandé.',
-            },
-            rayon_poi_metres: {
-              type: 'number',
-              description: 'Rayon en mètres à dessiner autour de chaque établissement individuel.',
-            },
-            isochrone_minutes: {
-              type: 'number',
-              description: 'Durée de l\'isochrone en minutes (ex: 5, 10, 15, 30). UNIQUEMENT si l\'utilisateur demande explicitement un isochrone, zone de chalandise ou accessibilité en temps.',
-            },
-            isochrone_mode: {
-              type: 'string',
-              enum: ['walk', 'drive', 'bike'],
-              description: 'Mode de transport pour l\'isochrone: walk (à pied, défaut), drive (voiture), bike (vélo).',
-            },
-          },
-          required: [],
-        },
-      },
-    },
-    {
-      type: 'function' as const,
-      function: {
-        name: 'voronoi_analysis',
-        description:
-          "⚡ PRIORITÉ MAXIMALE. Génère les polygones de Voronoï (zones d'influence territoriales) pour une catégorie de POIs, " +
-          "avec affichage des établissements en markers. " +
-          "OBLIGATOIRE pour les mots : 'Voronoï', 'voronoi', 'territoire(s)', 'zone(s) d\\'influence', 'découpage territorial', 'cellule(s)', 'diagramme'. " +
-          "Accepte un filtre optionnel ville/région/département. " +
-          "NE PAS confondre avec analyser_zone_pois (qui n'affiche que des markers sans polygones).",
-        parameters: {
-          type: 'object',
-          properties: {
-            category: {
-              type: 'string',
-              description: `Catégorie EXACTE de POIs. Choisir strictement parmi : ${categoriesList.join(', ')}`,
-            },
-            ville: {
-              type: 'string',
-              description: 'Ville à analyser. Ex: "Brest", "Lyon". Optionnel — si absent, France entière.',
-            },
-            region: {
-              type: 'string',
-              description: 'Région à analyser. Ex: "Bretagne", "Île-de-France". Optionnel.',
-            },
-            departement: {
-              type: 'string',
-              description: 'Département ou code. Ex: "Finistère", "29". Optionnel.',
-            },
-            metropolitaine: {
-              type: 'boolean',
-              description:
-                "TRUE (défaut) = France métropolitaine uniquement si pas de filtre lieu. " +
-                "FALSE = inclut DROM-COM. Mettre FALSE si l'utilisateur mentionne : 'DROM-COM', 'outre-mer', 'Guadeloupe', 'Martinique', 'Réunion', 'Guyane', 'Mayotte', 'DOM-TOM'.",
-            },
-          },
-          required: ['category'],
-        },
-      },
-    },
-    {
-      type: 'function' as const,
-      function: {
-        name: 'afficher_carreaux',
-        description:
-          'Affiche une couche choroplèthe de carreaux INSEE Filosofi 200m sur la carte avec un indicateur démographique. Appeler quand l\'utilisateur veut voir la distribution spatiale d\'une variable socio-démographique (âge, revenus, population...).',
-        parameters: {
-          type: 'object',
-          properties: {
-            indicateur: {
-              type: 'string',
-              description: 'Nom exact de la colonne Filosofi (ex: ind_18_24, ind_65_79, ind, rev_median, men).',
-            },
-            indicateur_label: {
-              type: 'string',
-              description: 'Label lisible en français (ex: "Jeunes 18-24 ans", "Population totale").',
-            },
-            ville: {
-              type: 'string',
-              description: 'Ville sur laquelle centrer la vue. Utiliser si l\'utilisateur a mentionné une ville.',
-            },
-          },
-          required: ['indicateur', 'indicateur_label'],
-        },
-      },
-    },
-    {
-      type: 'function' as const,
-      function: {
-        name: 'isochrone_battle',
-        description:
-          "🔥 Génère la 'Bataille d'Isochrones' : territoires de recrutement basés sur des anneaux " +
-          "de temps réel (10/30/60/90/120 min en voiture via ORS). " +
-          "Règle absolue : 'le plus petit gagne' — le CIRFA/POI le plus proche en temps réel " +
-          "remporte chaque zone. ZÉRO Voronoï, uniquement ST_Difference pur sur vrais isochrones ORS. " +
-          "OBLIGATOIRE pour les termes : 'bataille d'isochrones', 'anneaux isochrones', " +
-          "'territoires de recrutement réels', 'sectorisation routière', 'qui recrute en moins de Xmin', " +
-          "'paliers de temps', 'zones de chalandise routières'. " +
-          "⚠️ Calcul intensif (~1-2 min pour la France entière au 1er appel, puis mis en cache).",
-        parameters: {
-          type: 'object',
-          properties: {
-            category: {
-              type: 'string',
-              description: `Catégorie EXACTE de POIs. Choisir strictement parmi : ${categoriesList.join(', ')}`,
-            },
-            mode: {
-              type: 'string',
-              enum: ['drive', 'walk', 'bike'],
-              description: "Mode de transport. Défaut: 'drive' (voiture).",
-            },
-            ville: {
-              type: 'string',
-              description: 'Filtre ville. Optionnel.',
-            },
-            region: {
-              type: 'string',
-              description: 'Filtre région. Optionnel — RECOMMANDÉ pour limiter les appels ORS.',
-            },
-            departement: {
-              type: 'string',
-              description: 'Filtre département ou code. Optionnel.',
-            },
-            metropolitaine: {
-              type: 'boolean',
-              description: 'TRUE (défaut) = France métropolitaine. FALSE = inclut DROM-COM.',
-            },
-            max_minutes: {
-              type: 'number',
-              enum: [60, 90, 120, 150, 180],
-              description: "Durée max en minutes. Défaut: 120. Demander à l'utilisateur sa préférence si non précisé dans la demande.",
-            },
-          },
-          required: ['category'],
-        },
-      },
-    },
-  ];
-}
-
-async function callMistral(
-  messages: MistralMessage[],
-  tools: ReturnType<typeof buildTools>
-): Promise<MistralResponse> {
-  const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'mistral-small-latest',
-      messages,
-      tools,
-      tool_choice: 'auto',
-      temperature: 0.1,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Mistral API ${res.status}: ${err}`);
-  }
-
-  return res.json();
-}
-
 // =============================================================================
-// Fusion de plusieurs résultats de zone (multi-tool-calls)
-// =============================================================================
-
-function mergeZoneResults(results: any[]): any | null {
-  if (results.length === 0) return null;
-  if (results.length === 1) return results[0];
-
-  // Fusionner tous les POIs (dédoublonner par id)
-  const poisMap = new Map<string, any>();
-  for (const r of results) {
-    for (const p of r.pois ?? []) {
-      poisMap.set(p.id, p);
-    }
-  }
-  const allPois = Array.from(poisMap.values());
-
-  // Fusionner les compteurs de catégories
-  const categories: Record<string, number> = {};
-  for (const p of allPois) {
-    const cat = p.categorie || 'autre';
-    categories[cat] = (categories[cat] ?? 0) + 1;
-  }
-
-  // Label de la zone : combiner les noms de lieux
-  const labels = results.map(r => r.ville).filter(Boolean);
-  const uniqueLabels = [...new Set(labels)];
-  const villeLabel = uniqueLabels.join(' + ');
-
-  // Coordonnées : centroïde de tous les POIs, ou fallback sur le premier résultat
-  let coordonnees = results[0].coordonnees;
-  if (allPois.length > 0) {
-    const avgLat = allPois.reduce((s, p) => s + p.lat, 0) / allPois.length;
-    const avgLng = allPois.reduce((s, p) => s + p.lng, 0) / allPois.length;
-    coordonnees = { lat: avgLat, lng: avgLng };
-  }
-
-  // Rayon : prendre le max
-  const rayon_metres = Math.max(...results.map(r => r.rayon_metres ?? 0)) || null;
-  const rayon_poi_metres = Math.max(...results.map(r => r.rayon_poi_metres ?? 0)) || null;
-
-  console.log(`[chat] Fusion de ${results.length} résultats → ${allPois.length} POIs total (${Object.entries(categories).map(([k,v]) => `${k}:${v}`).join(', ')})`);
-
-  return {
-    ville: villeLabel,
-    region: results.map(r => r.region).find(Boolean) ?? null,
-    departement: results.map(r => r.departement).find(Boolean) ?? null,
-    categorie_poi: null, // multiple catégories possibles
-    rayon_metres,
-    rayon_poi_metres,
-    coordonnees,
-    pois: allPois,
-    nb_pois: allPois.length,
-    categories,
-  };
-}
-
-// =============================================================================
-// POST /api/chat
+// POST /api/chat — streamText (Vercel AI SDK v6)
 // =============================================================================
 
 export async function POST(request: NextRequest) {
-  try {
-    const { messages: clientMessages, forceRecalculate = false } = await request.json();
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'anon';
+  const rl  = checkRateLimit(ip);
+  if (!rl.ok) {
+    return new Response(
+      JSON.stringify({ error: `RATE_LIMIT:${rl.retrySec}` }),
+      { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retrySec) } }
+    );
+  }
 
-    // ── ÉTAPE 2 : Dictionnaire dynamique ────────────────────────────────────
-    // Récupère les catégories EXACTES depuis la base AVANT d'appeler Mistral
+  try {
+    const { messages, forceRecalculate = false } = await request.json();
+
     const categoriesList = await getDistinctCategories();
     console.log('[chat] Catégories dynamiques:', categoriesList);
 
-    // ── ÉTAPE 3 : System prompt + outils avec catégories blindées ──────────
     const systemPrompt = buildSystemPrompt(categoriesList);
-    const tools = buildTools(categoriesList);
+    const catsDesc = `Type exact parmi : ${categoriesList.join(', ')}`;
 
-    // Construire l'historique Mistral (rôles user/assistant uniquement côté client)
-    const mistralMessages: MistralMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...clientMessages.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-    ];
+    const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
 
-    const allZoneResults: any[] = [];
-    let carreauxData: any = null;
-    let isochroneData: any = null;
-    let voronoiData: any = null;
-    let battleData: any        = null;
-    let battleBordersData: any = null;
-    let lastBattleError: string | null = null;
+    const modelMessages = await convertToModelMessages(messages);
 
-    // Boucle agentique (max 3 tours pour éviter les boucles infinies)
-    for (let step = 0; step < 3; step++) {
-      const response = await callMistral(mistralMessages, tools);
-      const choice = response.choices[0];
+    const result = streamText({
+      model: mistral('mistral-small-latest'),
+      system: systemPrompt,
+      messages: modelMessages,
+      stopWhen: stepCountIs(3),
+      temperature: 0.1,
+      maxRetries: 1,  // 2 tentatives max (défaut=2 → 3 essais → trop long)
+      tools: {
 
-      if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls?.length) {
-        mistralMessages.push(choice.message);
+        analyser_zone_pois: {
+          description:
+            "Génère une zone de ciblage géographique sur la carte et recherche les points d'intérêt (POI). " +
+            "Appeler dès qu'une localisation et/ou un type de POI sont identifiés.",
+          inputSchema: z.object({
+            ville: z.string().optional().describe("Nom de la ville française. Utiliser UNIQUEMENT si l'utilisateur mentionne une ville."),
+            region: z.string().optional().describe("Région française (ex: Bretagne, Normandie, Île-de-France, PACA)."),
+            departement: z.string().optional().describe("Nom ou numéro du département (ex: Finistère, 29)."),
+            categorie_poi: z.string().optional().describe(catsDesc),
+            rayon_metres: z.number().optional().describe("Rayon en mètres autour de la ville, UNIQUEMENT si explicitement demandé."),
+            rayon_poi_metres: z.number().optional().describe("Rayon en mètres à dessiner autour de chaque établissement individuel."),
+            isochrone_minutes: z.number().optional().describe("Durée de l'isochrone en minutes. UNIQUEMENT si l'utilisateur demande explicitement un isochrone."),
+            isochrone_mode: z.enum(['walk', 'drive', 'bike']).optional().describe("Mode de transport: walk (défaut), drive, bike."),
+            couleur: z.string().optional().describe("Couleur CSS pour les marqueurs de cette catégorie (ex: '#000000', 'red', '#3b82f6'). Utiliser si l'utilisateur précise une couleur."),
+          }),
+          execute: async (args) =>
+            executeToolCall('analyser_zone_pois', args as Record<string, unknown>, categoriesList, { forceRecalculate }),
+        },
 
-        for (const toolCall of choice.message.tool_calls) {
-          const args = JSON.parse(toolCall.function.arguments);
-          const result = await executeToolCall(toolCall.function.name, args, categoriesList, { forceRecalculate });
+        voronoi_analysis: {
+          description:
+            "⚡ PRIORITÉ MAXIMALE. Génère les polygones de Voronoï (zones d'influence territoriales) pour une catégorie de POIs. " +
+            "OBLIGATOIRE pour : 'Voronoï', 'voronoi', 'territoire(s)', 'zone(s) d\\'influence', 'découpage territorial', 'cellule(s)', 'diagramme'. " +
+            "NE PAS confondre avec analyser_zone_pois.",
+          inputSchema: z.object({
+            category: z.string().describe(catsDesc),
+            ville: z.string().optional().describe("Ville à analyser. Optionnel — si absent, France entière."),
+            region: z.string().optional().describe("Région à analyser. Optionnel."),
+            departement: z.string().optional().describe("Département ou code. Optionnel."),
+            metropolitaine: z.boolean().optional().describe(
+              "TRUE (défaut) = France métropolitaine uniquement. FALSE = inclut DROM-COM."
+            ),
+          }),
+          execute: async (args) =>
+            executeToolCall('voronoi_analysis', args as Record<string, unknown>, categoriesList, {}),
+        },
 
-          if (toolCall.function.name === 'analyser_zone_pois') {
-            allZoneResults.push(result);
-            mistralMessages.push({
-              role: 'tool',
-              content: JSON.stringify({
-                ville: (result as any).ville,
-                region: (result as any).region,
-                categorie_poi: (result as any).categorie_poi,
-                nb_pois: (result as any).nb_pois ?? 0,
-                categories: (result as any).categories ?? {},
-              }),
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-            });
-          } else if (toolCall.function.name === 'voronoi_analysis') {
-            const voronoiErr = (result as any).error;
-            if (!voronoiErr) {
-              voronoiData = (result as any).voronoiGeoJSON ?? null;
-              // Pousser les POIs dans allZoneResults → affichés comme markers sur le canvas
-              if ((result as any).poisForMap) {
-                allZoneResults.push((result as any).poisForMap);
-              }
-            }
-            mistralMessages.push({
-              role: 'tool',
-              content: voronoiErr
-                ? JSON.stringify({ error: voronoiErr })
-                : JSON.stringify({
-                    nb_polygones:   (result as any).nb_polygones ?? 0,
-                    category:       (result as any).category,
-                    metropolitaine: (result as any).metropolitaine,
-                  }),
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-            });
-          } else if (toolCall.function.name === 'isochrone_battle') {
-            const battleErr = (result as any).error;
-            if (!battleErr) {
-              battleData        = (result as any).battleGeoJSON ?? null;
-              battleBordersData = (result as any).battleBorders  ?? null;
-              // poisForMap est rendu directement par applyIsochroneBattle côté frontend
-              // — ne pas pousser dans allZoneResults (évite ZoneCard avec nb_pois undefined)
-            } else {
-              lastBattleError = String(battleErr);
-              console.error('[chat/isochrone_battle] Erreur reçue:', battleErr);
-            }
-            mistralMessages.push({
-              role: 'tool',
-              content: battleErr
-                ? JSON.stringify({
-                    error: battleErr,
-                    conseil: 'Reproduire ce message d\'erreur EXACTEMENT à l\'utilisateur, mot pour mot.',
-                  })
-                : JSON.stringify({
-                    nb_features:    (result as any).nb_features ?? 0,
-                    nb_pois:        (result as any).nb_pois ?? 0,
-                    category:       (result as any).category,
-                    mode:           (result as any).mode ?? 'drive',
-                    levels:         (result as any).levels ?? [10, 30, 60, 90, 120],
-                    metropolitaine: (result as any).metropolitaine,
-                  }),
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-            });
-          } else if (toolCall.function.name === 'afficher_carreaux') {
-            carreauxData = result;
-            mistralMessages.push({
-              role: 'tool',
-              content: JSON.stringify({
-                action: 'afficher_carreaux',
-                indicateur: (result as any).indicateur,
-                indicateur_label: (result as any).indicateur_label,
-                ville: (result as any).ville ?? null,
-              }),
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-            });
-          } else {
-            mistralMessages.push({
-              role: 'tool',
-              content: JSON.stringify(result),
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-            });
-          }
-        }
-        continue;
-      }
+        afficher_carreaux: {
+          description:
+            "Affiche une couche choroplèthe de carreaux INSEE Filosofi 200m sur la carte avec un indicateur démographique. " +
+            "Appeler quand l'utilisateur veut voir la distribution spatiale d'une variable socio-démographique (âge, revenus, population...).",
+          inputSchema: z.object({
+            indicateur: z.string().describe("Nom exact de la colonne Filosofi (ex: ind_18_24, ind_65_79, ind, rev_median, men)."),
+            indicateur_label: z.string().describe("Label lisible en français (ex: Jeunes 18-24 ans, Population totale)."),
+            ville: z.string().optional().describe("Ville sur laquelle centrer la vue."),
+          }),
+          execute: async (args) =>
+            executeToolCall('afficher_carreaux', args as Record<string, unknown>, categoriesList, {}),
+        },
 
-      // finish_reason === 'stop' → réponse finale
-      const mergedZone = mergeZoneResults(allZoneResults);
-      // Fusionner les isochrones de tous les résultats
-      // (plusieurs tool calls possibles : lycee + cirfa à Paris chacun avec isochrone)
-      for (const r of allZoneResults) {
-        const iso = r?.isochroneGeoJSON;
-        if (!iso?.features?.length) continue;
+        isochrone_battle: {
+          description:
+            "🔥 Génère la Bataille d'Isochrones : territoires de recrutement basés sur des anneaux de temps réel " +
+            "(10/30/60/90/120 min en voiture via ORS). Règle : le plus petit gagne. " +
+            "OBLIGATOIRE pour : bataille d'isochrones, anneaux isochrones, territoires de recrutement réels, " +
+            "sectorisation routière, qui recrute en moins de Xmin, paliers de temps, zones de chalandise routières. " +
+            "Calcul intensif (~1-2 min au 1er appel, puis mis en cache).",
+          inputSchema: z.object({
+            category: z.string().describe(catsDesc),
+            mode: z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: 'drive'."),
+            ville: z.string().optional().describe("Filtre ville. Optionnel."),
+            region: z.string().optional().describe("Filtre région. Optionnel — RECOMMANDÉ pour limiter les appels ORS."),
+            departement: z.string().optional().describe("Filtre département ou code. Optionnel."),
+            metropolitaine: z.boolean().optional().describe("TRUE (défaut) = France métropolitaine. FALSE = inclut DROM-COM."),
+            max_minutes: z.number().optional().describe("Durée max en minutes. Défaut: 120."),
+          }),
+          execute: async (args) =>
+            executeToolCall('isochrone_battle', args as Record<string, unknown>, categoriesList, { forceRecalculate }),
+        },
 
-        if (!isochroneData) {
-          isochroneData = {
-            type: 'FeatureCollection',
-            features: [...iso.features],
-            // _meta inclut cache info, mode, durée
-            _meta: {
-              mode:      r.isochrone_mode ?? 'walk',
-              minutes:   r.isochrone_minutes ?? 0,
-            },
-            // Propager l'état cache du premier résultat
-            _fromCache: iso._fromCache ?? false,
-            _cachedAt:  iso._cachedAt  ?? null,
-          };
-        } else {
-          // Résultats suivants : fusionner les features
-          isochroneData.features.push(...iso.features);
-          // Si au moins un batch est recalculé (pas en cache), on le signale
-          if (!iso._fromCache) {
-            isochroneData._fromCache = false;
-            isochroneData._cachedAt  = null;
-          }
-        }
-      }
-      return NextResponse.json({
-        reply: choice.message.content ?? '',
-        zoneData: mergedZone,
-        carreauxData,
-        isochroneData,
-        voronoiData,
-        battleData,
-        battleBordersData,
-        battleError: lastBattleError,
-      });
-    }
+        analyser_panneaux: {
+          description:
+            "Recherche et affiche des panneaux d'affichage OOH (Out-Of-Home) depuis la table panneaux_affichage. " +
+            "OBLIGATOIRE pour : 'panneaux', 'OOH', 'affichage extérieur', 'outdoor', 'Clear Channel', 'JCDecaux', 'Exterion', " +
+            "'4x3', 'mobilier urbain', 'abribus', toute régie d'affichage.",
+          inputSchema: z.object({
+            regie:        z.string().optional().describe("Nom de la régie, partiel accepté (ex: 'Clear Channel', 'JCDecaux')."),
+            ville:        z.string().optional().describe("Ville française."),
+            region:       z.string().optional().describe("Région française."),
+            departement:  z.string().optional().describe("Département ou code (ex: 29, Finistère)."),
+            type_panneau: z.string().optional().describe("Type/format du panneau (ex: 4x3, 8x3, abri-bus)."),
+            couleur:      z.string().optional().describe("Couleur CSS des marqueurs (défaut: orange #f97316)."),
+          }),
+          execute: async (args) =>
+            executeToolCall('analyser_panneaux', args as Record<string, unknown>, categoriesList, {}),
+        },
 
-    const mergedZone = mergeZoneResults(allZoneResults);
-    return NextResponse.json({ reply: '(pas de réponse)', zoneData: mergedZone, carreauxData, isochroneData, voronoiData, battleData, battleBordersData, battleError: lastBattleError });
+      },
+    });
+
+    return result.toUIMessageStreamResponse();
+
   } catch (error: any) {
-    console.error('[chat] Erreur:', error);
-    return NextResponse.json(
-      { error: error.message ?? 'Erreur inconnue' },
-      { status: 500 }
+    const msg: string = error.message ?? 'Erreur inconnue';
+    const isRateLimit = msg.includes('Rate limit') || msg.includes('rate_limit') || msg.includes('429') || error.statusCode === 429;
+    console.error(`[chat] Erreur${isRateLimit ? ' (rate limit)' : ''}:`, msg);
+    return new Response(
+      JSON.stringify({ error: isRateLimit ? 'RATE_LIMIT' : msg }),
+      { status: isRateLimit ? 429 : 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }

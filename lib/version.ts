@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '5.12.0';
-export const BUILD_DATE = '2026-02-28';
+export const APP_VERSION = '6.5.1';
+export const BUILD_DATE = '2026-03-03';
 
 export interface ChangelogEntry {
   version: string;
@@ -19,6 +19,92 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '6.5.1',
+    date: '2026-03-03',
+    type: 'patch',
+    changes: [
+      'Fix: "voronoï routier" ne déclenchait plus aucun outil — system prompt corrigé (isochrone_battle)',
+      'Copilote: panel Prompts disponibles (bouton ?) — 6 catégories, 20 exemples cliquables',
+      'PromptsPanel: accordéon par catégorie (Analyse zone, Isochrones, Carreaux, Voronoï, Voronoï Routier, OOH)',
+    ],
+  },
+  {
+    version: '6.5.0',
+    date: '2026-03-03',
+    type: 'minor',
+    changes: [
+      'Itération 5 — Rate Limiting & Robustesse',
+      '/api/chat: rate limiter in-memory 12 req/min/IP (Map module-scope, format RATE_LIMIT:N)',
+      'lib/isochrones/fetcher.ts: AbortController 12s par batch ORS, délai adaptatif (5s timeout / 20s rate limit)',
+      'useRateLimitHandler: parse RATE_LIMIT:N → countdown exact (plus hardcodé à 15s)',
+      'useToolProcessor: messages erreur améliorés Bataille + Voronoï (friendly strings)',
+      'Copilote: outil analyser_panneaux — panneaux OOH sur la carte (table panneaux_affichage)',
+    ],
+  },
+  {
+    version: '6.4.1',
+    date: '2026-03-03',
+    type: 'patch',
+    changes: [
+      'Audit DB: suppression lib/spatial/engine.ts et app/api/spatial/route.ts (code mort, table saved_analysis inexistante)',
+      'Tables obsolètes identifiées: __test_geom_check__, demographie (143MB), enrichissement_jobs, carreaux_insee',
+    ],
+  },
+  {
+    version: '6.4.0',
+    date: '2026-03-03',
+    type: 'minor',
+    changes: [
+      'Itération 4 — Découpage UI: copilote/page.tsx ~160 lignes (orchestration pure)',
+      'Nouveaux hooks: useMapInit, useMapLayers, useChatControls, useRateLimitHandler, useToolProcessor, useSavedMaps',
+      'Nouveaux composants: ChatPanel, MapPanel, ZoneCard, TypingDots, PromptsPanel',
+      'Deps circulaires résolues via mutableRefs (applyIsochronesRef, applyVoronoiRef, loadCarreauxRef, setMessagesRef)',
+    ],
+  },
+  {
+    version: '6.3.0',
+    date: '2026-03-03',
+    type: 'minor',
+    changes: [
+      'Migration Vercel AI SDK v6: streamText + createMistral + Zod inputSchema',
+      'Backend: convertToModelMessages (async), toUIMessageStreamResponse()',
+      'Frontend: useChat + DefaultChatTransport + prepareSendMessagesRequest',
+      'Frontend: sendMessage({ text }), status, UIMessage parts (role/tool/text)',
+      'processedToolIds Set ref — évite double-traitement des tool results',
+    ],
+  },
+  {
+    version: '6.2.0',
+    date: '2026-03-03',
+    type: 'minor',
+    changes: [
+      'Itération 3 — Couche Service',
+      'lib/geo/geometry.ts: circleGeoJSON, tupleToGeoJSON, bboxFromPoints',
+      'lib/geo/locations.ts: resolveLocation, fetchPoisForLocation',
+      'lib/isochrones/fetcher.ts: fetchIsochrones() partagé entre /api/chat et /api/voronoi-routier',
+    ],
+  },
+  {
+    version: '6.1.0',
+    date: '2026-03-03',
+    type: 'minor',
+    changes: [
+      'Itération 2 — Contrat de Types',
+      'types/poi.ts: PoiRow, PoiCategory',
+      'types/spatial.ts: ZoneData, IsochroneData, VoronoiData, CarreauxData, SavedMap',
+      'types/api.ts: ApiError, PaginatedResponse',
+    ],
+  },
+  {
+    version: '6.0.0',
+    date: '2026-03-02',
+    type: 'major',
+    changes: [
+      'Itération 1 — Sécurité: requireAdmin() sur 18 routes admin, adminFetch(), createAdminClient() strict',
+      'Nouveau repo: vincedosi/geo_promptV2-',
+    ],
+  },
   {
     version: '5.12.0',
     date: '2026-02-28',

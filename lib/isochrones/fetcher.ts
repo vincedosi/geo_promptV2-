@@ -119,11 +119,14 @@ export async function fetchIsochrones(
 
     let success = false;
     for (let attempt = 0; attempt < ORS_MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12_000);
       try {
         const res = await fetch(
           `https://api.openrouteservice.org/v2/isochrones/${profile}`,
           {
             method: 'POST',
+            signal: controller.signal,
             headers: {
               'Authorization':  apiKey,
               'Content-Type':   'application/json',
@@ -132,6 +135,7 @@ export async function fetchIsochrones(
             body: JSON.stringify({ locations, range: [rangeSec], range_type: 'time' }),
           }
         );
+        clearTimeout(timer);
 
         if (res.status === 429) {
           console.warn(`[isochrone] Rate limit batch ${batchNum} (tentative ${attempt + 1}/${ORS_MAX_RETRIES}), attente ${ORS_RETRY_DELAY / 1000}s...`);
@@ -152,10 +156,15 @@ export async function fetchIsochrones(
         success = true;
         console.log(`[isochrone] Batch ${batchNum}: ${data.features?.length ?? 0} polygones`);
         break;
-      } catch (e: any) {
-        console.error(`[isochrone] Fetch error batch ${batchNum} (tentative ${attempt + 1}):`, e.message);
+      } catch (e: unknown) {
+        clearTimeout(timer);
+        const isTimeout = e instanceof Error && e.name === 'AbortError';
+        console.error(
+          `[isochrone] ${isTimeout ? 'Timeout 12s' : 'Fetch error'} batch ${batchNum} (tentative ${attempt + 1}):`,
+          e instanceof Error ? e.message : e
+        );
         if (attempt < ORS_MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, ORS_RETRY_DELAY));
+          await new Promise(r => setTimeout(r, isTimeout ? 5_000 : ORS_RETRY_DELAY));
         }
       }
     }

@@ -54,6 +54,8 @@ export interface ZoneData {
   pois: POI[];
   nb_pois: number;
   categories: Record<string, number>;
+  /** Couleurs custom par catégorie, ex: { lycee: '#000000', cirfa: 'red' } */
+  couleur_overrides?: Record<string, string>;
 }
 
 export interface CarreauxData {
