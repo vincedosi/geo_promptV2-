@@ -60,6 +60,11 @@ export default function CopilotePage() {
     loadCarreauxFromAI:       mapLayers.loadCarreauxFromAI,
     carreauxSourcesRef:       mapLayers.carreauxSourcesRef,
     carreauxConfigForSaveRef: savedMaps.carreauxConfigForSaveRef,
+    flyToCoords: (lat, lng) => {
+      if (mapRef.current && mapReady) {
+        mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
+      }
+    },
   });
 
   // ── Câblage dépendances circulaires (savedMaps ↔ mapLayers/chat) ───────────
@@ -71,7 +76,12 @@ export default function CopilotePage() {
   // ── Rendu zone (markers + cercle + flyTo) ──────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) return;
+    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) {
+      console.log('[copilote/render] Skipping:', { map: !!map, mapReady, zoneData: !!zoneData, hasCoords: zoneData?.coordonnees ? true : false });
+      return;
+    }
+
+    console.log('[copilote/render] Rendering', zoneData.nb_pois, 'POIs, categories:', zoneData.categories);
 
     const { lat, lng } = zoneData.coordonnees;
 
@@ -84,10 +94,12 @@ export default function CopilotePage() {
     });
     map.triggerRepaint();
 
+    let markerCount = 0;
     zoneData.pois.forEach((p) => {
       const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
       const el = document.createElement('div');
       el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
+      markerCount++;
       const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
         `<div style="font-size:12px;padding:6px 8px">` +
@@ -102,12 +114,16 @@ export default function CopilotePage() {
       markersRef.current.push(marker);
     });
 
+    console.log('[copilote/render] Added', markerCount, 'POI markers');
+
     const cityEl = document.createElement('div');
     cityEl.innerHTML = '📍';
     cityEl.style.cssText = 'font-size:24px;cursor:default;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
     markersRef.current.push(
       new maplibregl.Marker({ element: cityEl, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map)
     );
+
+    console.log('[copilote/render] Final markers count:', markersRef.current.length);
 
     const r = zoneData.rayon_metres, rPoi = zoneData.rayon_poi_metres;
     let zoom: number;

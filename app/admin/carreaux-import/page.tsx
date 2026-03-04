@@ -62,7 +62,8 @@ export default function CarreauxImportPage() {
   const [dryRun, setDryRun] = useState(true);
   const [limit, setLimit] = useState('1000');
   const [geoPreset, setGeoPreset] = useState<string>('0.7 42.9 2.3 44.0'); // Haute-Garonne par défaut
-  const [tableName, setTableName] = useState('');
+  const [resolution, setResolution] = useState<'200m' | '1km'>('200m');
+  const [millesime, setMillesime]   = useState('2021');
   // Sélection de colonnes
   const [columnsData, setColumnsData] = useState<Record<string, { type: string; dtype: string; samples: string[] }> | null>(null);
   const [selectedCols, setSelectedCols] = useState<Set<string>>(new Set());
@@ -136,7 +137,8 @@ export default function CarreauxImportPage() {
       fd.append('dryRun', String(dryRun));
       if (limit) fd.append('limit', limit);
       if (geoPreset) fd.append('bbox', geoPreset);
-      if (tableName.trim()) fd.append('tableName', tableName.trim());
+      fd.append('resolution', resolution);
+      fd.append('millesime', millesime);
       // Colonnes sélectionnées (vide = toutes)
       if (columnsData && selectedCols.size > 0 && selectedCols.size < Object.keys(columnsData).length) {
         fd.append('columns', [...selectedCols].join(','));
@@ -471,16 +473,38 @@ export default function CarreauxImportPage() {
             <span className="g-card-title">Lancer l'import</span>
           </div>
           <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label className="g-label">Nom de table Supabase (optionnel)</label>
-              <input
-                type="text"
-                value={tableName}
-                onChange={e => setTableName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
-                placeholder="ex: filosofi_2021_toulouse — vide = auto depuis nom du fichier"
-                className="g-input"
-                style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-              />
+            {/* Résolution + Millésime */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <label className="g-label">Résolution</label>
+                <select
+                  value={resolution}
+                  onChange={e => setResolution(e.target.value as '200m' | '1km')}
+                  className="g-input"
+                  style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                >
+                  <option value="200m">200m (Filosofi standard)</option>
+                  <option value="1km">1km (Filosofi agrégé)</option>
+                </select>
+              </div>
+              <div style={{ flex: 1, minWidth: 120 }}>
+                <label className="g-label">Millésime INSEE</label>
+                <select
+                  value={millesime}
+                  onChange={e => setMillesime(e.target.value)}
+                  className="g-input"
+                  style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                >
+                  <option value="2021">2021 (dernière version)</option>
+                  <option value="2019">2019</option>
+                  <option value="2017">2017</option>
+                  <option value="2015">2015</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono, monospace', marginTop: -6 }}>
+              → Table cible : <strong style={{ color: '#3dffa0' }}>carreaux_filosofi</strong>
+              {' '}(résolution={resolution}, millésime={millesime})
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button

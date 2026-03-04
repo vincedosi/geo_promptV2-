@@ -54,6 +54,18 @@ const navItems = [
         section: 'ADMIN',
         items: [
             {
+                href: '/integration-panneaux',
+                label: 'Intégration Panneaux',
+                icon: (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                    </svg>
+                ),
+                badge: 'CSV',
+                badgeClass: 'badge-api',
+            },
+            {
                 href: '/admin/carreaux-import',
                 label: 'Import Carreaux',
                 icon: (

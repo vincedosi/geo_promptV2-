@@ -48,12 +48,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const sources = (data || []).map(s => ({
-      id: s.id,
-      name: s.name,
-      tableName: (s.geo_config as Record<string, unknown>)?.table_name as string || '',
-      count: s.valid_count ?? 0,
-    })).filter(s => s.tableName);
+    const sources = (data || []).map(s => {
+      const cfg = s.geo_config as Record<string, unknown>;
+      return {
+        id:         s.id,
+        name:       s.name,
+        tableName:  (cfg?.table_name as string) || '',
+        resolution: (cfg?.resolution as string) || '200m',
+        millesime:  (cfg?.millesime  as string) || '2021',
+        count:      s.valid_count ?? 0,
+      };
+    }).filter(s => s.tableName);
 
     console.log(`[carreaux] GET: ${sources.length} sources actives`);
     return NextResponse.json({ success: true, sources });
@@ -75,7 +80,7 @@ const BBOX_LIMIT    = 8000;  // Carreaux max par viewport (paginé côté serveu
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tableName, limit: rawLimit, bbox } = body;
+    const { tableName, limit: rawLimit, bbox, resolution = '200m', millesime = '2021' } = body;
 
     // Validation stricte du nom de table (uniquement alphanumériques + underscore)
     if (!tableName || typeof tableName !== 'string' || !/^[a-z0-9_]+$/.test(tableName)) {
@@ -109,12 +114,14 @@ export async function POST(request: NextRequest) {
       while (allBboxRows.length < maxRows) {
         const batchTo = Math.min(bboxFrom + BATCH_SIZE - 1, maxRows - 1);
         const { data: batchData, error: batchError } = await supabase.rpc('get_carreaux_bbox', {
-          p_table: tableName,
-          p_west: west,
-          p_south: south,
-          p_east: east,
-          p_north: north,
-          p_limit: maxRows,
+          p_table:      tableName,
+          p_west:       west,
+          p_south:      south,
+          p_east:       east,
+          p_north:      north,
+          p_limit:      maxRows,
+          p_resolution: resolution,
+          p_millesime:  millesime,
         }).range(bboxFrom, batchTo);
 
         if (batchError) {
@@ -213,6 +220,8 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from(tableName)
         .select('idcar, geom, metadata')
+        .eq('resolution', resolution)
+        .eq('millesime', millesime)
         .range(from, batchEnd);
 
       if (error) {

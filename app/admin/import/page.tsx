@@ -12,7 +12,10 @@ import type {
   FieldMapping,
   GeoConfig,
   GeocodeDetailedResult,
+  INSEE_CARREAUX_INDICATORS,
+  CarreauxSchemaInference,
 } from '@/lib/import/types';
+import { INSEE_CARREAUX_INDICATORS as INSEE_INDICATORS } from '@/lib/import/types';
 
 // ============================================================
 // State interfaces
@@ -115,6 +118,16 @@ export default function ImportUniverselPage() {
   const [isUpdatingRow, setIsUpdatingRow] = useState(false);
   const [geocodeValidated, setGeocodeValidated] = useState(false);
 
+  // -- CARREAUX-specific states
+  const [carreauxSchemaInference, setCarreauxSchemaInference] = useState<CarreauxSchemaInference | null>(null);
+  const [isInferringSchema, setIsInferringSchema] = useState(false);
+  const [carreauxTableName, setCarreauxTableName] = useState('carreaux_imported');
+  const [carreauxSelectedColumns, setCarreauxSelectedColumns] = useState<string[]>([]);
+  const [carreauxGeomColumn, setCarreauxGeomColumn] = useState<string>('geom');
+  const [carreauxIdColumn, setCarreauxIdColumn] = useState<string>('idcar');
+  const [carreauxGeneratedSql, setCarreauxGeneratedSql] = useState<string | null>(null);
+  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
+
   // -- Column selection: which columns to include in metadata
   const [importedColumns, setImportedColumns] = useState<string[]>([]);
   // -- Filter fields: subset of importedColumns to expose as map filters
@@ -172,8 +185,12 @@ export default function ImportUniverselPage() {
   // Step 1: File Upload
   // ============================================================
 
-  const handleFileUpload = useCallback(async (uploadedFile: File) => {
-    setFile(uploadedFile);
+  const handleFileUpload = useCallback(async (uploadedFiles: File | File[]) => {
+    const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+    
+    // Display first file name in UI (or bundle name for Shapefile)
+    const displayName = files.length === 1 ? files[0].name : `${files.length} fichiers`;
+    setFile(files[0]); // Store primary file reference
     setIsParsing(true);
     setParseResult(null);
     setDryRunResult(null);
@@ -182,7 +199,14 @@ export default function ImportUniverselPage() {
 
     try {
       const fd = new FormData();
-      fd.append('file', uploadedFile);
+      
+      // Add all files to FormData
+      files.forEach((file, idx) => {
+        if (idx === 0) {
+          fd.append('file', file); // Legacy support
+        }
+        fd.append('files', file);
+      });
 
       const res = await adminFetch('/api/admin/import-poi/parse', { method: 'POST', body: fd });
       const data: ParseResult = await res.json();
@@ -221,8 +245,8 @@ export default function ImportUniverselPage() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) handleFileUpload(droppedFile);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) handleFileUpload(droppedFiles);
   }, [handleFileUpload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -231,6 +255,66 @@ export default function ImportUniverselPage() {
   }, []);
 
   const handleDragLeave = useCallback(() => setIsDragging(false), []);
+
+  // ============================================================
+  // CARREAUX: Infer schema
+  // ============================================================
+
+  const inferCarreauxSchema = useCallback(async () => {
+    if (!parseResult?.success || !file) return;
+    
+    setIsInferringSchema(true);
+    try {
+      const res = await adminFetch('/api/admin/carreaux-infer-schema', {
+        method: 'POST',
+        body: JSON.stringify({ fileId: parseResult.fileId, parseResult }),
+      });
+      const data: CarreauxSchemaInference = await res.json();
+      setCarreauxSchemaInference(data);
+      
+      if (data.success) {
+        // Auto-populate
+        setCarreauxTableName(data.suggestedTableName);
+        if (data.geometryColumns.length > 0) {
+          setCarreauxGeomColumn(data.geometryColumns[0]);
+        }
+        if (data.idColumns.length > 0) {
+          setCarreauxIdColumn(data.idColumns[0]);
+        }
+        // Auto-select all INSEE indicators
+        const allInsee = data.inseeIndicators.map(x => x.columnName);
+        setCarreauxSelectedColumns(allInsee);
+      }
+    } catch (e) {
+      console.error('Erreur inférence schema:', e);
+    } finally {
+      setIsInferringSchema(false);
+    }
+  }, [parseResult, file]);
+
+  // Generate SQL from selected columns
+  const generateCarreauxSchema = useCallback(async () => {
+    setIsGeneratingSchema(true);
+    try {
+      const res = await adminFetch('/api/admin/carreaux-gen-schema', {
+        method: 'POST',
+        body: JSON.stringify({
+          tableName: carreauxTableName,
+          geomColumn: carreauxGeomColumn,
+          idColumn: carreauxIdColumn,
+          selectedColumns: carreauxSelectedColumns,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCarreauxGeneratedSql(data.sql);
+      }
+    } catch (e) {
+      console.error('Erreur génération schema:', e);
+    } finally {
+      setIsGeneratingSchema(false);
+    }
+  }, [carreauxTableName, carreauxGeomColumn, carreauxIdColumn, carreauxSelectedColumns]);
 
   // ============================================================
   // Step 4: Dry-run
@@ -564,8 +648,12 @@ export default function ImportUniverselPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xlsx,.xls,.geojson,.json,.txt,.tsv"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+                multiple
+                accept=".csv,.xlsx,.xls,.geojson,.json,.txt,.tsv,.shp,.dbf,.prj,.shx"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) handleFileUpload(files);
+                }}
                 style={{ display: 'none' }}
               />
               {isParsing ? (
@@ -578,16 +666,22 @@ export default function ImportUniverselPage() {
                     {file.name}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {(file.size / 1024 / 1024).toFixed(2)} MB — Cliquez pour changer
+                    {parseResult?.format === 'shapefile' ? (
+                      <span>Shapefile bundle — {parseResult.totalRows?.toLocaleString()} enregistrements</span>
+                    ) : (
+                      <>
+                        {(file.size / 1024 / 1024).toFixed(2)} MB — Cliquez pour changer
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div>
                   <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    Glissez un fichier ici ou cliquez pour selectionner
+                    Glissez un ou plusieurs fichiers ici ou cliquez pour selectionner
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    // formats: .csv .xlsx .xls .geojson
+                    // formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)
                   </div>
                 </div>
               )}
@@ -603,6 +697,13 @@ export default function ImportUniverselPage() {
                   <span>colonnes: <span style={{ color: 'var(--accent)' }}>{parseResult.columns.length}</span></span>
                   <span>lignes: <span style={{ color: 'var(--green)' }}>{parseResult.totalRows.toLocaleString()}</span></span>
                 </div>
+
+                {/* Shapefile info box */}
+                {parseResult.format === 'shapefile' && (
+                  <div className="g-alert g-alert-info" style={{ marginBottom: 10, fontSize: 11 }}>
+                    ✓ Shapefile detecté et parsé avec succes. Les attributs du fichier .dbf sont maintenant disponibles pour la configuration.
+                  </div>
+                )}
 
                 {/* Preview table */}
                 {parseResult.preview.length > 0 && (
@@ -641,6 +742,18 @@ export default function ImportUniverselPage() {
               </div>
             )}
 
+            {/* Shapefile tips */}
+            {!file && (
+              <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>💡 Formats supportés</div>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  <li><strong>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
+                  <li><strong>Shapefile :</strong> Sélectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (même nom de base). Example: <code>carreaux_200m.shp</code>, <code>carreaux_200m.dbf</code>, etc.</li>
+                  <li><strong>Carreaux INSEE :</strong> Vous pouvez importer depuis CSV, GeoJSON, ou Shapefile. Le système detecte automatiquement les colonnes et demande quelle donnees inclure.</li>
+                </ul>
+              </div>
+            )}
+
             {parseResult && !parseResult.success && (
               <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
                 {parseResult.error}
@@ -663,6 +776,7 @@ export default function ImportUniverselPage() {
               {[
                 { val: 'poi' as DataType, title: 'Points d\'interet (POI)', desc: 'Lycees, colleges, gares, lieux de sport, etc.' },
                 { val: 'panneaux' as DataType, title: 'Panneaux d\'affichage', desc: 'Mobilier urbain publicitaire (JCDecaux, Clear Channel, etc.)' },
+                { val: 'carreaux' as DataType, title: 'Carreaux INSEE', desc: 'Donnees socio-demographiques par carreau 200m (Filosofi)' },
               ].map((opt) => (
                 <label key={opt.val} className={`g-radio-card${dataType === opt.val ? ' selected' : ''}`} onClick={() => setDataType(opt.val)}>
                   <input type="radio" value={opt.val} checked={dataType === opt.val} onChange={() => setDataType(opt.val)} style={{ marginTop: 2 }} />
@@ -751,6 +865,178 @@ export default function ImportUniverselPage() {
                     placeholder='Ex: "JCDecaux", "Clear Channel", "MULTI"'
                     style={{ maxWidth: 400 }}
                   />
+                </div>
+              )}
+
+              {/* CARREAUX: Schema inference + column selection */}
+              {dataType === 'carreaux' && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  {!carreauxSchemaInference ? (
+                    <div>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                        Analysez le fichier pour detecter les colonnes INSEE disponibles.
+                      </p>
+                      <button
+                        className="g-btn g-btn-primary"
+                        disabled={isInferringSchema}
+                        onClick={inferCarreauxSchema}
+                        style={{ fontSize: 12 }}
+                      >
+                        {isInferringSchema ? (
+                          <>
+                            <Spinner size={10} style={{ marginRight: 6 }} /> Analyse en cours...
+                          </>
+                        ) : (
+                          '🔍 Analyser le fichier'
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {/* Nom Table */}
+                      <div>
+                        <label className="g-label">Nom de la table</label>
+                        <input
+                          type="text"
+                          className="g-input"
+                          value={carreauxTableName}
+                          onChange={(e) => setCarreauxTableName(e.target.value)}
+                          placeholder="carreaux_insee"
+                          style={{ maxWidth: 400 }}
+                        />
+                      </div>
+
+                      {/* Géométrie */}
+                      {carreauxSchemaInference.geometryColumns.length > 0 && (
+                        <div>
+                          <label className="g-label">Colonne géométrie</label>
+                          <select
+                            className="g-input"
+                            value={carreauxGeomColumn}
+                            onChange={(e) => setCarreauxGeomColumn(e.target.value)}
+                            style={{ maxWidth: 300 }}
+                          >
+                            {carreauxSchemaInference.geometryColumns.map((col) => (
+                              <option key={col} value={col}>{col}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* ID */}
+                      {carreauxSchemaInference.idColumns.length > 0 && (
+                        <div>
+                          <label className="g-label">Colonne identifiant</label>
+                          <select
+                            className="g-input"
+                            value={carreauxIdColumn}
+                            onChange={(e) => setCarreauxIdColumn(e.target.value)}
+                            style={{ maxWidth: 300 }}
+                          >
+                            {carreauxSchemaInference.idColumns.map((col) => (
+                              <option key={col} value={col}>{col}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Colonnes INSEE selection */}
+                      {carreauxSchemaInference.inseeIndicators.length > 0 && (
+                        <div>
+                          <label className="g-label">
+                            Indicateurs INSEE à importer ({carreauxSelectedColumns.length} sélectionnés)
+                          </label>
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+                            gap: 8, 
+                            maxHeight: 250, 
+                            overflowY: 'auto',
+                            padding: 8,
+                            backgroundColor: 'var(--bg-secondary)',
+                            borderRadius: 4,
+                          }}>
+                            {carreauxSchemaInference.inseeIndicators.map(({ columnName, match }) => (
+                              <label key={columnName} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', padding: 4 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={carreauxSelectedColumns.includes(columnName)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCarreauxSelectedColumns([...carreauxSelectedColumns, columnName]);
+                                    } else {
+                                      setCarreauxSelectedColumns(carreauxSelectedColumns.filter((c) => c !== columnName));
+                                    }
+                                  }}
+                                />
+                                <span>
+                                  {columnName} 
+                                  {match && INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS] && (
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: 11, marginLeft: 4 }}>
+                                      ({INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS].label})
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Colonnes inconnues alert */}
+                      {carreauxSchemaInference.unknownColumns.length > 0 && (
+                        <div style={{ 
+                          padding: 8, 
+                          backgroundColor: 'var(--warning-dim)', 
+                          borderLeft: '3px solid var(--warning)',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          color: 'var(--text-secondary)'
+                        }}>
+                          ⚠️ Colonnes non reconnues (ignorées): <br/>
+                          {carreauxSchemaInference.unknownColumns.slice(0, 5).join(', ')}
+                          {carreauxSchemaInference.unknownColumns.length > 5 && ` ... +${carreauxSchemaInference.unknownColumns.length - 5}`}
+                        </div>
+                      )}
+
+                      {/* Generate SQL button */}
+                      <button
+                        className="g-btn g-btn-success"
+                        disabled={isGeneratingSchema || carreauxSelectedColumns.length === 0}
+                        onClick={generateCarreauxSchema}
+                        style={{ fontSize: 12 }}
+                      >
+                        {isGeneratingSchema ? (
+                          <>
+                            <Spinner size={10} /> Generation...
+                          </>
+                        ) : (
+                          '⚙️ Generer schema SQL'
+                        )}
+                      </button>
+
+                      {/* Generated SQL preview */}
+                      {carreauxGeneratedSql && (
+                        <details style={{ marginTop: 8 }}>
+                          <summary style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>
+                            📋 Apercu SQL genere
+                          </summary>
+                          <pre style={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            padding: 8,
+                            borderRadius: 4,
+                            fontSize: 10,
+                            overflow: 'auto',
+                            maxHeight: 200,
+                            marginTop: 6,
+                            fontFamily: 'JetBrains Mono, monospace',
+                          }}>
+                            {carreauxGeneratedSql}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

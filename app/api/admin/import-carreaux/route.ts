@@ -319,7 +319,8 @@ export async function POST(request: NextRequest) {
     const dryRun = formData.get('dryRun') === 'true';
     const limit = formData.get('limit') as string;
     const bbox = formData.get('bbox') as string; // "west south east north" ou vide
-    const tableName = formData.get('tableName') as string; // nom de table override
+    const resolution = (formData.get('resolution') as string) || '200m';
+    const millesime  = (formData.get('millesime')  as string) || '2021';
     const columns = formData.get('columns') as string; // "col1,col2,..." ou vide = toutes
     const file = formData.get('file') as File | null;
 
@@ -408,10 +409,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Nom de table override
-    if (tableName && /^[a-z0-9_]+$/.test(tableName)) {
-      pythonArgs.push('--table', tableName);
-    }
+    // Résolution et millésime
+    pythonArgs.push('--resolution', /^[0-9]+[a-z]+$/.test(resolution) ? resolution : '200m');
+    pythonArgs.push('--millesime',  /^[0-9]{4}$/.test(millesime)       ? millesime  : '2021');
 
     // Filtre colonnes : "col1,col2,..." → --columns col1,col2,...
     if (columns && columns.trim()) {
@@ -468,37 +468,71 @@ export async function POST(request: NextRequest) {
           const scriptError = code !== 0;
           const report = parseImportReport(stdoutBuf);
 
-          // Enregistrer dans data_sources si import réel (pas dry-run)
+          // Enregistrer/mettre à jour dans data_sources si import réel (pas dry-run)
           let dataSourceId: string | null = null;
-          if (!scriptError && !dryRun && report.carreauxInseres && report.carreauxInseres > 0 && report.tableTarget) {
+          if (!scriptError && !dryRun && report.carreauxInseres && report.carreauxInseres > 0) {
             try {
               const supabase = createAdminClient();
-              const originalFilename = mode === 'manual' && file
+              const importedResolution = report.resolution || resolution;
+              const importedMillesime  = report.millesime  || millesime;
+              const originalFilename   = mode === 'manual' && file
                 ? file.name
                 : report.fichierSource || 'carreaux-import';
-              const { data: srcData, error: srcErr } = await supabase
+              const geoConfig = {
+                table_name: 'carreaux_filosofi',
+                resolution: importedResolution,
+                millesime:  importedMillesime,
+              };
+
+              // Chercher si une entrée existe déjà pour cette résolution/millésime
+              const { data: existing } = await supabase
                 .from('data_sources')
-                .insert({
-                  name: report.tableTarget,
-                  type: 'carreaux',
-                  category: 'carreaux',
-                  organization_id: '00000000-0000-0000-0000-000000000001',
-                  original_filename: originalFilename,
-                  file_format: path.extname(originalFilename).replace('.', '') || 'geojson',
-                  row_count: report.carreauxTraites || 0,
-                  valid_count: report.carreauxInseres || 0,
-                  error_count: (report.carreauxTraites || 0) - (report.carreauxInseres || 0),
-                  mapping: {},
-                  geo_config: { table_name: report.tableTarget },
-                  status: 'active',
-                })
                 .select('id')
-                .single();
-              if (!srcErr) {
-                dataSourceId = srcData?.id ?? null;
-                console.log('[import-carreaux] Data source enregistrée:', dataSourceId);
+                .eq('type', 'carreaux')
+                .contains('geo_config', { table_name: 'carreaux_filosofi', resolution: importedResolution, millesime: importedMillesime })
+                .maybeSingle();
+
+              if (existing?.id) {
+                // Mettre à jour l'entrée existante
+                await supabase
+                  .from('data_sources')
+                  .update({
+                    valid_count: report.carreauxInseres || 0,
+                    row_count:   report.carreauxTraites || 0,
+                    error_count: (report.carreauxTraites || 0) - (report.carreauxInseres || 0),
+                    original_filename: originalFilename,
+                    geo_config: geoConfig,
+                    status: 'active',
+                  })
+                  .eq('id', existing.id);
+                dataSourceId = existing.id;
+                console.log('[import-carreaux] Data source mise à jour:', dataSourceId);
               } else {
-                console.error('[import-carreaux] Erreur data_source:', srcErr.message);
+                // Créer une nouvelle entrée
+                const { data: srcData, error: srcErr } = await supabase
+                  .from('data_sources')
+                  .insert({
+                    name: `Filosofi ${importedMillesime} — Carreaux ${importedResolution}`,
+                    type: 'carreaux',
+                    category: 'carreaux',
+                    organization_id: '00000000-0000-0000-0000-000000000001',
+                    original_filename: originalFilename,
+                    file_format: path.extname(originalFilename).replace('.', '') || 'zip',
+                    row_count:   report.carreauxTraites || 0,
+                    valid_count: report.carreauxInseres || 0,
+                    error_count: (report.carreauxTraites || 0) - (report.carreauxInseres || 0),
+                    mapping: {},
+                    geo_config: geoConfig,
+                    status: 'active',
+                  })
+                  .select('id')
+                  .single();
+                if (!srcErr) {
+                  dataSourceId = srcData?.id ?? null;
+                  console.log('[import-carreaux] Data source créée:', dataSourceId);
+                } else {
+                  console.error('[import-carreaux] Erreur data_source:', srcErr.message);
+                }
               }
             } catch (regErr: any) {
               console.error('[import-carreaux] Erreur data_source:', regErr.message);
@@ -556,21 +590,19 @@ function parseImportReport(stdout: string): any {
   const lines = stdout.split('\n');
 
   for (const line of lines) {
-    if (line.includes('Fichier source')) {
-      report.fichierSource = line.split(':').slice(1).join(':').trim();
-    }
-    if (line.includes('Table cible')) {
-      report.tableTarget = line.split(':').slice(1).join(':').trim();
-    }
-    if (line.includes('Lignes chargées')) {
-      report.lignesChargees = parseInt(line.split(':')[1]?.trim() || '0');
-    }
-    if (line.includes('Carreaux traités')) {
-      report.carreauxTraites = parseInt(line.split(':')[1]?.trim() || '0');
-    }
-    if (line.includes('Carreaux insérés')) {
-      report.carreauxInseres = parseInt(line.split(':')[1]?.trim() || '0');
-    }
+    // Nouveau format "clé:valeur" (sans espaces dans la clé)
+    if (line.startsWith('fichierSource:'))   report.fichierSource   = line.slice('fichierSource:'.length).trim();
+    if (line.startsWith('tableTarget:'))     report.tableTarget     = line.slice('tableTarget:'.length).trim();
+    if (line.startsWith('resolution:'))      report.resolution      = line.slice('resolution:'.length).trim();
+    if (line.startsWith('millesime:'))       report.millesime       = line.slice('millesime:'.length).trim();
+    if (line.startsWith('lignesChargees:'))  report.lignesChargees  = parseInt(line.split(':')[1]?.trim() || '0');
+    if (line.startsWith('carreauxTraites:')) report.carreauxTraites = parseInt(line.split(':')[1]?.trim() || '0');
+    if (line.startsWith('carreauxInseres:')) report.carreauxInseres = parseInt(line.split(':')[1]?.trim() || '0');
+    // Ancien format (rétrocompat)
+    if (line.includes('Fichier source') && !report.fichierSource)   report.fichierSource   = line.split(':').slice(1).join(':').trim();
+    if (line.includes('Table cible')    && !report.tableTarget)     report.tableTarget     = line.split(':').slice(1).join(':').trim();
+    if (line.includes('Carreaux traités') && !report.carreauxTraites) report.carreauxTraites = parseInt(line.split(':')[1]?.trim() || '0');
+    if (line.includes('Carreaux insérés') && !report.carreauxInseres) report.carreauxInseres = parseInt(line.split(':')[1]?.trim() || '0');
   }
 
   return report;

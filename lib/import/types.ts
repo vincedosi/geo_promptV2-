@@ -31,7 +31,7 @@ export interface ParseResult {
 // IMPORT CONFIGURATION
 // ============================================================
 
-export type DataType = 'panneaux' | 'poi';
+export type DataType = 'panneaux' | 'poi' | 'carreaux';
 export type GeoMode = 'gps' | 'address' | 'lambert93';
 
 export interface FieldMapping {
@@ -44,6 +44,57 @@ export interface FieldMapping {
   reference_panneau?: string;
   type_panneau?: string;
 }
+
+// ============================================================
+// CARREAUX INSEE FILOSOFI — ALL POSSIBLE INDICATORS
+// ============================================================
+
+export const INSEE_CARREAUX_INDICATORS: Record<string, { label: string; type: 'numeric' | 'text'; group: string }> = {
+  // Identifiant
+  idcar: { label: 'Identifiant carreau', type: 'text', group: 'Identifiant' },
+  
+  // DÉMOGRAPHIE
+  Ind: { label: 'Population totale', type: 'numeric', group: 'Démographie' },
+  Ind_0_3: { label: 'Individus 0-3 ans', type: 'numeric', group: 'Démographie' },
+  Ind_3_5: { label: 'Individus 3-5 ans', type: 'numeric', group: 'Démographie' },
+  Ind_6_10: { label: 'Individus 6-10 ans', type: 'numeric', group: 'Démographie' },
+  Ind_11_17: { label: 'Individus 11-17 ans', type: 'numeric', group: 'Démographie' },
+  Ind_18_24: { label: 'Individus 18-24 ans', type: 'numeric', group: 'Démographie' },
+  Ind_25_39: { label: 'Individus 25-39 ans', type: 'numeric', group: 'Démographie' },
+  Ind_40_54: { label: 'Individus 40-54 ans', type: 'numeric', group: 'Démographie' },
+  Ind_55_64: { label: 'Individus 55-64 ans', type: 'numeric', group: 'Démographie' },
+  Ind_65_79: { label: 'Individus 65-79 ans', type: 'numeric', group: 'Démographie' },
+  Ind_80p: { label: 'Individus 80 ans et +', type: 'numeric', group: 'Démographie' },
+  
+  // MÉNAGES
+  Men: { label: 'Nombre de ménages', type: 'numeric', group: 'Ménages' },
+  Men_pauv: { label: 'Ménages pauvres', type: 'numeric', group: 'Ménages' },
+  Men_1ind: { label: 'Ménages 1 individu', type: 'numeric', group: 'Ménages' },
+  Men_5ind: { label: 'Ménages 5+ individus', type: 'numeric', group: 'Ménages' },
+  Men_prop: { label: 'Ménages propriétaires', type: 'numeric', group: 'Ménages' },
+  Men_loc: { label: 'Ménages locataires', type: 'numeric', group: 'Ménages' },
+  
+  // REVENUS & ÉCONOMIE
+  Ind_snv: { label: 'Somme niveaux de vie', type: 'numeric', group: 'Économie' },
+  revenu_moyen: { label: 'Revenu moyen (calculé)', type: 'numeric', group: 'Économie' },
+  pct_pauvres: { label: '% ménages pauvres', type: 'numeric', group: 'Économie' },
+  
+  // LOGEMENT — Type/Taille
+  Log: { label: 'Nombre de logements', type: 'numeric', group: 'Logement' },
+  Log_ap: { label: 'Logements collectifs', type: 'numeric', group: 'Logement' },
+  Log_mais: { label: 'Logements individuels', type: 'numeric', group: 'Logement' },
+  Log_av45: { label: 'Logements construits avant 1945', type: 'numeric', group: 'Logement' },
+  Log_45_70: { label: 'Logements construits 1945-1970', type: 'numeric', group: 'Logement' },
+  Log_70_90: { label: 'Logements construits 1970-1990', type: 'numeric', group: 'Logement' },
+  Log_ap90: { label: 'Logements construits après 1990', type: 'numeric', group: 'Logement' },
+  Log_surf: { label: 'Surface moyenne des logements', type: 'numeric', group: 'Logement' },
+  
+  // DENSITÉ & STATISTIQUES CALCULÉES
+  densite: { label: 'Densité de population (hab/km²)', type: 'numeric', group: 'Statistiques' },
+  pct_jeunes: { label: '% jeunes 0-24 ans', type: 'numeric', group: 'Statistiques' },
+  pct_actifs: { label: '% actifs 25-54 ans', type: 'numeric', group: 'Statistiques' },
+  pct_seniors: { label: '% seniors 65+ ans', type: 'numeric', group: 'Statistiques' },
+};
 
 export interface GeoConfig {
   mode: GeoMode;
@@ -71,6 +122,12 @@ export interface ImportConfig {
   importedColumns?: string[];
   // Subset of importedColumns to expose as map filters
   filterFields?: string[];
+  
+  // CARREAUX-SPECIFIC
+  carreauxTableName?: string;  // ex: 'carreaux_insee', 'carreaux_bretagne_2023'
+  carreauxSelectedColumns?: string[];  // Colonnes INSEE sélectionnées par l'user
+  carreauxGeomColumn?: string;  // ex: 'geom', 'geometry'
+  carreauxIdColumn?: string;  // ex: 'idcar', 'id'
 }
 
 // ============================================================
@@ -136,6 +193,33 @@ export interface ImportReport {
   ignored: number;
   errors: number;
   jobId?: string;
+}
+
+// ============================================================
+// CARREAUX SCHEMA INFERENCE
+// ============================================================
+
+export interface ColumnDetection {
+  columnName: string;
+  detectedAs?: string;  // 'geometry' | 'id' | 'insee_indicator' | 'unknown'
+  sampleValues: string[];
+  recommendation?: string;  // "Identifiant carreau", "Population", etc.
+  isGeometry?: boolean;
+  isInseeIndicator?: boolean;
+  sampleType?: 'numeric' | 'text' | 'geometry';
+}
+
+export interface CarreauxSchemaInference {
+  success: boolean;
+  fileName: string;
+  totalColumns: number;
+  detectedColumns: ColumnDetection[];
+  geometryColumns: string[];  // Colonnes détectées comme géométrie
+  idColumns: string[];  // Colonnes candidate id/idcar
+  inseeIndicators: { columnName: string; match: string }[];  // Colonnes matchant les indicateurs INSEE
+  unknownColumns: string[];  // Colonnes non classées
+  suggestedTableName: string;  // Ex: 'carreaux_insee'
+  error?: string;
 }
 
 // ============================================================

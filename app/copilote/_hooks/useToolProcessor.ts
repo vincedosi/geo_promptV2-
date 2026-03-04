@@ -17,6 +17,7 @@ interface UseToolProcessorOpts {
   carreauxConfigForSaveRef: React.MutableRefObject<{
     tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
   } | null>;
+  flyToCoords: (lat: number, lng: number) => void;
 }
 
 export function useToolProcessor({
@@ -29,38 +30,43 @@ export function useToolProcessor({
   loadCarreauxFromAI,
   carreauxSourcesRef,
   carreauxConfigForSaveRef,
+  flyToCoords,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
   useEffect(() => {
+    // ── Accumule les résultats analyser_zone_pois pour éviter le batching race condition ──
+    const zonePoiResults: ZoneData[] = [];
+    const isochronesToApply: IsochroneData[] = [];
+
+    console.log('[useToolProcessor] Messages:', messages.length, 'messages');
+
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue;
-      for (const part of msg.parts) {
+      console.log('[useToolProcessor] Assistant message parts:', msg.parts?.length ?? 0);
+      
+      for (const part of msg.parts ?? []) {
         const p = part as any;
+        console.log('[useToolProcessor] Part structure:', { type: p.type, toolCallId: p.toolCallId, state: p.state, hasOutput: !!p.output });
+        
         if (!p.toolCallId || p.state !== 'output-available') continue;
         const key = p.toolCallId as string;
-        if (processedToolIds.current.has(key)) continue;
+        if (processedToolIds.current.has(key)) {
+          console.log('[useToolProcessor] Skipping already processed:', key);
+          continue;
+        }
         processedToolIds.current.add(key);
 
         const toolName = (p.type as string).replace(/^tool-/, '');
         const result   = p.output;
+        console.log('[useToolProcessor] Processing tool:', toolName, 'Result keys:', result ? Object.keys(result) : 'null');
 
         if (toolName === 'analyser_zone_pois' && result?.coordonnees) {
-          setZoneData(prev => {
-            if (!prev) return result as ZoneData;
-            const existingIds = new Set(prev.pois.map((p: any) => p.id));
-            const newPois = (result as ZoneData).pois.filter((p: any) => !existingIds.has(p.id));
-            return {
-              ...prev,
-              pois: [...prev.pois, ...newPois],
-              nb_pois: prev.pois.length + newPois.length,
-              categories: { ...prev.categories, ...(result as ZoneData).categories },
-              couleur_overrides: { ...prev.couleur_overrides, ...(result as ZoneData).couleur_overrides },
-            };
-          });
+          // ── Accumuler plutôt que d'appeler setZoneData directement ──
+          zonePoiResults.push(result as ZoneData);
           const iso = result.isochroneGeoJSON;
           if (iso?.features?.length > 0) {
-            applyIsochrones({
+            isochronesToApply.push({
               ...iso,
               _meta: { mode: result.isochrone_mode ?? 'walk', minutes: result.isochrone_minutes ?? 0 },
               _fromCache: iso._fromCache ?? false,
@@ -99,6 +105,23 @@ export function useToolProcessor({
             };
           });
 
+        } else if (toolName === 'calculate_audience_coverage' && result) {
+          if (result.error) {
+            setError(`📊 Couverture — ${result.error}`);
+          } else {
+            if (result.isochroneGeoJSON?.features?.length > 0) {
+              applyIsochrones({
+                ...result.isochroneGeoJSON,
+                _meta:      { mode: result.mode ?? 'drive', minutes: result.travel_time_minutes ?? 0 },
+                _fromCache: false,
+                _cachedAt:  null,
+              });
+            }
+            if (result.coordonnees) {
+              flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+            }
+          }
+
         } else if (toolName === 'isochrone_battle' && result) {
           if (result.error) {
             const raw = String(result.error);
@@ -120,6 +143,56 @@ export function useToolProcessor({
         }
       }
     }
+
+    // ── Traiter tous les résultats analyser_zone_pois accumulés en UN SEUL appel ──
+    if (zonePoiResults.length > 0) {
+      console.log('[useToolProcessor] Fusing', zonePoiResults.length, 'zone results');
+      setZoneData(prev => {
+        if (!prev) {
+          // Premier appel : fusionner tous les résultats entre eux
+          let merged = zonePoiResults[0];
+          for (let i = 1; i < zonePoiResults.length; i++) {
+            const next = zonePoiResults[i];
+            const existingIds = new Set(merged.pois.map((p: any) => p.id));
+            const newPois = next.pois.filter((p: any) => !existingIds.has(p.id));
+            merged = {
+              ...merged,
+              pois: [...merged.pois, ...newPois],
+              nb_pois: merged.pois.length + newPois.length,
+              categories: { ...merged.categories, ...next.categories },
+              couleur_overrides: { ...merged.couleur_overrides, ...next.couleur_overrides },
+            };
+          }
+          console.log('[useToolProcessor] MERGED (initial):', { nb_pois: merged.nb_pois, categories: merged.categories });
+          return merged;
+        }
+        // Ajouter à l'état existant
+        let result = { ...prev };
+        const existingIds = new Set(prev.pois.map((p: any) => p.id));
+        for (const zoneResult of zonePoiResults) {
+          const newPois = zoneResult.pois.filter((p: any) => !existingIds.has(p.id));
+          newPois.forEach(p => existingIds.add(p.id));
+          result = {
+            ...result,
+            pois: [...result.pois, ...newPois],
+            categories: { ...result.categories, ...zoneResult.categories },
+            couleur_overrides: { ...result.couleur_overrides, ...zoneResult.couleur_overrides },
+          };
+        }
+        result.nb_pois = result.pois.length;
+        console.log('[useToolProcessor] MERGED (appended):', { nb_pois: result.nb_pois, categories: result.categories });
+        return result;
+      });
+    } else {
+      console.log('[useToolProcessor] No zone results to fuse');
+    }
+
+    // ── Appliquer tous les isochrones accumulés ──
+    if (isochronesToApply.length > 0) {
+      console.log('[useToolProcessor] Applying', isochronesToApply.length, 'isochrones');
+      isochronesToApply.forEach(iso => applyIsochrones(iso));
+    }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 }

@@ -156,6 +156,101 @@ export function extractDeptFromCP(codePostal: string | null | undefined): string
 }
 
 // ============================================================
+// BAN Reverse Geocoding — lat/lng → département + région
+// https://adresse.data.gouv.fr/api-doc/adresse (section reverse/csv)
+// context = "67, Bas-Rhin, Grand Est"
+// ============================================================
+
+const BAN_REVERSE_URL = 'https://api-adresse.data.gouv.fr/reverse/csv/';
+
+export interface ReverseResult {
+  index: number;
+  dept_code: string | null;
+  dept_nom: string | null;
+  region: string | null;
+  ville: string | null;
+  code_postal: string | null;
+}
+
+/**
+ * Batch reverse geocoding via BAN CSV endpoint.
+ * For each (lat, lng) pair, returns département + région from context field.
+ * Only enriches rows where dept/region are missing (null/empty).
+ *
+ * @param points - Array of {index, lat, lng} — index is the row index in validRows
+ * @param onProgress - optional progress callback
+ */
+export async function reverseGeocodeRows(
+  points: { index: number; lat: number; lng: number }[],
+  onProgress?: (done: number, total: number) => void
+): Promise<ReverseResult[]> {
+  if (points.length === 0) return [];
+
+  // Smaller chunks so progress fires more often (500 = ~1s per call on BAN)
+  const CHUNK = 500;
+  const allResults: ReverseResult[] = [];
+
+  for (let offset = 0; offset < points.length; offset += CHUNK) {
+    const chunk = points.slice(offset, offset + CHUNK);
+
+    // Build CSV: latitude,longitude
+    const csvLines = ['latitude,longitude'];
+    for (const p of chunk) csvLines.push(`${p.lat},${p.lng}`);
+    const csvContent = csvLines.join('\n');
+
+    try {
+      const formData = new FormData();
+      formData.append('data', new Blob([csvContent], { type: 'text/csv' }), 'points.csv');
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+
+      const res = await fetch(BAN_REVERSE_URL, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) throw new Error(`BAN reverse HTTP ${res.status}`);
+
+      const text = await res.text();
+      const parsed = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+      });
+
+      for (let i = 0; i < chunk.length; i++) {
+        const row = parsed.data[i] ?? {};
+        // context = "67, Bas-Rhin, Grand Est"  or "2A, Corse-du-Sud, Corse"
+        const ctx = (row.result_context || '').trim();
+        const parts = ctx.split(',').map((s: string) => s.trim());
+
+        allResults.push({
+          index: chunk[i].index,
+          dept_code:  parts[0] || null,
+          dept_nom:   parts[1] || null,
+          region:     parts[2] || null,
+          ville:      row.result_city || null,
+          code_postal: row.result_postcode || null,
+        });
+      }
+    } catch (err) {
+      // On failure, push nulls for this chunk
+      console.error('[GEOCODER] reverse batch failed:', err);
+      for (const p of chunk) {
+        allResults.push({ index: p.index, dept_code: null, dept_nom: null, region: null, ville: null, code_postal: null });
+      }
+    }
+
+    if (onProgress) onProgress(Math.min(offset + chunk.length, points.length), points.length);
+  }
+
+  return allResults;
+}
+
+// ============================================================
 // Utility
 // ============================================================
 

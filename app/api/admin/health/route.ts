@@ -4,7 +4,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
-import type { Check } from '@/types/admin';
+import type { Check, TableStats, DatabaseOverview } from '@/types/admin';
 
 export async function GET() {
   const checks: Check[] = [];
@@ -79,6 +79,7 @@ export async function GET() {
   let dbConnected = false;
   let orgCount = 0;
   let tablesOk = { organizations: false, profiles: false, data_sources: false };
+  let databaseOverview: DatabaseOverview | undefined;
 
   try {
     const supabase = createAdminClient();
@@ -105,6 +106,87 @@ export async function GET() {
     if (!dsErr) tablesOk.data_sources = true;
 
     dbConnected = true;
+
+    // ============================================================
+    // 2.5 Récupération des statistiques détaillées des tables
+    // ============================================================
+
+    try {
+      // Liste des tables à analyser
+      const tablesToCheck = [
+        'organizations',
+        'profiles', 
+        'data_sources',
+        'panneaux',
+        'poi',
+        'carreaux_insee',
+        'carreaux_filosofi',
+        'isochrones_cache',
+        'saved_maps',
+        'org_memberships',
+        'poi_sources',
+        'voronoi_cells'
+      ];
+
+      const tables: TableStats[] = [];
+
+      // Pour chaque table, récupérer le nombre de lignes
+      for (const tableName of tablesToCheck) {
+        try {
+          const { count, error } = await supabase
+            .from(tableName)
+            .select('*', { count: 'exact', head: true });
+
+          if (!error && count !== null) {
+            tables.push({
+              table_name: tableName,
+              row_count: count,
+              total_size: 'N/A', 
+              total_size_bytes: 0,
+              table_size: 'N/A',
+              indexes_size: 'N/A',
+            });
+          }
+        } catch (tableErr) {
+          // Table n'existe pas ou pas accessible - ignorer
+          continue;
+        }
+      }
+
+      // Essayer d'obtenir les tailles via une fonction SQL si elle existe
+      try {
+        const { data: sizeData } = await supabase.rpc('get_table_sizes');
+        if (sizeData && Array.isArray(sizeData)) {
+          sizeData.forEach((sizeRow: any) => {
+            const table = tables.find(t => t.table_name === sizeRow.table_name);
+            if (table) {
+              table.total_size = sizeRow.total_size || 'N/A';
+              table.total_size_bytes = parseInt(sizeRow.total_size_bytes) || 0;
+              table.table_size = sizeRow.table_size || 'N/A';
+              table.indexes_size = sizeRow.indexes_size || 'N/A';
+            }
+          });
+        }
+      } catch (sizeErr) {
+        // Fonction n'existe pas - continuer sans les tailles
+      }
+
+      const totalRows = tables.reduce((sum, t) => sum + t.row_count, 0);
+      const totalSizeBytes = tables.reduce((sum, t) => sum + t.total_size_bytes, 0);
+      const totalSizeMB = totalSizeBytes > 0 
+        ? (totalSizeBytes / (1024 * 1024)).toFixed(2) 
+        : 'N/A';
+
+      databaseOverview = {
+        total_tables: tables.length,
+        total_rows: totalRows,
+        total_size: totalSizeBytes > 0 ? `${totalSizeMB} MB` : 'N/A',
+        total_size_bytes: totalSizeBytes,
+        tables: tables.sort((a, b) => b.row_count - a.row_count),
+      };
+    } catch (statsErr) {
+      console.error('Failed to fetch table stats:', statsErr);
+    }
 
     checks.push({
       name: 'SUPABASE_CONNEXION',
@@ -146,6 +228,7 @@ export async function GET() {
         ? `${warns} avertissement(s) — fonctionnel mais incomplet`
         : 'Tout est OK — toutes les cles sont configurees et Supabase est connecte',
     checks,
+    database: databaseOverview,
     timestamp: new Date().toISOString(),
   });
 }

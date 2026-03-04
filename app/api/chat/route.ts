@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import {
-  fetchIsochrones, buildIsochCacheKey, ORS_MAX_POIS_CHAT,
+  fetchIsochrones, buildIsochCacheKey, ORS_MAX_POIS_CHAT, ORS_PROFILES,
   type PoiRow, type IsochroneCacheCtx,
 } from '@/lib/isochrones/fetcher';
 import {
@@ -435,6 +435,113 @@ async function executeToolCall(
     };
   }
 
+  if (name === 'calculate_audience_coverage') {
+    const location_name        = String(args.location_name ?? '');
+    const travel_time_minutes  = Number(args.travel_time_minutes ?? 30);
+    const target_column        = String(args.target_column ?? 'ind');
+    const target_label         = String(args.target_label ?? 'Population totale');
+    const mode                 = String(args.mode ?? 'drive');
+
+    const apiKey = process.env.ORS_API_KEY;
+    if (!apiKey) return { error: 'ORS_API_KEY non configurée — impossible de calculer l\'isochrone.' };
+
+    // ── 1. Géocodage via BAN ─────────────────────────────────────────────
+    let lat: number, lng: number;
+    try {
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5_000);
+      const banRes = await fetch(
+        `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(location_name)}&limit=1&type=municipality`,
+        { signal: ctrl.signal }
+      ).finally(() => clearTimeout(timer));
+      const banData = await banRes.json();
+      const coords = banData?.features?.[0]?.geometry?.coordinates;
+      if (!coords) return { error: `Lieu introuvable : "${location_name}"` };
+      [lng, lat] = coords as [number, number];
+    } catch (e: any) {
+      return { error: `Géocodage échoué : ${e.message}` };
+    }
+
+    // ── 2. Isochrone ORS point unique ────────────────────────────────────
+    const profile = ORS_PROFILES[mode] ?? 'driving-car';
+    let isoFeature: any = null;
+    try {
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12_000);
+      const orsRes = await fetch(
+        `https://api.openrouteservice.org/v2/isochrones/${profile}`,
+        {
+          method:  'POST',
+          signal:  ctrl.signal,
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type':  'application/json',
+            'Accept':        'application/json, application/geo+json',
+          },
+          body: JSON.stringify({
+            locations:  [[lng, lat]],
+            range:      [travel_time_minutes * 60],
+            range_type: 'time',
+          }),
+        }
+      ).finally(() => clearTimeout(timer));
+
+      if (!orsRes.ok) {
+        const err = await orsRes.text();
+        return { error: `ORS erreur ${orsRes.status}: ${err}` };
+      }
+      const orsData = await orsRes.json();
+      isoFeature = orsData.features?.[0];
+      if (!isoFeature) return { error: 'ORS n\'a retourné aucun isochrone' };
+    } catch (e: any) {
+      return { error: e.name === 'AbortError' ? 'Timeout ORS (12s)' : e.message };
+    }
+
+    // ── 3. Résolution/Millésime depuis data_sources ───────────────────────
+    const supabase = createAdminClient();
+    const { data: sources } = await supabase
+      .from('data_sources')
+      .select('geo_config')
+      .eq('type', 'carreaux')
+      .limit(1);
+    const cfg        = (sources?.[0]?.geo_config as any) ?? {};
+    const resolution = cfg.resolution ?? '200m';
+    const millesime  = cfg.millesime  ?? '2021';
+
+    // ── 4. Calcul couverture RPC PostGIS ─────────────────────────────────
+    const isoGeoJSON = JSON.stringify(isoFeature.geometry);
+    const { data: coverage, error: rpcErr } = await supabase.rpc('calculate_target_coverage', {
+      isochrone_geojson: isoGeoJSON,
+      target_column,
+      p_resolution:      resolution,
+      p_millesime:       millesime,
+    });
+
+    if (rpcErr) {
+      console.error('[chat/coverage] RPC error:', rpcErr.message);
+      return { error: rpcErr.message };
+    }
+
+    console.log(`[chat/coverage] "${location_name}" ${travel_time_minutes}min ${mode} → ${target_column} = ${coverage}`);
+
+    return {
+      location_name,
+      travel_time_minutes,
+      target_column,
+      target_label,
+      mode,
+      coverage_count:   Number(coverage ?? 0),
+      coordonnees:      { lat, lng },
+      isochroneGeoJSON: {
+        type:     'FeatureCollection',
+        features: [isoFeature],
+        _meta:    { mode, minutes: travel_time_minutes },
+        _fromCache: false,
+        _cachedAt:  null,
+      },
+    };
+  }
+
   return { error: `Outil inconnu: ${name}` };
 }
 
@@ -627,6 +734,28 @@ EXEMPLES OBLIGATOIRES → analyser_panneaux :
 - "Panneaux JCDecaux du 75" → analyser_panneaux(regie:"JCDecaux", departement:"75")
 - "OOH + lycées à Brest" → analyser_panneaux(ville:"Brest") ET analyser_zone_pois(ville:"Brest", cat:"lycee")
 
+═══ OUTIL 6 : calculate_audience_coverage ═══
+Calcule le nombre de personnes d'une cible dans une zone de temps de trajet réel (ORS + PostGIS prorata spatial).
+Retourne un chiffre unique et affiche l'isochrone sur la carte.
+
+DÉCLENCHER pour :
+- "combien de [cible] dans un rayon de X min autour de [lieu]"
+- "couverture [cible] à X min en [mode] autour de [lieu]"
+- "audience potentielle autour de [lieu]"
+- "potentiel de recrutement [lieu]"
+
+MAPPING target_column (même logique que afficher_carreaux) :
+- "population", "habitants" → ind, label "Population totale"
+- "18-24 ans", "jeunes" → ind_18_24, label "Jeunes 18-24 ans"
+- "25-39 ans" → ind_25_39, label "Adultes 25-39 ans"
+- "65-79 ans", "seniors" → ind_65_79, label "Seniors 65-79 ans"
+- "ménages" → men, label "Nombre de ménages"
+
+EXEMPLES → calculate_audience_coverage :
+- "Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?" → calculate_audience_coverage(location_name:"Brest", travel_time_minutes:30, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
+- "Audience potentielle 15 min à pied autour de Lyon" → calculate_audience_coverage(location_name:"Lyon", travel_time_minutes:15, target_column:"ind", target_label:"Population totale", mode:"walk")
+- "Potentiel 60 min voiture depuis Rennes" → calculate_audience_coverage(location_name:"Rennes", travel_time_minutes:60, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
+
 IMPORTANT:
 - Tu peux appeler les deux outils en même temps si l'utilisateur demande POI + données démographiques.
 - Pour POI: plusieurs appels si plusieurs catégories/zones.
@@ -754,6 +883,27 @@ export async function POST(request: NextRequest) {
           }),
           execute: async (args) =>
             executeToolCall('analyser_panneaux', args as Record<string, unknown>, categoriesList, {}),
+        },
+
+        calculate_audience_coverage: {
+          description:
+            "Calcule combien de personnes d'une cible précise (jeunes, seniors, population totale…) " +
+            "se trouvent dans une zone de temps de trajet autour d'un lieu. " +
+            "Génère l'isochrone ORS + requête PostGIS prorata spatial sur les carreaux INSEE. " +
+            "DÉCLENCHER pour : 'combien de [cible] dans X min autour de [lieu]', " +
+            "'couverture [cible] à X min', 'audience potentielle', 'potentiel de recrutement autour de'.",
+          inputSchema: z.object({
+            location_name:       z.string().describe("Nom du lieu ou de la ville (ex: 'Brest', 'Paris')."),
+            travel_time_minutes: z.number().describe("Durée du trajet en minutes (ex: 15, 30, 60)."),
+            target_column:       z.string().describe(
+              "Colonne Filosofi à agréger. Options : ind (population totale), ind_0_3, ind_4_5, ind_6_10, " +
+              "ind_11_17, ind_18_24, ind_25_39, ind_40_54, ind_55_64, ind_65_79, ind_80p, men (ménages), rev_median."
+            ),
+            target_label:        z.string().describe("Nom lisible de la cible en français (ex: 'Jeunes 18-24 ans')."),
+            mode: z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: drive."),
+          }),
+          execute: async (args) =>
+            executeToolCall('calculate_audience_coverage', args as Record<string, unknown>, categoriesList, {}),
         },
 
       },

@@ -81,6 +81,18 @@ const CATEGORIES: PromptCategory[] = [
     ],
   },
   {
+    id: 'coverage',
+    icon: '🎯',
+    label: 'Couverture audience',
+    color: '#c4b5fd',
+    description: 'Calcule le nombre de personnes d\'une cible dans une zone de temps réel (ORS + carreaux INSEE). Retourne un chiffre unique.',
+    prompts: [
+      { text: 'Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?', desc: 'Résultat numérique + isochrone sur la carte' },
+      { text: 'Audience potentielle 15 min à pied autour de Lyon', desc: 'Population totale accessible à pied' },
+      { text: 'Potentiel de recrutement 60 min voiture depuis Rennes', desc: 'Jeunes 18-24 ans dans le bassin routier' },
+    ],
+  },
+  {
     id: 'panneaux',
     icon: '📡',
     label: 'Panneaux OOH',

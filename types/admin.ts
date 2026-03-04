@@ -48,10 +48,30 @@ export interface HealthCheck {
   message: string;
 }
 
+export interface TableStats {
+  table_name: string;
+  row_count: number;
+  total_size: string;
+  total_size_bytes: number;
+  table_size: string;
+  indexes_size: string;
+  last_vacuum?: string;
+  last_analyze?: string;
+}
+
+export interface DatabaseOverview {
+  total_tables: number;
+  total_rows: number;
+  total_size: string;
+  total_size_bytes: number;
+  tables: TableStats[];
+}
+
 export interface HealthResponse {
   success: boolean;
   status: 'OK' | 'WARN' | 'ERROR';
   summary: string;
   checks: HealthCheck[];
+  database?: DatabaseOverview;
   timestamp: string;
 }

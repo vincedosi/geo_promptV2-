@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
 import { ZoneCard } from './ZoneCard';
+import { CoverageCard } from './CoverageCard';
 import { TypingDots } from './TypingDots';
 import { PromptsPanel } from './PromptsPanel';
 
@@ -41,11 +42,12 @@ interface ChatPanelProps {
 }
 
 const runningToolLabels: Record<string, string> = {
-  'tool-analyser_zone_pois': '🔍 Recherche des établissements…',
-  'tool-analyser_panneaux':  '📡 Recherche des panneaux OOH…',
-  'tool-voronoi_analysis':   '⚡ Calcul du Voronoï…',
-  'tool-afficher_carreaux':  '📊 Chargement des carreaux…',
-  'tool-isochrone_battle':   '⚔️ Calcul Bataille d\'Isochrones (~1-2 min)…',
+  'tool-analyser_zone_pois':          '🔍 Recherche des établissements…',
+  'tool-analyser_panneaux':           '📡 Recherche des panneaux OOH…',
+  'tool-voronoi_analysis':            '⚡ Calcul du Voronoï…',
+  'tool-afficher_carreaux':           '📊 Chargement des carreaux…',
+  'tool-isochrone_battle':            '⚔️ Calcul Bataille d\'Isochrones (~1-2 min)…',
+  'tool-calculate_audience_coverage': '🎯 Calcul de couverture audience…',
 };
 
 export function ChatPanel({
@@ -185,6 +187,15 @@ export function ChatPanel({
               )
             : null;
 
+          const coveragePart = msg.role === 'assistant'
+            ? (msg.parts as any[]).find(
+                p => p.type === 'tool-calculate_audience_coverage'
+                  && p.state === 'output-available'
+                  && p.output?.coverage_count !== undefined
+                  && !p.output?.error
+              )
+            : null;
+
           const runningTool = msg.role === 'assistant'
             ? (msg.parts as any[]).find(
                 p => p.type?.startsWith('tool-') && (p.state === 'input-streaming' || p.state === 'input-available')
@@ -211,8 +222,17 @@ export function ChatPanel({
                       </div>
                     )}
                     {zonePart && <ZoneCard zone={zonePart.output as ZoneData} />}
+                    {coveragePart && (
+                      <CoverageCard
+                        locationName={coveragePart.output.location_name}
+                        travelTimeMinutes={coveragePart.output.travel_time_minutes}
+                        targetLabel={coveragePart.output.target_label}
+                        coverageCount={coveragePart.output.coverage_count}
+                        mode={coveragePart.output.mode}
+                      />
+                    )}
                     {textContent && (
-                      <div style={{ marginTop: zonePart ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
+                      <div style={{ marginTop: (zonePart || coveragePart) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
                         {textContent}
                       </div>
                     )}

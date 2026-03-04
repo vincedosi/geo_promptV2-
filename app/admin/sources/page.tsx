@@ -24,7 +24,7 @@ function typeBadge(type: string, category?: string, regie?: string) {
   const label = type === 'poi'
     ? `POI${category ? ` — ${category}` : ''}`
     : type === 'panneaux'
-      ? `Panneaux${regie ? ` — ${regie}` : ''}`
+      ? `OOH${regie ? ` — ${regie}` : ''}`
       : 'Carreaux INSEE';
   return <span className={`g-badge ${colors[type] || ''}`}>{label}</span>;
 }
@@ -53,6 +53,7 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux'>('all');
 
   // ============================================================
   // Fetch data
@@ -224,20 +225,59 @@ export default function SourcesPage() {
         <p className="page-subtitle">Gestion des sources de donnees importees — resumé IA, suppression, partage, export</p>
       </div>
 
+      {/* ── Tabs ─────────────────────────────────────────────── */}
+      {(() => {
+        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux'; label: string; color: string }[] = [
+          { key: 'all',      label: `Toutes (${sources.length})`,                                          color: 'var(--accent)' },
+          { key: 'poi',      label: `POI (${sources.filter((s) => s.type === 'poi').length})`,             color: '#8b5cf6' },
+          { key: 'carreaux', label: `Carreaux (${sources.filter((s) => s.type === 'carreaux').length})`,  color: '#10b981' },
+          { key: 'panneaux', label: `OOH (${sources.filter((s) => s.type === 'panneaux').length})`,       color: '#f97316' },
+        ];
+        return (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => { setActiveTab(tab.key); setSelectedSource(null); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
+                  color: activeTab === tab.key ? tab.color : 'var(--text-dim)',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 12,
+                  fontWeight: activeTab === tab.key ? 700 : 400,
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  transition: 'color 0.15s, border-color 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
       <div style={{ display: 'flex', gap: 16 }}>
         {/* ============================================================ */}
         {/* LEFT: Sources List */}
         {/* ============================================================ */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {isLoading ? (
-            <div className="g-card"><div className="g-card-body" style={{ textAlign: 'center', padding: 40 }}><Spinner size={20} /> Chargement...</div></div>
-          ) : sources.length === 0 ? (
-            <div className="g-card"><div className="g-card-body" style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>
-              Aucune source de donnees.<br /><span style={{ fontSize: 12 }}>Importez des donnees via Import Universel</span>
-            </div></div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {sources.map((source) => (
+          {(() => {
+            const filtered = activeTab === 'all' ? sources : sources.filter((s) => s.type === activeTab);
+            if (isLoading) return (
+              <div className="g-card"><div className="g-card-body" style={{ textAlign: 'center', padding: 40 }}><Spinner size={20} /> Chargement...</div></div>
+            );
+            if (filtered.length === 0) return (
+              <div className="g-card"><div className="g-card-body" style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>
+                Aucune source de donnees dans cet onglet.<br /><span style={{ fontSize: 12 }}>Importez des donnees via Import Universel</span>
+              </div></div>
+            );
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filtered.map((source) => (
                 <div
                   key={source.id}
                   className="g-card"
@@ -266,9 +306,10 @@ export default function SourcesPage() {
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ============================================================ */}

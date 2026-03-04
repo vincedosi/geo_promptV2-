@@ -1,6 +1,6 @@
 /**
  * GENESIS — Import Universel — File Parser
- * Parse CSV (papaparse), Excel (xlsx), GeoJSON
+ * Parse CSV (papaparse), Excel (xlsx), GeoJSON, Shapefile
  * Port TypeScript de genesis_etl/loader.py
  */
 import Papa from 'papaparse';
@@ -8,10 +8,18 @@ import * as XLSX from 'xlsx';
 
 export interface ParsedFile {
   rows: Record<string, string | null>[];
-  format: 'csv' | 'xlsx' | 'geojson';
+  format: 'csv' | 'xlsx' | 'geojson' | 'shapefile';
   encoding: string;
   separator: string;
   totalRows: number;
+  geometryColumn?: string; // For shapefile / geojson
+}
+
+export interface ShapefileBundle {
+  shp?: Buffer; // .shp (geometry)
+  dbf?: Buffer; // .dbf (attributes)
+  prj?: Buffer; // .prj (projection)
+  shx?: Buffer; // .shx (index)
 }
 
 // ============================================================
@@ -193,7 +201,145 @@ function parseGeoJSON(buffer: Buffer): ParsedFile {
 }
 
 // ============================================================
-// Main entry point
+// DBF Parser (for Shapefiles)
+// Simple DBF record parser. Reads attribute table from .dbf
+// ============================================================
+
+function parseDBF(buffer: Buffer): Record<string, string | null>[] {
+  // DBF file structure:
+  // Byte 0: File type marker (0x03)
+  // Bytes 1-3: Last update date
+  // Bytes 4-7: Number of records (little-endian)
+  // Bytes 8-9: Header length (little-endian)
+  // Bytes 10-11: Record length (little-endian)
+  // Bytes 12-31: Reserved
+  // Bytes 32+: Field descriptors (each 32 bytes)
+  // Fields:
+  //   Byte 0: 0x0D marks end of field list
+  //   Bytes 0-10: Field name (11 chars)
+  //   Byte 11: Field type (C=char, N=numeric, L=logical, D=date, M=memo)
+  //   Bytes 12-14: Reserved
+  //   Byte 15: Field length
+  //   Byte 16: Decimal count
+  //   Bytes 17-31: Reserved
+
+  let offset = 0;
+
+  // Read header
+  const fileType = buffer[offset++];
+  if (fileType !== 0x03) {
+    throw new Error(`DBF invalide: marqueur fichier=${fileType}`);
+  }
+
+  // Skip update date (3 bytes)
+  offset += 3;
+
+  // Read record count (little-endian)
+  const recordCount =
+    buffer[offset] |
+    (buffer[offset + 1] << 8) |
+    (buffer[offset + 2] << 16) |
+    (buffer[offset + 3] << 24);
+  offset += 4;
+
+  // Read header length (little-endian)
+  const headerLength = (buffer[offset] | (buffer[offset + 1] << 8));
+  offset += 2;
+
+  // Read record length (little-endian)
+  const recordLength = (buffer[offset] | (buffer[offset + 1] << 8));
+  offset += 2;
+
+  // Skip reserved bytes
+  offset += 20;
+
+  // Parse field descriptors
+  const fields: { name: string; type: string; length: number; decimals: number }[] = [];
+
+  while (offset < headerLength) {
+    const byte = buffer[offset];
+
+    if (byte === 0x0d) {
+      // End of field list
+      break;
+    }
+
+    const fieldName = buffer.toString('latin1', offset, offset + 11).replace(/\0/g, '').trim();
+    const fieldType = buffer.toString('latin1', offset + 11, offset + 12);
+    const fieldLength = buffer[offset + 16];
+    const decimals = buffer[offset + 17];
+
+    fields.push({ name: fieldName, type: fieldType, length: fieldLength, decimals });
+    offset += 32;
+  }
+
+  // Parse records
+  offset = headerLength;
+  const rows: Record<string, string | null>[] = [];
+
+  for (let i = 0; i < recordCount && offset < buffer.length; i++) {
+    // First byte = deletion flag (0x20 = active, 0x2A = deleted)
+    const isDeleted = buffer[offset++] === 0x2a;
+
+    if (isDeleted) {
+      // Skip deleted record
+      offset += recordLength - 1;
+      continue;
+    }
+
+    const row: Record<string, string | null> = {};
+
+    for (const field of fields) {
+      const rawValue = buffer.toString('latin1', offset, offset + field.length).trim();
+      offset += field.length;
+
+      if (!rawValue || rawValue === '*') {
+        row[field.name] = null;
+      } else if (field.type === 'N') {
+        // Numeric field
+        row[field.name] = isNaN(Number(rawValue)) ? null : rawValue;
+      } else if (field.type === 'L') {
+        // Logical field
+        row[field.name] = rawValue === 'T' || rawValue === 'Y' ? 'true' : rawValue === 'F' || rawValue === 'N' ? 'false' : null;
+      } else {
+        // Character, date, memo
+        row[field.name] = rawValue || null;
+      }
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+// ============================================================
+// Shapefile Parser (requires .shp + .dbf bundle)
+// ============================================================
+
+export async function parseShapefile(bundle: ShapefileBundle): Promise<ParsedFile> {
+  if (!bundle.dbf) {
+    throw new Error('DBF manquant : un Shapefile nécessite au minimum .shp + .dbf');
+  }
+
+  // Parse DBF for attributes
+  const rows = parseDBF(bundle.dbf);
+
+  // TODO: If geometry coordinates needed, parse .shp geometry file
+  // For now, attributes + basic row structure is sufficient for carreaux import
+
+  return {
+    rows,
+    format: 'shapefile',
+    encoding: 'latin1',
+    separator: 'shapefile',
+    totalRows: rows.length,
+    geometryColumn: '_shp_geometry',
+  };
+}
+
+// ============================================================
+// Main entry point (single file formats)
 // ============================================================
 
 export function parseFile(buffer: Buffer, fileName: string): ParsedFile {
@@ -214,7 +360,16 @@ export function parseFile(buffer: Buffer, fileName: string): ParsedFile {
     case 'json':
       return parseGeoJSON(buffer);
 
+    case 'shp':
+      throw new Error(
+        'Les Shapefiles doivent être importés avec leurs fichiers complémentaires (.shp + .dbf + .prj/.shx). ' +
+        'Veuillez uploader les fichiers ensemble dans l\'assistant multi-fichiers.'
+      );
+
     default:
-      throw new Error(`Format de fichier non supporté : .${ext}\nFormats acceptés : CSV, Excel (.xlsx/.xls), GeoJSON`);
+      throw new Error(
+        `Format de fichier non supporté : .${ext}\n` +
+        'Formats acceptés : CSV, Excel (.xlsx/.xls), GeoJSON, Shapefile (.shp+.dbf+.prj+.shx)'
+      );
   }
 }

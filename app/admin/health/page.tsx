@@ -285,8 +285,102 @@ export default function HealthPage() {
                 Ouvrir Supabase Dashboard → SQL Editor → executer le script de migration SQL
               </div>
             )}
+
           </div>
         </div>
+
+        {/* Database Overview */}
+        {!isLoading && health?.database && (
+          <div className="g-card">
+            <div className="g-card-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+                <path d="M3 3h18v18H3z" />
+                <path d="M3 9h18M9 3v18" />
+              </svg>
+              <span className="g-card-title">Database Overview</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {health.database.total_tables} tables · {health.database.total_rows.toLocaleString('fr-FR')} lignes
+              </span>
+            </div>
+            <div className="g-card-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Tables
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)' }}>
+                    {health.database.total_tables}
+                  </div>
+                </div>
+                <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Lignes totales
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--green)' }}>
+                    {health.database.total_rows.toLocaleString('fr-FR')}
+                  </div>
+                </div>
+                <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Espace total
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--orange)' }}>
+                    {health.database.total_size}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-dim)', fontWeight: 700 }}>Table</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text-dim)', fontWeight: 700 }}>Lignes</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text-dim)', fontWeight: 700 }}>Taille totale</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text-dim)', fontWeight: 700 }}>Table</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--text-dim)', fontWeight: 700 }}>Index</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {health.database.tables.map((table, idx) => (
+                      <tr
+                        key={table.table_name}
+                        style={{
+                          borderBottom: idx < health.database.tables.length - 1 ? '1px solid var(--border)' : 'none',
+                          background: idx % 2 === 0 ? 'transparent' : 'var(--bg-subtle)',
+                        }}
+                      >
+                        <td style={{ padding: '10px 12px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                          {table.table_name}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                          {table.row_count.toLocaleString('fr-FR')}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--accent)' }}>
+                          {table.total_size}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-dim)' }}>
+                          {table.table_size}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-dim)' }}>
+                          {table.indexes_size}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {health.database.total_size === 'N/A' && (
+                <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(251,146,60,0.06)', borderRadius: 8, border: '1px solid rgba(251,146,60,0.2)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-dim)' }}>
+                  <span style={{ color: 'var(--orange)' }}>💡 INFO: </span>
+                  Pour afficher les tailles, executez le script <span style={{ color: 'var(--accent)' }}>sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
 
         {/* Build info */}
         <div className="g-card">
