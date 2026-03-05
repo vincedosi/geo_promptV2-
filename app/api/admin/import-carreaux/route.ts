@@ -356,16 +356,34 @@ async function parseMultipartStream(
       const diskName = `upload_${stamp}_${filename}`;
       const diskPath = path.join(destDir, diskName);
       let size = 0;
+      let chunks = 0;
+      let lastLoggedMB = 0;
 
       console.log(`[import-carreaux] 💾 Streaming ${fieldName}: ${filename} → ${diskPath}`);
-      const ws = fs.createWriteStream(diskPath);
-      fileStream.on('data', (chunk: Buffer) => { size += chunk.length; });
+
+      // Open fd SYNCHRONOUSLY so WriteStream is immediately writable.
+      // Without this, createWriteStream opens the fd asynchronously and
+      // buffers all piped data until open completes — for a 2.5 GB file
+      // this exceeds fs.write()'s 2^31-1 byte limit and crashes.
+      const fd = fs.openSync(diskPath, 'w');
+      const ws = fs.createWriteStream(diskPath, { fd, autoClose: true });
+
+      fileStream.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        chunks++;
+        const mb = Math.floor(size / (1024 * 1024));
+        // Log every 200 MB so we see progress for large files
+        if (mb >= lastLoggedMB + 200) {
+          lastLoggedMB = mb;
+          console.log(`[import-carreaux]   📊 ${filename}: ${mb} MB reçus (${chunks} chunks)`);
+        }
+      });
       fileStream.pipe(ws);
 
       // Track each file write as a Promise so we wait for ALL writes to finish
       pendingWrites.push(new Promise<void>((res, rej) => {
         ws.on('close', () => {
-          console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB`);
+          console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB (${chunks} chunks)`);
           files.push({ fieldName, fileName: filename, diskPath, size });
           res();
         });
@@ -396,7 +414,12 @@ async function parseMultipartStream(
     }
 
     // Use Readable.fromWeb for clean conversion (Node 18+)
+    console.log('[import-carreaux] 🔗 Piping Web ReadableStream → Node Readable → busboy...');
     const nodeStream = Readable.fromWeb(body as import('stream/web').ReadableStream);
+    nodeStream.on('error', (err: Error) => {
+      console.error('[import-carreaux] ❌ nodeStream error:', err.message);
+      reject(err);
+    });
     nodeStream.pipe(busboy);
   });
 }
