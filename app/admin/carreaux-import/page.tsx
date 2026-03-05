@@ -2,17 +2,279 @@
 
 import { useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
-interface UrlCheckResult {
-  valid: boolean;
-  url?: string;
-  error?: string;
-  warning?: boolean;
-  fileSize?: number;
-  fileSizeMB?: string;
-  contentType?: string;
-  lastModified?: string;
-  message?: string;
+// ============================================================
+// Client-side column preview — no server call needed
+// ============================================================
+
+type ColType = 'id' | 'number' | 'string';
+interface ColInfo { type: ColType; dtype: string; samples: string[] }
+
+const ID_PATTERNS = new Set([
+  'idcar', 'id', 'idcom', 'idk', 'id_car', 'id_carreau',
+  'code_iris', 'depcom', 'dep', 'reg', 'epci', 'id_inspire',
+  'lcog_geo', 'i_est_cr',
+]);
+
+function classifyColumn(name: string, values: (string | null)[]): { type: ColType; dtype: string } {
+  const n = name.toLowerCase().trim();
+  if (ID_PATTERNS.has(n) || n.startsWith('id_') || n.startsWith('code_')) {
+    return { type: 'id', dtype: 'object' };
+  }
+  const nonNull = values.filter((v): v is string => v !== null && v !== undefined && v.trim() !== '');
+  if (nonNull.length === 0) return { type: 'string', dtype: 'object' };
+
+  let intCount = 0, floatCount = 0;
+  for (const v of nonNull) {
+    const num = Number(v.replace(',', '.'));
+    if (!isNaN(num) && v.trim() !== '') {
+      Number.isInteger(num) ? intCount++ : floatCount++;
+    }
+  }
+  if ((intCount + floatCount) / nonNull.length > 0.7) {
+    return { type: 'number', dtype: floatCount > 0 ? 'float64' : 'int64' };
+  }
+  return { type: 'string', dtype: 'object' };
+}
+
+function parseDbfPreview(data: Uint8Array, maxRows: number): Record<string, string | null>[] {
+  if (data.length < 32) throw new Error('Fichier DBF invalide (trop court)');
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const recordCount = view.getUint32(4, true);
+  const headerSize = view.getUint16(8, true);
+  const recordSize = view.getUint16(10, true);
+  const fields: { name: string; length: number }[] = [];
+  let off = 32;
+  while (off + 32 <= headerSize) {
+    if (data[off] === 0x0d) break;
+    const name = new TextDecoder('latin1').decode(data.slice(off, off + 11)).replace(/\0/g, '').trim();
+    if (!name) break;
+    fields.push({ name, length: data[off + 16] });
+    off += 32;
+  }
+  const rows: Record<string, string | null>[] = [];
+  let recOff = headerSize;
+  const limit = Math.min(recordCount, maxRows);
+  for (let i = 0; i < limit && recOff + recordSize <= data.length; i++) {
+    const deleted = data[recOff] === 0x2a;
+    recOff += 1;
+    if (deleted) { recOff += recordSize - 1; continue; }
+    const rec: Record<string, string | null> = {};
+    for (const f of fields) {
+      const raw = new TextDecoder('latin1').decode(data.slice(recOff, recOff + f.length)).trim();
+      rec[f.name] = raw || null;
+      recOff += f.length;
+    }
+    rows.push(rec);
+  }
+  return rows;
+}
+
+// Robust file reading — FileReader with clear error messages
+function readBlobAsText(blob: Blob, fileName: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error(
+      `Impossible de lire "${fileName}". Le fichier est peut-être verrouillé ou supprimé.\n` +
+      'Essayez de re-sélectionner le fichier.'
+    ));
+    reader.readAsText(blob);
+  });
+}
+
+function readBlobAsArrayBuffer(blob: Blob, fileName: string): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(new Error(
+      `Impossible de lire "${fileName}". Le fichier est peut-être verrouillé ou supprimé.\n` +
+      'Essayez de re-sélectionner le fichier.'
+    ));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/**
+ * Capture a preview snapshot of a file immediately at selection time.
+ * This avoids stale File handles — the browser reads the file once,
+ * and we store the bytes in memory for later analysis.
+ */
+async function captureFilePreview(file: File): Promise<{ fileName: string; ext: string; headerText?: string; headerBuf?: ArrayBuffer }> {
+  const ext = file.name.toLowerCase().split('.').pop() || '';
+
+  if (ext === 'csv' || ext === 'tsv' || ext === 'txt' || ext === 'geojson' || ext === 'json') {
+    const blob = file.slice(0, ext === 'geojson' || ext === 'json' ? 500 * 1024 : 100 * 1024);
+    const headerText = await readBlobAsText(blob, file.name);
+    return { fileName: file.name, ext, headerText };
+  }
+
+  if (ext === 'dbf') {
+    // DBF: header + first records are in the first ~256KB — never read the whole file
+    const blob = file.slice(0, 256 * 1024);
+    const headerBuf = await readBlobAsArrayBuffer(blob, file.name);
+    return { fileName: file.name, ext, headerBuf };
+  }
+
+  if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
+    // Excel: need full structure for SheetJS, but cap at 5MB for preview
+    const blob = file.size > 5 * 1024 * 1024 ? file.slice(0, 5 * 1024 * 1024) : file;
+    const headerBuf = await readBlobAsArrayBuffer(blob, file.name);
+    return { fileName: file.name, ext, headerBuf };
+  }
+
+  // For other formats, just store metadata — preview won't be supported
+  return { fileName: file.name, ext };
+}
+
+type FilePreviewSnapshot = Awaited<ReturnType<typeof captureFilePreview>>;
+
+// ============================================================
+// Auto-detect resolution + millésime from file name & columns
+// ============================================================
+
+interface DetectedMeta {
+  resolution: '200m' | '1km' | null;
+  millesime: string | null;
+  source: 'filename' | 'columns' | null;
+}
+
+function detectFileMetadata(
+  fileName: string,
+  columns?: Record<string, ColInfo>,
+): DetectedMeta {
+  const meta: DetectedMeta = { resolution: null, millesime: null, source: null };
+  const lower = fileName.toLowerCase();
+
+  // --- Resolution from filename ---
+  if (/[_\-.]200m/i.test(lower)) {
+    meta.resolution = '200m';
+    meta.source = 'filename';
+  } else if (/[_\-.]1000m|[_\-.]1km/i.test(lower)) {
+    meta.resolution = '1km';
+    meta.source = 'filename';
+  }
+
+  // --- Millésime from filename ---
+  // Patterns: Filosofi2019, carreaux_200m_met_2021, filosofi_2017, etc.
+  const yearMatch = lower.match(/filosofi[_\-]?(\d{4})/i)
+    || lower.match(/(?:carreaux|carr)[^0-9]*(\d{4})/)
+    || lower.match(/[_\-](\d{4})[_\-.]/)
+    || lower.match(/(\d{4})/);
+  if (yearMatch) {
+    const year = parseInt(yearMatch[1], 10);
+    if (year >= 2010 && year <= 2030) {
+      meta.millesime = String(year);
+    }
+  }
+
+  // --- Resolution from column names (more reliable) ---
+  if (columns) {
+    const colNames = Object.keys(columns).map(c => c.toLowerCase());
+    if (colNames.some(c => c.includes('idcar_200m') || c === 'id_200m' || c === 'idcar200m')) {
+      meta.resolution = '200m';
+      meta.source = meta.source || 'columns';
+    } else if (colNames.some(c => c.includes('idcar_1km') || c.includes('idcar_1000m') || c === 'id_1km')) {
+      meta.resolution = '1km';
+      meta.source = meta.source || 'columns';
+    }
+
+    // --- Resolution from idcar sample values ---
+    if (!meta.resolution) {
+      for (const [, info] of Object.entries(columns)) {
+        for (const sample of info.samples) {
+          if (/RES200m/i.test(sample)) { meta.resolution = '200m'; meta.source = 'columns'; break; }
+          if (/RES1000m/i.test(sample)) { meta.resolution = '1km'; meta.source = 'columns'; break; }
+        }
+        if (meta.resolution) break;
+      }
+    }
+  }
+
+  return meta;
+}
+
+function analyzePreviewSnapshot(
+  snap: FilePreviewSnapshot,
+): { columns: Record<string, ColInfo>; bbox?: { bboxWgs84: string } } {
+  let rows: Record<string, string | null>[] = [];
+
+  if ((snap.ext === 'csv' || snap.ext === 'tsv' || snap.ext === 'txt') && snap.headerText) {
+    const text = snap.headerText;
+    const firstLine = text.split('\n')[0] || '';
+    const sep = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
+    const result = Papa.parse<Record<string, string>>(text, {
+      header: true, delimiter: sep, preview: 10, skipEmptyLines: true,
+    });
+    rows = result.data;
+  } else if ((snap.ext === 'xlsx' || snap.ext === 'xls' || snap.ext === 'xlsm') && snap.headerBuf) {
+    const wb = XLSX.read(snap.headerBuf, { type: 'array', sheetRows: 15 });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (sheet) rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: null, raw: false });
+  } else if ((snap.ext === 'geojson' || snap.ext === 'json') && snap.headerText) {
+    const geojson = JSON.parse(snap.headerText);
+    rows = (geojson.features || []).slice(0, 10).map((f: { properties?: Record<string, unknown> }) => {
+      const props: Record<string, string | null> = {};
+      if (f.properties) {
+        for (const [k, v] of Object.entries(f.properties)) {
+          props[k] = v != null ? String(v) : null;
+        }
+      }
+      return props;
+    });
+  } else if (snap.ext === 'dbf' && snap.headerBuf) {
+    rows = parseDbfPreview(new Uint8Array(snap.headerBuf), 10);
+  } else if (snap.ext === 'zip') {
+    throw new Error(
+      'Les fichiers ZIP ne peuvent pas être prévisualisés directement.\n' +
+      'Veuillez extraire le fichier CSV/Excel du ZIP avant de le charger.'
+    );
+  } else {
+    throw new Error(`Format .${snap.ext} non supporté pour la prévisualisation. Formats : CSV, Excel, GeoJSON, DBF.`);
+  }
+
+  if (rows.length === 0) throw new Error('Aucune ligne de données trouvée dans le fichier');
+
+  const columns: Record<string, ColInfo> = {};
+  const keys = Object.keys(rows[0]);
+  for (const col of keys) {
+    const values = rows.map(r => r[col] ?? null);
+    const { type, dtype } = classifyColumn(col, values);
+    const samples = values.filter((v): v is string => v !== null && v.trim() !== '').slice(0, 3);
+    columns[col] = { type, dtype, samples };
+  }
+
+  let bbox: { bboxWgs84: string } | undefined;
+  const latCol = keys.find(k => /^(lat|latitude|_geojson_lat)$/i.test(k));
+  const lngCol = keys.find(k => /^(lng|lon|long|longitude|_geojson_lng)$/i.test(k));
+  if (latCol && lngCol) {
+    const lats = rows.map(r => parseFloat(r[latCol] || '')).filter(n => !isNaN(n));
+    const lngs = rows.map(r => parseFloat(r[lngCol] || '')).filter(n => !isNaN(n));
+    if (lats.length > 0 && lngs.length > 0) {
+      bbox = { bboxWgs84: `${Math.min(...lngs)} ${Math.min(...lats)} ${Math.max(...lngs)} ${Math.max(...lats)}` };
+    }
+  }
+
+  return { columns, bbox };
+}
+
+// ============================================================
+
+import { createClient } from '@supabase/supabase-js';
+
+let _sbClient: ReturnType<typeof createClient> | null = null;
+function getAuthToken(): Promise<{ token: string | null }> {
+  if (!_sbClient) {
+    _sbClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+  }
+  return _sbClient.auth.getSession().then(({ data }) => ({
+    token: data.session?.access_token ?? null,
+  }));
 }
 
 interface ImportReport {
@@ -33,38 +295,21 @@ interface ImportResult {
   error?: string;
 }
 
-// Presets géographiques — bbox WGS84 (west south east north) + estimation
-const GEO_PRESETS = [
-  { label: 'Toute la France métropolitaine', bbox: '-5.5 41.0 10.0 51.5', rows: 2300000, storageMb: 2500, warn: true },
-  { label: 'Île-de-France', bbox: '1.5 48.0 3.2 49.2', rows: 230000, storageMb: 250, warn: false },
-  { label: 'Auvergne-Rhône-Alpes', bbox: '2.0 44.0 7.2 46.8', rows: 280000, storageMb: 300, warn: false },
-  { label: 'PACA', bbox: '4.0 42.8 7.8 44.9', rows: 130000, storageMb: 140, warn: false },
-  { label: 'Occitanie', bbox: '-2.0 42.3 4.9 45.1', rows: 180000, storageMb: 195, warn: false },
-  { label: 'Nouvelle-Aquitaine', bbox: '-1.9 42.7 2.6 47.1', rows: 200000, storageMb: 215, warn: false },
-  { label: 'Grand Est', bbox: '3.4 47.4 8.2 49.7', rows: 190000, storageMb: 205, warn: false },
-  { label: 'Hauts-de-France', bbox: '1.5 49.5 4.3 51.1', rows: 110000, storageMb: 120, warn: false },
-  { label: 'Bretagne', bbox: '-5.2 47.3 -1.0 48.9', rows: 90000, storageMb: 98, warn: false },
-  { label: 'Pays de la Loire', bbox: '-2.6 46.3 0.9 48.2', rows: 110000, storageMb: 120, warn: false },
-  { label: 'Haute-Garonne (31)', bbox: '0.7 42.9 2.3 44.0', rows: 35000, storageMb: 38, warn: false },
-  { label: 'Gironde (33)', bbox: '-1.3 44.0 0.3 45.9', rows: 40000, storageMb: 43, warn: false },
-  { label: 'Rhône (69)', bbox: '4.4 45.3 5.7 46.1', rows: 30000, storageMb: 33, warn: false },
-  { label: 'Nord (59)', bbox: '2.0 50.0 4.3 51.1', rows: 45000, storageMb: 49, warn: false },
-  { label: 'Bas-Rhin (67)', bbox: '6.8 47.4 8.2 49.1', rows: 28000, storageMb: 30, warn: false },
-  { label: 'Pas de filtre (bbox auto)', bbox: '', rows: 0, storageMb: 0, warn: false },
-] as const;
-
 export default function CarreauxImportPage() {
-  const [url, setUrl] = useState('https://www.insee.fr/fr/statistiques/fichier/7655475/Filosofi2015_carreaux_200m_metropole.zip');
-  const [urlCheckResult, setUrlCheckResult] = useState<UrlCheckResult | null>(null);
-  const [isCheckingUrl, setIsCheckingUrl] = useState(false);
-  const [mode, setMode] = useState<'auto' | 'manual'>('auto');
-  const [file, setFile] = useState<File | null>(null);
+  const [singleFile, setSingleFile] = useState<File | null>(null);
+  const [shpFile, setShpFile] = useState<File | null>(null);
+  const [dbfFile, setDbfFile] = useState<File | null>(null);
+  const [shxFile, setShxFile] = useState<File | null>(null);
+  const [prjFile, setPrjFile] = useState<File | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [limit, setLimit] = useState('1000');
-  const [geoPreset, setGeoPreset] = useState<string>('0.7 42.9 2.3 44.0'); // Haute-Garonne par défaut
+  const [geoPreset, setGeoPreset] = useState<string>('');
+  const [detectedBbox, setDetectedBbox] = useState<string>('');
   const [resolution, setResolution] = useState<'200m' | '1km'>('200m');
   const [millesime, setMillesime]   = useState('2021');
+  const [detectedMeta, setDetectedMeta] = useState<DetectedMeta | null>(null);
   // Sélection de colonnes
+  const [previewSnapshot, setPreviewSnapshot] = useState<FilePreviewSnapshot | null>(null);
   const [columnsData, setColumnsData] = useState<Record<string, { type: string; dtype: string; samples: string[] }> | null>(null);
   const [selectedCols, setSelectedCols] = useState<Set<string>>(new Set());
   const [loadingColumns, setLoadingColumns] = useState(false);
@@ -72,45 +317,77 @@ export default function CarreauxImportPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [lastLog, setLastLog] = useState('');
+  const [fileLoading, setFileLoading] = useState<string | null>(null); // which input is loading
 
-  const selectedPreset = GEO_PRESETS.find(p => p.bbox === geoPreset) ?? GEO_PRESETS[GEO_PRESETS.length - 1];
+  const hasShapefileInputs = !!(shpFile || dbfFile || shxFile || prjFile);
+  const hasValidShapefileSet = !!(shpFile && dbfFile);
+  const hasUploadReady = hasShapefileInputs ? hasValidShapefileSet : !!singleFile;
 
-  const handleVerifyUrl = async () => {
-    if (!url.trim()) return;
-    setIsCheckingUrl(true);
-    setUrlCheckResult(null);
-    try {
-      const res = await adminFetch('/api/admin/verify-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-      setUrlCheckResult(await res.json());
-    } catch (e: any) {
-      setUrlCheckResult({ valid: false, error: e.message });
-    } finally {
-      setIsCheckingUrl(false);
+  const appendUploadFilesToFormData = (fd: FormData) => {
+    if (hasShapefileInputs) {
+      if (shpFile) {
+        fd.append('shpFile', shpFile);
+        fd.append('files', shpFile);
+      }
+      if (dbfFile) {
+        fd.append('dbfFile', dbfFile);
+        fd.append('files', dbfFile);
+      }
+      if (shxFile) {
+        fd.append('shxFile', shxFile);
+        fd.append('files', shxFile);
+      }
+      if (prjFile) {
+        fd.append('prjFile', prjFile);
+        fd.append('files', prjFile);
+      }
+      return;
+    }
+
+    if (singleFile) {
+      fd.append('file', singleFile);
+      fd.append('files', singleFile);
     }
   };
 
   const handlePreviewColumns = async () => {
-    if (mode === 'manual' && !file) { alert('Sélectionnez un fichier d\'abord'); return; }
-    if (mode === 'auto') { alert('La prévisualisation des colonnes nécessite l\'upload manuel du fichier.'); return; }
+    if (!hasUploadReady) {
+      alert(hasShapefileInputs ? 'Pour un shapefile non zippé, sélectionnez au minimum .shp et .dbf' : 'Sélectionnez un fichier d\'abord');
+      return;
+    }
     setLoadingColumns(true);
     setColumnsError('');
     setColumnsData(null);
     try {
-      const fd = new FormData();
-      fd.append('mode', mode);
-      if (file) fd.append('file', file);
-      const res = await adminFetch('/api/admin/preview-carreaux', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setColumnsError(data.error || 'Erreur inconnue');
-        return;
+      // Use already-captured snapshot if available, otherwise capture now
+      let snap = previewSnapshot;
+      if (!snap) {
+        const targetFile = (hasShapefileInputs && dbfFile) ? dbfFile : singleFile;
+        if (!targetFile) throw new Error('Aucun fichier à analyser');
+        snap = await captureFilePreview(targetFile);
+        setPreviewSnapshot(snap);
       }
-      const cols: Record<string, { type: string; dtype: string; samples: string[] }> = data.columns || {};
-      setColumnsData(cols);
+
+      const result = analyzePreviewSnapshot(snap);
+      const bboxFromPreview = result.bbox?.bboxWgs84 || '';
+      if (bboxFromPreview) {
+        setDetectedBbox(bboxFromPreview);
+        if (!geoPreset) setGeoPreset(bboxFromPreview);
+      }
+      setColumnsData(result.columns);
+
+      // Refine auto-detection with column data
+      const fileName = snap.fileName;
+      const meta = detectFileMetadata(fileName, result.columns);
+      setDetectedMeta(meta);
+      if (meta.resolution) setResolution(meta.resolution);
+      if (meta.millesime) setMillesime(meta.millesime);
+
       // Par défaut : sélectionner toutes les colonnes numériques (pas les string ni les id)
       const defaultSel = new Set(
-        Object.entries(cols)
+        Object.entries(result.columns)
           .filter(([, v]) => v.type !== 'string')
           .map(([k]) => k)
       );
@@ -123,17 +400,20 @@ export default function CarreauxImportPage() {
   };
 
   const handleImport = async () => {
-    if (mode === 'auto' && !urlCheckResult?.valid) { alert("Vérifiez l'URL d'abord"); return; }
-    if (mode === 'manual' && !file) { alert('Sélectionnez un fichier'); return; }
+    if (!hasUploadReady) {
+      alert(hasShapefileInputs ? 'Pour un shapefile non zippé, sélectionnez au minimum .shp et .dbf' : 'Sélectionnez un fichier');
+      return;
+    }
     if (!confirm(dryRun ? `Dry-run sur ${limit || 'toutes les'} lignes ?` : '⚠️ IMPORT RÉEL en base ?')) return;
 
     setIsImporting(true);
     setImportResult(null);
     setImportProgress(null);
+    setUploadProgress(null);
     setLastLog('');
     try {
       const fd = new FormData();
-      fd.append('mode', mode);
+      fd.append('mode', 'manual');
       fd.append('dryRun', String(dryRun));
       if (limit) fd.append('limit', limit);
       if (geoPreset) fd.append('bbox', geoPreset);
@@ -143,39 +423,55 @@ export default function CarreauxImportPage() {
       if (columnsData && selectedCols.size > 0 && selectedCols.size < Object.keys(columnsData).length) {
         fd.append('columns', [...selectedCols].join(','));
       }
-      if (mode === 'auto') fd.append('url', url);
-      else if (file) fd.append('file', file);
+      appendUploadFilesToFormData(fd);
 
-      const res = await adminFetch('/api/admin/import-carreaux', { method: 'POST', body: fd });
-
-      if (res.headers.get('content-type')?.includes('text/event-stream') && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split('\n');
-          buf = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const ev = JSON.parse(line.slice(6));
-              if (ev.type === 'log') setLastLog(ev.line);
-              else if (ev.type === 'progress') setImportProgress({ current: ev.current, total: ev.total });
-              else if (ev.type === 'done') setImportResult({ success: ev.success, mode: ev.mode, dryRun: ev.dryRun, output: ev.output, errors: ev.errors, report: ev.report, error: ev.error });
-            } catch {}
+      // Use XHR for upload progress tracking, then switch to fetch for SSE
+      const { token } = await getAuthToken();
+      const uploadResult = await new Promise<{ status: number; responseText: string; contentType: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/admin/import-carreaux');
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress({ loaded: e.loaded, total: e.total });
           }
+        };
+        xhr.upload.onload = () => {
+          setUploadProgress(null);
+          setLastLog('Upload terminé — traitement serveur en cours...');
+        };
+        xhr.onload = () => resolve({ status: xhr.status, responseText: xhr.responseText, contentType: xhr.getResponseHeader('content-type') || '' });
+        xhr.onerror = () => reject(new Error('Erreur réseau pendant l\'upload'));
+        xhr.send(fd);
+      });
+
+      // For SSE streaming, re-issue with fetch (files already on server)
+      // Parse the XHR response
+      if (uploadResult.contentType.includes('text/event-stream')) {
+        // SSE was returned — parse events from responseText
+        const lines = uploadResult.responseText.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            if (ev.type === 'log') setLastLog(ev.line);
+            else if (ev.type === 'progress') setImportProgress({ current: ev.current, total: ev.total });
+            else if (ev.type === 'done') setImportResult({ success: ev.success, mode: ev.mode, dryRun: ev.dryRun, output: ev.output, errors: ev.errors, report: ev.report, error: ev.error });
+          } catch {}
         }
       } else {
-        setImportResult(await res.json());
+        try {
+          setImportResult(JSON.parse(uploadResult.responseText));
+        } catch {
+          setImportResult({ success: uploadResult.status < 400, output: uploadResult.responseText });
+        }
       }
     } catch (e: any) {
       setImportResult({ success: false, error: e.message });
     } finally {
       setIsImporting(false);
       setImportProgress(null);
+      setUploadProgress(null);
     }
   };
 
@@ -189,7 +485,11 @@ export default function CarreauxImportPage() {
           <span className="g-badge g-badge-orange">ADMIN</span>
           {dryRun && <span className="g-badge g-badge-green">DRY-RUN</span>}
         </div>
-        <p className="page-subtitle">Import données INSEE Filosofi — carreaux socio-démographiques 200m × 200m</p>
+        <p className="page-subtitle">
+          Import données INSEE Filosofi — carreaux socio-démographiques{' '}
+          {resolution === '200m' ? '200m × 200m' : '1km × 1km'}
+          {detectedMeta?.millesime && <> · millésime {detectedMeta.millesime}</>}
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -198,72 +498,234 @@ export default function CarreauxImportPage() {
         <div className="g-card">
           <div className="g-card-header">
             <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>01</span>
-            <span className="g-card-title">Vérifier la source</span>
-            {urlCheckResult?.valid && <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>✓ valid</span>}
+            <span className="g-card-title">Upload manuel</span>
           </div>
           <div className="g-card-body">
-            <label className="g-label">URL du fichier source</label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="g-input" disabled={isCheckingUrl} style={{ flex: 1 }} placeholder="https://www.insee.fr/..." />
-              <button onClick={handleVerifyUrl} disabled={isCheckingUrl || !url.trim()} className="g-btn g-btn-ghost" style={{ flexShrink: 0 }}>
-                {isCheckingUrl ? <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                  Vérif...
-                </> : '→ Vérifier'}
-              </button>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'JetBrains Mono, monospace' }}>// formats acceptés: .zip .csv .xlsx .xls .geojson .shp .gpkg .kml .gpx · Shapefile → zipper .shp+.dbf+.prj+.shx</div>
-
-            {urlCheckResult && (
-              <div className={`g-alert ${urlCheckResult.valid ? 'g-alert-success' : 'g-alert-error'}`} style={{ marginTop: 12 }}>
-                {urlCheckResult.valid ? (
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{urlCheckResult.message}</div>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                      {urlCheckResult.fileSizeMB && <span>size: {urlCheckResult.fileSizeMB} MB</span>}
-                      {urlCheckResult.contentType && <span>type: {urlCheckResult.contentType}</span>}
-                      {urlCheckResult.lastModified && <span>modified: {new Date(urlCheckResult.lastModified).toLocaleDateString()}</span>}
-                    </div>
+            <label className="g-label">Fichier unique (recommandé)</label>
+            <input
+              type="file"
+              accept=".zip,.csv,.xlsx,.xls,.geojson,.json,.gpkg,.kml,.gpx"
+              onChange={async (e) => {
+                const next = e.target.files?.[0] || null;
+                // Set loading FIRST for instant visual feedback
+                if (next) setFileLoading('single');
+                setSingleFile(next);
+                setColumnsData(null);
+                setColumnsError('');
+                setPreviewSnapshot(null);
+                setDetectedMeta(null);
+                if (next) {
+                  setShpFile(null);
+                  setDbfFile(null);
+                  setShxFile(null);
+                  setPrjFile(null);
+                  const meta = detectFileMetadata(next.name);
+                  setDetectedMeta(meta);
+                  if (meta.resolution) setResolution(meta.resolution);
+                  if (meta.millesime) setMillesime(meta.millesime);
+                  try {
+                    const snap = await captureFilePreview(next);
+                    setPreviewSnapshot(snap);
+                  } catch {
+                    // Will retry in handlePreviewColumns
+                  } finally {
+                    setFileLoading(null);
+                  }
+                }
+              }}
+              style={{ fontSize: 12, color: 'var(--text-secondary)' }}
+            />
+            {/* Loading state */}
+            {fileLoading === 'single' && (
+              <div style={{
+                marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <div>
+                  <div style={{ fontSize: 12, color: '#58a6ff', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+                    Lecture de l&apos;en-tête en cours...
                   </div>
-                ) : <span>{urlCheckResult.error}</span>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Step 02 */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>02</span>
-            <span className="g-card-title">Mode de téléchargement</span>
-          </div>
-          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { val: 'auto', title: 'Téléchargement automatique', desc: 'Le serveur télécharge depuis l\'URL vérifiée' },
-              { val: 'manual', title: 'Upload manuel', desc: 'Fichier déjà téléchargé sur votre machine' },
-            ].map((opt) => (
-              <label key={opt.val} className={`g-radio-card${mode === opt.val ? ' selected' : ''}`} onClick={() => setMode(opt.val as any)}>
-                <input type="radio" value={opt.val} checked={mode === opt.val} onChange={() => setMode(opt.val as any)} style={{ marginTop: 2 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{opt.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{opt.desc}</div>
-                  {opt.val === 'manual' && mode === 'manual' && (
-                    <div style={{ marginTop: 10 }}>
-                      <input type="file" accept=".csv,.zip,.xlsx,.xls,.geojson,.json,.shp,.gpkg,.kml,.gpx" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                      {file && <div style={{ marginTop: 6, fontSize: 12, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</div>}
+                  {singleFile && (
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
+                      {singleFile.name} ({(singleFile.size / 1024 / 1024).toFixed(1)} MB)
                     </div>
                   )}
                 </div>
-              </label>
-            ))}
+              </div>
+            )}
+
+            {/* Success state */}
+            {singleFile && fileLoading !== 'single' && (
+              <div style={{
+                marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+                    {singleFile.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
+                    {(singleFile.size / 1024 / 1024).toFixed(2)} MB
+                    {previewSnapshot ? ' · en-tête capturé · prêt pour l\'analyse' : ''}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <label className="g-label">Shapefile non zippé (une zone par fichier)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>1) .shp (obligatoire)</div>
+                  <input type="file" accept=".shp" onChange={(e) => { setShpFile(e.target.files?.[0] || null); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                  {shpFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shpFile.name}</div>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>2) .dbf (obligatoire)</div>
+                  <input type="file" accept=".dbf" onChange={async (e) => {
+                    const f = e.target.files?.[0] || null;
+                    // Set loading FIRST, before anything else — instant visual feedback
+                    if (f) setFileLoading('dbf');
+                    setDbfFile(f);
+                    setColumnsData(null);
+                    setColumnsError('');
+                    setPreviewSnapshot(null);
+                    setDetectedMeta(null);
+                    if (f) {
+                      setSingleFile(null);
+                      const meta = detectFileMetadata(f.name);
+                      setDetectedMeta(meta);
+                      if (meta.resolution) setResolution(meta.resolution);
+                      if (meta.millesime) setMillesime(meta.millesime);
+                      try {
+                        const snap = await captureFilePreview(f);
+                        setPreviewSnapshot(snap);
+                      } catch {
+                        // Will retry in handlePreviewColumns
+                      } finally {
+                        setFileLoading(null);
+                      }
+                    }
+                  }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+
+                  {/* Loading state */}
+                  {fileLoading === 'dbf' && (
+                    <div style={{
+                      marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                      background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#58a6ff', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+                          Lecture en-tête DBF en cours...
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
+                          {dbfFile ? `${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(0)} MB)` : 'Analyse...'} — seuls les premiers 256 Ko sont lus
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Success state */}
+                  {dbfFile && fileLoading !== 'dbf' && (
+                    <div style={{
+                      marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                      <div>
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+                          {dbfFile.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
+                          {(dbfFile.size / 1024 / 1024).toFixed(0)} MB total · en-tête capturé (256 Ko)
+                          {previewSnapshot ? ' · prêt pour l\'analyse' : ''}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>3) .shx (optionnel)</div>
+                  <input type="file" accept=".shx" onChange={(e) => { setShxFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                  {shxFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shxFile.name}</div>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>4) .prj (optionnel)</div>
+                  <input type="file" accept=".prj" onChange={(e) => { setPrjFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                  {prjFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {prjFile.name}</div>}
+                </div>
+              </div>
+              {hasShapefileInputs && !hasValidShapefileSet && (
+                <div className="g-alert g-alert-error" style={{ marginTop: 10 }}>
+                  Sélection incomplète : fournissez au minimum les fichiers .shp et .dbf
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'JetBrains Mono, monospace' }}>// priorité utilisée : shapefile compartimenté si renseigné, sinon fichier unique</div>
           </div>
         </div>
 
-        {/* Step 02b — Sélection des colonnes (mode manual uniquement) */}
-        {mode === 'manual' && file && (
+        {/* Dynamic file info card */}
+        {hasUploadReady && detectedMeta && (detectedMeta.resolution || detectedMeta.millesime) && (
+          <div className="g-card" style={{ borderColor: 'rgba(88,166,255,0.3)' }}>
+            <div className="g-card-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+              <span className="g-card-title">Détection automatique</span>
+              <span className="g-badge" style={{ marginLeft: 'auto', background: 'rgba(88,166,255,0.15)', color: '#58a6ff' }}>
+                {detectedMeta.source === 'columns' ? 'depuis colonnes' : detectedMeta.source === 'filename' ? 'depuis nom de fichier' : 'auto'}
+              </span>
+            </div>
+            <div className="g-card-body">
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                {detectedMeta.resolution && (
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Résolution</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {detectedMeta.resolution === '200m' ? '200m × 200m' : '1km × 1km'}
+                    </div>
+                  </div>
+                )}
+                {detectedMeta.millesime && (
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Millésime INSEE</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {detectedMeta.millesime}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Fichier</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {(singleFile || dbfFile)?.name}
+                    {singleFile && <span style={{ color: 'var(--text-dim)' }}> ({(singleFile.size / 1024 / 1024).toFixed(1)} MB)</span>}
+                  </div>
+                </div>
+                {columnsData && (
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Colonnes</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {Object.keys(columnsData).length} détectées · {Object.values(columnsData).filter(v => v.type === 'number').length} numériques
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 02 — Sélection des colonnes */}
+        {hasUploadReady && (
           <div className="g-card">
             <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>02b</span>
+              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>02</span>
               <span className="g-card-title">Colonnes à importer</span>
               {columnsData && (
                 <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>
@@ -280,13 +742,13 @@ export default function CarreauxImportPage() {
                     ) : '→ Inspecter les colonnes disponibles'}
                   </button>
                   <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    // lecture de 5 lignes pour découvrir les colonnes
+                    // analyse locale — pas d'upload réseau
                   </span>
                 </div>
               )}
               {loadingColumns && (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  Lecture du fichier en cours (peut prendre 10-30s)...
+                  Analyse du fichier en cours...
                 </div>
               )}
               {columnsError && (
@@ -378,12 +840,12 @@ export default function CarreauxImportPage() {
           </div>
         )}
 
-        {/* Step 03 — Périmètre géographique */}
+        {/* Step 03 — Périmètre géographique (visible only when file loaded) */}
+        {hasUploadReady && (
         <div className="g-card">
           <div className="g-card-header">
             <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03</span>
             <span className="g-card-title">Périmètre géographique</span>
-            {selectedPreset.warn && <span className="g-badge g-badge-red" style={{ marginLeft: 'auto' }}>⚠ Pro plan requis</span>}
           </div>
           <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
@@ -393,36 +855,14 @@ export default function CarreauxImportPage() {
                 onChange={e => setGeoPreset(e.target.value)}
                 className="g-input"
               >
-                {GEO_PRESETS.map(p => (
-                  <option key={p.bbox} value={p.bbox}>
-                    {p.label}{p.rows > 0 ? ` — ~${(p.rows / 1000).toFixed(0)}k carreaux` : ''}
-                  </option>
-                ))}
+                {detectedBbox && <option value={detectedBbox}>BBox détectée depuis le fichier</option>}
+                <option value="">Pas de filtre (bbox auto)</option>
               </select>
             </div>
 
-            {/* Estimation volume sélectionné */}
-            {selectedPreset.rows > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {[
-                  { label: 'Carreaux estimés', value: `~${(selectedPreset.rows / 1000).toFixed(0)}k`, color: 'var(--accent)' },
-                  { label: 'Stockage estimé', value: `~${selectedPreset.storageMb >= 1000 ? (selectedPreset.storageMb / 1000).toFixed(1) + ' GB' : selectedPreset.storageMb + ' MB'}`, color: selectedPreset.storageMb > 400 ? 'var(--red)' : 'var(--green)' },
-                  { label: 'Durée estimée', value: `~${Math.ceil(selectedPreset.rows / 500 * 0.3 / 60)} min`, color: 'var(--text-secondary)' },
-                ].map(item => (
-                  <div key={item.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>{item.label}</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: item.color, fontFamily: 'JetBrains Mono, monospace' }}>{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Alerte plan Supabase */}
-            {selectedPreset.warn && (
-              <div className="g-alert g-alert-error">
-                <strong>⚠ Supabase Pro plan requis</strong> — La France entière (~2,5 GB) dépasse la limite Free de 500 MB.
-                Upgrade sur <a href="https://supabase.com/pricing" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>supabase.com/pricing</a> → Pro ($25/mois, 8 GB).
-                <br /><em style={{ fontSize: 11, opacity: 0.8 }}>Alternative : importez région par région pour rester en Free.</em>
+            {detectedBbox && (
+              <div className="g-alert g-alert-success" style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                bbox détectée (WGS84): {detectedBbox}
               </div>
             )}
 
@@ -440,8 +880,10 @@ export default function CarreauxImportPage() {
             </details>
           </div>
         </div>
+        )}
 
         {/* Step 04 — Options d'import */}
+        {hasUploadReady && (
         <div className="g-card">
           <div className="g-card-header">
             <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>04</span>
@@ -465,8 +907,10 @@ export default function CarreauxImportPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Step 05 — Nom de table + lancement */}
+        {hasUploadReady && (
         <div className="g-card">
           <div className="g-card-header">
             <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>05</span>
@@ -476,7 +920,14 @@ export default function CarreauxImportPage() {
             {/* Résolution + Millésime */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 140 }}>
-                <label className="g-label">Résolution</label>
+                <label className="g-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Résolution
+                  {detectedMeta?.resolution && (
+                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(61,255,160,0.12)', color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
+                      auto-détecté
+                    </span>
+                  )}
+                </label>
                 <select
                   value={resolution}
                   onChange={e => setResolution(e.target.value as '200m' | '1km')}
@@ -488,13 +939,23 @@ export default function CarreauxImportPage() {
                 </select>
               </div>
               <div style={{ flex: 1, minWidth: 120 }}>
-                <label className="g-label">Millésime INSEE</label>
+                <label className="g-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Millésime INSEE
+                  {detectedMeta?.millesime && (
+                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(61,255,160,0.12)', color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
+                      auto-détecté
+                    </span>
+                  )}
+                </label>
                 <select
                   value={millesime}
                   onChange={e => setMillesime(e.target.value)}
                   className="g-input"
                   style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
                 >
+                  {detectedMeta?.millesime && !['2021','2019','2017','2015'].includes(detectedMeta.millesime) && (
+                    <option value={detectedMeta.millesime}>{detectedMeta.millesime} (détecté)</option>
+                  )}
                   <option value="2021">2021 (dernière version)</option>
                   <option value="2019">2019</option>
                   <option value="2017">2017</option>
@@ -509,7 +970,7 @@ export default function CarreauxImportPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button
                 onClick={handleImport}
-                disabled={isImporting || (mode === 'auto' && !urlCheckResult?.valid) || (mode === 'manual' && !file)}
+                disabled={isImporting || !hasUploadReady}
                 className={`g-btn ${dryRun ? 'g-btn-success' : 'g-btn-danger'}`}
                 style={{ minWidth: 200 }}
               >
@@ -520,10 +981,27 @@ export default function CarreauxImportPage() {
               {!dryRun && <span style={{ fontSize: 12, color: 'var(--red)', fontFamily: 'JetBrains Mono, monospace' }}>⚠ Insertion en base Supabase</span>}
             </div>
 
-            {/* Barre de progression SSE */}
+            {/* Barre de progression upload + traitement */}
             {isImporting && (
               <div style={{ marginTop: 16 }}>
-                {importProgress ? (
+                {uploadProgress ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Upload : {(uploadProgress.loaded / 1024 / 1024).toFixed(1)} / {(uploadProgress.total / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <span style={{ color: '#58a6ff', fontWeight: 700 }}>
+                        {Math.round(uploadProgress.loaded / uploadProgress.total * 100)} %
+                      </span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 3, background: '#58a6ff', width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`, transition: 'width 0.3s ease' }} />
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      ↳ envoi du fichier vers le serveur...
+                    </div>
+                  </>
+                ) : importProgress ? (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>
@@ -549,6 +1027,7 @@ export default function CarreauxImportPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* Résultat */}
         {importResult && (

@@ -323,6 +323,17 @@ export async function POST(request: NextRequest) {
     const millesime  = (formData.get('millesime')  as string) || '2021';
     const columns = formData.get('columns') as string; // "col1,col2,..." ou vide = toutes
     const file = formData.get('file') as File | null;
+    const shpFile = formData.get('shpFile') as File | null;
+    const dbfFile = formData.get('dbfFile') as File | null;
+    const shxFile = formData.get('shxFile') as File | null;
+    const prjFile = formData.get('prjFile') as File | null;
+    const files = formData
+      .getAll('files')
+      .filter((v): v is File => v instanceof File && !!v.name);
+
+    const allUploaded = [file, shpFile, dbfFile, shxFile, prjFile, ...files]
+      .filter((v): v is File => !!v)
+      .filter((f, i, arr) => arr.findIndex((x) => x.name === f.name && x.size === f.size) === i);
 
     // Chemin vers le projet ETL
     const etlPath = path.join(process.cwd(), '..', 'genesis_etl');
@@ -359,6 +370,25 @@ export async function POST(request: NextRequest) {
     // -u : force stdout/stderr non-bufferisé (critique pour le streaming SSE en temps réel)
     let pythonArgs: string[] = ['-X', 'utf8', '-u', scriptPath];
     let csvPath = '';
+    let primaryFileName = file?.name || '';
+
+    const choosePrimaryFile = (uploaded: File[]): File | null => {
+      if (!uploaded.length) return null;
+      const byExt = (ext: string) => uploaded.find((f) => f.name.toLowerCase().endsWith(ext));
+      return (
+        byExt('.zip') ||
+        byExt('.shp') ||
+        byExt('.gpkg') ||
+        byExt('.geojson') ||
+        byExt('.json') ||
+        byExt('.csv') ||
+        byExt('.xlsx') ||
+        byExt('.xls') ||
+        byExt('.kml') ||
+        byExt('.gpx') ||
+        uploaded[0]
+      );
+    };
 
     if (mode === 'auto') {
       if (!url) {
@@ -370,7 +400,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'manual') {
-      if (!file) {
+      const shapeParts = allUploaded.filter((f) => /\.(shp|dbf|shx|prj)$/i.test(f.name));
+      const hasAnyShapePart = shapeParts.length > 0;
+      const detectedShp = allUploaded.find((f) => /\.shp$/i.test(f.name));
+      const detectedDbf = allUploaded.find((f) => /\.dbf$/i.test(f.name));
+
+      if (hasAnyShapePart && (!detectedShp || !detectedDbf)) {
+        return NextResponse.json(
+          { error: 'Shapefile incomplet: sélectionnez au minimum .shp et .dbf' },
+          { status: 400 }
+        );
+      }
+
+      const manualFiles = hasAnyShapePart ? shapeParts : allUploaded;
+      if (!manualFiles.length) {
         return NextResponse.json(
           { error: 'Fichier manquant pour le mode manuel' },
           { status: 400 }
@@ -382,12 +425,25 @@ export async function POST(request: NextRequest) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
 
-      const fileName = `upload_${Date.now()}_${file.name}`;
-      csvPath = path.join(dataDir, fileName);
+      const stamp = Date.now();
+      for (const f of manualFiles) {
+        const fileName = `upload_${stamp}_${f.name}`;
+        const absPath = path.join(dataDir, fileName);
+        const arrayBuffer = await f.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        fs.writeFileSync(absPath, buffer);
+      }
 
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      fs.writeFileSync(csvPath, buffer);
+      const primary = choosePrimaryFile(manualFiles);
+      if (!primary) {
+        return NextResponse.json(
+          { error: 'Aucun fichier exploitable pour le mode manuel' },
+          { status: 400 }
+        );
+      }
+
+      primaryFileName = primary.name;
+      csvPath = path.join(dataDir, `upload_${stamp}_${primary.name}`);
 
       pythonArgs.push('--csv-path', csvPath);
     }
@@ -475,8 +531,8 @@ export async function POST(request: NextRequest) {
               const supabase = createAdminClient();
               const importedResolution = report.resolution || resolution;
               const importedMillesime  = report.millesime  || millesime;
-              const originalFilename   = mode === 'manual' && file
-                ? file.name
+              const originalFilename   = mode === 'manual' && primaryFileName
+                ? primaryFileName
                 : report.fichierSource || 'carreaux-import';
               const geoConfig = {
                 table_name: 'carreaux_filosofi',

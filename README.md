@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.5.1 — 3 mars 2026
+> **Version** : 6.5.2 — 5 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 

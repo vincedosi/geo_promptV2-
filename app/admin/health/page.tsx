@@ -322,13 +322,44 @@ export default function HealthPage() {
                 </div>
                 <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Espace total
+                    Espace tables
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--orange)' }}>
                     {health.database.total_size}
                   </div>
                 </div>
               </div>
+
+              {/* Database size bar — Supabase Free = 500 MB, Pro = 8 GB */}
+              {health.database.db_size_bytes != null && health.database.db_size_bytes > 0 && (() => {
+                const usedBytes = health.database.db_size_bytes!;
+                const quotaBytes = usedBytes > 500 * 1024 * 1024 ? 8 * 1024 * 1024 * 1024 : 500 * 1024 * 1024;
+                const pct = Math.min(100, (usedBytes / quotaBytes) * 100);
+                const quotaLabel = quotaBytes >= 1024 * 1024 * 1024 ? `${(quotaBytes / (1024 * 1024 * 1024)).toFixed(0)} GB` : `${(quotaBytes / (1024 * 1024)).toFixed(0)} MB`;
+                const barColor = pct > 90 ? 'var(--red, #ef4444)' : pct > 70 ? 'var(--orange, #f59e0b)' : 'var(--green, #22c55e)';
+                return (
+                  <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                        Espace base de données
+                      </span>
+                      <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: barColor, fontWeight: 700 }}>
+                        {health.database.db_size} / {quotaLabel}
+                        <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> ({pct.toFixed(1)}%)</span>
+                      </span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 4, background: barColor, width: `${pct}%`, transition: 'width 0.4s ease' }} />
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {pct > 90 ? '⚠ Espace critique — pensez à upgrader ou purger des données'
+                       : pct > 70 ? '⚡ Espace élevé — surveillez la consommation'
+                       : '✓ Espace suffisant'}
+                      {' · '}quota estimé {quotaBytes > 500 * 1024 * 1024 ? 'Pro (8 GB)' : 'Free (500 MB)'}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
@@ -373,8 +404,14 @@ export default function HealthPage() {
 
               {health.database.total_size === 'N/A' && (
                 <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(251,146,60,0.06)', borderRadius: 8, border: '1px solid rgba(251,146,60,0.2)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-dim)' }}>
-                  <span style={{ color: 'var(--orange)' }}>💡 INFO: </span>
-                  Pour afficher les tailles, executez le script <span style={{ color: 'var(--accent)' }}>sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
+                  <span style={{ color: 'var(--orange)' }}>⚠ </span>
+                  Tailles indisponibles — configurez <span style={{ color: 'var(--accent)' }}>SUPABASE_DB_URL</span> dans .env.local ou exécutez <span style={{ color: 'var(--accent)' }}>sql/004_get_table_sizes_function.sql</span> dans Supabase SQL Editor
+                </div>
+              )}
+              {health.database.total_size?.startsWith('~') && (
+                <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(88,166,255,0.06)', borderRadius: 8, border: '1px solid rgba(88,166,255,0.2)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-dim)' }}>
+                  <span style={{ color: '#58a6ff' }}>ℹ </span>
+                  Tailles estimées (~200-500 bytes/ligne). Pour les tailles exactes : configurez <span style={{ color: 'var(--accent)' }}>SUPABASE_DB_URL</span> dans .env.local
                 </div>
               )}
 

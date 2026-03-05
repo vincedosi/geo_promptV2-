@@ -64,6 +64,8 @@ export interface DatabaseOverview {
   total_rows: number;
   total_size: string;
   total_size_bytes: number;
+  db_size?: string;
+  db_size_bytes?: number;
   tables: TableStats[];
 }
 
