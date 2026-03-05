@@ -646,7 +646,11 @@ details>summary::-webkit-details-marker {
 }
 
 @keyframes fileLoadSlide {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(150%); }
-  100% { transform: translateX(-100%); }
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+
+@keyframes fileLoadGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(88,166,255,0.3); }
+  50% { box-shadow: 0 0 20px rgba(88,166,255,0.6), 0 0 40px rgba(61,255,160,0.2); }
 }
