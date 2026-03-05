@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
+import { Readable } from 'stream';
 import path from 'path';
 import fs from 'fs';
 import { createAdminClient } from '@/lib/auth';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Busboy = require('busboy');
 
 const execFileAsync = promisify(execFile);
 
@@ -304,12 +307,101 @@ function findPythonPath(): { pythonPath: string; diagnostic: PythonDiagnostic } 
 }
 
 // =============================================================================
+// Streaming multipart parser — handles multi-GB files without loading into RAM
+// =============================================================================
+interface UploadedFile {
+  fieldName: string;
+  fileName: string;
+  diskPath: string;
+  size: number;
+}
+
+async function parseMultipartStream(
+  request: NextRequest,
+  destDir: string,
+): Promise<{ fields: Record<string, string>; files: UploadedFile[] }> {
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  const contentType = request.headers.get('content-type') || '';
+  const stamp = Date.now();
+
+  return new Promise((resolve, reject) => {
+    const fields: Record<string, string> = {};
+    const files: UploadedFile[] = [];
+    const seenFileNames = new Set<string>();
+
+    const busboy = Busboy({ headers: { 'content-type': contentType } });
+
+    busboy.on('field', (name: string, value: string) => {
+      fields[name] = value;
+    });
+
+    busboy.on('file', (fieldName: string, fileStream: NodeJS.ReadableStream, info: { filename: string }) => {
+      const { filename } = info;
+      // Skip the 'files' field (client sends duplicates there) + empty entries
+      if (!filename || fieldName === 'files') {
+        fileStream.resume();
+        return;
+      }
+      // Deduplicate by filename
+      if (seenFileNames.has(filename)) {
+        fileStream.resume();
+        return;
+      }
+      seenFileNames.add(filename);
+
+      const diskName = `upload_${stamp}_${filename}`;
+      const diskPath = path.join(destDir, diskName);
+      let size = 0;
+
+      console.log(`[import-carreaux] 💾 Streaming ${fieldName}: ${filename} → ${diskPath}`);
+      const ws = fs.createWriteStream(diskPath);
+      fileStream.on('data', (chunk: Buffer) => { size += chunk.length; });
+      fileStream.pipe(ws);
+
+      ws.on('close', () => {
+        console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB`);
+        files.push({ fieldName, fileName: filename, diskPath, size });
+      });
+      ws.on('error', (err: Error) => {
+        console.error(`[import-carreaux] ❌ Erreur écriture ${filename}:`, err.message);
+        reject(err);
+      });
+    });
+
+    busboy.on('close', () => resolve({ fields, files }));
+    busboy.on('error', (err: Error) => reject(err));
+
+    // Pipe Web ReadableStream → Node.js Readable → busboy
+    const body = request.body;
+    if (!body) {
+      reject(new Error('Request body is empty'));
+      return;
+    }
+
+    const reader = body.getReader();
+    const nodeStream = new Readable({
+      async read() {
+        try {
+          const { done, value } = await reader.read();
+          if (done) { this.push(null); }
+          else { this.push(Buffer.from(value)); }
+        } catch (err) {
+          this.destroy(err as Error);
+        }
+      },
+    });
+    nodeStream.pipe(busboy);
+  });
+}
+
+// =============================================================================
 // Route segment config — large uploads + long timeout
 // =============================================================================
 export const maxDuration = 600; // 10 min max
 export const dynamic = 'force-dynamic';
-
-// Next.js App Router: disable default body size limit for this route
 // This allows multi-GB file uploads (carreaux Filosofi ~5GB)
 export async function OPTIONS() {
   return new Response(null, { status: 204 });
@@ -332,45 +424,30 @@ export async function POST(request: NextRequest) {
   console.log('[import-carreaux] ✅ Auth OK — admin:', profile.email || profile.id);
 
   try {
-    console.log('[import-carreaux] 📦 Parsing FormData...');
-    const formData = await request.formData();
-    console.log('[import-carreaux] ✅ FormData parsé — clés:', [...formData.keys()]);
+    // Chemin vers le projet ETL — needed EARLY for streaming files to disk
+    const etlPath = path.join(process.cwd(), '..', 'genesis_etl');
+    const dataDir = path.join(etlPath, 'data', 'raw');
+    const scriptPath = path.join(etlPath, 'scripts', 'carreaux_import.py');
 
-    const mode = formData.get('mode') as string;
-    const url = formData.get('url') as string;
-    const dryRun = formData.get('dryRun') === 'true';
-    const limit = formData.get('limit') as string;
-    const bbox = formData.get('bbox') as string; // "west south east north" ou vide
-    const resolution = (formData.get('resolution') as string) || '200m';
-    const millesime  = (formData.get('millesime')  as string) || '2021';
-    const columns = formData.get('columns') as string; // "col1,col2,..." ou vide = toutes
-    const file = formData.get('file') as File | null;
-    const shpFile = formData.get('shpFile') as File | null;
-    const dbfFile = formData.get('dbfFile') as File | null;
-    const shxFile = formData.get('shxFile') as File | null;
-    const prjFile = formData.get('prjFile') as File | null;
-    const files = formData
-      .getAll('files')
-      .filter((v): v is File => v instanceof File && !!v.name);
+    // ── Streaming multipart parser (replaces request.formData()) ──
+    // request.formData() uses undici's readAllBytes which OOMs on multi-GB files
+    console.log('[import-carreaux] 📦 Parsing multipart (streaming busboy)...');
+    const { fields, files: uploadedFiles } = await parseMultipartStream(request, dataDir);
+    console.log('[import-carreaux] ✅ Multipart parsé — champs:', Object.keys(fields), 'fichiers:', uploadedFiles.length);
+
+    const mode = fields.mode || '';
+    const url = fields.url || '';
+    const dryRun = fields.dryRun === 'true';
+    const limit = fields.limit || '';
+    const bbox = fields.bbox || '';
+    const resolution = fields.resolution || '200m';
+    const millesime  = fields.millesime  || '2021';
+    const columns = fields.columns || '';
 
     console.log('[import-carreaux] 📋 Params:', { mode, dryRun, limit, bbox: bbox?.substring(0, 40), resolution, millesime });
-    console.log('[import-carreaux] 📎 Fichiers:', {
-      file: file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)` : null,
-      shpFile: shpFile ? `${shpFile.name} (${(shpFile.size / 1024 / 1024).toFixed(1)}MB)` : null,
-      dbfFile: dbfFile ? `${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(1)}MB)` : null,
-      shxFile: shxFile?.name || null,
-      prjFile: prjFile?.name || null,
-      multiFiles: files.map(f => f.name),
-    });
+    console.log('[import-carreaux] 📎 Fichiers:', uploadedFiles.map(f => `${f.fieldName}: ${f.fileName} (${(f.size / 1024 / 1024).toFixed(1)}MB)`));
     if (columns) console.log('[import-carreaux] 📊 Colonnes sélectionnées:', columns);
 
-    const allUploaded = [file, shpFile, dbfFile, shxFile, prjFile, ...files]
-      .filter((v): v is File => !!v)
-      .filter((f, i, arr) => arr.findIndex((x) => x.name === f.name && x.size === f.size) === i);
-
-    // Chemin vers le projet ETL
-    const etlPath = path.join(process.cwd(), '..', 'genesis_etl');
-    const scriptPath = path.join(etlPath, 'scripts', 'carreaux_import.py');
     console.log('[import-carreaux] 📂 ETL path:', etlPath);
     console.log('[import-carreaux] 📂 Script path:', scriptPath);
     console.log('[import-carreaux] 📂 ETL exists:', fs.existsSync(etlPath));
@@ -423,24 +500,16 @@ export async function POST(request: NextRequest) {
     // -u : force stdout/stderr non-bufferisé (critique pour le streaming SSE en temps réel)
     let pythonArgs: string[] = ['-X', 'utf8', '-u', scriptPath];
     let csvPath = '';
-    let primaryFileName = file?.name || '';
+    let primaryFileName = uploadedFiles.find(f => f.fieldName === 'file')?.fileName || '';
 
-    const choosePrimaryFile = (uploaded: File[]): File | null => {
-      if (!uploaded.length) return null;
-      const byExt = (ext: string) => uploaded.find((f) => f.name.toLowerCase().endsWith(ext));
-      return (
-        byExt('.zip') ||
-        byExt('.shp') ||
-        byExt('.gpkg') ||
-        byExt('.geojson') ||
-        byExt('.json') ||
-        byExt('.csv') ||
-        byExt('.xlsx') ||
-        byExt('.xls') ||
-        byExt('.kml') ||
-        byExt('.gpx') ||
-        uploaded[0]
-      );
+    const extPriority = ['.zip', '.shp', '.gpkg', '.geojson', '.json', '.csv', '.xlsx', '.xls', '.kml', '.gpx'];
+    const choosePrimary = (list: UploadedFile[]): UploadedFile | null => {
+      if (!list.length) return null;
+      for (const ext of extPriority) {
+        const found = list.find(f => f.fileName.toLowerCase().endsWith(ext));
+        if (found) return found;
+      }
+      return list[0];
     };
 
     if (mode === 'auto') {
@@ -453,12 +522,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'manual') {
-      console.log('[import-carreaux] 📂 Mode MANUAL — traitement des fichiers uploadés');
-      const shapeParts = allUploaded.filter((f) => /\.(shp|dbf|shx|prj)$/i.test(f.name));
+      console.log('[import-carreaux] 📂 Mode MANUAL — fichiers déjà streamés sur disque');
+      const shapeParts = uploadedFiles.filter(f => /\.(shp|dbf|shx|prj)$/i.test(f.fileName));
       const hasAnyShapePart = shapeParts.length > 0;
-      const detectedShp = allUploaded.find((f) => /\.shp$/i.test(f.name));
-      const detectedDbf = allUploaded.find((f) => /\.dbf$/i.test(f.name));
-      console.log('[import-carreaux] Shapefile parts:', shapeParts.map(f => f.name), 'shp:', !!detectedShp, 'dbf:', !!detectedDbf);
+      const detectedShp = uploadedFiles.find(f => /\.shp$/i.test(f.fileName));
+      const detectedDbf = uploadedFiles.find(f => /\.dbf$/i.test(f.fileName));
+      console.log('[import-carreaux] Shapefile parts:', shapeParts.map(f => f.fileName), 'shp:', !!detectedShp, 'dbf:', !!detectedDbf);
 
       if (hasAnyShapePart && (!detectedShp || !detectedDbf)) {
         console.error('[import-carreaux] ❌ Shapefile incomplet');
@@ -468,8 +537,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const manualFiles = hasAnyShapePart ? shapeParts : allUploaded;
-      console.log('[import-carreaux] Fichiers à traiter:', manualFiles.map(f => `${f.name} (${f.size} bytes)`));
+      const manualFiles = hasAnyShapePart ? shapeParts : uploadedFiles;
+      console.log('[import-carreaux] Fichiers à traiter:', manualFiles.map(f => `${f.fileName} (${f.size} bytes) → ${f.diskPath}`));
       if (!manualFiles.length) {
         console.error('[import-carreaux] ❌ Aucun fichier uploadé');
         return NextResponse.json(
@@ -478,35 +547,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const dataDir = path.join(etlPath, 'data', 'raw');
-      console.log('[import-carreaux] 📂 Data dir:', dataDir, 'exists:', fs.existsSync(dataDir));
-      if (!fs.existsSync(dataDir)) {
-        console.log('[import-carreaux] Création du dossier data/raw...');
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-
-      const stamp = Date.now();
-      for (const f of manualFiles) {
-        const fileName = `upload_${stamp}_${f.name}`;
-        const absPath = path.join(dataDir, fileName);
-        console.log(`[import-carreaux] 💾 Écriture: ${absPath} (${(f.size / 1024 / 1024).toFixed(2)} MB)...`);
-        const arrayBuffer = await f.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        fs.writeFileSync(absPath, buffer);
-        console.log(`[import-carreaux] ✅ Fichier écrit: ${absPath} (${buffer.length} bytes)`);
-      }
-
-      const primary = choosePrimaryFile(manualFiles);
+      // Files are already on disk from streaming — just pick the primary
+      const primary = choosePrimary(manualFiles);
       if (!primary) {
-        console.error('[import-carreaux] ❌ Aucun fichier exploitable parmi:', manualFiles.map(f => f.name));
+        console.error('[import-carreaux] ❌ Aucun fichier exploitable parmi:', manualFiles.map(f => f.fileName));
         return NextResponse.json(
           { error: 'Aucun fichier exploitable pour le mode manuel' },
           { status: 400 }
         );
       }
 
-      primaryFileName = primary.name;
-      csvPath = path.join(dataDir, `upload_${stamp}_${primary.name}`);
+      primaryFileName = primary.fileName;
+      csvPath = primary.diskPath;
       console.log('[import-carreaux] 📌 Fichier primaire:', primaryFileName);
       console.log('[import-carreaux] 📌 CSV path:', csvPath);
       console.log('[import-carreaux] 📌 CSV exists:', fs.existsSync(csvPath));
