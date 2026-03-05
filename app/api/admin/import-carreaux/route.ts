@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { execFile, execFileSync, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
 import path from 'path';
 import fs from 'fs';
 import { createAdminClient } from '@/lib/auth';
@@ -356,39 +356,65 @@ async function parseMultipartStream(
       const diskName = `upload_${stamp}_${filename}`;
       const diskPath = path.join(destDir, diskName);
       let size = 0;
-      let chunks = 0;
+      let writeChunks = 0;
       let lastLoggedMB = 0;
 
       console.log(`[import-carreaux] 💾 Streaming ${fieldName}: ${filename} → ${diskPath}`);
 
       // Open fd SYNCHRONOUSLY so WriteStream is immediately writable.
-      // Without this, createWriteStream opens the fd asynchronously and
-      // buffers all piped data until open completes — for a 2.5 GB file
-      // this exceeds fs.write()'s 2^31-1 byte limit and crashes.
       const fd = fs.openSync(diskPath, 'w');
       const ws = fs.createWriteStream(diskPath, { fd, autoClose: true });
 
-      fileStream.on('data', (chunk: Buffer) => {
-        size += chunk.length;
-        chunks++;
-        const mb = Math.floor(size / (1024 * 1024));
-        // Log every 200 MB so we see progress for large files
-        if (mb >= lastLoggedMB + 200) {
-          lastLoggedMB = mb;
-          console.log(`[import-carreaux]   📊 ${filename}: ${mb} MB reçus (${chunks} chunks)`);
+      // CRITICAL: busboy may deliver the entire file as ONE chunk.
+      // fs.write() has a hard 2^31-1 byte limit per call.
+      // This Transform splits any chunk > 64 MB into smaller pieces.
+      const CHUNK_LIMIT = 64 * 1024 * 1024; // 64 MB
+      const chunker = new Transform({
+        transform(chunk: Buffer, _encoding: string, cb: (err?: Error | null) => void) {
+          if (chunk.length <= CHUNK_LIMIT) {
+            this.push(chunk);
+          } else {
+            for (let i = 0; i < chunk.length; i += CHUNK_LIMIT) {
+              this.push(chunk.subarray(i, Math.min(i + CHUNK_LIMIT, chunk.length)));
+            }
+          }
+          cb();
         }
       });
-      fileStream.pipe(ws);
+
+      // Track incoming data size (before chunker)
+      fileStream.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        const mb = Math.floor(size / (1024 * 1024));
+        if (mb >= lastLoggedMB + 100) {
+          lastLoggedMB = mb;
+          console.log(`[import-carreaux]   📊 ${filename}: ${mb} MB reçus`);
+        }
+      });
+
+      // Track write chunks (after chunker)
+      chunker.on('data', () => { writeChunks++; });
+
+      // fileStream → chunker → WriteStream
+      fileStream.pipe(chunker).pipe(ws);
 
       // Track each file write as a Promise so we wait for ALL writes to finish
       pendingWrites.push(new Promise<void>((res, rej) => {
         ws.on('close', () => {
-          console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB (${chunks} chunks)`);
+          console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB (${writeChunks} write chunks)`);
           files.push({ fieldName, fileName: filename, diskPath, size });
           res();
         });
         ws.on('error', (err: Error) => {
-          console.error(`[import-carreaux] ❌ Erreur écriture ${filename}:`, err.message);
+          console.error(`[import-carreaux] ❌ Erreur écriture ${filename}:`, err.message, err.stack);
+          rej(err);
+        });
+        chunker.on('error', (err: Error) => {
+          console.error(`[import-carreaux] ❌ Erreur chunker ${filename}:`, err.message);
+          rej(err);
+        });
+        fileStream.on('error', (err: Error) => {
+          console.error(`[import-carreaux] ❌ Erreur fileStream ${filename}:`, err.message);
           rej(err);
         });
       }));
@@ -396,15 +422,21 @@ async function parseMultipartStream(
 
     busboy.on('close', async () => {
       console.log(`[import-carreaux] 📦 Busboy close — waiting for ${pendingWrites.length} file write(s)...`);
+      console.log(`[import-carreaux]   Pending writes: ${pendingWrites.length}, files so far: ${files.length}, seen: ${[...seenFileNames].join(', ')}`);
       try {
         await Promise.all(pendingWrites);
-        console.log(`[import-carreaux] ✅ All files written — fields: ${Object.keys(fields).join(',')}, files: ${files.length}`);
+        console.log(`[import-carreaux] ✅ All ${files.length} files written — fields: ${Object.keys(fields).join(',')}`);
+        files.forEach(f => console.log(`[import-carreaux]   → ${f.fileName}: ${(f.size / 1024 / 1024).toFixed(2)} MB at ${f.diskPath}`));
         resolve({ fields, files });
-      } catch (err) {
+      } catch (err: any) {
+        console.error(`[import-carreaux] ❌ Error in pendingWrites:`, err.message, err.stack);
         reject(err);
       }
     });
-    busboy.on('error', (err: Error) => reject(err));
+    busboy.on('error', (err: Error) => {
+      console.error(`[import-carreaux] ❌ Busboy error:`, err.message, err.stack);
+      reject(err);
+    });
 
     // Pipe Web ReadableStream → Node.js Readable → busboy
     const body = request.body;
