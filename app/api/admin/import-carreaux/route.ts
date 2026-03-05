@@ -304,15 +304,37 @@ function findPythonPath(): { pythonPath: string; diagnostic: PythonDiagnostic } 
 }
 
 // =============================================================================
+// Route segment config — large uploads + long timeout
+// =============================================================================
+export const maxDuration = 600; // 10 min max
+export const dynamic = 'force-dynamic';
+
+// Next.js App Router: disable default body size limit for this route
+// This allows multi-GB file uploads (carreaux Filosofi ~5GB)
+export async function OPTIONS() {
+  return new Response(null, { status: 204 });
+}
+
+// =============================================================================
 // API Route — POST : Lancer l'import
 // =============================================================================
 
 export async function POST(request: NextRequest) {
+  console.log('[import-carreaux] ══════════════════════════════════════════');
+  console.log('[import-carreaux] POST /api/admin/import-carreaux — début');
+  console.log('[import-carreaux] ══════════════════════════════════════════');
+
   const profile = await requireAdmin(request);
-  if (!profile) return adminUnauthorized();
+  if (!profile) {
+    console.error('[import-carreaux] ❌ Auth échouée — utilisateur non admin');
+    return adminUnauthorized();
+  }
+  console.log('[import-carreaux] ✅ Auth OK — admin:', profile.email || profile.id);
 
   try {
+    console.log('[import-carreaux] 📦 Parsing FormData...');
     const formData = await request.formData();
+    console.log('[import-carreaux] ✅ FormData parsé — clés:', [...formData.keys()]);
 
     const mode = formData.get('mode') as string;
     const url = formData.get('url') as string;
@@ -331,6 +353,17 @@ export async function POST(request: NextRequest) {
       .getAll('files')
       .filter((v): v is File => v instanceof File && !!v.name);
 
+    console.log('[import-carreaux] 📋 Params:', { mode, dryRun, limit, bbox: bbox?.substring(0, 40), resolution, millesime });
+    console.log('[import-carreaux] 📎 Fichiers:', {
+      file: file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)` : null,
+      shpFile: shpFile ? `${shpFile.name} (${(shpFile.size / 1024 / 1024).toFixed(1)}MB)` : null,
+      dbfFile: dbfFile ? `${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(1)}MB)` : null,
+      shxFile: shxFile?.name || null,
+      prjFile: prjFile?.name || null,
+      multiFiles: files.map(f => f.name),
+    });
+    if (columns) console.log('[import-carreaux] 📊 Colonnes sélectionnées:', columns);
+
     const allUploaded = [file, shpFile, dbfFile, shxFile, prjFile, ...files]
       .filter((v): v is File => !!v)
       .filter((f, i, arr) => arr.findIndex((x) => x.name === f.name && x.size === f.size) === i);
@@ -338,23 +371,43 @@ export async function POST(request: NextRequest) {
     // Chemin vers le projet ETL
     const etlPath = path.join(process.cwd(), '..', 'genesis_etl');
     const scriptPath = path.join(etlPath, 'scripts', 'carreaux_import.py');
+    console.log('[import-carreaux] 📂 ETL path:', etlPath);
+    console.log('[import-carreaux] 📂 Script path:', scriptPath);
+    console.log('[import-carreaux] 📂 ETL exists:', fs.existsSync(etlPath));
+    console.log('[import-carreaux] 📂 Script exists:', fs.existsSync(scriptPath));
 
     // Vérifier que le script existe
     if (!fs.existsSync(scriptPath)) {
+      console.error('[import-carreaux] ❌ Script Python introuvable:', scriptPath);
+      // Lister le contenu du dossier parent pour diagnostiquer
+      const parentDir = path.dirname(scriptPath);
+      const grandParent = path.dirname(parentDir);
+      try {
+        const gpContents = fs.existsSync(grandParent) ? fs.readdirSync(grandParent) : ['(dossier introuvable)'];
+        const pContents = fs.existsSync(parentDir) ? fs.readdirSync(parentDir) : ['(dossier introuvable)'];
+        console.error('[import-carreaux] Contenu de', grandParent, ':', gpContents);
+        console.error('[import-carreaux] Contenu de', parentDir, ':', pContents);
+      } catch (lsErr) {
+        console.error('[import-carreaux] Impossible de lister les dossiers:', lsErr);
+      }
       return NextResponse.json(
-        { error: 'Script Python introuvable', path: scriptPath },
+        { error: 'Script Python introuvable', path: scriptPath, etlPath, cwd: process.cwd() },
         { status: 500 }
       );
     }
 
     // Détecter Python
+    console.log('[import-carreaux] 🐍 Recherche Python...');
     let pythonExe: string;
     let pythonDiag: PythonDiagnostic | null = null;
     try {
       const result = findPythonPath();
       pythonExe = result.pythonPath;
       pythonDiag = result.diagnostic;
+      console.log('[import-carreaux] ✅ Python trouvé:', pythonExe, '(méthode:', pythonDiag.method + ')');
     } catch (err: any) {
+      console.error('[import-carreaux] ❌ Python introuvable:', err.message);
+      console.error('[import-carreaux] Diagnostic:', JSON.stringify(err.diagnostic, null, 2));
       return NextResponse.json(
         {
           success: false,
@@ -400,12 +453,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'manual') {
+      console.log('[import-carreaux] 📂 Mode MANUAL — traitement des fichiers uploadés');
       const shapeParts = allUploaded.filter((f) => /\.(shp|dbf|shx|prj)$/i.test(f.name));
       const hasAnyShapePart = shapeParts.length > 0;
       const detectedShp = allUploaded.find((f) => /\.shp$/i.test(f.name));
       const detectedDbf = allUploaded.find((f) => /\.dbf$/i.test(f.name));
+      console.log('[import-carreaux] Shapefile parts:', shapeParts.map(f => f.name), 'shp:', !!detectedShp, 'dbf:', !!detectedDbf);
 
       if (hasAnyShapePart && (!detectedShp || !detectedDbf)) {
+        console.error('[import-carreaux] ❌ Shapefile incomplet');
         return NextResponse.json(
           { error: 'Shapefile incomplet: sélectionnez au minimum .shp et .dbf' },
           { status: 400 }
@@ -413,7 +469,9 @@ export async function POST(request: NextRequest) {
       }
 
       const manualFiles = hasAnyShapePart ? shapeParts : allUploaded;
+      console.log('[import-carreaux] Fichiers à traiter:', manualFiles.map(f => `${f.name} (${f.size} bytes)`));
       if (!manualFiles.length) {
+        console.error('[import-carreaux] ❌ Aucun fichier uploadé');
         return NextResponse.json(
           { error: 'Fichier manquant pour le mode manuel' },
           { status: 400 }
@@ -421,7 +479,9 @@ export async function POST(request: NextRequest) {
       }
 
       const dataDir = path.join(etlPath, 'data', 'raw');
+      console.log('[import-carreaux] 📂 Data dir:', dataDir, 'exists:', fs.existsSync(dataDir));
       if (!fs.existsSync(dataDir)) {
+        console.log('[import-carreaux] Création du dossier data/raw...');
         fs.mkdirSync(dataDir, { recursive: true });
       }
 
@@ -429,13 +489,16 @@ export async function POST(request: NextRequest) {
       for (const f of manualFiles) {
         const fileName = `upload_${stamp}_${f.name}`;
         const absPath = path.join(dataDir, fileName);
+        console.log(`[import-carreaux] 💾 Écriture: ${absPath} (${(f.size / 1024 / 1024).toFixed(2)} MB)...`);
         const arrayBuffer = await f.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         fs.writeFileSync(absPath, buffer);
+        console.log(`[import-carreaux] ✅ Fichier écrit: ${absPath} (${buffer.length} bytes)`);
       }
 
       const primary = choosePrimaryFile(manualFiles);
       if (!primary) {
+        console.error('[import-carreaux] ❌ Aucun fichier exploitable parmi:', manualFiles.map(f => f.name));
         return NextResponse.json(
           { error: 'Aucun fichier exploitable pour le mode manuel' },
           { status: 400 }
@@ -444,6 +507,9 @@ export async function POST(request: NextRequest) {
 
       primaryFileName = primary.name;
       csvPath = path.join(dataDir, `upload_${stamp}_${primary.name}`);
+      console.log('[import-carreaux] 📌 Fichier primaire:', primaryFileName);
+      console.log('[import-carreaux] 📌 CSV path:', csvPath);
+      console.log('[import-carreaux] 📌 CSV exists:', fs.existsSync(csvPath));
 
       pythonArgs.push('--csv-path', csvPath);
     }
@@ -475,9 +541,13 @@ export async function POST(request: NextRequest) {
       console.log('[import-carreaux] colonnes sélectionnées:', columns.trim());
     }
 
+    console.log('[import-carreaux] ══════════════════════════════════════════');
+    console.log('[import-carreaux] 🚀 LANCEMENT Python');
     console.log('[import-carreaux] Python:', pythonExe);
     console.log('[import-carreaux] Method:', pythonDiag?.method);
-    console.log('[import-carreaux] Args:', pythonArgs);
+    console.log('[import-carreaux] Args:', JSON.stringify(pythonArgs));
+    console.log('[import-carreaux] CWD:', etlPath);
+    console.log('[import-carreaux] ══════════════════════════════════════════');
 
     const execEnv = {
       ...process.env,
@@ -493,7 +563,16 @@ export async function POST(request: NextRequest) {
           try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch {}
         };
 
-        console.log(`[import-carreaux] spawn shell: "${pythonExe}" ${pythonArgs.join(' ')}`);
+        // Heartbeat — envoie un ping toutes les 5s pour garder la connexion vivante
+        const heartbeat = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'heartbeat', ts: Date.now() })}\n\n`)); } catch {}
+        }, 5000);
+
+        const fullCmd = `"${pythonExe}" ${pythonArgs.join(' ')}`;
+        console.log(`[import-carreaux] spawn: ${fullCmd}`);
+        send({ type: 'log', line: `[server] Python: ${pythonExe}` });
+        send({ type: 'log', line: `[server] CWD: ${etlPath}` });
+        send({ type: 'log', line: `[server] Args: ${pythonArgs.slice(1).join(' ')}` });
 
         const child = spawn(pythonExe!, pythonArgs, {
           shell: true,
@@ -508,6 +587,7 @@ export async function POST(request: NextRequest) {
         child.stdout?.on('data', (chunk: Buffer) => {
           const text = chunk.toString('utf-8');
           stdoutBuf += text;
+          console.log('[import-carreaux] [stdout]', text.trimEnd());
           for (const line of text.split('\n')) {
             const t = line.trim();
             if (!t) continue;
@@ -518,9 +598,24 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        child.stderr?.on('data', (chunk: Buffer) => { stderrBuf += chunk.toString('utf-8'); });
+        child.stderr?.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8');
+          stderrBuf += text;
+          console.error('[import-carreaux] [stderr]', text.trimEnd());
+          // Envoyer aussi les erreurs Python en temps réel au frontend
+          for (const line of text.split('\n')) {
+            const t = line.trim();
+            if (!t) continue;
+            send({ type: 'log', line: `⚠️ ${t}` });
+          }
+        });
 
         child.on('close', async (code: number | null) => {
+          clearInterval(heartbeat);
+          console.log(`[import-carreaux] Python terminé — exit code: ${code}`);
+          console.log(`[import-carreaux] stdout total: ${stdoutBuf.length} chars`);
+          console.log(`[import-carreaux] stderr total: ${stderrBuf.length} chars`);
+          if (stderrBuf) console.error('[import-carreaux] STDERR complet:\n', stderrBuf);
           const scriptError = code !== 0;
           const report = parseImportReport(stdoutBuf);
 
@@ -613,8 +708,10 @@ export async function POST(request: NextRequest) {
         });
 
         child.on('error', (err: Error) => {
-          console.error('[import-carreaux] spawn error:', err);
-          send({ type: 'done', success: false, error: err.message });
+          clearInterval(heartbeat);
+          console.error('[import-carreaux] ❌ spawn error:', err.message);
+          console.error('[import-carreaux] spawn error stack:', err.stack);
+          send({ type: 'done', success: false, error: `Erreur lancement Python: ${err.message}`, details: err.stack || '' });
           try { controller.close(); } catch {}
         });
       }
@@ -629,9 +726,17 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[import-carreaux] Erreur globale:', error);
+    console.error('[import-carreaux] ❌ ERREUR GLOBALE:', error.message);
+    console.error('[import-carreaux] Stack:', error.stack);
+    console.error('[import-carreaux] Full error:', error);
     return NextResponse.json(
-      { error: 'Erreur serveur', details: error.message },
+      {
+        success: false,
+        error: `Erreur serveur : ${error.message}`,
+        details: error.stack || error.message,
+        errorType: error.constructor?.name || 'Unknown',
+        timestamp: new Date().toISOString(),
+      },
       { status: 500 }
     );
   }

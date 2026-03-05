@@ -2,6 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['supercluster'],
+  // Allow large request bodies — needed for multi-GB carreaux imports
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10gb',
+    },
+  },
   webpack: (config) => {
     // maplibre-gl v5 ships a pre-built UMD bundle (dist/maplibre-gl.js)
     // but its package.json declares "type": "module".

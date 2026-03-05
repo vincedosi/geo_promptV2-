@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -293,6 +293,11 @@ interface ImportResult {
   errors?: string;
   report?: ImportReport;
   error?: string;
+  details?: string;
+  hint?: string;
+  diagnostic?: unknown;
+  errorType?: string;
+  timestamp?: string;
 }
 
 export default function CarreauxImportPage() {
@@ -319,7 +324,57 @@ export default function CarreauxImportPage() {
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [lastLog, setLastLog] = useState('');
+  const [logHistory, setLogHistory] = useState<string[]>([]);
+  const [importPhase, setImportPhase] = useState<'idle' | 'uploading' | 'server-processing' | 'python-running' | 'inserting' | 'done'>('idle');
+  const [startTime, setStartTime] = useState<number>(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState(0);
+  const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
   const [fileLoading, setFileLoading] = useState<string | null>(null); // which input is loading
+  const [fileLoadElapsed, setFileLoadElapsed] = useState(0);
+  const fileLoadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadStartRef = useRef<number>(0);
+  const lastUploadBytesRef = useRef<number>(0);
+  const lastUploadTimeRef = useRef<number>(0);
+
+  // Elapsed timer — ticks every second while importing
+  useEffect(() => {
+    if (isImporting && startTime > 0) {
+      timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isImporting, startTime]);
+
+  // File-loading elapsed timer — ticks while reading file header
+  useEffect(() => {
+    if (fileLoading) {
+      setFileLoadElapsed(0);
+      const t0 = Date.now();
+      fileLoadTimerRef.current = setInterval(() => setFileLoadElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    } else {
+      setFileLoadElapsed(0);
+    }
+    return () => { if (fileLoadTimerRef.current) { clearInterval(fileLoadTimerRef.current); fileLoadTimerRef.current = null; } };
+  }, [fileLoading]);
+
+  const fmtTime = useCallback((s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m ${sec.toString().padStart(2, '0')}s` : m > 0 ? `${m}m ${sec.toString().padStart(2, '0')}s` : `${sec}s`;
+  }, []);
+
+  const fmtBytes = useCallback((b: number) => {
+    if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    return `${(b / 1024).toFixed(0)} KB`;
+  }, []);
+
+  const addLog = useCallback((line: string) => {
+    setLastLog(line);
+    setLogHistory(prev => [...prev.slice(-200), `[${new Date().toLocaleTimeString('fr-FR')}] ${line}`]);
+  }, []);
 
   const hasShapefileInputs = !!(shpFile || dbfFile || shxFile || prjFile);
   const hasValidShapefileSet = !!(shpFile && dbfFile);
@@ -406,11 +461,26 @@ export default function CarreauxImportPage() {
     }
     if (!confirm(dryRun ? `Dry-run sur ${limit || 'toutes les'} lignes ?` : '⚠️ IMPORT RÉEL en base ?')) return;
 
+    const now = Date.now();
+    console.log('[carreaux-import] ══════════════════════════════════════════');
+    console.log('[carreaux-import] Début import');
+    console.log('[carreaux-import] Fichier:', singleFile?.name || 'shapefile', singleFile ? `(${(singleFile.size / 1024 / 1024).toFixed(1)}MB)` : '');
+
     setIsImporting(true);
     setImportResult(null);
     setImportProgress(null);
     setUploadProgress(null);
     setLastLog('');
+    setLogHistory([]);
+    setImportPhase('uploading');
+    setStartTime(now);
+    setElapsed(0);
+    setUploadSpeed(0);
+    setLastHeartbeat(now);
+    uploadStartRef.current = now;
+    lastUploadBytesRef.current = 0;
+    lastUploadTimeRef.current = now;
+
     try {
       const fd = new FormData();
       fd.append('mode', 'manual');
@@ -419,59 +489,141 @@ export default function CarreauxImportPage() {
       if (geoPreset) fd.append('bbox', geoPreset);
       fd.append('resolution', resolution);
       fd.append('millesime', millesime);
-      // Colonnes sélectionnées (vide = toutes)
       if (columnsData && selectedCols.size > 0 && selectedCols.size < Object.keys(columnsData).length) {
         fd.append('columns', [...selectedCols].join(','));
       }
       appendUploadFilesToFormData(fd);
 
-      // Use XHR for upload progress tracking, then switch to fetch for SSE
       const { token } = await getAuthToken();
-      const uploadResult = await new Promise<{ status: number; responseText: string; contentType: string }>((resolve, reject) => {
+      if (!token) {
+        addLog('⚠️ ERREUR: pas de token auth — vous êtes peut-être déconnecté');
+        setImportResult({ success: false, error: 'Pas de token d\'authentification. Reconnectez-vous.' });
+        setIsImporting(false);
+        return;
+      }
+
+      addLog('Envoi du fichier vers le serveur...');
+
+      // ── XHR with incremental response reading for real-time SSE ──
+      // xhr.onprogress reads the response AS IT STREAMS (not just at the end)
+      let lastParsedIdx = 0; // track how much of responseText we've parsed
+
+      await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/admin/import-carreaux');
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+        // ── Upload progress (file → server) ──
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress({ loaded: e.loaded, total: e.total });
+          if (!e.lengthComputable) return;
+          setUploadProgress({ loaded: e.loaded, total: e.total });
+
+          // Calculate upload speed (rolling average over 2s windows)
+          const t = Date.now();
+          const dt = (t - lastUploadTimeRef.current) / 1000;
+          if (dt >= 1) {
+            const dBytes = e.loaded - lastUploadBytesRef.current;
+            setUploadSpeed(dBytes / dt);
+            lastUploadBytesRef.current = e.loaded;
+            lastUploadTimeRef.current = t;
           }
         };
+
         xhr.upload.onload = () => {
           setUploadProgress(null);
-          setLastLog('Upload terminé — traitement serveur en cours...');
+          setImportPhase('server-processing');
+          addLog('✅ Upload terminé — traitement serveur en cours...');
+          console.log('[carreaux-import] Upload terminé');
         };
-        xhr.onload = () => resolve({ status: xhr.status, responseText: xhr.responseText, contentType: xhr.getResponseHeader('content-type') || '' });
-        xhr.onerror = () => reject(new Error('Erreur réseau pendant l\'upload'));
+
+        // ── Incremental response reading (SSE events as they arrive) ──
+        xhr.onprogress = () => {
+          const text = xhr.responseText;
+          if (text.length <= lastParsedIdx) return;
+          const newChunk = text.slice(lastParsedIdx);
+          lastParsedIdx = text.length;
+
+          for (const rawLine of newChunk.split('\n')) {
+            if (!rawLine.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(rawLine.slice(6));
+              if (ev.type === 'heartbeat') {
+                setLastHeartbeat(Date.now());
+              } else if (ev.type === 'log') {
+                addLog(ev.line);
+                // Auto-detect phase from log content
+                if (/python|initialisation|script/i.test(ev.line) && !ev.line.includes('✅')) setImportPhase('python-running');
+                if (/ins[eé]r|batch|supabase/i.test(ev.line)) setImportPhase('inserting');
+              } else if (ev.type === 'progress') {
+                setImportProgress({ current: ev.current, total: ev.total });
+                setImportPhase('inserting');
+              } else if (ev.type === 'done') {
+                console.log('[carreaux-import] 🏁 Done:', ev.success ? '✅' : '❌', ev.error || '');
+                setImportPhase('done');
+                setImportResult({
+                  success: ev.success, mode: ev.mode, dryRun: ev.dryRun,
+                  output: ev.output, errors: ev.errors, report: ev.report,
+                  error: ev.error, details: ev.details,
+                });
+              }
+            } catch { /* partial JSON, will be completed next chunk */ }
+          }
+        };
+
+        xhr.onload = () => {
+          console.log(`[carreaux-import] XHR done: status=${xhr.status}`);
+          // Parse any remaining events not caught by onprogress
+          if (xhr.responseText.length > lastParsedIdx) {
+            const remaining = xhr.responseText.slice(lastParsedIdx);
+            for (const rawLine of remaining.split('\n')) {
+              if (!rawLine.startsWith('data: ')) continue;
+              try {
+                const ev = JSON.parse(rawLine.slice(6));
+                if (ev.type === 'done') {
+                  setImportPhase('done');
+                  setImportResult({
+                    success: ev.success, mode: ev.mode, dryRun: ev.dryRun,
+                    output: ev.output, errors: ev.errors, report: ev.report,
+                    error: ev.error, details: ev.details,
+                  });
+                }
+              } catch {}
+            }
+          }
+          // If we got a non-SSE response (JSON error)
+          if (xhr.status >= 400 && !xhr.getResponseHeader('content-type')?.includes('text/event-stream')) {
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              setImportResult(parsed);
+            } catch {
+              setImportResult({ success: false, error: `HTTP ${xhr.status}`, output: xhr.responseText });
+            }
+          }
+          resolve();
+        };
+
+        xhr.onerror = () => {
+          console.error('[carreaux-import] ❌ Erreur réseau');
+          reject(new Error('Erreur réseau — la connexion a été coupée'));
+        };
+
+        xhr.ontimeout = () => {
+          console.error('[carreaux-import] ❌ Timeout XHR');
+          reject(new Error('Timeout — le serveur n\'a pas répondu à temps'));
+        };
+
+        // No timeout — large files can take minutes to upload
+        xhr.timeout = 0;
         xhr.send(fd);
       });
-
-      // For SSE streaming, re-issue with fetch (files already on server)
-      // Parse the XHR response
-      if (uploadResult.contentType.includes('text/event-stream')) {
-        // SSE was returned — parse events from responseText
-        const lines = uploadResult.responseText.split('\n');
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const ev = JSON.parse(line.slice(6));
-            if (ev.type === 'log') setLastLog(ev.line);
-            else if (ev.type === 'progress') setImportProgress({ current: ev.current, total: ev.total });
-            else if (ev.type === 'done') setImportResult({ success: ev.success, mode: ev.mode, dryRun: ev.dryRun, output: ev.output, errors: ev.errors, report: ev.report, error: ev.error });
-          } catch {}
-        }
-      } else {
-        try {
-          setImportResult(JSON.parse(uploadResult.responseText));
-        } catch {
-          setImportResult({ success: uploadResult.status < 400, output: uploadResult.responseText });
-        }
-      }
     } catch (e: any) {
-      setImportResult({ success: false, error: e.message });
+      console.error('[carreaux-import] ❌ Exception:', e.message);
+      addLog(`❌ Erreur : ${e.message}`);
+      setImportResult({ success: false, error: e.message, details: e.stack });
     } finally {
       setIsImporting(false);
-      setImportProgress(null);
       setUploadProgress(null);
+      console.log('[carreaux-import] Fin import');
     }
   };
 
@@ -508,6 +660,7 @@ export default function CarreauxImportPage() {
               onChange={async (e) => {
                 const next = e.target.files?.[0] || null;
                 // Set loading FIRST for instant visual feedback
+                const loadStart = Date.now();
                 if (next) setFileLoading('single');
                 setSingleFile(next);
                 setColumnsData(null);
@@ -529,6 +682,9 @@ export default function CarreauxImportPage() {
                   } catch {
                     // Will retry in handlePreviewColumns
                   } finally {
+                    // Ensure animation is visible for at least 1.2s
+                    const wait = Math.max(0, 1200 - (Date.now() - loadStart));
+                    if (wait > 0) await new Promise(r => setTimeout(r, wait));
                     setFileLoading(null);
                   }
                 }
@@ -538,21 +694,35 @@ export default function CarreauxImportPage() {
             {/* Loading state */}
             {fileLoading === 'single' && (
               <div style={{
-                marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                marginTop: 6, padding: '10px 12px', borderRadius: 6,
                 background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
-                display: 'flex', alignItems: 'center', gap: 8,
               }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
                   <div style={{ fontSize: 12, color: '#58a6ff', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                     Lecture de l&apos;en-tête en cours...
                   </div>
-                  {singleFile && (
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
-                      {singleFile.name} ({(singleFile.size / 1024 / 1024).toFixed(1)} MB)
+                  {fileLoadElapsed > 0 && (
+                    <div style={{ marginLeft: 'auto', fontSize: 11, color: '#58a6ff', fontFamily: 'JetBrains Mono, monospace', opacity: 0.8 }}>
+                      {fmtTime(fileLoadElapsed)}
                     </div>
                   )}
                 </div>
+                <div style={{
+                  width: '100%', height: 4, borderRadius: 2,
+                  background: 'rgba(88,166,255,0.15)', overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: '40%', height: '100%', borderRadius: 2,
+                    background: 'linear-gradient(90deg, #58a6ff, #3dffa0, #58a6ff)',
+                    animation: 'fileLoadSlide 1.5s ease-in-out infinite',
+                  }} />
+                </div>
+                {singleFile && (
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 6 }}>
+                    {singleFile.name} ({(singleFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </div>
+                )}
               </div>
             )}
 
@@ -588,6 +758,7 @@ export default function CarreauxImportPage() {
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>2) .dbf (obligatoire)</div>
                   <input type="file" accept=".dbf" onChange={async (e) => {
                     const f = e.target.files?.[0] || null;
+                    const loadStart = Date.now();
                     // Set loading FIRST, before anything else — instant visual feedback
                     if (f) setFileLoading('dbf');
                     setDbfFile(f);
@@ -607,6 +778,9 @@ export default function CarreauxImportPage() {
                       } catch {
                         // Will retry in handlePreviewColumns
                       } finally {
+                        // Ensure animation is visible for at least 1.2s
+                        const wait = Math.max(0, 1200 - (Date.now() - loadStart));
+                        if (wait > 0) await new Promise(r => setTimeout(r, wait));
                         setFileLoading(null);
                       }
                     }
@@ -615,18 +789,33 @@ export default function CarreauxImportPage() {
                   {/* Loading state */}
                   {fileLoading === 'dbf' && (
                     <div style={{
-                      marginTop: 6, padding: '8px 12px', borderRadius: 6,
+                      marginTop: 6, padding: '10px 12px', borderRadius: 6,
                       background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
-                      display: 'flex', alignItems: 'center', gap: 8,
                     }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                      <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
                         <div style={{ fontSize: 12, color: '#58a6ff', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                           Lecture en-tête DBF en cours...
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
-                          {dbfFile ? `${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(0)} MB)` : 'Analyse...'} — seuls les premiers 256 Ko sont lus
-                        </div>
+                        {fileLoadElapsed > 0 && (
+                          <div style={{ marginLeft: 'auto', fontSize: 11, color: '#58a6ff', fontFamily: 'JetBrains Mono, monospace', opacity: 0.8 }}>
+                            {fmtTime(fileLoadElapsed)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Animated indeterminate progress bar */}
+                      <div style={{
+                        width: '100%', height: 4, borderRadius: 2,
+                        background: 'rgba(88,166,255,0.15)', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: '40%', height: '100%', borderRadius: 2,
+                          background: 'linear-gradient(90deg, #58a6ff, #3dffa0, #58a6ff)',
+                          animation: 'fileLoadSlide 1.5s ease-in-out infinite',
+                        }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 6 }}>
+                        {dbfFile ? `${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(0)} MB)` : 'Analyse...'} — seuls les premiers 256 Ko sont lus
                       </div>
                     </div>
                   )}
@@ -840,44 +1029,33 @@ export default function CarreauxImportPage() {
           </div>
         )}
 
-        {/* Step 03 — Périmètre géographique (visible only when file loaded) */}
-        {hasUploadReady && (
-        <div className="g-card">
+        {/* Step 03 — Périmètre géographique (visible UNIQUEMENT si bbox détectée) */}
+        {hasUploadReady && detectedBbox && (
+        <div className="g-card" style={{ borderColor: 'rgba(88,166,255,0.3)' }}>
           <div className="g-card-header">
             <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03</span>
-            <span className="g-card-title">Périmètre géographique</span>
+            <span className="g-card-title">Périmètre géographique détecté</span>
+            <span className="g-badge" style={{ marginLeft: 'auto', background: 'rgba(88,166,255,0.15)', color: '#58a6ff' }}>auto-détecté</span>
           </div>
-          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <label className="g-label">Zone d'import</label>
-              <select
-                value={geoPreset}
-                onChange={e => setGeoPreset(e.target.value)}
-                className="g-input"
-              >
-                {detectedBbox && <option value={detectedBbox}>BBox détectée depuis le fichier</option>}
-                <option value="">Pas de filtre (bbox auto)</option>
-              </select>
+          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="g-alert g-alert-success" style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+              bbox détectée (WGS84) : {detectedBbox}
             </div>
-
-            {detectedBbox && (
-              <div className="g-alert g-alert-success" style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                bbox détectée (WGS84): {detectedBbox}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!!geoPreset}
+                  onChange={(e) => setGeoPreset(e.target.checked ? detectedBbox : '')}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>Filtrer l&apos;import sur cette zone</span>
+              </label>
+            </div>
+            {geoPreset && (
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                ↳ seuls les carreaux dans cette bbox seront importés
               </div>
             )}
-
-            {/* Bbox manuelle */}
-            <details>
-              <summary style={{ fontSize: 11, color: 'var(--text-dim)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' }}>// bbox manuelle (west south east north WGS84)</summary>
-              <input
-                type="text"
-                value={geoPreset}
-                onChange={e => setGeoPreset(e.target.value)}
-                placeholder="ex: 0.7 42.9 2.3 44.0"
-                className="g-input"
-                style={{ marginTop: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-              />
-            </details>
           </div>
         </div>
         )}
@@ -983,45 +1161,139 @@ export default function CarreauxImportPage() {
 
             {/* Barre de progression upload + traitement */}
             {isImporting && (
-              <div style={{ marginTop: 16 }}>
-                {uploadProgress ? (
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                {/* Phase indicator + timer */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      boxShadow: `0 0 6px ${importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832'}`,
+                    }} />
+                    <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832' }}>
+                      {importPhase === 'uploading' && '📤 Upload en cours'}
+                      {importPhase === 'server-processing' && '⚙️ Traitement serveur'}
+                      {importPhase === 'python-running' && '🐍 Script Python en cours'}
+                      {importPhase === 'inserting' && '💾 Insertion en base'}
+                      {importPhase === 'done' && '✅ Terminé'}
+                      {importPhase === 'idle' && '⏳ Initialisation'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {/* Heartbeat indicator */}
+                    {importPhase !== 'uploading' && importPhase !== 'done' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: (Date.now() - lastHeartbeat) < 15000 ? '#3dffa0' : '#ff5757',
+                          animation: 'pulse 2s ease-in-out infinite',
+                        }} />
+                        <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                          {(Date.now() - lastHeartbeat) < 15000 ? 'actif' : 'pas de signal'}
+                        </span>
+                      </div>
+                    )}
+                    <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: 1 }}>
+                      ⏱ {fmtTime(elapsed)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upload progress bar */}
+                {uploadProgress && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>
-                        Upload : {(uploadProgress.loaded / 1024 / 1024).toFixed(1)} / {(uploadProgress.total / 1024 / 1024).toFixed(1)} MB
+                        {fmtBytes(uploadProgress.loaded)} / {fmtBytes(uploadProgress.total)}
+                        {uploadSpeed > 0 && <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>({fmtBytes(uploadSpeed)}/s)</span>}
                       </span>
                       <span style={{ color: '#58a6ff', fontWeight: 700 }}>
-                        {Math.round(uploadProgress.loaded / uploadProgress.total * 100)} %
+                        {Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%
                       </span>
                     </div>
-                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', borderRadius: 3, background: '#58a6ff', width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`, transition: 'width 0.3s ease' }} />
+                    <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 4,
+                        background: 'linear-gradient(90deg, #58a6ff, #3dffa0)',
+                        width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`,
+                        transition: 'width 0.3s ease',
+                      }} />
                     </div>
-                    <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      ↳ envoi du fichier vers le serveur...
-                    </div>
+                    {/* ETA */}
+                    {uploadSpeed > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                        ↳ ETA upload : ~{fmtTime(Math.ceil((uploadProgress.total - uploadProgress.loaded) / uploadSpeed))}
+                      </div>
+                    )}
                   </>
-                ) : importProgress ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {importProgress.current.toLocaleString('fr-FR')} / {importProgress.total.toLocaleString('fr-FR')} carreaux
-                      </span>
-                      <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                        {Math.round(importProgress.current / importProgress.total * 100)} %
-                      </span>
-                    </div>
-                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', borderRadius: 3, background: 'var(--accent)', width: `${Math.round(importProgress.current / importProgress.total * 100)}%`, transition: 'width 0.4s ease' }} />
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>// initialisation Python...</div>
                 )}
+
+                {/* Insertion progress bar */}
+                {importProgress && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {importProgress.current.toLocaleString('fr-FR')} / {importProgress.total.toLocaleString('fr-FR')} carreaux insérés
+                      </span>
+                      <span style={{ color: '#3dffa0', fontWeight: 700 }}>
+                        {Math.round(importProgress.current / importProgress.total * 100)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 4,
+                        background: 'linear-gradient(90deg, #3dffa0, #58a6ff)',
+                        width: `${Math.round(importProgress.current / importProgress.total * 100)}%`,
+                        transition: 'width 0.4s ease',
+                      }} />
+                    </div>
+                  </>
+                )}
+
+                {/* No progress bar but server processing */}
+                {!uploadProgress && !importProgress && importPhase !== 'done' && (
+                  <div style={{
+                    padding: '10px 14px', borderRadius: 6,
+                    background: 'rgba(255,200,50,0.06)', border: '1px solid rgba(255,200,50,0.15)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#ffc832' }}>
+                        En attente du serveur...
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Live log line */}
                 {lastLog && (
-                  <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{
+                    padding: '6px 10px', borderRadius: 4,
+                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                    fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
                     ↳ {lastLog}
                   </div>
+                )}
+
+                {/* Scrollable log history */}
+                {logHistory.length > 2 && (
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      📋 Historique logs ({logHistory.length} lignes)
+                    </summary>
+                    <pre style={{
+                      marginTop: 6, padding: 10, borderRadius: 6,
+                      background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+                      fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace',
+                      maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                    }}>
+                      {logHistory.join('\n')}
+                    </pre>
+                  </details>
                 )}
               </div>
             )}
@@ -1062,8 +1334,30 @@ export default function CarreauxImportPage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div className="g-alert g-alert-error">{importResult.error || 'Erreur inconnue'}</div>
-                  {importResult.output && <details><summary>console output</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 200, overflow: 'auto' }}>{importResult.output}</pre></details>}
-                  {importResult.errors && <details><summary>stderr</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 200, overflow: 'auto', color: 'var(--red)' }}>{importResult.errors}</pre></details>}
+                  {importResult.details && (
+                    <details open>
+                      <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>détails erreur</summary>
+                      <pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', color: 'var(--red)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{importResult.details}</pre>
+                    </details>
+                  )}
+                  {(importResult as any).hint && (
+                    <div className="g-alert" style={{ background: 'rgba(255,200,50,0.08)', border: '1px solid rgba(255,200,50,0.3)', color: '#ffc832' }}>
+                      💡 {(importResult as any).hint}
+                    </div>
+                  )}
+                  {(importResult as any).diagnostic && (
+                    <details>
+                      <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>diagnostic Python</summary>
+                      <pre className="g-code" style={{ marginTop: 8, fontSize: 10, maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify((importResult as any).diagnostic, null, 2)}</pre>
+                    </details>
+                  )}
+                  {(importResult as any).errorType && (
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      Type: {(importResult as any).errorType} · {(importResult as any).timestamp || ''}
+                    </div>
+                  )}
+                  {importResult.output && <details><summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>console output (stdout)</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{importResult.output}</pre></details>}
+                  {importResult.errors && <details open><summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>stderr Python</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', color: 'var(--red)', whiteSpace: 'pre-wrap' }}>{importResult.errors}</pre></details>}
                 </div>
               )}
             </div>
