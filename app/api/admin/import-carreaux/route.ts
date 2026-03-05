@@ -331,6 +331,7 @@ async function parseMultipartStream(
     const fields: Record<string, string> = {};
     const files: UploadedFile[] = [];
     const seenFileNames = new Set<string>();
+    const pendingWrites: Promise<void>[] = [];
 
     const busboy = Busboy({ headers: { 'content-type': contentType } });
 
@@ -361,17 +362,30 @@ async function parseMultipartStream(
       fileStream.on('data', (chunk: Buffer) => { size += chunk.length; });
       fileStream.pipe(ws);
 
-      ws.on('close', () => {
-        console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB`);
-        files.push({ fieldName, fileName: filename, diskPath, size });
-      });
-      ws.on('error', (err: Error) => {
-        console.error(`[import-carreaux] ❌ Erreur écriture ${filename}:`, err.message);
-        reject(err);
-      });
+      // Track each file write as a Promise so we wait for ALL writes to finish
+      pendingWrites.push(new Promise<void>((res, rej) => {
+        ws.on('close', () => {
+          console.log(`[import-carreaux] ✅ ${filename} écrit: ${(size / 1024 / 1024).toFixed(2)} MB`);
+          files.push({ fieldName, fileName: filename, diskPath, size });
+          res();
+        });
+        ws.on('error', (err: Error) => {
+          console.error(`[import-carreaux] ❌ Erreur écriture ${filename}:`, err.message);
+          rej(err);
+        });
+      }));
     });
 
-    busboy.on('close', () => resolve({ fields, files }));
+    busboy.on('close', async () => {
+      console.log(`[import-carreaux] 📦 Busboy close — waiting for ${pendingWrites.length} file write(s)...`);
+      try {
+        await Promise.all(pendingWrites);
+        console.log(`[import-carreaux] ✅ All files written — fields: ${Object.keys(fields).join(',')}, files: ${files.length}`);
+        resolve({ fields, files });
+      } catch (err) {
+        reject(err);
+      }
+    });
     busboy.on('error', (err: Error) => reject(err));
 
     // Pipe Web ReadableStream → Node.js Readable → busboy
@@ -381,18 +395,8 @@ async function parseMultipartStream(
       return;
     }
 
-    const reader = body.getReader();
-    const nodeStream = new Readable({
-      async read() {
-        try {
-          const { done, value } = await reader.read();
-          if (done) { this.push(null); }
-          else { this.push(Buffer.from(value)); }
-        } catch (err) {
-          this.destroy(err as Error);
-        }
-      },
-    });
+    // Use Readable.fromWeb for clean conversion (Node 18+)
+    const nodeStream = Readable.fromWeb(body as import('stream/web').ReadableStream);
     nodeStream.pipe(busboy);
   });
 }
