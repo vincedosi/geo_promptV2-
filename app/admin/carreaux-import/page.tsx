@@ -657,11 +657,8 @@ export default function CarreauxImportPage() {
             <input
               type="file"
               accept=".zip,.csv,.xlsx,.xls,.geojson,.json,.gpkg,.kml,.gpx"
-              onChange={async (e) => {
+              onChange={(e) => {
                 const next = e.target.files?.[0] || null;
-                // Set loading FIRST for instant visual feedback
-                const loadStart = Date.now();
-                if (next) setFileLoading('single');
                 setSingleFile(next);
                 setColumnsData(null);
                 setColumnsError('');
@@ -676,61 +673,14 @@ export default function CarreauxImportPage() {
                   setDetectedMeta(meta);
                   if (meta.resolution) setResolution(meta.resolution);
                   if (meta.millesime) setMillesime(meta.millesime);
-                  try {
-                    const snap = await captureFilePreview(next);
-                    setPreviewSnapshot(snap);
-                  } catch {
-                    // Will retry in handlePreviewColumns
-                  } finally {
-                    // Ensure animation is visible for at least 2s
-                    const wait = Math.max(0, 2000 - (Date.now() - loadStart));
-                    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-                    setFileLoading(null);
-                  }
+                  // Capture preview in background — don't block UI
+                  captureFilePreview(next).then(snap => setPreviewSnapshot(snap)).catch(() => {});
                 }
               }}
               style={{ fontSize: 12, color: 'var(--text-secondary)' }}
             />
-            {/* Loading state — prominent animated card */}
-            {fileLoading === 'single' && (
-              <div style={{
-                marginTop: 8, padding: '14px 16px', borderRadius: 8,
-                background: 'linear-gradient(135deg, rgba(88,166,255,0.12), rgba(61,255,160,0.06))',
-                border: '1px solid rgba(88,166,255,0.35)',
-                animation: 'fileLoadGlow 2s ease-in-out infinite',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                  <div style={{ fontSize: 14, color: '#58a6ff', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
-                    Chargement du fichier...
-                  </div>
-                  <div style={{ marginLeft: 'auto', fontSize: 13, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
-                    {fmtTime(fileLoadElapsed)}
-                  </div>
-                </div>
-                {/* Thick striped animated progress bar */}
-                <div style={{
-                  width: '100%', height: 10, borderRadius: 5,
-                  background: 'rgba(88,166,255,0.15)', overflow: 'hidden',
-                }}>
-                  <div style={{
-                    width: '100%', height: '100%', borderRadius: 5,
-                    backgroundImage: 'repeating-linear-gradient(-45deg, #58a6ff, #58a6ff 10px, #3dffa0 10px, #3dffa0 20px, #58a6ff 20px, #58a6ff 30px, rgba(88,166,255,0.4) 30px, rgba(88,166,255,0.4) 40px)',
-                    backgroundSize: '40px 100%',
-                    animation: 'fileLoadSlide 0.8s linear infinite',
-                  }} />
-                </div>
-                {singleFile && (
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{singleFile.name}</span>
-                    <span style={{ color: '#58a6ff' }}>{fmtBytes(singleFile.size)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Success state */}
-            {singleFile && fileLoading !== 'single' && (
+            {/* File selected — instant feedback */}
+            {singleFile && (
               <div style={{
                 marginTop: 6, padding: '8px 12px', borderRadius: 6,
                 background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
@@ -742,8 +692,11 @@ export default function CarreauxImportPage() {
                     {singleFile.name}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
-                    {(singleFile.size / 1024 / 1024).toFixed(2)} MB
-                    {previewSnapshot ? ' · en-tête capturé · prêt pour l\'analyse' : ''}
+                    {fmtBytes(singleFile.size)}
+                    {previewSnapshot
+                      ? <span style={{ color: 'var(--green)' }}> · prêt pour l&apos;analyse</span>
+                      : <span style={{ color: '#58a6ff' }}> · lecture en-tête <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="3" style={{ animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', display: 'inline' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg></span>
+                    }
                   </div>
                 </div>
               </div>
@@ -754,44 +707,17 @@ export default function CarreauxImportPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))', gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>1) .shp (obligatoire)</div>
-                  <input type="file" accept=".shp" onChange={async (e) => {
+                  <input type="file" accept=".shp" onChange={(e) => {
                     const f = e.target.files?.[0] || null;
-                    if (f) {
-                      setFileLoading('shp');
-                      const t0 = Date.now();
-                      setShpFile(f); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null); setSingleFile(null);
-                      const wait = Math.max(0, 1500 - (Date.now() - t0));
-                      if (wait > 0) await new Promise(r => setTimeout(r, wait));
-                      setFileLoading(null);
-                    } else {
-                      setShpFile(null); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null);
-                    }
+                    setShpFile(f); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null);
+                    if (f) setSingleFile(null);
                   }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {fileLoading === 'shp' && (
-                    <div style={{
-                      marginTop: 6, padding: '10px 12px', borderRadius: 8,
-                      background: 'linear-gradient(135deg, rgba(88,166,255,0.12), rgba(61,255,160,0.06))',
-                      border: '1px solid rgba(88,166,255,0.35)',
-                      animation: 'fileLoadGlow 2s ease-in-out infinite',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                        <span style={{ fontSize: 12, color: '#58a6ff', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>Chargement .shp...</span>
-                      </div>
-                      <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(88,166,255,0.15)', overflow: 'hidden' }}>
-                        <div style={{ width: '100%', height: '100%', borderRadius: 4, backgroundImage: 'repeating-linear-gradient(-45deg, #58a6ff, #58a6ff 10px, #3dffa0 10px, #3dffa0 20px, #58a6ff 20px, #58a6ff 30px, rgba(88,166,255,0.4) 30px, rgba(88,166,255,0.4) 40px)', backgroundSize: '40px 100%', animation: 'fileLoadSlide 0.8s linear infinite' }} />
-                      </div>
-                    </div>
-                  )}
-                  {shpFile && fileLoading !== 'shp' && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shpFile.name} ({fmtBytes(shpFile.size)})</div>}
+                  {shpFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shpFile.name} ({fmtBytes(shpFile.size)})</div>}
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>2) .dbf (obligatoire)</div>
-                  <input type="file" accept=".dbf" onChange={async (e) => {
+                  <input type="file" accept=".dbf" onChange={(e) => {
                     const f = e.target.files?.[0] || null;
-                    const loadStart = Date.now();
-                    // Set loading FIRST, before anything else — instant visual feedback
-                    if (f) setFileLoading('dbf');
                     setDbfFile(f);
                     setColumnsData(null);
                     setColumnsError('');
@@ -803,58 +729,13 @@ export default function CarreauxImportPage() {
                       setDetectedMeta(meta);
                       if (meta.resolution) setResolution(meta.resolution);
                       if (meta.millesime) setMillesime(meta.millesime);
-                      try {
-                        const snap = await captureFilePreview(f);
-                        setPreviewSnapshot(snap);
-                      } catch {
-                        // Will retry in handlePreviewColumns
-                      } finally {
-                        // Ensure animation is visible for at least 2s
-                        const wait = Math.max(0, 2000 - (Date.now() - loadStart));
-                        if (wait > 0) await new Promise(r => setTimeout(r, wait));
-                        setFileLoading(null);
-                      }
+                      // Capture preview in background — don't block UI
+                      captureFilePreview(f).then(snap => setPreviewSnapshot(snap)).catch(() => {});
                     }
                   }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
 
-                  {/* Loading state — prominent animated card */}
-                  {fileLoading === 'dbf' && (
-                    <div style={{
-                      marginTop: 8, padding: '14px 16px', borderRadius: 8,
-                      background: 'linear-gradient(135deg, rgba(88,166,255,0.12), rgba(61,255,160,0.06))',
-                      border: '1px solid rgba(88,166,255,0.35)',
-                      animation: 'fileLoadGlow 2s ease-in-out infinite',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2.5" style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                        <div style={{ fontSize: 14, color: '#58a6ff', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
-                          Lecture en-tête DBF...
-                        </div>
-                        <div style={{ marginLeft: 'auto', fontSize: 13, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
-                          {fmtTime(fileLoadElapsed)}
-                        </div>
-                      </div>
-                      {/* Thick striped animated progress bar */}
-                      <div style={{
-                        width: '100%', height: 10, borderRadius: 5,
-                        background: 'rgba(88,166,255,0.15)', overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          width: '100%', height: '100%', borderRadius: 5,
-                          backgroundImage: 'repeating-linear-gradient(-45deg, #58a6ff, #58a6ff 10px, #3dffa0 10px, #3dffa0 20px, #58a6ff 20px, #58a6ff 30px, rgba(88,166,255,0.4) 30px, rgba(88,166,255,0.4) 40px)',
-                          backgroundSize: '40px 100%',
-                          animation: 'fileLoadSlide 0.8s linear infinite',
-                        }} />
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace', marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{dbfFile ? dbfFile.name : 'Analyse...'}</span>
-                        <span style={{ color: '#58a6ff' }}>{dbfFile ? fmtBytes(dbfFile.size) : ''} · 256 Ko lus</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Success state */}
-                  {dbfFile && fileLoading !== 'dbf' && (
+                  {/* File selected — instant feedback */}
+                  {dbfFile && (
                     <div style={{
                       marginTop: 6, padding: '8px 12px', borderRadius: 6,
                       background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
@@ -866,8 +747,11 @@ export default function CarreauxImportPage() {
                           {dbfFile.name}
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
-                          {(dbfFile.size / 1024 / 1024).toFixed(0)} MB total · en-tête capturé (256 Ko)
-                          {previewSnapshot ? ' · prêt pour l\'analyse' : ''}
+                          {fmtBytes(dbfFile.size)}
+                          {previewSnapshot
+                            ? <span style={{ color: 'var(--green)' }}> · prêt pour l&apos;analyse</span>
+                            : <span style={{ color: '#58a6ff' }}> · lecture en-tête <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="3" style={{ animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', display: 'inline' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg></span>
+                          }
                         </div>
                       </div>
                     </div>
