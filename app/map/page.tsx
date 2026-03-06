@@ -619,41 +619,31 @@ export default function MapPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0a0a0a' }}>
+    <div className="flex h-screen overflow-hidden bg-background-dark">
 
       {/* ── Sidebar ── */}
-      <div style={{
-        width: sidebarCollapsed ? '40px' : '280px',
-        transition: 'width 0.3s ease',
-        background: '#111118',
-        borderRight: '1px solid rgba(99, 102, 241, 0.15)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}>
+      <aside
+        className="flex flex-col flex-shrink-0 border-r border-border-accent bg-terminal-gray/80 backdrop-blur-md transition-all duration-300 overflow-hidden"
+        style={{ width: sidebarCollapsed ? 40 : 300 }}
+      >
+        {/* Collapse toggle */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          style={{
-            background: 'transparent', border: 'none', color: '#a5b4fc',
-            cursor: 'pointer', padding: '12px', fontSize: '16px',
-            textAlign: sidebarCollapsed ? 'center' : 'right',
-          }}
+          className="quantum-nav p-3 text-primary/70 hover:text-primary transition-colors text-xs"
+          style={{ textAlign: sidebarCollapsed ? 'center' : 'right' }}
         >
           {sidebarCollapsed ? '▸' : '◂'}
         </button>
 
         {!sidebarCollapsed && (
-          <div style={{ padding: '0 16px 16px', overflow: 'auto', flex: 1 }}>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5">
 
-            {/* Header filtres */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <h3 style={{
-                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1.5px',
-                color: '#64748b', fontFamily: 'Inter, sans-serif', margin: 0,
-              }}>
-                FILTRES {activeFilterCount > 0 && (
-                  <span style={{ color: '#6366f1', marginLeft: 4 }}>
+            {/* ── Filters header ── */}
+            <div className="flex items-center justify-between">
+              <h3 className="quantum-nav text-[10px] tracking-[0.2em] text-slate-500">
+                FILTRES
+                {activeFilterCount > 0 && (
+                  <span className="text-primary ml-2">
                     ({activeFilterCount} actif{activeFilterCount > 1 ? 's' : ''})
                   </span>
                 )}
@@ -661,70 +651,58 @@ export default function MapPage() {
               {activeFilterCount > 0 && (
                 <button
                   onClick={clearAllFilters}
-                  style={{
-                    background: 'none', border: '1px solid rgba(239,68,68,0.3)',
-                    color: '#ef4444', cursor: 'pointer', padding: '2px 6px',
-                    fontSize: '10px', borderRadius: '4px', fontFamily: 'Inter, sans-serif',
-                  }}
+                  className="quantum-nav text-[9px] px-2 py-0.5 border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
                 >
                   Effacer
                 </button>
               )}
             </div>
 
-            {/* Catégories */}
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <h4 style={{
-                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
-                  color: '#94a3b8', margin: 0, fontFamily: 'Inter, sans-serif',
-                }}>
+            {/* ── Catégories ── */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="geometric-accent text-[10px] text-slate-400 uppercase">
                   Type d&apos;établissement
                 </h4>
                 {availableCategories.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={selectAllCategories} style={{ background: 'none', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', cursor: 'pointer', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', fontFamily: 'Inter, sans-serif' }}>Tout</button>
-                    <button onClick={deselectAllCategories} style={{ background: 'none', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', cursor: 'pointer', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', fontFamily: 'Inter, sans-serif' }}>Aucun</button>
+                  <div className="flex gap-1">
+                    <button onClick={selectAllCategories} className="quantum-nav text-[9px] px-2 py-0.5 border border-primary/30 text-primary/80 rounded hover:bg-primary/10 transition-colors">Tout</button>
+                    <button onClick={deselectAllCategories} className="quantum-nav text-[9px] px-2 py-0.5 border border-slate-700 text-slate-500 rounded hover:bg-slate-800 transition-colors">Aucun</button>
                   </div>
                 )}
               </div>
+
               {availableCategories.length === 0 && (
-                <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>
-                  Aucune catégorie en base
-                </div>
+                <p className="text-[11px] text-slate-600 italic">Aucune catégorie en base</p>
               )}
+
               {availableCategories.map(cat => (
-                <label key={cat} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '6px 0', cursor: 'pointer', color: '#e2e8f0',
-                  fontSize: '13px', fontFamily: 'Inter, sans-serif',
-                }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label key={cat} className="flex items-center justify-between py-1.5 cursor-pointer group">
+                  <span className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={poiCategories[cat] || false}
                       onChange={() => toggleCategory(cat)}
-                      style={{ accentColor: '#6366f1' }}
+                      className="accent-primary w-3.5 h-3.5"
                     />
-                    {cat.toUpperCase()}
+                    <span className="text-[12px] text-slate-200 font-light group-hover:text-primary transition-colors">
+                      {cat.toUpperCase()}
+                    </span>
                   </span>
-                  <span style={{ color: '#64748b', fontSize: '12px' }}>
+                  <span className="text-[11px] text-slate-600 font-mono">
                     {poiCategories[cat] ? pois.filter(p => p.categorie === cat).length : ''}
                   </span>
                 </label>
               ))}
             </div>
 
-            {/* Filtres dynamiques — auto-découverts depuis les données */}
+            {/* ── Dynamic filters ── */}
             {Object.keys(availableFilters).length > 0 && (
-              <div>
-                <h4 style={{
-                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
-                  color: '#94a3b8', marginBottom: '10px', fontFamily: 'Inter, sans-serif',
-                  borderLeft: '2px solid #6366f1', paddingLeft: '8px',
-                }}>
+              <div className="pt-4 border-t border-border-accent/50">
+                <h4 className="geometric-accent text-[10px] text-slate-400 uppercase mb-3 pl-2 border-l-2 border-primary">
                   Affiner
                 </h4>
+
                 {Object.entries(availableFilters).map(([field, { label, values }]) => {
                   const currentVal = activeFilters[field];
                   const isMulti = Array.isArray(currentVal) && currentVal.length > 1;
@@ -732,32 +710,22 @@ export default function MapPage() {
                     (!Array.isArray(currentVal) || currentVal.length > 0);
 
                   return (
-                    <div key={field} style={{ marginBottom: '12px' }}>
-                      <label style={{
-                        display: 'block', fontSize: '10px', color: '#64748b',
-                        textTransform: 'uppercase', letterSpacing: '0.5px',
-                        marginBottom: '4px', fontFamily: 'Inter, sans-serif',
-                      }}>
+                    <div key={field} className="mb-3">
+                      <label className="block text-[9px] text-slate-500 uppercase tracking-wider mb-1 font-sans">
                         {label}
                       </label>
 
-                      {/* Tags multi-valeur (définis par IA) */}
                       {isMulti && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 5 }}>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
                           {(currentVal as string[]).map(v => (
                             <span
                               key={v}
                               title="Cliquer pour retirer"
                               onClick={() => removeFilterValue(field, v)}
-                              style={{
-                                fontSize: 10, background: 'rgba(99,102,241,0.2)',
-                                color: '#a5b4fc', padding: '2px 6px', borderRadius: 3,
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3,
-                                border: '1px solid rgba(99,102,241,0.3)',
-                              }}
+                              className="text-[10px] bg-primary/15 text-primary/90 px-2 py-0.5 rounded border border-primary/25 cursor-pointer hover:bg-primary/25 transition-colors flex items-center gap-1"
                             >
                               {v}
-                              <span style={{ color: '#ef4444', fontSize: 9, fontWeight: 700 }}>✕</span>
+                              <span className="text-red-400 text-[9px] font-bold">✕</span>
                             </span>
                           ))}
                         </div>
@@ -766,13 +734,11 @@ export default function MapPage() {
                       <select
                         value={isMulti ? '' : ((currentVal as string) || '')}
                         onChange={e => handleFilterChange(field, e.target.value)}
-                        style={{
-                          width: '100%', padding: '6px 8px',
-                          background: hasValue ? '#1e1e3a' : '#1a1a2e',
-                          border: `1px solid ${hasValue ? 'rgba(99,102,241,0.5)' : 'rgba(99,102,241,0.2)'}`,
-                          borderRadius: '6px', color: '#e2e8f0',
-                          fontSize: '12px', fontFamily: 'Inter, sans-serif', outline: 'none',
-                        }}
+                        className={`w-full px-2 py-1.5 rounded text-slate-200 text-[12px] font-sans outline-none transition-colors ${
+                          hasValue
+                            ? 'bg-primary/10 border border-primary/40'
+                            : 'bg-terminal-gray border border-border-accent hover:border-primary/30'
+                        }`}
                       >
                         <option value="">
                           {isMulti
@@ -790,169 +756,111 @@ export default function MapPage() {
             )}
 
             {poisRaw.length === 0 && selectedCount === 0 && (
-              <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic', marginTop: '8px' }}>
+              <p className="text-[11px] text-slate-600 italic">
                 Sélectionnez une catégorie pour charger les données
-              </div>
+              </p>
             )}
 
             {/* ── Couches carreaux ── */}
             {carreauxSources.length > 0 && (
-              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(99,102,241,0.15)', paddingTop: '16px' }}>
-                <h4 style={{
-                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px',
-                  color: '#94a3b8', marginBottom: '10px', fontFamily: 'Inter, sans-serif',
-                  borderLeft: '2px solid #2171b5', paddingLeft: '8px',
-                }}>
+              <div className="pt-4 border-t border-border-accent/50">
+                <h4 className="geometric-accent text-[10px] text-slate-400 uppercase mb-3 pl-2 border-l-2 border-blue-600">
                   Couches de données
                 </h4>
 
                 {carreauxSources.map(src => (
-                  <div key={src.tableName}>
-                    <label style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '6px 0', cursor: 'pointer', color: '#e2e8f0',
-                      fontSize: '12px', fontFamily: 'Inter, sans-serif',
-                    }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedCarreau === src.tableName}
-                          onChange={() => toggleCarreauxSource(src.tableName)}
-                          style={{ accentColor: '#2171b5' }}
-                        />
-                        <span style={{ fontSize: '11px' }}>
-                          {src.name.replace(/_/g, ' ').slice(0, 35)}
-                        </span>
+                  <label key={src.tableName} className="flex items-center justify-between py-1.5 cursor-pointer group">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedCarreau === src.tableName}
+                        onChange={() => toggleCarreauxSource(src.tableName)}
+                        className="accent-blue-500 w-3.5 h-3.5"
+                      />
+                      <span className="text-[11px] text-slate-300 font-light group-hover:text-blue-400 transition-colors">
+                        {src.name.replace(/_/g, ' ').slice(0, 35)}
                       </span>
-                      <span style={{ color: '#64748b', fontSize: '11px' }}>
-                        {selectedCarreau === src.tableName && filteredCarreauxGeoJSON
-                          ? filteredCarreauxGeoJSON.features.length : src.count}
-                      </span>
-                    </label>
-                  </div>
+                    </span>
+                    <span className="text-[11px] text-slate-600 font-mono">
+                      {selectedCarreau === src.tableName && filteredCarreauxGeoJSON
+                        ? filteredCarreauxGeoJSON.features.length : src.count}
+                    </span>
+                  </label>
                 ))}
 
-                {/* Options carreaux quand actif */}
+                {/* Carreaux options */}
                 {selectedCarreau && carreauxGeoJSON && (
-                  <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
-
-                    {/* Toggle visibilité */}
-                    <label style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      fontSize: '11px', color: '#94a3b8', cursor: 'pointer', marginBottom: '10px',
-                    }}>
+                  <div className="mt-2 pl-1 space-y-3">
+                    {/* Visibility toggle */}
+                    <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={carreauxVisible}
                         onChange={() => setCarreauxVisible(v => !v)}
-                        style={{ accentColor: '#2171b5' }}
+                        className="accent-blue-500"
                       />
                       Afficher sur la carte
                     </label>
 
-                    {/* Sélecteur de métrique */}
+                    {/* Metric selector */}
                     {carreauxAnalysis.numericFields.length > 0 && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                          display: 'block', fontSize: '10px', color: '#64748b',
-                          textTransform: 'uppercase', letterSpacing: '0.5px',
-                          marginBottom: '4px', fontFamily: 'Inter, sans-serif',
-                        }}>
+                      <div>
+                        <label className="block text-[9px] text-slate-500 uppercase tracking-wider mb-1">
                           Indicateur (couleur)
                         </label>
                         <select
                           value={carreauxMetric}
                           onChange={e => setCarreauxMetric(e.target.value)}
-                          style={{
-                            width: '100%', padding: '5px 8px',
-                            background: '#1a1a2e',
-                            border: '1px solid rgba(33,113,181,0.3)',
-                            borderRadius: '6px', color: '#e2e8f0',
-                            fontSize: '11px', fontFamily: 'Inter, sans-serif', outline: 'none',
-                          }}
+                          className="w-full px-2 py-1.5 bg-terminal-gray border border-blue-600/25 rounded text-slate-200 text-[11px] font-sans outline-none hover:border-blue-500/40 transition-colors"
                         >
                           {carreauxAnalysis.numericFields.slice(0, 40).map(f => (
-                            <option key={f} value={f}>
-                              {formatLabel(f)}
-                            </option>
+                            <option key={f} value={f}>{formatLabel(f)}</option>
                           ))}
                         </select>
                       </div>
                     )}
 
-                    {/* Légende gradient — couleurs identiques à CHORO_COLORS dans MapContainer */}
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '12px',
-                      fontSize: '10px', color: '#64748b', fontFamily: 'monospace',
-                    }}>
+                    {/* Gradient legend */}
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
                       <span>Min</span>
-                      <div style={{
-                        flex: 1, height: '8px', borderRadius: '4px',
-                        background: 'linear-gradient(to right, #c6dbef, #9ecae1, #4292c6, #2171b5, #08306b)',
-                      }} />
+                      <div className="flex-1 h-2 rounded-full" style={{ background: 'linear-gradient(to right, #c6dbef, #9ecae1, #4292c6, #2171b5, #08306b)' }} />
                       <span>Max</span>
                     </div>
 
-                    {/* Bouton re-centrage */}
+                    {/* Locate button */}
                     <button
                       onClick={() => setCarreauxFlyTrigger(t => t + 1)}
                       title="Recentrer la carte sur les carreaux"
-                      style={{
-                        width: '100%', padding: '5px 8px',
-                        background: 'rgba(33,113,181,0.12)',
-                        border: '1px solid rgba(33,113,181,0.35)',
-                        borderRadius: '5px', color: '#9ecae1',
-                        fontSize: '11px', fontFamily: 'Inter, sans-serif',
-                        cursor: 'pointer', marginBottom: '10px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(33,113,181,0.22)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(33,113,181,0.12)')}
+                      className="w-full py-1.5 bg-blue-600/10 border border-blue-500/30 rounded text-blue-300 text-[11px] font-sans cursor-pointer hover:bg-blue-600/20 transition-colors flex items-center justify-center gap-1.5"
                     >
                       ⊙ Localiser sur la carte
                     </button>
 
-                    {/* Filtres carreaux */}
+                    {/* Carreaux filters */}
                     {Object.keys(carreauxAnalysis.categoricalFilters).length > 0 && (
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <span style={{
-                            fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px',
-                            color: '#64748b', fontFamily: 'Inter, sans-serif',
-                          }}>
-                            Filtrer carreaux
-                          </span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[9px] text-slate-500 uppercase tracking-wider">Filtrer carreaux</span>
                           {Object.values(carreauxFilters).some(v => v !== '') && (
                             <button
                               onClick={clearCarreauxFilters}
-                              style={{
-                                background: 'none', border: '1px solid rgba(239,68,68,0.3)',
-                                color: '#ef4444', cursor: 'pointer', padding: '1px 5px',
-                                fontSize: '9px', borderRadius: '3px',
-                              }}
+                              className="text-[9px] px-1.5 py-0.5 border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors"
                             >
                               Effacer
                             </button>
                           )}
                         </div>
                         {Object.entries(carreauxAnalysis.categoricalFilters).map(([field, { label, values }]) => (
-                          <div key={field} style={{ marginBottom: '8px' }}>
-                            <label style={{
-                              display: 'block', fontSize: '10px', color: '#536882',
-                              marginBottom: '3px', fontFamily: 'Inter, sans-serif',
-                            }}>
-                              {label}
-                            </label>
+                          <div key={field} className="mb-2">
+                            <label className="block text-[10px] text-slate-600 mb-1">{label}</label>
                             <select
                               value={carreauxFilters[field] || ''}
                               onChange={e => handleCarreauxFilterChange(field, e.target.value)}
-                              style={{
-                                width: '100%', padding: '4px 6px',
-                                background: carreauxFilters[field] ? '#1a2040' : '#1a1a2e',
-                                border: `1px solid ${carreauxFilters[field] ? 'rgba(33,113,181,0.5)' : 'rgba(33,113,181,0.15)'}`,
-                                borderRadius: '5px', color: '#e2e8f0',
-                                fontSize: '11px', fontFamily: 'Inter, sans-serif', outline: 'none',
-                              }}
+                              className={`w-full px-2 py-1 rounded text-slate-200 text-[11px] font-sans outline-none transition-colors ${
+                                carreauxFilters[field]
+                                  ? 'bg-blue-900/20 border border-blue-500/40'
+                                  : 'bg-terminal-gray border border-blue-600/15 hover:border-blue-500/30'
+                              }`}
                             >
                               <option value="">— Tous ({values.length}) —</option>
                               {values.map(v => (
@@ -965,120 +873,180 @@ export default function MapPage() {
                     )}
 
                     {carreauxLoading && (
-                      <div style={{ fontSize: '11px', color: '#f59e0b', fontStyle: 'italic' }}>
-                        ⟳ Chargement des carreaux...
-                      </div>
+                      <p className="text-[11px] text-amber-400 italic">⟳ Chargement des carreaux...</p>
                     )}
                   </div>
                 )}
               </div>
             )}
-          {/* ── Zones de Recrutement ── */}
-          <div style={{ marginTop: 24, borderTop: '1px solid rgba(239,68,68,0.15)', paddingTop: 16 }}>
-            <h4 style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 12, fontFamily: 'Inter, sans-serif', borderLeft: '2px solid #ef4444', paddingLeft: 8, margin: '0 0 12px' }}>
-              Zones de Recrutement
-            </h4>
 
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: 'rgba(239,68,68,0.06)', borderRadius: 8, padding: 4 }}>
-              {(['battle', 'isochrone'] as const).map(m => (
-                <button key={m} onClick={() => setBattleMode(m)} style={{ flex: 1, padding: '5px 0', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontFamily: 'Inter, sans-serif', fontWeight: 600, background: battleMode === m ? '#ef4444' : 'transparent', color: battleMode === m ? '#fff' : '#94a3b8', transition: 'all 0.2s' }}>
-                  {m === 'battle' ? '⚔ Bataille' : '⏱ Isochrone'}
-                </button>
-              ))}
-            </div>
+            {/* ── Zones de Recrutement ── */}
+            <div className="pt-4 border-t border-red-500/15">
+              <h4 className="geometric-accent text-[10px] text-slate-400 uppercase mb-3 pl-2 border-l-2 border-red-500">
+                Zones de Recrutement
+              </h4>
 
-            {/* Catégorie */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Catégorie</label>
-              <select value={battleCategory} onChange={e => setBattleCategory(e.target.value)} style={{ width: '100%', background: '#1e293b', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, color: '#e2e8f0', padding: '6px 8px', fontSize: 12, fontFamily: 'Inter, sans-serif', outline: 'none' }}>
-                <option value="">— Choisir —</option>
-                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* Transport */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Transport</label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {([['drive','🚗','Voiture'],['walk','🚶','Marche'],['bike','🚲','Vélo']] as [string,string,string][]).map(([t,icon,label]) => (
-                  <button key={t} onClick={() => setBattleTransport(t as 'drive'|'walk'|'bike')} title={label} style={{ flex: 1, padding: '6px 0', border: `1px solid ${battleTransport === t ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, cursor: 'pointer', fontSize: 14, background: battleTransport === t ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.04)', color: battleTransport === t ? '#fff' : '#94a3b8', transition: 'all 0.2s' }}>{icon}</button>
+              {/* Mode toggle */}
+              <div className="flex gap-1 mb-3.5 bg-red-500/5 rounded-lg p-1">
+                {(['battle', 'isochrone'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setBattleMode(m)}
+                    className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                      battleMode === m
+                        ? 'bg-red-500 text-white terminal-glow'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {m === 'battle' ? '⚔ Bataille' : '⏱ Isochrone'}
+                  </button>
                 ))}
               </div>
-            </div>
 
-            {/* Durée max */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-                Durée max <span style={{ color: '#ef4444', fontWeight: 700 }}>{battleMaxMin} min</span>
-              </label>
-              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                {[60,90,120,150,180].map(m => (
-                  <button key={m} onClick={() => setBattleMaxMin(m)} style={{ padding: '4px 9px', border: `1px solid ${battleMaxMin === m ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', background: battleMaxMin === m ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.04)', color: battleMaxMin === m ? '#fff' : '#64748b', fontWeight: battleMaxMin === m ? 700 : 400, transition: 'all 0.15s' }}>{m}m</button>
-                ))}
+              {/* Category */}
+              <div className="mb-3">
+                <label className="block text-[9px] text-slate-500 uppercase tracking-wider mb-1">Catégorie</label>
+                <select
+                  value={battleCategory}
+                  onChange={e => setBattleCategory(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-terminal-gray border border-red-500/20 rounded text-slate-200 text-[12px] font-sans outline-none hover:border-red-500/40 transition-colors"
+                >
+                  <option value="">— Choisir —</option>
+                  {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
-            </div>
 
-            {/* Filtres région / département */}
-            <div style={{ marginBottom: 14, display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Région</label>
-                <input value={battleRegion} onChange={e => setBattleRegion(e.target.value)} placeholder="ex : Bretagne" style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, color: '#e2e8f0', padding: '5px 7px', fontSize: 11, fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Dept.</label>
-                <input value={battleDept} onChange={e => setBattleDept(e.target.value)} placeholder="ex : 29" style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, color: '#e2e8f0', padding: '5px 7px', fontSize: 11, fontFamily: 'Inter, sans-serif', outline: 'none' }} />
-              </div>
-            </div>
-
-            {/* Bouton lancement */}
-            <button onClick={launchBattle} disabled={!battleCategory || battleLoading} style={{ width: '100%', padding: '10px 0', background: !battleCategory || battleLoading ? 'rgba(239,68,68,0.2)' : '#dc2626', border: '1px solid rgba(239,68,68,0.5)', borderRadius: 8, cursor: !battleCategory || battleLoading ? 'not-allowed' : 'pointer', color: '#fff', fontSize: 13, fontFamily: 'Inter, sans-serif', fontWeight: 700, letterSpacing: 0.3, transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              {battleLoading ? '⏳ Calcul en cours…' : battleMode === 'battle' ? '⚔ Lancer la Bataille' : '⏱ Calculer Isochrone'}
-            </button>
-
-            {/* Erreur */}
-            {battleError && (
-              <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, fontSize: 11, color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-word' }}>❌ {battleError}</div>
-            )}
-
-            {/* Légende résultats */}
-            {battleCirfas.length > 0 && (
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(239,68,68,0.15)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{battleCirfas.length} territoires · {battleMaxMin}min max</span>
-                  <button onClick={() => { setBattleRings(null); setBattleBorders(null); setBattleCirfas([]); setBattleError(null); }} style={{ fontSize: 11, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px' }}>✕</button>
-                </div>
-                {/* Gradient paliers */}
-                <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
-                  {[10,30,60,90,120,150,180].filter(p => p <= battleMaxMin).map((p,i,arr) => {
-                    const ops = [0.65,0.50,0.38,0.28,0.18,0.11,0.08];
-                    return (
-                      <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <span style={{ display: 'inline-block', width: 13, height: 7, background: `rgba(239,68,68,${ops[i]??0.08})`, borderRadius: 2, border: '1px solid rgba(0,0,0,0.2)' }} />
-                        <span style={{ fontSize: 7, color: '#64748b' }}>{p}m</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Liste CIRFA */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 130, overflowY: 'auto' }}>
-                  {battleCirfas.map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ display: 'inline-block', width: 9, height: 9, background: c.color + '55', borderRadius: 2, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'Inter, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</span>
-                    </div>
+              {/* Transport */}
+              <div className="mb-3">
+                <label className="block text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">Transport</label>
+                <div className="flex gap-1">
+                  {([['drive','🚗','Voiture'],['walk','🚶','Marche'],['bike','🚲','Vélo']] as [string,string,string][]).map(([t,icon,label]) => (
+                    <button
+                      key={t}
+                      onClick={() => setBattleTransport(t as 'drive'|'walk'|'bike')}
+                      title={label}
+                      className={`flex-1 py-1.5 rounded-md text-sm transition-all ${
+                        battleTransport === t
+                          ? 'bg-red-500/15 border border-red-500 text-white'
+                          : 'bg-white/[0.03] border border-white/10 text-slate-500 hover:border-red-500/30'
+                      }`}
+                    >
+                      {icon}
+                    </button>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
 
-        </div>
+              {/* Duration */}
+              <div className="mb-3.5">
+                <label className="block text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+                  Durée max <span className="text-red-400 font-bold">{battleMaxMin} min</span>
+                </label>
+                <div className="flex gap-1 flex-wrap">
+                  {[60,90,120,150,180].map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setBattleMaxMin(m)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-mono transition-all ${
+                        battleMaxMin === m
+                          ? 'bg-red-500/20 border border-red-500 text-white font-bold'
+                          : 'bg-white/[0.03] border border-white/10 text-slate-600 hover:border-red-500/30'
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Region / Dept */}
+              <div className="flex gap-2 mb-3.5">
+                <div className="flex-1">
+                  <label className="block text-[9px] text-slate-500 mb-1">Région</label>
+                  <input
+                    value={battleRegion}
+                    onChange={e => setBattleRegion(e.target.value)}
+                    placeholder="ex : Bretagne"
+                    className="w-full px-2 py-1.5 bg-terminal-gray border border-white/[0.06] rounded text-slate-200 text-[11px] font-sans outline-none placeholder:text-slate-700 focus:border-red-500/30 transition-colors"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[9px] text-slate-500 mb-1">Dept.</label>
+                  <input
+                    value={battleDept}
+                    onChange={e => setBattleDept(e.target.value)}
+                    placeholder="ex : 29"
+                    className="w-full px-2 py-1.5 bg-terminal-gray border border-white/[0.06] rounded text-slate-200 text-[11px] font-sans outline-none placeholder:text-slate-700 focus:border-red-500/30 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Launch button */}
+              <button
+                onClick={launchBattle}
+                disabled={!battleCategory || battleLoading}
+                className={`w-full py-2.5 rounded-lg text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 ${
+                  !battleCategory || battleLoading
+                    ? 'bg-red-500/15 border border-red-500/30 text-red-300/50 cursor-not-allowed'
+                    : 'bg-red-600 border border-red-500/50 text-white cursor-pointer hover:bg-red-500 terminal-glow'
+                }`}
+              >
+                {battleLoading ? '⏳ Calcul en cours…' : battleMode === 'battle' ? '⚔ Lancer la Bataille' : '⏱ Calculer Isochrone'}
+              </button>
+
+              {/* Error */}
+              {battleError && (
+                <div className="mt-2 p-2 bg-red-500/5 border border-red-500/20 rounded text-[11px] text-red-300 font-mono break-words">
+                  ❌ {battleError}
+                </div>
+              )}
+
+              {/* Battle results legend */}
+              {battleCirfas.length > 0 && (
+                <div className="mt-3.5 pt-3 border-t border-red-500/15">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+                      {battleCirfas.length} territoires · {battleMaxMin}min max
+                    </span>
+                    <button
+                      onClick={() => { setBattleRings(null); setBattleBorders(null); setBattleCirfas([]); setBattleError(null); }}
+                      className="text-[11px] text-slate-600 hover:text-red-400 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Gradient steps */}
+                  <div className="flex gap-1 mb-2">
+                    {[10,30,60,90,120,150,180].filter(p => p <= battleMaxMin).map((p,i) => {
+                      const ops = [0.65,0.50,0.38,0.28,0.18,0.11,0.08];
+                      return (
+                        <div key={p} className="flex flex-col items-center gap-0.5">
+                          <span className="w-3.5 h-2 rounded-sm border border-black/20" style={{ background: `rgba(239,68,68,${ops[i]??0.08})` }} />
+                          <span className="text-[7px] text-slate-600">{p}m</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* CIRFA list */}
+                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                    {battleCirfas.map(c => (
+                      <div key={c.id} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: c.color + '55', border: `1.5px solid ${c.color}` }} />
+                        <span className="text-[10px] text-slate-300 truncate">{c.nom}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </div>
+      </aside>
 
       {/* ── Main content : search bar + map ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* AI Search */}
         <AISearchInput
           onSearch={handleAISearch}
@@ -1088,23 +1056,17 @@ export default function MapPage() {
         />
 
         {/* Status bar */}
-        <div style={{
-          padding: '4px 16px',
-          background: '#0f172a',
-          borderBottom: '1px solid rgba(99, 102, 241, 0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          fontSize: '11px', color: '#64748b', fontFamily: 'monospace',
-        }}>
+        <div className="px-4 py-1 bg-terminal-gray/60 border-b border-border-accent/40 flex items-center justify-between text-[11px] text-slate-500 font-mono backdrop-blur-sm">
           <span>
-            {pois.length} POI{pois.length !== 1 ? 's' : ''} affichés
+            <span className="text-slate-300 font-semibold">{pois.length}</span> POI{pois.length !== 1 ? 's' : ''} affichés
             {poisRaw.length !== pois.length && (
-              <span style={{ color: '#94a3b8', marginLeft: '6px' }}>
+              <span className="text-slate-500 ml-1.5">
                 (filtré depuis {poisRaw.length})
               </span>
             )}
-            {' '}• {selectedCount} catégorie{selectedCount !== 1 ? 's' : ''}
+            {' '}· <span className="text-primary/70">{selectedCount}</span> catégorie{selectedCount !== 1 ? 's' : ''}
             {selectedCarreau && filteredCarreauxGeoJSON && (
-              <span style={{ color: '#2171b5', marginLeft: '8px' }}>
+              <span className="text-blue-400 ml-2">
                 ■ {filteredCarreauxGeoJSON.features.length} carreaux
               </span>
             )}
@@ -1113,39 +1075,30 @@ export default function MapPage() {
                 p.lat != null && p.lng != null && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng))
               ).length;
               if (validCount === 0) return (
-                <span style={{ color: '#ef4444', marginLeft: '12px', fontWeight: 'bold' }}>
+                <span className="text-red-400 ml-3 font-bold">
                   ⚠ lat/lng NULL — réimporter !
                 </span>
               );
               if (validCount < pois.length) return (
-                <span style={{ color: '#f59e0b', marginLeft: '12px' }}>
+                <span className="text-amber-400 ml-3">
                   ⚠ {validCount}/{pois.length} coordonnées valides
                 </span>
               );
               return (
-                <span style={{ color: '#10b981', marginLeft: '12px' }}>
+                <span className="text-emerald-400 ml-3">
                   ✓ {validCount} coordonnées valides
                 </span>
               );
             })()}
           </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isLoading && <span style={{ color: '#f59e0b' }}>⟳ Chargement...</span>}
+          <div className="flex items-center gap-2">
+            {isLoading && <span className="text-amber-400">⟳ Chargement...</span>}
             {pois.length > 0 && (
               <button
                 onClick={() => exportToExcel(pois, exportLabel)}
                 title={`Exporter ${pois.length} POIs vers Excel`}
-                style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  color: '#10b981', cursor: 'pointer', padding: '3px 10px',
-                  fontSize: '11px', borderRadius: '4px', fontFamily: 'monospace',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)')}
+                className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-3 py-0.5 text-[11px] rounded font-mono flex items-center gap-1 hover:bg-emerald-500/20 transition-colors"
               >
                 ↓ Excel ({pois.length})
               </button>
@@ -1154,7 +1107,7 @@ export default function MapPage() {
         </div>
 
         {/* Map */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div className="flex-1 relative">
           <MapContainer
             pois={pois}
             carreauxGeoJSON={filteredCarreauxGeoJSON}
@@ -1169,13 +1122,6 @@ export default function MapPage() {
           />
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

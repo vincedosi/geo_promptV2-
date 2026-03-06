@@ -46,6 +46,17 @@ export interface BattleData {
 // Copilote session
 // ---------------------------------------------------------------------------
 
+/** Metadata attachée au ZoneData quand le tool analyze_poi_synergy est utilisé */
+export interface SynergyMeta {
+  poi_category: string;
+  target_demo_col: string;
+  target_demo_label: string;
+  max_distance_m: number;
+  min_audience: number;
+  buffer_radius_m: number;
+  total_audience: number;
+}
+
 export interface ZoneData {
   ville: string;
   rayon_metres: number | null;
@@ -56,6 +67,8 @@ export interface ZoneData {
   categories: Record<string, number>;
   /** Couleurs custom par catégorie, ex: { lycee: '#000000', cirfa: 'red' } */
   couleur_overrides?: Record<string, string>;
+  /** Présent uniquement pour les résultats analyze_poi_synergy */
+  _synergy?: SynergyMeta;
 }
 
 export interface CarreauxData {
@@ -64,6 +77,18 @@ export interface CarreauxData {
   indicateur_label: string;
   ville?: string;
   coordonnees: { lat: number; lng: number };
+}
+
+export interface NetworkCoverageData {
+  poi_category: string;
+  travel_time_minutes: number;
+  mode: string;
+  target_demo_column: string;
+  target_demo_label: string;
+  nb_pois: number;
+  coverage: number;
+  union_geojson: GeoJSON.Geometry;
+  from_cache: boolean;
 }
 
 export interface SavedMap {

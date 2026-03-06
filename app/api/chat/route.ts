@@ -11,6 +11,7 @@ import {
 import {
   CITY_BASE_RADIUS, getCoordsForVille, getCoordsForRegion, normVille, resolveCategory,
 } from '@/lib/geo/locations';
+import postgresLib from 'postgres';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
@@ -438,7 +439,7 @@ async function executeToolCall(
   if (name === 'calculate_audience_coverage') {
     const location_name        = String(args.location_name ?? '');
     const travel_time_minutes  = Number(args.travel_time_minutes ?? 30);
-    const target_column        = String(args.target_column ?? 'ind');
+    const target_column        = String(args.target_column ?? 'Ind');
     const target_label         = String(args.target_label ?? 'Population totale');
     const mode                 = String(args.mode ?? 'drive');
 
@@ -542,28 +543,307 @@ async function executeToolCall(
     };
   }
 
-  return { error: `Outil inconnu: ${name}` };
+  if (name === 'classer_panneaux_audience') {
+    const ville        = args.ville        ? String(args.ville)        : undefined;
+    const regie        = args.regie        ? String(args.regie)        : undefined;
+    const target_col   = args.target_column ? String(args.target_column) : 'ind_18_24';
+    const target_label = args.target_label  ? String(args.target_label)  : 'Jeunes 18-24 ans';
+    const rayon_m      = args.rayon_metres  ? Number(args.rayon_metres)  : 500;
+    const limit_n      = args.limit         ? Math.min(Number(args.limit), 50) : 10;
+
+    if (!ville) return { error: 'Ville requise pour classer les panneaux.' };
+
+    // Validate target_col against known indicators
+    const knownCols = ['Ind', 'Ind_0_3', 'Ind_4_5', 'Ind_6_10', 'Ind_11_17', 'ind_18_24',
+      'Ind_25_39', 'Ind_40_54', 'Ind_55_64', 'Ind_65_79', 'Ind_80p', 'Men', 'rev_median'];
+    if (!knownCols.includes(target_col)) {
+      return { error: `Indicateur inconnu: ${target_col}. Valides: ${knownCols.join(', ')}` };
+    }
+
+    const dbUrl = process.env.SUPABASE_DB_URL;
+    if (!dbUrl) return { error: 'SUPABASE_DB_URL non configurée.' };
+    const sql = postgresLib(dbUrl, { max: 2, idle_timeout: 20 });
+
+    try {
+      // Step 1: Get panneaux in the city via Supabase (PostgREST-cached table)
+      const supabase = createAdminClient();
+      let q: any = supabase
+        .from('panneaux_affichage')
+        .select('id, reference_panneau, regie, type_panneau, lat, lng, ville')
+        .eq('actif', true)
+        .ilike('ville', `%${ville}%`);
+      if (regie) q = q.ilike('regie', `%${regie}%`);
+      const { data: panneauxData, error: pErr } = await q.limit(2000);
+      if (pErr) return { error: pErr.message };
+      if (!panneauxData || panneauxData.length === 0) return { error: `Aucun panneau trouvé à ${ville}.` };
+
+      const panneaux = panneauxData
+        .filter((p: any) => p.lat && p.lng && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng)))
+        .map((p: any) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) }));
+
+      if (panneaux.length === 0) return { error: `Aucun panneau avec coordonnées valides à ${ville}.` };
+
+      // Step 2: Compute bbox around all panneaux + buffer for spatial pre-filter
+      const bufferDeg = (rayon_m / 111320) * 1.2;
+      const cosLat = Math.cos(panneaux[0].lat * Math.PI / 180);
+      const minLat = Math.min(...panneaux.map((p: any) => p.lat)) - bufferDeg;
+      const maxLat = Math.max(...panneaux.map((p: any) => p.lat)) + bufferDeg;
+      const minLng = Math.min(...panneaux.map((p: any) => p.lng)) - bufferDeg / cosLat;
+      const maxLng = Math.max(...panneaux.map((p: any) => p.lng)) + bufferDeg / cosLat;
+
+      // Step 3: Fetch max millesime (fast with idx_carreaux_millesime index)
+      const [{ max: latestMillesime }] = await sql`SELECT MAX(millesime) AS max FROM carreaux_filosofi`;
+
+      // Step 4: Fetch all carreaux centroids + values in bbox (fast with GIST index)
+      const carreaux = await sql.unsafe(`
+        SELECT ST_X(ST_Centroid(geom)) AS cx,
+               ST_Y(ST_Centroid(geom)) AS cy,
+               (metadata->>$1)::numeric AS val
+        FROM carreaux_filosofi
+        WHERE millesime = $6
+          AND geom && ST_MakeEnvelope($2, $3, $4, $5, 4326)
+          AND metadata ? $1
+      `, [target_col, minLng, minLat, maxLng, maxLat, latestMillesime]);
+
+      // Step 5: Score each panneau in JS using Haversine distance (very fast)
+      const toRad = Math.PI / 180;
+      function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
+        const dLat = (lat2 - lat1) * toRad;
+        const dLng = (lng2 - lng1) * toRad;
+        const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
+        return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      const ranked = panneaux
+        .map((p: any) => {
+          let score = 0;
+          for (const c of carreaux) {
+            if (haversineM(p.lat, p.lng, Number(c.cy), Number(c.cx)) <= rayon_m) {
+              score += Number(c.val);
+            }
+          }
+          return { ...p, audience: Math.round(score) };
+        })
+        .sort((a: any, b: any) => b.audience - a.audience)
+        .slice(0, limit_n)
+        .map((p: any, i: number) => ({
+          rank:       i + 1,
+          id:         p.id,
+          nom:        p.reference_panneau ?? p.id,
+          regie:      p.regie,
+          type:       p.type_panneau,
+          lat:        p.lat,
+          lng:        p.lng,
+          ville:      p.ville,
+          audience:   p.audience,
+          categorie:  'panneaux',
+          sous_categorie: p.type_panneau ?? null,
+          adresse:    p.regie ?? undefined,
+        }));
+
+      const totalAudience = ranked.reduce((s: number, p: any) => s + p.audience, 0);
+
+      // Center on bbox center of all ranked panneaux
+      const rLats = ranked.map((p: any) => p.lat);
+      const rLngs = ranked.map((p: any) => p.lng);
+      const coordonnees = ranked.length > 0
+        ? { lat: (Math.min(...rLats) + Math.max(...rLats)) / 2, lng: (Math.min(...rLngs) + Math.max(...rLngs)) / 2 }
+        : getCoordsForVille(ville) ?? { lat: 46.8, lng: 2.3 };
+
+      console.log(`[chat] classer_panneaux_audience(${ville}, ${target_col}, ${rayon_m}m, top${limit_n}) → ${ranked.length} panneaux, total=${totalAudience}`);
+
+      return {
+        ville:           ville,
+        rayon_metres:    null,
+        rayon_poi_metres: rayon_m,
+        target_column:   target_col,
+        target_label,
+        limit:           limit_n,
+        coordonnees,
+        pois:            ranked,
+        nb_pois:         ranked.length,
+        total_audience:  totalAudience,
+        categories:      { panneaux: ranked.length },
+        couleur_overrides: { panneaux: '#ef4444' },
+      };
+    } catch (err: any) {
+      console.error('[chat/classer_panneaux_audience]', err.message);
+      return { error: err.message };
+    } finally {
+      await sql.end();
+    }
+  }
+
+  if (name === 'analyze_poi_synergy') {
+    const poi_category      = String(args.poi_category      ?? '');
+    const ville             = args.ville ? String(args.ville) : undefined;
+    const max_distance_m    = Number(args.max_distance_m    ?? 500);
+    const target_demo_col   = String(args.target_demo_col   ?? 'ind_18_24');
+    const target_demo_label = String(args.target_demo_label ?? 'Jeunes 18-24 ans');
+    const min_audience      = Number(args.min_audience      ?? 0);
+    const buffer_radius_m   = Number(args.buffer_radius_m   ?? 300);
+
+    if (!poi_category) return { error: 'poi_category requis.' };
+    if (!ville) return { error: 'ville requise pour analyze_poi_synergy (performance).' };
+
+    const knownCols = ['Ind','Ind_0_3','Ind_4_5','Ind_6_10','Ind_11_17','ind_18_24',
+      'Ind_25_39','Ind_40_54','Ind_55_64','Ind_65_79','Ind_80p','Men','rev_median'];
+    if (!knownCols.includes(target_demo_col)) {
+      return { error: 'Colonne inconnue: ' + target_demo_col };
+    }
+
+    const supabase = createAdminClient();
+    console.log('[chat] analyze_poi_synergy ville=' + ville + ' poi=' + poi_category + ' col=' + target_demo_col + ' dist=' + max_distance_m + 'm');
+
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('find_synergy_billboards', {
+      poi_category,
+      ville:          ville ?? null,
+      max_distance_m,
+      target_demo_col,
+      min_audience,
+      buffer_radius_m,
+    });
+
+    if (rpcErr) {
+      const msg = String(rpcErr.message ?? rpcErr);
+      if (msg.includes('find_synergy_billboards')) {
+        return { error: 'Fonction PostGIS manquante -- executez sql/006_find_synergy_billboards.sql dans Supabase SQL Editor.' };
+      }
+      return { error: msg };
+    }
+
+    if (!Array.isArray(rpcData)) {
+      return { error: (rpcData as any)?.error ?? 'Erreur RPC' };
+    }
+
+    const rows = rpcData as any[];
+    if (rows.length === 0) {
+      return { error: 'Aucun panneau synergique trouve pour ' + poi_category + ' / ' + target_demo_label + ' (seuil: ' + min_audience + ').' };
+    }
+
+    const pois = rows.map((r: any, i: number) => ({
+      id:             String(r.id),
+      nom:            r.reference_panneau ?? r.id,
+      lat:            Number(r.lat),
+      lng:            Number(r.lng),
+      categorie:      'panneaux',
+      sous_categorie: r.type_panneau ?? null,
+      ville:          r.ville ?? undefined,
+      adresse:        r.regie ?? undefined,
+      rank:           i + 1,
+      audience:       Number(r.audience_score),
+    }));
+
+    const lats = pois.map((p: any) => p.lat);
+    const lngs = pois.map((p: any) => p.lng);
+    const coordonnees = {
+      lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+      lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+    };
+    const totalAudience = pois.reduce((s: number, p: any) => s + p.audience, 0);
+    console.log('[chat] analyze_poi_synergy -> ' + pois.length + ' panneaux totalAudience=' + totalAudience);
+
+    return {
+      ville:             'Synergie ' + poi_category + ' x ' + target_demo_label,
+      rayon_metres:      null,
+      rayon_poi_metres:  buffer_radius_m,
+      coordonnees,
+      pois,
+      nb_pois:           pois.length,
+      categories:        { panneaux: pois.length },
+      couleur_overrides: { panneaux: '#f59e0b' },
+      _synergy: {
+        poi_category,
+        target_demo_col,
+        target_demo_label,
+        max_distance_m,
+        min_audience,
+        buffer_radius_m,
+        total_audience: totalAudience,
+      },
+    };
+  }
+
+  if (name === 'calculate_network_coverage') {
+    const poi_category      = String(args.poi_category      ?? '');
+    const travel_time_min   = Number(args.travel_time_minutes ?? 60);
+    const target_demo_col   = String(args.target_demo_column  ?? 'ind_18_24');
+    const target_demo_label = String(args.target_demo_label   ?? 'Jeunes 18-24 ans');
+    const mode              = String(args.mode                ?? 'drive');
+    const filtre_region     = args.region      ? String(args.region)      : null;
+    const filtre_ville      = args.ville       ? String(args.ville)       : null;
+    const filtre_dept       = args.departement ? String(args.departement) : null;
+
+    if (!poi_category) return { error: 'poi_category requis pour calculate_network_coverage.' };
+
+    const knownCols = ['Ind','Ind_0_3','Ind_4_5','Ind_6_10','Ind_11_17','ind_18_24',
+      'Ind_25_39','Ind_40_54','Ind_55_64','Ind_65_79','Ind_80p','Men','rev_median'];
+    if (!knownCols.includes(target_demo_col)) {
+      return { error: `Indicateur inconnu: ${target_demo_col}. Valides: ${knownCols.join(', ')}` };
+    }
+
+    // Déléguer à /api/network-coverage (maxDuration=300) — comme isochrone_battle
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 290_000);
+      const res = await fetch(`${baseUrl}/api/network-coverage`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal:  controller.signal,
+        body: JSON.stringify({
+          poi_category,
+          travel_time_minutes: travel_time_min,
+          target_demo_column:  target_demo_col,
+          target_demo_label,
+          mode,
+          region:           filtre_region,
+          ville:            filtre_ville,
+          departement:      filtre_dept,
+          force_recalculate: options.forceRecalculate ?? false,
+        }),
+      }).finally(() => clearTimeout(timer));
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let friendlyErr = errText;
+        try { friendlyErr = JSON.parse(errText)?.error ?? errText; } catch { /* keep raw */ }
+        return { error: friendlyErr };
+      }
+
+      const data = await res.json();
+      console.log(`[chat/network_coverage] "${poi_category}" scope=${data.geo_scope} → coverage=${data.coverage} poi=${data.nb_pois}`);
+      return data;
+    } catch (e: any) {
+      const msg = e.name === 'AbortError'
+        ? 'Timeout (>290s) : trop de POIs à calculer sans cache. Précisez une région pour réduire la portée.'
+        : e.message;
+      return { error: msg };
+    }
+  }
+
+  return { error: 'Outil inconnu: ' + name };
 }
 
-// =============================================================================
-// Indicateurs carreaux INSEE Filosofi
 // =============================================================================
 
 // Mapping : terme naturel → colonne Filosofi + label FR
 // Termes PRÉCIS → appel direct. Termes AMBIGUS → Mistral doit demander.
 const CHORO_INDICATORS: Record<string, { col: string; label: string }> = {
-  'ind':        { col: 'ind',        label: 'Population totale' },
-  'ind_0_3':    { col: 'ind_0_3',    label: 'Enfants 0-3 ans' },
-  'ind_4_5':    { col: 'ind_4_5',    label: 'Enfants 4-5 ans' },
-  'ind_6_10':   { col: 'ind_6_10',   label: 'Enfants 6-10 ans' },
-  'ind_11_17':  { col: 'ind_11_17',  label: 'Adolescents 11-17 ans' },
+  'ind':        { col: 'Ind',        label: 'Population totale' },  // legacy lowercase
+  'Ind':        { col: 'Ind',        label: 'Population totale' },
+  'Ind_0_3':    { col: 'Ind_0_3',    label: 'Enfants 0-3 ans' },
+  'Ind_4_5':    { col: 'Ind_4_5',    label: 'Enfants 4-5 ans' },
+  'Ind_6_10':   { col: 'Ind_6_10',   label: 'Enfants 6-10 ans' },
+  'Ind_11_17':  { col: 'Ind_11_17',  label: 'Adolescents 11-17 ans' },
   'ind_18_24':  { col: 'ind_18_24',  label: 'Jeunes 18-24 ans' },
-  'ind_25_39':  { col: 'ind_25_39',  label: 'Adultes 25-39 ans' },
-  'ind_40_54':  { col: 'ind_40_54',  label: 'Adultes 40-54 ans' },
-  'ind_55_64':  { col: 'ind_55_64',  label: 'Seniors 55-64 ans' },
-  'ind_65_79':  { col: 'ind_65_79',  label: 'Seniors 65-79 ans' },
-  'ind_80p':    { col: 'ind_80p',    label: 'Personnes 80 ans et +' },
-  'men':        { col: 'men',        label: 'Nombre de ménages' },
+  'Ind_25_39':  { col: 'Ind_25_39',  label: 'Adultes 25-39 ans' },
+  'Ind_40_54':  { col: 'Ind_40_54',  label: 'Adultes 40-54 ans' },
+  'Ind_55_64':  { col: 'Ind_55_64',  label: 'Seniors 55-64 ans' },
+  'Ind_65_79':  { col: 'Ind_65_79',  label: 'Seniors 65-79 ans' },
+  'Ind_80p':    { col: 'Ind_80p',    label: 'Personnes 80 ans et +' },
+  'Men':        { col: 'Men',        label: 'Nombre de ménages' },
   'rev_median': { col: 'rev_median', label: 'Revenu médian' },
 };
 
@@ -583,6 +863,9 @@ RÈGLE DE PRIORITÉ ABSOLUE — ROUTAGE DES OUTILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SI l'utilisateur dit l'un de ces mots : "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage territorial", "cellule", "diagramme"
 → TOUJOURS appeler voronoi_analysis. JAMAIS analyser_zone_pois.
+
+SI l utilisateur dit "panneaux strategiques", "synergie POI", "double critere POI + audience"
+-> analyze_poi_synergy
 
 SI l'utilisateur dit "panneaux", "OOH", "affichage extérieur", "outdoor", "4x3", "abri-bus", "mobilier urbain", "régie", "Clear Channel", "JCDecaux", "Exterion", "Médiatransports", "afficheurs"
 → TOUJOURS analyser_panneaux. JAMAIS analyser_zone_pois.
@@ -624,13 +907,13 @@ Appelle cet outil quand l'utilisateur veut voir des données démographiques/soc
 
 TERMES PRÉCIS → appelle directement afficher_carreaux:
 - "18-24 ans", "ind_18_24", "18 à 24" → indicateur: "ind_18_24", label: "Jeunes 18-24 ans"
-- "25-39 ans" → indicateur: "ind_25_39", label: "Adultes 25-39 ans"
-- "11-17 ans", "collégiens/lycéens âge" → indicateur: "ind_11_17", label: "Adolescents 11-17 ans"
-- "65-79 ans", "retraités" → indicateur: "ind_65_79", label: "Seniors 65-79 ans"
-- "80 ans et plus" → indicateur: "ind_80p", label: "Personnes 80 ans et +"
-- "population", "habitants" → indicateur: "ind", label: "Population totale"
+- "25-39 ans" → indicateur: "Ind_25_39", label: "Adultes 25-39 ans"
+- "11-17 ans", "collégiens/lycéens âge" → indicateur: "Ind_11_17", label: "Adolescents 11-17 ans"
+- "65-79 ans", "retraités" → indicateur: "Ind_65_79", label: "Seniors 65-79 ans"
+- "80 ans et plus" → indicateur: "Ind_80p", label: "Personnes 80 ans et +"
+- "population", "habitants" → indicateur: "Ind", label: "Population totale"
 - "revenus", "niveau de vie", "CSP+" → indicateur: "rev_median", label: "Revenu médian"
-- "ménages", "familles" → indicateur: "men", label: "Nombre de ménages"
+- "ménages", "familles" → indicateur: "Men", label: "Nombre de ménages"
 
 TERMES AMBIGUS → pose une question de clarification AVANT d'appeler afficher_carreaux:
 - "jeunes" → réponds : "Par 'jeunes', vous visez les 18-24 ans ? (ou les 11-17 ans, 25-39 ans ?)"
@@ -734,7 +1017,37 @@ EXEMPLES OBLIGATOIRES → analyser_panneaux :
 - "Panneaux JCDecaux du 75" → analyser_panneaux(regie:"JCDecaux", departement:"75")
 - "OOH + lycées à Brest" → analyser_panneaux(ville:"Brest") ET analyser_zone_pois(ville:"Brest", cat:"lycee")
 
-═══ OUTIL 6 : calculate_audience_coverage ═══
+═══ OUTIL 6 : classer_panneaux_audience ═══
+Classe les panneaux d'affichage par audience potentielle d'une cible démographique dans un rayon donné.
+Croise les panneaux (panneaux_affichage) avec les carreaux INSEE (carreaux_filosofi).
+
+DÉCLENCHER OBLIGATOIREMENT pour :
+- "panneaux qui touchent le plus de [cible]"
+- "meilleurs panneaux pour [cible]"
+- "classement panneaux par audience [cible]"
+- "top 10 panneaux pour les 18-24 ans"
+- "panneaux avec le plus de [cible] dans un rayon de X mètres"
+- "quels panneaux couvrent le plus de [cible] à [ville]"
+
+MAPPING target_column (même logique) :
+- "18-24 ans", "jeunes" → ind_18_24, label "Jeunes 18-24 ans"
+- "25-39 ans" → Ind_25_39, label "Adultes 25-39 ans"
+- "population", "habitants" → Ind, label "Population totale"
+- "65-79 ans", "seniors" → Ind_65_79, label "Seniors 65-79 ans"
+- "ménages" → Men, label "Nombre de ménages"
+
+FORMAT DE RÉPONSE OBLIGATOIRE (quand l'outil retourne des résultats) :
+1. Résumé : "Voici les N meilleurs panneaux à [ville] pour [target_label] (rayon [rayon]m) :"
+2. Tableau avec pour chaque panneau : rang, nom/référence, régie, type, audience (nombre de personnes dans le rayon)
+3. Récapitulatif : total audience cumulée, et une analyse rapide (ex: "les panneaux sont concentrés dans le centre-ville")
+Les panneaux sont affichés sur la carte avec leurs zones de couverture (cercles).
+
+EXEMPLES → classer_panneaux_audience :
+- "Top 10 panneaux pour les jeunes 18-24 ans à Brest dans 500m" → classer_panneaux_audience(ville:"Brest", target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", rayon_metres:500, limit:10)
+- "Meilleurs panneaux JCDecaux pour la pop totale à Lyon, rayon 300m" → classer_panneaux_audience(ville:"Lyon", regie:"JCDecaux", target_column:"Ind", target_label:"Population totale", rayon_metres:300, limit:10)
+- "Quels panneaux touchent le plus de seniors à Paris ?" → classer_panneaux_audience(ville:"Paris", target_column:"Ind_65_79", target_label:"Seniors 65-79 ans", rayon_metres:500, limit:10)
+
+═══ OUTIL 7 : calculate_audience_coverage ═══
 Calcule le nombre de personnes d'une cible dans une zone de temps de trajet réel (ORS + PostGIS prorata spatial).
 Retourne un chiffre unique et affiche l'isochrone sur la carte.
 
@@ -745,16 +1058,80 @@ DÉCLENCHER pour :
 - "potentiel de recrutement [lieu]"
 
 MAPPING target_column (même logique que afficher_carreaux) :
-- "population", "habitants" → ind, label "Population totale"
+- "population", "habitants" → Ind, label "Population totale"
 - "18-24 ans", "jeunes" → ind_18_24, label "Jeunes 18-24 ans"
-- "25-39 ans" → ind_25_39, label "Adultes 25-39 ans"
-- "65-79 ans", "seniors" → ind_65_79, label "Seniors 65-79 ans"
-- "ménages" → men, label "Nombre de ménages"
+- "25-39 ans" → Ind_25_39, label "Adultes 25-39 ans"
+- "65-79 ans", "seniors" → Ind_65_79, label "Seniors 65-79 ans"
+- "ménages" → Men, label "Nombre de ménages"
 
 EXEMPLES → calculate_audience_coverage :
 - "Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?" → calculate_audience_coverage(location_name:"Brest", travel_time_minutes:30, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
-- "Audience potentielle 15 min à pied autour de Lyon" → calculate_audience_coverage(location_name:"Lyon", travel_time_minutes:15, target_column:"ind", target_label:"Population totale", mode:"walk")
+- "Audience potentielle 15 min à pied autour de Lyon" → calculate_audience_coverage(location_name:"Lyon", travel_time_minutes:15, target_column:"Ind", target_label:"Population totale", mode:"walk")
 - "Potentiel 60 min voiture depuis Rennes" → calculate_audience_coverage(location_name:"Rennes", travel_time_minutes:60, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
+
+
+═══ OUTIL 8 : analyze_poi_synergy ═══
+Trouve les panneaux qui combinent deux criteres : proximite d un POI ET forte audience demographique.
+Appelle la fonction PostGIS find_synergy_billboards(poi_category, max_distance_m, target_demo_col, min_audience, buffer_radius_m).
+
+DECLENCHER OBLIGATOIREMENT pour :
+- "panneaux pres des lycees pour les 18-24 ans"
+- "meilleurs panneaux strategiques pres des [POI] pour [cible]"
+- "panneaux a forte audience [cible] a moins de Xm d un [POI]"
+- "synergie panneaux x [POI] x [cible]"
+- "double critere POI + audience"
+
+MAPPING target_demo_col (identique aux autres outils) :
+- "18-24 ans", "jeunes" -> ind_18_24, label "Jeunes 18-24 ans"
+- "25-39 ans" -> Ind_25_39, label "Adultes 25-39 ans"
+- "population", "habitants" -> Ind, label "Population totale"
+- "65-79 ans", "seniors" -> Ind_65_79, label "Seniors 65-79 ans"
+- "menages" -> Men, label "Nombre de menages"
+
+PARAMETRE OBLIGATOIRE : ville (toujours requis, sinon timeout).
+Si l utilisateur ne precise pas de ville, demande-lui laquelle avant d appeler l outil.
+
+EXEMPLES -> analyze_poi_synergy :
+- "Panneaux pres des lycees a Brest pour les 18-24 ans" -> analyze_poi_synergy(poi_category:"lycee", ville:"Brest", target_demo_col:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", max_distance_m:500, buffer_radius_m:300)
+- "Top panneaux CIRFA + 25-39 ans a Lyon" -> analyze_poi_synergy(poi_category:"cirfa", ville:"Lyon", target_demo_col:"Ind_25_39", target_demo_label:"Adultes 25-39 ans", max_distance_m:500, buffer_radius_m:300)
+- "Panneaux a 300m des gares avec max seniors a Paris" -> analyze_poi_synergy(poi_category:"gare", ville:"Paris", target_demo_col:"Ind_65_79", target_demo_label:"Seniors 65-79 ans", max_distance_m:300, buffer_radius_m:300)
+
+FORMAT DE REPONSE (quand resultats) :
+"J ai trouve X panneaux strategiques a moins de Ym d un(e) [POI], touchant plus de Z personnes de la cible [cible]."
+Puis tableau Top 3 : rang | reference | regie | ville | audience
+
+═══ OUTIL 9 : calculate_network_coverage ═══
+Calcule l'empreinte demographique totale d'un reseau de POI (ex: tous les CIRFA de France) en unionant leurs isochrones.
+Retourne un chiffre unique de couverture et affiche le polygone d'union sur la carte.
+
+DECLENCHER OBLIGATOIREMENT pour :
+- "combien de [cible] sont couverts par le reseau [POI] a Xmin"
+- "empreinte demographique du reseau [POI]"
+- "portee totale du reseau [POI] a [X] minutes"
+- "combien de jeunes touchent l ensemble des CIRFA a 30 min"
+- "couverture nationale du reseau [POI]"
+
+MAPPING target_demo_column (identique aux autres outils) :
+- "18-24 ans", "jeunes" -> ind_18_24, label "Jeunes 18-24 ans"
+- "25-39 ans" -> Ind_25_39, label "Adultes 25-39 ans"
+- "population", "habitants" -> Ind, label "Population totale"
+- "65-79 ans", "seniors" -> Ind_65_79, label "Seniors 65-79 ans"
+- "menages" -> Men, label "Nombre de menages"
+
+AVERTIR l'utilisateur avant d'appeler : "Calcul en cours (peut prendre 1-2 min au 1er appel, puis mis en cache)."
+
+FILTRE GEOGRAPHIQUE (TOUJOURS passer si l utilisateur mentionne une region/ville/dept) :
+- Si l utilisateur dit "en Bretagne", "dans le 29", "a Brest" → passer region/departement/ville en parametre
+- Sans filtre geo = France entiere (tres long, risque de timeout) → TOUJOURS demander confirmation avant d appeler sans filtre
+
+EXEMPLES -> calculate_network_coverage :
+- "Empreinte 18-24 ans du reseau CIRFA a 60min voiture en Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:60, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
+- "Combien de 25-39 ans couverts par les lycees a 15min a pied" -> calculate_network_coverage(poi_category:"lycee", travel_time_minutes:15, target_demo_column:"Ind_25_39", target_demo_label:"Adultes 25-39 ans", mode:"walk")
+- "Portee CIRFA 30min voiture en Normandie" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"Ind", target_demo_label:"Population totale", mode:"drive", region:"Normandie")
+
+FORMAT DE REPONSE calculate_network_coverage (quand resultats) :
+"Le reseau [poi_category] couvre [coverage] [target_demo_label] dans un rayon de [travel_time_minutes] min en [mode] (base sur [nb_pois] points)."
+Puis : "L'union des isochrones est affichee en violet sur la carte."
 
 IMPORTANT:
 - Tu peux appeler les deux outils en même temps si l'utilisateur demande POI + données démographiques.
@@ -840,7 +1217,7 @@ export async function POST(request: NextRequest) {
             "Affiche une couche choroplèthe de carreaux INSEE Filosofi 200m sur la carte avec un indicateur démographique. " +
             "Appeler quand l'utilisateur veut voir la distribution spatiale d'une variable socio-démographique (âge, revenus, population...).",
           inputSchema: z.object({
-            indicateur: z.string().describe("Nom exact de la colonne Filosofi (ex: ind_18_24, ind_65_79, ind, rev_median, men)."),
+            indicateur: z.string().describe("Nom exact de la colonne Filosofi (ex: ind_18_24, Ind_65_79, ind, rev_median, men)."),
             indicateur_label: z.string().describe("Label lisible en français (ex: Jeunes 18-24 ans, Population totale)."),
             ville: z.string().optional().describe("Ville sur laquelle centrer la vue."),
           }),
@@ -885,6 +1262,42 @@ export async function POST(request: NextRequest) {
             executeToolCall('analyser_panneaux', args as Record<string, unknown>, categoriesList, {}),
         },
 
+        classer_panneaux_audience: {
+          description:
+            "Classe les panneaux d'affichage OOH par audience potentielle d'une cible démographique (ex: 18-24 ans) " +
+            "dans un rayon autour de chaque panneau, en croisant panneaux_affichage × carreaux INSEE Filosofi. " +
+            "DÉCLENCHER pour : 'panneaux qui touchent le plus de [cible]', 'meilleurs panneaux pour [cible]', " +
+            "'top N panneaux [cible]', 'classement panneaux par audience'.",
+          inputSchema: z.object({
+            ville:         z.string().describe("Ville française (requis)."),
+            target_column: z.string().describe("Colonne Filosofi à agréger : ind_18_24, Ind_25_39, ind, ind_65_79, men, etc."),
+            target_label:  z.string().describe("Label lisible de la cible (ex: 'Jeunes 18-24 ans')."),
+            rayon_metres:  z.number().optional().describe("Rayon en mètres autour de chaque panneau (défaut: 500)."),
+            limit:         z.number().optional().describe("Nombre max de panneaux à retourner (défaut: 10, max: 50)."),
+            regie:         z.string().optional().describe("Filtrer par régie (partiel, ex: 'JCDecaux')."),
+          }),
+          execute: async (args) =>
+            executeToolCall('classer_panneaux_audience', args as Record<string, unknown>, categoriesList, {}),
+        },
+
+        analyze_poi_synergy: {
+          description:
+            "Trouve les meilleurs panneaux publicitaires situes pres d un POI specifique ET dans une zone a forte densite demographique. " +
+            "DECLENCHER OBLIGATOIREMENT pour : 'panneaux pres des lycees', 'panneaux strategiques pres des [POI] pour [cible]', " +
+            "'double critere POI + demographic', 'panneaux a forte audience [cible] pres de [POI]'.",
+          inputSchema: z.object({
+            poi_category:      z.string().describe(catsDesc),
+            ville:             z.string().describe("Ville française OBLIGATOIRE (ex: 'Brest', 'Lyon'). Requis pour les performances."),
+            target_demo_col:   z.string().describe("Colonne Filosofi : ind_18_24, Ind_25_39, Ind, Ind_65_79, Men, etc."),
+            target_demo_label: z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
+            max_distance_m:    z.number().optional().describe("Rayon autour du POI en metres (defaut: 500)."),
+            min_audience:      z.number().optional().describe("Audience minimum requise (defaut: 0)."),
+            buffer_radius_m:   z.number().optional().describe("Zone de visibilite du panneau en metres (defaut: 300)."),
+          }),
+          execute: async (args) =>
+            executeToolCall('analyze_poi_synergy', args as Record<string, unknown>, categoriesList, {}),
+        },
+
         calculate_audience_coverage: {
           description:
             "Calcule combien de personnes d'une cible précise (jeunes, seniors, population totale…) " +
@@ -896,14 +1309,38 @@ export async function POST(request: NextRequest) {
             location_name:       z.string().describe("Nom du lieu ou de la ville (ex: 'Brest', 'Paris')."),
             travel_time_minutes: z.number().describe("Durée du trajet en minutes (ex: 15, 30, 60)."),
             target_column:       z.string().describe(
-              "Colonne Filosofi à agréger. Options : ind (population totale), ind_0_3, ind_4_5, ind_6_10, " +
-              "ind_11_17, ind_18_24, ind_25_39, ind_40_54, ind_55_64, ind_65_79, ind_80p, men (ménages), rev_median."
+              "Colonne Filosofi à agréger. Options : Ind (population totale), Ind_0_3, Ind_4_5, ind_6_10, " +
+              "ind_11_17, ind_18_24, Ind_25_39, ind_40_54, ind_55_64, ind_65_79, ind_80p, men (ménages), rev_median."
             ),
             target_label:        z.string().describe("Nom lisible de la cible en français (ex: 'Jeunes 18-24 ans')."),
             mode: z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: drive."),
           }),
           execute: async (args) =>
             executeToolCall('calculate_audience_coverage', args as Record<string, unknown>, categoriesList, {}),
+        },
+
+        calculate_network_coverage: {
+          description:
+            "Calcule l'empreinte démographique totale d'un réseau de POI (ex: tous les CIRFA de France) " +
+            "en calculant l'union de leurs isochrones et en croisant avec les carreaux INSEE Filosofi. " +
+            "Retourne un chiffre unique de couverture et affiche le polygone d'union (violet) sur la carte. " +
+            "DÉCLENCHER pour : 'empreinte réseau [POI]', 'portée totale du réseau à Xmin', " +
+            "'combien de [cible] couverts par le réseau', 'couverture nationale [POI]'. " +
+            "Calcul intensif — mis en cache automatiquement.",
+          inputSchema: z.object({
+            poi_category:        z.string().describe(catsDesc),
+            travel_time_minutes: z.number().describe("Durée de trajet en minutes (ex: 30, 60, 90)."),
+            target_demo_column:  z.string().describe(
+              "Colonne Filosofi : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men, rev_median."
+            ),
+            target_demo_label:   z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
+            mode: z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: drive."),
+            region:      z.string().optional().describe("Filtre région (ex: 'Bretagne'). RECOMMANDÉ pour limiter le scope et éviter le timeout."),
+            ville:       z.string().optional().describe("Filtre ville. Optionnel."),
+            departement: z.string().optional().describe("Filtre département ou code. Optionnel."),
+          }),
+          execute: async (args) =>
+            executeToolCall('calculate_network_coverage', args as Record<string, unknown>, categoriesList, { forceRecalculate }),
         },
 
       },

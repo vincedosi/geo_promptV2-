@@ -1,1386 +1,1083 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import proj4 from 'proj4';
 
-// ============================================================
-// Client-side column preview — no server call needed
-// ============================================================
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-type ColType = 'id' | 'number' | 'string';
-interface ColInfo { type: ColType; dtype: string; samples: string[] }
-
-const ID_PATTERNS = new Set([
-  'idcar', 'id', 'idcom', 'idk', 'id_car', 'id_carreau',
-  'code_iris', 'depcom', 'dep', 'reg', 'epci', 'id_inspire',
-  'lcog_geo', 'i_est_cr',
-]);
-
-function classifyColumn(name: string, values: (string | null)[]): { type: ColType; dtype: string } {
-  const n = name.toLowerCase().trim();
-  if (ID_PATTERNS.has(n) || n.startsWith('id_') || n.startsWith('code_')) {
-    return { type: 'id', dtype: 'object' };
-  }
-  const nonNull = values.filter((v): v is string => v !== null && v !== undefined && v.trim() !== '');
-  if (nonNull.length === 0) return { type: 'string', dtype: 'object' };
-
-  let intCount = 0, floatCount = 0;
-  for (const v of nonNull) {
-    const num = Number(v.replace(',', '.'));
-    if (!isNaN(num) && v.trim() !== '') {
-      Number.isInteger(num) ? intCount++ : floatCount++;
-    }
-  }
-  if ((intCount + floatCount) / nonNull.length > 0.7) {
-    return { type: 'number', dtype: floatCount > 0 ? 'float64' : 'int64' };
-  }
-  return { type: 'string', dtype: 'object' };
+interface ShapefileBundle {
+  shp: ArrayBuffer;
+  dbf: ArrayBuffer;
+  prj: string | null;
+  shx: ArrayBuffer | null;
+  fileName: string;
 }
 
-function parseDbfPreview(data: Uint8Array, maxRows: number): Record<string, string | null>[] {
-  if (data.length < 32) throw new Error('Fichier DBF invalide (trop court)');
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+interface DbfField {
+  name: string;
+  type: string; // C=char, N=numeric, F=float, L=logical, D=date
+  length: number;
+  decimal: number;
+}
+
+interface Feature {
+  geometry: number[][][]; // polygon rings: [ring][point][x,y]
+  properties: Record<string, string | number | null>;
+}
+
+interface ColumnMapping {
+  source: string;
+  target: string; // user-chosen target name or '' for metadata
+}
+
+type WizardStep = 1 | 2 | 3;
+
+// ─── SHP binary parser ──────────────────────────────────────────────────────
+
+function parseSHP(buffer: ArrayBuffer): number[][][][] {
+  const view = new DataView(buffer);
+  // Validate magic number (9994 big-endian)
+  const magic = view.getInt32(0, false);
+  if (magic !== 9994) throw new Error(`SHP invalide (magic=${magic})`);
+
+  const shapeType = view.getInt32(32, true);
+  // We support: 5 = Polygon, 15 = PolygonZ, 25 = PolygonM
+  if (shapeType !== 5 && shapeType !== 15 && shapeType !== 25) {
+    throw new Error(`Type de géométrie non supporté: ${shapeType} (seuls les Polygons sont acceptés)`);
+  }
+
+  const geometries: number[][][][] = [];
+  let offset = 100; // skip 100-byte header
+
+  while (offset + 8 < buffer.byteLength) {
+    // Record header: record number (4b BE) + content length in 16-bit words (4b BE)
+    const contentLength = view.getInt32(offset + 4, false) * 2;
+    const recordStart = offset + 8;
+
+    if (recordStart + contentLength > buffer.byteLength) break;
+
+    const recordType = view.getInt32(recordStart, true);
+
+    if (recordType === 5 || recordType === 15 || recordType === 25) {
+      // skip bounding box (32 bytes) after type (4 bytes)
+      const numParts = view.getInt32(recordStart + 36, true);
+      const numPoints = view.getInt32(recordStart + 40, true);
+
+      // Parts array
+      const parts: number[] = [];
+      for (let i = 0; i < numParts; i++) {
+        parts.push(view.getInt32(recordStart + 44 + i * 4, true));
+      }
+
+      // Points start after parts array
+      const pointsOffset = recordStart + 44 + numParts * 4;
+      const allPoints: number[][] = [];
+      for (let i = 0; i < numPoints; i++) {
+        const x = view.getFloat64(pointsOffset + i * 16, true);
+        const y = view.getFloat64(pointsOffset + i * 16 + 8, true);
+        allPoints.push([x, y]);
+      }
+
+      // Split into rings by parts indices
+      const rings: number[][][] = [];
+      for (let p = 0; p < numParts; p++) {
+        const start = parts[p];
+        const end = p + 1 < numParts ? parts[p + 1] : numPoints;
+        rings.push(allPoints.slice(start, end));
+      }
+
+      geometries.push(rings);
+    } else if (recordType === 0) {
+      // Null shape — push empty
+      geometries.push([]);
+    }
+
+    offset = recordStart + contentLength;
+  }
+
+  return geometries;
+}
+
+// ─── DBF full parser ─────────────────────────────────────────────────────────
+
+function parseDBF(buffer: ArrayBuffer): { fields: DbfField[]; records: Record<string, string | number | null>[] } {
+  const data = new Uint8Array(buffer);
+  if (data.length < 32) throw new Error('DBF invalide (trop court)');
+
+  const view = new DataView(buffer);
   const recordCount = view.getUint32(4, true);
   const headerSize = view.getUint16(8, true);
   const recordSize = view.getUint16(10, true);
-  const fields: { name: string; length: number }[] = [];
+
+  // Parse field descriptors (32 bytes each, starting at offset 32)
+  const fields: DbfField[] = [];
   let off = 32;
   while (off + 32 <= headerSize) {
     if (data[off] === 0x0d) break;
     const name = new TextDecoder('latin1').decode(data.slice(off, off + 11)).replace(/\0/g, '').trim();
     if (!name) break;
-    fields.push({ name, length: data[off + 16] });
+    const type = String.fromCharCode(data[off + 11]);
+    const length = data[off + 16];
+    const decimal = data[off + 17];
+    fields.push({ name, type, length, decimal });
     off += 32;
   }
-  const rows: Record<string, string | null>[] = [];
+
+  // Parse records
+  const records: Record<string, string | number | null>[] = [];
   let recOff = headerSize;
-  const limit = Math.min(recordCount, maxRows);
-  for (let i = 0; i < limit && recOff + recordSize <= data.length; i++) {
+  const decoder = new TextDecoder('latin1');
+
+  for (let i = 0; i < recordCount && recOff + recordSize <= data.length; i++) {
     const deleted = data[recOff] === 0x2a;
-    recOff += 1;
-    if (deleted) { recOff += recordSize - 1; continue; }
-    const rec: Record<string, string | null> = {};
+    recOff += 1; // deletion flag byte
+
+    if (deleted) {
+      recOff += recordSize - 1;
+      continue;
+    }
+
+    const rec: Record<string, string | number | null> = {};
     for (const f of fields) {
-      const raw = new TextDecoder('latin1').decode(data.slice(recOff, recOff + f.length)).trim();
-      rec[f.name] = raw || null;
+      const raw = decoder.decode(data.slice(recOff, recOff + f.length)).trim();
       recOff += f.length;
+
+      if (raw === '' || raw === '*') {
+        rec[f.name] = null;
+      } else if (f.type === 'N' || f.type === 'F') {
+        const num = parseFloat(raw.replace(',', '.'));
+        rec[f.name] = isNaN(num) ? null : num;
+      } else {
+        rec[f.name] = raw;
+      }
     }
-    rows.push(rec);
+    records.push(rec);
   }
-  return rows;
+
+  return { fields, records };
 }
 
-// Robust file reading — FileReader with clear error messages
-function readBlobAsText(blob: Blob, fileName: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error(
-      `Impossible de lire "${fileName}". Le fichier est peut-être verrouillé ou supprimé.\n` +
-      'Essayez de re-sélectionner le fichier.'
-    ));
-    reader.readAsText(blob);
+// ─── PRJ → proj4 string ─────────────────────────────────────────────────────
+
+function detectCRS(prjContent: string | null, firstCoords: number[] | null): string {
+  // Try to match common CRS from PRJ WKT
+  if (prjContent) {
+    const upper = prjContent.toUpperCase();
+    if (upper.includes('LAEA') || upper.includes('3035')) return 'EPSG:3035';
+    if (upper.includes('LAMBERT_CONFORMAL_CONIC') && upper.includes('93')) return 'EPSG:2154';
+    if (upper.includes('RGF93') || upper.includes('2154')) return 'EPSG:2154';
+    if (upper.includes('4326') || upper.includes('WGS 84') || upper.includes('WGS84')) return 'EPSG:4326';
+    if (upper.includes('3857') || upper.includes('WEB_MERCATOR')) return 'EPSG:3857';
+    // EPSG:5490
+    if (upper.includes('5490')) return 'EPSG:5490';
+  }
+  // Heuristic from coordinates
+  if (firstCoords) {
+    const [x, y] = firstCoords;
+    // EPSG:3035 LAEA Europe (France range)
+    if (x > 2500000 && x < 5000000 && y > 1000000 && y < 4000000) return 'EPSG:3035';
+    // EPSG:2154 Lambert 93
+    if (x > 100000 && x < 1300000 && y > 6000000 && y < 7200000) return 'EPSG:2154';
+    // Already WGS84
+    if (Math.abs(x) <= 180 && Math.abs(y) <= 90) return 'EPSG:4326';
+  }
+  return 'EPSG:3035'; // default for carreaux Filosofi
+}
+
+// Register common proj4 definitions
+proj4.defs('EPSG:3035', '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs');
+proj4.defs('EPSG:2154', '+proj=lcc +lat_0=46.5 +lon_0=3 +lat_1=49 +lat_2=44 +x_0=700000 +y_0=6600000 +ellps=GRS80 +units=m +no_defs');
+
+function reprojectCoords(ring: number[][], fromCRS: string): number[][] {
+  if (fromCRS === 'EPSG:4326') return ring;
+  return ring.map(([x, y]) => {
+    const [lng, lat] = proj4(fromCRS, 'EPSG:4326', [x, y]);
+    return [lng, lat];
   });
 }
 
-function readBlobAsArrayBuffer(blob: Blob, fileName: string): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(new Error(
-      `Impossible de lire "${fileName}". Le fichier est peut-être verrouillé ou supprimé.\n` +
-      'Essayez de re-sélectionner le fichier.'
-    ));
-    reader.readAsArrayBuffer(blob);
-  });
+// ─── Polygon → WKT ──────────────────────────────────────────────────────────
+
+function polygonToEWKT(rings: number[][][]): string {
+  const ringsWKT = rings.map(ring =>
+    '(' + ring.map(([x, y]) => `${x} ${y}`).join(',') + ')'
+  ).join(',');
+  return `SRID=4326;POLYGON(${ringsWKT})`;
 }
 
-/**
- * Capture a preview snapshot of a file immediately at selection time.
- * This avoids stale File handles — the browser reads the file once,
- * and we store the bytes in memory for later analysis.
- */
-async function captureFilePreview(file: File): Promise<{ fileName: string; ext: string; headerText?: string; headerBuf?: ArrayBuffer }> {
-  const ext = file.name.toLowerCase().split('.').pop() || '';
+// ─── ID detection ────────────────────────────────────────────────────────────
 
-  if (ext === 'csv' || ext === 'tsv' || ext === 'txt' || ext === 'geojson' || ext === 'json') {
-    const blob = file.slice(0, ext === 'geojson' || ext === 'json' ? 500 * 1024 : 100 * 1024);
-    const headerText = await readBlobAsText(blob, file.name);
-    return { fileName: file.name, ext, headerText };
+function detectIdColumn(fields: DbfField[]): string | null {
+  const names = fields.map(f => f.name.toLowerCase());
+  for (const candidate of ['idinspire', 'idcar_200m', 'idcar_1km', 'idcar', 'id_car', 'id']) {
+    const idx = names.indexOf(candidate);
+    if (idx >= 0) return fields[idx].name;
   }
-
-  if (ext === 'dbf') {
-    // DBF: header + first records are in the first ~256KB — never read the whole file
-    const blob = file.slice(0, 256 * 1024);
-    const headerBuf = await readBlobAsArrayBuffer(blob, file.name);
-    return { fileName: file.name, ext, headerBuf };
-  }
-
-  if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
-    // Excel: need full structure for SheetJS, but cap at 5MB for preview
-    const blob = file.size > 5 * 1024 * 1024 ? file.slice(0, 5 * 1024 * 1024) : file;
-    const headerBuf = await readBlobAsArrayBuffer(blob, file.name);
-    return { fileName: file.name, ext, headerBuf };
-  }
-
-  // For other formats, just store metadata — preview won't be supported
-  return { fileName: file.name, ext };
+  return null;
 }
 
-type FilePreviewSnapshot = Awaited<ReturnType<typeof captureFilePreview>>;
+// ─── Format helpers ──────────────────────────────────────────────────────────
 
-// ============================================================
-// Auto-detect resolution + millésime from file name & columns
-// ============================================================
-
-interface DetectedMeta {
-  resolution: '200m' | '1km' | null;
-  millesime: string | null;
-  source: 'filename' | 'columns' | null;
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-function detectFileMetadata(
-  fileName: string,
-  columns?: Record<string, ColInfo>,
-): DetectedMeta {
-  const meta: DetectedMeta = { resolution: null, millesime: null, source: null };
-  const lower = fileName.toLowerCase();
-
-  // --- Resolution from filename ---
-  if (/[_\-.]200m/i.test(lower)) {
-    meta.resolution = '200m';
-    meta.source = 'filename';
-  } else if (/[_\-.]1000m|[_\-.]1km/i.test(lower)) {
-    meta.resolution = '1km';
-    meta.source = 'filename';
-  }
-
-  // --- Millésime from filename ---
-  // Patterns: Filosofi2019, carreaux_200m_met_2021, filosofi_2017, etc.
-  const yearMatch = lower.match(/filosofi[_\-]?(\d{4})/i)
-    || lower.match(/(?:carreaux|carr)[^0-9]*(\d{4})/)
-    || lower.match(/[_\-](\d{4})[_\-.]/)
-    || lower.match(/(\d{4})/);
-  if (yearMatch) {
-    const year = parseInt(yearMatch[1], 10);
-    if (year >= 2010 && year <= 2030) {
-      meta.millesime = String(year);
-    }
-  }
-
-  // --- Resolution from column names (more reliable) ---
-  if (columns) {
-    const colNames = Object.keys(columns).map(c => c.toLowerCase());
-    if (colNames.some(c => c.includes('idcar_200m') || c === 'id_200m' || c === 'idcar200m')) {
-      meta.resolution = '200m';
-      meta.source = meta.source || 'columns';
-    } else if (colNames.some(c => c.includes('idcar_1km') || c.includes('idcar_1000m') || c === 'id_1km')) {
-      meta.resolution = '1km';
-      meta.source = meta.source || 'columns';
-    }
-
-    // --- Resolution from idcar sample values ---
-    if (!meta.resolution) {
-      for (const [, info] of Object.entries(columns)) {
-        for (const sample of info.samples) {
-          if (/RES200m/i.test(sample)) { meta.resolution = '200m'; meta.source = 'columns'; break; }
-          if (/RES1000m/i.test(sample)) { meta.resolution = '1km'; meta.source = 'columns'; break; }
-        }
-        if (meta.resolution) break;
-      }
-    }
-  }
-
-  return meta;
+function fmtTime(s: number): string {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}m ${sec.toString().padStart(2, '0')}s`;
 }
 
-function analyzePreviewSnapshot(
-  snap: FilePreviewSnapshot,
-): { columns: Record<string, ColInfo>; bbox?: { bboxWgs84: string } } {
-  let rows: Record<string, string | null>[] = [];
-
-  if ((snap.ext === 'csv' || snap.ext === 'tsv' || snap.ext === 'txt') && snap.headerText) {
-    const text = snap.headerText;
-    const firstLine = text.split('\n')[0] || '';
-    const sep = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
-    const result = Papa.parse<Record<string, string>>(text, {
-      header: true, delimiter: sep, preview: 10, skipEmptyLines: true,
-    });
-    rows = result.data;
-  } else if ((snap.ext === 'xlsx' || snap.ext === 'xls' || snap.ext === 'xlsm') && snap.headerBuf) {
-    const wb = XLSX.read(snap.headerBuf, { type: 'array', sheetRows: 15 });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    if (sheet) rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: null, raw: false });
-  } else if ((snap.ext === 'geojson' || snap.ext === 'json') && snap.headerText) {
-    const geojson = JSON.parse(snap.headerText);
-    rows = (geojson.features || []).slice(0, 10).map((f: { properties?: Record<string, unknown> }) => {
-      const props: Record<string, string | null> = {};
-      if (f.properties) {
-        for (const [k, v] of Object.entries(f.properties)) {
-          props[k] = v != null ? String(v) : null;
-        }
-      }
-      return props;
-    });
-  } else if (snap.ext === 'dbf' && snap.headerBuf) {
-    rows = parseDbfPreview(new Uint8Array(snap.headerBuf), 10);
-  } else if (snap.ext === 'zip') {
-    throw new Error(
-      'Les fichiers ZIP ne peuvent pas être prévisualisés directement.\n' +
-      'Veuillez extraire le fichier CSV/Excel du ZIP avant de le charger.'
-    );
-  } else {
-    throw new Error(`Format .${snap.ext} non supporté pour la prévisualisation. Formats : CSV, Excel, GeoJSON, DBF.`);
-  }
-
-  if (rows.length === 0) throw new Error('Aucune ligne de données trouvée dans le fichier');
-
-  const columns: Record<string, ColInfo> = {};
-  const keys = Object.keys(rows[0]);
-  for (const col of keys) {
-    const values = rows.map(r => r[col] ?? null);
-    const { type, dtype } = classifyColumn(col, values);
-    const samples = values.filter((v): v is string => v !== null && v.trim() !== '').slice(0, 3);
-    columns[col] = { type, dtype, samples };
-  }
-
-  let bbox: { bboxWgs84: string } | undefined;
-  const latCol = keys.find(k => /^(lat|latitude|_geojson_lat)$/i.test(k));
-  const lngCol = keys.find(k => /^(lng|lon|long|longitude|_geojson_lng)$/i.test(k));
-  if (latCol && lngCol) {
-    const lats = rows.map(r => parseFloat(r[latCol] || '')).filter(n => !isNaN(n));
-    const lngs = rows.map(r => parseFloat(r[lngCol] || '')).filter(n => !isNaN(n));
-    if (lats.length > 0 && lngs.length > 0) {
-      bbox = { bboxWgs84: `${Math.min(...lngs)} ${Math.min(...lats)} ${Math.max(...lngs)} ${Math.max(...lats)}` };
-    }
-  }
-
-  return { columns, bbox };
+function fmtNum(n: number): string {
+  return n.toLocaleString('fr-FR');
 }
 
-// ============================================================
+// ═════════════════════════════════════════════════════════════════════════════
+// COMPONENT
+// ═════════════════════════════════════════════════════════════════════════════
 
-import { createClient } from '@supabase/supabase-js';
+export default function ImportShapefilePage() {
+  // ── Wizard state ──
+  const [step, setStep] = useState<WizardStep>(1);
 
-let _sbClient: ReturnType<typeof createClient> | null = null;
-function getAuthToken(): Promise<{ token: string | null }> {
-  if (!_sbClient) {
-    _sbClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-  }
-  return _sbClient.auth.getSession().then(({ data }) => ({
-    token: data.session?.access_token ?? null,
-  }));
-}
+  // ── Step 1: Files ──
+  const [bundle, setBundle] = useState<ShapefileBundle | null>(null);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [fields, setFields] = useState<DbfField[]>([]);
+  const [crs, setCrs] = useState<string>('');
+  const [parseError, setParseError] = useState<string>('');
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState<{ label: string; pct: number } | null>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-interface ImportReport {
-  fichierSource?: string;
-  tableTarget?: string;
-  lignesChargees?: number;
-  carreauxTraites?: number;
-  carreauxInseres?: number;
-}
+  // ── Step 2: Mapping ──
+  const [mappings, setMappings] = useState<ColumnMapping[]>([]);
+  const [resolution, setResolution] = useState('200m');
+  const [millesime, setMillesime] = useState('2021');
+  const [idColumn, setIdColumn] = useState<string>('');
 
-interface ImportResult {
-  success: boolean;
-  mode?: string;
-  dryRun?: boolean;
-  output?: string;
-  errors?: string;
-  report?: ImportReport;
-  error?: string;
-  details?: string;
-  hint?: string;
-  diagnostic?: unknown;
-  errorType?: string;
-  timestamp?: string;
-}
-
-export default function CarreauxImportPage() {
-  const [singleFile, setSingleFile] = useState<File | null>(null);
-  const [shpFile, setShpFile] = useState<File | null>(null);
-  const [dbfFile, setDbfFile] = useState<File | null>(null);
-  const [shxFile, setShxFile] = useState<File | null>(null);
-  const [prjFile, setPrjFile] = useState<File | null>(null);
-  const [dryRun, setDryRun] = useState(true);
-  const [limit, setLimit] = useState('1000');
-  const [geoPreset, setGeoPreset] = useState<string>('');
-  const [detectedBbox, setDetectedBbox] = useState<string>('');
-  const [resolution, setResolution] = useState<'200m' | '1km'>('200m');
-  const [millesime, setMillesime]   = useState('2021');
-  const [detectedMeta, setDetectedMeta] = useState<DetectedMeta | null>(null);
-  // Sélection de colonnes
-  const [previewSnapshot, setPreviewSnapshot] = useState<FilePreviewSnapshot | null>(null);
-  const [columnsData, setColumnsData] = useState<Record<string, { type: string; dtype: string; samples: string[] }> | null>(null);
-  const [selectedCols, setSelectedCols] = useState<Set<string>>(new Set());
-  const [loadingColumns, setLoadingColumns] = useState(false);
-  const [columnsError, setColumnsError] = useState('');
+  // ── Step 3: Import ──
+  const [logs, setLogs] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ loaded: number; total: number } | null>(null);
-  const [lastLog, setLastLog] = useState('');
-  const [logHistory, setLogHistory] = useState<string[]>([]);
-  const [importPhase, setImportPhase] = useState<'idle' | 'uploading' | 'server-processing' | 'python-running' | 'inserting' | 'done'>('idle');
-  const [startTime, setStartTime] = useState<number>(0);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [importDone, setImportDone] = useState(false);
+  const [importError, setImportError] = useState<string>('');
+  const logRef = useRef<HTMLDivElement>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [uploadSpeed, setUploadSpeed] = useState(0);
-  const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
-  const [fileLoading, setFileLoading] = useState<string | null>(null); // which input is loading
-  const [fileLoadElapsed, setFileLoadElapsed] = useState(0);
-  const fileLoadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const uploadStartRef = useRef<number>(0);
-  const lastUploadBytesRef = useRef<number>(0);
-  const lastUploadTimeRef = useRef<number>(0);
 
-  // Elapsed timer — ticks every second while importing
+  // Auto-scroll logs
   useEffect(() => {
-    if (isImporting && startTime > 0) {
-      timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs]);
+
+  // Timer
+  useEffect(() => {
+    if (isImporting) {
+      const start = Date.now();
+      timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isImporting, startTime]);
-
-  // File-loading elapsed timer — ticks while reading file header
-  useEffect(() => {
-    if (fileLoading) {
-      setFileLoadElapsed(0);
-      const t0 = Date.now();
-      fileLoadTimerRef.current = setInterval(() => setFileLoadElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
-    } else {
-      setFileLoadElapsed(0);
-    }
-    return () => { if (fileLoadTimerRef.current) { clearInterval(fileLoadTimerRef.current); fileLoadTimerRef.current = null; } };
-  }, [fileLoading]);
-
-  const fmtTime = useCallback((s: number) => {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m ${sec.toString().padStart(2, '0')}s` : m > 0 ? `${m}m ${sec.toString().padStart(2, '0')}s` : `${sec}s`;
-  }, []);
-
-  const fmtBytes = useCallback((b: number) => {
-    if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
-    if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
-    return `${(b / 1024).toFixed(0)} KB`;
-  }, []);
+  }, [isImporting]);
 
   const addLog = useCallback((line: string) => {
-    setLastLog(line);
-    setLogHistory(prev => [...prev.slice(-200), `[${new Date().toLocaleTimeString('fr-FR')}] ${line}`]);
+    const ts = new Date().toLocaleTimeString('fr-FR');
+    setLogs(prev => [...prev.slice(-500), `[${ts}] ${line}`]);
   }, []);
 
-  const hasShapefileInputs = !!(shpFile || dbfFile || shxFile || prjFile);
-  const hasValidShapefileSet = !!(shpFile && dbfFile);
-  const hasUploadReady = hasShapefileInputs ? hasValidShapefileSet : !!singleFile;
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 1: File parsing
+  // ══════════════════════════════════════════════════════════════════════════
 
-  const appendUploadFilesToFormData = (fd: FormData) => {
-    if (hasShapefileInputs) {
-      if (shpFile) {
-        fd.append('shpFile', shpFile);
-        fd.append('files', shpFile);
-      }
-      if (dbfFile) {
-        fd.append('dbfFile', dbfFile);
-        fd.append('files', dbfFile);
-      }
-      if (shxFile) {
-        fd.append('shxFile', shxFile);
-        fd.append('files', shxFile);
-      }
-      if (prjFile) {
-        fd.append('prjFile', prjFile);
-        fd.append('files', prjFile);
-      }
+  const processFiles = useCallback(async (fileList: File[]) => {
+    setParseError('');
+    setFeatures([]);
+    setFields([]);
+    setCrs('');
+    setBundle(null);
+    setStep(1);
+
+    // Identify shapefile components
+    const byExt: Record<string, File> = {};
+    for (const f of fileList) {
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      byExt[ext] = f;
+    }
+
+    if (!byExt['shp']) {
+      setParseError('Fichier .shp manquant. Sélectionnez les 4 fichiers du Shapefile (.shp, .dbf, .prj, .shx).');
+      return;
+    }
+    if (!byExt['dbf']) {
+      setParseError('Fichier .dbf manquant (attributs). Sélectionnez au minimum .shp et .dbf.');
       return;
     }
 
-    if (singleFile) {
-      fd.append('file', singleFile);
-      fd.append('files', singleFile);
-    }
-  };
+    setIsParsing(true);
+    setParseProgress({ label: 'Lecture des fichiers...', pct: 0 });
 
-  const handlePreviewColumns = async () => {
-    if (!hasUploadReady) {
-      alert(hasShapefileInputs ? 'Pour un shapefile non zippé, sélectionnez au minimum .shp et .dbf' : 'Sélectionnez un fichier d\'abord');
-      return;
-    }
-    setLoadingColumns(true);
-    setColumnsError('');
-    setColumnsData(null);
     try {
-      // Use already-captured snapshot if available, otherwise capture now
-      let snap = previewSnapshot;
-      if (!snap) {
-        const targetFile = (hasShapefileInputs && dbfFile) ? dbfFile : singleFile;
-        if (!targetFile) throw new Error('Aucun fichier à analyser');
-        snap = await captureFilePreview(targetFile);
-        setPreviewSnapshot(snap);
+      // Read all files as ArrayBuffer
+      const shpBuf = await byExt['shp'].arrayBuffer();
+      setParseProgress({ label: '.shp chargé', pct: 20 });
+
+      const dbfBuf = await byExt['dbf'].arrayBuffer();
+      setParseProgress({ label: '.dbf chargé', pct: 40 });
+
+      const prjText = byExt['prj'] ? await byExt['prj'].text() : null;
+      setParseProgress({ label: '.prj chargé', pct: 50 });
+
+      const shxBuf = byExt['shx'] ? await byExt['shx'].arrayBuffer() : null;
+      setParseProgress({ label: 'Fichiers chargés — parsing SHP...', pct: 55 });
+
+      const baseName = byExt['shp'].name.replace(/\.shp$/i, '');
+
+      // Yield to UI before heavy parsing
+      await new Promise(r => setTimeout(r, 50));
+
+      // Parse SHP geometries
+      const geometries = parseSHP(shpBuf);
+      setParseProgress({ label: `${fmtNum(geometries.length)} géométries lues — parsing DBF...`, pct: 70 });
+
+      await new Promise(r => setTimeout(r, 50));
+
+      // Parse DBF attributes
+      const { fields: dbfFields, records } = parseDBF(dbfBuf);
+      setParseProgress({ label: `${fmtNum(records.length)} enregistrements lus — détection CRS...`, pct: 85 });
+
+      if (geometries.length !== records.length) {
+        throw new Error(`Incohérence: ${geometries.length} géométries vs ${records.length} enregistrements DBF`);
       }
 
-      const result = analyzePreviewSnapshot(snap);
-      const bboxFromPreview = result.bbox?.bboxWgs84 || '';
-      if (bboxFromPreview) {
-        setDetectedBbox(bboxFromPreview);
-        if (!geoPreset) setGeoPreset(bboxFromPreview);
+      // Detect CRS
+      const firstCoord = geometries.length > 0 && geometries[0].length > 0 && geometries[0][0].length > 0
+        ? geometries[0][0][0]
+        : null;
+      const detectedCRS = detectCRS(prjText, firstCoord);
+      setCrs(detectedCRS);
+
+      setParseProgress({ label: `CRS détecté: ${detectedCRS} — reprojection...`, pct: 90 });
+      await new Promise(r => setTimeout(r, 50));
+
+      // Build features with reprojected geometry
+      const feats: Feature[] = [];
+      const needsReproj = detectedCRS !== 'EPSG:4326';
+
+      for (let i = 0; i < records.length; i++) {
+        const rings = geometries[i];
+        if (!rings || rings.length === 0) continue;
+
+        const reprojRings = needsReproj
+          ? rings.map(ring => reprojectCoords(ring, detectedCRS))
+          : rings;
+
+        feats.push({
+          geometry: reprojRings,
+          properties: records[i],
+        });
+
+        // Progress every 100K features
+        if (i > 0 && i % 100000 === 0) {
+          setParseProgress({ label: `Reprojection: ${fmtNum(i)}/${fmtNum(records.length)}...`, pct: 90 + Math.round(i / records.length * 10) });
+          await new Promise(r => setTimeout(r, 0)); // yield
+        }
       }
-      setColumnsData(result.columns);
 
-      // Refine auto-detection with column data
-      const fileName = snap.fileName;
-      const meta = detectFileMetadata(fileName, result.columns);
-      setDetectedMeta(meta);
-      if (meta.resolution) setResolution(meta.resolution);
-      if (meta.millesime) setMillesime(meta.millesime);
+      setFeatures(feats);
+      setFields(dbfFields);
+      setBundle({ shp: shpBuf, dbf: dbfBuf, prj: prjText, shx: shxBuf, fileName: baseName });
 
-      // Par défaut : sélectionner toutes les colonnes numériques (pas les string ni les id)
-      const defaultSel = new Set(
-        Object.entries(result.columns)
-          .filter(([, v]) => v.type !== 'string')
-          .map(([k]) => k)
-      );
-      setSelectedCols(defaultSel);
-    } catch (e: any) {
-      setColumnsError(e.message);
+      // Auto-detect millesime from filename
+      const mMatch = baseName.match(/(\d{4})/);
+      if (mMatch) setMillesime(mMatch[1]);
+
+      // Auto-detect resolution
+      if (/200m/i.test(baseName)) setResolution('200m');
+      else if (/1km/i.test(baseName)) setResolution('1km');
+
+      // Auto-detect ID column
+      const detectedId = detectIdColumn(dbfFields);
+      if (detectedId) setIdColumn(detectedId);
+
+      // Default mappings: all columns → metadata
+      setMappings(dbfFields.map(f => ({ source: f.name, target: '' })));
+
+      setParseProgress({ label: `✅ ${fmtNum(feats.length)} features prêtes`, pct: 100 });
+
+      // Auto-advance to step 2 after brief pause
+      setTimeout(() => setStep(2), 600);
+
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erreur parsing';
+      setParseError(msg);
     } finally {
-      setLoadingColumns(false);
+      setIsParsing(false);
     }
-  };
+  }, []);
 
-  const handleImport = async () => {
-    if (!hasUploadReady) {
-      alert(hasShapefileInputs ? 'Pour un shapefile non zippé, sélectionnez au minimum .shp et .dbf' : 'Sélectionnez un fichier');
-      return;
-    }
-    if (!confirm(dryRun ? `Dry-run sur ${limit || 'toutes les'} lignes ?` : '⚠️ IMPORT RÉEL en base ?')) return;
+  // Drop handlers
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) processFiles(files);
+  }, [processFiles]);
 
-    const now = Date.now();
-    console.log('[carreaux-import] ══════════════════════════════════════════');
-    console.log('[carreaux-import] Début import');
-    console.log('[carreaux-import] Fichier:', singleFile?.name || 'shapefile', singleFile ? `(${(singleFile.size / 1024 / 1024).toFixed(1)}MB)` : '');
+  const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
+  const onDragLeave = useCallback(() => setIsDragging(false), []);
+  const onFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) processFiles(files);
+  }, [processFiles]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 3: Batch import
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const processImport = useCallback(async () => {
+    if (features.length === 0) return;
 
     setIsImporting(true);
-    setImportResult(null);
-    setImportProgress(null);
-    setUploadProgress(null);
-    setLastLog('');
-    setLogHistory([]);
-    setImportPhase('uploading');
-    setStartTime(now);
+    setImportDone(false);
+    setImportError('');
+    setLogs([]);
+    setProgress(null);
     setElapsed(0);
-    setUploadSpeed(0);
-    setLastHeartbeat(now);
-    uploadStartRef.current = now;
-    lastUploadBytesRef.current = 0;
-    lastUploadTimeRef.current = now;
 
-    try {
-      const fd = new FormData();
-      fd.append('mode', 'manual');
-      fd.append('dryRun', String(dryRun));
-      if (limit) fd.append('limit', limit);
-      if (geoPreset) fd.append('bbox', geoPreset);
-      fd.append('resolution', resolution);
-      fd.append('millesime', millesime);
-      if (columnsData && selectedCols.size > 0 && selectedCols.size < Object.keys(columnsData).length) {
-        fd.append('columns', [...selectedCols].join(','));
-      }
-      appendUploadFilesToFormData(fd);
+    const total = features.length;
+    const BATCH_SIZE = 1000;
+    const totalBatches = Math.ceil(total / BATCH_SIZE);
+    let inserted = 0;
+    let errors = 0;
 
-      const { token } = await getAuthToken();
-      if (!token) {
-        addLog('⚠️ ERREUR: pas de token auth — vous êtes peut-être déconnecté');
-        setImportResult({ success: false, error: 'Pas de token d\'authentification. Reconnectez-vous.' });
-        setIsImporting(false);
-        return;
-      }
+    addLog(`Début de l'insertion : ${fmtNum(total)} lignes détectées.`);
+    addLog(`Table cible : carreaux_filosofi (resolution=${resolution}, millesime=${millesime})`);
+    addLog(`Taille des lots : ${BATCH_SIZE} — ${totalBatches} lots à envoyer.`);
+    addLog('');
 
-      addLog('Envoi du fichier vers le serveur...');
-
-      // ── XHR with incremental response reading for real-time SSE ──
-      // xhr.onprogress reads the response AS IT STREAMS (not just at the end)
-      let lastParsedIdx = 0; // track how much of responseText we've parsed
-
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/admin/import-carreaux');
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-        // ── Upload progress (file → server) ──
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          setUploadProgress({ loaded: e.loaded, total: e.total });
-
-          // Calculate upload speed (rolling average over 2s windows)
-          const t = Date.now();
-          const dt = (t - lastUploadTimeRef.current) / 1000;
-          if (dt >= 1) {
-            const dBytes = e.loaded - lastUploadBytesRef.current;
-            setUploadSpeed(dBytes / dt);
-            lastUploadBytesRef.current = e.loaded;
-            lastUploadTimeRef.current = t;
-          }
-        };
-
-        xhr.upload.onload = () => {
-          setUploadProgress(null);
-          setImportPhase('server-processing');
-          addLog('✅ Upload terminé — traitement serveur en cours...');
-          console.log('[carreaux-import] Upload terminé');
-        };
-
-        // ── Incremental response reading (SSE events as they arrive) ──
-        xhr.onprogress = () => {
-          const text = xhr.responseText;
-          if (text.length <= lastParsedIdx) return;
-          const newChunk = text.slice(lastParsedIdx);
-          lastParsedIdx = text.length;
-
-          for (const rawLine of newChunk.split('\n')) {
-            if (!rawLine.startsWith('data: ')) continue;
-            try {
-              const ev = JSON.parse(rawLine.slice(6));
-              if (ev.type === 'heartbeat') {
-                setLastHeartbeat(Date.now());
-              } else if (ev.type === 'log') {
-                addLog(ev.line);
-                // Auto-detect phase from log content
-                if (/python|initialisation|script/i.test(ev.line) && !ev.line.includes('✅')) setImportPhase('python-running');
-                if (/ins[eé]r|batch|supabase/i.test(ev.line)) setImportPhase('inserting');
-              } else if (ev.type === 'progress') {
-                setImportProgress({ current: ev.current, total: ev.total });
-                setImportPhase('inserting');
-              } else if (ev.type === 'done') {
-                console.log('[carreaux-import] 🏁 Done:', ev.success ? '✅' : '❌', ev.error || '');
-                setImportPhase('done');
-                setImportResult({
-                  success: ev.success, mode: ev.mode, dryRun: ev.dryRun,
-                  output: ev.output, errors: ev.errors, report: ev.report,
-                  error: ev.error, details: ev.details,
-                });
-              }
-            } catch { /* partial JSON, will be completed next chunk */ }
-          }
-        };
-
-        xhr.onload = () => {
-          console.log(`[carreaux-import] XHR done: status=${xhr.status}`);
-          // Parse any remaining events not caught by onprogress
-          if (xhr.responseText.length > lastParsedIdx) {
-            const remaining = xhr.responseText.slice(lastParsedIdx);
-            for (const rawLine of remaining.split('\n')) {
-              if (!rawLine.startsWith('data: ')) continue;
-              try {
-                const ev = JSON.parse(rawLine.slice(6));
-                if (ev.type === 'done') {
-                  setImportPhase('done');
-                  setImportResult({
-                    success: ev.success, mode: ev.mode, dryRun: ev.dryRun,
-                    output: ev.output, errors: ev.errors, report: ev.report,
-                    error: ev.error, details: ev.details,
-                  });
-                }
-              } catch {}
-            }
-          }
-          // If we got a non-SSE response (JSON error)
-          if (xhr.status >= 400 && !xhr.getResponseHeader('content-type')?.includes('text/event-stream')) {
-            try {
-              const parsed = JSON.parse(xhr.responseText);
-              setImportResult(parsed);
-            } catch {
-              setImportResult({ success: false, error: `HTTP ${xhr.status}`, output: xhr.responseText });
-            }
-          }
-          resolve();
-        };
-
-        xhr.onerror = () => {
-          console.error('[carreaux-import] ❌ Erreur réseau');
-          reject(new Error('Erreur réseau — la connexion a été coupée'));
-        };
-
-        xhr.ontimeout = () => {
-          console.error('[carreaux-import] ❌ Timeout XHR');
-          reject(new Error('Timeout — le serveur n\'a pas répondu à temps'));
-        };
-
-        // No timeout — large files can take minutes to upload
-        xhr.timeout = 0;
-        xhr.send(fd);
-      });
-    } catch (e: any) {
-      console.error('[carreaux-import] ❌ Exception:', e.message);
-      addLog(`❌ Erreur : ${e.message}`);
-      setImportResult({ success: false, error: e.message, details: e.stack });
-    } finally {
-      setIsImporting(false);
-      setUploadProgress(null);
-      console.log('[carreaux-import] Fin import');
+    // Build the selected columns set + rename map
+    const selectedMappings = mappings.filter(m => m.target !== '__skip__');
+    const renameMap = new Map<string, string>();
+    for (const m of selectedMappings) {
+      // If target is non-empty and different from source, use it as renamed key
+      const targetKey = m.target && m.target !== m.source ? m.target : m.source;
+      renameMap.set(m.source, targetKey);
     }
-  };
+
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const start = batchIdx * BATCH_SIZE;
+      const end = Math.min(start + BATCH_SIZE, total);
+      const batch = features.slice(start, end);
+
+      // Format rows
+      const rows = batch.map(feat => {
+        // Pick ID
+        const rawId = idColumn && feat.properties[idColumn] != null
+          ? String(feat.properties[idColumn])
+          : `auto_${start + batch.indexOf(feat)}`;
+
+        // Build metadata: only selected columns, with renames
+        const metadata: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(feat.properties)) {
+          if (val != null && renameMap.has(key)) {
+            metadata[renameMap.get(key)!] = val;
+          }
+        }
+
+        // Geometry → EWKT
+        const ewkt = polygonToEWKT(feat.geometry);
+
+        return {
+          idcar: rawId,
+          resolution,
+          millesime,
+          geom_wkt: ewkt,
+          metadata,
+        };
+      });
+
+      // Send batch to API
+      try {
+        const res = await adminFetch('/api/admin/import-geo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          inserted += data.inserted;
+          addLog(`✅ Lot ${batchIdx + 1}/${totalBatches} inséré (${fmtNum(data.inserted)} lignes) — total: ${fmtNum(inserted)}/${fmtNum(total)}`);
+        } else {
+          errors++;
+          addLog(`❌ Erreur lot ${batchIdx + 1}/${totalBatches} : ${data.error}`);
+
+          // Retry with half batch on 413
+          if (data.error?.includes('413') || data.error?.includes('too large') || data.error?.includes('payload')) {
+            addLog(`  ↳ Tentative en demi-lots...`);
+            const half = Math.ceil(rows.length / 2);
+            for (const subBatch of [rows.slice(0, half), rows.slice(half)]) {
+              try {
+                const subRes = await adminFetch('/api/admin/import-geo', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ rows: subBatch }),
+                });
+                const subData = await subRes.json();
+                if (subData.success) {
+                  inserted += subData.inserted;
+                  addLog(`  ✅ Demi-lot inséré (${subData.inserted} lignes)`);
+                } else {
+                  addLog(`  ❌ Demi-lot échoué : ${subData.error}`);
+                }
+              } catch (se: unknown) {
+                addLog(`  ❌ Demi-lot exception : ${se instanceof Error ? se.message : 'erreur'}`);
+              }
+            }
+          }
+        }
+      } catch (e: unknown) {
+        errors++;
+        const msg = e instanceof Error ? e.message : 'Erreur réseau';
+        addLog(`❌ Exception lot ${batchIdx + 1} : ${msg}`);
+      }
+
+      setProgress({ current: Math.min(end, total), total });
+
+      // Yield to UI every batch
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    addLog('');
+    addLog('═══════════════════════════════════════════════');
+    addLog(`RAPPORT FINAL`);
+    addLog(`  Lignes insérées : ${fmtNum(inserted)} / ${fmtNum(total)}`);
+    addLog(`  Erreurs : ${errors}`);
+    addLog(`  Table : carreaux_filosofi`);
+    addLog(`  Résolution : ${resolution} — Millésime : ${millesime}`);
+    addLog('═══════════════════════════════════════════════');
+
+    if (errors > 0) {
+      setImportError(`${errors} lot(s) en erreur — ${fmtNum(inserted)}/${fmtNum(total)} insérés`);
+    }
+
+    // Register source in data_sources for /admin/sources visibility
+    if (inserted > 0) {
+      try {
+        addLog('📋 Enregistrement de la source dans le back-office...');
+        const regRes = await adminFetch('/api/admin/import-geo/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `Carreaux ${resolution} — ${millesime}${bundle?.fileName ? ` (${bundle.fileName})` : ''}`,
+            resolution,
+            millesime,
+            row_count: inserted,
+            columns: selectedMappings.map(m => m.target || m.source),
+            filename: bundle?.fileName || null,
+          }),
+        });
+        const regData = await regRes.json();
+        if (regData.success) {
+          addLog(`✅ Source enregistrée (id: ${regData.source_id})`);
+        } else {
+          addLog(`⚠️ Enregistrement source : ${regData.error}`);
+        }
+      } catch {
+        addLog('⚠️ Impossible d\'enregistrer la source (non bloquant)');
+      }
+    }
+
+    setImportDone(true);
+    setIsImporting(false);
+  }, [features, mappings, resolution, millesime, idColumn, bundle, addLog]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const pct = progress ? Math.round(progress.current / progress.total * 100) : 0;
+  const speed = progress && elapsed > 0 ? Math.round(progress.current / elapsed) : 0;
+  const eta = progress && speed > 0 ? Math.ceil((progress.total - progress.current) / speed) : 0;
 
   return (
-    <div className="genesis-content" style={{ maxWidth: 860 }}>
+    <div className="min-h-screen bg-[#0a0a0f] text-white p-6">
+      <div className="max-w-5xl mx-auto">
 
-      {/* Header */}
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <h1 className="page-title">admin / import-carreaux</h1>
-          <span className="g-badge g-badge-orange">ADMIN</span>
-          {dryRun && <span className="g-badge g-badge-green">DRY-RUN</span>}
-        </div>
-        <p className="page-subtitle">
-          Import données INSEE Filosofi — carreaux socio-démographiques{' '}
-          {resolution === '200m' ? '200m × 200m' : '1km × 1km'}
-          {detectedMeta?.millesime && <> · millésime {detectedMeta.millesime}</>}
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* Step 01 */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>01</span>
-            <span className="g-card-title">Upload manuel</span>
-          </div>
-          <div className="g-card-body">
-            <label className="g-label">Fichier unique (recommandé)</label>
-            <input
-              type="file"
-              accept=".zip,.csv,.xlsx,.xls,.geojson,.json,.gpkg,.kml,.gpx"
-              onChange={(e) => {
-                const next = e.target.files?.[0] || null;
-                setSingleFile(next);
-                setColumnsData(null);
-                setColumnsError('');
-                setPreviewSnapshot(null);
-                setDetectedMeta(null);
-                if (next) {
-                  setShpFile(null);
-                  setDbfFile(null);
-                  setShxFile(null);
-                  setPrjFile(null);
-                  const meta = detectFileMetadata(next.name);
-                  setDetectedMeta(meta);
-                  if (meta.resolution) setResolution(meta.resolution);
-                  if (meta.millesime) setMillesime(meta.millesime);
-                  // Capture preview in background — don't block UI
-                  captureFilePreview(next).then(snap => setPreviewSnapshot(snap)).catch(() => {});
-                }
-              }}
-              style={{ fontSize: 12, color: 'var(--text-secondary)' }}
-            />
-            {/* File selected — instant feedback */}
-            {singleFile && (
-              <div style={{
-                marginTop: 6, padding: '8px 12px', borderRadius: 6,
-                background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
-                    {singleFile.name}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
-                    {fmtBytes(singleFile.size)}
-                    {previewSnapshot
-                      ? <span style={{ color: 'var(--green)' }}> · prêt pour l&apos;analyse</span>
-                      : <span style={{ color: '#58a6ff' }}> · lecture en-tête <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="3" style={{ animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', display: 'inline' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg></span>
-                    }
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              <label className="g-label">Shapefile non zippé (une zone par fichier)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))', gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>1) .shp (obligatoire)</div>
-                  <input type="file" accept=".shp" onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    setShpFile(f); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null);
-                    if (f) setSingleFile(null);
-                  }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {shpFile && (
-                    <div style={{
-                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
-                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{shpFile.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(shpFile.size)}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>2) .dbf (obligatoire)</div>
-                  <input type="file" accept=".dbf" onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    setDbfFile(f);
-                    setColumnsData(null);
-                    setColumnsError('');
-                    setPreviewSnapshot(null);
-                    setDetectedMeta(null);
-                    if (f) {
-                      setSingleFile(null);
-                      const meta = detectFileMetadata(f.name);
-                      setDetectedMeta(meta);
-                      if (meta.resolution) setResolution(meta.resolution);
-                      if (meta.millesime) setMillesime(meta.millesime);
-                      // Capture preview in background — don't block UI
-                      captureFilePreview(f).then(snap => setPreviewSnapshot(snap)).catch(() => {});
-                    }
-                  }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-
-                  {/* File selected — instant feedback */}
-                  {dbfFile && (
-                    <div style={{
-                      marginTop: 6, padding: '8px 12px', borderRadius: 6,
-                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
-                          {dbfFile.name}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 1 }}>
-                          {fmtBytes(dbfFile.size)}
-                          {previewSnapshot
-                            ? <span style={{ color: 'var(--green)' }}> · prêt pour l&apos;analyse</span>
-                            : <span style={{ color: '#58a6ff' }}> · lecture en-tête <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="3" style={{ animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', display: 'inline' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg></span>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>3) .shx (optionnel)</div>
-                  <input type="file" accept=".shx" onChange={(e) => { setShxFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {shxFile && (
-                    <div style={{
-                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
-                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{shxFile.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(shxFile.size)}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>4) .prj (optionnel)</div>
-                  <input type="file" accept=".prj" onChange={(e) => { setPrjFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {prjFile && (
-                    <div style={{
-                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
-                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{prjFile.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(prjFile.size)}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {hasShapefileInputs && !hasValidShapefileSet && (
-                <div className="g-alert g-alert-error" style={{ marginTop: 10 }}>
-                  Sélection incomplète : fournissez au minimum les fichiers .shp et .dbf
-                </div>
-              )}
-
-              {/* Total size summary */}
-              {hasValidShapefileSet && (() => {
-                const allFiles = [shpFile, dbfFile, shxFile, prjFile].filter((f): f is File => !!f);
-                const totalSize = allFiles.reduce((s, f) => s + f.size, 0);
-                return (
-                  <div style={{
-                    marginTop: 10, padding: '10px 14px', borderRadius: 8,
-                    background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.25)',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#58a6ff', fontWeight: 600 }}>
-                        📦 {allFiles.length} fichier{allFiles.length > 1 ? 's' : ''} sélectionné{allFiles.length > 1 ? 's' : ''}
-                      </span>
-                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#58a6ff', fontWeight: 700 }}>
-                        {fmtBytes(totalSize)} total
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {allFiles.map(f => (
-                        <span key={f.name} style={{
-                          fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
-                          padding: '2px 8px', borderRadius: 4,
-                          background: 'rgba(61,255,160,0.1)', color: 'var(--green)',
-                        }}>
-                          .{f.name.split('.').pop()} {fmtBytes(f.size)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'JetBrains Mono, monospace' }}>// priorité utilisée : shapefile compartimenté si renseigné, sinon fichier unique</div>
-          </div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold font-mono tracking-tight">
+            <span className="text-[#3dffa0]">admin</span> / import-shapefile
+          </h1>
+          <p className="text-sm text-gray-500 font-mono mt-1">
+            Import de données géographiques — Shapefile → Supabase
+          </p>
         </div>
 
-        {/* Dynamic file info card */}
-        {hasUploadReady && detectedMeta && (detectedMeta.resolution || detectedMeta.millesime) && (
-          <div className="g-card" style={{ borderColor: 'rgba(88,166,255,0.3)' }}>
-            <div className="g-card-header">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-              <span className="g-card-title">Détection automatique</span>
-              <span className="g-badge" style={{ marginLeft: 'auto', background: 'rgba(88,166,255,0.15)', color: '#58a6ff' }}>
-                {detectedMeta.source === 'columns' ? 'depuis colonnes' : detectedMeta.source === 'filename' ? 'depuis nom de fichier' : 'auto'}
-              </span>
-            </div>
-            <div className="g-card-body">
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                {detectedMeta.resolution && (
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Résolution</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {detectedMeta.resolution === '200m' ? '200m × 200m' : '1km × 1km'}
-                    </div>
-                  </div>
-                )}
-                {detectedMeta.millesime && (
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Millésime INSEE</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {detectedMeta.millesime}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Fichier</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    {(singleFile || dbfFile)?.name}
-                    {singleFile && <span style={{ color: 'var(--text-dim)' }}> ({(singleFile.size / 1024 / 1024).toFixed(1)} MB)</span>}
-                  </div>
-                </div>
-                {columnsData && (
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 2 }}>Colonnes</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {Object.keys(columnsData).length} détectées · {Object.values(columnsData).filter(v => v.type === 'number').length} numériques
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 02 — Sélection des colonnes */}
-        {hasUploadReady && (
-          <div className="g-card">
-            <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>02</span>
-              <span className="g-card-title">Colonnes à importer</span>
-              {columnsData && (
-                <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>
-                  {selectedCols.size} / {Object.keys(columnsData).length} colonnes
+        {/* Stepper */}
+        <div className="flex items-center gap-2 mb-8">
+          {[
+            { n: 1, label: 'Fichiers' },
+            { n: 2, label: 'Mapping' },
+            { n: 3, label: 'Import' },
+          ].map(({ n, label }) => (
+            <div key={n} className="flex items-center gap-2">
+              {n > 1 && <div className={`w-12 h-0.5 ${step >= n ? 'bg-[#3dffa0]' : 'bg-gray-700'}`} />}
+              <button
+                onClick={() => n < step && setStep(n as WizardStep)}
+                disabled={n > step}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+                  step === n
+                    ? 'bg-[#3dffa0]/10 border border-[#3dffa0]/30 text-[#3dffa0] font-bold'
+                    : step > n
+                    ? 'bg-gray-800/50 border border-gray-700 text-gray-400 cursor-pointer hover:border-gray-500'
+                    : 'bg-gray-900/50 border border-gray-800 text-gray-600 cursor-not-allowed'
+                }`}
+              >
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  step > n ? 'bg-[#3dffa0] text-black' : step === n ? 'bg-[#3dffa0]/20 text-[#3dffa0]' : 'bg-gray-800 text-gray-600'
+                }`}>
+                  {step > n ? '✓' : n}
                 </span>
-              )}
+                {label}
+              </button>
             </div>
-            <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {!columnsData && !loadingColumns && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={handlePreviewColumns} className="g-btn g-btn-ghost" disabled={loadingColumns}>
-                    {loadingColumns ? (
-                      <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>Chargement...</>
-                    ) : '→ Inspecter les colonnes disponibles'}
-                  </button>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    // analyse locale — pas d'upload réseau
+          ))}
+        </div>
+
+        {/* ═══════════════════════ STEP 1: FILES ═══════════════════════ */}
+        {step === 1 && (
+          <div className="space-y-6">
+            {/* Dropzone */}
+            <div
+              ref={dropRef}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onClick={() => inputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
+                isDragging
+                  ? 'border-[#3dffa0] bg-[#3dffa0]/5'
+                  : 'border-gray-700 hover:border-gray-500 bg-gray-900/30'
+              }`}
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept=".shp,.dbf,.prj,.shx"
+                onChange={onFileInput}
+                className="hidden"
+              />
+
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#3dffa0' : '#888'} strokeWidth="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-gray-300">
+                    Glissez vos fichiers Shapefile ici
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1 font-mono">
+                    .shp + .dbf + .prj + .shx — sélection multiple obligatoire
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Parse progress */}
+            {isParsing && parseProgress && (
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="font-mono text-sm text-[#ffc832]">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" className="inline mr-2 animate-spin">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    {parseProgress.label}
                   </span>
+                  <span className="font-mono text-sm text-[#ffc832] font-bold">{parseProgress.pct}%</span>
                 </div>
-              )}
-              {loadingColumns && (
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  Analyse du fichier en cours...
+                <div className="h-3 rounded-full bg-gray-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#ffc832] to-[#ff9500] transition-all duration-300"
+                    style={{ width: `${parseProgress.pct}%` }}
+                  />
                 </div>
-              )}
-              {columnsError && (
-                <div className="g-alert g-alert-error">{columnsError}</div>
-              )}
-              {columnsData && (
-                <>
-                  {/* Boutons tout/rien */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button
-                      onClick={() => setSelectedCols(new Set(Object.keys(columnsData)))}
-                      className="g-btn g-btn-ghost" style={{ fontSize: 11, padding: '3px 10px' }}
-                    >Tout sélectionner</button>
-                    <button
-                      onClick={() => {
-                        // Garder les colonnes id
-                        setSelectedCols(new Set(Object.entries(columnsData).filter(([,v]) => v.type === 'id').map(([k]) => k)));
-                      }}
-                      className="g-btn g-btn-ghost" style={{ fontSize: 11, padding: '3px 10px' }}
-                    >Numérique seulement</button>
-                    <button
-                      onClick={() => setColumnsData(null)}
-                      className="g-btn g-btn-ghost" style={{ fontSize: 11, padding: '3px 10px', opacity: 0.6 }}
-                    >× Réinitialiser</button>
-                  </div>
+              </div>
+            )}
 
-                  {/* Grille des colonnes */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 6 }}>
-                    {Object.entries(columnsData).map(([col, info]) => {
-                      const isId = info.type === 'id';
-                      const isChecked = selectedCols.has(col);
-                      return (
-                        <label
-                          key={col}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 8,
-                            padding: '7px 10px', borderRadius: 6, cursor: isId ? 'default' : 'pointer',
-                            background: isChecked ? 'rgba(61,255,160,0.05)' : 'rgba(255,255,255,0.02)',
-                            border: `1px solid ${isChecked ? 'rgba(61,255,160,0.2)' : 'var(--border)'}`,
-                            opacity: isId ? 0.6 : 1,
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            disabled={isId}
-                            onChange={e => {
-                              setSelectedCols(prev => {
-                                const next = new Set(prev);
-                                e.target.checked ? next.add(col) : next.delete(col);
-                                return next;
-                              });
-                            }}
-                            style={{ marginTop: 2, accentColor: 'var(--accent)' }}
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace' }}>{col}</span>
-                              <span style={{
-                                fontSize: 9, padding: '1px 5px', borderRadius: 3, fontFamily: 'JetBrains Mono, monospace',
-                                background: info.type === 'number' ? 'rgba(59,130,246,0.15)' : info.type === 'id' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)',
-                                color: info.type === 'number' ? '#58a6ff' : info.type === 'id' ? '#f59e0b' : 'var(--text-dim)',
-                              }}>
-                                {info.type === 'id' ? 'ID' : info.type === 'number' ? 'num' : 'str'}
-                              </span>
-                            </div>
-                            {info.samples.length > 0 && (
-                              <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {info.samples.slice(0, 2).join(' · ')}
-                              </div>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
+            {/* Parse error */}
+            {parseError && (
+              <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-4">
+                <p className="text-red-400 font-mono text-sm">❌ {parseError}</p>
+              </div>
+            )}
 
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                    // {selectedCols.size} colonnes sélectionnées → seront stockées dans metadata JSONB
-                    {columnsData && selectedCols.size < Object.keys(columnsData).length && (
-                      <span style={{ color: 'var(--green)' }}>
-                        {' '}· économie ~{Math.round((1 - selectedCols.size / Object.keys(columnsData).length) * 100)}% de stockage
+            {/* File summary (when parsed) */}
+            {bundle && features.length > 0 && (
+              <div className="bg-gray-900/50 border border-[#3dffa0]/20 rounded-xl p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#3dffa0]/10 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3dffa0" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-mono font-bold text-[#3dffa0]">{bundle.fileName}</p>
+                    <p className="font-mono text-xs text-gray-500">
+                      {fmtNum(features.length)} features · {fields.length} colonnes · CRS: {crs}
+                    </p>
+                  </div>
+                </div>
+
+                {/* File sizes */}
+                <div className="flex gap-3 flex-wrap">
+                  {[
+                    { ext: '.shp', size: bundle.shp.byteLength },
+                    { ext: '.dbf', size: bundle.dbf.byteLength },
+                    ...(bundle.prj ? [{ ext: '.prj', size: bundle.prj.length }] : []),
+                    ...(bundle.shx ? [{ ext: '.shx', size: bundle.shx.byteLength }] : []),
+                  ].map(f => (
+                    <span key={f.ext} className="px-3 py-1 rounded-md bg-gray-800 font-mono text-xs text-gray-400">
+                      {f.ext} <span className="text-gray-500">{fmtBytes(f.size)}</span>
+                    </span>
+                  ))}
+                </div>
+
+                {/* Column preview */}
+                <div>
+                  <p className="font-mono text-xs text-gray-500 mb-2">Colonnes détectées :</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {fields.map(f => (
+                      <span key={f.name} className="px-2 py-0.5 rounded bg-gray-800 font-mono text-xs text-gray-300">
+                        {f.name}
+                        <span className="text-gray-600 ml-1">{f.type === 'N' || f.type === 'F' ? '123' : 'abc'}</span>
                       </span>
-                    )}
+                    ))}
                   </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+                </div>
 
-        {/* Step 03 — Périmètre géographique (visible UNIQUEMENT si bbox détectée) */}
-        {hasUploadReady && detectedBbox && (
-        <div className="g-card" style={{ borderColor: 'rgba(88,166,255,0.3)' }}>
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03</span>
-            <span className="g-card-title">Périmètre géographique détecté</span>
-            <span className="g-badge" style={{ marginLeft: 'auto', background: 'rgba(88,166,255,0.15)', color: '#58a6ff' }}>auto-détecté</span>
-          </div>
-          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="g-alert g-alert-success" style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-              bbox détectée (WGS84) : {detectedBbox}
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={!!geoPreset}
-                  onChange={(e) => setGeoPreset(e.target.checked ? detectedBbox : '')}
-                />
-                <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>Filtrer l&apos;import sur cette zone</span>
-              </label>
-            </div>
-            {geoPreset && (
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                ↳ seuls les carreaux dans cette bbox seront importés
+                <button
+                  onClick={() => setStep(2)}
+                  className="w-full py-3 rounded-lg bg-[#3dffa0] text-black font-mono font-bold text-sm hover:bg-[#2de090] transition-colors"
+                >
+                  Continuer → Mapping des colonnes
+                </button>
               </div>
             )}
           </div>
-        </div>
         )}
 
-        {/* Step 04 — Options d'import */}
-        {hasUploadReady && (
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>04</span>
-            <span className="g-card-title">Options d'import</span>
-          </div>
-          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
-              <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} style={{ marginTop: 3 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Mode test (dry-run)</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Aperçu sans insertion en base — recommandé pour le premier test</div>
-              </div>
-            </label>
-            <div>
-              <label className="g-label">Limite de lignes (optionnel)</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="number" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="vide = tout" min="1" className="g-input" style={{ maxWidth: 200 }} />
-                <button onClick={() => setLimit('')} className="g-btn g-btn-ghost" style={{ fontSize: 11, padding: '4px 10px', opacity: limit ? 1 : 0.4 }} disabled={!limit}>× Pas de limite</button>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'JetBrains Mono, monospace' }}>// vide = tous les carreaux (~450 000)</div>
-            </div>
-          </div>
-        </div>
-        )}
+        {/* ═══════════════════════ STEP 2: MAPPING ═══════════════════════ */}
+        {step === 2 && (
+          <div className="space-y-6">
 
-        {/* Step 05 — Nom de table + lancement */}
-        {hasUploadReady && (
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>05</span>
-            <span className="g-card-title">Lancer l'import</span>
-          </div>
-          <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Résolution + Millésime */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <label className="g-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Résolution
-                  {detectedMeta?.resolution && (
-                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(61,255,160,0.12)', color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
-                      auto-détecté
-                    </span>
-                  )}
-                </label>
+            {/* Config cards */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                <label className="block font-mono text-xs text-gray-500 mb-2">Résolution</label>
                 <select
                   value={resolution}
-                  onChange={e => setResolution(e.target.value as '200m' | '1km')}
-                  className="g-input"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                  onChange={e => setResolution(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
                 >
-                  <option value="200m">200m (Filosofi standard)</option>
-                  <option value="1km">1km (Filosofi agrégé)</option>
+                  <option value="200m">200m × 200m</option>
+                  <option value="1km">1km × 1km</option>
                 </select>
               </div>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <label className="g-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Millésime INSEE
-                  {detectedMeta?.millesime && (
-                    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(61,255,160,0.12)', color: '#3dffa0', fontFamily: 'JetBrains Mono, monospace' }}>
-                      auto-détecté
-                    </span>
-                  )}
-                </label>
-                <select
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                <label className="block font-mono text-xs text-gray-500 mb-2">Millésime</label>
+                <input
                   value={millesime}
                   onChange={e => setMillesime(e.target.value)}
-                  className="g-input"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
+                  placeholder="2021"
+                />
+              </div>
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                <label className="block font-mono text-xs text-gray-500 mb-2">Colonne ID (idcar)</label>
+                <select
+                  value={idColumn}
+                  onChange={e => setIdColumn(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
                 >
-                  {detectedMeta?.millesime && !['2021','2019','2017','2015'].includes(detectedMeta.millesime) && (
-                    <option value={detectedMeta.millesime}>{detectedMeta.millesime} (détecté)</option>
-                  )}
-                  <option value="2021">2021 (dernière version)</option>
-                  <option value="2019">2019</option>
-                  <option value="2017">2017</option>
-                  <option value="2015">2015</option>
+                  <option value="">— Auto-index —</option>
+                  {fields.map(f => (
+                    <option key={f.name} value={f.name}>{f.name}</option>
+                  ))}
                 </select>
               </div>
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono, monospace', marginTop: -6 }}>
-              → Table cible : <strong style={{ color: '#3dffa0' }}>carreaux_filosofi</strong>
-              {' '}(résolution={resolution}, millésime={millesime})
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button
-                onClick={handleImport}
-                disabled={isImporting || !hasUploadReady}
-                className={`g-btn ${dryRun ? 'g-btn-success' : 'g-btn-danger'}`}
-                style={{ minWidth: 200 }}
-              >
-                {isImporting ? (
-                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>Import en cours...</>
-                ) : dryRun ? '→ Tester (dry-run)' : '⚠ LANCER L\'IMPORT RÉEL'}
-              </button>
-              {!dryRun && <span style={{ fontSize: 12, color: 'var(--red)', fontFamily: 'JetBrains Mono, monospace' }}>⚠ Insertion en base Supabase</span>}
-            </div>
 
-            {/* Barre de progression upload + traitement */}
-            {isImporting && (
-              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                {/* Phase indicator + timer */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      boxShadow: `0 0 6px ${importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832'}`,
-                    }} />
-                    <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: importPhase === 'uploading' ? '#58a6ff' : importPhase === 'inserting' ? '#3dffa0' : '#ffc832' }}>
-                      {importPhase === 'uploading' && '📤 Upload en cours'}
-                      {importPhase === 'server-processing' && '⚙️ Traitement serveur'}
-                      {importPhase === 'python-running' && '🐍 Script Python en cours'}
-                      {importPhase === 'inserting' && '💾 Insertion en base'}
-                      {importPhase === 'done' && '✅ Terminé'}
-                      {importPhase === 'idle' && '⏳ Initialisation'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {/* Heartbeat indicator */}
-                    {importPhase !== 'uploading' && importPhase !== 'done' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <div style={{
-                          width: 6, height: 6, borderRadius: '50%',
-                          background: (Date.now() - lastHeartbeat) < 15000 ? '#3dffa0' : '#ff5757',
-                          animation: 'pulse 2s ease-in-out infinite',
-                        }} />
-                        <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(Date.now() - lastHeartbeat) < 15000 ? 'actif' : 'pas de signal'}
-                        </span>
-                      </div>
-                    )}
-                    <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: 1 }}>
-                      ⏱ {fmtTime(elapsed)}
-                    </span>
-                  </div>
+            {/* Column mapping table */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+                <div>
+                  <h3 className="font-mono font-bold text-sm text-white">Mapping des colonnes</h3>
+                  <p className="font-mono text-xs text-gray-500 mt-1">
+                    Sélectionnez les colonnes à inclure dans les metadata JSONB.
+                    Décochez celles à ignorer.
+                  </p>
                 </div>
-
-                {/* Upload progress bar */}
-                {uploadProgress && (
-                  <>
-                    <div style={{
-                      padding: '12px 16px', borderRadius: 8,
-                      background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.25)',
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', marginBottom: 8 }}>
-                        <span style={{ color: '#58a6ff', fontWeight: 700 }}>
-                          📤 Upload : {fmtBytes(uploadProgress.loaded)} / {fmtBytes(uploadProgress.total)}
-                        </span>
-                        <span style={{ color: '#58a6ff', fontWeight: 700, fontSize: 16 }}>
-                          {Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%
-                        </span>
-                      </div>
-                      <div style={{ height: 16, borderRadius: 8, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', position: 'relative' }}>
-                        <div style={{
-                          height: '100%', borderRadius: 8,
-                          background: 'linear-gradient(90deg, #58a6ff, #3dffa0)',
-                          width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`,
-                          transition: 'width 0.3s ease',
-                          boxShadow: '0 0 12px rgba(88,166,255,0.5)',
-                        }} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                        {uploadSpeed > 0 && (
-                          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                            ⚡ {fmtBytes(uploadSpeed)}/s
-                          </span>
-                        )}
-                        {uploadSpeed > 0 && (
-                          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                            ETA : ~{fmtTime(Math.ceil((uploadProgress.total - uploadProgress.loaded) / uploadSpeed))}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Insertion progress bar */}
-                {importProgress && (
-                  <>
-                    <div style={{
-                      padding: '12px 16px', borderRadius: 8,
-                      background: 'rgba(61,255,160,0.08)', border: '1px solid rgba(61,255,160,0.25)',
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', marginBottom: 8 }}>
-                        <span style={{ color: '#3dffa0', fontWeight: 700 }}>
-                          💾 {importProgress.current.toLocaleString('fr-FR')} / {importProgress.total.toLocaleString('fr-FR')} carreaux insérés
-                        </span>
-                        <span style={{ color: '#3dffa0', fontWeight: 700, fontSize: 16 }}>
-                          {Math.round(importProgress.current / importProgress.total * 100)}%
-                        </span>
-                      </div>
-                      <div style={{ height: 16, borderRadius: 8, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%', borderRadius: 8,
-                          background: 'linear-gradient(90deg, #3dffa0, #58a6ff)',
-                          width: `${Math.round(importProgress.current / importProgress.total * 100)}%`,
-                          transition: 'width 0.4s ease',
-                          boxShadow: '0 0 12px rgba(61,255,160,0.5)',
-                        }} />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* No progress bar but server processing — animated indeterminate bar */}
-                {!uploadProgress && !importProgress && importPhase !== 'done' && (
-                  <div style={{
-                    padding: '12px 16px', borderRadius: 8,
-                    background: 'rgba(255,200,50,0.08)', border: '1px solid rgba(255,200,50,0.25)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#ffc832', fontWeight: 700 }}>
-                        {importPhase === 'server-processing' ? '⚙️ Écriture des fichiers sur le serveur...' : importPhase === 'python-running' ? '🐍 Script Python en cours...' : 'En attente du serveur...'}
-                      </span>
-                    </div>
-                    <div style={{ height: 12, borderRadius: 6, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative' }}>
-                      <div style={{
-                        height: '100%', width: '40%', borderRadius: 6,
-                        background: 'linear-gradient(90deg, transparent, #ffc832, transparent)',
-                        animation: 'indeterminateSlide 1.5s ease-in-out infinite',
-                        position: 'absolute', top: 0, left: 0,
-                      }} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Live log line */}
-                {lastLog && (
-                  <div style={{
-                    padding: '6px 10px', borderRadius: 4,
-                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                    fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    ↳ {lastLog}
-                  </div>
-                )}
-
-                {/* Scrollable log history */}
-                {logHistory.length > 2 && (
-                  <details>
-                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      📋 Historique logs ({logHistory.length} lignes)
-                    </summary>
-                    <pre style={{
-                      marginTop: 6, padding: 10, borderRadius: 6,
-                      background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
-                      fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace',
-                      maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-                    }}>
-                      {logHistory.join('\n')}
-                    </pre>
-                  </details>
-                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMappings(mappings.map(m => ({ ...m, target: '' })))}
+                    className="px-3 py-1 rounded bg-gray-800 font-mono text-xs text-gray-400 hover:bg-gray-700"
+                  >
+                    Tout inclure
+                  </button>
+                  <button
+                    onClick={() => setMappings(mappings.map(m => ({ ...m, target: '__skip__' })))}
+                    className="px-3 py-1 rounded bg-gray-800 font-mono text-xs text-gray-400 hover:bg-gray-700"
+                  >
+                    Tout exclure
+                  </button>
+                </div>
               </div>
-            )}
+
+              <div className="divide-y divide-gray-800/50 max-h-[500px] overflow-y-auto">
+                {mappings.map((m, idx) => {
+                  const field = fields[idx];
+                  const sample = features.length > 0 ? features[0].properties[m.source] : null;
+                  const isIncluded = m.target !== '__skip__';
+
+                  return (
+                    <div
+                      key={m.source}
+                      className={`px-6 py-3 flex items-center gap-4 transition-colors ${
+                        isIncluded ? 'bg-transparent' : 'bg-gray-900/80 opacity-50'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isIncluded}
+                          onChange={e => {
+                            const next = [...mappings];
+                            next[idx] = { ...m, target: e.target.checked ? '' : '__skip__' };
+                            setMappings(next);
+                          }}
+                          className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#3dffa0] focus:ring-[#3dffa0] focus:ring-offset-0"
+                        />
+                      </label>
+
+                      {/* Source column name */}
+                      <div className="flex-1 min-w-0">
+                        <span className="font-mono text-sm text-white font-medium">{m.source}</span>
+                        <span className="font-mono text-xs text-gray-600 ml-2">
+                          {field?.type === 'N' || field?.type === 'F' ? 'numérique' : 'texte'}
+                        </span>
+                      </div>
+
+                      {/* Sample value */}
+                      <div className="w-48 truncate">
+                        <span className="font-mono text-xs text-gray-500">
+                          {sample != null ? String(sample) : '—'}
+                        </span>
+                      </div>
+
+                      {/* Target name input */}
+                      <input
+                        value={m.target === '__skip__' ? '' : m.target}
+                        onChange={e => {
+                          const next = [...mappings];
+                          next[idx] = { ...m, target: e.target.value };
+                          setMappings(next);
+                        }}
+                        disabled={!isIncluded}
+                        placeholder="(nom original)"
+                        className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 font-mono text-xs text-gray-300 disabled:opacity-30"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Summary + next */}
+            <div className="flex items-center justify-between">
+              <div className="font-mono text-sm text-gray-400">
+                {mappings.filter(m => m.target !== '__skip__').length} / {mappings.length} colonnes sélectionnées
+                · {fmtNum(features.length)} features à insérer
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="px-6 py-2.5 rounded-lg bg-gray-800 text-gray-400 font-mono text-sm hover:bg-gray-700"
+                >
+                  ← Retour
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  className="px-6 py-2.5 rounded-lg bg-[#3dffa0] text-black font-mono font-bold text-sm hover:bg-[#2de090] transition-colors"
+                >
+                  Lancer l&apos;import →
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
         )}
 
-        {/* Résultat */}
-        {importResult && (
-          <div className="g-card" style={{ borderColor: importResult.success ? 'rgba(61,255,160,0.3)' : 'rgba(255,87,87,0.3)' }}>
-            <div className="g-card-header">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={importResult.success ? 'var(--green)' : 'var(--red)'} strokeWidth="2">
-                {importResult.success ? <polyline points="20 6 9 17 4 12" /> : <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>}
-              </svg>
-              <span className="g-card-title">import.result</span>
-              <span className={`g-badge ${importResult.success ? 'g-badge-green' : 'g-badge-red'}`} style={{ marginLeft: 'auto' }}>
-                {importResult.success ? 'success' : 'error'}
-              </span>
+        {/* ═══════════════════════ STEP 3: IMPORT ═══════════════════════ */}
+        {step === 3 && (
+          <div className="space-y-6">
+
+            {/* Summary card */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+              <div className="grid grid-cols-4 gap-6">
+                <div>
+                  <p className="font-mono text-xs text-gray-500">Features</p>
+                  <p className="font-mono text-xl font-bold text-white">{fmtNum(features.length)}</p>
+                </div>
+                <div>
+                  <p className="font-mono text-xs text-gray-500">Colonnes</p>
+                  <p className="font-mono text-xl font-bold text-white">
+                    {mappings.filter(m => m.target !== '__skip__').length}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-mono text-xs text-gray-500">Résolution</p>
+                  <p className="font-mono text-xl font-bold text-[#3dffa0]">{resolution}</p>
+                </div>
+                <div>
+                  <p className="font-mono text-xs text-gray-500">Millésime</p>
+                  <p className="font-mono text-xl font-bold text-[#3dffa0]">{millesime}</p>
+                </div>
+              </div>
             </div>
-            <div className="g-card-body">
-              {importResult.success ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {importResult.report && (
-                    <div className="g-code" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                      {importResult.report.fichierSource && <div><span style={{ color: 'var(--text-dim)' }}>fichier: </span><span style={{ color: 'var(--accent)' }}>{importResult.report.fichierSource}</span></div>}
-                      {importResult.report.tableTarget && <div><span style={{ color: 'var(--text-dim)' }}>table_créée: </span><span style={{ color: 'var(--accent)' }}>{importResult.report.tableTarget}</span></div>}
-                      {importResult.report.lignesChargees !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>lignes_chargées: </span><span style={{ color: 'var(--green)' }}>{importResult.report.lignesChargees}</span></div>}
-                      {importResult.report.carreauxTraites !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>carreaux_traités: </span><span style={{ color: 'var(--green)' }}>{importResult.report.carreauxTraites}</span></div>}
-                      {importResult.report.carreauxInseres !== undefined && <div><span style={{ color: 'var(--text-dim)' }}>carreaux_insérés: </span><span style={{ color: 'var(--green)' }}>{importResult.report.carreauxInseres}</span></div>}
-                    </div>
-                  )}
-                  {importResult.output && (
-                    <details><summary>logs complets</summary>
-                      <pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto' }}>{importResult.output}</pre>
-                    </details>
-                  )}
+
+            {/* Start button */}
+            {!isImporting && !importDone && (
+              <button
+                onClick={processImport}
+                className="w-full py-4 rounded-xl bg-[#3dffa0] text-black font-mono font-bold text-lg hover:bg-[#2de090] transition-colors"
+              >
+                ⚡ Lancer l&apos;insertion ({fmtNum(features.length)} features)
+              </button>
+            )}
+
+            {/* Progress bar */}
+            {(isImporting || importDone) && progress && (
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    {isImporting && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3dffa0" strokeWidth="2.5" className="animate-spin">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    )}
+                    <span className="font-mono text-sm font-bold" style={{ color: importDone ? (importError ? '#ff5757' : '#3dffa0') : '#ffc832' }}>
+                      {importDone
+                        ? (importError ? `⚠️ ${importError}` : '✅ Import terminé')
+                        : `💾 Insertion en cours — ${fmtNum(progress.current)} / ${fmtNum(progress.total)}`
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 font-mono text-sm text-gray-400">
+                    {speed > 0 && <span>⚡ {fmtNum(speed)}/s</span>}
+                    {isImporting && eta > 0 && <span>ETA ~{fmtTime(eta)}</span>}
+                    <span className="font-bold text-white">⏱ {fmtTime(elapsed)}</span>
+                  </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div className="g-alert g-alert-error">{importResult.error || 'Erreur inconnue'}</div>
-                  {importResult.details && (
-                    <details open>
-                      <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>détails erreur</summary>
-                      <pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', color: 'var(--red)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{importResult.details}</pre>
-                    </details>
-                  )}
-                  {(importResult as any).hint && (
-                    <div className="g-alert" style={{ background: 'rgba(255,200,50,0.08)', border: '1px solid rgba(255,200,50,0.3)', color: '#ffc832' }}>
-                      💡 {(importResult as any).hint}
-                    </div>
-                  )}
-                  {(importResult as any).diagnostic && (
-                    <details>
-                      <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>diagnostic Python</summary>
-                      <pre className="g-code" style={{ marginTop: 8, fontSize: 10, maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify((importResult as any).diagnostic, null, 2)}</pre>
-                    </details>
-                  )}
-                  {(importResult as any).errorType && (
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      Type: {(importResult as any).errorType} · {(importResult as any).timestamp || ''}
-                    </div>
-                  )}
-                  {importResult.output && <details><summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>console output (stdout)</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{importResult.output}</pre></details>}
-                  {importResult.errors && <details open><summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>stderr Python</summary><pre className="g-code" style={{ marginTop: 8, fontSize: 11, maxHeight: 300, overflow: 'auto', color: 'var(--red)', whiteSpace: 'pre-wrap' }}>{importResult.errors}</pre></details>}
+
+                <div className="relative">
+                  <div className="h-5 rounded-full bg-gray-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${pct}%`,
+                        background: importDone
+                          ? (importError ? 'linear-gradient(90deg, #ff5757, #ff8888)' : 'linear-gradient(90deg, #3dffa0, #58a6ff)')
+                          : 'linear-gradient(90deg, #ffc832, #ff9500)',
+                        boxShadow: `0 0 12px ${importDone ? (importError ? '#ff575740' : '#3dffa040') : '#ffc83240'}`,
+                      }}
+                    />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="font-mono text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                      {pct}%
+                    </span>
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* Terminal logs */}
+            <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-2 bg-gray-900/80 border-b border-gray-800 flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                  <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="font-mono text-xs text-gray-500 ml-2">import-logs</span>
+                <span className="font-mono text-xs text-gray-600 ml-auto">{logs.length} lignes</span>
+              </div>
+              <div
+                ref={logRef}
+                className="p-4 h-80 overflow-y-auto font-mono text-xs leading-relaxed"
+              >
+                {logs.length === 0 ? (
+                  <p className="text-gray-600">En attente du lancement…</p>
+                ) : (
+                  logs.map((line, i) => (
+                    <div key={i} className={
+                      line.includes('❌') ? 'text-red-400'
+                      : line.includes('✅') ? 'text-[#3dffa0]'
+                      : line.includes('RAPPORT') || line.includes('═') ? 'text-[#58a6ff] font-bold'
+                      : 'text-gray-400'
+                    }>
+                      {line}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Back / Reset */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep(2)}
+                disabled={isImporting}
+                className="px-6 py-2.5 rounded-lg bg-gray-800 text-gray-400 font-mono text-sm hover:bg-gray-700 disabled:opacity-30"
+              >
+                ← Retour au mapping
+              </button>
+              {importDone && (
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setFeatures([]);
+                    setFields([]);
+                    setBundle(null);
+                    setLogs([]);
+                    setProgress(null);
+                    setImportDone(false);
+                    setImportError('');
+                  }}
+                  className="px-6 py-2.5 rounded-lg bg-[#58a6ff]/10 border border-[#58a6ff]/30 text-[#58a6ff] font-mono text-sm hover:bg-[#58a6ff]/20"
+                >
+                  🔄 Nouvel import
+                </button>
               )}
             </div>
           </div>
         )}
-
-        <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>// Workflow recommandé :</span>
-          <span>// 1. dry-run + limite 1000 → vérifier les indicateurs</span>
-          <span>// 2. dry-run sans limite + filtre département → estimer le volume</span>
-          <span>// 3. import réel département par département</span>
-          <span>// Import France entière (~2,3M lignes, batch 500) ≈ 25-40 min · Plan Pro requis (2,5 GB)</span>
-        </div>
       </div>
     </div>
   );

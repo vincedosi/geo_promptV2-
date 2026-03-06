@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '6.5.1';
-export const BUILD_DATE = '2026-03-03';
+export const APP_VERSION = '6.6.0';
+export const BUILD_DATE = '2026-03-06';
 
 export interface ChangelogEntry {
   version: string;
@@ -19,6 +19,25 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '6.6.0',
+    date: '2026-03-06',
+    type: 'minor',
+    changes: [
+      'Refonte complète import Carreaux : parser SHP/DBF/PRJ 100% client-side (plus de Python)',
+      'Wizard 3 étapes : Fichiers → Mapping → Import (avec reprojection proj4 browser EPSG:3035/2154/4326)',
+      'Nouvelle route /api/admin/import-geo : INSERT batch via PostgreSQL direct (unnest, fully parameterized)',
+      'Nouvelle route /api/admin/import-geo/register : enregistrement source dans data_sources',
+      'Nouvelle route /api/admin/import-geo/rename-columns : renommage clés JSONB metadata',
+      'Suppression 6 anciennes routes : carreaux-gen-schema, carreaux-infer-schema, import-carreaux, import-carreaux/execute, preview-carreaux, carreaux-debug',
+      'API /api/carreaux refaite : connexion PostgreSQL directe, GET sources + POST GeoJSON bbox, normalisation lowercase metadata',
+      'Sécurité : sql.unsafe() + escapeLiteral() remplacés par requêtes fully parameterized (unnest arrays + tagged template)',
+      'Copilote : applyChoropleth() améliorée (valeurs 0 = transparent, expression MapLibre robuste)',
+      'Copilote : loadCarreauxFromAI — fly+fetch en parallèle, applyChoropleth intégrée',
+      'Copilote : useToolProcessor supporte afficher_carreaux (sauvegarde carreauxConfigForSaveRef)',
+      'SQL : 005_upsert_carreaux_batch.sql — notify_pgrst_reload() helper',
+    ],
+  },
   {
     version: '6.5.1',
     date: '2026-03-03',

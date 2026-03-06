@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { UIMessage } from 'ai';
-import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, NetworkCoverageData } from '@/types/spatial';
 
 interface UseToolProcessorOpts {
   messages: UIMessage[];
@@ -18,6 +18,7 @@ interface UseToolProcessorOpts {
     tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
+  applyNetworkCoverage: (data: NetworkCoverageData) => void;
 }
 
 export function useToolProcessor({
@@ -31,6 +32,7 @@ export function useToolProcessor({
   carreauxSourcesRef,
   carreauxConfigForSaveRef,
   flyToCoords,
+  applyNetworkCoverage,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
@@ -104,6 +106,19 @@ export function useToolProcessor({
               couleur_overrides: { ...prev.couleur_overrides, ...(result as ZoneData).couleur_overrides },
             };
           });
+
+        } else if (toolName === 'classer_panneaux_audience' && result?.pois) {
+          // Display ranked panneaux with coverage circles on map
+          setZoneData(result as ZoneData);
+          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+
+        } else if (toolName === 'analyze_poi_synergy' && result?.pois) {
+          // Display synergy results (panneaux near POI with demo scoring)
+          setZoneData(result as ZoneData);
+          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+
+        } else if (toolName === 'calculate_network_coverage' && result?.union_geojson) {
+          applyNetworkCoverage(result as NetworkCoverageData);
 
         } else if (toolName === 'calculate_audience_coverage' && result) {
           if (result.error) {

@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.5.2 — 5 mars 2026
+> **Version** : 6.6.0 — 6 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -65,7 +65,7 @@ genesis_app/
 │       ├── search-panneaux/route.ts       ← Filtres → panneaux Supabase (RPC PostGIS)
 │       ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
 │       ├── search-poi/categories/route.ts ← Liste des catégories POI
-│       ├── carreaux/route.ts              ← GET: sources / POST: GeoJSON FeatureCollection
+│       ├── carreaux/route.ts              ← GET: sources (data_sources) / POST: GeoJSON bbox (PostgreSQL direct)
 │       ├── chat/route.ts                  ← Copilote IA (streamText, 5 tools Zod, rate limit)
 │       ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
 │       ├── saved-maps/route.ts            ← Sauvegarde/chargement analyses
@@ -74,7 +74,9 @@ genesis_app/
 │       ├── auth/[...auth]/route.ts        ← Auth endpoints
 │       └── admin/                         ← 🔒 Toutes protégées par requireAdmin()
 │           ├── import-poi/execute/route.ts ← SSE import POI en base
-│           ├── import-carreaux/route.ts   ← Import carreaux INSEE
+│           ├── import-geo/route.ts        ← Import batch Shapefile → carreaux_filosofi (PostgreSQL direct, unnest)
+│           ├── import-geo/register/route.ts ← Enregistrement source dans data_sources
+│           ├── import-geo/rename-columns/route.ts ← Renommage clés JSONB metadata
 │           ├── sources/route.ts           ← CRUD sources
 │           ├── sources/[id]/route.ts      ← GET/PATCH/DELETE source
 │           ├── sources/[id]/meta-keys/route.ts
@@ -88,7 +90,6 @@ genesis_app/
 │           ├── delete-source/route.ts     ← Suppression source
 │           ├── delete-category/route.ts   ← Suppression catégorie
 │           ├── verify-url/route.ts        ← Vérification URL
-│           ├── preview-carreaux/route.ts  ← Prévisualisation carreaux
 │           ├── health/route.ts            ← Health check (non protégé — diagnostic)
 │           └── init-admin/route.ts        ← Init admin (ADMIN_INIT_KEY)
 ├── components/
@@ -195,6 +196,7 @@ ORS_API_KEY=...                     ← Requis pour la Bataille d'Isochrones
 
 # Admin bootstrap
 ADMIN_INIT_KEY=...                  ← Clé secrète pour créer le premier super_admin
+SUPABASE_DB_URL=postgresql://postgres:...@db.xxx.supabase.co:5432/postgres  ← Requis pour import-geo (PostgreSQL direct)
 
 # Interne
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -377,7 +379,7 @@ console.log('done');
 2. **ON CONFLICT DO NOTHING** sur tous les inserts
 3. **Toute route admin** → `requireAdmin()` en première ligne
 4. **Tout appel admin côté client** → `adminFetch()` (jamais `fetch()` nu)
-5. **Tout insert passe par le client Supabase JS** (HTTPS, pas de connexion PostgreSQL directe)
+5. **Inserts POI via Supabase JS** (HTTPS) — **imports géo bulk via PostgreSQL direct** (`import-geo`, `carreaux/route.ts`) pour contourner les limites PostgREST
 
 ---
 
@@ -417,7 +419,7 @@ npx next dev
 | 3 | **Couche Service** | ✅ Terminé | `lib/geo/geometry.ts`, `lib/geo/locations.ts`, `lib/isochrones/fetcher.ts` |
 | 4 | **Découpage UI** | ✅ Terminé | 6 hooks, 5 composants, `page.tsx` ~160 lignes |
 | 5 | **Rate Limiting & Robustesse** | ✅ Terminé | Rate limit 12 req/min, AbortController ORS 12s, messages erreur |
-| 6 | **Subprocess Python** | 🔲 À faire | Migrer `import-carreaux` vers CLI autonome cross-platform |
+| 6 | **Import Shapefile** | ✅ Terminé | Parser SHP/DBF/PRJ client-side, reprojection proj4 browser, API PostgreSQL direct (unnest), sécurité fully parameterized |
 
 ---
 
@@ -425,6 +427,7 @@ npx next dev
 
 | Version | Date | Changements clés |
 |---------|------|-------------------|
+| **6.6.0** | 2026-03-06 | Refonte import Shapefile : wizard 3 étapes, parser SHP/DBF/PRJ client-side, reprojection proj4 browser. API `/import-geo` PostgreSQL direct + unnest paramétrisé. Sécurité : `sql.unsafe()` remplacé par requêtes fully parameterized. |
 | **6.5.1** | 2026-03-03 | Fix "voronoï routier" → `isochrone_battle` + Panel Prompts `?` (6 catégories, 20 exemples cliquables) |
 | **6.5.0** | 2026-03-03 | Itér. 5 : rate limit 12 req/min/IP, AbortController ORS 12s, messages erreur friendlys, outil `analyser_panneaux` |
 | **6.4.1** | 2026-03-03 | DB audit : suppression code mort (engine.ts, spatial/route.ts) |
@@ -463,4 +466,4 @@ npx next dev
 
 ---
 
-*GEO.Prompt v6.5.1 — AI Media Planning Platform*
+*GEO.Prompt v6.6.0 — AI Media Planning Platform*

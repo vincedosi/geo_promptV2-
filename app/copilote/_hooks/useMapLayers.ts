@@ -8,7 +8,7 @@ import {
   VORONOI_PALETTE,
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
-import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+import type { IsochroneData, VoronoiData, CarreauxData, NetworkCoverageData } from '@/types/spatial';
 
 interface UseMapLayersOpts {
   mapRef: React.MutableRefObject<maplibregl.Map | null>;
@@ -427,39 +427,99 @@ export function useMapLayers({
     const tableName = sources[0].tableName;
     const { lat, lng } = cd.coordonnees;
 
-    map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
-
     const dlat = 0.12;
     const dlng = 0.18 / Math.cos(lat * Math.PI / 180);
     const bbox = [lng - dlng, lat - dlat, lng + dlng, lat + dlat];
 
     try {
-      const res = await fetch('/api/carreaux', {
+      // Start fly and fetch in parallel
+      const flyDone = new Promise<void>(resolve => {
+        map.once('moveend', () => resolve());
+        map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
+      });
+
+      const fetchDone = fetch('/api/carreaux', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableName, bbox }),
+      }).then(r => r.json());
+
+      // Wait for both to complete
+      const [, gjData] = await Promise.all([flyDone, fetchDone]);
+
+      console.log('[Copilote] carreaux response:', {
+        count: gjData.features?.length,
+        error: gjData.error,
+        indicateur: cd.indicateur,
+        sampleProps: gjData.features?.[0]?.properties,
       });
-      const gjData = await res.json();
       if (!gjData.features || gjData.features.length === 0) {
         console.warn('[Copilote] Aucun carreau dans la bbox');
         return;
       }
 
       const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
+      console.log('[Copilote] carreaux source exists:', !!source);
       if (!source) return;
 
       source.setData(gjData as GeoJSON.FeatureCollection);
       applyChoropleth(map, gjData.features, cd.indicateur);
+      console.log('[Copilote] choropleth applied, setting visible');
       map.setLayoutProperty('carreaux-fill', 'visibility', 'visible');
       map.setLayoutProperty('carreaux-line', 'visibility', 'visible');
+
+      // Force a repaint after data is loaded
+      map.triggerRepaint();
 
       setCarreauxVisible(true);
       setCarreauxLoaded(true);
       setCarreauxIndicateur(cd.indicateur);
-      setCarreauxLabel(cd.indicateur_label);
+      setCarreauxLabel(cd.indicateur_label + ` (${gjData.features.length} carreaux)`);
     } catch (err) {
       console.error('[Copilote] loadCarreauxFromAI error:', err);
     }
+  };
+
+  const applyNetworkCoverage = (data: NetworkCoverageData) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const colors = ISOCHRONE_COLORS.network;
+    const geom   = data.union_geojson;
+
+    const source = map.getSource('isochrones') as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    // Wrap geometry in a FeatureCollection
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: geom, properties: {} }],
+    };
+    source.setData(fc);
+    map.setPaintProperty('isochrones-fill', 'fill-color',   colors.fill);
+    map.setPaintProperty('isochrones-fill', 'fill-opacity', 0.25);
+    map.setPaintProperty('isochrones-line', 'line-color',   colors.line);
+    map.setPaintProperty('isochrones-line', 'line-width',   2);
+    map.setLayoutProperty('isochrones-fill', 'visibility', 'visible');
+    map.setLayoutProperty('isochrones-line', 'visibility', 'visible');
+    setIsochroneVisible(true);
+    setIsochroneMode('network');
+    setIsochroneMinutes(data.travel_time_minutes);
+    setIsochroneFromCache(data.from_cache ?? false);
+    setIsochroneCachedAt('');
+
+    // fitBounds over the union geometry
+    const bounds = new maplibregl.LngLatBounds();
+    let extended = false;
+    const extractCoords = (g: GeoJSON.Geometry) => {
+      if (g.type === 'Polygon') {
+        for (const ring of g.coordinates) for (const c of ring) { bounds.extend([c[0], c[1]]); extended = true; }
+      } else if (g.type === 'MultiPolygon') {
+        for (const poly of g.coordinates) for (const ring of poly) for (const c of ring) { bounds.extend([c[0], c[1]]); extended = true; }
+      }
+    };
+    extractCoords(geom);
+    if (extended) map.fitBounds(bounds, { padding: 60, maxZoom: 8, duration: 1500 });
   };
 
   const runTestIsochrone = async (
@@ -551,6 +611,7 @@ export function useMapLayers({
     applyVoronoi,
     applyIsochroneBattle,
     applyIsochrones,
+    applyNetworkCoverage,
     loadCarreauxFromAI,
     runTestIsochrone,
   };

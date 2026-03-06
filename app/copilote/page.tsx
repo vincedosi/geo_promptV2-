@@ -60,6 +60,7 @@ export default function CopilotePage() {
     loadCarreauxFromAI:       mapLayers.loadCarreauxFromAI,
     carreauxSourcesRef:       mapLayers.carreauxSourcesRef,
     carreauxConfigForSaveRef: savedMaps.carreauxConfigForSaveRef,
+    applyNetworkCoverage:     mapLayers.applyNetworkCoverage,
     flyToCoords: (lat, lng) => {
       if (mapRef.current && mapReady) {
         mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
@@ -97,15 +98,25 @@ export default function CopilotePage() {
     let markerCount = 0;
     zoneData.pois.forEach((p) => {
       const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+      const rankVal = (p as any).rank;
       const el = document.createElement('div');
-      el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
+      if (rankVal) {
+        // Numbered marker for ranked panneaux
+        el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
+        el.textContent = String(rankVal);
+      } else {
+        el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
+      }
       markerCount++;
       const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const audienceVal = (p as any).audience;
       const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
         `<div style="font-size:12px;padding:6px 8px">` +
+        (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
         `<strong>${nom}</strong><br/>` +
         `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie}</span>` +
         (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
+        (audienceVal != null ? `<br/><span style="color:#10b981;font-size:12px;font-weight:600">👥 ${Number(audienceVal).toLocaleString('fr-FR')} personnes</span>` : '') +
         (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${p.adresse}</span>` : '') +
         `</div>`
       );
@@ -126,19 +137,20 @@ export default function CopilotePage() {
     console.log('[copilote/render] Final markers count:', markersRef.current.length);
 
     const r = zoneData.rayon_metres, rPoi = zoneData.rayon_poi_metres;
+    if (zoneData.pois.length > 1) {
+      const lats = zoneData.pois.map(p => p.lat);
+      const lngs = zoneData.pois.map(p => p.lng);
+      map.fitBounds(
+        new maplibregl.LngLatBounds([Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]),
+        { padding: 60, maxZoom: 14, duration: 1200 }
+      );
+      return;
+    }
     let zoom: number;
     if (rPoi) {
       zoom = rPoi < 300 ? 15 : rPoi < 800 ? 14 : rPoi < 2000 ? 13 : 12;
     } else if (r) {
       zoom = r < 1500 ? 14 : r < 4000 ? 13 : 11;
-    } else if (zoneData.pois.length > 1) {
-      const lats = zoneData.pois.map(p => p.lat);
-      const lngs = zoneData.pois.map(p => p.lng);
-      map.fitBounds(
-        new maplibregl.LngLatBounds([Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]),
-        { padding: 60, maxZoom: 13, duration: 1200 }
-      );
-      return;
     } else {
       zoom = 12;
     }

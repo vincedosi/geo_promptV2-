@@ -4,6 +4,8 @@ import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
 import { ZoneCard } from './ZoneCard';
 import { CoverageCard } from './CoverageCard';
+import { SynergyResults } from './SynergyResults';
+import { NetworkCoverageReport } from './NetworkCoverageReport';
 import { TypingDots } from './TypingDots';
 import { PromptsPanel } from './PromptsPanel';
 
@@ -48,6 +50,8 @@ const runningToolLabels: Record<string, string> = {
   'tool-afficher_carreaux':           '📊 Chargement des carreaux…',
   'tool-isochrone_battle':            '⚔️ Calcul Bataille d\'Isochrones (~1-2 min)…',
   'tool-calculate_audience_coverage': '🎯 Calcul de couverture audience…',
+  'tool-analyze_poi_synergy':           '🎯 Analyse synergies POI × démographie…',
+  'tool-calculate_network_coverage':    '🌍 Calcul empreinte réseau (~1-2 min)…',
 };
 
 export function ChatPanel({
@@ -196,6 +200,23 @@ export function ChatPanel({
               )
             : null;
 
+          const synergyPart = msg.role === 'assistant'
+            ? (msg.parts as any[]).find(
+                p => p.type === 'tool-analyze_poi_synergy'
+                  && p.state === 'output-available'
+                  && p.output?._synergy
+              )
+            : null;
+
+          const networkCovPart = msg.role === 'assistant'
+            ? (msg.parts as any[]).find(
+                p => p.type === 'tool-calculate_network_coverage'
+                  && p.state === 'output-available'
+                  && p.output?.union_geojson
+                  && !p.output?.error
+              )
+            : null;
+
           const runningTool = msg.role === 'assistant'
             ? (msg.parts as any[]).find(
                 p => p.type?.startsWith('tool-') && (p.state === 'input-streaming' || p.state === 'input-available')
@@ -222,6 +243,8 @@ export function ChatPanel({
                       </div>
                     )}
                     {zonePart && <ZoneCard zone={zonePart.output as ZoneData} />}
+                    {synergyPart && <SynergyResults zoneData={synergyPart.output as ZoneData} />}
+                    {networkCovPart && <NetworkCoverageReport data={networkCovPart.output} />}
                     {coveragePart && (
                       <CoverageCard
                         locationName={coveragePart.output.location_name}
@@ -232,7 +255,7 @@ export function ChatPanel({
                       />
                     )}
                     {textContent && (
-                      <div style={{ marginTop: (zonePart || coveragePart) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
+                      <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
                         {textContent}
                       </div>
                     )}

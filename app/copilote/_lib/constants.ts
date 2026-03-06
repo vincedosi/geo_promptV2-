@@ -28,13 +28,16 @@ export function circleGeoJSON(
 }
 
 export function applyChoropleth(map: maplibregl.Map, features: GeoJSON.Feature[], metricKey: string) {
+  console.log('[applyChoropleth] metricKey:', metricKey, 'features:', features.length);
   const vals = features
     .map(f => Number((f.properties as Record<string, unknown>)?.[metricKey]))
     .filter(n => !isNaN(n) && n > 0);
-  if (vals.length === 0) return;
+  console.log('[applyChoropleth] non-zero values:', vals.length);
+  if (vals.length === 0) { console.warn('[applyChoropleth] NO values, aborting'); return; }
   const mn = Math.min(...vals);
   const mx = Math.max(...vals);
-  if (mx <= mn) return;
+  console.log('[applyChoropleth] min:', mn, 'max:', mx);
+  if (mx <= mn) { console.warn('[applyChoropleth] max <= min, aborting'); return; }
   const step = (mx - mn) / 4;
   map.setPaintProperty('carreaux-fill', 'fill-color', [
     'interpolate', ['linear'],
@@ -76,9 +79,10 @@ export function getCatColor(cat: string): string {
 // ---------------------------------------------------------------------------
 
 export const ISOCHRONE_COLORS: Record<string, { fill: string; line: string }> = {
-  walk:  { fill: '#22c55e', line: '#16a34a' },
-  drive: { fill: '#f97316', line: '#ea580c' },
-  bike:  { fill: '#3b82f6', line: '#2563eb' },
+  walk:    { fill: '#22c55e', line: '#16a34a' },
+  drive:   { fill: '#f97316', line: '#ea580c' },
+  bike:    { fill: '#3b82f6', line: '#2563eb' },
+  network: { fill: '#6366f1', line: '#4f46e5' },
 };
 
 export const ISOCHRONE_MODE_LABELS: Record<string, string> = {
