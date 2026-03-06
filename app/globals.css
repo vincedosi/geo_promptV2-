@@ -654,3 +654,8 @@ details>summary::-webkit-details-marker {
   0%, 100% { box-shadow: 0 0 8px rgba(88,166,255,0.3); }
   50% { box-shadow: 0 0 20px rgba(88,166,255,0.6), 0 0 40px rgba(61,255,160,0.2); }
 }
+
+@keyframes indeterminateSlide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}

@@ -712,7 +712,19 @@ export default function CarreauxImportPage() {
                     setShpFile(f); setColumnsData(null); setColumnsError(''); setPreviewSnapshot(null); setDetectedMeta(null);
                     if (f) setSingleFile(null);
                   }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {shpFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shpFile.name} ({fmtBytes(shpFile.size)})</div>}
+                  {shpFile && (
+                    <div style={{
+                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
+                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                      <div>
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{shpFile.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(shpFile.size)}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>2) .dbf (obligatoire)</div>
@@ -760,12 +772,36 @@ export default function CarreauxImportPage() {
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>3) .shx (optionnel)</div>
                   <input type="file" accept=".shx" onChange={(e) => { setShxFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {shxFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {shxFile.name}</div>}
+                  {shxFile && (
+                    <div style={{
+                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
+                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                      <div>
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{shxFile.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(shxFile.size)}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontFamily: 'JetBrains Mono, monospace' }}>4) .prj (optionnel)</div>
                   <input type="file" accept=".prj" onChange={(e) => { setPrjFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setSingleFile(null); }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  {prjFile && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace' }}>✓ {prjFile.name}</div>}
+                  {prjFile && (
+                    <div style={{
+                      marginTop: 6, padding: '6px 10px', borderRadius: 6,
+                      background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                      <div>
+                        <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{prjFile.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>{fmtBytes(prjFile.size)}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               {hasShapefileInputs && !hasValidShapefileSet && (
@@ -773,6 +809,38 @@ export default function CarreauxImportPage() {
                   Sélection incomplète : fournissez au minimum les fichiers .shp et .dbf
                 </div>
               )}
+
+              {/* Total size summary */}
+              {hasValidShapefileSet && (() => {
+                const allFiles = [shpFile, dbfFile, shxFile, prjFile].filter((f): f is File => !!f);
+                const totalSize = allFiles.reduce((s, f) => s + f.size, 0);
+                return (
+                  <div style={{
+                    marginTop: 10, padding: '10px 14px', borderRadius: 8,
+                    background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.25)',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#58a6ff', fontWeight: 600 }}>
+                        📦 {allFiles.length} fichier{allFiles.length > 1 ? 's' : ''} sélectionné{allFiles.length > 1 ? 's' : ''}
+                      </span>
+                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#58a6ff', fontWeight: 700 }}>
+                        {fmtBytes(totalSize)} total
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {allFiles.map(f => (
+                        <span key={f.name} style={{
+                          fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
+                          padding: '2px 8px', borderRadius: 4,
+                          background: 'rgba(61,255,160,0.1)', color: 'var(--green)',
+                        }}>
+                          .{f.name.split('.').pop()} {fmtBytes(f.size)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'JetBrains Mono, monospace' }}>// priorité utilisée : shapefile compartimenté si renseigné, sinon fichier unique</div>
@@ -1121,65 +1189,90 @@ export default function CarreauxImportPage() {
                 {/* Upload progress bar */}
                 {uploadProgress && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {fmtBytes(uploadProgress.loaded)} / {fmtBytes(uploadProgress.total)}
-                        {uploadSpeed > 0 && <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>({fmtBytes(uploadSpeed)}/s)</span>}
-                      </span>
-                      <span style={{ color: '#58a6ff', fontWeight: 700 }}>
-                        {Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%
-                      </span>
-                    </div>
-                    <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 4,
-                        background: 'linear-gradient(90deg, #58a6ff, #3dffa0)',
-                        width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`,
-                        transition: 'width 0.3s ease',
-                      }} />
-                    </div>
-                    {/* ETA */}
-                    {uploadSpeed > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
-                        ↳ ETA upload : ~{fmtTime(Math.ceil((uploadProgress.total - uploadProgress.loaded) / uploadSpeed))}
+                    <div style={{
+                      padding: '12px 16px', borderRadius: 8,
+                      background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.25)',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', marginBottom: 8 }}>
+                        <span style={{ color: '#58a6ff', fontWeight: 700 }}>
+                          📤 Upload : {fmtBytes(uploadProgress.loaded)} / {fmtBytes(uploadProgress.total)}
+                        </span>
+                        <span style={{ color: '#58a6ff', fontWeight: 700, fontSize: 16 }}>
+                          {Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%
+                        </span>
                       </div>
-                    )}
+                      <div style={{ height: 16, borderRadius: 8, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', position: 'relative' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 8,
+                          background: 'linear-gradient(90deg, #58a6ff, #3dffa0)',
+                          width: `${Math.round(uploadProgress.loaded / uploadProgress.total * 100)}%`,
+                          transition: 'width 0.3s ease',
+                          boxShadow: '0 0 12px rgba(88,166,255,0.5)',
+                        }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                        {uploadSpeed > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            ⚡ {fmtBytes(uploadSpeed)}/s
+                          </span>
+                        )}
+                        {uploadSpeed > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            ETA : ~{fmtTime(Math.ceil((uploadProgress.total - uploadProgress.loaded) / uploadSpeed))}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </>
                 )}
 
                 {/* Insertion progress bar */}
                 {importProgress && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {importProgress.current.toLocaleString('fr-FR')} / {importProgress.total.toLocaleString('fr-FR')} carreaux insérés
-                      </span>
-                      <span style={{ color: '#3dffa0', fontWeight: 700 }}>
-                        {Math.round(importProgress.current / importProgress.total * 100)}%
-                      </span>
-                    </div>
-                    <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 4,
-                        background: 'linear-gradient(90deg, #3dffa0, #58a6ff)',
-                        width: `${Math.round(importProgress.current / importProgress.total * 100)}%`,
-                        transition: 'width 0.4s ease',
-                      }} />
+                    <div style={{
+                      padding: '12px 16px', borderRadius: 8,
+                      background: 'rgba(61,255,160,0.08)', border: '1px solid rgba(61,255,160,0.25)',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', marginBottom: 8 }}>
+                        <span style={{ color: '#3dffa0', fontWeight: 700 }}>
+                          💾 {importProgress.current.toLocaleString('fr-FR')} / {importProgress.total.toLocaleString('fr-FR')} carreaux insérés
+                        </span>
+                        <span style={{ color: '#3dffa0', fontWeight: 700, fontSize: 16 }}>
+                          {Math.round(importProgress.current / importProgress.total * 100)}%
+                        </span>
+                      </div>
+                      <div style={{ height: 16, borderRadius: 8, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 8,
+                          background: 'linear-gradient(90deg, #3dffa0, #58a6ff)',
+                          width: `${Math.round(importProgress.current / importProgress.total * 100)}%`,
+                          transition: 'width 0.4s ease',
+                          boxShadow: '0 0 12px rgba(61,255,160,0.5)',
+                        }} />
+                      </div>
                     </div>
                   </>
                 )}
 
-                {/* No progress bar but server processing */}
+                {/* No progress bar but server processing — animated indeterminate bar */}
                 {!uploadProgress && !importProgress && importPhase !== 'done' && (
                   <div style={{
-                    padding: '10px 14px', borderRadius: 6,
-                    background: 'rgba(255,200,50,0.06)', border: '1px solid rgba(255,200,50,0.15)',
+                    padding: '12px 16px', borderRadius: 8,
+                    background: 'rgba(255,200,50,0.08)', border: '1px solid rgba(255,200,50,0.25)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                      <span style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#ffc832' }}>
-                        En attente du serveur...
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                      <span style={{ fontSize: 13, fontFamily: 'JetBrains Mono, monospace', color: '#ffc832', fontWeight: 700 }}>
+                        {importPhase === 'server-processing' ? '⚙️ Écriture des fichiers sur le serveur...' : importPhase === 'python-running' ? '🐍 Script Python en cours...' : 'En attente du serveur...'}
                       </span>
+                    </div>
+                    <div style={{ height: 12, borderRadius: 6, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{
+                        height: '100%', width: '40%', borderRadius: 6,
+                        background: 'linear-gradient(90deg, transparent, #ffc832, transparent)',
+                        animation: 'indeterminateSlide 1.5s ease-in-out infinite',
+                        position: 'absolute', top: 0, left: 0,
+                      }} />
                     </div>
                   </div>
                 )}
