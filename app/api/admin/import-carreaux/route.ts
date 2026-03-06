@@ -703,8 +703,8 @@ export async function POST(request: NextRequest) {
             const t = line.trim();
             if (!t) continue;
             send({ type: 'log', line: t });
-            // Détecter la progression : "Batch X : Y/Z insérés"
-            const m = t.match(/Batch \d+ : (\d+)\/(\d+) ins/);
+            // Détecter la progression : "Batch X/Y : Z/W insérés"
+            const m = t.match(/Batch \d+(?:\/\d+)? : (\d+)\/(\d+) ins/);
             if (m) send({ type: 'progress', current: parseInt(m[1]), total: parseInt(m[2]) });
           }
         });
