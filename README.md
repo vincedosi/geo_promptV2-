@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.6.0 — 6 mars 2026
+> **Version** : 6.7.0 — 7 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -66,7 +66,9 @@ genesis_app/
 │       ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
 │       ├── search-poi/categories/route.ts ← Liste des catégories POI
 │       ├── carreaux/route.ts              ← GET: sources (data_sources) / POST: GeoJSON bbox (PostgreSQL direct)
-│       ├── chat/route.ts                  ← Copilote IA (streamText, 5 tools Zod, rate limit)
+│       ├── chat/route.ts                  ← Copilote IA (streamText, 6 tools Zod, rate limit)
+│       ├── network-coverage/route.ts      ← 📊 Couverture réseau POI (ORS + PostGIS v3, cache)
+│       ├── debug-coverage/route.ts        ← 🔍 Diagnostic pipeline couverture (12 étapes)
 │       ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
 │       ├── saved-maps/route.ts            ← Sauvegarde/chargement analyses
 │       ├── saved-maps/[id]/route.ts       ← Détail/suppression analyse
@@ -92,6 +94,7 @@ genesis_app/
 │           ├── verify-url/route.ts        ← Vérification URL
 │           ├── health/route.ts            ← Health check (non protégé — diagnostic)
 │           └── init-admin/route.ts        ← Init admin (ADMIN_INIT_KEY)
+├── app/debug-coverage/page.tsx            ← 🔍 UI diagnostic couverture réseau (12 étapes, chronomètre)
 ├── components/
 │   ├── GenesisNav.tsx                     ← Sidebar navigation
 │   └── map/
@@ -111,7 +114,8 @@ genesis_app/
 │   │   └── errors.ts                      ← Gestion erreurs API
 │   ├── geo/
 │   │   ├── geometry.ts                    ← circleGeoJSON, tupleToGeoJSON, bboxFromPoints
-│   │   └── locations.ts                   ← resolveLocation, fetchPoisForLocation
+│   │   ├── locations.ts                   ← resolveLocation, fetchPoisForLocation
+│   │   └── fetchPois.ts                   ← fetchPois() avec filtres région/ville/département
 │   ├── isochrones/
 │   │   └── fetcher.ts                     ← ORS API (isochrones, retry, AbortController 12s)
 │   ├── import/
@@ -136,6 +140,9 @@ genesis_app/
 ├── sql/
 │   ├── 001_unify_poi_table.sql            ← Table poi_france
 │   ├── 002_get_carreaux_bbox.sql          ← RPC bbox carreaux (avec validations sécurité)
+│   ├── 007_calculate_network_coverage.sql ← v1 calculate_network_coverage (obsolète, timeout)
+│   ├── 008_calculate_network_coverage_v2.sql ← v2 (obsolète, CTE non matérialisé — timeout)
+│   ├── 009_calculate_network_coverage_v3.sql ← ✅ v3 ACTIVE — single-scan, SRID fixé
 │   ├── isochrone_battle_v1.sql            ← ⚔️ get_isochrone_battle() — ST_Difference pur
 │   └── setup_carreaux.sql                 ← Setup tables carreaux INSEE
 ├── middleware.ts                           ← Middleware Next.js (passthrough)
@@ -216,7 +223,7 @@ Vérifier la config : **http://localhost:3000/admin/health**
 | **panneaux_affichage** | Panneaux d'affichage publicitaire géolocalisés |
 | **isochrones_cache** | Cache des isochrones ORS (clé unique par CIRFA + palier + mode) |
 | **data_sources** | Sources de données importées (type: poi / carreaux) |
-| **`<carreaux_table>`** | Tables dynamiques carreaux INSEE (idcar + geom + metadata JSONB) |
+| **carreaux_filosofi** | 2 310 582 carreaux 200m France métropolitaine (1,6 GB) — SRID 4326, metadata JSONB, index GIST |
 | **organizations** | Organisations multi-tenant |
 | **profiles** | Profils utilisateurs (role: super_admin / admin / client) |
 | **saved_maps** | Analyses géospatiales sauvegardées |
@@ -230,10 +237,11 @@ Vérifier la config : **http://localhost:3000/admin/health**
 | `get_isochrone_battle(p_rings JSONB)` | ⚔️ Bataille d'Isochrones — ST_Difference pur, zéro Voronoï |
 | `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI, clip france_borders |
 | `panneaux_near_point(lat, lng, rayon_m)` | Panneaux dans un rayon GPS |
-| `create_carreaux_table(table_name)` | Crée une table carreaux dynamique |
-| `drop_carreaux_table(table_name)` | Supprime une table carreaux |
+| `calculate_network_coverage_v3(features, col, mil)` | 📊 Couverture démographique réseau POI (single-scan, LATERAL, SRID fixé) |
+| `import_carreaux_batch(...)` | Import batch carreaux via RPC (HTTPS, pas de connexion directe) |
 
 > ⚠️ Exécuter `sql/isochrone_battle_v1.sql` dans le Supabase SQL Editor avant d'utiliser la Bataille d'Isochrones.
+> ✅ `calculate_network_coverage_v3` déployée via MCP migration — déjà active en production.
 
 ---
 
@@ -273,15 +281,81 @@ Passe 2 : union par CIRFA → feature_type: "border" (bordures 3px frontend)
 
 **Cache** : clé `battle__{cat}__{cirfa_id}__{L}min__{mode}` dans `isochrones_cache`. Premier appel (~1-2 min pour la France entière), appels suivants <5 secondes.
 
+### 📊 Couverture Réseau POI (`/api/network-coverage`)
+
+Calcule combien de personnes sont atteignables dans un temps de trajet donné depuis l'ensemble des POI d'une catégorie.
+
+#### Prompt de référence (testé et validé)
+
+```
+Calcule la couverture réseau des CIRFA en Bretagne pour les 18-24 ans en voiture à 30 minutes.
+```
+
+**Résultat attendu** : couverture ~118 000 ind_18_24, 4 CIRFAs, ~52% de taux de pénétration, breakdown par CIRFA.
+
+#### Paramètres du tool `calculer_couverture_reseau`
+
+| Paramètre | Valeur | Description |
+|-----------|--------|-------------|
+| `poi_category` | `cirfa` | Catégorie POI |
+| `region` | `Bretagne` | Filtre géographique (région / ville / département) |
+| `travel_time_minutes` | `30` | Temps de trajet en minutes |
+| `mode` | `drive` | Mode transport : `drive` / `walk` / `bike` |
+| `target_demo_column` | `ind_18_24` | Colonne démographique dans `metadata` |
+| `target_demo_label` | `Jeunes 18-24 ans` | Label affiché dans le rapport |
+
+#### Colonnes démographiques disponibles (`carreaux_filosofi.metadata`)
+
+| Clé | Description |
+|-----|-------------|
+| `Ind` | Population totale |
+| `ind_18_24` | Jeunes 18-24 ans |
+| `Ind_25_39` | 25-39 ans |
+| `Ind_40_54` | 40-54 ans |
+| `Ind_55_64` | 55-64 ans |
+| `Ind_65_79` | 65-79 ans |
+| `ind_80p` | 80 ans et plus |
+| `ind_6_10` | 6-10 ans |
+| `ind_11_17` | 11-17 ans |
+| `Men` | Ménages |
+| `men_pauv` | Ménages pauvres |
+
+#### Architecture technique
+
+```
+1. fetchPois() — 4 CIRFAs Bretagne depuis poi_france
+2. ORS batch — 1 isochrone 30min voiture par CIRFA (batch 5, timeout 8s)
+3. JS simplify — round4 + dedup des coordonnées (réduction ~80% du poids)
+4. supabase.rpc('calculate_network_coverage_v3') :
+   ├── ST_Union des 4 isochrones → v_union_geom (SRID 4326 forcé)
+   ├── UN seul scan carreaux_filosofi (207k carreaux dans le bbox Bretagne)
+   │   └── FILTER WHERE ST_Intersects(c.geom, v_union_geom) → coverage
+   │   └── SUM total → total_pop
+   └── LATERAL par POI → breakdown_by_poi (1 GIST scan / CIRFA)
+5. Cache → isochrones_cache (clé: network__cirfa__bretagne__30min__drive)
+```
+
+**Timing** : ~15s total (1s RPC, 2s ORS, reste cache/réseau).
+
+#### Diagnostic
+
+Page de debug complète : **http://localhost:3000/debug-coverage**
+- 12 étapes : catégories → POIs → ORS → data_sources → RPC v3 direct → API complète
+- Paramètres configurables (région, minutes, mode, colonne demo, max ORS)
+- Chronomètre par étape
+
+---
+
 ### Copilote Media IA (`/copilote`)
 Chat conversationnel IA + carte interactive en split screen.
 - Mistral AI function calling via **Vercel AI SDK v6** (`streamText`, `useChat`, `DefaultChatTransport`)
-- **5 outils** :
+- **6 outils** :
   - `analyser_zone_pois` — recherche POI par zone géographique + isochrones ORS
   - `voronoi_analysis` — Voronoï géométrique par catégorie (à vol d'oiseau, instantané)
   - `isochrone_battle` — ⚔️ Voronoï Routier / Bataille d'Isochrones (temps réel ORS, ~1-2 min)
   - `afficher_carreaux` — choroplèthe carreaux INSEE sur la carte
   - `analyser_panneaux` — panneaux OOH géolocalisés (table panneaux_affichage)
+  - `calculer_couverture_reseau` — 📊 Couverture démographique réseau POI (ORS + PostGIS)
 - **Rate limit** : 12 req/min/IP in-memory, countdown auto-retry avec délai exact
 - **AbortController ORS** : timeout 12s par batch, délai adaptatif (5s timeout / 20s rate limit)
 - **Panel Prompts `?`** : 6 catégories de prompts cliquables avec description du résultat attendu
@@ -399,9 +473,10 @@ npx next dev
 |-----|-------------|
 | `/` | Parse Prompt IA → recherche panneaux |
 | `/map` | Carte POI + carreaux choroplèthe + Voronoï + Bataille d'Isochrones |
-| `/copilote` | Copilote Media IA (chat + carte split screen, 5 outils) |
+| `/copilote` | Copilote Media IA (chat + carte split screen, 6 outils) |
 | `/dashboard` | Dashboard utilisateur |
 | `/login` | Connexion / Inscription |
+| `/debug-coverage` | 🔍 Diagnostic pipeline couverture réseau (12 étapes, chronomètre) |
 | `/admin/import` | Import Universel (CSV/XLSX/GeoJSON) |
 | `/admin/carreaux-import` | Import Carreaux INSEE |
 | `/admin/sources` | Gestion des sources de données |
@@ -427,6 +502,7 @@ npx next dev
 
 | Version | Date | Changements clés |
 |---------|------|-------------------|
+| **6.7.0** | 2026-03-07 | Outil `calculer_couverture_reseau` : RPC `calculate_network_coverage_v3` déployée (single-scan FILTER, LATERAL MATERIALIZED, SRID 4326 forcé). Fix timeout PostgREST 125s : CTE non-matérialisé + SRID perdu par ST_SimplifyPreserveTopology. Page `/debug-coverage` 12 étapes. Carreaux France entière : 2,3M carreaux 1,6 GB. |
 | **6.6.0** | 2026-03-06 | Refonte import Shapefile : wizard 3 étapes, parser SHP/DBF/PRJ client-side, reprojection proj4 browser. API `/import-geo` PostgreSQL direct + unnest paramétrisé. Sécurité : `sql.unsafe()` remplacé par requêtes fully parameterized. |
 | **6.5.1** | 2026-03-03 | Fix "voronoï routier" → `isochrone_battle` + Panel Prompts `?` (6 catégories, 20 exemples cliquables) |
 | **6.5.0** | 2026-03-03 | Itér. 5 : rate limit 12 req/min/IP, AbortController ORS 12s, messages erreur friendlys, outil `analyser_panneaux` |
@@ -463,7 +539,10 @@ npx next dev
 | Routes admin 403 | Vérifier que `SUPABASE_SERVICE_ROLE_KEY` est configurée (non placeholder) |
 | "Voronoï routier" ne fait rien | Résolu en v6.5.1 — déclenche désormais `isochrone_battle` |
 | Nouveau fichier non chargé (dev) | Redémarrer le serveur Next.js (`Ctrl+C` puis `npm run dev`) |
+| Couverture réseau timeout 125s `upstream request timeout` | Résolu en v6.7.0 — deux bugs : (1) CTE `iso` non-matérialisé dans EXISTS → ST_GeomFromGeoJSON exécuté 207k fois, (2) SRID perdu par ST_SimplifyPreserveTopology → mixed SRID 4326 vs 0. Fix : v3 avec v_union_geom scalaire + FILTER + LATERAL MATERIALIZED |
+| `calculate_network_coverage_v3` absente | Exécuter `sql/009_calculate_network_coverage_v3.sql` dans Supabase SQL Editor (ou via MCP `apply_migration`) |
+| Couverture = 0 alors que des carreaux existent | Vérifier la colonne `demo_col` dans `/debug-coverage` step 8 — casse exacte (`ind_18_24` pas `Ind_18_24`) |
 
 ---
 
-*GEO.Prompt v6.6.0 — AI Media Planning Platform*
+*GEO.Prompt v6.7.0 — AI Media Planning Platform*
