@@ -51,12 +51,17 @@ async function mcpPost(
 
   let data: any;
   if (ct.includes('text/event-stream')) {
-    // Read all SSE lines, keep last data: frame
+    // Parse SSE: find first line that is valid JSON (skip [DONE], empty, etc.)
     const text  = await res.text();
     const lines = text.split('\n').filter(l => l.startsWith('data: '));
-    data = lines.length ? JSON.parse(lines[lines.length - 1].slice(6)) : null;
+    data = null;
+    for (const line of lines) {
+      try { data = JSON.parse(line.slice(6)); break; } catch { /* skip */ }
+    }
+  } else if (res.status === 202 || res.headers.get('content-length') === '0') {
+    data = null; // notification ACK — no body expected
   } else {
-    data = await res.json();
+    try { data = await res.json(); } catch { data = null; }
   }
 
   return { data, sessionId: newSession };
@@ -85,14 +90,12 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
     if (initData?.error) {
       throw new Error(`MCP init: ${initData.error.message ?? JSON.stringify(initData.error)}`);
     }
+    if (!initData?.result) {
+      throw new Error(`MCP init: unexpected response: ${JSON.stringify(initData)}`);
+    }
+    console.log(`[data.gouv MCP] initialized, session=${sessionId}, server=${initData.result?.serverInfo?.name ?? '?'}`);
 
-    // 2. Confirm initialized (fire-and-forget — ignore response)
-    await mcpPost(sessionId, {
-      jsonrpc: '2.0',
-      method:  'notifications/initialized',
-    }).catch(() => {});
-
-    // 3. List tools
+    // 2. List tools (skip notifications/initialized — optional per spec)
     const { data: listData } = await mcpPost(sessionId, {
       jsonrpc: '2.0',
       id:      1,
