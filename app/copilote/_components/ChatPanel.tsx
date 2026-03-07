@@ -314,11 +314,11 @@ export function ChatPanel({
         {rateLimitCooldown > 0 && (
           <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fbbf24', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ animation: 'pulse 1s infinite' }}>⏱</span>
-            Limite Mistral atteinte — retry automatique dans {rateLimitCooldown}s…
+            Limite Mistral atteinte — réessaie dans {rateLimitCooldown}s
             <button
               onClick={cancelCooldown}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: 11, opacity: 0.7 }}
-            >Annuler</button>
+            >Ignorer</button>
           </div>
         )}
 
@@ -338,15 +338,15 @@ export function ChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isLoading || rateLimitCooldown > 0}
+            disabled={isLoading}
             placeholder="Décrivez votre cible : ville, type d'établissement, rayon…"
             rows={2}
             style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: 'inherit' }}
           />
           <button
             type="submit"
-            disabled={isLoading || rateLimitCooldown > 0 || !input.trim()}
-            style={{ background: input.trim() && !isLoading && !rateLimitCooldown ? '#7c3aed' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, padding: '10px 16px', color: input.trim() && !isLoading && !rateLimitCooldown ? '#fff' : 'rgba(255,255,255,0.3)', cursor: input.trim() && !isLoading && !rateLimitCooldown ? 'pointer' : 'not-allowed', fontSize: 18, lineHeight: 1, transition: 'background 0.2s', flexShrink: 0 }}
+            disabled={isLoading || !input.trim()}
+            style={{ background: input.trim() && !isLoading ? '#7c3aed' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, padding: '10px 16px', color: input.trim() && !isLoading ? '#fff' : 'rgba(255,255,255,0.3)', cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed', fontSize: 18, lineHeight: 1, transition: 'background 0.2s', flexShrink: 0 }}
           >↑</button>
         </form>
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 8, textAlign: 'center' }}>

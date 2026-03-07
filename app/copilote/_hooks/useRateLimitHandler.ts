@@ -45,7 +45,7 @@ export function useRateLimitHandler({
     setError(`Erreur IA : ${msg}`);
   }, [chatError, setError]);
 
-  // Décompte + retry automatique quand rateLimitCooldown atteint 0
+  // Décompte seul — pas de retry automatique pour éviter la boucle infinie
   useEffect(() => {
     if (rateLimitCooldown <= 0) return;
     if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
@@ -54,8 +54,6 @@ export function useRateLimitHandler({
         if (prev <= 1) {
           clearInterval(cooldownTimerRef.current!);
           cooldownTimerRef.current = null;
-          const lastMsg = lastUserMessageRef.current;
-          if (lastMsg) sendChatMessage({ text: lastMsg });
           return 0;
         }
         return prev - 1;
