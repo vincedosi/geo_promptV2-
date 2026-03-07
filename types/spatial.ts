@@ -87,8 +87,12 @@ export interface NetworkCoverageData {
   target_demo_label: string;
   nb_pois: number;
   coverage: number;
+  total_pop?: number;
+  penetration_rate?: number;
+  breakdown_by_poi?: { name: string; audience: number }[];
   union_geojson: GeoJSON.Geometry;
   from_cache: boolean;
+  geo_scope?: string;
 }
 
 export interface SavedMap {

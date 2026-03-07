@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
@@ -41,6 +41,42 @@ interface ChatPanelProps {
   deleteMap: (id: string) => Promise<void>;
   // Zone (for ZoneCard display)
   zoneData: ZoneData | null;
+}
+
+function NetworkCoverageProgress() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = `${mins}:${String(secs).padStart(2, '0')}`;
+  return (
+    <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, fontSize: 12, color: '#a78bfa', fontFamily: 'JetBrains Mono, monospace' }}>
+        <span>🌍 Calcul empreinte réseau…</span>
+        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>{elapsedStr}</span>
+      </div>
+      <div style={{ height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 2,
+          background: 'linear-gradient(90deg, transparent 0%, #6366f1 40%, #818cf8 60%, transparent 100%)',
+          width: '50%',
+          animation: 'netCovScan 1.8s ease-in-out infinite',
+        }} />
+      </div>
+      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 6 }}>
+        ORS isochrones → PostGIS union → calcul démographique
+      </div>
+      <style>{`
+        @keyframes netCovScan {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 const runningToolLabels: Record<string, string> = {
@@ -238,9 +274,11 @@ export function ChatPanel({
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(61,255,160,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, marginTop: 2 }}>🤖</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {runningTool && (
-                      <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#a78bfa', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
-                        {runningToolLabels[runningTool.type] ?? '⏳ Outil en cours…'}
-                      </div>
+                      runningTool.type === 'tool-calculate_network_coverage'
+                        ? <NetworkCoverageProgress />
+                        : <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#a78bfa', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
+                            {runningToolLabels[runningTool.type] ?? '⏳ Outil en cours…'}
+                          </div>
                     )}
                     {zonePart && <ZoneCard zone={zonePart.output as ZoneData} />}
                     {synergyPart && <SynergyResults zoneData={synergyPart.output as ZoneData} />}

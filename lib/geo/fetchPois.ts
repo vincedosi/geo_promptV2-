@@ -58,6 +58,15 @@ export async function fetchPois(
       const { data, error } = await q.limit(limit);
       if (error) console.error('[fetchPois] region query:', error.message);
       else addRows(data ?? []);
+
+      // Fallback: si l'IA a passé un nom de région dans le champ ville (confusion)
+      if (poisMap.size === 0) {
+        let qv = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`);
+        if (resolvedCategory) qv = qv.eq('categorie', resolvedCategory);
+        const { data: vd } = await qv.limit(limit);
+        if (vd?.length) console.log(`[fetchPois] region→ville fallback: ${vd.length} résultats pour "${region}"`);
+        addRows(vd ?? []);
+      }
     }
 
     // ── Requête par DEPARTEMENT ─────────────────────────────────────────
@@ -78,6 +87,15 @@ export async function fetchPois(
       const { data, error } = await q.limit(limit);
       if (error) console.error('[fetchPois] ville query:', error.message);
       else addRows(data ?? []);
+
+      // Fallback: si l'IA a passé un nom de région dans le champ ville (confusion fréquente)
+      if (poisMap.size === 0 && !region) {
+        let qr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeNorm}%`);
+        if (resolvedCategory) qr = qr.eq('categorie', resolvedCategory);
+        const { data: rd } = await qr.limit(limit);
+        if (rd?.length) console.log(`[fetchPois] ville→region fallback: ${rd.length} résultats pour "${ville}"`);
+        addRows(rd ?? []);
+      }
     }
 
     // ── Fallback : aucun filtre geo → tous les POIs de la catégorie ─────

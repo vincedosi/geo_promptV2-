@@ -117,8 +117,12 @@ export function useToolProcessor({
           setZoneData(result as ZoneData);
           if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
 
-        } else if (toolName === 'calculate_network_coverage' && result?.union_geojson) {
-          applyNetworkCoverage(result as NetworkCoverageData);
+        } else if (toolName === 'calculate_network_coverage' && result) {
+          if (result.error) {
+            setError(`📡 Couverture réseau — ${result.error}`);
+          } else {
+            applyNetworkCoverage(result as NetworkCoverageData);
+          }
 
         } else if (toolName === 'calculate_audience_coverage' && result) {
           if (result.error) {

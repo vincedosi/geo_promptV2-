@@ -110,6 +110,15 @@ async function executeToolCall(
         const { data: regionData, error: regionErr } = await qr.limit(2000);
         if (regionErr) console.error('[chat] region error:', regionErr.message);
         else addRows(regionData ?? []);
+
+        // Fallback: si l'IA a passé un nom de région dans le champ ville
+        if (poisMap.size === 0) {
+          let qrv = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`);
+          if (resolvedCategory) qrv = qrv.eq('categorie', resolvedCategory);
+          const { data: rvData } = await qrv.limit(2000);
+          if (rvData?.length) console.log(`[chat] region→ville fallback: ${rvData.length} résultats pour "${region}"`);
+          addRows(rvData ?? []);
+        }
       }
 
       // ── Requête par DEPARTEMENT (ex: "les lycées du 35") ──────────────
@@ -135,6 +144,15 @@ async function executeToolCall(
         const { data: villeData, error: villeErr } = await q1.limit(1000);
         if (villeErr) console.error('[chat] ilike error:', villeErr.message);
         else addRows(villeData ?? []);
+
+        // Fallback: si l'IA a passé un nom de région dans le champ ville
+        if (poisMap.size === 0 && !region) {
+          let qvr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeKey}%`);
+          if (resolvedCategory) qvr = qvr.eq('categorie', resolvedCategory);
+          const { data: vrData } = await qvr.limit(2000);
+          if (vrData?.length) console.log(`[chat] ville→region fallback: ${vrData.length} résultats pour "${ville}"`);
+          addRows(vrData ?? []);
+        }
 
         // Bounding box élargi si un rayon est spécifié
         if (rayon_metres) {
@@ -876,7 +894,10 @@ SI l'utilisateur dit "montre les XXX", "affiche les XXX", "trouve les XXX" sans 
 SI l'utilisateur dit "carreaux", "18-24 ans", "revenus", "population", "densité"
 → afficher_carreaux
 
-SI l'utilisateur dit "isochrone", "X min à pied/voiture/vélo"
+SI l'utilisateur dit "couverture réseau", "couverture CIRFA", "couverture lycée", "empreinte réseau", "portée réseau", "combien de [cible] couverts par les [POI]", "combien de [cible] touchés par les [POI]", "combien de [cible] dans un rayon de X min des [POI]"
+→ TOUJOURS calculate_network_coverage. JAMAIS analyser_zone_pois.
+
+SI l'utilisateur dit "isochrone", "X min à pied/voiture/vélo" SANS mentionner "couverture réseau" ou "empreinte"
 → ajouter isochrone_minutes/isochrone_mode à analyser_zone_pois
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1128,6 +1149,9 @@ EXEMPLES -> calculate_network_coverage :
 - "Empreinte 18-24 ans du reseau CIRFA a 60min voiture en Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:60, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
 - "Combien de 25-39 ans couverts par les lycees a 15min a pied" -> calculate_network_coverage(poi_category:"lycee", travel_time_minutes:15, target_demo_column:"Ind_25_39", target_demo_label:"Adultes 25-39 ans", mode:"walk")
 - "Portee CIRFA 30min voiture en Normandie" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"Ind", target_demo_label:"Population totale", mode:"drive", region:"Normandie")
+- "couverture CIRFA 30 minutes voiture 18-24 ans Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
+- "couverture cirfa 30 min en voiture sur les 18-24 ans de Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
+- "combien de 18-24 ans touchés par les CIRFA de Bretagne a 30min voiture" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
 
 FORMAT DE REPONSE calculate_network_coverage (quand resultats) :
 "Le reseau [poi_category] couvre [coverage] [target_demo_label] dans un rayon de [travel_time_minutes] min en [mode] (base sur [nb_pois] points)."
