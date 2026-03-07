@@ -12,6 +12,9 @@ import {
   CITY_BASE_RADIUS, getCoordsForVille, getCoordsForRegion, normVille, resolveCategory,
 } from '@/lib/geo/locations';
 import postgresLib from 'postgres';
+import {
+  hasDatagouvKeywords, loadDatagouvTools, DATAGOUV_SYSTEM_ADDENDUM,
+} from '@/lib/mcp/datagouv';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
@@ -1183,7 +1186,24 @@ export async function POST(request: NextRequest) {
     const categoriesList = await getDistinctCategories();
     console.log('[chat] Catégories dynamiques:', categoriesList);
 
-    const systemPrompt = buildSystemPrompt(categoriesList);
+    // Opt-in data.gouv MCP: activate only when user mentions data.gouv keywords
+    const lastUserText: string = (() => {
+      const last = [...messages].reverse().find((m: any) => m.role === 'user');
+      const parts = last?.content;
+      if (!parts) return '';
+      if (typeof parts === 'string') return parts;
+      if (Array.isArray(parts)) {
+        return parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ');
+      }
+      return '';
+    })();
+    const useDatagouv = hasDatagouvKeywords(lastUserText);
+    const datagouv_tools = useDatagouv ? await loadDatagouvTools() : {};
+    const datagouv_addendum = useDatagouv && Object.keys(datagouv_tools).length > 0
+      ? '\n\n' + DATAGOUV_SYSTEM_ADDENDUM
+      : '';
+
+    const systemPrompt = buildSystemPrompt(categoriesList) + datagouv_addendum;
     const catsDesc = `Type exact parmi : ${categoriesList.join(', ')}`;
 
     const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
@@ -1366,6 +1386,9 @@ export async function POST(request: NextRequest) {
           execute: async (args) =>
             executeToolCall('calculate_network_coverage', args as Record<string, unknown>, categoriesList, { forceRecalculate }),
         },
+
+        // data.gouv.fr MCP tools — injected dynamically when keywords detected
+        ...datagouv_tools,
 
       },
     });
