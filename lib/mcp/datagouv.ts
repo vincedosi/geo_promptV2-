@@ -147,17 +147,28 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
 
 /** System prompt addendum injected when data.gouv tools are active. */
 export const DATAGOUV_SYSTEM_ADDENDUM = `
-═══ OUTILS data.gouv.fr (MCP) ═══
-Des outils supplémentaires sont disponibles pour interroger le catalogue de données ouvertes français :
-- search_datasets : rechercher des jeux de données par mots-clés
-- get_dataset_info : infos détaillées sur un jeu de données (par ID ou slug)
-- list_dataset_resources : lister les ressources (fichiers) d'un jeu de données
-- get_resource_info : infos sur une ressource spécifique
-- query_resource_data : interroger les données d'une ressource
-- search_dataservices : rechercher des API/services de données
-- get_dataservice_info : infos sur un service de données
-- get_dataservice_openapi_spec : spécification OpenAPI d'un service
-- get_metrics : métriques de consultation data.gouv.fr
+═══ OUTILS data.gouv.fr ═══
+Tu as accès à des outils MCP qui interrogent DIRECTEMENT le catalogue data.gouv.fr.
+RÈGLE ABSOLUE : NE JAMAIS dire que tu ne peux pas accéder à data.gouv.fr — utilise les outils ci-dessous.
 
-Utilise ces outils quand l'utilisateur demande des jeux de données publics, des statistiques gouvernementales, ou des données open data françaises.
+DÉCLENCHER OBLIGATOIREMENT pour :
+- "data.gouv", "dataset(s)", "jeux de données", "données ouvertes", "open data"
+- "statistiques [sujet]", "données publiques [sujet]", "catalogue national"
+
+OUTILS DISPONIBLES :
+→ search_datasets(query) : PRINCIPAL. Recherche des jeux de données par mots-clés. Appeler en PREMIER.
+→ get_dataset_info(dataset_id) : Détails d'un jeu de données (ID ou slug depuis search_datasets).
+→ list_dataset_resources(dataset_id) : Liste les fichiers/ressources d'un jeu de données.
+→ query_resource_data(resource_id) : Interroge les données d'une ressource.
+→ search_dataservices(query) : Recherche des API/services de données.
+→ get_metrics : Métriques d'utilisation data.gouv.fr.
+
+EXEMPLES OBLIGATOIRES :
+- "data.gouv statistiques chômage" → search_datasets(query:"chômage")
+- "jeux de données logement" → search_datasets(query:"logement")
+- "données open data mobilité" → search_datasets(query:"mobilité")
+- "dataset revenus communes" → search_datasets(query:"revenus communes")
+
+FORMAT DE RÉPONSE :
+Après search_datasets, présente les 3 meilleurs résultats : titre, organisation, description courte, lien.
 `.trim();
