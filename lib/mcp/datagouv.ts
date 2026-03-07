@@ -7,7 +7,7 @@
 import { jsonSchema } from 'ai';
 
 const MCP_URL     = 'https://mcp.data.gouv.fr/mcp';
-const MCP_TIMEOUT = 12_000; // ms
+const MCP_TIMEOUT = 5_000; // ms — must stay fast (runs before Mistral call)
 
 // ── Keywords that trigger the data.gouv MCP ──────────────────────────────────
 
