@@ -89,40 +89,74 @@ export default function CopilotePage() {
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
+    // ── Seuil : au-delà de 300 POI → GPU layers (heatmap + circles) ─────
+    // Les DOM markers sont catastrophiques à grande échelle (5000 éléments HTML)
+    const MAX_DOM_MARKERS = 300;
+    const useLayers = zoneData.pois.length > MAX_DOM_MARKERS;
+
+    // ── Source heatmap + cercles GPU ──────────────────────────────────────
+    const heatSource = map.getSource('pois-heat') as maplibregl.GeoJSONSource | undefined;
+    if (heatSource) {
+      heatSource.setData({
+        type: 'FeatureCollection',
+        features: zoneData.pois.map(p => {
+          const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+            properties: {
+              categorie:      p.categorie,
+              sous_categorie: p.sous_categorie ?? '',
+              nom:            p.nom ?? '',
+              adresse:        p.adresse ?? '',
+              color,
+            },
+          };
+        }),
+      });
+    }
+    // Afficher/masquer le layer cercles GPU selon le mode
+    try {
+      map.setLayoutProperty('pois-circles', 'visibility', useLayers ? 'visible' : 'none');
+    } catch { /* layer pas encore prêt */ }
+
     (map.getSource('zone-circle') as maplibregl.GeoJSONSource)?.setData({
       type: 'FeatureCollection',
       features: zoneData.rayon_metres ? [circleGeoJSON(lng, lat, zoneData.rayon_metres)] : [],
     });
     map.triggerRepaint();
 
-    zoneData.pois.forEach((p) => {
-      const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-      const rankVal = (p as any).rank;
-      const el = document.createElement('div');
-      if (rankVal) {
-        // Numbered marker for ranked panneaux
-        el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
-        el.textContent = String(rankVal);
-      } else {
-        el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
-      }
-      const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const audienceVal = (p as any).audience;
-      const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-        `<div style="font-size:12px;padding:6px 8px">` +
-        (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-        `<strong>${nom}</strong><br/>` +
-        `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie}</span>` +
-        (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
-        (audienceVal != null ? `<br/><span style="color:#10b981;font-size:12px;font-weight:600">👥 ${Number(audienceVal).toLocaleString('fr-FR')} personnes</span>` : '') +
-        (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${p.adresse}</span>` : '') +
-        `</div>`
-      );
-      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
-      markersRef.current.push(marker);
-    });
+    // ── DOM markers (≤ 300 POI seulement) ────────────────────────────────
+    if (!useLayers) {
+      zoneData.pois.forEach((p) => {
+        const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+        const rankVal = (p as any).rank;
+        const el = document.createElement('div');
+        if (rankVal) {
+          el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
+          el.textContent = String(rankVal);
+        } else {
+          el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
+        }
+        const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const audienceVal = (p as any).audience;
+        const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
+          `<div style="font-size:12px;padding:6px 8px">` +
+          (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
+          `<strong>${nom}</strong><br/>` +
+          `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie}</span>` +
+          (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
+          (audienceVal != null ? `<br/><span style="color:#10b981;font-size:12px;font-weight:600">👥 ${Number(audienceVal).toLocaleString('fr-FR')} personnes</span>` : '') +
+          (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${p.adresse}</span>` : '') +
+          `</div>`
+        );
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
+        markersRef.current.push(marker);
+      });
+    }
 
+    // Marqueur ville (toujours affiché)
     const cityEl = document.createElement('div');
     cityEl.innerHTML = '📍';
     cityEl.style.cssText = 'font-size:24px;cursor:default;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
@@ -134,9 +168,11 @@ export default function CopilotePage() {
     if (zoneData.pois.length > 1) {
       const lats = zoneData.pois.map(p => p.lat);
       const lngs = zoneData.pois.map(p => p.lng);
+      // Grand dataset (heatmap mode) → maxZoom 7 pour voir la densité nationale
+      const maxZ = useLayers ? 7 : 14;
       map.fitBounds(
         new maplibregl.LngLatBounds([Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]),
-        { padding: 60, maxZoom: 14, duration: 1200 }
+        { padding: 40, maxZoom: maxZ, duration: 1200 }
       );
       return;
     }
@@ -150,6 +186,30 @@ export default function CopilotePage() {
     }
     map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
   }, [zoneData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Masquer les markers DOM aux petits zooms (heatmap prend le relais) ────
+  // Seulement en mode petit dataset (≤300) — en mode GPU le seul marker est la ville
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const updateMarkerVisibility = () => {
+      const z = map.getZoom();
+      const opacity = z < 10 ? 0 : z < 13 ? (z - 10) / 3 : 1;
+      const events  = opacity > 0 ? 'auto' : 'none';
+      markersRef.current.forEach(m => {
+        const el = m.getElement();
+        // Ne pas masquer le marqueur ville (emoji 📍 plus grand)
+        if (el.style.fontSize === '24px') return;
+        el.style.opacity       = String(opacity);
+        el.style.pointerEvents = events;
+      });
+    };
+
+    map.on('zoom', updateMarkerVisibility);
+    updateMarkerVisibility();
+    return () => { map.off('zoom', updateMarkerVisibility); };
+  }, [mapReady, mapRef, markersRef]);
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 

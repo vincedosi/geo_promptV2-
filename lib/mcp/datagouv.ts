@@ -196,6 +196,7 @@ DÉCLENCHER OBLIGATOIREMENT pour :
 
 OUTILS DISPONIBLES :
 → search_datasets(query) : PRINCIPAL. Recherche des jeux de données par mots-clés. Appeler en PREMIER.
+   Utilise les mots-clés exacts de l'utilisateur. N'ajoute PAS de termes supplémentaires.
 → get_dataset_info(dataset_id) : Détails d'un jeu de données (ID ou slug depuis search_datasets).
 → list_dataset_resources(dataset_id) : Liste les fichiers/ressources d'un jeu de données.
 → query_resource_data(resource_id) : Interroge les données d'une ressource.
@@ -203,14 +204,23 @@ OUTILS DISPONIBLES :
 → get_metrics : Métriques d'utilisation data.gouv.fr.
 
 EXEMPLES OBLIGATOIRES :
-- "data.gouv statistiques chômage" → search_datasets(query:"chômage")
 - "jeux de données logement" → search_datasets(query:"logement")
-- "données open data mobilité" → search_datasets(query:"mobilité")
+- "données mobilité" → search_datasets(query:"mobilité")
 - "dataset revenus communes" → search_datasets(query:"revenus communes")
+- "statistiques chômage" → search_datasets(query:"chômage")
+- "bornes électriques" → search_datasets(query:"bornes électriques")
+
+PRIORITÉ AFFICHAGE :
+→ Les résultats sont automatiquement triés par ordre de priorité :
+   1. Données géographiques (🌍 GEO)
+   2. Données françaises vs internationales (🇫🇷 FR)
+   3. Plus récentes (🔥 RÉCENT si < 90 jours)
+→ Tri intelligent côté client selon ces critères.
 
 FORMAT DE RÉPONSE (OBLIGATOIRE) :
-- Utilise du **Markdown** dans ta réponse : **gras** pour les titres, *italique*, listes à puces.
-- Pour chaque dataset, inclus un lien cliquable : [Titre du dataset](https://www.data.gouv.fr/fr/datasets/SLUG-OU-ID/)
-- Présente les 3-5 meilleurs résultats avec : **titre** (lien), organisation, description courte, nombre de ressources.
-- Termine par un résumé concis.
+- Les résultats détaillés sont AUTOMATIQUEMENT affichés dans une carte visuelle — ne les répète PAS.
+- Ta réponse texte doit être TRÈS COURTE : 1-2 phrases max.
+- Exemple : "Voici les jeux de données trouvés sur data.gouv.fr concernant [sujet]." ou "J'ai trouvé [N] datasets pertinents."
+- Si pertinent, ajoute UN conseil ou UNE observation (ex: "Le dataset [titre] semble le plus complet avec [N] ressources").
+- NE PAS copier les résultats bruts (titres, URLs, IDs) — l'interface les affiche déjà.
 `.trim();

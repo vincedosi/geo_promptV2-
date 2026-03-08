@@ -79,6 +79,99 @@ export function useMapInit(zoneData: ZoneData | null) {
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
     map.on('load', () => {
+      // ── Heatmap densité POI (large zoom) ─────────────────────────────────
+      map.addSource('pois-heat', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'pois-heatmap',
+        type: 'heatmap',
+        source: 'pois-heat',
+        maxzoom: 14,
+        paint: {
+          // Intensité croissante avec le zoom
+          'heatmap-intensity': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0.6,
+            6, 1.5,
+            9, 2.5,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          // Rayon de diffusion en px selon le zoom
+          'heatmap-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 3,
+            5, 10,
+            9, 20,
+            12, 30,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          // Palette bleu-marine (style INSEE)
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0,   'rgba(33,102,172,0)',
+            0.15, '#c6dbef',
+            0.35, '#6baed6',
+            0.60, '#2171b5',
+            0.80, '#08519c',
+            1,   '#08306b',
+          ] as unknown as maplibregl.ExpressionSpecification,
+          // Fade out progressif entre zoom 11 et 13
+          'heatmap-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            11, 1,
+            13, 0,
+          ] as unknown as maplibregl.ExpressionSpecification,
+        },
+      });
+
+      // ── Cercles POI GPU (grands datasets, remplace les DOM markers) ──────
+      // Même source que la heatmap — on ajoute des layers circle dessus.
+      // Visible seulement à zoom ≥ 11 (heatmap fade-out terminé à zoom 13).
+      map.addLayer({
+        id: 'pois-circles',
+        type: 'circle',
+        source: 'pois-heat',
+        minzoom: 11,
+        paint: {
+          'circle-color': ['coalesce', ['get', 'color'], '#6366f1'] as unknown as maplibregl.ExpressionSpecification,
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            11, 3,
+            13, 5,
+            16, 8,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            11, 0,
+            12.5, 1,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'circle-stroke-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            11, 0,
+            12.5, 0.9,
+          ] as unknown as maplibregl.ExpressionSpecification,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // Click popup pour les cercles GPU
+      map.on('click', 'pois-circles', (e) => {
+        if (!e.features?.length) return;
+        const p = e.features[0].properties as Record<string, string>;
+        const html = `<div style="font-size:12px;padding:6px 8px">` +
+          `<strong>${p.nom ?? 'POI'}</strong><br/>` +
+          `<span style="color:${p.color ?? '#6366f1'};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie ?? ''}</span>` +
+          (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
+          (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${p.adresse}</span>` : '') +
+          `</div>`;
+        new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
+          .setLngLat(e.lngLat).setHTML(html).addTo(map);
+      });
+      map.on('mouseenter', 'pois-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'pois-circles', () => { map.getCanvas().style.cursor = ''; });
+
       // ── Zone circle ──────────────────────────────────────────────────────
       map.addSource('zone-circle', {
         type: 'geojson',

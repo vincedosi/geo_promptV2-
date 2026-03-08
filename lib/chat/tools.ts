@@ -22,9 +22,18 @@ export async function executeToolCall(
 ) {
   if (name === 'analyser_zone_pois') {
     console.log('[tool:analyser_zone_pois] args reçus:', JSON.stringify(args));
-    const ville = args.ville ? String(args.ville) : undefined;
+
+    // Termes "nationaux" que l'IA passe parfois comme ville → traiter comme France entière
+    const NATIONAL_TERMS = ['france', 'france entiere', 'france entière', 'national', 'tout', 'tous', 'toute'];
+    const villeRaw = args.ville ? String(args.ville) : undefined;
+    const isNational = villeRaw
+      ? NATIONAL_TERMS.some(t => villeRaw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(t))
+      : false;
+
+    const ville = isNational ? undefined : villeRaw;
     const region = args.region ? String(args.region) : undefined;
     const departement = args.departement ? String(args.departement) : undefined;
+    if (isNational) console.log('[tool:analyser_zone_pois] détecté scope national, filtre géo ignoré');
     const categorie_poi = args.categorie_poi ? String(args.categorie_poi) : undefined;
     const rayonRaw = args.rayon_metres != null ? Number(args.rayon_metres) : null;
     const rayon_metres = rayonRaw && rayonRaw > 0 ? rayonRaw : null;
@@ -50,6 +59,9 @@ export async function executeToolCall(
     const supabase = createAdminClient();
     const poisMap = new Map<string, PoiRow>();
 
+    const SELECT_COLS = 'id, nom, lat, lng, categorie, sous_categorie, adresse, ville, region, departement';
+    const PAGE_SIZE = 1000; // page size compatible PostgREST (max_rows Supabase)
+
     function addRows(data: any[]) {
       for (const p of data) {
         const lat = Number(p.lat);
@@ -67,49 +79,67 @@ export async function executeToolCall(
       }
     }
 
-    const SELECT_COLS = 'id, nom, lat, lng, categorie, sous_categorie, adresse, ville, region, departement';
+    // Pagination automatique — contourne la limite PostgREST max_rows=1000
+    async function fetchAllPages(
+      buildQuery: (from: number, to: number) => any,
+      maxRows = 10000,
+    ) {
+      let from = 0;
+      while (from < maxRows) {
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await buildQuery(from, to);
+        if (error) { console.error('[chat] pagination error:', error.message); break; }
+        if (!data?.length) break;
+        addRows(data);
+        if (data.length < PAGE_SIZE) break; // dernière page
+        from += PAGE_SIZE;
+      }
+    }
 
     try {
       if (region) {
         const regionNorm = region.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        let qr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${regionNorm}%`);
-        if (resolvedCategory) qr = qr.eq('categorie', resolvedCategory);
-        const { data: regionData, error: regionErr } = await qr.limit(2000);
-        if (regionErr) console.error('[chat] region error:', regionErr.message);
-        else addRows(regionData ?? []);
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${regionNorm}%`).range(from, to);
+          if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+          return q;
+        });
 
         if (poisMap.size === 0) {
-          let qrv = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`);
-          if (resolvedCategory) qrv = qrv.eq('categorie', resolvedCategory);
-          const { data: rvData } = await qrv.limit(2000);
-          if (rvData?.length) console.log(`[chat] region→ville fallback: ${rvData.length} résultats pour "${region}"`);
-          addRows(rvData ?? []);
+          await fetchAllPages((from, to) => {
+            let q = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`).range(from, to);
+            if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+            return q;
+          });
+          if (poisMap.size > 0) console.log(`[chat] region→ville fallback: ${poisMap.size} résultats pour "${region}"`);
         }
       }
 
       if (departement) {
-        let qd = supabase.from('poi_france').select(SELECT_COLS)
-          .or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
-        if (resolvedCategory) qd = qd.eq('categorie', resolvedCategory);
-        const { data: deptData, error: deptErr } = await qd.limit(2000);
-        if (deptErr) console.error('[chat] dept error:', deptErr.message);
-        else addRows(deptData ?? []);
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS)
+            .or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`)
+            .range(from, to);
+          if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+          return q;
+        });
       }
 
       if (ville) {
         const villeKey = normVille(ville);
-        let q1 = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${villeKey}%`);
-        if (resolvedCategory) q1 = q1.eq('categorie', resolvedCategory);
-        const { data: villeData, error: villeErr } = await q1.limit(1000);
-        if (villeErr) console.error('[chat] ilike error:', villeErr.message);
-        else addRows(villeData ?? []);
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${villeKey}%`).range(from, to);
+          if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+          return q;
+        }, 4000);
 
         if (poisMap.size === 0 && !region) {
-          let qvr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeKey}%`);
-          if (resolvedCategory) qvr = qvr.eq('categorie', resolvedCategory);
-          const { data: vrData } = await qvr.limit(2000);
-          if (vrData?.length) console.log(`[chat] ville→region fallback: ${vrData.length} résultats pour "${ville}"`);
-          addRows(vrData ?? []);
+          await fetchAllPages((from, to) => {
+            let q = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeKey}%`).range(from, to);
+            if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+            return q;
+          });
+          if (poisMap.size > 0) console.log(`[chat] ville→region fallback: ${poisMap.size} résultats pour "${ville}"`);
         }
 
         if (rayon_metres) {
@@ -117,22 +147,23 @@ export async function executeToolCall(
           const effectiveRadius = cityBase + rayon_metres;
           const dlat = effectiveRadius / 111000;
           const dlng = effectiveRadius / (111000 * Math.cos((coordonnees.lat * Math.PI) / 180));
-          let q2 = supabase.from('poi_france').select(SELECT_COLS)
+          const { data: bboxData, error: bboxErr } = await supabase.from('poi_france').select(SELECT_COLS)
             .gte('lat', coordonnees.lat - dlat).lte('lat', coordonnees.lat + dlat)
-            .gte('lng', coordonnees.lng - dlng).lte('lng', coordonnees.lng + dlng);
-          if (resolvedCategory) q2 = q2.eq('categorie', resolvedCategory);
-          const { data: bboxData, error: bboxErr } = await q2.limit(500);
+            .gte('lng', coordonnees.lng - dlng).lte('lng', coordonnees.lng + dlng)
+            .eq('categorie', resolvedCategory ?? '')
+            .limit(1000);
           if (bboxErr) console.error('[chat] bbox error:', bboxErr.message);
           else addRows(bboxData ?? []);
         }
       }
 
       if (!ville && !region && !departement) {
-        let qAll = supabase.from('poi_france').select(SELECT_COLS);
-        if (resolvedCategory) qAll = qAll.eq('categorie', resolvedCategory);
-        const { data: allData, error: allErr } = await qAll.limit(2000);
-        if (allErr) console.error('[chat] all error:', allErr.message);
-        else addRows(allData ?? []);
+        // France entière — pagination jusqu'à 10 000 lignes
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS).range(from, to);
+          if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+          return q;
+        }, 10000);
       }
     } catch (e: any) {
       console.error('[chat] Supabase exception:', e.message);
@@ -336,21 +367,31 @@ export async function executeToolCall(
     const couleur      = args.couleur      ? String(args.couleur)      : '#f97316';
 
     const supabase = createAdminClient();
-    let q: any = supabase
-      .from('panneaux_affichage')
-      .select('id, lat, lng, reference_panneau, regie, type_panneau, ville, departement, code_departement, region')
-      .eq('actif', true);
+    const PAGE_PAN = 1000;
 
-    if (regie)        q = q.ilike('regie', `%${regie}%`);
-    if (ville)        q = q.ilike('ville', `%${ville}%`);
-    if (region)       q = q.ilike('region', `%${region}%`);
-    if (departement)  q = q.or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
-    if (type_panneau) q = q.ilike('type_panneau', `%${type_panneau}%`);
+    // Pagination automatique — gère 10k+ panneaux sans truncation
+    const allPanneaux: any[] = [];
+    let from = 0;
+    while (from < 50_000) {
+      let q: any = supabase
+        .from('panneaux_affichage')
+        .select('id, lat, lng, reference_panneau, regie, type_panneau, ville, departement, code_departement, region')
+        .eq('actif', true)
+        .range(from, from + PAGE_PAN - 1);
+      if (regie)        q = q.ilike('regie',        `%${regie}%`);
+      if (ville)        q = q.ilike('ville',         `%${ville}%`);
+      if (region)       q = q.ilike('region',        `%${region}%`);
+      if (departement)  q = q.or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
+      if (type_panneau) q = q.ilike('type_panneau',  `%${type_panneau}%`);
+      const { data: pageData, error: pageErr } = await q;
+      if (pageErr) return { error: pageErr.message };
+      if (!pageData?.length) break;
+      allPanneaux.push(...pageData);
+      if (pageData.length < PAGE_PAN) break;
+      from += PAGE_PAN;
+    }
 
-    const { data, error } = await q.limit(5000);
-    if (error) return { error: error.message };
-
-    const pois = (data ?? []).map((p: any) => ({
+    const pois = allPanneaux.map((p: any) => ({
       id:             p.id,
       nom:            p.reference_panneau ?? p.id,
       lat:            Number(p.lat),
@@ -909,9 +950,10 @@ export function buildTools(
       description:
         "Calcule l'empreinte démographique totale d'un réseau de POI (ex: tous les CIRFA de France) " +
         "en calculant l'union de leurs isochrones et en croisant avec les carreaux INSEE Filosofi. " +
-        "Retourne un chiffre unique de couverture et affiche le polygone d'union (violet) sur la carte. " +
+        "Retourne la couverture totale + un tableau de bord par POI (audience individuelle, % couverture). " +
         "DÉCLENCHER pour : 'empreinte réseau [POI]', 'portée totale du réseau à Xmin', " +
-        "'combien de [cible] couverts par le réseau', 'couverture nationale [POI]'. " +
+        "'combien de [cible] couverts par le réseau', 'couverture nationale [POI]', " +
+        "'potentiel des [N] [POI] de [lieu]', 'quel est le potentiel de', 'analyse des [POI] de [région]'. " +
         "Calcul intensif — mis en cache automatiquement.",
       inputSchema: z.object({
         poi_category:        z.string().describe(catsDesc),

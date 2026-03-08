@@ -392,11 +392,19 @@ export function ChatPanel({
                         mode={coveragePart.output.mode}
                       />
                     )}
-                    {textContent && (
-                      <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart || datagouvParts.length > 0) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
-                        <ChatMarkdown text={textContent} />
-                      </div>
-                    )}
+                    {textContent && (() => {
+                      // Filter out raw MCP output text (starts with "Found N datasets" or contains raw tool output patterns)
+                      const isRawMcpOutput = datagouvParts.length > 0 && (
+                        textContent.startsWith('Found ') ||
+                        textContent.includes('ID:') && textContent.includes('Organization:') && textContent.includes('URL: https://www.data.gouv.fr')
+                      );
+                      if (isRawMcpOutput) return null;
+                      return (
+                        <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart || datagouvParts.length > 0) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
+                          <ChatMarkdown text={textContent} />
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

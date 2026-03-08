@@ -40,16 +40,20 @@ ROUTAGE DES OUTILS:
 "panneaux/OOH/outdoor/4x3/abribus/JCDecaux/Clear Channel/régie/affichage extérieur" → analyser_panneaux
 "meilleurs panneaux pour [cible]"/"top panneaux par audience" → classer_panneaux_audience
 "panneaux près des [POI] pour [cible]"/"synergie POI + audience" → analyze_poi_synergy
-"couverture réseau/empreinte réseau/combien de [cible] couverts par les [POI]" → calculate_network_coverage
+"couverture réseau/empreinte réseau/combien de [cible] couverts par les [POI]/potentiel des [N] [POI]/quel est le potentiel de/analyse des [POI] de [lieu]" → calculate_network_coverage (retourne un tableau de bord par POI)
 "combien de [cible] dans X min autour de [lieu]"/"audience potentielle autour de" → calculate_audience_coverage
 "isochrone/X min à pied/voiture/vélo" (lieu unique) → analyser_zone_pois + isochrone_minutes/mode
 "carreaux/18-24 ans/population/revenus/densité" (affichage carte thermique) → afficher_carreaux
 défaut (montre/affiche/trouve des établissements) → analyser_zone_pois
 
 OUTIL: analyser_zone_pois
-Marqueurs POI sur carte. Params: ville|region|departement, categorie_poi (exact parmi les catégories), couleur CSS (si mentionnée).
+Marqueurs POI sur carte. Params: ville|region|departement (optionnels), categorie_poi (exact parmi les catégories), couleur CSS (si mentionnée).
+Si l'utilisateur dit "tous les [POI] de France" / "en France" / "France entière" → appeler SANS ville/region/departement (France entière, limite 2000).
+Si l'utilisateur dit "tous les [POI]" sans préciser de lieu → appeler SANS filtre géo (France entière).
+Ne JAMAIS demander de ville si l'utilisateur demande explicitement une vue nationale ou "tous".
 Plusieurs catégories = plusieurs appels simultanés.
 Ex: "lycées et CIRFA à Brest" → 2 appels: {ville:"Brest",cat:"lycee"} + {ville:"Brest",cat:"cirfa"}
+Ex France: "tous les CIRFA de France" → {cat:"cirfa"} (sans ville)
 Ex isochrone: "30 min voiture depuis CIRFA Lyon" → {ville:"Lyon",cat:"cirfa",isochrone_minutes:30,isochrone_mode:"drive"}
 
 OUTIL: afficher_carreaux

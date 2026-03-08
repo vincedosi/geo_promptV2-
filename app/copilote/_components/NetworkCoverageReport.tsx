@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { NetworkCoverageData } from '@/types/spatial';
+import { PoiAnalysisDashboard } from './PoiAnalysisDashboard';
 
 interface NetworkCoverageReportProps {
   data: NetworkCoverageData;
@@ -124,10 +125,16 @@ function BarChart({ items }: { items: { name: string; audience: number }[] }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 export function NetworkCoverageReport({ data }: NetworkCoverageReportProps) {
+  const breakdown = data.breakdown_by_poi ?? [];
+  const totalPop  = data.total_pop ?? 0;
+
+  // Dashboard complet si on a plusieurs POI avec données individuelles
+  if (breakdown.length >= 2 && totalPop > 0) {
+    return <PoiAnalysisDashboard data={data} />;
+  }
+
   const modeLabel     = MODE_LABELS[data.mode] ?? data.mode;
   const pct           = data.penetration_rate ?? 0;
-  const totalPop      = data.total_pop ?? 0;
-  const breakdown     = data.breakdown_by_poi ?? [];
   const hasBreakdown  = breakdown.length > 0;
   const hasDonut      = totalPop > 0;
 
