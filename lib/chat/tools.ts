@@ -417,10 +417,12 @@ export async function executeToolCall(
     }
 
     const profile = ORS_PROFILES[mode] ?? 'driving-car';
+    // Timeout adaptatif : isochrones longs (60 min voiture) génèrent des polygones bien plus larges
+    const orsTimeoutMs = travel_time_minutes <= 30 ? 15_000 : travel_time_minutes <= 60 ? 25_000 : 35_000;
     let isoFeature: any = null;
     try {
       const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12_000);
+      const timer = setTimeout(() => ctrl.abort(), orsTimeoutMs);
       const orsRes = await fetch(
         `https://api.openrouteservice.org/v2/isochrones/${profile}`,
         {
@@ -447,7 +449,7 @@ export async function executeToolCall(
       isoFeature = orsData.features?.[0];
       if (!isoFeature) return { error: 'ORS n\'a retourné aucun isochrone' };
     } catch (e: any) {
-      return { error: e.name === 'AbortError' ? 'Timeout ORS (12s)' : e.message };
+      return { error: e.name === 'AbortError' ? `Timeout ORS (${orsTimeoutMs / 1000}s) — réessayez ou réduisez le temps de trajet` : e.message };
     }
 
     const supabase = createAdminClient();
