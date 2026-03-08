@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { circleGeoJSON, getCatColor } from './_lib/constants';
 import { useMapInit }          from './_hooks/useMapInit';
 import { useSavedMaps }        from './_hooks/useSavedMaps';
@@ -9,6 +10,7 @@ import { useMapLayers }        from './_hooks/useMapLayers';
 import { useChatControls }     from './_hooks/useChatControls';
 import { useRateLimitHandler } from './_hooks/useRateLimitHandler';
 import { useToolProcessor }    from './_hooks/useToolProcessor';
+import { useProviderSelector } from './_hooks/useProviderSelector';
 import { ChatPanel }           from './_components/ChatPanel';
 import { MapPanel }            from './_components/MapPanel';
 import type { ZoneData }       from '@/types/spatial';
@@ -33,11 +35,15 @@ export default function CopilotePage() {
     setSaveName:              savedMaps.setSaveName,
   });
 
+  // ── Provider selector ──────────────────────────────────────────────────────
+  const providerSelector = useProviderSelector();
+
   // ── Chat ───────────────────────────────────────────────────────────────────
   const chat = useChatControls({
     setError,
     setZoneData,
     setIsochroneFromCache: mapLayers.setIsochroneFromCache,
+    provider: providerSelector.provider,
   });
 
   // ── Rate limit ─────────────────────────────────────────────────────────────
@@ -77,12 +83,7 @@ export default function CopilotePage() {
   // ── Rendu zone (markers + cercle + flyTo) ──────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) {
-      console.log('[copilote/render] Skipping:', { map: !!map, mapReady, zoneData: !!zoneData, hasCoords: zoneData?.coordonnees ? true : false });
-      return;
-    }
-
-    console.log('[copilote/render] Rendering', zoneData.nb_pois, 'POIs, categories:', zoneData.categories);
+    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) return;
 
     const { lat, lng } = zoneData.coordonnees;
 
@@ -95,7 +96,6 @@ export default function CopilotePage() {
     });
     map.triggerRepaint();
 
-    let markerCount = 0;
     zoneData.pois.forEach((p) => {
       const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
       const rankVal = (p as any).rank;
@@ -107,7 +107,6 @@ export default function CopilotePage() {
       } else {
         el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
       }
-      markerCount++;
       const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const audienceVal = (p as any).audience;
       const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
@@ -125,16 +124,12 @@ export default function CopilotePage() {
       markersRef.current.push(marker);
     });
 
-    console.log('[copilote/render] Added', markerCount, 'POI markers');
-
     const cityEl = document.createElement('div');
     cityEl.innerHTML = '📍';
     cityEl.style.cssText = 'font-size:24px;cursor:default;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
     markersRef.current.push(
       new maplibregl.Marker({ element: cityEl, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map)
     );
-
-    console.log('[copilote/render] Final markers count:', markersRef.current.length);
 
     const r = zoneData.rayon_metres, rPoi = zoneData.rayon_poi_metres;
     if (zoneData.pois.length > 1) {
@@ -155,8 +150,7 @@ export default function CopilotePage() {
       zoom = 12;
     }
     map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoneData, mapReady]);
+  }, [zoneData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
@@ -189,6 +183,11 @@ export default function CopilotePage() {
         loadMap={savedMaps.loadMap}
         deleteMap={savedMaps.deleteMap}
         zoneData={zoneData}
+        provider={providerSelector.provider}
+        setProvider={providerSelector.setProvider}
+        providerStatus={providerSelector.providerStatus}
+        statusLoading={providerSelector.statusLoading}
+        refreshProviderStatus={providerSelector.refreshStatus}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}

@@ -47,12 +47,14 @@ export function useToolProcessor({
       if (msg.role !== 'assistant') continue;
       console.log('[useToolProcessor] Assistant message parts:', msg.parts?.length ?? 0);
       
-      for (const part of msg.parts ?? []) {
-        const p = part as any;
+      for (let partIdx = 0; partIdx < (msg.parts ?? []).length; partIdx++) {
+        const p = (msg.parts as any[])[partIdx];
         console.log('[useToolProcessor] Part structure:', { type: p.type, toolCallId: p.toolCallId, state: p.state, hasOutput: !!p.output });
-        
-        if (!p.toolCallId || p.state !== 'output-available') continue;
-        const key = p.toolCallId as string;
+
+        if (p.state !== 'output-available') continue;
+        if (!p.type?.startsWith('tool-')) continue;
+        // Clé robuste : toolCallId si dispo, sinon msgId+index
+        const key = p.toolCallId ?? `${msg.id}:${partIdx}`;
         if (processedToolIds.current.has(key)) {
           console.log('[useToolProcessor] Skipping already processed:', key);
           continue;
@@ -62,9 +64,11 @@ export function useToolProcessor({
         const toolName = (p.type as string).replace(/^tool-/, '');
         const result   = p.output;
         console.log('[useToolProcessor] Processing tool:', toolName, 'Result keys:', result ? Object.keys(result) : 'null');
+        console.log('[useToolProcessor] result?.coordonnees:', result?.coordonnees, '| result?.pois?.length:', result?.pois?.length);
 
         if (toolName === 'analyser_zone_pois' && result?.coordonnees) {
           // ── Accumuler plutôt que d'appeler setZoneData directement ──
+          console.log('[useToolProcessor] ✅ Pushing analyser_zone_pois result:', result?.nb_pois, 'POIs');
           zonePoiResults.push(result as ZoneData);
           const iso = result.isochroneGeoJSON;
           if (iso?.features?.length > 0) {

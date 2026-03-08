@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.7.0 — 7 mars 2026
+> **Version** : 6.8.0 — 8 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -16,7 +16,8 @@ L'utilisateur tape un prompt en français → l'IA extrait des filtres structur�
 | **Framework** | Next.js 14 (App Router, TypeScript strict, Tailwind CSS) |
 | **Base de données** | Supabase (PostgreSQL + PostGIS) |
 | **Cartographie** | MapLibre GL JS + CARTO Light raster tiles (gratuit, sans token) |
-| **IA / NLP** | Mistral AI (mistral-small-latest, function calling via Vercel AI SDK v6) |
+| **IA / NLP** | Multi-provider via Vercel AI SDK v6 : Mistral AI (`mistral-small-latest`), Anthropic Claude (`claude-haiku-4-5`), Google Gemini (`gemini-2.5-flash`) — function calling, sélecteur dynamique |
+| **MCP** | data.gouv.fr MCP (Streamable HTTP JSON-RPC) — recherche datasets open data FR, opt-in keyword-triggered |
 | **Auth** | Supabase Auth (email/password, Bearer token) |
 | **Parsing fichiers** | PapaParse (CSV), SheetJS (XLSX), natif (GeoJSON) |
 | **Géocodage** | API BAN data.gouv.fr (adresses FR, gratuit) + proj4 (Lambert 93 → WGS84) |
@@ -40,15 +41,18 @@ genesis_app/
 │   │   ├── _hooks/
 │   │   │   ├── useMapInit.ts              ← Init MapLibre + markers
 │   │   │   ├── useMapLayers.ts            ← Isochrones, Voronoï, Bataille, Carreaux
-│   │   │   ├── useChatControls.ts         ← useChat + DefaultChatTransport
-│   │   │   ├── useRateLimitHandler.ts     ← Countdown auto-retry Mistral 429
+│   │   │   ├── useChatControls.ts         ← useChat + DefaultChatTransport (provider-aware)
+│   │   │   ├── useRateLimitHandler.ts     ← Countdown auto-retry 429
 │   │   │   ├── useToolProcessor.ts        ← Traitement résultats outils IA
+│   │   │   ├── useProviderSelector.ts     ← Sélection provider IA + statut quota/disponibilité
 │   │   │   └── useSavedMaps.ts            ← Sauvegarde / chargement cartes
 │   │   ├── _components/
-│   │   │   ├── ChatPanel.tsx              ← Panel chat (messages, input, save/load)
+│   │   │   ├── ChatPanel.tsx              ← Panel chat (messages, input, save/load, provider selector)
 │   │   │   ├── MapPanel.tsx               ← Panel carte (badges, toggles, légende)
 │   │   │   ├── PromptsPanel.tsx           ← Panel aide prompts (6 catégories, 20 exemples)
 │   │   │   ├── ZoneCard.tsx               ← Carte résumé zone analysée
+│   │   │   ├── ChatMarkdown.tsx           ← Renderer Markdown inline (bold, italic, liens, code, listes)
+│   │   │   ├── DataGouvCard.tsx           ← Cartes résultats data.gouv.fr MCP (datasets cliquables)
 │   │   │   └── TypingDots.tsx             ← Indicateur chargement IA
 │   │   └── _lib/
 │   │       └── constants.ts               ← circleGeoJSON, getCatColor
@@ -61,12 +65,13 @@ genesis_app/
 │   │   ├── organizations/page.tsx         ← Gestion multi-tenant
 │   │   └── health/page.tsx                ← Health Check système
 │   └── api/
+│       ├── providers/status/route.ts      ← Statut providers IA (quota Mistral, clé Claude/Gemini, cache 5min)
 │       ├── parse-prompt/route.ts          ← Mistral → JSON filtres panneaux
 │       ├── search-panneaux/route.ts       ← Filtres → panneaux Supabase (RPC PostGIS)
 │       ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
 │       ├── search-poi/categories/route.ts ← Liste des catégories POI
 │       ├── carreaux/route.ts              ← GET: sources (data_sources) / POST: GeoJSON bbox (PostgreSQL direct)
-│       ├── chat/route.ts                  ← Copilote IA (streamText, 6 tools Zod, rate limit)
+│       ├── chat/route.ts                  ← Copilote IA (streamText, multi-provider, tools Zod, MCP data.gouv)
 │       ├── network-coverage/route.ts      ← 📊 Couverture réseau POI (ORS + PostGIS v3, cache)
 │       ├── debug-coverage/route.ts        ← 🔍 Diagnostic pipeline couverture (12 étapes)
 │       ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
@@ -106,6 +111,8 @@ genesis_app/
 │           ├── useMapPanels.ts            ← Panneaux latéraux
 │           └── useMapViewport.ts          ← Viewport carte
 ├── lib/
+│   ├── mcp/
+│   │   └── datagouv.ts                    ← Client MCP data.gouv.fr (JSON-RPC, SSE, sanitizeSchema Gemini-compat)
 │   ├── auth.ts                            ← Helpers auth serveur (createAdminClient strict)
 │   ├── auth-client.ts                     ← Hooks auth client (useSession, useSignIn)
 │   ├── admin-fetch.ts                     ← 🔒 adminFetch() — Bearer token automatique
@@ -195,8 +202,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...    ← OBLIGATOIRE pour les opérations admin
 
-# IA
-MISTRAL_API_KEY=sk_...
+# IA — au moins une clé requise pour le Copilote
+MISTRAL_API_KEY=sk_...              ← Copilote Mistral (mistral-small-latest)
+ANTHROPIC_API_KEY=sk-ant-...        ← Copilote Claude (claude-haiku-4-5) — optionnel
+GOOGLE_GENERATIVE_AI_API_KEY=...    ← Copilote Gemini (gemini-2.5-flash) — optionnel, billing requis
 
 # Isochrones ORS
 ORS_API_KEY=...                     ← Requis pour la Bataille d'Isochrones
@@ -348,15 +357,29 @@ Page de debug complète : **http://localhost:3000/debug-coverage**
 
 ### Copilote Media IA (`/copilote`)
 Chat conversationnel IA + carte interactive en split screen.
-- Mistral AI function calling via **Vercel AI SDK v6** (`streamText`, `useChat`, `DefaultChatTransport`)
-- **6 outils** :
+- **Multi-provider** via **Vercel AI SDK v6** (`streamText`, `useChat`, `DefaultChatTransport`) :
+  - **Mistral** `mistral-small-latest` — provider par défaut, quota tokens affiché
+  - **Claude** `claude-haiku-4-5` (Anthropic) — sélectable, disponibilité vérifiée
+  - **Gemini** `gemini-2.5-flash` (Google) — sélectable, billing externe requis
+  - Sélecteur provider dans le header + badge statut temps réel (`/api/providers/status`, cache 5 min)
+- **Outils IA** :
   - `analyser_zone_pois` — recherche POI par zone géographique + isochrones ORS
   - `voronoi_analysis` — Voronoï géométrique par catégorie (à vol d'oiseau, instantané)
   - `isochrone_battle` — ⚔️ Voronoï Routier / Bataille d'Isochrones (temps réel ORS, ~1-2 min)
   - `afficher_carreaux` — choroplèthe carreaux INSEE sur la carte
   - `analyser_panneaux` — panneaux OOH géolocalisés (table panneaux_affichage)
   - `calculer_couverture_reseau` — 📊 Couverture démographique réseau POI (ORS + PostGIS)
-- **Rate limit** : 12 req/min/IP in-memory, countdown auto-retry avec délai exact
+  - `calculate_audience_coverage` — Couverture audience autour d'un panneau/point
+  - `analyze_poi_synergy` — Synergie panneaux × démographie POI
+  - `classer_panneaux_audience` — Ranking panneaux par audience (marqueurs numérotés sur carte)
+- **MCP data.gouv.fr** (opt-in, déclenché par mots-clés) :
+  - Activé si le message contient : `data.gouv`, `dataset`, `jeux de données`, `open data`…
+  - 6 outils : `search_datasets`, `get_dataset_info`, `list_dataset_resources`, `query_resource_data`, `search_dataservices`, `get_metrics`
+  - `sanitizeSchema()` : compatibilité Gemini (supprime `additionalProperties`, `$ref`, `anyOf`, convertit `integer→number`)
+  - Résultats affichés en `DataGouvCard` (cartes cliquables avec liens, organisation, tags)
+  - Timeout MCP 5s — non-bloquant, skippé si le serveur est injoignable
+- **ChatMarkdown** : renderer Markdown inline (bold, italic, liens `[text](url)`, `code`, listes numérotées + à puces)
+- **Rate limit** : 12 req/min/IP in-memory, countdown affiché avec nom du provider
 - **AbortController ORS** : timeout 12s par batch, délai adaptatif (5s timeout / 20s rate limit)
 - **Panel Prompts `?`** : 6 catégories de prompts cliquables avec description du résultat attendu
 - ZoneCard résultats, légende dynamique, sauvegarde/chargement cartes
@@ -445,6 +468,7 @@ console.log('done');
 | Carte | `[MapContainer]` / `[MapPage]` |
 | Carreaux API | `[carreaux]` |
 | Copilote IA | `[copilote]` |
+| MCP data.gouv | `[data.gouv MCP]` |
 | Auth | `[auth]` |
 
 ### 5. Règles générales
@@ -502,6 +526,7 @@ npx next dev
 
 | Version | Date | Changements clés |
 |---------|------|-------------------|
+| **6.8.0** | 2026-03-08 | **Multi-provider** Copilote : Mistral + Claude (`claude-haiku-4-5`) + Gemini (`gemini-2.5-flash`) — sélecteur header + badge statut temps réel. `/api/providers/status` (quota Mistral, clé Claude/Gemini, cache 5 min). **MCP data.gouv.fr** : `sanitizeSchema()` Gemini-compat (strips `additionalProperties/$ref/anyOf/integer`), timeout réduit 5s, fix crash JSON.parse('[DONE]') SSE, system prompt renforcé. `ChatMarkdown` renderer inline (bold, italic, liens, code, listes). `DataGouvCard` (cartes datasets cliquables). Nouveaux outils IA : `calculate_audience_coverage`, `analyze_poi_synergy`, `classer_panneaux_audience`. Fix : boucle infinie retry sur rate limit supprimée. |
 | **6.7.0** | 2026-03-07 | Outil `calculer_couverture_reseau` : RPC `calculate_network_coverage_v3` déployée (single-scan FILTER, LATERAL MATERIALIZED, SRID 4326 forcé). Fix timeout PostgREST 125s : CTE non-matérialisé + SRID perdu par ST_SimplifyPreserveTopology. Page `/debug-coverage` 12 étapes. Carreaux France entière : 2,3M carreaux 1,6 GB. |
 | **6.6.0** | 2026-03-06 | Refonte import Shapefile : wizard 3 étapes, parser SHP/DBF/PRJ client-side, reprojection proj4 browser. API `/import-geo` PostgreSQL direct + unnest paramétrisé. Sécurité : `sql.unsafe()` remplacé par requêtes fully parameterized. |
 | **6.5.1** | 2026-03-03 | Fix "voronoï routier" → `isochrone_battle` + Panel Prompts `?` (6 catégories, 20 exemples cliquables) |
@@ -542,7 +567,11 @@ npx next dev
 | Couverture réseau timeout 125s `upstream request timeout` | Résolu en v6.7.0 — deux bugs : (1) CTE `iso` non-matérialisé dans EXISTS → ST_GeomFromGeoJSON exécuté 207k fois, (2) SRID perdu par ST_SimplifyPreserveTopology → mixed SRID 4326 vs 0. Fix : v3 avec v_union_geom scalaire + FILTER + LATERAL MATERIALIZED |
 | `calculate_network_coverage_v3` absente | Exécuter `sql/009_calculate_network_coverage_v3.sql` dans Supabase SQL Editor (ou via MCP `apply_migration`) |
 | Couverture = 0 alors que des carreaux existent | Vérifier la colonne `demo_col` dans `/debug-coverage` step 8 — casse exacte (`ind_18_24` pas `Ind_18_24`) |
+| Gemini rate limit 429 | Normal si billing non activé sur le projet Google Cloud — switcher sur Mistral ou Claude |
+| `GOOGLE_GENERATIVE_AI_API_KEY` non reconnue | Redémarrer le serveur Next.js après ajout de la clé dans `.env.local` |
+| MCP data.gouv.fr timeout | Le serveur `mcp.data.gouv.fr` est parfois lent — timeout 5s, l'intégration est skippée silencieusement si injoignable |
+| Gemini + MCP tools : erreur "additionalProperties" | Résolu en v6.8.0 — `sanitizeSchema()` nettoie les schémas JSON incompatibles avec Gemini |
 
 ---
 
-*GEO.Prompt v6.7.0 — AI Media Planning Platform*
+*GEO.Prompt v6.8.0 — AI Media Planning Platform*

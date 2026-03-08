@@ -8,6 +8,9 @@ import { SynergyResults } from './SynergyResults';
 import { NetworkCoverageReport } from './NetworkCoverageReport';
 import { TypingDots } from './TypingDots';
 import { PromptsPanel } from './PromptsPanel';
+import { ChatMarkdown } from './ChatMarkdown';
+import { DataGouvCard } from './DataGouvCard';
+import type { Provider, ProviderStatus } from '../_hooks/useProviderSelector';
 
 interface ChatPanelProps {
   // Chat
@@ -41,6 +44,12 @@ interface ChatPanelProps {
   deleteMap: (id: string) => Promise<void>;
   // Zone (for ZoneCard display)
   zoneData: ZoneData | null;
+  // Provider
+  provider: Provider;
+  setProvider: (p: Provider) => void;
+  providerStatus: ProviderStatus;
+  statusLoading: boolean;
+  refreshProviderStatus: () => void;
 }
 
 function NetworkCoverageProgress() {
@@ -88,7 +97,40 @@ const runningToolLabels: Record<string, string> = {
   'tool-calculate_audience_coverage': '🎯 Calcul de couverture audience…',
   'tool-analyze_poi_synergy':           '🎯 Analyse synergies POI × démographie…',
   'tool-calculate_network_coverage':    '🌍 Calcul empreinte réseau (~1-2 min)…',
+  // data.gouv.fr MCP tools
+  'tool-search_datasets':             '🇫🇷 Recherche sur data.gouv.fr…',
+  'tool-get_dataset_info':            '🇫🇷 Récupération fiche dataset…',
+  'tool-list_dataset_resources':      '🇫🇷 Liste des ressources…',
+  'tool-query_resource_data':         '🇫🇷 Interrogation des données…',
+  'tool-search_dataservices':         '🇫🇷 Recherche API data.gouv.fr…',
+  'tool-get_metrics':                 '🇫🇷 Métriques data.gouv.fr…',
 };
+
+function ProviderBadge({ status, provider }: { status: ProviderStatus; provider: Provider }) {
+  if (provider === 'mistral') {
+    const m = status.mistral;
+    if (!m) return <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>…</span>;
+    const pct = m.limit > 0 ? m.remaining / m.limit : 0;
+    const color = pct > 0.1 ? '#3dffa0' : pct > 0.02 ? '#fbbf24' : '#f87171';
+    const label = m.remaining <= 0 ? 'Quota épuisé' : `${m.remaining.toLocaleString('fr-FR')} tokens`;
+    return <span style={{ fontSize: 10, color, fontFamily: 'JetBrains Mono, monospace' }}>{label}</span>;
+  }
+  if (provider === 'claude') {
+    const c = status.claude;
+    if (!c) return <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>…</span>;
+    return <span style={{ fontSize: 10, color: c.available ? '#3dffa0' : '#f87171', fontFamily: 'JetBrains Mono, monospace' }}>
+      {c.available ? 'Disponible' : 'Clé manquante'}
+    </span>;
+  }
+  // gemini
+  const g = status.gemini;
+  if (!g) return <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>…</span>;
+  const geminiLabel = !g.keyPresent ? 'Clé manquante' : 'Clé OK · billing requis';
+  const geminiColor = !g.keyPresent ? '#f87171' : '#fbbf24';
+  return <span style={{ fontSize: 10, color: geminiColor, fontFamily: 'JetBrains Mono, monospace' }}>
+    {geminiLabel}
+  </span>;
+}
 
 export function ChatPanel({
   messages, isLoading, input, setInput, handleSubmit, handleKeyDown, sendMessage,
@@ -96,8 +138,13 @@ export function ChatPanel({
   showSavePanel, showLoadPanel, setShowSavePanel, setShowLoadPanel,
   saveName, setSaveName, saveLoading, saveError, setSaveError,
   savedMaps, saveCurrentMap, loadSavedMaps, loadMap, deleteMap,
+  provider, setProvider, providerStatus, statusLoading, refreshProviderStatus,
 }: ChatPanelProps) {
   const [showPromptsPanel, setShowPromptsPanel] = useState(false);
+
+  const providerName  = provider === 'mistral' ? 'Mistral' : provider === 'claude' ? 'Claude' : 'Gemini';
+  const providerModel = provider === 'mistral' ? 'mistral-small-latest' : provider === 'claude' ? 'claude-haiku-4-5' : 'gemini-2.5-flash';
+
   return (
     <div style={{ width: 400, minWidth: 360, display: 'flex', flexDirection: 'column', background: '#0f0f23', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
 
@@ -110,7 +157,7 @@ export function ChatPanel({
             <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Copilote Media</span>
             <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', background: 'rgba(124,58,237,0.3)', color: '#a78bfa', padding: '2px 6px', borderRadius: 4 }}>BETA</span>
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Mistral · function calling · poi_france</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{providerModel} · function calling · poi_france</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button
@@ -130,6 +177,45 @@ export function ChatPanel({
           >📁</button>
         </div>
         {isLoading && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3dffa0', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 }} />}
+      </div>
+
+      {/* Provider selector */}
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>IA :</span>
+        {([
+          { id: 'mistral', label: '🌬 Mistral', activeColor: '#fbbf24', activeBg: 'rgba(251,191,36,0.15)', activeBorder: 'rgba(251,191,36,0.5)' },
+          { id: 'claude',  label: '🤖 Claude',  activeColor: '#818cf8', activeBg: 'rgba(99,102,241,0.2)',  activeBorder: 'rgba(99,102,241,0.5)' },
+          { id: 'gemini',  label: '✨ Gemini',  activeColor: '#34d399', activeBg: 'rgba(52,211,153,0.15)', activeBorder: 'rgba(52,211,153,0.5)' },
+        ] as Array<{ id: Provider; label: string; activeColor: string; activeBg: string; activeBorder: string }>).map(p => {
+          const active = provider === p.id;
+          return (
+            <button
+              key={p.id}
+              onClick={() => { setProvider(p.id); }}
+              style={{
+                background: active ? p.activeBg : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${active ? p.activeBorder : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: 6,
+                padding: '3px 10px',
+                color: active ? p.activeColor : 'rgba(255,255,255,0.4)',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: active ? 700 : 400,
+                transition: 'all 0.15s',
+              }}
+            >{p.label}</button>
+          );
+        })}
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ProviderBadge status={providerStatus} provider={provider} />
+          <button
+            onClick={refreshProviderStatus}
+            disabled={statusLoading}
+            title="Rafraîchir le statut"
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', fontSize: 11, padding: 2, opacity: statusLoading ? 0.4 : 1 }}
+          >↻</button>
+        </div>
       </div>
 
       {/* Panel Prompts */}
@@ -253,6 +339,17 @@ export function ChatPanel({
               )
             : null;
 
+          // data.gouv.fr MCP tool results
+          const datagouvParts = msg.role === 'assistant'
+            ? (msg.parts as any[]).filter(
+                p => ['tool-search_datasets', 'tool-get_dataset_info', 'tool-list_dataset_resources',
+                      'tool-query_resource_data', 'tool-search_dataservices', 'tool-get_metrics']
+                      .includes(p.type)
+                  && p.state === 'output-available'
+                  && p.output && !p.output?.error
+              )
+            : [];
+
           const runningTool = msg.role === 'assistant'
             ? (msg.parts as any[]).find(
                 p => p.type?.startsWith('tool-') && (p.state === 'input-streaming' || p.state === 'input-available')
@@ -283,6 +380,9 @@ export function ChatPanel({
                     {zonePart && <ZoneCard zone={zonePart.output as ZoneData} />}
                     {synergyPart && <SynergyResults zoneData={synergyPart.output as ZoneData} />}
                     {networkCovPart && <NetworkCoverageReport data={networkCovPart.output} />}
+                    {datagouvParts.length > 0 && (
+                      <DataGouvCard parts={datagouvParts as any} />
+                    )}
                     {coveragePart && (
                       <CoverageCard
                         locationName={coveragePart.output.location_name}
@@ -293,8 +393,8 @@ export function ChatPanel({
                       />
                     )}
                     {textContent && (
-                      <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
-                        {textContent}
+                      <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart || datagouvParts.length > 0) ? 10 : 0, background: 'rgba(255,255,255,0.05)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 1.6 }}>
+                        <ChatMarkdown text={textContent} />
                       </div>
                     )}
                   </div>
@@ -314,7 +414,7 @@ export function ChatPanel({
         {rateLimitCooldown > 0 && (
           <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fbbf24', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ animation: 'pulse 1s infinite' }}>⏱</span>
-            Limite Mistral atteinte — réessaie dans {rateLimitCooldown}s
+            Limite {providerName} atteinte — réessaie dans {rateLimitCooldown}s
             <button
               onClick={cancelCooldown}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: 11, opacity: 0.7 }}

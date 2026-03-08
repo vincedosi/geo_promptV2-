@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { createMistral } from '@ai-sdk/mistral';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { getDistinctCategories } from '@/lib/poi/categories';
@@ -52,6 +54,7 @@ async function executeToolCall(
   options: { forceRecalculate?: boolean } = {}
 ) {
   if (name === 'analyser_zone_pois') {
+    console.log('[tool:analyser_zone_pois] args reçus:', JSON.stringify(args));
     const ville = args.ville ? String(args.ville) : undefined;
     const region = args.region ? String(args.region) : undefined;
     const departement = args.departement ? String(args.departement) : undefined;
@@ -875,295 +878,70 @@ const CHORO_INDICATORS: Record<string, { col: string; label: string }> = {
 function buildSystemPrompt(categoriesList: string[]): string {
   const catsFormatted = categoriesList.map(c => `"${c}"`).join(', ');
 
-  return `Tu es un assistant de recherche géographique et media planning. Tu aides à trouver des POI et des données démographiques sur carte.
+  return `Assistant géographie & media planning. Catégories POI disponibles: ${catsFormatted}
+Réponse texte: 1-2 phrases max en français. Appelle les outils simultanément si besoin.
 
-CATÉGORIES DE POI DISPONIBLES EN BASE: ${catsFormatted}
+MAPPING DÉMOGRAPHIQUE (valable pour tous les outils):
+"18-24 ans"/"jeunes 18-24" → col:ind_18_24 label:"Jeunes 18-24 ans"
+"25-39 ans" → col:Ind_25_39 label:"Adultes 25-39 ans"
+"11-17 ans" → col:Ind_11_17 label:"Adolescents 11-17 ans"
+"65-79 ans"/"seniors" → col:Ind_65_79 label:"Seniors 65-79 ans"
+"80 ans+" → col:Ind_80p label:"Personnes 80+"
+"population"/"habitants" → col:Ind label:"Population totale"
+"revenus"/"CSP+" → col:rev_median label:"Revenu médian"
+"ménages" → col:Men label:"Nombre de ménages"
+AMBIGU ("jeunes" seul, "seniors" seul, "enfants", "actifs") → demander clarification avant d'appeler.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RÈGLE DE PRIORITÉ ABSOLUE — ROUTAGE DES OUTILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SI l'utilisateur dit l'un de ces mots : "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage territorial", "cellule", "diagramme"
-→ TOUJOURS appeler voronoi_analysis. JAMAIS analyser_zone_pois.
+ROUTAGE DES OUTILS:
+"voronoï/voronoi/territoire/zone d'influence/découpage/cellule/diagramme" (sans "routier") → voronoi_analysis
+"voronoï routier/voronoi routier/bataille isochrones/anneaux temps réel/sectorisation routière" → isochrone_battle
+"panneaux/OOH/outdoor/4x3/abribus/JCDecaux/Clear Channel/régie/affichage extérieur" → analyser_panneaux
+"meilleurs panneaux pour [cible]"/"top panneaux par audience" → classer_panneaux_audience
+"panneaux près des [POI] pour [cible]"/"synergie POI + audience" → analyze_poi_synergy
+"couverture réseau/empreinte réseau/combien de [cible] couverts par les [POI]" → calculate_network_coverage
+"combien de [cible] dans X min autour de [lieu]"/"audience potentielle autour de" → calculate_audience_coverage
+"isochrone/X min à pied/voiture/vélo" (lieu unique) → analyser_zone_pois + isochrone_minutes/mode
+"carreaux/18-24 ans/population/revenus/densité" (affichage carte thermique) → afficher_carreaux
+défaut (montre/affiche/trouve des établissements) → analyser_zone_pois
 
-SI l utilisateur dit "panneaux strategiques", "synergie POI", "double critere POI + audience"
--> analyze_poi_synergy
+OUTIL: analyser_zone_pois
+Marqueurs POI sur carte. Params: ville|region|departement, categorie_poi (exact parmi les catégories), couleur CSS (si mentionnée).
+Plusieurs catégories = plusieurs appels simultanés.
+Ex: "lycées et CIRFA à Brest" → 2 appels: {ville:"Brest",cat:"lycee"} + {ville:"Brest",cat:"cirfa"}
+Ex isochrone: "30 min voiture depuis CIRFA Lyon" → {ville:"Lyon",cat:"cirfa",isochrone_minutes:30,isochrone_mode:"drive"}
 
-SI l'utilisateur dit "panneaux", "OOH", "affichage extérieur", "outdoor", "4x3", "abri-bus", "mobilier urbain", "régie", "Clear Channel", "JCDecaux", "Exterion", "Médiatransports", "afficheurs"
-→ TOUJOURS analyser_panneaux. JAMAIS analyser_zone_pois.
+OUTIL: afficher_carreaux
+Carte thermique INSEE 200m. Params: indicateur (col du mapping), indicateur_label, ville|region|departement.
 
-SI l'utilisateur dit "montre les XXX", "affiche les XXX", "trouve les XXX" sans "territoire/voronoï" ni "panneau/OOH"
-→ analyser_zone_pois
+OUTIL: voronoi_analysis
+Zones d'influence géométriques (vol d'oiseau, instantané). Par défaut metropolitaine=true (DROM-COM exclus, le mentionner).
+"outre-mer/Guadeloupe/Martinique/DROM" → metropolitaine:false
 
-SI l'utilisateur dit "carreaux", "18-24 ans", "revenus", "population", "densité"
-→ afficher_carreaux
+OUTIL: isochrone_battle
+Sectorisation par temps de trajet réel (ORS). Paliers 10/30/60/90/120 min voiture. Avertir: "Calcul ~1-2 min au 1er appel."
+Appeler IMMÉDIATEMENT sans demander confirmation. Si filtre géo mentionné, toujours le passer.
+Si l'outil retourne {error:"..."} → reproduire le message EXACTEMENT à l'utilisateur.
 
-SI l'utilisateur dit "couverture réseau", "couverture CIRFA", "couverture lycée", "empreinte réseau", "portée réseau", "combien de [cible] couverts par les [POI]", "combien de [cible] touchés par les [POI]", "combien de [cible] dans un rayon de X min des [POI]"
-→ TOUJOURS calculate_network_coverage. JAMAIS analyser_zone_pois.
+OUTIL: analyser_panneaux
+Affiche panneaux OOH sur carte. Params optionnels: regie, ville|region|departement, type_panneau, couleur.
 
-SI l'utilisateur dit "isochrone", "X min à pied/voiture/vélo" SANS mentionner "couverture réseau" ou "empreinte"
-→ ajouter isochrone_minutes/isochrone_mode à analyser_zone_pois
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTIL: classer_panneaux_audience
+Classe panneaux par audience cible dans un rayon. Params: ville, target_column/target_label (mapping démo), rayon_metres, limit, regie (opt).
+Réponse: tableau rang|référence|régie|type|audience + total cumulé.
 
-═══ OUTIL 1 : analyser_zone_pois ═══
-Appelle cet outil quand l'utilisateur demande des établissements/lieux à afficher sous forme de marqueurs sur la carte.
-⚠️ NE PAS utiliser si l'utilisateur mentionne "Voronoï", "territoire", "zone d'influence" ou "découpage" → utiliser voronoi_analysis à la place.
+OUTIL: calculate_audience_coverage
+Nombre de personnes d'une cible dans un isochrone réel autour d'un lieu unique.
+Params: location_name, travel_time_minutes, target_column/target_label, mode (walk/drive/bike).
 
-PARAMÈTRES DE LOCALISATION (au moins un requis):
-- ville : ville française (ex: "Lyon", "Brest")
-- region : région française (ex: "Bretagne", "Normandie", "Île-de-France")
-- departement : département (ex: "Finistère", "29")
-- categorie_poi : type EXACT parmi ${catsFormatted}
+OUTIL: analyze_poi_synergy
+Panneaux combinant proximité POI + audience démo. VILLE OBLIGATOIRE (demander si absent).
+Params: poi_category, ville, target_demo_col/label, max_distance_m, buffer_radius_m.
+Réponse: "X panneaux à moins de Ym d'un [POI], touchant >Z [cible]." + Top 3.
 
-PARAMÈTRE COULEUR (optionnel):
-- couleur : couleur CSS pour les marqueurs (ex: "#000000", "red", "#3b82f6", "orange")
-- Utiliser UNIQUEMENT si l'utilisateur mentionne explicitement une couleur
-- Accepte tout format CSS : hex, rgb, noms anglais (black, red, blue, green, orange, purple…)
-
-EXEMPLES POI:
-- "les CIRFA de Bretagne" → region: "Bretagne", categorie_poi: "cirfa"
-- "les lycées de Brest" → ville: "Brest", categorie_poi: "lycee"
-- "lycées et CIRFA à Brest" → DEUX appels : (1) ville:"Brest", cat:"lycee" ET (2) ville:"Brest", cat:"cirfa"
-- "lycées en noir à Brest" → ville:"Brest", cat:"lycee", couleur:"#000000"
-- "CIRFA en bleu, lycées en vert" → appel 1: cat:"cirfa", couleur:"#3b82f6" ; appel 2: cat:"lycee", couleur:"#22c55e"
-
-═══ OUTIL 2 : afficher_carreaux ═══
-Appelle cet outil quand l'utilisateur veut voir des données démographiques/sociales par carreau INSEE 200m.
-
-TERMES PRÉCIS → appelle directement afficher_carreaux:
-- "18-24 ans", "ind_18_24", "18 à 24" → indicateur: "ind_18_24", label: "Jeunes 18-24 ans"
-- "25-39 ans" → indicateur: "Ind_25_39", label: "Adultes 25-39 ans"
-- "11-17 ans", "collégiens/lycéens âge" → indicateur: "Ind_11_17", label: "Adolescents 11-17 ans"
-- "65-79 ans", "retraités" → indicateur: "Ind_65_79", label: "Seniors 65-79 ans"
-- "80 ans et plus" → indicateur: "Ind_80p", label: "Personnes 80 ans et +"
-- "population", "habitants" → indicateur: "Ind", label: "Population totale"
-- "revenus", "niveau de vie", "CSP+" → indicateur: "rev_median", label: "Revenu médian"
-- "ménages", "familles" → indicateur: "Men", label: "Nombre de ménages"
-
-TERMES AMBIGUS → pose une question de clarification AVANT d'appeler afficher_carreaux:
-- "jeunes" → réponds : "Par 'jeunes', vous visez les 18-24 ans ? (ou les 11-17 ans, 25-39 ans ?)"
-- "enfants" → réponds : "Enfants de quel âge ? (0-3 ans, 4-5 ans, 6-10 ans, ou 11-17 ans ?)"
-- "personnes âgées", "seniors" → réponds : "Seniors de quel âge ? (55-64, 65-79, ou 80+ ?)"
-- "actifs" → réponds : "Actifs 25-39 ans ou 40-54 ans ?"
-
-EXEMPLES CARREAUX:
-- "montre les 18-24 ans à Brest" → afficher_carreaux(indicateur:"ind_18_24", label:"Jeunes 18-24 ans", ville:"Brest")
-- "lycées + ind_18_24 à Brest" → analyser_zone_pois(ville:"Brest", cat:"lycee") ET afficher_carreaux(ind:"ind_18_24", label:"Jeunes 18-24 ans", ville:"Brest")
-- "montre les jeunes" → NE PAS appeler afficher_carreaux. Répondre: "Par 'jeunes', vous pensez aux 18-24 ans ?"
-
-═══ OUTIL 3 : voronoi_analysis ═══
-⚡ PRIORITÉ MAXIMALE — Appelle cet outil DÈS QUE l'un de ces mots apparaît (SANS "routier" ni "temps de trajet") :
-  "Voronoï", "voronoi", "territoire(s)", "zone d'influence", "découpage", "cellule(s)", "diagramme"
-Voronoï GÉOMÉTRIQUE : distance à vol d'oiseau, résultat instantané.
-Accepte un filtre région/ville/département optionnel.
-
-COMPORTEMENT PAR DÉFAUT (metropolitaine=true) :
-- France métropolitaine uniquement. Les DROM-COM (Guadeloupe, Martinique, Guyane, Réunion, Mayotte…) sont EXCLUS.
-- Dans ta réponse texte, TOUJOURS mentionner : "DROM-COM exclus — précisez si vous souhaitez les inclure."
-
-DROM-COM demandés explicitement (metropolitaine=false) :
-- Si l'utilisateur dit "DROM-COM", "outre-mer", "Guadeloupe", "Martinique", etc. → metropolitaine=false
-
-EXEMPLES OBLIGATOIRES → voronoi_analysis:
-- "Fais le Voronoï des CIRFA" → voronoi_analysis(category:"cirfa")
-- "Zone d'influence des lycées" → voronoi_analysis(category:"lycee")
-- "Montre les territoires des CIRFA de France" → voronoi_analysis(category:"cirfa")
-- "Voronoï des CIRFA de Bretagne" → voronoi_analysis(category:"cirfa", region:"Bretagne")
-- "Territoires CIRFA à Brest" → voronoi_analysis(category:"cirfa", ville:"Brest")
-- "Zone d'influence CIRFA département 29" → voronoi_analysis(category:"cirfa", departement:"29")
-- "Voronoï CIRFA outre-mer" → voronoi_analysis(category:"cirfa", metropolitaine:false)
-
-═══ OUTIL 4 : isochrone_battle ═══
-🔥 Appelle cet outil quand l'utilisateur demande la "Bataille d'Isochrones", des "anneaux de temps réel",
-   des "territoires de recrutement par paliers", le "Voronoï routier", ou toute sectorisation basée sur le temps de trajet routier.
-⚡ "voronoï routier", "voronoi routier" → TOUJOURS → isochrone_battle (jamais voronoi_analysis)
-Règle : "le plus petit gagne" — chaque zone est attribuée au CIRFA/POI le plus proche en minutes réelles.
-Paliers calculés : 10, 30, 60, 90, 120 min en voiture (mode drive par défaut).
-⚠️ Avant d'appeler l'outil, avertir l'utilisateur : "Calcul en cours (~1-2 min au 1er appel, puis mis en cache)."
-⚠️ TOUJOURS appeler l'outil IMMÉDIATEMENT. NE JAMAIS demander de confirmation. L'utilisateur sait que c'est long.
-
-FILTRES ORS (passer si mentionnés, sinon France entière) :
-→ Si l'utilisateur précise une région, département ou ville : TOUJOURS passer le filtre correspondant.
-→ "France métropolitaine" ou sans filtre = metropolitaine:true, pas de filtre ville/région/dept.
-→ NE JAMAIS bloquer l'appel pour demander confirmation.
-
-🚨 GESTION D'ERREUR ABSOLUE : Si l'outil retourne { "error": "..." }, tu DOIS reproduire le message
-   d'erreur EXACTEMENT mot pour mot à l'utilisateur. NE JAMAIS dire seulement "Je n'ai pas réussi".
-   Exemple : si error = "ORS n'a retourné aucun isochrone. Vérifier ORS_API_KEY", dire exactement ça.
-
-DIFFÉRENCE avec voronoi_analysis :
-- voronoi_analysis = distance euclidienne, instantané, pas d'API ORS
-- isochrone_battle  = temps de trajet réel, anneaux 10→120 min, consomme des crédits ORS
-
-EXEMPLES OBLIGATOIRES → isochrone_battle :
-- "Bataille d'isochrones des CIRFA" → isochrone_battle(category:"cirfa") + avertir durée
-- "Bataille d'isochrones des CIRFA de France métropolitaine" → isochrone_battle(category:"cirfa", metropolitaine:true)
-- "Territoires de recrutement réels des CIRFA de Bretagne" → isochrone_battle(category:"cirfa", region:"Bretagne")
-- "Anneaux isochrones CIRFA du 29" → isochrone_battle(category:"cirfa", departement:"29")
-- "Sectorisation routière CIRFA Normandie" → isochrone_battle(category:"cirfa", region:"Normandie")
-- "Qui recrute en moins de 30 min ?" → isochrone_battle(category:"cirfa")
-- "Zones de chalandise routières des lycées" → isochrone_battle(category:"lycee")
-- "Voronoï routier des CIRFA de Bretagne" → isochrone_battle(category:"cirfa", region:"Bretagne")
-- "Voronoï routier CIRFA" → isochrone_battle(category:"cirfa")
-- "Affiche le voronoï routier des CIRFA" → isochrone_battle(category:"cirfa")
-- "Voronoi routier lycées" → isochrone_battle(category:"lycee")
-
-═══ ISOCHRONES ═══
-Si l'utilisateur mentionne "isochrone", "X minutes à pied/voiture/vélo", "zone de chalandise", "zone accessible en X min" :
-→ Ajouter isochrone_minutes + isochrone_mode à analyser_zone_pois
-
-EXEMPLES ISOCHRONES:
-- "isochrone 5 min à pied autour des lycées à Brest" → analyser_zone_pois(ville:"Brest", cat:"lycee", isochrone_minutes:5, isochrone_mode:"walk")
-- "30 min en voiture depuis les CIRFA de Lyon" → analyser_zone_pois(ville:"Lyon", cat:"cirfa", isochrone_minutes:30, isochrone_mode:"drive")
-- "zone à vélo 15 min autour des gares" → isochrone_mode:"bike", isochrone_minutes:15
-
-NE PAS ajouter isochrone si non demandé explicitement.
-
-═══ OUTIL 5 : analyser_panneaux ═══
-Appelle cet outil pour afficher des panneaux d'affichage OOH (Out-Of-Home) sur la carte.
-Données : table panneaux_affichage (référence, régie, type, coordonnées GPS).
-
-DÉCLENCHER pour :
-- "panneaux", "OOH", "affichage extérieur", "outdoor", "mobilier urbain"
-- Toute régie : "Clear Channel", "JCDecaux", "Exterion", "Médiatransports", "Abris Publicitaires"…
-- "4x3", "2m²", "abribus", "face A", "enseigne"
-
-FILTRES disponibles (tous optionnels) :
-- regie : nom partiel de la régie (ex: "Clear Channel", "JCDecaux")
-- ville / region / departement : filtre géographique
-- type_panneau : format du panneau (ex: "4x3", "8x3")
-- couleur : couleur des marqueurs (défaut: orange #f97316)
-
-EXEMPLES OBLIGATOIRES → analyser_panneaux :
-- "Panneaux Clear Channel à Paris" → analyser_panneaux(regie:"Clear Channel", ville:"Paris")
-- "OOH en Bretagne" → analyser_panneaux(region:"Bretagne")
-- "Affiche les panneaux 4x3 à Lyon" → analyser_panneaux(type_panneau:"4x3", ville:"Lyon")
-- "Tous les panneaux OOH de France" → analyser_panneaux()
-- "Panneaux JCDecaux du 75" → analyser_panneaux(regie:"JCDecaux", departement:"75")
-- "OOH + lycées à Brest" → analyser_panneaux(ville:"Brest") ET analyser_zone_pois(ville:"Brest", cat:"lycee")
-
-═══ OUTIL 6 : classer_panneaux_audience ═══
-Classe les panneaux d'affichage par audience potentielle d'une cible démographique dans un rayon donné.
-Croise les panneaux (panneaux_affichage) avec les carreaux INSEE (carreaux_filosofi).
-
-DÉCLENCHER OBLIGATOIREMENT pour :
-- "panneaux qui touchent le plus de [cible]"
-- "meilleurs panneaux pour [cible]"
-- "classement panneaux par audience [cible]"
-- "top 10 panneaux pour les 18-24 ans"
-- "panneaux avec le plus de [cible] dans un rayon de X mètres"
-- "quels panneaux couvrent le plus de [cible] à [ville]"
-
-MAPPING target_column (même logique) :
-- "18-24 ans", "jeunes" → ind_18_24, label "Jeunes 18-24 ans"
-- "25-39 ans" → Ind_25_39, label "Adultes 25-39 ans"
-- "population", "habitants" → Ind, label "Population totale"
-- "65-79 ans", "seniors" → Ind_65_79, label "Seniors 65-79 ans"
-- "ménages" → Men, label "Nombre de ménages"
-
-FORMAT DE RÉPONSE OBLIGATOIRE (quand l'outil retourne des résultats) :
-1. Résumé : "Voici les N meilleurs panneaux à [ville] pour [target_label] (rayon [rayon]m) :"
-2. Tableau avec pour chaque panneau : rang, nom/référence, régie, type, audience (nombre de personnes dans le rayon)
-3. Récapitulatif : total audience cumulée, et une analyse rapide (ex: "les panneaux sont concentrés dans le centre-ville")
-Les panneaux sont affichés sur la carte avec leurs zones de couverture (cercles).
-
-EXEMPLES → classer_panneaux_audience :
-- "Top 10 panneaux pour les jeunes 18-24 ans à Brest dans 500m" → classer_panneaux_audience(ville:"Brest", target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", rayon_metres:500, limit:10)
-- "Meilleurs panneaux JCDecaux pour la pop totale à Lyon, rayon 300m" → classer_panneaux_audience(ville:"Lyon", regie:"JCDecaux", target_column:"Ind", target_label:"Population totale", rayon_metres:300, limit:10)
-- "Quels panneaux touchent le plus de seniors à Paris ?" → classer_panneaux_audience(ville:"Paris", target_column:"Ind_65_79", target_label:"Seniors 65-79 ans", rayon_metres:500, limit:10)
-
-═══ OUTIL 7 : calculate_audience_coverage ═══
-Calcule le nombre de personnes d'une cible dans une zone de temps de trajet réel (ORS + PostGIS prorata spatial).
-Retourne un chiffre unique et affiche l'isochrone sur la carte.
-
-DÉCLENCHER pour :
-- "combien de [cible] dans un rayon de X min autour de [lieu]"
-- "couverture [cible] à X min en [mode] autour de [lieu]"
-- "audience potentielle autour de [lieu]"
-- "potentiel de recrutement [lieu]"
-
-MAPPING target_column (même logique que afficher_carreaux) :
-- "population", "habitants" → Ind, label "Population totale"
-- "18-24 ans", "jeunes" → ind_18_24, label "Jeunes 18-24 ans"
-- "25-39 ans" → Ind_25_39, label "Adultes 25-39 ans"
-- "65-79 ans", "seniors" → Ind_65_79, label "Seniors 65-79 ans"
-- "ménages" → Men, label "Nombre de ménages"
-
-EXEMPLES → calculate_audience_coverage :
-- "Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?" → calculate_audience_coverage(location_name:"Brest", travel_time_minutes:30, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
-- "Audience potentielle 15 min à pied autour de Lyon" → calculate_audience_coverage(location_name:"Lyon", travel_time_minutes:15, target_column:"Ind", target_label:"Population totale", mode:"walk")
-- "Potentiel 60 min voiture depuis Rennes" → calculate_audience_coverage(location_name:"Rennes", travel_time_minutes:60, target_column:"ind_18_24", target_label:"Jeunes 18-24 ans", mode:"drive")
-
-
-═══ OUTIL 8 : analyze_poi_synergy ═══
-Trouve les panneaux qui combinent deux criteres : proximite d un POI ET forte audience demographique.
-Appelle la fonction PostGIS find_synergy_billboards(poi_category, max_distance_m, target_demo_col, min_audience, buffer_radius_m).
-
-DECLENCHER OBLIGATOIREMENT pour :
-- "panneaux pres des lycees pour les 18-24 ans"
-- "meilleurs panneaux strategiques pres des [POI] pour [cible]"
-- "panneaux a forte audience [cible] a moins de Xm d un [POI]"
-- "synergie panneaux x [POI] x [cible]"
-- "double critere POI + audience"
-
-MAPPING target_demo_col (identique aux autres outils) :
-- "18-24 ans", "jeunes" -> ind_18_24, label "Jeunes 18-24 ans"
-- "25-39 ans" -> Ind_25_39, label "Adultes 25-39 ans"
-- "population", "habitants" -> Ind, label "Population totale"
-- "65-79 ans", "seniors" -> Ind_65_79, label "Seniors 65-79 ans"
-- "menages" -> Men, label "Nombre de menages"
-
-PARAMETRE OBLIGATOIRE : ville (toujours requis, sinon timeout).
-Si l utilisateur ne precise pas de ville, demande-lui laquelle avant d appeler l outil.
-
-EXEMPLES -> analyze_poi_synergy :
-- "Panneaux pres des lycees a Brest pour les 18-24 ans" -> analyze_poi_synergy(poi_category:"lycee", ville:"Brest", target_demo_col:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", max_distance_m:500, buffer_radius_m:300)
-- "Top panneaux CIRFA + 25-39 ans a Lyon" -> analyze_poi_synergy(poi_category:"cirfa", ville:"Lyon", target_demo_col:"Ind_25_39", target_demo_label:"Adultes 25-39 ans", max_distance_m:500, buffer_radius_m:300)
-- "Panneaux a 300m des gares avec max seniors a Paris" -> analyze_poi_synergy(poi_category:"gare", ville:"Paris", target_demo_col:"Ind_65_79", target_demo_label:"Seniors 65-79 ans", max_distance_m:300, buffer_radius_m:300)
-
-FORMAT DE REPONSE (quand resultats) :
-"J ai trouve X panneaux strategiques a moins de Ym d un(e) [POI], touchant plus de Z personnes de la cible [cible]."
-Puis tableau Top 3 : rang | reference | regie | ville | audience
-
-═══ OUTIL 9 : calculate_network_coverage ═══
-Calcule l'empreinte demographique totale d'un reseau de POI (ex: tous les CIRFA de France) en unionant leurs isochrones.
-Retourne un chiffre unique de couverture et affiche le polygone d'union sur la carte.
-
-DECLENCHER OBLIGATOIREMENT pour :
-- "combien de [cible] sont couverts par le reseau [POI] a Xmin"
-- "empreinte demographique du reseau [POI]"
-- "portee totale du reseau [POI] a [X] minutes"
-- "combien de jeunes touchent l ensemble des CIRFA a 30 min"
-- "couverture nationale du reseau [POI]"
-
-MAPPING target_demo_column (identique aux autres outils) :
-- "18-24 ans", "jeunes" -> ind_18_24, label "Jeunes 18-24 ans"
-- "25-39 ans" -> Ind_25_39, label "Adultes 25-39 ans"
-- "population", "habitants" -> Ind, label "Population totale"
-- "65-79 ans", "seniors" -> Ind_65_79, label "Seniors 65-79 ans"
-- "menages" -> Men, label "Nombre de menages"
-
-AVERTIR l'utilisateur avant d'appeler : "Calcul en cours (peut prendre 1-2 min au 1er appel, puis mis en cache)."
-
-FILTRE GEOGRAPHIQUE (TOUJOURS passer si l utilisateur mentionne une region/ville/dept) :
-- Si l utilisateur dit "en Bretagne", "dans le 29", "a Brest" → passer region/departement/ville en parametre
-- Sans filtre geo = France entiere (tres long, risque de timeout) → TOUJOURS demander confirmation avant d appeler sans filtre
-
-EXEMPLES -> calculate_network_coverage :
-- "Empreinte 18-24 ans du reseau CIRFA a 60min voiture en Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:60, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
-- "Combien de 25-39 ans couverts par les lycees a 15min a pied" -> calculate_network_coverage(poi_category:"lycee", travel_time_minutes:15, target_demo_column:"Ind_25_39", target_demo_label:"Adultes 25-39 ans", mode:"walk")
-- "Portee CIRFA 30min voiture en Normandie" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"Ind", target_demo_label:"Population totale", mode:"drive", region:"Normandie")
-- "couverture CIRFA 30 minutes voiture 18-24 ans Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
-- "couverture cirfa 30 min en voiture sur les 18-24 ans de Bretagne" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
-- "combien de 18-24 ans touchés par les CIRFA de Bretagne a 30min voiture" -> calculate_network_coverage(poi_category:"cirfa", travel_time_minutes:30, target_demo_column:"ind_18_24", target_demo_label:"Jeunes 18-24 ans", mode:"drive", region:"Bretagne")
-
-FORMAT DE REPONSE calculate_network_coverage (quand resultats) :
-"Le reseau [poi_category] couvre [coverage] [target_demo_label] dans un rayon de [travel_time_minutes] min en [mode] (base sur [nb_pois] points)."
-Puis : "L'union des isochrones est affichee en violet sur la carte."
-
-IMPORTANT:
-- Tu peux appeler les deux outils en même temps si l'utilisateur demande POI + données démographiques.
-- Pour POI: plusieurs appels si plusieurs catégories/zones.
-- Réponse texte : 1-2 phrases max, en français. Mentionne l'indicateur utilisé si tu affiches des carreaux.`;
+OUTIL: calculate_network_coverage
+Empreinte démo totale d'un réseau de POI (union isochrones). Avertir durée (~1-2 min).
+Sans filtre géo = France entière (très long) → demander confirmation.
+Réponse: "Le réseau [POI] couvre [N] [cible] à [X] min en [mode] ([nb] points). Union affichée en violet."`;
 }
 
 // =============================================================================
@@ -1181,7 +959,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { messages, forceRecalculate = false } = await request.json();
+    const body = await request.json() as {
+      messages: any[]; forceRecalculate?: boolean; provider?: 'mistral' | 'claude' | 'gemini';
+    };
+    const { messages, forceRecalculate = false, provider = 'mistral' } = body;
 
     const categoriesList = await getDistinctCategories();
     console.log('[chat] Catégories dynamiques:', categoriesList);
@@ -1189,16 +970,26 @@ export async function POST(request: NextRequest) {
     // Opt-in data.gouv MCP: activate only when user mentions data.gouv keywords
     const lastUserText: string = (() => {
       const last = [...messages].reverse().find((m: any) => m.role === 'user');
-      const parts = last?.content;
-      if (!parts) return '';
-      if (typeof parts === 'string') return parts;
+      if (!last) return '';
+      // AI SDK v6: messages may have content (string), parts (array), or both
+      const content = last.content;
+      if (typeof content === 'string' && content) return content;
+      if (Array.isArray(content)) {
+        const txt = content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ');
+        if (txt) return txt;
+      }
+      // AI SDK React useChat sends parts[] not content
+      const parts = (last as any).parts;
       if (Array.isArray(parts)) {
         return parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ');
       }
-      return '';
+      return typeof content === 'string' ? content : '';
     })();
+    console.log('[chat] lastUserText:', JSON.stringify(lastUserText).substring(0, 120));
     const useDatagouv = hasDatagouvKeywords(lastUserText);
+    console.log('[chat] useDatagouv:', useDatagouv);
     const datagouv_tools = useDatagouv ? await loadDatagouvTools() : {};
+    console.log('[chat] datagouv tools loaded:', Object.keys(datagouv_tools).length, 'tools:', Object.keys(datagouv_tools).join(', '));
     const datagouv_addendum = useDatagouv && Object.keys(datagouv_tools).length > 0
       ? '\n\n' + DATAGOUV_SYSTEM_ADDENDUM
       : '';
@@ -1206,17 +997,28 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildSystemPrompt(categoriesList) + datagouv_addendum;
     const catsDesc = `Type exact parmi : ${categoriesList.join(', ')}`;
 
-    const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
+    // Sélection du modèle selon le provider choisi
+    let selectedModel;
+    if (provider === 'claude') {
+      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      selectedModel = anthropic('claude-haiku-4-5-20251001');
+    } else if (provider === 'gemini') {
+      const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
+      selectedModel = google('gemini-2.5-flash');
+    } else {
+      const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
+      selectedModel = mistral('mistral-small-latest');
+    }
 
-    const modelMessages = await convertToModelMessages(messages);
+    const modelMessages = await convertToModelMessages(messages as any);
 
     const result = streamText({
-      model: mistral('mistral-small-latest'),
+      model: selectedModel,
       system: systemPrompt,
       messages: modelMessages,
       stopWhen: stepCountIs(3),
       temperature: 0.1,
-      maxRetries: 1,  // 2 tentatives max (défaut=2 → 3 essais → trop long)
+      maxRetries: provider === 'gemini' ? 0 : 1,  // Gemini: 0 retry (quota/min strict), autres: 1
       tools: {
 
         analyser_zone_pois: {
@@ -1393,6 +1195,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log(`[chat] streamText started — provider=${provider}, tools=${Object.keys(datagouv_tools).length} MCP + 10 built-in`);
     return result.toUIMessageStreamResponse();
 
   } catch (error: any) {

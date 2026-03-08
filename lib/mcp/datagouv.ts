@@ -67,6 +67,42 @@ async function mcpPost(
   return { data, sessionId: newSession };
 }
 
+// ── Schema sanitizer (Gemini compat) ──────────────────────────────────────────
+
+/**
+ * Strips JSON Schema features unsupported by Gemini's function calling:
+ * additionalProperties, $ref, $schema, allOf/anyOf/oneOf, default, examples…
+ * Converts "integer" → "number", flattens anyOf nullable unions to base type.
+ * Ensures every object has { type: 'object', properties: {} } at minimum.
+ */
+function sanitizeSchema(s: any): any {
+  if (!s || typeof s !== 'object') return s;
+  if (Array.isArray(s)) return s.map(sanitizeSchema);
+
+  // Handle anyOf nullable pattern: anyOf: [{type:"string"},{type:"null"}] → {type:"string"}
+  if (s.anyOf && Array.isArray(s.anyOf)) {
+    const nonNull = s.anyOf.filter((x: any) => x?.type !== 'null');
+    if (nonNull.length === 1) {
+      // Flatten to the single non-null type, preserve other keys (description, etc.)
+      const { anyOf: _, ...rest } = s;
+      return sanitizeSchema({ ...rest, ...nonNull[0] });
+    }
+  }
+
+  const out: any = {};
+  for (const [k, v] of Object.entries(s)) {
+    // Drop keys Gemini rejects
+    if (['additionalProperties', '$ref', '$schema', 'allOf', 'anyOf', 'oneOf',
+         'default', 'examples', 'example', '$id', '$comment', 'title'].includes(k)) continue;
+    out[k] = sanitizeSchema(v);
+  }
+  // Gemini uses "number" not "integer"
+  if (out.type === 'integer') out.type = 'number';
+  // Ensure top-level has type
+  if (out.properties && !out.type) out.type = 'object';
+  return out;
+}
+
 // ── Public loader ─────────────────────────────────────────────────────────────
 
 /**
@@ -110,7 +146,7 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
     const tools: Record<string, unknown> = {};
     for (const t of mcpTools) {
       const capturedSession = sessionId; // closure per tool
-      const inputSchema     = t.inputSchema ?? { type: 'object', properties: {} };
+      const inputSchema     = sanitizeSchema(t.inputSchema ?? { type: 'object', properties: {} });
 
       tools[t.name] = {
         description: t.description ?? t.name,
@@ -172,6 +208,9 @@ EXEMPLES OBLIGATOIRES :
 - "données open data mobilité" → search_datasets(query:"mobilité")
 - "dataset revenus communes" → search_datasets(query:"revenus communes")
 
-FORMAT DE RÉPONSE :
-Après search_datasets, présente les 3 meilleurs résultats : titre, organisation, description courte, lien.
+FORMAT DE RÉPONSE (OBLIGATOIRE) :
+- Utilise du **Markdown** dans ta réponse : **gras** pour les titres, *italique*, listes à puces.
+- Pour chaque dataset, inclus un lien cliquable : [Titre du dataset](https://www.data.gouv.fr/fr/datasets/SLUG-OU-ID/)
+- Présente les 3-5 meilleurs résultats avec : **titre** (lien), organisation, description courte, nombre de ressources.
+- Termine par un résumé concis.
 `.trim();
