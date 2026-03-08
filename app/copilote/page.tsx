@@ -57,7 +57,6 @@ export default function CopilotePage() {
   // ── Tool processor ─────────────────────────────────────────────────────────
   useToolProcessor({
     messages:                chat.messages,
-    mapReady,
     setZoneData,
     setError,
     applyIsochrones:          mapLayers.applyIsochrones,

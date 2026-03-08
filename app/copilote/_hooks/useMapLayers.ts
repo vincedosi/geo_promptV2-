@@ -66,7 +66,8 @@ export function useMapLayers({
 
   // Load carreaux sources on mount
   useEffect(() => {
-    fetch('/api/carreaux')
+    const controller = new AbortController();
+    fetch('/api/carreaux', { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.sources?.length > 0) {
@@ -75,6 +76,7 @@ export function useMapLayers({
         }
       })
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   // ── Visibility toggles ────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, NetworkCoverag
 
 interface UseToolProcessorOpts {
   messages: UIMessage[];
-  mapReady: boolean;
   setZoneData: React.Dispatch<React.SetStateAction<ZoneData | null>>;
   setError: (msg: string | null) => void;
   applyIsochrones:      (data: IsochroneData) => void;

@@ -325,8 +325,9 @@ export async function parseShapefile(bundle: ShapefileBundle): Promise<ParsedFil
   // Parse DBF for attributes
   const rows = parseDBF(bundle.dbf);
 
-  // TODO: If geometry coordinates needed, parse .shp geometry file
-  // For now, attributes + basic row structure is sufficient for carreaux import
+  // Note: La géométrie .shp n'est pas parsée ici — les coordonnées sont lues directement
+  // depuis les colonnes attributaires DBF (X/Y en hectomètres EPSG:3035 ou lat/lng WGS84).
+  // Le reprojection proj4 est géré côté client dans l'import wizard (ShapefileWizard).
 
   return {
     rows,
