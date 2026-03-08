@@ -104,10 +104,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     const msg: string = error.message ?? 'Erreur inconnue';
-    const isRateLimit = msg.includes('Rate limit') || msg.includes('rate_limit') || msg.includes('429') || error.statusCode === 429;
-    console.error(`[chat] Erreur${isRateLimit ? ' (rate limit)' : ''}:`, msg);
+    const isRateLimit = msg.includes('Rate limit') || msg.includes('rate_limit') || msg.includes('429')
+      || error.statusCode === 429
+      || msg.toLowerCase().includes('quota exceeded')    // Gemini quota
+      || msg.toLowerCase().includes('exceeded your current quota'); // Gemini quota v2
+
+    // Extraire le délai de retry depuis le message Gemini ("retry in 16.7s")
+    const retryMatch = msg.match(/retry in (\d+(?:\.\d+)?)s/i);
+    const retrySec   = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 0;
+
+    console.error(`[chat] Erreur${isRateLimit ? ' (rate limit)' : ''}:`, msg.substring(0, 200));
     return new Response(
-      JSON.stringify({ error: isRateLimit ? 'RATE_LIMIT' : msg }),
+      JSON.stringify({ error: isRateLimit ? `RATE_LIMIT:${retrySec}` : msg }),
       { status: isRateLimit ? 429 : 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
