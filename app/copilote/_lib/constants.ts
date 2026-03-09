@@ -28,9 +28,18 @@ export function circleGeoJSON(
 }
 
 export function applyChoropleth(map: maplibregl.Map, features: GeoJSON.Feature[], metricKey: string) {
-  console.log('[applyChoropleth] metricKey:', metricKey, 'features:', features.length);
+  // Resolve the actual key in properties (case-insensitive fallback)
+  const keyLower = metricKey.toLowerCase();
+  const sampleProps = (features[0]?.properties ?? {}) as Record<string, unknown>;
+  const resolvedKey = (metricKey in sampleProps) ? metricKey
+    : (keyLower in sampleProps) ? keyLower
+    : Object.keys(sampleProps).find(k => k.toLowerCase() === keyLower) ?? metricKey;
+
+  console.log('[applyChoropleth] metricKey:', metricKey, '→ resolvedKey:', resolvedKey, 'features:', features.length);
+  console.log('[applyChoropleth] sampleProps keys:', Object.keys(sampleProps).slice(0, 8));
+
   const vals = features
-    .map(f => Number((f.properties as Record<string, unknown>)?.[metricKey]))
+    .map(f => Number((f.properties as Record<string, unknown>)?.[resolvedKey]))
     .filter(n => !isNaN(n) && n > 0);
   console.log('[applyChoropleth] non-zero values:', vals.length);
   if (vals.length === 0) { console.warn('[applyChoropleth] NO values, aborting'); return; }
@@ -41,8 +50,8 @@ export function applyChoropleth(map: maplibregl.Map, features: GeoJSON.Feature[]
   const step = (mx - mn) / 4;
   map.setPaintProperty('carreaux-fill', 'fill-color', [
     'interpolate', ['linear'],
-    ['case', ['>', ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0],
-      ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0],
+    ['case', ['>', ['coalesce', ['to-number', ['get', resolvedKey], 0], 0], 0],
+      ['coalesce', ['to-number', ['get', resolvedKey], 0], 0], 0],
     0,        'rgba(0,0,0,0)',
     mn,       '#f7fbff',
     mn + step, '#9ecae1',
@@ -52,7 +61,7 @@ export function applyChoropleth(map: maplibregl.Map, features: GeoJSON.Feature[]
   ] as unknown as maplibregl.ExpressionSpecification);
   map.setPaintProperty('carreaux-fill', 'fill-opacity', [
     'case',
-    ['>', ['coalesce', ['to-number', ['get', metricKey], 0], 0], 0], 0.7,
+    ['>', ['coalesce', ['to-number', ['get', resolvedKey], 0], 0], 0], 0.7,
     0,
   ] as unknown as maplibregl.ExpressionSpecification);
 }

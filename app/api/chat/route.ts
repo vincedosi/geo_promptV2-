@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as {
       messages: any[]; forceRecalculate?: boolean; provider?: Provider;
     };
-    const { messages, forceRecalculate = false, provider = 'mistral' } = body;
+    const { messages, forceRecalculate = false, provider = 'gemini' } = body;
 
     const categoriesList = await getDistinctCategories();
     console.log('[chat] Catégories dynamiques:', categoriesList);
@@ -97,6 +97,10 @@ export async function POST(request: NextRequest) {
         // data.gouv.fr MCP tools — injectés dynamiquement si mots-clés détectés
         ...datagouv_tools,
       },
+      // Désactive le "thinking" de Gemini 2.5-flash → coût identique à 1.5-flash
+      providerOptions: provider === 'gemini' ? {
+        google: { thinkingConfig: { thinkingBudget: 0 } },
+      } : undefined,
     });
 
     console.log(`[chat] streamText started — provider=${provider}, MCP=${Object.keys(datagouv_tools).length} tools`);

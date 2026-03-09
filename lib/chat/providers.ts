@@ -11,6 +11,7 @@ export function createModel(provider: Provider) {
   }
   if (provider === 'gemini') {
     const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
+    // gemini-2.5-flash avec thinking désactivé = coût minimal, modèle actif
     return google('gemini-2.5-flash');
   }
   const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });

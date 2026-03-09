@@ -290,8 +290,10 @@ export async function executeToolCall(
 
   if (name === 'afficher_carreaux') {
     const indicateur = args.indicateur ? String(args.indicateur) : 'ind_18_24';
-    const known = CHORO_INDICATORS[indicateur];
-    const resolvedCol   = known?.col   ?? indicateur;
+    // Gemini passe parfois Ind_18_24 (capital) — chercher en minuscule en fallback
+    const known = CHORO_INDICATORS[indicateur] ?? CHORO_INDICATORS[indicateur.toLowerCase()];
+    // Les metadata sont stockées en minuscule dans la DB → toujours retourner en lowercase
+    const resolvedCol   = (known?.col ?? indicateur).toLowerCase();
     const resolvedLabel = args.indicateur_label
       ? String(args.indicateur_label)
       : (known?.label ?? indicateur);
@@ -301,12 +303,15 @@ export async function executeToolCall(
 
     console.log(`[chat] afficher_carreaux → col="${resolvedCol}" label="${resolvedLabel}" ville="${ville ?? 'n/a'}"`);
 
+    const rayon_km = args.rayon_km ? Number(args.rayon_km) : undefined;
+
     return {
       action: 'afficher_carreaux' as const,
       indicateur: resolvedCol,
       indicateur_label: resolvedLabel,
       ville,
       coordonnees,
+      rayon_km,
     };
   }
 
@@ -548,10 +553,6 @@ export async function executeToolCall(
       return { error: `Indicateur inconnu: ${target_col}. Valides: ${knownCols.join(', ')}` };
     }
 
-    const dbUrl = process.env.SUPABASE_DB_URL;
-    if (!dbUrl) return { error: 'SUPABASE_DB_URL non configurée.' };
-    const sql = postgresLib(dbUrl, { max: 2, idle_timeout: 20 });
-
     try {
       const supabase = createAdminClient();
       let q: any = supabase
@@ -577,17 +578,16 @@ export async function executeToolCall(
       const minLng = Math.min(...panneaux.map((p: any) => p.lng)) - bufferDeg / cosLat;
       const maxLng = Math.max(...panneaux.map((p: any) => p.lng)) + bufferDeg / cosLat;
 
-      const [{ max: latestMillesime }] = await sql`SELECT MAX(millesime) AS max FROM carreaux_filosofi`;
-
-      const carreaux = await sql.unsafe(`
-        SELECT ST_X(ST_Centroid(geom)) AS cx,
-               ST_Y(ST_Centroid(geom)) AS cy,
-               (metadata->>$1)::numeric AS val
-        FROM carreaux_filosofi
-        WHERE millesime = $6
-          AND geom && ST_MakeEnvelope($2, $3, $4, $5, 4326)
-          AND metadata ? $1
-      `, [target_col, minLng, minLat, maxLng, maxLat, latestMillesime]);
+      // Fetch carreaux via RPC (no direct TCP needed)
+      const { data: carreaux, error: cErr } = await supabase.rpc('get_carreaux_for_scoring', {
+        p_table:  'carreaux_filosofi',
+        p_col:    target_col,
+        p_west:   minLng,
+        p_south:  minLat,
+        p_east:   maxLng,
+        p_north:  maxLat,
+      });
+      if (cErr) return { error: cErr.message };
 
       const toRad = Math.PI / 180;
       function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -601,9 +601,9 @@ export async function executeToolCall(
       const ranked = panneaux
         .map((p: any) => {
           let score = 0;
-          for (const c of carreaux) {
+          for (const c of (carreaux ?? [])) {
             if (haversineM(p.lat, p.lng, Number(c.cy), Number(c.cx)) <= rayon_m) {
-              score += Number(c.val);
+              score += Number(c.val_cible ?? 0) || 0;
             }
           }
           return { ...p, audience: Math.round(score) };
@@ -650,8 +650,158 @@ export async function executeToolCall(
     } catch (err: any) {
       console.error('[chat/classer_panneaux_audience]', err.message);
       return { error: err.message };
-    } finally {
-      await sql.end();
+    }
+  }
+
+  if (name === 'scorer_panneaux_ooh') {
+    const ville        = args.ville         ? String(args.ville)         : undefined;
+    const regie        = args.regie         ? String(args.regie)         : undefined;
+    const target_col   = args.target_column ? String(args.target_column) : 'ind_18_24';
+    const target_label = args.target_label  ? String(args.target_label)  : 'Jeunes 18-24 ans';
+    const rayon_m      = args.rayon_metres  ? Number(args.rayon_metres)  : 500;
+    const poids_demo   = args.poids_demo    ? Number(args.poids_demo)    : 0.65;
+    const poids_ctx    = args.poids_contexte ? Number(args.poids_contexte) : 0.35;
+    const limit_n      = args.limit         ? Math.min(Number(args.limit), 50) : 10;
+
+    if (!ville) return { error: 'Ville requise pour scorer les panneaux OOH.' };
+
+    const knownCols = ['Ind', 'Ind_0_3', 'Ind_4_5', 'Ind_6_10', 'Ind_11_17', 'ind_18_24',
+      'Ind_25_39', 'Ind_40_54', 'Ind_55_64', 'Ind_65_79', 'Ind_80p', 'Men', 'rev_median'];
+    if (!knownCols.includes(target_col)) {
+      return { error: `Indicateur inconnu: ${target_col}. Valides: ${knownCols.join(', ')}` };
+    }
+
+    try {
+      const supabase = createAdminClient();
+
+      // 1. Fetch panneaux
+      let q: any = supabase
+        .from('panneaux_affichage')
+        .select('id, reference_panneau, regie, type_panneau, lat, lng, ville')
+        .eq('actif', true)
+        .ilike('ville', `%${ville}%`);
+      if (regie) q = q.ilike('regie', `%${regie}%`);
+      const { data: panneauxData, error: pErr } = await q.limit(2000);
+      if (pErr) return { error: pErr.message };
+      if (!panneauxData || panneauxData.length === 0) return { error: `Aucun panneau trouvé à ${ville}.` };
+
+      const panneaux = panneauxData
+        .filter((p: any) => p.lat && p.lng && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng)))
+        .map((p: any) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) }));
+      if (panneaux.length === 0) return { error: `Aucun panneau avec coordonnées valides à ${ville}.` };
+
+      // 2. Bbox for RPC queries
+      const bufferDeg = (rayon_m / 111320) * 1.2;
+      const cosLat    = Math.cos(panneaux[0].lat * Math.PI / 180);
+      const minLat    = Math.min(...panneaux.map((p: any) => p.lat)) - bufferDeg;
+      const maxLat    = Math.max(...panneaux.map((p: any) => p.lat)) + bufferDeg;
+      const minLng    = Math.min(...panneaux.map((p: any) => p.lng)) - bufferDeg / cosLat;
+      const maxLng    = Math.max(...panneaux.map((p: any) => p.lng)) + bufferDeg / cosLat;
+
+      // 3. Fetch carreaux via RPC (no direct TCP needed)
+      const { data: carreaux, error: cErr } = await supabase.rpc('get_carreaux_for_scoring', {
+        p_table:  'carreaux_filosofi',
+        p_col:    target_col,
+        p_west:   minLng,
+        p_south:  minLat,
+        p_east:   maxLng,
+        p_north:  maxLat,
+      });
+      if (cErr) return { error: cErr.message };
+
+      // 4. Fetch nearby POI for contextual score
+      const { data: poisContext } = await supabase
+        .from('poi')
+        .select('lat, lng')
+        .gte('lat', minLat).lte('lat', maxLat)
+        .gte('lng', minLng).lte('lng', maxLng)
+        .limit(5000);
+
+      const toRad = Math.PI / 180;
+      function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
+        const dLat = (lat2 - lat1) * toRad;
+        const dLng = (lng2 - lng1) * toRad;
+        const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
+        return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      // 5. Score each panneau
+      const scored = panneaux.map((p: any) => {
+        let score_cible = 0;
+        for (const c of (carreaux ?? [])) {
+          if (haversineM(p.lat, p.lng, Number(c.cy), Number(c.cx)) <= rayon_m) {
+            score_cible += Number(c.val_cible ?? 0) || 0;
+          }
+        }
+        let poi_count = 0;
+        for (const poi of (poisContext ?? [])) {
+          if (poi.lat && poi.lng && haversineM(p.lat, p.lng, Number(poi.lat), Number(poi.lng)) <= rayon_m) {
+            poi_count++;
+          }
+        }
+        return { ...p, score_cible, poi_count };
+      });
+
+      // 6. Normalize to [0,100] and compute composite score
+      const maxCible = Math.max(...scored.map((p: any) => p.score_cible), 1);
+      const maxCtx   = Math.max(...scored.map((p: any) => p.poi_count), 1);
+
+      const ranked = scored
+        .map((p: any) => {
+          const norm_demo = (p.score_cible / maxCible) * 100;
+          const norm_ctx  = (p.poi_count   / maxCtx)   * 100;
+          const score_ooh = poids_demo * norm_demo + poids_ctx * norm_ctx;
+          return { ...p, norm_demo: Math.round(norm_demo), norm_ctx: Math.round(norm_ctx), score_ooh: Math.round(score_ooh * 10) / 10 };
+        })
+        .sort((a: any, b: any) => b.score_ooh - a.score_ooh)
+        .slice(0, limit_n)
+        .map((p: any, i: number) => ({
+          rank:           i + 1,
+          id:             p.id,
+          nom:            p.reference_panneau ?? p.id,
+          regie:          p.regie,
+          type:           p.type_panneau,
+          lat:            p.lat,
+          lng:            p.lng,
+          ville:          p.ville,
+          score_ooh:      p.score_ooh,
+          audience:       Math.round(p.score_cible),
+          score_demo:     p.norm_demo,
+          score_contexte: p.norm_ctx,
+          poi_count:      p.poi_count,
+          categorie:      'top_ooh',
+          sous_categorie: p.type_panneau ?? null,
+          adresse:        p.regie ?? undefined,
+        }));
+
+      const totalAudience = ranked.reduce((s: number, p: any) => s + p.audience, 0);
+      const rLats = ranked.map((p: any) => p.lat);
+      const rLngs = ranked.map((p: any) => p.lng);
+      const coordonnees = ranked.length > 0
+        ? { lat: (Math.min(...rLats) + Math.max(...rLats)) / 2, lng: (Math.min(...rLngs) + Math.max(...rLngs)) / 2 }
+        : getCoordsForVille(ville) ?? { lat: 46.8, lng: 2.3 };
+
+      console.log(`[chat] scorer_panneaux_ooh(${ville}, ${target_col}, ${rayon_m}m, top${limit_n}) → ${ranked.length} panneaux`);
+      return {
+        ville,
+        rayon_metres:     null,
+        rayon_poi_metres: rayon_m,
+        target_column:    target_col,
+        target_label,
+        poids_demo,
+        poids_contexte:   poids_ctx,
+        limit:            limit_n,
+        coordonnees,
+        pois:             ranked,
+        nb_pois:          ranked.length,
+        total_audience:   totalAudience,
+        categories:       { top_ooh: ranked.length },
+        couleur_overrides: { top_ooh: '#8b5cf6' },
+      };
+    } catch (err: any) {
+      console.error('[chat/scorer_panneaux_ooh]', err.message);
+      return { error: err.message };
     }
   }
 
@@ -847,6 +997,7 @@ export function buildTools(
         indicateur:       z.string().describe("Nom exact de la colonne Filosofi (ex: ind_18_24, Ind_65_79, ind, rev_median, men)."),
         indicateur_label: z.string().describe("Label lisible en français (ex: Jeunes 18-24 ans, Population totale)."),
         ville:            z.string().optional().describe("Ville sur laquelle centrer la vue."),
+        rayon_km:         z.number().optional().describe("Rayon en km autour de la ville pour charger les carreaux (défaut: 4.5km). Utiliser une valeur plus grande pour une grande ville (ex: 8 pour Paris), plus petite pour un quartier (ex: 2)."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('afficher_carreaux', args, categoriesList, {}),
@@ -905,6 +1056,26 @@ export function buildTools(
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('classer_panneaux_audience', args, categoriesList, {}),
+    },
+
+    scorer_panneaux_ooh: {
+      description:
+        "Score composite OOH : classe les panneaux d'affichage par score multi-critères (audience démographique × contexte environnemental POI). " +
+        "Meilleur que classer_panneaux_audience car intègre le contexte urbain (densité POI = commerces, écoles, transports à proximité). " +
+        "DÉCLENCHER pour : 'meilleurs emplacements OOH', 'score panneau', 'panneaux stratégiques', " +
+        "'classement OOH multi-critères', 'top panneaux [cible] avec contexte', 'smart scoring panneaux'.",
+      inputSchema: z.object({
+        ville:          z.string().describe("Ville française (requis)."),
+        target_column:  z.string().describe("Colonne Filosofi cible : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men, etc."),
+        target_label:   z.string().describe("Label lisible de la cible (ex: 'Jeunes 18-24 ans')."),
+        rayon_metres:   z.number().optional().describe("Rayon en mètres autour de chaque panneau pour capter l'audience (défaut: 500)."),
+        poids_demo:     z.number().optional().describe("Poids du score démographique [0-1] (défaut: 0.65)."),
+        poids_contexte: z.number().optional().describe("Poids du score contextuel POI [0-1] (défaut: 0.35)."),
+        limit:          z.number().optional().describe("Nombre de panneaux à retourner (défaut: 10, max: 50)."),
+        regie:          z.string().optional().describe("Filtrer par régie (ex: 'JCDecaux', 'Clear Channel')."),
+      }),
+      execute: async (args: Record<string, unknown>) =>
+        executeToolCall('scorer_panneaux_ooh', args, categoriesList, {}),
     },
 
     analyze_poi_synergy: {

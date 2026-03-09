@@ -77,6 +77,7 @@ export interface CarreauxData {
   indicateur_label: string;
   ville?: string;
   coordonnees: { lat: number; lng: number };
+  rayon_km?: number;
 }
 
 export interface NetworkCoverageData {

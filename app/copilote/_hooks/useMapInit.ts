@@ -5,7 +5,22 @@ import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import type { ZoneData } from '@/types/spatial';
 
-export function useMapInit(zoneData: ZoneData | null) {
+interface SelectedBillboard {
+  id: string;
+  nom: string;
+  lat: number;
+  lng: number;
+  format?: string;
+  score?: number | null;
+  audience?: number | null;
+  rank?: number | null;
+  regie?: string;
+}
+
+export function useMapInit(
+  zoneData: ZoneData | null,
+  onBillboardSelect?: (billboard: SelectedBillboard) => void,
+) {
   const [mapReady, setMapReady] = useState(false);
   const mapContainerRef  = useRef<HTMLDivElement>(null);
   const mapRef           = useRef<maplibregl.Map | null>(null);
@@ -160,6 +175,33 @@ export function useMapInit(zoneData: ZoneData | null) {
       map.on('click', 'pois-circles', (e) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, string>;
+        const categorie = String(p.categorie ?? '').toLowerCase();
+        const isBillboard = categorie === 'panneaux' || categorie === 'top_ooh';
+
+        if (isBillboard && onBillboardSelect) {
+          const lat = Number(p.lat ?? e.lngLat.lat);
+          const lng = Number(p.lng ?? e.lngLat.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          const toNumOrNull = (v: unknown): number | null => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+          };
+
+          onBillboardSelect({
+            id: String(p.id ?? p.nom ?? 'panneau'),
+            nom: p.nom ?? 'Panneau',
+            lat,
+            lng,
+            format: p.format || p.sous_categorie || undefined,
+            score: toNumOrNull(p.score_ooh),
+            audience: toNumOrNull(p.audience),
+            rank: toNumOrNull(p.rank),
+            regie: p.regie || p.adresse || undefined,
+          });
+          return;
+        }
+
         const html = `<div style="font-size:12px;padding:6px 8px">` +
           `<strong>${p.nom ?? 'POI'}</strong><br/>` +
           `<span style="color:${p.color ?? '#6366f1'};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie ?? ''}</span>` +
@@ -169,7 +211,12 @@ export function useMapInit(zoneData: ZoneData | null) {
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat).setHTML(html).addTo(map);
       });
-      map.on('mouseenter', 'pois-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mousemove', 'pois-circles', (e) => {
+        const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
+        const categorie = String(p?.categorie ?? '').toLowerCase();
+        const isBillboard = categorie === 'panneaux' || categorie === 'top_ooh';
+        map.getCanvas().style.cursor = isBillboard ? 'pointer' : '';
+      });
       map.on('mouseleave', 'pois-circles', () => { map.getCanvas().style.cursor = ''; });
 
       // ── Zone circle ──────────────────────────────────────────────────────

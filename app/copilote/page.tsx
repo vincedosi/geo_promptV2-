@@ -15,12 +15,25 @@ import { ChatPanel }           from './_components/ChatPanel';
 import { MapPanel }            from './_components/MapPanel';
 import type { ZoneData }       from '@/types/spatial';
 
+interface SelectedBillboard {
+  id: string;
+  nom: string;
+  lat: number;
+  lng: number;
+  format?: string;
+  score?: number | null;
+  audience?: number | null;
+  rank?: number | null;
+  regie?: string;
+}
+
 export default function CopilotePage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
+  const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
 
   // ── Map init ───────────────────────────────────────────────────────────────
-  const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData);
+  const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard);
 
   // ── Saved maps ─────────────────────────────────────────────────────────────
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
@@ -105,11 +118,19 @@ export default function CopilotePage() {
             type: 'Feature' as const,
             geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
             properties: {
+              id:             p.id,
               categorie:      p.categorie,
               sous_categorie: p.sous_categorie ?? '',
+              format:         p.sous_categorie ?? '',
               nom:            p.nom ?? '',
               adresse:        p.adresse ?? '',
+              regie:          p.adresse ?? '',
               color,
+              lat:            p.lat,
+              lng:            p.lng,
+              audience:       (p as any).audience ?? null,
+              score_ooh:      (p as any).score_ooh ?? null,
+              rank:           (p as any).rank ?? null,
             },
           };
         }),
@@ -275,10 +296,8 @@ export default function CopilotePage() {
         carreauxLoaded={mapLayers.carreauxLoaded}
         carreauxLabel={mapLayers.carreauxLabel}
         setCarreauxVisible={mapLayers.setCarreauxVisible}
-        testIsoVisible={mapLayers.testIsoVisible}
-        testIsoLoading={mapLayers.testIsoLoading}
-        testIsoDebug={mapLayers.testIsoDebug}
-        runTestIsochrone={mapLayers.runTestIsochrone}
+        selectedBillboard={selectedBillboard}
+        closeBillboardDrawer={() => setSelectedBillboard(null)}
       />
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }

@@ -115,6 +115,34 @@ export function useToolProcessor({
           setZoneData(result as ZoneData);
           if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
 
+        } else if (toolName === 'scorer_panneaux_ooh' && result?.error) {
+          setError(`📊 Score OOH — ${result.error}`);
+        } else if (toolName === 'scorer_panneaux_ooh' && result?.pois) {
+          // Upgrade top_ooh POIs in existing zone data (changes their categorie → purple)
+          setZoneData(prev => {
+            const topPois = (result as ZoneData).pois;
+            const topIds = new Set(topPois.map((p: any) => p.id));
+            if (!prev) return result as ZoneData;
+            // Upgrade existing POIs that are in top 10 to top_ooh category (purple)
+            const updatedPois = prev.pois.map((p: any) =>
+              topIds.has(p.id)
+                ? { ...topPois.find((t: any) => t.id === p.id), categorie: 'top_ooh' }
+                : p
+            );
+            // Add top_ooh POIs not yet in prev (if scorer ran before analyser_panneaux)
+            const existingIds = new Set(prev.pois.map((p: any) => p.id));
+            const extraPois = topPois.filter((p: any) => !existingIds.has(p.id));
+            const merged = [...updatedPois, ...extraPois];
+            return {
+              ...prev,
+              pois: merged,
+              nb_pois: merged.length,
+              categories: { ...prev.categories, ...(result as ZoneData).categories },
+              couleur_overrides: { ...prev.couleur_overrides, ...(result as ZoneData).couleur_overrides },
+            };
+          });
+          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+
         } else if (toolName === 'analyze_poi_synergy' && result?.pois) {
           // Display synergy results (panneaux near POI with demo scoring)
           setZoneData(result as ZoneData);

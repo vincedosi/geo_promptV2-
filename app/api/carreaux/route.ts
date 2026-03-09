@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import postgres from 'postgres';
-
-const DATABASE_URL = process.env.SUPABASE_DB_URL ?? '';
-
-function getDb() {
-  return postgres(DATABASE_URL, { max: 2, idle_timeout: 20 });
-}
+import { createAdminClient } from '@/lib/auth';
 
 // GET — list available carreaux sources
 export async function GET() {
-  const sql = getDb();
   try {
-    const rows = await sql`
-      SELECT id, name, geo_config
-      FROM data_sources
-      WHERE type = 'carreaux'
-        AND status = 'active'
-      ORDER BY import_date DESC
-    `;
-    const sources = rows.map(r => ({
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('data_sources')
+      .select('id, name, geo_config')
+      .eq('type', 'carreaux')
+      .eq('status', 'active')
+      .order('import_date', { ascending: false });
+
+    if (error) throw error;
+
+    const sources = (data ?? []).map(r => ({
       tableName: 'carreaux_filosofi',
       name: r.name,
       id: r.id,
@@ -26,11 +22,9 @@ export async function GET() {
       millesime: r.geo_config?.millesime,
     }));
     return NextResponse.json({ sources });
-  } catch (err) {
-    console.error('[api/carreaux GET]', err);
+  } catch (err: any) {
+    console.error('[api/carreaux GET]', err?.message ?? err);
     return NextResponse.json({ sources: [] });
-  } finally {
-    await sql.end();
   }
 }
 
@@ -38,7 +32,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { tableName, bbox, millesime } = await req.json();
 
-  // Validate tableName to prevent SQL injection — only allow alphanumeric + underscore
   if (!tableName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
     return NextResponse.json({ error: 'Invalid table name' }, { status: 400 });
   }
@@ -51,23 +44,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'bbox values must be numbers' }, { status: 400 });
   }
 
-  const sql = getDb();
   try {
-    // Use latest millesime by default
+    const supabase = createAdminClient();
     const milFilter = millesime ? String(millesime) : null;
 
-    const rows = await sql.unsafe(`
-      SELECT
-        ST_AsGeoJSON(geom)::json AS geometry,
-        metadata
-      FROM ${tableName}
-      WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-        ${milFilter ? 'AND millesime = $5' : 'AND millesime = (SELECT MAX(millesime) FROM ' + tableName + ')'}
-      LIMIT 50000
-    `, milFilter ? [west, south, east, north, milFilter] : [west, south, east, north]);
+    // Call the get_carreaux SQL function (requires sql/003_carreaux_rpc.sql to be run)
+    const { data, error } = await supabase.rpc('get_carreaux', {
+      p_table:     tableName,
+      p_west:      west,
+      p_south:     south,
+      p_east:      east,
+      p_north:     north,
+      p_millesime: milFilter,
+    });
 
-    const features = rows.map(r => {
-      // Normalize metadata keys to lowercase for consistent access
+    if (error) {
+      console.error('[api/carreaux POST] rpc error:', error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[api/carreaux POST] rows returned:', data?.length ?? 0);
+
+    const features = (data ?? []).map((r: { geometry: any; metadata: Record<string, unknown> }) => {
+      // Normalize metadata keys to lowercase
       const raw = r.metadata ?? {};
       const props: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(raw)) {
@@ -80,14 +79,9 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
-      type: 'FeatureCollection',
-      features,
-    });
-  } catch (err) {
-    console.error('[api/carreaux POST]', err);
-    return NextResponse.json({ error: 'Query failed' }, { status: 500 });
-  } finally {
-    await sql.end();
+    return NextResponse.json({ type: 'FeatureCollection', features });
+  } catch (err: any) {
+    console.error('[api/carreaux POST] ERREUR:', err?.message ?? err);
+    return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
   }
 }

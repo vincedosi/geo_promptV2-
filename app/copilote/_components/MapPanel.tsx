@@ -1,6 +1,18 @@
 import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 
+interface SelectedBillboard {
+  id: string;
+  nom: string;
+  lat: number;
+  lng: number;
+  format?: string;
+  score?: number | null;
+  audience?: number | null;
+  rank?: number | null;
+  regie?: string;
+}
+
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;
   zoneData: ZoneData | null;
@@ -32,11 +44,8 @@ interface MapPanelProps {
   carreauxLoaded: boolean;
   carreauxLabel: string;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
-  // Test ORS
-  testIsoVisible: boolean;
-  testIsoLoading: boolean;
-  testIsoDebug: string;
-  runTestIsochrone: (region?: string, category?: string, minutes?: number, mode?: string) => void;
+  selectedBillboard: SelectedBillboard | null;
+  closeBillboardDrawer: () => void;
 }
 
 export function MapPanel({
@@ -47,8 +56,12 @@ export function MapPanel({
   voronoiDataForSaveRef, setShowSavePanel, setSaveError,
   battleVisible, battleCategory, battleCirfas, setBattleVisible,
   carreauxVisible, carreauxLoaded, carreauxLabel, setCarreauxVisible,
-  testIsoVisible, testIsoLoading, testIsoDebug, runTestIsochrone,
+  selectedBillboard, closeBillboardDrawer,
 }: MapPanelProps) {
+  const streetViewSrc = selectedBillboard
+    ? `https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${selectedBillboard.lat},${selectedBillboard.lng}&heading=0&pitch=0&fov=90`
+    : '';
+
   return (
     <div style={{ flex: 1, position: 'relative' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#e8e8e8', position: 'relative' }} />
@@ -267,38 +280,54 @@ export function MapPanel({
         </div>
       )}
 
-      {/* Bouton Test ORS */}
-      <div style={{ position: 'absolute', bottom: 90, right: 16, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 290 }}>
-        <button
-          onClick={() => runTestIsochrone('Bretagne', 'cirfa', 10, 'drive')}
-          disabled={testIsoLoading}
-          style={{
-            background: testIsoVisible ? '#2563eb' : 'rgba(255,255,255,0.95)',
-            border: '2px solid #2563eb',
-            borderRadius: 8, padding: '8px 14px',
-            cursor: testIsoLoading ? 'wait' : 'pointer',
-            fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
-            color: testIsoVisible ? '#fff' : '#2563eb',
-            fontWeight: 600,
-            boxShadow: '0 2px 8px rgba(37,99,235,0.18)',
-            transition: 'all 0.2s',
-          }}
-        >
-          {testIsoLoading ? '⏳ Appel ORS…' : testIsoVisible ? '✅ ORS 10min visible' : '🔵 Test ORS 10min Bretagne'}
-        </button>
-        {testIsoDebug && (
-          <div style={{ background: 'rgba(0,0,0,0.78)', color: '#e2e8f0', padding: '5px 9px', borderRadius: 6, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.45, wordBreak: 'break-word' }}>
-            {testIsoDebug}
+      {/* Drawer Street View */}
+      {selectedBillboard && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0,
+          width: 'min(420px, 92vw)', zIndex: 30,
+          background: 'rgba(12,18,35,0.95)',
+          borderLeft: '1px solid rgba(148,163,184,0.25)',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '-8px 0 24px rgba(0,0,0,0.25)',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(148,163,184,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#cbd5e1', fontWeight: 700 }}>Street View panneau</div>
+            <button
+              onClick={closeBillboardDrawer}
+              aria-label="Fermer"
+              style={{ background: 'rgba(255,255,255,0.08)', color: '#f8fafc', border: '1px solid rgba(148,163,184,0.35)', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+            >✕</button>
           </div>
-        )}
-      </div>
 
-      {/* Légende par défaut */}
-      {activeCats.length === 0 && (
-        <div style={{ position: 'absolute', bottom: 48, left: 16, background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#64748b', zIndex: 10 }}>
-          <div style={{ color: '#94a3b8', fontSize: 10 }}>Décrivez une zone pour commencer</div>
+          <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+            <div style={{ background: 'rgba(15,23,42,0.65)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, padding: 10, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#e2e8f0', lineHeight: 1.5 }}>
+              <div><span style={{ color: '#94a3b8' }}>ID:</span> {selectedBillboard.id}</div>
+              <div><span style={{ color: '#94a3b8' }}>Nom:</span> {selectedBillboard.nom}</div>
+              <div><span style={{ color: '#94a3b8' }}>Format:</span> {selectedBillboard.format || '-'}</div>
+              <div><span style={{ color: '#94a3b8' }}>Score:</span> {selectedBillboard.score != null ? selectedBillboard.score : '-'}</div>
+              <div><span style={{ color: '#94a3b8' }}>Audience:</span> {selectedBillboard.audience != null ? Number(selectedBillboard.audience).toLocaleString('fr-FR') : '-'}</div>
+            </div>
+
+            {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+              <iframe
+                title={`Street View ${selectedBillboard.nom}`}
+                width="100%"
+                height="360"
+                style={{ border: 0, borderRadius: 8, background: '#0f172a' }}
+                loading="lazy"
+                allowFullScreen
+                src={streetViewSrc}
+              />
+            ) : (
+              <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#fecaca', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+                NEXT_PUBLIC_GOOGLE_MAPS_API_KEY manquante.
+              </div>
+            )}
+          </div>
         </div>
       )}
+
     </div>
   );
 }

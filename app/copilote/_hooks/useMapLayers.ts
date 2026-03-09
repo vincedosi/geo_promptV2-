@@ -421,33 +421,25 @@ export function useMapLayers({
   const loadCarreauxFromAI = async (cd: CarreauxData) => {
     const map     = mapRef.current;
     const sources = carreauxSourcesRef.current;
-    if (!map || sources.length === 0) {
-      console.warn('[Copilote] Pas de source carreaux disponible');
-      return;
-    }
+    if (!map) return;
 
-    const tableName = sources[0].tableName;
+    // Fallback sur carreaux_filosofi si data_sources n'a pas encore d'entrée carreaux
+    const tableName = sources.length > 0 ? sources[0].tableName : 'carreaux_filosofi';
     const { lat, lng } = cd.coordonnees;
 
-    const dlat = 0.12;
-    const dlng = 0.18 / Math.cos(lat * Math.PI / 180);
+    const dlat = cd.rayon_km ? cd.rayon_km / 111.32 : 0.04; // configurable, défaut ≈4.5km
+    const dlng = (cd.rayon_km ? cd.rayon_km / 111.32 : 0.055) / Math.cos(lat * Math.PI / 180);
     const bbox = [lng - dlng, lat - dlat, lng + dlng, lat + dlat];
 
     try {
-      // Start fly and fetch in parallel
-      const flyDone = new Promise<void>(resolve => {
-        map.once('moveend', () => resolve());
-        map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
-      });
+      // Fly and fetch in parallel — don't wait for moveend (can silently hang)
+      map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
 
-      const fetchDone = fetch('/api/carreaux', {
+      const gjData = await fetch('/api/carreaux', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableName, bbox }),
       }).then(r => r.json());
-
-      // Wait for both to complete
-      const [, gjData] = await Promise.all([flyDone, fetchDone]);
 
       console.log('[Copilote] carreaux response:', {
         count: gjData.features?.length,
