@@ -19,7 +19,7 @@ interface PromptCategory {
 const CATEGORIES: PromptCategory[] = [
   {
     id: 'pois',
-    icon: '📍',
+    icon: '·',
     label: 'Analyse de zone',
     color: '#3dffa0',
     description: 'Cherche des établissements sur la carte et les affiche avec des markers colorés par catégorie.',
@@ -32,7 +32,7 @@ const CATEGORIES: PromptCategory[] = [
   },
   {
     id: 'isochrone',
-    icon: '⏱',
+    icon: '·',
     label: 'Isochrones',
     color: '#38bdf8',
     description: "Zone colorée d'accessibilité autour des établissements. S'ajoute à une recherche de POIs.",
@@ -44,7 +44,7 @@ const CATEGORIES: PromptCategory[] = [
   },
   {
     id: 'carreaux',
-    icon: '📊',
+    icon: '·',
     label: 'Carreaux démo',
     color: '#f59e0b',
     description: 'Grille 200m colorée par densité de population cible (données Filosofi INSEE). Peut se combiner avec des POIs.',
@@ -69,7 +69,7 @@ const CATEGORIES: PromptCategory[] = [
   },
   {
     id: 'battle',
-    icon: '⚔️',
+    icon: '·',
     label: 'Voronoï Routier',
     color: '#f87171',
     description: "Territoires par temps de trajet réel (ORS). Anneaux 10/30/60/90/120 min en voiture. ~1-2 min au 1er appel, puis mis en cache.",
@@ -82,7 +82,7 @@ const CATEGORIES: PromptCategory[] = [
   },
   {
     id: 'coverage',
-    icon: '🎯',
+    icon: '·',
     label: 'Couverture audience',
     color: '#c4b5fd',
     description: 'Calcule le nombre de personnes d\'une cible dans une zone de temps réel (ORS + carreaux INSEE). Retourne un chiffre unique.',
@@ -94,7 +94,7 @@ const CATEGORIES: PromptCategory[] = [
   },
   {
     id: 'panneaux',
-    icon: '📡',
+    icon: '·',
     label: 'Panneaux OOH',
     color: '#fb923c',
     description: "Panneaux d'affichage extérieur géolocalisés (Clear Channel, JCDecaux, Exterion…). Filtres par régie, type, ville.",
@@ -130,7 +130,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
     }}>
       {/* Panel header */}
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: '#0f0f23', zIndex: 1 }}>
-        <div style={{ fontSize: 12, color: '#a78bfa', fontWeight: 700 }}>💡 Prompts disponibles</div>
+        <div style={{ fontSize: 9, fontFamily: "'Michroma','Orbitron',sans-serif", color: '#a855f7', letterSpacing: '0.14em' }}>PROMPTS</div>
         <button
           onClick={onClose}
           style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
@@ -149,7 +149,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
               cursor: 'pointer', textAlign: 'left',
             }}
           >
-            <span style={{ fontSize: 16, flexShrink: 0 }}>{cat.icon}</span>
+            <span style={{ fontSize: 10, color: cat.color, flexShrink: 0 }}>{cat.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: cat.color }}>{cat.label}</div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.description}</div>

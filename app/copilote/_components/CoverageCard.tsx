@@ -19,54 +19,46 @@ export function CoverageCard({
   coverageCount,
   mode = 'drive',
 }: CoverageCardProps) {
-  const formatted  = coverageCount.toLocaleString('fr-FR');
-  const modeLabel  = MODE_LABELS[mode] ?? mode;
+  const formatted = coverageCount.toLocaleString('fr-FR');
+  const modeLabel = MODE_LABELS[mode] ?? mode;
 
   return (
     <div style={{
-      background:   'rgba(99,102,241,0.08)',
-      border:       '1px solid rgba(99,102,241,0.25)',
-      borderRadius: 12,
-      padding:      '14px 16px',
-      marginTop:    6,
-      display:      'flex',
-      flexDirection:'column',
-      gap:          10,
+      background:    'rgba(168,85,247,0.07)',
+      border:        '1px solid rgba(168,85,247,0.2)',
+      borderRadius:  2,
+      padding:       '14px 16px',
+      marginTop:     6,
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           10,
     }}>
-      {/* Header */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        🎯 Analyse de couverture
+      <div style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 9, color: '#a855f7', letterSpacing: '0.14em' }}>
+        COUVERTURE_AUDIENCE
       </div>
 
-      {/* Zone + Cible */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <Row label="📍 Zone">{travelTimeMinutes} min {modeLabel} · <strong>{locationName}</strong></Row>
-        <Row label="👥 Cible">{targetLabel}</Row>
+        <Row label="ZONE">{travelTimeMinutes} min {modeLabel} · <strong>{locationName}</strong></Row>
+        <Row label="CIBLE">{targetLabel}</Row>
       </div>
 
-      {/* Résultat */}
       <div style={{
-        background:   'rgba(99,102,241,0.15)',
-        borderRadius: 8,
-        padding:      '10px 14px',
-        display:      'flex',
-        alignItems:   'center',
-        gap:          12,
+        background:  'rgba(168,85,247,0.1)',
+        border:      '1px solid rgba(168,85,247,0.2)',
+        borderRadius: 2,
+        padding:     '10px 14px',
       }}>
-        <span style={{ fontSize: 22 }}>📊</span>
-        <div>
-          <div style={{
-            fontSize:   22,
-            fontWeight: 800,
-            color:      '#c4b5fd',
-            fontFamily: 'JetBrains Mono, monospace',
-            lineHeight: 1,
-          }}>
-            {formatted}
-          </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>
-            personnes estimées (prorata spatial)
-          </div>
+        <div style={{
+          fontSize:   24,
+          fontWeight: 800,
+          color:      '#c4b5fd',
+          fontFamily: "'JetBrains Mono', monospace",
+          lineHeight: 1,
+        }}>
+          {formatted}
+        </div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+          personnes estimées (prorata spatial)
         </div>
       </div>
     </div>
@@ -76,8 +68,8 @@ export function CoverageCard({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', width: 68, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{children}</span>
+      <span style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 8, color: 'rgba(255,255,255,0.35)', width: 44, flexShrink: 0, letterSpacing: '0.1em' }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontFamily: "'Inter',system-ui,sans-serif" }}>{children}</span>
     </div>
   );
 }

@@ -205,8 +205,8 @@ export function ChatPanel({
 
           <div style={{ display: 'flex', gap: 5 }}>
             <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}>?</button>
-            <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>💾</button>
-            <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>📁</button>
+            <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
+            <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
           </div>
         </div>
       </div>
@@ -215,9 +215,9 @@ export function ChatPanel({
       <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 9, color: C.textDim, fontFamily: fontMichroma, letterSpacing: '0.14em', textTransform: 'uppercase', flexShrink: 0 }}>IA :</span>
         {([
-          { id: 'mistral', label: '🌬 Mistral', color: C.orange,  bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.35)' },
-          { id: 'claude',  label: '🤖 Claude',  color: '#818cf8', bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.35)' },
-          { id: 'gemini',  label: '✨ Gemini',  color: C.green,   bg: 'rgba(61,255,160,0.1)',  border: 'rgba(61,255,160,0.3)' },
+          { id: 'mistral', label: 'Mistral', color: C.orange,  bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.35)' },
+          { id: 'claude',  label: 'Claude',  color: '#818cf8', bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.35)' },
+          { id: 'gemini',  label: 'Gemini',  color: C.green,   bg: 'rgba(61,255,160,0.1)',  border: 'rgba(61,255,160,0.3)' },
         ] as Array<{ id: Provider; label: string; color: string; bg: string; border: string }>).map(p => {
           const active = provider === p.id;
           return (
@@ -261,7 +261,7 @@ export function ChatPanel({
               {saveLoading ? '…' : 'Sauver'}
             </button>
           </div>
-          {saveError && <div style={{ fontSize: 10, color: C.red, marginTop: 6, fontFamily: fontMono }}>⚠ {saveError}</div>}
+          {saveError && <div style={{ fontSize: 10, color: C.red, marginTop: 6, fontFamily: fontMono }}>! {saveError}</div>}
         </div>
       )}
 
@@ -283,7 +283,7 @@ export function ChatPanel({
                 </div>
               </div>
               <button onClick={() => loadMap(m.id)} style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '4px 10px', color: C.accent, cursor: 'pointer', fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Charger</button>
-              <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 2, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>🗑</button>
+              <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 2, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>✕</button>
             </div>
           ))}
         </div>
@@ -294,16 +294,8 @@ export function ChatPanel({
 
         {/* Empty state */}
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 12px' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.6 }}>
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            <div style={{ fontSize: 10, color: C.textSec, fontFamily: fontMono, marginBottom: 24, letterSpacing: '0.06em' }}>
-              Décrivez votre cible géographique
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ padding: '40px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {[
                 { text: 'Lycées et CIRFA à Brest' },
                 { text: 'Lycées à Brest + où vivent les 18-24 ans' },
@@ -314,18 +306,16 @@ export function ChatPanel({
                   background: 'transparent',
                   border: `1px solid ${C.border}`,
                   borderRadius: 2,
-                  padding: '9px 12px',
+                  padding: '9px 14px',
                   color: C.textSec,
                   cursor: 'pointer',
                   fontSize: 11,
                   textAlign: 'left',
-                  transition: 'all 0.2s',
+                  transition: 'border-color 0.15s, color 0.15s',
                   fontFamily: fontInter,
                   fontWeight: 300,
-                  letterSpacing: '0.04em',
-                }}>
-                  <span style={{ color: C.accent, marginRight: 8 }}>›</span>{text}
-                </button>
+                  letterSpacing: '0.03em',
+                }}>{text}</button>
               ))}
             </div>
           </div>
@@ -444,7 +434,7 @@ export function ChatPanel({
         {/* Error */}
         {error && rateLimitCooldown === 0 && (
           <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 2, padding: '10px 14px', fontSize: 10, color: C.red, fontFamily: fontMono, letterSpacing: '0.04em' }}>
-            ⚠ {error}
+            ! {error}
           </div>
         )}
 

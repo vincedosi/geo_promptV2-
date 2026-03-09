@@ -13,7 +13,6 @@ export function ZoneCard({ zone }: { zone: ZoneData }) {
       fontSize: 12, fontFamily: 'JetBrains Mono, monospace',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 16 }}>📍</span>
         <span style={{ color: '#a78bfa', fontWeight: 700, fontSize: 13 }}>{zone.ville}</span>
         {zone.rayon_metres && (
           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>
