@@ -17,7 +17,6 @@ interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;
   zoneData: ZoneData | null;
   activeCats: string[];
-  // Isochrone
   isochroneVisible: boolean;
   isochroneMinutes: number;
   isochroneMode: string;
@@ -26,7 +25,6 @@ interface MapPanelProps {
   setIsochroneVisible: (v: boolean) => void;
   recalculerIsochrone: () => void;
   isLoading: boolean;
-  // Voronoï
   voronoiVisible: boolean;
   voronoiCategory: string;
   voronoiCirfas: { id: string; nom: string; color: string }[];
@@ -34,12 +32,10 @@ interface MapPanelProps {
   voronoiDataForSaveRef: React.MutableRefObject<VoronoiData | null>;
   setShowSavePanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   setSaveError: (v: string | null) => void;
-  // Bataille
   battleVisible: boolean;
   battleCategory: string;
   battleCirfas: { id: string; nom: string; color: string }[];
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
-  // Carreaux
   carreauxVisible: boolean;
   carreauxLoaded: boolean;
   carreauxLabel: string;
@@ -47,6 +43,63 @@ interface MapPanelProps {
   selectedBillboard: SelectedBillboard | null;
   closeBillboardDrawer: () => void;
 }
+
+// Design tokens
+const C = {
+  bg:        '#050505',
+  bgElevated:'#0d0d0d',
+  bgOverlay: 'rgba(5,5,5,0.88)',
+  border:    '#261a35',
+  accent:    '#a855f7',
+  accentDim: 'rgba(168,85,247,0.15)',
+  accentBorder: 'rgba(168,85,247,0.35)',
+  muted:     '#6b7280',
+  text:      '#e2e8f0',
+  textDim:   '#94a3b8',
+  danger:    '#ef4444',
+  dangerBg:  'rgba(239,68,68,0.12)',
+  dangerBorder: 'rgba(239,68,68,0.35)',
+  success:   '#22c55e',
+  warn:      '#f59e0b',
+  blue:      '#3b82f6',
+};
+
+const fontMono = "'JetBrains Mono', 'Fira Code', monospace";
+const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
+
+const badgeBase: React.CSSProperties = {
+  position: 'absolute',
+  zIndex: 10,
+  background: C.bgOverlay,
+  backdropFilter: 'blur(8px)',
+  border: `1px solid ${C.border}`,
+  borderRadius: 2,
+  padding: '6px 10px',
+  fontSize: 10,
+  fontFamily: fontMono,
+  color: C.text,
+  letterSpacing: '0.05em',
+};
+
+const toggleBtnBase = (active: boolean, activeColor: string): React.CSSProperties => ({
+  position: 'absolute',
+  zIndex: 10,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  background: active ? `${activeColor}20` : C.bgOverlay,
+  border: `1px solid ${active ? activeColor : C.border}`,
+  borderRadius: 2,
+  padding: '6px 10px',
+  cursor: 'pointer',
+  fontSize: 10,
+  fontFamily: fontMono,
+  color: active ? activeColor : C.textDim,
+  backdropFilter: 'blur(8px)',
+  transition: 'all 0.15s',
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase' as const,
+});
 
 export function MapPanel({
   mapContainerRef, zoneData, activeCats,
@@ -63,15 +116,18 @@ export function MapPanel({
     : '';
 
   return (
-    <div style={{ flex: 1, position: 'relative' }}>
-      <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#e8e8e8', position: 'relative' }} />
+    <div style={{ flex: 1, position: 'relative', background: C.bg }}>
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
 
       {/* Badge zone active */}
       {zoneData && (
-        <div style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', zIndex: 10 }}>
-          <div style={{ color: '#4f46e5', fontWeight: 700, marginBottom: 2 }}>📍 {zoneData.ville}</div>
-          <div style={{ color: '#64748b' }}>
-            {zoneData.rayon_metres ? `rayon ${(zoneData.rayon_metres / 1000).toFixed(1)} km · ` : ''}{zoneData.nb_pois} établissements
+        <div style={{ ...badgeBase, top: 12, left: 12 }}>
+          <div style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 3 }}>
+            ZONE_ACTIVE
+          </div>
+          <div style={{ color: C.text, fontWeight: 600 }}>{zoneData.ville}</div>
+          <div style={{ color: C.textDim, marginTop: 2 }}>
+            {zoneData.rayon_metres ? `r=${(zoneData.rayon_metres / 1000).toFixed(1)}km · ` : ''}{zoneData.nb_pois} POI
           </div>
         </div>
       )}
@@ -79,26 +135,34 @@ export function MapPanel({
       {/* Badge isochrone actif */}
       {isochroneVisible && isochroneMinutes > 0 && (
         <div style={{
-          position: 'absolute', top: 16, left: zoneData ? 130 : 16, zIndex: 10,
-          background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}e6`,
-          backdropFilter: 'blur(4px)',
-          border: `1px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`,
-          borderRadius: 8, padding: '5px 10px', fontSize: 11, color: '#fff',
-          fontFamily: 'JetBrains Mono, monospace',
+          ...badgeBase,
+          top: 12,
+          left: zoneData ? 150 : 12,
+          borderColor: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line + '80',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            ⏱ {isochroneMinutes}min — {ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode}
-            {isochroneFromCache && <span style={{ opacity: 0.75, fontSize: 10 }}>♻️ cache</span>}
-            <button onClick={() => setIsochroneVisible(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1, opacity: 0.8 }}>✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em' }}>
+              ISO_{isochroneMinutes}min
+            </span>
+            <span style={{ color: C.textDim }}>
+              {ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode}
+            </span>
+            {isochroneFromCache && <span style={{ color: C.muted, fontSize: 9 }}>CACHE</span>}
+            <button
+              onClick={() => setIsochroneVisible(false)}
+              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
+            >✕</button>
           </div>
           {isochroneFromCache && isochroneCachedAt && (
-            <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, opacity: 0.9 }}>
-              <span>Calculé le {new Date(isochroneCachedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: C.muted, fontSize: 9 }}>
+                {new Date(isochroneCachedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
               <button
                 onClick={recalculerIsochrone}
                 disabled={isLoading}
-                style={{ background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}
-              >Recalculer</button>
+                style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, borderRadius: 2, padding: '2px 6px', color: C.accent, cursor: 'pointer', fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}
+              >RECALC</button>
             </div>
           )}
         </div>
@@ -107,31 +171,29 @@ export function MapPanel({
       {/* Badge Voronoï actif */}
       {voronoiVisible && voronoiCategory && (
         <div style={{
-          position: 'absolute', top: isochroneVisible && isochroneMinutes > 0 ? 90 : 56, left: 16, zIndex: 10,
-          background: 'rgba(217,119,6,0.9)', backdropFilter: 'blur(4px)',
-          border: '1px solid #f59e0b', borderRadius: 8,
-          padding: '5px 10px', fontSize: 11, color: '#fff',
-          fontFamily: 'JetBrains Mono, monospace',
-          display: 'flex', alignItems: 'center', gap: 8,
+          ...badgeBase,
+          top: isochroneVisible && isochroneMinutes > 0 ? 100 : 60,
+          left: 12,
+          borderColor: C.warn + '60',
         }}>
-          <span>◆ Voronoï — {voronoiCategory}</span>
-          <button
-            onClick={() => setVoronoiVisible(false)}
-            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1, opacity: 0.8 }}
-          >✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: C.warn, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em' }}>
+              VORONOI
+            </span>
+            <span style={{ color: C.textDim }}>{voronoiCategory}</span>
+            <button
+              onClick={() => setVoronoiVisible(false)}
+              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
+            >✕</button>
+          </div>
         </div>
       )}
 
-      {/* Badge indicateur carreaux */}
+      {/* Badge carreaux indicateur */}
       {carreauxVisible && carreauxLabel && (
-        <div style={{
-          position: 'absolute', top: 56, right: 16, zIndex: 10,
-          background: 'rgba(33,113,181,0.92)', backdropFilter: 'blur(4px)',
-          border: '1px solid rgba(33,113,181,0.6)', borderRadius: 8,
-          padding: '5px 10px', fontSize: 11, color: '#fff',
-          fontFamily: 'JetBrains Mono, monospace',
-        }}>
-          📊 {carreauxLabel}
+        <div style={{ ...badgeBase, top: 52, right: 12, borderColor: C.blue + '60' }}>
+          <span style={{ color: C.blue, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginRight: 6 }}>CARREAUX</span>
+          <span style={{ color: C.textDim }}>{carreauxLabel}</span>
         </div>
       )}
 
@@ -140,18 +202,9 @@ export function MapPanel({
         <button
           onClick={() => setVoronoiVisible(v => !v)}
           title={voronoiVisible ? 'Masquer le Voronoï' : 'Afficher le Voronoï'}
-          style={{
-            position: 'absolute', top: 52, right: 16, zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: voronoiVisible ? 'rgba(217,119,6,0.9)' : 'rgba(255,255,255,0.9)',
-            border: `1px solid ${voronoiVisible ? '#d97706' : 'rgba(0,0,0,0.15)'}`,
-            borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
-            fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
-            color: voronoiVisible ? '#fff' : '#64748b',
-            backdropFilter: 'blur(4px)', transition: 'all 0.2s',
-          }}
+          style={{ ...toggleBtnBase(voronoiVisible, C.warn), top: 52, right: 12 }}
         >
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: voronoiVisible ? '#fff' : '#f59e0b', border: `1.5px solid ${voronoiVisible ? '#fff' : '#d97706'}` }} />
+          <span style={{ width: 8, height: 8, background: voronoiVisible ? C.warn : 'transparent', border: `1.5px solid ${C.warn}`, borderRadius: 1, flexShrink: 0 }} />
           Voronoï
         </button>
       )}
@@ -160,19 +213,10 @@ export function MapPanel({
       {battleCategory && (
         <button
           onClick={() => setBattleVisible(v => !v)}
-          title={battleVisible ? 'Masquer la Bataille' : 'Afficher la Bataille d\'Isochrones'}
-          style={{
-            position: 'absolute', top: 88, right: 16, zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: battleVisible ? 'rgba(220,38,38,0.9)' : 'rgba(255,255,255,0.9)',
-            border: `1px solid ${battleVisible ? '#dc2626' : 'rgba(0,0,0,0.15)'}`,
-            borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
-            fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
-            color: battleVisible ? '#fff' : '#64748b',
-            backdropFilter: 'blur(4px)', transition: 'all 0.2s',
-          }}
+          title={battleVisible ? 'Masquer la Bataille' : "Afficher la Bataille d'Isochrones"}
+          style={{ ...toggleBtnBase(battleVisible, C.danger), top: voronoiCategory ? 86 : 52, right: 12 }}
         >
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: battleVisible ? '#fff' : '#ef4444', border: `1.5px solid ${battleVisible ? '#fff' : '#dc2626'}` }} />
+          <span style={{ width: 8, height: 8, background: battleVisible ? C.danger : 'transparent', border: `1.5px solid ${C.danger}`, borderRadius: 1, flexShrink: 0 }} />
           Bataille
         </button>
       )}
@@ -181,46 +225,48 @@ export function MapPanel({
       <button
         onClick={() => setCarreauxVisible(v => !v)}
         title={carreauxVisible ? 'Masquer les carreaux' : 'Afficher les carreaux démographiques'}
-        style={{
-          position: 'absolute', top: 16, right: 16, zIndex: 10,
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: carreauxVisible ? 'rgba(33,113,181,0.9)' : 'rgba(255,255,255,0.9)',
-          border: `1px solid ${carreauxVisible ? '#2171b5' : 'rgba(0,0,0,0.15)'}`,
-          borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
-          fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
-          color: carreauxVisible ? '#fff' : '#64748b',
-          backdropFilter: 'blur(4px)', transition: 'all 0.2s',
-        }}
+        style={{ ...toggleBtnBase(carreauxVisible, C.blue), top: 12, right: 12 }}
       >
-        <span style={{ width: 10, height: 10, borderRadius: 2, background: carreauxVisible ? '#fff' : '#6baed6', border: `1.5px solid ${carreauxVisible ? '#fff' : '#2171b5'}`, opacity: carreauxVisible ? 0.8 : 0.6 }} />
-        Carreaux {carreauxLoaded ? '✓' : ''}
+        <span style={{ width: 8, height: 8, background: carreauxVisible ? C.blue : 'transparent', border: `1.5px solid ${C.blue}`, borderRadius: 1, flexShrink: 0 }} />
+        Carreaux{carreauxLoaded ? ' ✓' : ''}
       </button>
 
       {/* Légende catégories */}
       {activeCats.length > 0 && (
-        <div style={{ position: 'absolute', bottom: 48, left: 16, background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#64748b', zIndex: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <div style={{
+          ...badgeBase,
+          bottom: 48,
+          left: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 5,
+          maxWidth: 220,
+        }}>
+          <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.12em', marginBottom: 2 }}>
+            LEGENDE
+          </div>
           {activeCats.map((cat) => (
-            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: zoneData!.couleur_overrides?.[cat] ?? getCatColor(cat), border: '2px solid rgba(255,255,255,0.9)', flexShrink: 0 }} />
-              <span>{cat} ({zoneData!.categories[cat]})</span>
+            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: zoneData!.couleur_overrides?.[cat] ?? getCatColor(cat), flexShrink: 0 }} />
+              <span style={{ color: C.textDim }}>{cat} <span style={{ color: C.muted }}>({zoneData!.categories[cat]})</span></span>
             </div>
           ))}
           {zoneData!.rayon_metres && (
-            <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(99,102,241,0.25)', borderRadius: 2, border: '1.5px dashed #6366f1', flexShrink: 0 }} />
-              Zone {(zoneData!.rayon_metres / 1000).toFixed(1)} km
+            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ display: 'inline-block', width: 9, height: 9, background: C.accentDim, borderRadius: 1, border: `1.5px dashed ${C.accent}`, flexShrink: 0 }} />
+              <span style={{ color: C.textDim }}>Zone {(zoneData!.rayon_metres / 1000).toFixed(1)} km</span>
             </div>
           )}
           {zoneData!.rayon_poi_metres && (
-            <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(16,185,129,0.15)', borderRadius: '50%', border: '1.5px solid #10b981', flexShrink: 0 }} />
-              Rayon {zoneData!.rayon_poi_metres >= 1000 ? `${(zoneData!.rayon_poi_metres/1000).toFixed(1)} km` : `${zoneData!.rayon_poi_metres} m`} / POI
+            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ display: 'inline-block', width: 9, height: 9, background: 'rgba(34,197,94,0.12)', borderRadius: '50%', border: `1.5px solid ${C.success}`, flexShrink: 0 }} />
+              <span style={{ color: C.textDim }}>R={zoneData!.rayon_poi_metres >= 1000 ? `${(zoneData!.rayon_poi_metres/1000).toFixed(1)}km` : `${zoneData!.rayon_poi_metres}m`}/POI</span>
             </div>
           )}
           {isochroneVisible && isochroneMinutes > 0 && (
-            <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}40`, borderRadius: 2, border: `1.5px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`, flexShrink: 0 }} />
-              Isochrone {isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode})
+            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ display: 'inline-block', width: 9, height: 9, background: `${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).fill}30`, borderRadius: 1, border: `1.5px solid ${(ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line}`, flexShrink: 0 }} />
+              <span style={{ color: C.textDim }}>Iso {isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode})</span>
             </div>
           )}
           {voronoiVisible && voronoiCategory && (() => {
@@ -229,51 +275,51 @@ export function MapPanel({
               ?? voronoiDataForSaveRef.current?._meta?.filtre_dept
               ?? null;
             return (
-              <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ display: 'inline-block', width: 10, height: 10, background: (voronoiCirfas[0]?.color ?? '#d97706') + '55', borderRadius: 2, border: `1.5px solid ${voronoiCirfas[0]?.color ?? '#d97706'}`, flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 10 }}>
-                      Voronoï — {voronoiCategory}{regionLabel ? ` · ${regionLabel}` : ''}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 9, height: 9, background: (voronoiCirfas[0]?.color ?? C.warn) + '40', borderRadius: 1, border: `1.5px solid ${voronoiCirfas[0]?.color ?? C.warn}`, flexShrink: 0 }} />
+                    <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>
+                      VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
                     </span>
                   </div>
                   <button
                     onClick={() => { setShowSavePanel(true); setSaveError(null); }}
                     title="Sauvegarder ce Voronoï"
-                    style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 5, padding: '2px 6px', fontSize: 10, color: '#7c3aed', cursor: 'pointer', fontWeight: 600, lineHeight: 1.4, flexShrink: 0 }}
-                  >💾 Sauver</button>
+                    style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, borderRadius: 2, padding: '2px 7px', fontSize: 9, color: C.accent, cursor: 'pointer', fontFamily: fontMichroma, letterSpacing: '0.08em' }}
+                  >SAVE</button>
                 </div>
                 {voronoiCirfas.map(c => (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ display: 'inline-block', width: 10, height: 10, background: c.color + '55', borderRadius: 2, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                    <span style={{ fontSize: 10, color: '#1e293b', fontWeight: 500 }}>{c.nom}</span>
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                    <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
                   </div>
                 ))}
               </div>
             );
           })()}
           {battleVisible && battleCategory && (
-            <div style={{ marginTop: 4, paddingTop: 5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ display: 'inline-block', width: 10, height: 10, background: '#ef444455', borderRadius: 2, border: '1.5px solid #dc2626', flexShrink: 0 }} />
-                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 10 }}>Bataille — {battleCategory}</span>
+            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 9, height: 9, background: C.dangerBg, borderRadius: 1, border: `1.5px solid ${C.danger}`, flexShrink: 0 }} />
+                <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                 {[10, 30, 60, 90, 120, 150].map(p => (
                   <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <span style={{ display: 'inline-block', width: 14, height: 8, background: `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p]})`, borderRadius: 2, border: '1px solid rgba(0,0,0,0.2)' }} />
-                    <span style={{ fontSize: 8, color: '#94a3b8' }}>{p}m</span>
+                    <span style={{ display: 'inline-block', width: 14, height: 7, background: `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p]})`, borderRadius: 1 }} />
+                    <span style={{ fontSize: 8, color: C.muted }}>{p}m</span>
                   </div>
                 ))}
               </div>
               {battleCirfas.slice(0, 8).map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ display: 'inline-block', width: 10, height: 10, background: c.color + '55', borderRadius: 2, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                  <span style={{ fontSize: 10, color: '#1e293b', fontWeight: 500 }}>{c.nom}</span>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                  <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
                 </div>
               ))}
               {battleCirfas.length > 8 && (
-                <span style={{ fontSize: 9, color: '#94a3b8' }}>+{battleCirfas.length - 8} autres…</span>
+                <span style={{ fontSize: 9, color: C.muted }}>+{battleCirfas.length - 8} autres</span>
               )}
             </div>
           )}
@@ -285,28 +331,32 @@ export function MapPanel({
         <div style={{
           position: 'absolute', top: 0, right: 0, bottom: 0,
           width: 'min(420px, 92vw)', zIndex: 30,
-          background: 'rgba(12,18,35,0.95)',
-          borderLeft: '1px solid rgba(148,163,184,0.25)',
-          backdropFilter: 'blur(10px)',
-          boxShadow: '-8px 0 24px rgba(0,0,0,0.25)',
+          background: 'rgba(5,5,5,0.96)',
+          borderLeft: `1px solid ${C.border}`,
+          backdropFilter: 'blur(12px)',
+          boxShadow: `-8px 0 32px rgba(0,0,0,0.5)`,
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(148,163,184,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace', color: '#cbd5e1', fontWeight: 700 }}>Street View panneau</div>
+          {/* Header drawer */}
+          <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontFamily: fontMichroma, fontSize: 10, color: C.accent, letterSpacing: '0.12em' }}>
+              STREET_VIEW
+            </div>
             <button
               onClick={closeBillboardDrawer}
               aria-label="Fermer"
-              style={{ background: 'rgba(255,255,255,0.08)', color: '#f8fafc', border: '1px solid rgba(148,163,184,0.35)', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+              style={{ background: 'rgba(255,255,255,0.04)', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, width: 26, height: 26, cursor: 'pointer', fontSize: 13, lineHeight: 1, transition: 'all 0.15s' }}
             >✕</button>
           </div>
 
+          {/* Infos panneau */}
           <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-            <div style={{ background: 'rgba(15,23,42,0.65)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, padding: 10, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#e2e8f0', lineHeight: 1.5 }}>
-              <div><span style={{ color: '#94a3b8' }}>ID:</span> {selectedBillboard.id}</div>
-              <div><span style={{ color: '#94a3b8' }}>Nom:</span> {selectedBillboard.nom}</div>
-              <div><span style={{ color: '#94a3b8' }}>Format:</span> {selectedBillboard.format || '-'}</div>
-              <div><span style={{ color: '#94a3b8' }}>Score:</span> {selectedBillboard.score != null ? selectedBillboard.score : '-'}</div>
-              <div><span style={{ color: '#94a3b8' }}>Audience:</span> {selectedBillboard.audience != null ? Number(selectedBillboard.audience).toLocaleString('fr-FR') : '-'}</div>
+            <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 11, color: C.text, lineHeight: 1.6 }}>
+              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>ID</span>{'  '}{selectedBillboard.id}</div>
+              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>NOM</span>{'  '}{selectedBillboard.nom}</div>
+              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>FMT</span>{'  '}{selectedBillboard.format || '—'}</div>
+              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>SCR</span>{'  '}{selectedBillboard.score != null ? selectedBillboard.score : '—'}</div>
+              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>AUD</span>{'  '}{selectedBillboard.audience != null ? Number(selectedBillboard.audience).toLocaleString('fr-FR') : '—'}</div>
             </div>
 
             {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
@@ -314,20 +364,19 @@ export function MapPanel({
                 title={`Street View ${selectedBillboard.nom}`}
                 width="100%"
                 height="360"
-                style={{ border: 0, borderRadius: 8, background: '#0f172a' }}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 2, background: C.bgElevated, display: 'block' }}
                 loading="lazy"
                 allowFullScreen
                 src={streetViewSrc}
               />
             ) : (
-              <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#fecaca', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+              <div style={{ background: C.dangerBg, border: `1px solid ${C.dangerBorder}`, color: '#fecaca', borderRadius: 2, padding: '10px 12px', fontSize: 11, fontFamily: fontMono }}>
                 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY manquante.
               </div>
             )}
           </div>
         </div>
       )}
-
     </div>
   );
 }
