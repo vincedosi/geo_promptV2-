@@ -23,13 +23,12 @@ const navItems = [
             },
             {
                 href: '/copilote',
-                label: 'Copilote IA',
+                label: 'geo.prompt',
                 icon: (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
-                        <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none" />
-                        <path d="M9 15c0 0 1 1.5 3 1.5s3-1.5 3-1.5" />
-                        <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z" />
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                     </svg>
                 ),
                 badge: 'BETA',

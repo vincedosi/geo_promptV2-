@@ -29,222 +29,251 @@ type StreamEvent =
   | { type: 'done';     run_id: string; nb_total: number; nb_inseres: number; nb_maj: number; nb_doublons: number; nb_erreurs: number }
   | { type: 'error';    message: string };
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  bg:          '#050505',
+  bgElevated:  '#0d0d0d',
+  bgSurface:   '#111118',
+  border:      '#261a35',
+  borderLight: 'rgba(168,85,247,0.2)',
+  accent:      '#a855f7',
+  accentDim:   'rgba(168,85,247,0.12)',
+  text:        '#e2e8f0',
+  textDim:     '#94a3b8',
+  textSec:     '#6b7280',
+  muted:       '#4b5563',
+  green:       '#3dffa0',
+  greenDim:    'rgba(61,255,160,0.12)',
+  red:         '#f87171',
+  redDim:      'rgba(248,113,113,0.1)',
+  warn:        '#fbbf24',
+  warnDim:     'rgba(251,191,36,0.1)',
+};
+const fontOrbitron = "'Orbitron', sans-serif";
+const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
+const fontMono     = "'JetBrains Mono', monospace";
+const fontInter    = "'Inter', system-ui, sans-serif";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function Badge({ statut }: { statut: string }) {
-  const colors: Record<string, string> = {
-    running: 'bg-yellow-100 text-yellow-800',
-    done:    'bg-green-100  text-green-800',
-    error:   'bg-red-100    text-red-800',
+function StatutBadge({ statut }: { statut: string }) {
+  const cfg: Record<string, { color: string; bg: string; border: string }> = {
+    running: { color: C.warn,  bg: C.warnDim,  border: 'rgba(251,191,36,0.3)'  },
+    done:    { color: C.green, bg: C.greenDim, border: 'rgba(61,255,160,0.3)'  },
+    error:   { color: C.red,   bg: C.redDim,   border: 'rgba(248,113,113,0.3)' },
   };
+  const s = cfg[statut] ?? { color: C.textDim, bg: 'transparent', border: C.border };
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[statut] ?? 'bg-gray-100 text-gray-700'}`}>
-      {statut}
+    <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: s.color, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 2, padding: '2px 7px' }}>
+      {statut.toUpperCase()}
     </span>
   );
 }
 
-function fmt(n: number) {
-  return n.toLocaleString('fr-FR');
-}
-
-function relDate(iso: string) {
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-}
+function fmt(n: number) { return n.toLocaleString('fr-FR'); }
+function relDate(iso: string) { return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function OohImportPage() {
-  const [sources,   setSources]   = useState<Record<string, SourceConfig>>({});
-  const [runs,      setRuns]      = useState<ImportRun[]>([]);
-  const [selected,  setSelected]  = useState('custom');
-  const [customUrl, setCustomUrl] = useState('');
-  const [logs,      setLogs]      = useState<string[]>([]);
-  const [running,   setRunning]   = useState(false);
-  const [stats,     setStats]     = useState<StreamEvent & { type: 'done' } | null>(null);
+  const [sources,     setSources]     = useState<Record<string, SourceConfig>>({});
+  const [runs,        setRuns]        = useState<ImportRun[]>([]);
+  const [selected,    setSelected]    = useState('custom');
+  const [customUrl,   setCustomUrl]   = useState('');
+  const [logs,        setLogs]        = useState<string[]>([]);
+  const [running,     setRunning]     = useState(false);
+  const [stats,       setStats]       = useState<StreamEvent & { type: 'done' } | null>(null);
   const [replace,     setReplace]     = useState(false);
   const [datasetName, setDatasetName] = useState('');
   const [nameSaved,   setNameSaved]   = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // ── Chargement initial ────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/admin/import-ooh/arcgis')
       .then(r => r.json())
-      .then(d => {
-        setSources(d.sources ?? {});
-        setRuns(d.runs ?? []);
-      });
+      .then(d => { setSources(d.sources ?? {}); setRuns(d.runs ?? []); });
   }, []);
 
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
+  useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
-  // ── Lancer un import ─────────────────────────────────────────────────────
   async function startImport() {
-    setRunning(true);
-    setLogs([]);
-    setStats(null);
-    setDatasetName('');
-    setNameSaved(false);
-
+    setRunning(true); setLogs([]); setStats(null); setDatasetName(''); setNameSaved(false);
     try {
       const body: Record<string, string | boolean> = { source: selected, replace };
       if (customUrl.trim())  body.arcgisUrl = customUrl.trim();
       if (selected === 'custom' && customUrl.trim()) body.source = 'custom';
 
       const resp = await fetch('/api/admin/import-ooh/arcgis', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
-
       if (!resp.body) throw new Error('Pas de stream');
-      const reader  = resp.body.getReader();
+      const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let   buf     = '';
+      let buf = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() ?? '';
-
+        const lines = buf.split('\n'); buf = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
             const evt = JSON.parse(line) as StreamEvent;
-
-            if (evt.type === 'status')   setLogs(p => [...p, `ℹ ${evt.message}`]);
-            if (evt.type === 'progress') setLogs(p => [...p, `📄 Page ${evt.page} — ${fmt(evt.fetched)} récupérés / ${fmt(evt.inserted)} insérés`]);
-            if (evt.type === 'error')    setLogs(p => [...p, `❌ ${evt.message}`]);
+            if (evt.type === 'status')   setLogs(p => [...p, `  ${evt.message}`]);
+            if (evt.type === 'progress') setLogs(p => [...p, `  page ${evt.page} — ${fmt(evt.fetched)} récupérés / ${fmt(evt.inserted)} insérés`]);
+            if (evt.type === 'error')    setLogs(p => [...p, `! ${evt.message}`]);
             if (evt.type === 'done') {
               setStats(evt);
-              setLogs(p => [...p, `✅ Import terminé — ${fmt(evt.nb_total)} panneaux / ${fmt(evt.nb_inseres)} insérés`]);
-              // Rafraîchir la liste des runs
-              fetch('/api/admin/import-ooh/arcgis')
-                .then(r => r.json())
-                .then(d => setRuns(d.runs ?? []));
+              setLogs(p => [...p, `> import terminé — ${fmt(evt.nb_total)} panneaux / ${fmt(evt.nb_inseres)} insérés`]);
+              fetch('/api/admin/import-ooh/arcgis').then(r => r.json()).then(d => setRuns(d.runs ?? []));
             }
           } catch { /* JSON invalide */ }
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setLogs(p => [...p, `❌ ${msg}`]);
-    } finally {
-      setRunning(false);
-    }
+      setLogs(p => [...p, `! ${err instanceof Error ? err.message : String(err)}`]);
+    } finally { setRunning(false); }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Import panneaux OOH</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Import des panneaux depuis des sources ArcGIS / data.gouv.fr vers la table{' '}
-          <code className="bg-gray-100 px-1 rounded">global_ooh</code>.
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: fontInter, padding: '32px 24px', maxWidth: 860, margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.18em', marginBottom: 8 }}>SYSTEM / IMPORT</div>
+        <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, color: C.text, letterSpacing: '0.08em', margin: 0 }}>
+          OOH_Import
+        </h1>
+        <p style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 6, letterSpacing: '0.04em' }}>
+          ArcGIS REST → <span style={{ color: C.accent }}>global_ooh</span>
         </p>
+        <div style={{ width: 32, height: 2, background: C.accent, marginTop: 12, borderRadius: 1 }} />
       </div>
 
-      {/* ── Sélection source + bouton ── */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <h2 className="font-semibold text-gray-800">Nouvelle importation</h2>
+      {/* ── Formulaire ── */}
+      <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em', marginBottom: 16 }}>NOUVELLE_IMPORTATION</div>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">URL ArcGIS REST <span className="text-red-500">*</span></label>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+            URL ARCGIS REST <span style={{ color: C.red }}>*</span>
+          </label>
           <input
             type="url"
             value={customUrl}
             onChange={e => setCustomUrl(e.target.value)}
             disabled={running}
             placeholder="https://geo.example.fr/arcgis/rest/services/.../MapServer/0"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-gray-300"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 2,
+              padding: '9px 12px', color: C.text, fontSize: 11, fontFamily: fontMono,
+              outline: 'none', letterSpacing: '0.04em',
+            }}
             autoFocus
           />
-          <p className="text-xs text-gray-400">Doit se terminer par <code>/MapServer/N</code> — pas une page data.gouv.fr</p>
+          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginTop: 5 }}>
+            // Doit se terminer par <span style={{ color: C.accent }}>/MapServer/N</span>
+          </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={replace}
-            onChange={e => setReplace(e.target.checked)}
-            disabled={running}
-            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-          />
-          <span>Remplacer les données existantes <span className="text-gray-400">(supprime et réimporte)</span></span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 16 }}>
+          <div
+            onClick={() => !running && setReplace(v => !v)}
+            style={{
+              width: 14, height: 14, border: `1px solid ${replace ? C.accent : C.border}`,
+              borderRadius: 2, background: replace ? C.accentDim : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer',
+            }}
+          >
+            {replace && <span style={{ color: C.accent, fontSize: 10, lineHeight: 1 }}>✓</span>}
+          </div>
+          <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+            Remplacer les données existantes <span style={{ color: C.muted }}>(supprime et réimporte)</span>
+          </span>
         </label>
 
         <button
           onClick={startImport}
           disabled={running || !customUrl.trim()}
-          className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          style={{
+            background: running || !customUrl.trim() ? C.muted : C.accent,
+            border: 'none', borderRadius: 2, padding: '9px 20px',
+            color: '#fff', cursor: running || !customUrl.trim() ? 'not-allowed' : 'pointer',
+            fontSize: 10, fontFamily: fontMichroma, letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            boxShadow: !running && customUrl.trim() ? `0 0 18px rgba(168,85,247,0.35)` : 'none',
+            display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
+          }}
         >
           {running && (
-            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
           )}
-          {running ? 'Import en cours…' : '▶ Lancer l\'import'}
+          {running ? 'IMPORT_EN_COURS...' : '▶ LANCER'}
         </button>
       </div>
 
-      {/* ── Logs ── */}
+      {/* ── Terminal logs ── */}
       {logs.length > 0 && (
-        <div className="bg-gray-950 text-gray-100 rounded-xl p-4 font-mono text-xs space-y-0.5 max-h-64 overflow-y-auto">
-          {logs.map((l, i) => <div key={i}>{l}</div>)}
+        <div style={{ background: '#020202', border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', marginBottom: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim, maxHeight: 220, overflowY: 'auto', lineHeight: 1.7 }}>
+          <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.accent, letterSpacing: '0.14em', marginBottom: 8 }}>OUTPUT</div>
+          {logs.map((l, i) => (
+            <div key={i} style={{ color: l.startsWith('!') ? C.red : l.startsWith('>') ? C.green : C.textDim }}>
+              {l}
+            </div>
+          ))}
           <div ref={logsEndRef} />
         </div>
       )}
 
-      {/* ── Stats import terminé ── */}
+      {/* ── Stats ── */}
       {stats && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
             {[
-              { label: 'Total récupérés', value: fmt(stats.nb_total),   color: 'text-gray-800' },
-              { label: 'Insérés / MàJ',  value: fmt(stats.nb_inseres),  color: 'text-green-700' },
-              { label: 'Doublons',        value: fmt(stats.nb_doublons), color: 'text-yellow-700' },
-              { label: 'Erreurs',         value: fmt(stats.nb_erreurs),  color: 'text-red-700' },
+              { label: 'TOTAL',    value: fmt(stats.nb_total),   color: C.text   },
+              { label: 'INSÉRÉS',  value: fmt(stats.nb_inseres),  color: C.green  },
+              { label: 'DOUBLONS', value: fmt(stats.nb_doublons), color: C.warn   },
+              { label: 'ERREURS',  value: fmt(stats.nb_erreurs),  color: C.red    },
             ].map(s => (
-              <div key={s.label} className="bg-white border border-gray-200 rounded-lg p-3 text-center">
-                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+              <div key={s.label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontFamily: fontOrbitron, fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.textDim, marginTop: 4, letterSpacing: '0.12em' }}>{s.label}</div>
               </div>
             ))}
           </div>
 
-          {/* Nommage du jeu de données */}
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-purple-800">Donnez un nom à ce jeu de données</p>
+          {/* Nommage dataset */}
+          <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '14px 16px' }}>
+            <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em', marginBottom: 10 }}>NOMMER_CE_DATASET</div>
             {nameSaved ? (
-              <p className="text-sm text-green-700">✅ Nom enregistré : <strong>{datasetName}</strong></p>
+              <div style={{ fontFamily: fontMono, fontSize: 10, color: C.green }}>
+                ✓ Enregistré : <span style={{ color: C.text }}>{datasetName}</span>
+              </div>
             ) : (
-              <div className="flex gap-2">
+              <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="text"
                   value={datasetName}
                   onChange={e => setDatasetName(e.target.value)}
                   placeholder="ex. Brest Métropole 2026, JCDecaux Paris..."
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 12px', color: C.text, fontSize: 11, fontFamily: fontInter, outline: 'none' }}
                 />
                 <button
                   onClick={async () => {
                     if (!datasetName.trim()) return;
                     await fetch('/api/admin/import-ooh/arcgis', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
+                      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: stats.run_id, label: datasetName.trim() }),
                     });
                     setNameSaved(true);
                     setRuns(prev => prev.map(r => r.id === stats.run_id ? { ...r, source: datasetName.trim() } : r));
                   }}
                   disabled={!datasetName.trim()}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+                  style={{ background: datasetName.trim() ? C.accent : C.muted, border: 'none', borderRadius: 2, padding: '8px 16px', color: '#fff', cursor: datasetName.trim() ? 'pointer' : 'not-allowed', fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
                 >
-                  Enregistrer
+                  SAVE
                 </button>
               </div>
             )}
@@ -253,45 +282,39 @@ export default function OohImportPage() {
       )}
 
       {/* ── Historique ── */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">Historique des imports</h2>
+      <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em' }}>
+          HISTORIQUE_IMPORTS ({runs.length})
         </div>
         {runs.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-gray-400">Aucun import réalisé.</p>
+          <div style={{ padding: '20px 16px', fontFamily: fontMono, fontSize: 10, color: C.muted }}>// Aucun import réalisé.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <tr>
-                {['Source', 'Date', 'Statut', 'Total', 'Insérés', 'Erreurs', ''].map(h => (
-                  <th key={h} className="px-4 py-2 text-left font-medium">{h}</th>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                {['SOURCE', 'DATE', 'STATUT', 'TOTAL', 'INSÉRÉS', 'ERR', ''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 8, color: C.textDim, letterSpacing: '0.1em', fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {runs.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-medium">{r.source}</td>
-                  <td className="px-4 py-2 text-gray-500">{relDate(r.lance_le)}</td>
-                  <td className="px-4 py-2"><Badge statut={r.statut} /></td>
-                  <td className="px-4 py-2">{fmt(r.nb_total)}</td>
-                  <td className="px-4 py-2 text-green-700">{fmt(r.nb_inseres)}</td>
-                  <td className="px-4 py-2 text-red-600">{r.nb_erreurs > 0 ? fmt(r.nb_erreurs) : '—'}</td>
-                  <td className="px-4 py-2">
+            <tbody>
+              {runs.map((r, i) => (
+                <tr key={r.id} style={{ borderBottom: i < runs.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.text, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.source}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.textDim, whiteSpace: 'nowrap' }}>{relDate(r.lance_le)}</td>
+                  <td style={{ padding: '9px 12px' }}><StatutBadge statut={r.statut} /></td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.text }}>{fmt(r.nb_total)}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.green }}>{fmt(r.nb_inseres)}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: r.nb_erreurs > 0 ? C.red : C.muted }}>{r.nb_erreurs > 0 ? fmt(r.nb_erreurs) : '—'}</td>
+                  <td style={{ padding: '9px 12px' }}>
                     <button
                       onClick={async () => {
-                        await fetch('/api/admin/import-ooh/arcgis', {
-                          method: 'DELETE',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ id: r.id }),
-                        });
+                        await fetch('/api/admin/import-ooh/arcgis', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.id }) });
                         setRuns(prev => prev.filter(x => x.id !== r.id));
                       }}
-                      className="text-gray-300 hover:text-red-500 transition-colors text-xs"
+                      style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: 4, transition: 'color 0.15s' }}
                       title="Supprimer"
-                    >
-                      ✕
-                    </button>
+                    >✕</button>
                   </td>
                 </tr>
               ))}
@@ -299,6 +322,8 @@ export default function OohImportPage() {
           </table>
         )}
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
