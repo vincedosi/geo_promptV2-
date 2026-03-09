@@ -181,8 +181,8 @@ export function ChatPanel({
 
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 14, fontFamily: fontOrbitron, fontWeight: 700, color: C.text, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-                Copilote_Media
+              <span style={{ fontSize: 14, fontFamily: fontOrbitron, fontWeight: 700, color: C.text, letterSpacing: '0.14em' }}>
+                <span style={{ color: C.textDim }}>geo</span><span style={{ color: C.accent }}>.</span><span style={{ color: C.text }}>prompt</span>
               </span>
               <span style={{ fontSize: 8, fontFamily: fontMono, background: C.accentDim, color: C.accent, padding: '2px 5px', border: `1px solid ${C.borderLight}`, borderRadius: 2, letterSpacing: '0.1em' }}>
                 BETA
@@ -294,11 +294,13 @@ export function ChatPanel({
 
         {/* Empty state */}
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 12px' }}>
-            <div style={{ fontSize: 11, fontFamily: fontOrbitron, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 6 }}>
-              Initialize_Session
-            </div>
-            <div style={{ fontSize: 10, color: C.textSec, fontFamily: fontMono, marginBottom: 24, letterSpacing: '0.04em' }}>
+          <div style={{ textAlign: 'center', padding: '40px 12px' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.5" style={{ marginBottom: 16, opacity: 0.6 }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <div style={{ fontSize: 10, color: C.textSec, fontFamily: fontMono, marginBottom: 24, letterSpacing: '0.06em' }}>
               Décrivez votre cible géographique
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
