@@ -17,6 +17,26 @@ interface SelectedBillboard {
   regie?: string;
 }
 
+/** Remplace récursivement name_en/name:en par le nom local (name) dans une expression MapLibre */
+function patchLabelFr(expr: unknown): unknown {
+  if (!expr) return expr;
+  if (typeof expr === 'string') {
+    return expr.replace(/\{name_en\}/g, '{name}').replace(/\{name:en\}/g, '{name}');
+  }
+  if (Array.isArray(expr)) {
+    if (expr[0] === 'get' && (expr[1] === 'name_en' || expr[1] === 'name:en')) {
+      return ['coalesce', ['get', 'name:fr'], ['get', 'name']];
+    }
+    return expr.map(patchLabelFr);
+  }
+  if (typeof expr === 'object' && expr !== null) {
+    return Object.fromEntries(
+      Object.entries(expr as Record<string, unknown>).map(([k, v]) => [k, patchLabelFr(v)])
+    );
+  }
+  return expr;
+}
+
 export function useMapInit(
   zoneData: ZoneData | null,
   onBillboardSelect?: (billboard: SelectedBillboard) => void,
@@ -94,6 +114,14 @@ export function useMapInit(
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
     map.on('load', () => {
+      // ── Patch labels → langue locale (français) ───────────────────────────
+      for (const layer of (map.getStyle()?.layers ?? [])) {
+        if (layer.type !== 'symbol') continue;
+        const tf = (layer.layout as Record<string, unknown>)?.['text-field'];
+        if (!tf) continue;
+        try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
+      }
+
       // ── Heatmap densité POI (large zoom) ─────────────────────────────────
       map.addSource('pois-heat', {
         type: 'geojson',
