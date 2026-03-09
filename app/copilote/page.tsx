@@ -293,6 +293,7 @@ export default function CopilotePage() {
         providerStatus={providerSelector.providerStatus}
         statusLoading={providerSelector.statusLoading}
         refreshProviderStatus={providerSelector.refreshStatus}
+        sessionTokens={chat.sessionTokens}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}

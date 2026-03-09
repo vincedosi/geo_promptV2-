@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME = 'GEO.Prompt';
-export const APP_VERSION = '6.6.0';
-export const BUILD_DATE = '2026-03-06';
+export const APP_VERSION = '6.9.0';
+export const BUILD_DATE = '2026-03-09';
 
 export interface ChangelogEntry {
   version: string;

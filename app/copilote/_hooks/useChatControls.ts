@@ -21,6 +21,8 @@ export function useChatControls({
   provider,
 }: UseChatControlsOpts) {
   const [input, setInput] = useState('');
+  const [sessionTokens, setSessionTokens] = useState({ input: 0, output: 0, total: 0 });
+  const msgTokensRef = useRef<Map<string, { in: number; out: number }>>(new Map());
   const forceRecalculateRef = useRef(false);
   const providerRef         = useRef<Provider>(provider);
   const lastUserMessageRef  = useRef<string>('');
@@ -56,6 +58,27 @@ export function useChatControls({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  // Compteur tokens : lit messageMetadata injecté par le serveur (se met à jour à chaque finish-step)
+  useEffect(() => {
+    let changed = false;
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue;
+      const meta = (msg as any).metadata;
+      if (!meta?.tok_in) continue;
+      const existing = msgTokensRef.current.get(msg.id);
+      const newIn = Number(meta.tok_in), newOut = Number(meta.tok_out ?? 0);
+      if (existing?.in !== newIn || existing?.out !== newOut) {
+        msgTokensRef.current.set(msg.id, { in: newIn, out: newOut });
+        changed = true;
+      }
+    }
+    if (changed) {
+      let totalIn = 0, totalOut = 0;
+      for (const v of msgTokensRef.current.values()) { totalIn += v.in; totalOut += v.out; }
+      setSessionTokens({ input: totalIn, output: totalOut, total: totalIn + totalOut });
+    }
+  }, [messages]);
 
   const sendMessage = (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -104,5 +127,6 @@ export function useChatControls({
     messagesEndRef,
     lastUserMessageRef,
     forceRecalculateRef,
+    sessionTokens,
   };
 }

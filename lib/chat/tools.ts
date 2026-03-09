@@ -1084,205 +1084,160 @@ export function buildTools(
 
   return {
     analyser_zone_pois: {
-      description:
-        "Génère une zone de ciblage géographique sur la carte et recherche les points d'intérêt (POI). " +
-        "Appeler dès qu'une localisation et/ou un type de POI sont identifiés.",
+      description: "Affiche POI sur carte géographique.",
       inputSchema: z.object({
-        ville:             z.string().optional().describe("Nom de la ville française. Utiliser UNIQUEMENT si l'utilisateur mentionne une ville."),
-        region:            z.string().optional().describe("Région française (ex: Bretagne, Normandie, Île-de-France, PACA)."),
-        departement:       z.string().optional().describe("Nom ou numéro du département (ex: Finistère, 29)."),
+        ville:             z.string().optional().describe("Ville française."),
+        region:            z.string().optional().describe("Région française."),
+        departement:       z.string().optional().describe("Département ou code."),
         categorie_poi:     z.string().optional().describe(catsDesc),
-        rayon_metres:      z.number().optional().describe("Rayon en mètres autour de la ville, UNIQUEMENT si explicitement demandé."),
-        rayon_poi_metres:  z.number().optional().describe("Rayon en mètres à dessiner autour de chaque établissement individuel."),
-        isochrone_minutes: z.number().optional().describe("Durée de l'isochrone en minutes. UNIQUEMENT si l'utilisateur demande explicitement un isochrone."),
-        isochrone_mode:    z.enum(['walk', 'drive', 'bike']).optional().describe("Mode de transport: walk (défaut), drive, bike."),
-        couleur:           z.string().optional().describe("Couleur CSS pour les marqueurs de cette catégorie (ex: '#000000', 'red', '#3b82f6')."),
+        rayon_metres:      z.number().optional().describe("Rayon km autour ville."),
+        rayon_poi_metres:  z.number().optional().describe("Rayon autour chaque POI."),
+        isochrone_minutes: z.number().optional().describe("Durée isochrone (min)."),
+        isochrone_mode:    z.enum(['walk', 'drive', 'bike']).optional().describe("walk/drive/bike."),
+        couleur:           z.string().optional().describe("Couleur CSS marqueurs."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('analyser_zone_pois', args, categoriesList, { forceRecalculate }),
     },
 
     voronoi_analysis: {
-      description:
-        "⚡ PRIORITÉ MAXIMALE. Génère les polygones de Voronoï (zones d'influence territoriales) pour une catégorie de POIs. " +
-        "OBLIGATOIRE pour : 'Voronoï', 'voronoi', 'territoire(s)', 'zone(s) d\\'influence', 'découpage territorial', 'cellule(s)', 'diagramme'. " +
-        "NE PAS confondre avec analyser_zone_pois.",
+      description: "Polygones de Voronoï / zones d'influence territoriales.",
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
-        ville:          z.string().optional().describe("Ville à analyser. Optionnel — si absent, France entière."),
-        region:         z.string().optional().describe("Région à analyser. Optionnel."),
-        departement:    z.string().optional().describe("Département ou code. Optionnel."),
-        metropolitaine: z.boolean().optional().describe("TRUE (défaut) = France métropolitaine uniquement. FALSE = inclut DROM-COM."),
+        ville:          z.string().optional().describe("Ville (opt)."),
+        region:         z.string().optional().describe("Région (opt)."),
+        departement:    z.string().optional().describe("Département (opt)."),
+        metropolitaine: z.boolean().optional().describe("true=métropole, false=+DROM."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('voronoi_analysis', args, categoriesList, {}),
     },
 
     afficher_carreaux: {
-      description:
-        "Affiche une couche choroplèthe de carreaux INSEE Filosofi 200m sur la carte avec un indicateur démographique. " +
-        "Appeler quand l'utilisateur veut voir la distribution spatiale d'une variable socio-démographique (âge, revenus, population...).",
+      description: "Carte thermique carreaux INSEE Filosofi 200m.",
       inputSchema: z.object({
-        indicateur:       z.string().describe("Nom exact de la colonne Filosofi (ex: ind_18_24, Ind_65_79, ind, rev_median, men)."),
-        indicateur_label: z.string().describe("Label lisible en français (ex: Jeunes 18-24 ans, Population totale)."),
-        ville:            z.string().optional().describe("Ville sur laquelle centrer la vue."),
-        rayon_km:         z.number().optional().describe("Rayon en km autour de la ville pour charger les carreaux (défaut: 4.5km). Utiliser une valeur plus grande pour une grande ville (ex: 8 pour Paris), plus petite pour un quartier (ex: 2)."),
+        indicateur:       z.string().describe("Colonne Filosofi (ind_18_24, Ind, rev_median…)."),
+        indicateur_label: z.string().describe("Label lisible."),
+        ville:            z.string().optional().describe("Ville centre."),
+        rayon_km:         z.number().optional().describe("Rayon km (déf 4.5)."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('afficher_carreaux', args, categoriesList, {}),
     },
 
     isochrone_battle: {
-      description:
-        "🔥 Génère la Bataille d'Isochrones : territoires de recrutement basés sur des anneaux de temps réel " +
-        "(10/30/60/90/120 min en voiture via ORS). Règle : le plus petit gagne. " +
-        "OBLIGATOIRE pour : bataille d'isochrones, anneaux isochrones, territoires de recrutement réels, " +
-        "sectorisation routière, qui recrute en moins de Xmin, paliers de temps, zones de chalandise routières. " +
-        "Calcul intensif (~1-2 min au 1er appel, puis mis en cache).",
+      description: "Sectorisation routière par anneaux isochrones (10/30/60/90/120 min).",
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
-        mode:           z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: 'drive'."),
-        ville:          z.string().optional().describe("Filtre ville. Optionnel."),
-        region:         z.string().optional().describe("Filtre région. Optionnel — RECOMMANDÉ pour limiter les appels ORS."),
-        departement:    z.string().optional().describe("Filtre département ou code. Optionnel."),
-        metropolitaine: z.boolean().optional().describe("TRUE (défaut) = France métropolitaine. FALSE = inclut DROM-COM."),
-        max_minutes:    z.number().optional().describe("Durée max en minutes. Défaut: 120."),
+        mode:           z.enum(['drive', 'walk', 'bike']).optional().describe("Mode (déf drive)."),
+        ville:          z.string().optional().describe("Filtre ville."),
+        region:         z.string().optional().describe("Filtre région."),
+        departement:    z.string().optional().describe("Filtre département."),
+        metropolitaine: z.boolean().optional().describe("true=métropole."),
+        max_minutes:    z.number().optional().describe("Durée max min (déf 120)."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('isochrone_battle', args, categoriesList, { forceRecalculate }),
     },
 
     analyser_panneaux: {
-      description:
-        "Recherche et affiche des panneaux d'affichage OOH (Out-Of-Home) depuis la table global_ooh. " +
-        "OBLIGATOIRE pour : 'panneaux', 'OOH', 'affichage extérieur', 'outdoor', 'Clear Channel', 'JCDecaux', 'Exterion', " +
-        "'4x3', 'mobilier urbain', 'abribus', toute régie d'affichage.",
+      description: "Affiche panneaux OOH sur carte.",
       inputSchema: z.object({
-        regie:        z.string().optional().describe("Nom de la régie, partiel accepté (ex: 'Clear Channel', 'JCDecaux')."),
-        ville:        z.string().optional().describe("Ville française."),
-        region:       z.string().optional().describe("Région française."),
-        departement:  z.string().optional().describe("Département ou code (ex: 29, Finistère)."),
-        type_panneau: z.string().optional().describe("Type/format du panneau (ex: 4x3, 8x3, abri-bus)."),
-        couleur:      z.string().optional().describe("Couleur CSS des marqueurs (défaut: orange #f97316)."),
+        regie:        z.string().optional().describe("Régie (ex: JCDecaux)."),
+        ville:        z.string().optional().describe("Ville."),
+        region:       z.string().optional().describe("Région."),
+        departement:  z.string().optional().describe("Département."),
+        type_panneau: z.string().optional().describe("Format panneau."),
+        couleur:      z.string().optional().describe("Couleur CSS."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('analyser_panneaux', args, categoriesList, {}),
     },
 
     classer_panneaux_audience: {
-      description:
-        "Classe les panneaux d'affichage OOH par audience potentielle d'une cible démographique (ex: 18-24 ans) " +
-        "dans un rayon autour de chaque panneau, en croisant global_ooh × carreaux INSEE Filosofi. " +
-        "DÉCLENCHER pour : 'panneaux qui touchent le plus de [cible]', 'meilleurs panneaux pour [cible]', " +
-        "'top N panneaux [cible]', 'classement panneaux par audience'.",
+      description: "Classe panneaux OOH par audience démographique.",
       inputSchema: z.object({
-        ville:         z.string().describe("Ville française (requis)."),
-        target_column: z.string().describe("Colonne Filosofi à agréger : ind_18_24, Ind_25_39, ind, ind_65_79, men, etc."),
-        target_label:  z.string().describe("Label lisible de la cible (ex: 'Jeunes 18-24 ans')."),
-        rayon_metres:  z.number().optional().describe("Rayon en mètres autour de chaque panneau (défaut: 500)."),
-        limit:         z.number().optional().describe("Nombre max de panneaux à retourner (défaut: 10, max: 50)."),
-        regie:         z.string().optional().describe("Filtrer par régie (partiel, ex: 'JCDecaux')."),
+        ville:         z.string().describe("Ville (requis)."),
+        target_column: z.string().describe("Colonne Filosofi (ind_18_24, Ind…)."),
+        target_label:  z.string().describe("Label cible."),
+        rayon_metres:  z.number().optional().describe("Rayon m/panneau (déf 500)."),
+        limit:         z.number().optional().describe("Max panneaux (déf 10)."),
+        regie:         z.string().optional().describe("Régie."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('classer_panneaux_audience', args, categoriesList, {}),
     },
 
     scorer_panneaux_ooh: {
-      description:
-        "Score composite OOH : classe les panneaux d'affichage par score multi-critères (audience démographique × contexte environnemental POI). " +
-        "Meilleur que classer_panneaux_audience car intègre le contexte urbain (densité POI = commerces, écoles, transports à proximité). " +
-        "DÉCLENCHER pour : 'meilleurs emplacements OOH', 'score panneau', 'panneaux stratégiques', " +
-        "'classement OOH multi-critères', 'top panneaux [cible] avec contexte', 'smart scoring panneaux'.",
+      description: "Score multi-critères panneaux OOH (audience × contexte POI).",
       inputSchema: z.object({
-        ville:          z.string().describe("Ville française (requis)."),
-        target_column:  z.string().describe("Colonne Filosofi cible : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men, etc."),
-        target_label:   z.string().describe("Label lisible de la cible (ex: 'Jeunes 18-24 ans')."),
-        rayon_metres:   z.number().optional().describe("Rayon en mètres autour de chaque panneau pour capter l'audience (défaut: 500)."),
-        poids_demo:     z.number().optional().describe("Poids du score démographique [0-1] (défaut: 0.65)."),
-        poids_contexte: z.number().optional().describe("Poids du score contextuel POI [0-1] (défaut: 0.35)."),
-        limit:          z.number().optional().describe("Nombre de panneaux à retourner (défaut: 10, max: 50)."),
-        regie:          z.string().optional().describe("Filtrer par régie (ex: 'JCDecaux', 'Clear Channel')."),
+        ville:          z.string().describe("Ville (requis)."),
+        target_column:  z.string().describe("Colonne Filosofi (ind_18_24, Ind…)."),
+        target_label:   z.string().describe("Label cible."),
+        rayon_metres:   z.number().optional().describe("Rayon m (déf 500)."),
+        poids_demo:     z.number().optional().describe("Poids démo [0-1] (déf 0.65)."),
+        poids_contexte: z.number().optional().describe("Poids POI [0-1] (déf 0.35)."),
+        limit:          z.number().optional().describe("Max panneaux (déf 10)."),
+        regie:          z.string().optional().describe("Régie."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('scorer_panneaux_ooh', args, categoriesList, {}),
     },
 
     exporter_rapport_ooh: {
-      description:
-        "Génère un rapport Excel (.xlsx) complet des panneaux OOH d'une ville : score composite pour TOUS les panneaux, " +
-        "capture de carte, tableau de classement, graphiques de couverture audience par panneau. " +
-        "DÉCLENCHER pour : 'exporte le rapport OOH', 'génère le rapport panneaux', 'export Excel OOH', " +
-        "'rapport scoring panneaux', 'télécharger le rapport OOH'.",
+      description: "Export rapport Excel OOH complet d'une ville.",
       inputSchema: z.object({
-        ville:          z.string().describe("Ville française (requis)."),
-        target_column:  z.string().describe("Colonne Filosofi cible : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men."),
-        target_label:   z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
-        rayon_metres:   z.number().optional().describe("Rayon en mètres par panneau (défaut: 500)."),
-        poids_demo:     z.number().optional().describe("Poids démographique [0-1] (défaut: 0.65)."),
-        poids_contexte: z.number().optional().describe("Poids contextuel POI [0-1] (défaut: 0.35)."),
-        regie:          z.string().optional().describe("Filtrer par régie."),
+        ville:          z.string().describe("Ville (requis)."),
+        target_column:  z.string().describe("Colonne Filosofi."),
+        target_label:   z.string().describe("Label cible."),
+        rayon_metres:   z.number().optional().describe("Rayon m (déf 500)."),
+        poids_demo:     z.number().optional().describe("Poids démo (déf 0.65)."),
+        poids_contexte: z.number().optional().describe("Poids POI (déf 0.35)."),
+        regie:          z.string().optional().describe("Régie."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('exporter_rapport_ooh', args, categoriesList, {}),
     },
 
     analyze_poi_synergy: {
-      description:
-        "Trouve les meilleurs panneaux publicitaires situes pres d un POI specifique ET dans une zone a forte densite demographique. " +
-        "DECLENCHER OBLIGATOIREMENT pour : 'panneaux pres des lycees', 'panneaux strategiques pres des [POI] pour [cible]', " +
-        "'double critere POI + demographic', 'panneaux a forte audience [cible] pres de [POI]'.",
+      description: "Panneaux OOH proches d'un POI ET à forte densité démographique.",
       inputSchema: z.object({
         poi_category:      z.string().describe(catsDesc),
-        ville:             z.string().describe("Ville française OBLIGATOIRE (ex: 'Brest', 'Lyon'). Requis pour les performances."),
-        target_demo_col:   z.string().describe("Colonne Filosofi : ind_18_24, Ind_25_39, Ind, Ind_65_79, Men, etc."),
-        target_demo_label: z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
-        max_distance_m:    z.number().optional().describe("Rayon autour du POI en metres (defaut: 500)."),
-        min_audience:      z.number().optional().describe("Audience minimum requise (defaut: 0)."),
-        buffer_radius_m:   z.number().optional().describe("Zone de visibilite du panneau en metres (defaut: 300)."),
+        ville:             z.string().describe("Ville (requis)."),
+        target_demo_col:   z.string().describe("Colonne Filosofi."),
+        target_demo_label: z.string().describe("Label cible."),
+        max_distance_m:    z.number().optional().describe("Rayon POI m (déf 500)."),
+        min_audience:      z.number().optional().describe("Audience min (déf 0)."),
+        buffer_radius_m:   z.number().optional().describe("Visibilité panneau m (déf 300)."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('analyze_poi_synergy', args, categoriesList, {}),
     },
 
     calculate_audience_coverage: {
-      description:
-        "Calcule combien de personnes d'une cible précise (jeunes, seniors, population totale…) " +
-        "se trouvent dans une zone de temps de trajet autour d'un lieu. " +
-        "Génère l'isochrone ORS + requête PostGIS prorata spatial sur les carreaux INSEE. " +
-        "DÉCLENCHER pour : 'combien de [cible] dans X min autour de [lieu]', " +
-        "'couverture [cible] à X min', 'audience potentielle', 'potentiel de recrutement autour de'.",
+      description: "Nb de personnes d'une cible dans un isochrone autour d'un lieu.",
       inputSchema: z.object({
-        location_name:       z.string().describe("Nom du lieu ou de la ville (ex: 'Brest', 'Paris')."),
-        travel_time_minutes: z.number().describe("Durée du trajet en minutes (ex: 15, 30, 60)."),
-        target_column:       z.string().describe(
-          "Colonne Filosofi à agréger. Options : Ind (population totale), Ind_0_3, Ind_4_5, ind_6_10, " +
-          "ind_11_17, ind_18_24, Ind_25_39, ind_40_54, ind_55_64, ind_65_79, ind_80p, men (ménages), rev_median."
-        ),
-        target_label:        z.string().describe("Nom lisible de la cible en français (ex: 'Jeunes 18-24 ans')."),
-        mode:                z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: drive."),
+        location_name:       z.string().describe("Lieu ou ville."),
+        travel_time_minutes: z.number().describe("Durée trajet min."),
+        target_column:       z.string().describe("Colonne Filosofi (Ind, ind_18_24…)."),
+        target_label:        z.string().describe("Label cible."),
+        mode:                z.enum(['drive', 'walk', 'bike']).optional().describe("Mode (déf drive)."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('calculate_audience_coverage', args, categoriesList, {}),
     },
 
     calculate_network_coverage: {
-      description:
-        "Calcule l'empreinte démographique totale d'un réseau de POI (ex: tous les CIRFA de France) " +
-        "en calculant l'union de leurs isochrones et en croisant avec les carreaux INSEE Filosofi. " +
-        "Retourne la couverture totale + un tableau de bord par POI (audience individuelle, % couverture). " +
-        "DÉCLENCHER pour : 'empreinte réseau [POI]', 'portée totale du réseau à Xmin', " +
-        "'combien de [cible] couverts par le réseau', 'couverture nationale [POI]', " +
-        "'potentiel des [N] [POI] de [lieu]', 'quel est le potentiel de', 'analyse des [POI] de [région]'. " +
-        "Calcul intensif — mis en cache automatiquement.",
+      description: "Empreinte démographique totale d'un réseau de POI (union isochrones).",
       inputSchema: z.object({
         poi_category:        z.string().describe(catsDesc),
-        travel_time_minutes: z.number().describe("Durée de trajet en minutes (ex: 30, 60, 90)."),
-        target_demo_column:  z.string().describe("Colonne Filosofi : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men, rev_median."),
-        target_demo_label:   z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
-        mode:        z.enum(['drive', 'walk', 'bike']).optional().describe("Mode de transport. Défaut: drive."),
-        region:      z.string().optional().describe("Filtre région (ex: 'Bretagne'). RECOMMANDÉ pour limiter le scope et éviter le timeout."),
-        ville:       z.string().optional().describe("Filtre ville. Optionnel."),
-        departement: z.string().optional().describe("Filtre département ou code. Optionnel."),
+        travel_time_minutes: z.number().describe("Durée trajet min."),
+        target_demo_column:  z.string().describe("Colonne Filosofi."),
+        target_demo_label:   z.string().describe("Label cible."),
+        mode:        z.enum(['drive', 'walk', 'bike']).optional().describe("Mode (déf drive)."),
+        region:      z.string().optional().describe("Région (recommandé)."),
+        ville:       z.string().optional().describe("Ville."),
+        departement: z.string().optional().describe("Département."),
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('calculate_network_coverage', args, categoriesList, { forceRecalculate }),

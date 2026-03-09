@@ -46,6 +46,72 @@ function extractLastUserText(messages: any[]): string {
   return typeof content === 'string' ? content : '';
 }
 
+// ── Trim historique : limite à 8 messages et strip les gros champs des tool results anciens ──
+// pois[], isochroneGeoJSON, voronoiGeoJSON.features, poisForMap.pois peuvent peser 50k+ tokens.
+function stripHeavyFields(result: any): any {
+  if (!result || typeof result !== 'object') return result;
+  let r = result;
+
+  // Strip pois[]
+  if (Array.isArray(r.pois)) {
+    const { pois, ...rest } = r;
+    r = { ...rest, pois: [], nb_pois: pois.length, _stripped: true };
+  }
+
+  // Strip isochroneGeoJSON (polygones ORS — très volumineux)
+  if (r.isochroneGeoJSON && typeof r.isochroneGeoJSON === 'object') {
+    const nb = Array.isArray(r.isochroneGeoJSON.features) ? r.isochroneGeoJSON.features.length : 1;
+    r = { ...r, isochroneGeoJSON: { _stripped: true, nb_features: nb } };
+  }
+
+  // Strip voronoiGeoJSON.features
+  if (r.voronoiGeoJSON && Array.isArray(r.voronoiGeoJSON.features)) {
+    const nb = r.voronoiGeoJSON.features.length;
+    r = { ...r, voronoiGeoJSON: { ...r.voronoiGeoJSON, features: [], nb_features: nb, _stripped: true } };
+  }
+
+  // Strip poisForMap.pois (voronoi_analysis)
+  if (r.poisForMap && Array.isArray(r.poisForMap.pois)) {
+    const nb = r.poisForMap.pois.length;
+    r = { ...r, poisForMap: { ...r.poisForMap, pois: [], nb_pois: nb, _stripped: true } };
+  }
+
+  // Strip isochrone_battle features[]
+  if (Array.isArray(r.features) && r.features.length > 0 && r.features[0]?.geometry) {
+    r = { ...r, features: [], nb_features: r.features.length, _stripped: true };
+  }
+
+  return r;
+}
+
+function trimHistory(messages: any[]): any[] {
+  const MAX_MESSAGES = 8;
+  const recent = messages.slice(-MAX_MESSAGES);
+
+  // Dans les messages non-récents (tout sauf le dernier échange), strip les gros champs
+  return recent.map((msg: any, idx: number) => {
+    const isLast = idx >= recent.length - 2; // garde les 2 derniers messages intacts
+    if (isLast) return msg;
+
+    const parts = msg.parts ?? msg.content;
+    if (!Array.isArray(parts)) return msg;
+
+    const strippedParts = parts.map((part: any) => {
+      if (part.type !== 'tool-result' && part.type !== 'tool_result') return part;
+      const result = part.result ?? part.output;
+      if (!result || typeof result !== 'object') return part;
+      const stripped = stripHeavyFields(result);
+      return {
+        ...part,
+        result: stripped,
+        output: part.output ? stripped : undefined,
+      };
+    });
+
+    return { ...msg, parts: strippedParts };
+  });
+}
+
 // =============================================================================
 // POST /api/chat — streamText (Vercel AI SDK v6)
 // =============================================================================
@@ -82,7 +148,10 @@ export async function POST(request: NextRequest) {
       : '';
 
     const systemPrompt  = buildSystemPrompt(categoriesList) + datagouv_addendum;
-    const modelMessages = await convertToModelMessages(messages as any);
+
+    // ── Trim historique : max 8 messages + strip pois des anciens tool results ──
+    const trimmedMessages = trimHistory(messages);
+    const modelMessages = await convertToModelMessages(trimmedMessages as any);
     const selectedModel = createModel(provider);
 
     const result = streamText({
@@ -101,10 +170,25 @@ export async function POST(request: NextRequest) {
       providerOptions: provider === 'gemini' ? {
         google: { thinkingConfig: { thinkingBudget: 0 } },
       } : undefined,
+      onFinish: ({ usage }) => {
+        console.log(`[chat] tokens — input:${usage.promptTokens} output:${usage.completionTokens} total:${usage.totalTokens}`);
+      },
     });
 
     console.log(`[chat] streamText started — provider=${provider}, MCP=${Object.keys(datagouv_tools).length} tools`);
-    return result.toUIMessageStreamResponse();
+    // Accumule l'usage total sur tous les steps (agentic = plusieurs finish-step)
+    let cumTokIn = 0, cumTokOut = 0;
+    return result.toUIMessageStreamResponse({
+      messageMetadata: ({ part }) => {
+        if (part.type === 'finish-step' && (part as any).usage) {
+          const u = (part as any).usage;
+          cumTokIn  += u.promptTokens  ?? u.inputTokens  ?? 0;
+          cumTokOut += u.completionTokens ?? u.outputTokens ?? 0;
+          return { tok_in: cumTokIn, tok_out: cumTokOut };
+        }
+        return undefined;
+      },
+    });
 
   } catch (error: any) {
     const msg: string = error.message ?? 'Erreur inconnue';

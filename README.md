@@ -1,6 +1,6 @@
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 6.8.0 — 8 mars 2026
+> **Version** : 6.9.0 — 9 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -16,7 +16,7 @@ L'utilisateur tape un prompt en français → l'IA extrait des filtres structur�
 | **Framework** | Next.js 14 (App Router, TypeScript strict, Tailwind CSS) |
 | **Base de données** | Supabase (PostgreSQL + PostGIS) |
 | **Cartographie** | MapLibre GL JS + CARTO Light raster tiles (gratuit, sans token) |
-| **IA / NLP** | Multi-provider via Vercel AI SDK v6 : Mistral AI (`mistral-small-latest`), Anthropic Claude (`claude-haiku-4-5`), Google Gemini (`gemini-2.5-flash`) — function calling, sélecteur dynamique |
+| **IA / NLP** | Multi-provider via Vercel AI SDK v6 : Mistral AI (`mistral-small-latest`), Anthropic Claude (`claude-haiku-4-5-20251001`), Google Gemini (`gemini-2.5-flash`) — function calling, sélecteur dynamique |
 | **MCP** | data.gouv.fr MCP (Streamable HTTP JSON-RPC) — recherche datasets open data FR, opt-in keyword-triggered |
 | **Auth** | Supabase Auth (email/password, Bearer token) |
 | **Parsing fichiers** | PapaParse (CSV), SheetJS (XLSX), natif (GeoJSON) |
@@ -24,7 +24,7 @@ L'utilisateur tape un prompt en français → l'IA extrait des filtres structur�
 | **Isochrones** | OpenRouteService API (ORS) — temps de trajet réel voiture/vélo/marche |
 | **Clustering** | Supercluster (clustering côté client) |
 | **Validation** | Zod (schémas JSON) |
-| **UI** | Design system GEO.Prompt (dark mode, CSS custom) |
+| **UI** | Design system GEO.Prompt — terminal dark (Orbitron + Michroma + Inter) |
 
 ---
 
@@ -33,7 +33,7 @@ L'utilisateur tape un prompt en français → l'IA extrait des filtres structur�
 ```
 genesis_app/
 ├── app/
-│   ├── page.tsx                           ← Page d'accueil (Parse Prompt IA)
+│   ├── page.tsx                           ← Redirect → /copilote
 │   ├── layout.tsx                         ← Layout global + GenesisNav sidebar
 │   ├── map/page.tsx                       ← Carte POI + carreaux + Bataille d'Isochrones
 │   ├── copilote/
@@ -41,117 +41,72 @@ genesis_app/
 │   │   ├── _hooks/
 │   │   │   ├── useMapInit.ts              ← Init MapLibre + markers
 │   │   │   ├── useMapLayers.ts            ← Isochrones, Voronoï, Bataille, Carreaux
-│   │   │   ├── useChatControls.ts         ← useChat + DefaultChatTransport (provider-aware)
+│   │   │   ├── useChatControls.ts         ← useChat + DefaultChatTransport + sessionTokens
 │   │   │   ├── useRateLimitHandler.ts     ← Countdown auto-retry 429
 │   │   │   ├── useToolProcessor.ts        ← Traitement résultats outils IA
 │   │   │   ├── useProviderSelector.ts     ← Sélection provider IA + statut quota/disponibilité
 │   │   │   └── useSavedMaps.ts            ← Sauvegarde / chargement cartes
 │   │   ├── _components/
-│   │   │   ├── ChatPanel.tsx              ← Panel chat (messages, input, save/load, provider selector)
-│   │   │   ├── MapPanel.tsx               ← Panel carte (badges, toggles, légende)
+│   │   │   ├── ChatPanel.tsx              ← Panel chat (messages, input, save/load, provider selector, token counter)
+│   │   │   ├── MapPanel.tsx               ← Panel carte (badges, toggles, légende, Street View)
 │   │   │   ├── PromptsPanel.tsx           ← Panel aide prompts (6 catégories, 20 exemples)
 │   │   │   ├── ZoneCard.tsx               ← Carte résumé zone analysée
-│   │   │   ├── ChatMarkdown.tsx           ← Renderer Markdown inline (bold, italic, liens, code, listes)
-│   │   │   ├── DataGouvCard.tsx           ← Cartes résultats data.gouv.fr MCP (datasets cliquables)
+│   │   │   ├── ChatMarkdown.tsx           ← Renderer Markdown inline
+│   │   │   ├── DataGouvCard.tsx           ← Cartes résultats data.gouv.fr MCP
 │   │   │   └── TypingDots.tsx             ← Indicateur chargement IA
 │   │   └── _lib/
 │   │       └── constants.ts               ← circleGeoJSON, getCatColor
-│   ├── dashboard/page.tsx                 ← Dashboard utilisateur (auth)
-│   ├── login/page.tsx                     ← Login / Sign-up email
 │   ├── admin/
+│   │   ├── ooh-import/page.tsx            ← 🆕 Import OOH ArcGIS REST → global_ooh (streaming, historique)
 │   │   ├── import/page.tsx                ← Import Universel (CSV/XLSX/GeoJSON, 5 étapes)
 │   │   ├── carreaux-import/page.tsx       ← Import Carreaux INSEE (upload web)
 │   │   ├── sources/page.tsx               ← Gestion des sources de données
 │   │   ├── organizations/page.tsx         ← Gestion multi-tenant
 │   │   └── health/page.tsx                ← Health Check système
 │   └── api/
+│       ├── chat/route.ts                  ← Copilote IA (streamText, multi-provider, tools Zod, MCP data.gouv, trimHistory)
 │       ├── providers/status/route.ts      ← Statut providers IA (quota Mistral, clé Claude/Gemini, cache 5min)
-│       ├── parse-prompt/route.ts          ← Mistral → JSON filtres panneaux
-│       ├── search-panneaux/route.ts       ← Filtres → panneaux Supabase (RPC PostGIS)
 │       ├── search-poi/route.ts            ← Recherche POI par catégorie (paginé 1000/batch)
 │       ├── search-poi/categories/route.ts ← Liste des catégories POI
-│       ├── carreaux/route.ts              ← GET: sources (data_sources) / POST: GeoJSON bbox (PostgreSQL direct)
-│       ├── chat/route.ts                  ← Copilote IA (streamText, multi-provider, tools Zod, MCP data.gouv)
-│       ├── network-coverage/route.ts      ← 📊 Couverture réseau POI (ORS + PostGIS v3, cache)
-│       ├── debug-coverage/route.ts        ← 🔍 Diagnostic pipeline couverture (12 étapes)
-│       ├── isochrone-battle/route.ts      ← ⚔️ Bataille d'Isochrones (ORS, cache, PostGIS)
+│       ├── carreaux/route.ts              ← GET: sources / POST: GeoJSON bbox
+│       ├── network-coverage/route.ts      ← Couverture réseau POI (ORS + PostGIS v3, cache)
+│       ├── debug-coverage/route.ts        ← Diagnostic pipeline couverture (12 étapes)
+│       ├── isochrone-battle/route.ts      ← Bataille d'Isochrones (ORS, cache, PostGIS)
 │       ├── saved-maps/route.ts            ← Sauvegarde/chargement analyses
 │       ├── saved-maps/[id]/route.ts       ← Détail/suppression analyse
-│       ├── ai/parse-poi-query/route.ts    ← Mistral → filtres POI (carte IA)
-│       ├── auth/[...auth]/route.ts        ← Auth endpoints
-│       └── admin/                         ← 🔒 Toutes protégées par requireAdmin()
+│       └── admin/
+│           ├── import-ooh/arcgis/route.ts ← 🆕 Import ArcGIS REST → global_ooh (NDJSON streaming)
 │           ├── import-poi/execute/route.ts ← SSE import POI en base
-│           ├── import-geo/route.ts        ← Import batch Shapefile → carreaux_filosofi (PostgreSQL direct, unnest)
-│           ├── import-geo/register/route.ts ← Enregistrement source dans data_sources
-│           ├── import-geo/rename-columns/route.ts ← Renommage clés JSONB metadata
+│           ├── import-geo/route.ts        ← Import batch Shapefile → carreaux_filosofi
 │           ├── sources/route.ts           ← CRUD sources
-│           ├── sources/[id]/route.ts      ← GET/PATCH/DELETE source
-│           ├── sources/[id]/meta-keys/route.ts
-│           ├── sources/[id]/export/route.ts
-│           ├── sources/[id]/summary/route.ts
 │           ├── organizations/route.ts     ← CRUD organisations
-│           ├── poi-categories/route.ts    ← CRUD catégories POI
 │           ├── geocode/batch/route.ts     ← Géocodage batch BAN
-│           ├── geocode/update/route.ts    ← Mise à jour coordonnées
-│           ├── source-filters/route.ts    ← Filtres par source
-│           ├── delete-source/route.ts     ← Suppression source
-│           ├── delete-category/route.ts   ← Suppression catégorie
-│           ├── verify-url/route.ts        ← Vérification URL
-│           ├── health/route.ts            ← Health check (non protégé — diagnostic)
-│           └── init-admin/route.ts        ← Init admin (ADMIN_INIT_KEY)
-├── app/debug-coverage/page.tsx            ← 🔍 UI diagnostic couverture réseau (12 étapes, chronomètre)
+│           └── health/route.ts            ← Health check
 ├── components/
-│   ├── GenesisNav.tsx                     ← Sidebar navigation
+│   ├── GenesisNav.tsx                     ← Sidebar navigation (Orbitron + Michroma design)
 │   └── map/
 │       ├── MapContainer.tsx               ← Carte + markers + carreaux + Voronoï + Bataille
 │       ├── MapSidebar.tsx                 ← Sidebar résultats
-│       ├── SearchBar.tsx                  ← Barre de recherche
 │       └── hooks/
 │           ├── useClusters.ts             ← Clustering Supercluster
 │           ├── useMapPanels.ts            ← Panneaux latéraux
 │           └── useMapViewport.ts          ← Viewport carte
 ├── lib/
+│   ├── chat/
+│   │   ├── tools.ts                       ← Tous les outils IA (11 tools, schémas compressés)
+│   │   ├── system-prompt.ts               ← Prompt système dynamique
+│   │   └── providers.ts                   ← createModel(), getMaxRetries()
 │   ├── mcp/
-│   │   └── datagouv.ts                    ← Client MCP data.gouv.fr (JSON-RPC, SSE, sanitizeSchema Gemini-compat)
+│   │   └── datagouv.ts                    ← Client MCP data.gouv.fr (JSON-RPC, sanitizeSchema Gemini-compat)
 │   ├── auth.ts                            ← Helpers auth serveur (createAdminClient strict)
-│   ├── auth-client.ts                     ← Hooks auth client (useSession, useSignIn)
-│   ├── admin-fetch.ts                     ← 🔒 adminFetch() — Bearer token automatique
-│   ├── api/
-│   │   ├── middleware.ts                  ← 🔒 requireAdmin() + adminUnauthorized()
-│   │   └── errors.ts                      ← Gestion erreurs API
-│   ├── geo/
-│   │   ├── geometry.ts                    ← circleGeoJSON, tupleToGeoJSON, bboxFromPoints
-│   │   ├── locations.ts                   ← resolveLocation, fetchPoisForLocation
-│   │   └── fetchPois.ts                   ← fetchPois() avec filtres région/ville/département
-│   ├── isochrones/
-│   │   └── fetcher.ts                     ← ORS API (isochrones, retry, AbortController 12s)
-│   ├── import/
-│   │   ├── file-parser.ts                 ← Parse CSV/XLSX/GeoJSON
-│   │   ├── column-detector.ts             ← Détection automatique colonnes
-│   │   ├── geocoder.ts                    ← Géocodage BAN + Lambert93
-│   │   ├── inserter.ts                    ← Insert batch Supabase
-│   │   ├── validator.ts                   ← Validation avant import
-│   │   └── types.ts                       ← Types import
-│   ├── map/
-│   │   ├── config.ts                      ← Design tokens carte
-│   │   ├── types.ts                       ← Types carte
-│   │   └── utils.ts                       ← Utilitaires géo
+│   ├── isochrones/fetcher.ts              ← ORS API (isochrones, retry, AbortController)
+│   ├── import/inserter.ts                 ← Insert batch Supabase (poi_france)
 │   ├── poi/categories.ts                  ← Catégories POI
-│   ├── geo-resolver.ts                    ← Résolution géo (dept/villes/régions)
-│   ├── supabase.ts                        ← Client Supabase partagé
 │   └── version.ts                         ← VERSION CENTRALE + changelog
-├── types/
-│   ├── poi.ts                             ← PoiRow, PoiCategory
-│   ├── spatial.ts                         ← ZoneData, IsochroneData, VoronoiData, CarreauxData, SavedMap
-│   └── api.ts                             ← ApiError, PaginatedResponse
 ├── sql/
-│   ├── 001_unify_poi_table.sql            ← Table poi_france
-│   ├── 002_get_carreaux_bbox.sql          ← RPC bbox carreaux (avec validations sécurité)
-│   ├── 007_calculate_network_coverage.sql ← v1 calculate_network_coverage (obsolète, timeout)
-│   ├── 008_calculate_network_coverage_v2.sql ← v2 (obsolète, CTE non matérialisé — timeout)
-│   ├── 009_calculate_network_coverage_v3.sql ← ✅ v3 ACTIVE — single-scan, SRID fixé
-│   ├── isochrone_battle_v1.sql            ← ⚔️ get_isochrone_battle() — ST_Difference pur
-│   └── setup_carreaux.sql                 ← Setup tables carreaux INSEE
+│   ├── 005_global_ooh.sql                 ← 🆕 Table global_ooh + import_runs_ooh
+│   ├── 009_calculate_network_coverage_v3.sql ← RPC coverage (single-scan, SRID fixé)
+│   └── isochrone_battle_v1.sql            ← get_isochrone_battle() — ST_Difference
 ├── middleware.ts                           ← Middleware Next.js (passthrough)
 ├── .env.local                             ← Clés API (jamais commité)
 └── .env.example                           ← Template variables d'environnement
@@ -159,37 +114,21 @@ genesis_app/
 
 ---
 
-## 🔒 Sécurité (v6.0.0)
-
-### Architecture d'authentification Admin
+## 🔒 Sécurité
 
 Toutes les routes `app/api/admin/*` sont protégées par `requireAdmin()` :
 
 ```typescript
-// lib/api/middleware.ts
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-
-export async function GET(request: NextRequest) {
-  const profile = await requireAdmin(request);   // ← vérifie Bearer token + rôle super_admin
-  if (!profile) return adminUnauthorized();       // ← 403 standardisé
-  // ... logique métier
-}
+const profile = await requireAdmin(request);
+if (!profile) return adminUnauthorized();
 ```
 
-### adminFetch — Wrapper côté client
-
-Les pages admin utilisent `adminFetch` au lieu de `fetch` — le Bearer token Supabase est injecté automatiquement :
+Les pages admin utilisent `adminFetch` — le Bearer token Supabase est injecté automatiquement :
 
 ```typescript
-// lib/admin-fetch.ts
 import { adminFetch } from '@/lib/admin-fetch';
-
-const res = await adminFetch('/api/admin/sources');  // ← Authorization: Bearer <token>
+const res = await adminFetch('/api/admin/sources');
 ```
-
-### createAdminClient — Strict
-
-`createAdminClient()` lève une erreur explicite si `SUPABASE_SERVICE_ROLE_KEY` est absente (plus de fallback silencieux sur la clé anon).
 
 ---
 
@@ -199,26 +138,21 @@ const res = await adminFetch('/api/admin/sources');  // ← Authorization: Beare
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...    ← OBLIGATOIRE pour les opérations admin
 
-# IA — au moins une clé requise pour le Copilote
-MISTRAL_API_KEY=sk_...              ← Copilote Mistral (mistral-small-latest)
-ANTHROPIC_API_KEY=sk-ant-...        ← Copilote Claude (claude-haiku-4-5) — optionnel
-GOOGLE_GENERATIVE_AI_API_KEY=...    ← Copilote Gemini (gemini-2.5-flash) — optionnel, billing requis
+# IA — provider par défaut : Gemini
+GOOGLE_GENERATIVE_AI_API_KEY=...    ← Gemini 2.5-flash (billing requis)
+MISTRAL_API_KEY=sk_...              ← Mistral small (optionnel)
+ANTHROPIC_API_KEY=sk-ant-...        ← Claude haiku (optionnel)
 
 # Isochrones ORS
-ORS_API_KEY=...                     ← Requis pour la Bataille d'Isochrones
+ORS_API_KEY=...
 
-# Admin bootstrap
-ADMIN_INIT_KEY=...                  ← Clé secrète pour créer le premier super_admin
-SUPABASE_DB_URL=postgresql://postgres:...@db.xxx.supabase.co:5432/postgres  ← Requis pour import-geo (PostgreSQL direct)
-
-# Interne
+# Admin
+ADMIN_INIT_KEY=...
+SUPABASE_DB_URL=postgresql://...    ← Requis pour import-geo uniquement
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
-
-Vérifier la config : **http://localhost:3000/admin/health**
 
 ---
 
@@ -228,11 +162,12 @@ Vérifier la config : **http://localhost:3000/admin/health**
 
 | Table | Description |
 |-------|-------------|
-| **poi_france** | Points d'intérêt (lycées, CIRFA, gares...) avec geom PostGIS |
-| **panneaux_affichage** | Panneaux d'affichage publicitaire géolocalisés |
-| **isochrones_cache** | Cache des isochrones ORS (clé unique par CIRFA + palier + mode) |
-| **data_sources** | Sources de données importées (type: poi / carreaux) |
-| **carreaux_filosofi** | 2 310 582 carreaux 200m France métropolitaine (1,6 GB) — SRID 4326, metadata JSONB, index GIST |
+| **poi** | Points d'intérêt (vue `poi_france` maintenue pour compatibilité) |
+| **global_ooh** | 🆕 Data Lake panneaux OOH — toutes régies, toutes sources (source_ref = OBJECTID ArcGIS, statut: actif/inactif) |
+| **import_runs_ooh** | 🆕 Historique des imports OOH (source, nb_inserts, nb_updates, durée) |
+| **isochrones_cache** | Cache des isochrones ORS |
+| **data_sources** | Sources de données importées |
+| **carreaux_filosofi** | 2 310 582 carreaux 200m France métropolitaine (1,6 GB) |
 | **organizations** | Organisations multi-tenant |
 | **profiles** | Profils utilisateurs (role: super_admin / admin / client) |
 | **saved_maps** | Analyses géospatiales sauvegardées |
@@ -242,156 +177,73 @@ Vérifier la config : **http://localhost:3000/admin/health**
 
 | Fonction | Description |
 |----------|-------------|
-| `get_carreaux_bbox(table, bbox, limit)` | Carreaux dans un viewport (index GIST, validations sécurité) |
-| `get_isochrone_battle(p_rings JSONB)` | ⚔️ Bataille d'Isochrones — ST_Difference pur, zéro Voronoï |
-| `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI, clip france_borders |
-| `panneaux_near_point(lat, lng, rayon_m)` | Panneaux dans un rayon GPS |
-| `calculate_network_coverage_v3(features, col, mil)` | 📊 Couverture démographique réseau POI (single-scan, LATERAL, SRID fixé) |
-| `import_carreaux_batch(...)` | Import batch carreaux via RPC (HTTPS, pas de connexion directe) |
-
-> ⚠️ Exécuter `sql/isochrone_battle_v1.sql` dans le Supabase SQL Editor avant d'utiliser la Bataille d'Isochrones.
-> ✅ `calculate_network_coverage_v3` déployée via MCP migration — déjà active en production.
+| `get_carreaux_bbox(table, bbox, limit)` | Carreaux dans un viewport |
+| `get_isochrone_battle(p_rings JSONB)` | Bataille d'Isochrones — ST_Difference pur |
+| `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI |
+| `calculate_network_coverage_v3(...)` | Couverture démographique réseau POI |
 
 ---
 
 ## 🎯 Fonctionnalités
 
+### Copilote Media IA (`/copilote`) — page principale
+
+Chat conversationnel IA + carte interactive split screen.
+
+**Multi-provider** (Vercel AI SDK v6) :
+- **Gemini** `gemini-2.5-flash` — provider par défaut, thinking désactivé (budget=0)
+- **Mistral** `mistral-small-latest`
+- **Claude** `claude-haiku-4-5-20251001`
+
+**Outils IA** (11 tools, schémas compressés pour réduire les tokens) :
+- `analyser_zone_pois` — POI par zone + isochrones ORS
+- `voronoi_analysis` — Voronoï géométrique par catégorie
+- `isochrone_battle` — Bataille d'Isochrones (temps réel ORS)
+- `afficher_carreaux` — choroplèthe carreaux INSEE
+- `analyser_panneaux` — 🆕 panneaux OOH depuis `global_ooh` (pagination automatique 10k+)
+- `calculer_couverture_reseau` — couverture démographique réseau POI
+- `calculate_audience_coverage` — couverture audience autour d'un point
+- `analyze_poi_synergy` — synergie panneaux × démographie POI
+- `classer_panneaux_audience` — ranking panneaux par audience
+- `scorer_panneaux_ooh` — 🆕 scoring OOH depuis `global_ooh`
+- `exporter_rapport_ooh` — 🆕 export rapport OOH
+
+**Optimisations tokens** :
+- `trimHistory()` : max 8 messages + strip `pois[]`, `isochroneGeoJSON`, `voronoiGeoJSON.features`, `poisForMap.pois`, `features[]` des tool results anciens
+- Schémas outils compressés (~60% réduit vs descriptions verboses)
+- Compteur tokens session visible dans le header (↑input ↓output tok)
+
+**MCP data.gouv.fr** (opt-in, déclenché par mots-clés) :
+- 6 outils : `search_datasets`, `get_dataset_info`, etc.
+- `sanitizeSchema()` : compatibilité Gemini
+- Résultats affichés en `DataGouvCard`
+
+**Street View** : 🆕 drawer latéral au clic sur un panneau OOH
+
+**Rate limit** : 12 req/min/IP in-memory, countdown affiché
+
+### 🆕 Data Lake OOH (`global_ooh`)
+
+Table centralisée pour tous les panneaux OOH toutes régies :
+- Import ArcGIS REST → `global_ooh` via `/api/admin/import-ooh/arcgis` (streaming NDJSON)
+- UI admin : `/admin/ooh-import` (streaming temps réel, nommage post-import, historique des runs)
+- Filtre `.eq('statut', 'actif')` sur tous les outils IA
+- `source_ref` = OBJECTID ArcGIS (upsert idempotent)
+- **1 363 panneaux Brest** importés et validés
+
 ### Carte Interactive POI (`/map`)
-- Tous les POI par catégorie avec filtres dynamiques
-- **Markers DOM** (pas de GeoJSON layers — robuste au chargement du style)
-- **Couche carreaux INSEE** — choroplèthe polygon, sélecteur métrique dynamique, auto-zoom
-- **Voronoï géométrique** — zones d'influence par catégorie POI, clip France métro
-- **⚔️ Bataille d'Isochrones** — sectorisation par temps de trajet réel ORS :
-  - Sélecteur catégorie (CIRFA, lycée, etc.) + mode transport (🚗🚶🚲)
-  - Durée configurable : 60 / 90 / 120 / 150 / 180 min
-  - Filtres région / département
-  - Palette par CIRFA, opacité par palier temporel, bordures 3px
-  - Légende dynamique avec liste des CIRFA
-  - Cache ORS par CIRFA × palier (requêtes suivantes quasi-instantanées)
-- Recherche IA en langage naturel
+
+- Markers DOM par catégorie avec clustering Supercluster
+- Couche carreaux INSEE choroplèthe, sélecteur métrique dynamique
+- Voronoï géométrique — zones d'influence par catégorie POI
+- Bataille d'Isochrones — sectorisation par temps de trajet réel ORS
+- 🆕 Heatmap densité + GPU layers
+- 🆕 Dashboard POI + pagination illimitée
 - Export Excel des POIs affichés
 
-### ⚔️ Bataille d'Isochrones — Algorithme
-
-```
-Input : [{cirfa_id, nom, lat, lng, palier (10/30/60/90/120 min), geojson}]
-        trié par palier ASC (plus petit temps = priorité absolue)
-
-master_mask = EMPTY
-Pour chaque polygone (ordre palier ASC, puis cirfa_id ASC) :
-  pure_ring  = ST_Difference(polygone, master_mask)
-  RETURN pure_ring avec {cirfa_id, palier}         ← feature_type: "ring"
-  master_mask = ST_Union(master_mask, pure_ring)
-
-Passe 2 : union par CIRFA → feature_type: "border" (bordures 3px frontend)
-```
-
-**Règle : "le plus petit temps gagne"** — chaque zone est attribuée au CIRFA le plus proche en temps de trajet réel. Zéro Voronoï, uniquement des vrais isochrones ORS.
-
-**Cache** : clé `battle__{cat}__{cirfa_id}__{L}min__{mode}` dans `isochrones_cache`. Premier appel (~1-2 min pour la France entière), appels suivants <5 secondes.
-
-### 📊 Couverture Réseau POI (`/api/network-coverage`)
-
-Calcule combien de personnes sont atteignables dans un temps de trajet donné depuis l'ensemble des POI d'une catégorie.
-
-#### Prompt de référence (testé et validé)
-
-```
-Calcule la couverture réseau des CIRFA en Bretagne pour les 18-24 ans en voiture à 30 minutes.
-```
-
-**Résultat attendu** : couverture ~118 000 ind_18_24, 4 CIRFAs, ~52% de taux de pénétration, breakdown par CIRFA.
-
-#### Paramètres du tool `calculer_couverture_reseau`
-
-| Paramètre | Valeur | Description |
-|-----------|--------|-------------|
-| `poi_category` | `cirfa` | Catégorie POI |
-| `region` | `Bretagne` | Filtre géographique (région / ville / département) |
-| `travel_time_minutes` | `30` | Temps de trajet en minutes |
-| `mode` | `drive` | Mode transport : `drive` / `walk` / `bike` |
-| `target_demo_column` | `ind_18_24` | Colonne démographique dans `metadata` |
-| `target_demo_label` | `Jeunes 18-24 ans` | Label affiché dans le rapport |
-
-#### Colonnes démographiques disponibles (`carreaux_filosofi.metadata`)
-
-| Clé | Description |
-|-----|-------------|
-| `Ind` | Population totale |
-| `ind_18_24` | Jeunes 18-24 ans |
-| `Ind_25_39` | 25-39 ans |
-| `Ind_40_54` | 40-54 ans |
-| `Ind_55_64` | 55-64 ans |
-| `Ind_65_79` | 65-79 ans |
-| `ind_80p` | 80 ans et plus |
-| `ind_6_10` | 6-10 ans |
-| `ind_11_17` | 11-17 ans |
-| `Men` | Ménages |
-| `men_pauv` | Ménages pauvres |
-
-#### Architecture technique
-
-```
-1. fetchPois() — 4 CIRFAs Bretagne depuis poi_france
-2. ORS batch — 1 isochrone 30min voiture par CIRFA (batch 5, timeout 8s)
-3. JS simplify — round4 + dedup des coordonnées (réduction ~80% du poids)
-4. supabase.rpc('calculate_network_coverage_v3') :
-   ├── ST_Union des 4 isochrones → v_union_geom (SRID 4326 forcé)
-   ├── UN seul scan carreaux_filosofi (207k carreaux dans le bbox Bretagne)
-   │   └── FILTER WHERE ST_Intersects(c.geom, v_union_geom) → coverage
-   │   └── SUM total → total_pop
-   └── LATERAL par POI → breakdown_by_poi (1 GIST scan / CIRFA)
-5. Cache → isochrones_cache (clé: network__cirfa__bretagne__30min__drive)
-```
-
-**Timing** : ~15s total (1s RPC, 2s ORS, reste cache/réseau).
-
-#### Diagnostic
-
-Page de debug complète : **http://localhost:3000/debug-coverage**
-- 12 étapes : catégories → POIs → ORS → data_sources → RPC v3 direct → API complète
-- Paramètres configurables (région, minutes, mode, colonne demo, max ORS)
-- Chronomètre par étape
-
----
-
-### Copilote Media IA (`/copilote`)
-Chat conversationnel IA + carte interactive en split screen.
-- **Multi-provider** via **Vercel AI SDK v6** (`streamText`, `useChat`, `DefaultChatTransport`) :
-  - **Mistral** `mistral-small-latest` — provider par défaut, quota tokens affiché
-  - **Claude** `claude-haiku-4-5` (Anthropic) — sélectable, disponibilité vérifiée
-  - **Gemini** `gemini-2.5-flash` (Google) — sélectable, billing externe requis
-  - Sélecteur provider dans le header + badge statut temps réel (`/api/providers/status`, cache 5 min)
-- **Outils IA** :
-  - `analyser_zone_pois` — recherche POI par zone géographique + isochrones ORS
-  - `voronoi_analysis` — Voronoï géométrique par catégorie (à vol d'oiseau, instantané)
-  - `isochrone_battle` — ⚔️ Voronoï Routier / Bataille d'Isochrones (temps réel ORS, ~1-2 min)
-  - `afficher_carreaux` — choroplèthe carreaux INSEE sur la carte
-  - `analyser_panneaux` — panneaux OOH géolocalisés (table panneaux_affichage)
-  - `calculer_couverture_reseau` — 📊 Couverture démographique réseau POI (ORS + PostGIS)
-  - `calculate_audience_coverage` — Couverture audience autour d'un panneau/point
-  - `analyze_poi_synergy` — Synergie panneaux × démographie POI
-  - `classer_panneaux_audience` — Ranking panneaux par audience (marqueurs numérotés sur carte)
-- **MCP data.gouv.fr** (opt-in, déclenché par mots-clés) :
-  - Activé si le message contient : `data.gouv`, `dataset`, `jeux de données`, `open data`…
-  - 6 outils : `search_datasets`, `get_dataset_info`, `list_dataset_resources`, `query_resource_data`, `search_dataservices`, `get_metrics`
-  - `sanitizeSchema()` : compatibilité Gemini (supprime `additionalProperties`, `$ref`, `anyOf`, convertit `integer→number`)
-  - Résultats affichés en `DataGouvCard` (cartes cliquables avec liens, organisation, tags)
-  - Timeout MCP 5s — non-bloquant, skippé si le serveur est injoignable
-- **ChatMarkdown** : renderer Markdown inline (bold, italic, liens `[text](url)`, `code`, listes numérotées + à puces)
-- **Rate limit** : 12 req/min/IP in-memory, countdown affiché avec nom du provider
-- **AbortController ORS** : timeout 12s par batch, délai adaptatif (5s timeout / 20s rate limit)
-- **Panel Prompts `?`** : 6 catégories de prompts cliquables avec description du résultat attendu
-- ZoneCard résultats, légende dynamique, sauvegarde/chargement cartes
-- Messages d'erreur friendlys (Bataille timeout, Voronoï erreur)
-
 ### Import Universel (`/admin/import`)
-Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation (GPS/BAN/Lambert93) → Dry Run → Import SSE temps réel.
 
-### Back-Office (toutes routes protégées par `requireAdmin()`)
-- **Sources** — CRUD, filtres, partage inter-organisations, éditeur de filtres dynamique
-- **Organisations** — Multi-tenant, gestion membres
-- **Health Check** — Diagnostic Supabase, variables d'environnement, tables
+Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation → Dry Run → Import SSE temps réel.
 
 ---
 
@@ -402,82 +254,55 @@ Pipeline 5 étapes : Upload → Mapping auto → Géolocalisation (GPS/BAN/Lambe
 **Fichier central** : `lib/version.ts`
 
 ```typescript
-export const APP_VERSION = '6.5.1'; // ← TOUJOURS INCRÉMENTER
+export const APP_VERSION = '6.9.0'; // ← TOUJOURS INCRÉMENTER
 ```
 
-| Type | Version | Exemple |
-|------|---------|---------|
-| Refonte majeure / breaking / sécurité | MAJOR | 5.x → 6.0.0 |
-| Nouvelle feature | MINOR | 6.0.0 → 6.1.0 |
-| Bugfix / logs | PATCH | 6.0.0 → 6.0.1 |
+| Type | Version |
+|------|---------|
+| Refonte majeure / breaking | MAJOR |
+| Nouvelle feature | MINOR |
+| Bugfix / logs | PATCH |
 
 ### 2. Sécurité routes admin
 
-Toute nouvelle route dans `app/api/admin/` **doit** commencer par :
-
-```typescript
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-
-const profile = await requireAdmin(request);
-if (!profile) return adminUnauthorized();
-```
-
-Toute page admin qui appelle une route admin **doit** utiliser `adminFetch` :
-
-```typescript
-import { adminFetch } from '@/lib/admin-fetch';
-const res = await adminFetch('/api/admin/sources');
-```
+Toute nouvelle route dans `app/api/admin/` **doit** commencer par `requireAdmin()`.
+Toute page admin **doit** utiliser `adminFetch()`.
 
 ### 3. Vercel AI SDK v6 — Patterns
 
 ```typescript
-// Backend (chat/route.ts)
+// Backend
 const result = streamText({
-  model: createMistral(...)('mistral-small-latest'),
-  system: '...',
-  messages: await convertToModelMessages(messages),  // ← async!
+  model: createModel(provider),
+  messages: await convertToModelMessages(trimmedMessages),
   stopWhen: stepCountIs(3),
-  tools: { monOutil: { inputSchema: z.object({...}), execute: async (input) => {...} } }
+  tools: buildTools(categoriesList, forceRecalculate),
 });
-return result.toUIMessageStreamResponse();
+return result.toUIMessageStreamResponse({
+  messageMetadata: ({ part }) => { /* inject tok_in/tok_out */ }
+});
 
 // Frontend
 const { messages, sendMessage, status } = useChat({
-  transport: new DefaultChatTransport({ api: '/api/chat', prepareSendMessagesRequest: ... })
+  transport: new DefaultChatTransport({ api: '/api/chat' })
 });
-// Tool results dans msg.parts — type 'tool-{name}', state 'output-available', champ output
 ```
 
-### 4. Logs structurés
+### 4. Providers IA
 
-```typescript
-// ✅ BON
-console.log('[INSERTER] Start: 687 lignes, type="poi"');
-console.error('[battle/ORS] Rate limit batch 3/24, palier 60min');
-
-// ❌ MAUVAIS
-console.log('done');
-```
-
-| Module | Préfixe |
-|--------|---------|
-| Import | `[INSERTER]` / `[EXECUTE]` |
-| Bataille | `[battle]` / `[battle/ORS]` |
-| Chat IA | `[chat]` / `[chat/isochrone_battle]` |
-| Carte | `[MapContainer]` / `[MapPage]` |
-| Carreaux API | `[carreaux]` |
-| Copilote IA | `[copilote]` |
-| MCP data.gouv | `[data.gouv MCP]` |
-| Auth | `[auth]` |
+| Provider | Modèle | Remarques |
+|----------|--------|-----------|
+| `gemini` | `gemini-2.5-flash` | Défaut, thinking=0, maxRetries=0 (quota strict) |
+| `claude` | `claude-haiku-4-5-20251001` | |
+| `mistral` | `mistral-small-latest` | |
 
 ### 5. Règles générales
 
-1. **Ne jamais committer les clés API** — `.env.local` est dans `.gitignore`
+1. **Ne jamais committer les clés API**
 2. **ON CONFLICT DO NOTHING** sur tous les inserts
 3. **Toute route admin** → `requireAdmin()` en première ligne
 4. **Tout appel admin côté client** → `adminFetch()` (jamais `fetch()` nu)
-5. **Inserts POI via Supabase JS** (HTTPS) — **imports géo bulk via PostgreSQL direct** (`import-geo`, `carreaux/route.ts`) pour contourner les limites PostgREST
+5. **global_ooh** : toujours filtrer `.eq('statut', 'actif')`
 
 ---
 
@@ -487,7 +312,7 @@ console.log('done');
 cd C:\GENESIS\genesis_app
 npm install
 npx next dev
-# → http://localhost:3000
+# → http://localhost:3000  (redirige vers /copilote)
 # → Health check: http://localhost:3000/admin/health
 ```
 
@@ -495,12 +320,12 @@ npx next dev
 
 | URL | Description |
 |-----|-------------|
-| `/` | Parse Prompt IA → recherche panneaux |
-| `/map` | Carte POI + carreaux choroplèthe + Voronoï + Bataille d'Isochrones |
-| `/copilote` | Copilote Media IA (chat + carte split screen, 6 outils) |
-| `/dashboard` | Dashboard utilisateur |
+| `/` | → Redirect `/copilote` |
+| `/copilote` | Copilote Media IA (chat + carte split screen) — page principale |
+| `/map` | Carte POI + carreaux + Voronoï + Bataille d'Isochrones |
 | `/login` | Connexion / Inscription |
-| `/debug-coverage` | 🔍 Diagnostic pipeline couverture réseau (12 étapes, chronomètre) |
+| `/debug-coverage` | Diagnostic pipeline couverture réseau (12 étapes) |
+| `/admin/ooh-import` | 🆕 Import OOH ArcGIS REST → global_ooh |
 | `/admin/import` | Import Universel (CSV/XLSX/GeoJSON) |
 | `/admin/carreaux-import` | Import Carreaux INSEE |
 | `/admin/sources` | Gestion des sources de données |
@@ -509,44 +334,25 @@ npx next dev
 
 ---
 
-## 🔄 Plan de refactoring
-
-| # | Itération | Statut | Détail |
-|---|-----------|--------|--------|
-| 1 | **Sécurité** | ✅ Terminé | `requireAdmin()`, `adminFetch()`, fallback anon key corrigé |
-| 2 | **Contrat de Types** | ✅ Terminé | `types/poi.ts`, `types/spatial.ts`, `types/api.ts` |
-| 3 | **Couche Service** | ✅ Terminé | `lib/geo/geometry.ts`, `lib/geo/locations.ts`, `lib/isochrones/fetcher.ts` |
-| 4 | **Découpage UI** | ✅ Terminé | 6 hooks, 5 composants, `page.tsx` ~160 lignes |
-| 5 | **Rate Limiting & Robustesse** | ✅ Terminé | Rate limit 12 req/min, AbortController ORS 12s, messages erreur |
-| 6 | **Import Shapefile** | ✅ Terminé | Parser SHP/DBF/PRJ client-side, reprojection proj4 browser, API PostgreSQL direct (unnest), sécurité fully parameterized |
-
----
-
 ## 📝 Changelog
 
 | Version | Date | Changements clés |
-|---------|------|-------------------|
-| **6.8.0** | 2026-03-08 | **Multi-provider** Copilote : Mistral + Claude (`claude-haiku-4-5`) + Gemini (`gemini-2.5-flash`) — sélecteur header + badge statut temps réel. `/api/providers/status` (quota Mistral, clé Claude/Gemini, cache 5 min). **MCP data.gouv.fr** : `sanitizeSchema()` Gemini-compat (strips `additionalProperties/$ref/anyOf/integer`), timeout réduit 5s, fix crash JSON.parse('[DONE]') SSE, system prompt renforcé. `ChatMarkdown` renderer inline (bold, italic, liens, code, listes). `DataGouvCard` (cartes datasets cliquables). Nouveaux outils IA : `calculate_audience_coverage`, `analyze_poi_synergy`, `classer_panneaux_audience`. Fix : boucle infinie retry sur rate limit supprimée. |
-| **6.7.0** | 2026-03-07 | Outil `calculer_couverture_reseau` : RPC `calculate_network_coverage_v3` déployée (single-scan FILTER, LATERAL MATERIALIZED, SRID 4326 forcé). Fix timeout PostgREST 125s : CTE non-matérialisé + SRID perdu par ST_SimplifyPreserveTopology. Page `/debug-coverage` 12 étapes. Carreaux France entière : 2,3M carreaux 1,6 GB. |
-| **6.6.0** | 2026-03-06 | Refonte import Shapefile : wizard 3 étapes, parser SHP/DBF/PRJ client-side, reprojection proj4 browser. API `/import-geo` PostgreSQL direct + unnest paramétrisé. Sécurité : `sql.unsafe()` remplacé par requêtes fully parameterized. |
-| **6.5.1** | 2026-03-03 | Fix "voronoï routier" → `isochrone_battle` + Panel Prompts `?` (6 catégories, 20 exemples cliquables) |
-| **6.5.0** | 2026-03-03 | Itér. 5 : rate limit 12 req/min/IP, AbortController ORS 12s, messages erreur friendlys, outil `analyser_panneaux` |
-| **6.4.1** | 2026-03-03 | DB audit : suppression code mort (engine.ts, spatial/route.ts) |
-| **6.4.0** | 2026-03-03 | Itér. 4 : UI decomp — 6 hooks + 5 composants + page.tsx 160 lignes |
-| **6.3.0** | 2026-03-03 | Migration Vercel AI SDK v6 : streamText, useChat, DefaultChatTransport |
-| **6.2.0** | 2026-03-03 | Itér. 3 : lib/geo/geometry.ts, lib/geo/locations.ts, lib/isochrones/fetcher.ts |
-| **6.1.0** | 2026-03-03 | Itér. 2 : types/poi.ts, types/spatial.ts, types/api.ts |
-| **6.0.0** | 2026-03-02 | Itér. 1 : requireAdmin() 18 routes, adminFetch(), createAdminClient() strict |
-| **5.12.0** | 2026-02-28 | france_borders, get_voronoi_by_category clip ST_Intersection |
-| **5.9.0** | 2026-02-28 | Isochrones ORS dans Copilote (walk/drive/bike) |
-| **5.7.0** | 2026-02-26 | Voronoï géométrique PostGIS + outil Mistral |
-| **5.6.0** | 2026-02-26 | Carreaux choroplèthe (INSEE Filosofi), sélecteur métrique |
-| **5.5.0** | 2026-02-26 | IA filtres metadata (libelle_nature, hebergement…) |
-| **5.0.0** | 2026-02-24 | Inserter Supabase JS (HTTPS), suppression PostgreSQL direct |
-| **4.1.0** | 2026-02-24 | Renommage GEO.Prompt, Health Check, versioning dynamique |
-| **4.0.0** | 2026-02-23 | Back-office complet (Organizations, Sources, Auth) |
-| **3.0.0** | 2026-02-20 | Import Universel 5 étapes, géocodage BAN, Carreaux INSEE |
-| **1.0.0** | 2026-02-10 | Lancement initial, Parse Prompt IA, Supabase + PostGIS |
+|---------|------|------------------|
+| **6.9.0** | 2026-03-09 | **Design system refonte** : sidebar Orbitron/Michroma, palette #a855f7, terminal dark #050505. **Token counter** copilote : `messageMetadata` → `tok_in`/`tok_out` cumulatifs par session. **trimHistory optimisé** : strip `isochroneGeoJSON`, `voronoiGeoJSON.features`, `poisForMap.pois`, `features[]` en plus de `pois[]`. Route `/` → redirect `/copilote`. Suppression Parse Prompt du menu. |
+| **6.8.2** | 2026-03-09 | Import OOH ArcGIS : route `/api/admin/import-ooh/arcgis` streaming NDJSON. UI `/admin/ooh-import` : streaming temps réel, nommage post-import, historique `import_runs_ooh`. Outils IA `analyser_panneaux`, `scorer_panneaux_ooh`, `exporter_rapport_ooh` branchés sur `global_ooh`. |
+| **6.8.1** | 2026-03-08 | Street View drawer au clic sur panneau OOH. Heatmap densité + GPU layers + dashboard POI + pagination illimitée. Fix timeout ORS adaptatif `calculate_audience_coverage`. Fix Gemini quota countdown. |
+| **6.8.0** | 2026-03-08 | **Data Lake OOH** : table `global_ooh` + `import_runs_ooh` (migration `sql/005_global_ooh.sql`). **Multi-provider** Copilote : sélecteur header + badge statut temps réel. **MCP data.gouv.fr** : `sanitizeSchema()` Gemini-compat. `ChatMarkdown`, `DataGouvCard`. Outils IA : `calculate_audience_coverage`, `analyze_poi_synergy`, `classer_panneaux_audience`. |
+| **6.7.0** | 2026-03-07 | Outil `calculer_couverture_reseau` + RPC `calculate_network_coverage_v3`. Page `/debug-coverage` 12 étapes. |
+| **6.6.0** | 2026-03-06 | Refonte import Shapefile : wizard 3 étapes, parser SHP/DBF/PRJ client-side, reprojection proj4. |
+| **6.5.1** | 2026-03-03 | Fix "voronoï routier" + Panel Prompts `?` (6 catégories, 20 exemples). |
+| **6.5.0** | 2026-03-03 | Rate limit 12 req/min/IP, AbortController ORS 12s, messages erreur friendlys. |
+| **6.4.0** | 2026-03-03 | UI decomp — 6 hooks + 5 composants + page.tsx 160 lignes. |
+| **6.3.0** | 2026-03-03 | Migration Vercel AI SDK v6 : streamText, useChat, DefaultChatTransport. |
+| **6.0.0** | 2026-03-02 | Sécurité : requireAdmin() 18 routes, adminFetch(), createAdminClient() strict. |
+| **5.9.0** | 2026-02-28 | Isochrones ORS dans Copilote (walk/drive/bike). |
+| **5.7.0** | 2026-02-26 | Voronoï géométrique PostGIS + Carreaux choroplèthe INSEE. |
+| **4.1.0** | 2026-02-24 | Renommage GEO.Prompt (ex-GENESIS), Health Check, versioning dynamique. |
+| **1.0.0** | 2026-02-10 | Lancement initial, Parse Prompt IA, Supabase + PostGIS. |
 
 ---
 
@@ -555,23 +361,14 @@ npx next dev
 | Problème | Solution |
 |----------|----------|
 | `EPERM lstat LA_vsidol01` | Lancer PowerShell en tant que LA_vsidol01 |
-| `npm : scripts désactivés` | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force` |
 | Port 3000 occupé | Next.js passe auto sur 3001 |
 | `.env.local` pas chargé | Redémarrer le serveur Next.js |
-| Firewall bloque PostgreSQL | Résolu en v5.0 — client Supabase JS (HTTPS port 443) |
-| Bataille : message brut dans le chat | Résolu en v6.5.0 — messages friendlys dans useToolProcessor |
-| Bataille timeout (>280s) | Lancer d'abord depuis `/map` pour remplir le cache ORS, puis réessayer depuis le copilote |
-| Routes admin 403 | Vérifier que `SUPABASE_SERVICE_ROLE_KEY` est configurée (non placeholder) |
-| "Voronoï routier" ne fait rien | Résolu en v6.5.1 — déclenche désormais `isochrone_battle` |
-| Nouveau fichier non chargé (dev) | Redémarrer le serveur Next.js (`Ctrl+C` puis `npm run dev`) |
-| Couverture réseau timeout 125s `upstream request timeout` | Résolu en v6.7.0 — deux bugs : (1) CTE `iso` non-matérialisé dans EXISTS → ST_GeomFromGeoJSON exécuté 207k fois, (2) SRID perdu par ST_SimplifyPreserveTopology → mixed SRID 4326 vs 0. Fix : v3 avec v_union_geom scalaire + FILTER + LATERAL MATERIALIZED |
-| `calculate_network_coverage_v3` absente | Exécuter `sql/009_calculate_network_coverage_v3.sql` dans Supabase SQL Editor (ou via MCP `apply_migration`) |
-| Couverture = 0 alors que des carreaux existent | Vérifier la colonne `demo_col` dans `/debug-coverage` step 8 — casse exacte (`ind_18_24` pas `Ind_18_24`) |
-| Gemini rate limit 429 | Normal si billing non activé sur le projet Google Cloud — switcher sur Mistral ou Claude |
-| `GOOGLE_GENERATIVE_AI_API_KEY` non reconnue | Redémarrer le serveur Next.js après ajout de la clé dans `.env.local` |
-| MCP data.gouv.fr timeout | Le serveur `mcp.data.gouv.fr` est parfois lent — timeout 5s, l'intégration est skippée silencieusement si injoignable |
-| Gemini + MCP tools : erreur "additionalProperties" | Résolu en v6.8.0 — `sanitizeSchema()` nettoie les schémas JSON incompatibles avec Gemini |
+| Bataille timeout (>280s) | Lancer d'abord depuis `/map` pour remplir le cache ORS |
+| Routes admin 403 | Vérifier `SUPABASE_SERVICE_ROLE_KEY` dans `.env.local` |
+| Gemini rate limit 429 | Billing non activé — switcher sur Mistral ou Claude |
+| MCP data.gouv.fr timeout | Serveur parfois lent — timeout 5s, skippé silencieusement |
+| Couverture = 0 | Vérifier casse exacte colonne demo (`ind_18_24` pas `Ind_18_24`) |
 
 ---
 
-*GEO.Prompt v6.8.0 — AI Media Planning Platform*
+*GEO.Prompt v6.9.0 — AI Media Planning Platform*

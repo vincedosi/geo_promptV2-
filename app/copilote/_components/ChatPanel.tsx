@@ -50,6 +50,7 @@ interface ChatPanelProps {
   providerStatus: ProviderStatus;
   statusLoading: boolean;
   refreshProviderStatus: () => void;
+  sessionTokens?: { input: number; output: number; total: number };
 }
 
 function NetworkCoverageProgress() {
@@ -139,6 +140,7 @@ export function ChatPanel({
   saveName, setSaveName, saveLoading, saveError, setSaveError,
   savedMaps, saveCurrentMap, loadSavedMaps, loadMap, deleteMap,
   provider, setProvider, providerStatus, statusLoading, refreshProviderStatus,
+  sessionTokens,
 }: ChatPanelProps) {
   const [showPromptsPanel, setShowPromptsPanel] = useState(false);
 
@@ -157,7 +159,16 @@ export function ChatPanel({
             <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Copilote Media</span>
             <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', background: 'rgba(124,58,237,0.3)', color: '#a78bfa', padding: '2px 6px', borderRadius: 4 }}>BETA</span>
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{providerModel} · function calling · poi_france</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{providerModel} · function calling · poi_france</span>
+            {sessionTokens && (
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', display: 'flex', gap: 4 }}>
+                <span style={{ color: 'rgba(124,106,247,0.8)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
+                <span style={{ color: 'rgba(61,255,160,0.7)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>tok</span>
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button
@@ -457,8 +468,16 @@ export function ChatPanel({
             style={{ background: input.trim() && !isLoading ? '#7c3aed' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, padding: '10px 16px', color: input.trim() && !isLoading ? '#fff' : 'rgba(255,255,255,0.3)', cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed', fontSize: 18, lineHeight: 1, transition: 'background 0.2s', flexShrink: 0 }}
           >↑</button>
         </form>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 8, textAlign: 'center' }}>
-          Entrée pour envoyer · Shift+Entrée pour nouvelle ligne
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>
+            Entrée pour envoyer · Shift+Entrée pour nouvelle ligne
+          </span>
+          <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ color: 'rgba(255,255,255,0.18)' }}>session</span>
+            <span style={{ color: 'rgba(124,106,247,0.7)' }}>↑{(sessionTokens?.input ?? 0).toLocaleString('fr-FR')}</span>
+            <span style={{ color: 'rgba(61,255,160,0.6)' }}>↓{(sessionTokens?.output ?? 0).toLocaleString('fr-FR')}</span>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>tok</span>
+          </span>
         </div>
       </div>
     </div>
