@@ -128,4 +128,10 @@ export const BATTLE_PALIER_OPACITY: Record<number, number> = {
 // Map style — OpenFreeMap Liberty (vecteur, gratuit, sans API key, labels FR)
 // ---------------------------------------------------------------------------
 
-export const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+export const MAP_STYLES = [
+  { id: 'liberty',  label: 'Liberty',  url: 'https://tiles.openfreemap.org/styles/liberty'  },
+  { id: 'bright',   label: 'Bright',   url: 'https://tiles.openfreemap.org/styles/bright'   },
+  { id: 'positron', label: 'Positron', url: 'https://tiles.openfreemap.org/styles/positron' },
+] as const;
+
+export const MAP_STYLE = MAP_STYLES[0].url;

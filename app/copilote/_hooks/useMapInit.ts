@@ -40,6 +40,7 @@ function patchLabelFr(expr: unknown): unknown {
 export function useMapInit(
   zoneData: ZoneData | null,
   onBillboardSelect?: (billboard: SelectedBillboard) => void,
+  mapStyleUrl?: string,
 ) {
   const [mapReady, setMapReady] = useState(false);
   const mapContainerRef  = useRef<HTMLDivElement>(null);
@@ -51,13 +52,13 @@ export function useMapInit(
   // Sync zoneDataRef so the map.on('render') closure always reads the latest value
   useEffect(() => { zoneDataRef.current = zoneData; }, [zoneData]);
 
-  // ── Init MapLibre (once) ─────────────────────────────────────────────────
+  // ── Init MapLibre (recreate when style changes) ──────────────────────────
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+    if (!mapContainerRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: MAP_STYLE as any,
+      style: (mapStyleUrl ?? MAP_STYLE) as any,
       center: [2.3, 46.6],
       zoom: 5.5,
     });
@@ -478,12 +479,14 @@ export function useMapInit(
 
     mapRef.current = map;
     return () => {
+      setMapReady(false);
       map.remove();
       mapRef.current = null;
       overlay.remove();
       canvasOverlayRef.current = null;
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapStyleUrl]);
 
   return {
     mapContainerRef,

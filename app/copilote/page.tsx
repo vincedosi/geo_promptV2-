@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { circleGeoJSON, getCatColor } from './_lib/constants';
+import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from './_lib/constants';
 import { useMapInit }          from './_hooks/useMapInit';
 import { useSavedMaps }        from './_hooks/useSavedMaps';
 import { useMapLayers }        from './_hooks/useMapLayers';
@@ -32,9 +32,18 @@ export default function CopilotePage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
+  const [mapStyleUrl, setMapStyleUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('genesis_map_style') ?? MAP_STYLE;
+    return MAP_STYLE;
+  });
+
+  const handleMapStyleChange = (url: string) => {
+    setMapStyleUrl(url);
+    localStorage.setItem('genesis_map_style', url);
+  };
 
   // ── Map init ───────────────────────────────────────────────────────────────
-  const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard);
+  const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
   // ── Saved maps ─────────────────────────────────────────────────────────────
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
@@ -324,6 +333,9 @@ export default function CopilotePage() {
         setCarreauxVisible={mapLayers.setCarreauxVisible}
         selectedBillboard={selectedBillboard}
         closeBillboardDrawer={() => setSelectedBillboard(null)}
+        mapStyleUrl={mapStyleUrl}
+        mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
+        onMapStyleChange={handleMapStyleChange}
       />
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }

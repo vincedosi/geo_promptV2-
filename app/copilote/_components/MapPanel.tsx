@@ -42,6 +42,9 @@ interface MapPanelProps {
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   selectedBillboard: SelectedBillboard | null;
   closeBillboardDrawer: () => void;
+  mapStyleUrl?: string;
+  mapStyles?: { id: string; label: string; url: string }[];
+  onMapStyleChange?: (url: string) => void;
 }
 
 // Design tokens
@@ -110,6 +113,7 @@ export function MapPanel({
   battleVisible, battleCategory, battleCirfas, setBattleVisible,
   carreauxVisible, carreauxLoaded, carreauxLabel, setCarreauxVisible,
   selectedBillboard, closeBillboardDrawer,
+  mapStyleUrl, mapStyles, onMapStyleChange,
 }: MapPanelProps) {
   const streetViewSrc = selectedBillboard
     ? `https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${selectedBillboard.lat},${selectedBillboard.lng}&heading=0&pitch=0&fov=90`
@@ -323,6 +327,45 @@ export function MapPanel({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Sélecteur de style de carte */}
+      {mapStyles && onMapStyleChange && (
+        <div style={{
+          position: 'absolute', bottom: 48, right: 12, zIndex: 10,
+          display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end',
+        }}>
+          <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.muted, letterSpacing: '0.12em', marginBottom: 2 }}>
+            FOND_CARTE
+          </div>
+          {mapStyles.map(s => {
+            const active = mapStyleUrl === s.url;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onMapStyleChange(s.url)}
+                style={{
+                  background: active ? C.accentDim : C.bgOverlay,
+                  border: `1px solid ${active ? C.accent : C.border}`,
+                  borderRadius: 2,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  fontSize: 9,
+                  fontFamily: fontMichroma,
+                  color: active ? C.accent : C.textDim,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  transition: 'all 0.15s',
+                  backdropFilter: 'blur(8px)',
+                  minWidth: 72,
+                  textAlign: 'right',
+                }}
+              >
+                {active && <span style={{ marginRight: 5, fontSize: 7 }}>▶</span>}{s.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
