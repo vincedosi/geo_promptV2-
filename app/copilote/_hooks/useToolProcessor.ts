@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { UIMessage } from 'ai';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, NetworkCoverageData } from '@/types/spatial';
+import type { OohExportData } from '../_lib/ooh-export';
 
 interface UseToolProcessorOpts {
   messages: UIMessage[];
@@ -18,6 +19,7 @@ interface UseToolProcessorOpts {
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
   applyNetworkCoverage: (data: NetworkCoverageData) => void;
+  triggerOohExport: (data: OohExportData) => Promise<void>;
 }
 
 export function useToolProcessor({
@@ -32,6 +34,7 @@ export function useToolProcessor({
   carreauxConfigForSaveRef,
   flyToCoords,
   applyNetworkCoverage,
+  triggerOohExport,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
@@ -142,6 +145,13 @@ export function useToolProcessor({
             };
           });
           if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+
+        } else if (toolName === 'exporter_rapport_ooh' && result?.error) {
+          setError(`📄 Export OOH — ${result.error}`);
+        } else if (toolName === 'exporter_rapport_ooh' && result?.action === 'export_ooh') {
+          triggerOohExport(result as any).catch((err: any) =>
+            setError(`📄 Export OOH — ${err.message ?? err}`)
+          );
 
         } else if (toolName === 'analyze_poi_synergy' && result?.pois) {
           // Display synergy results (panneaux near POI with demo scoring)

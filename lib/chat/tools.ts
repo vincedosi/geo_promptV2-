@@ -379,14 +379,12 @@ export async function executeToolCall(
     let from = 0;
     while (from < 50_000) {
       let q: any = supabase
-        .from('panneaux_affichage')
-        .select('id, lat, lng, reference_panneau, regie, type_panneau, ville, departement, code_departement, region')
-        .eq('actif', true)
+        .from('global_ooh')
+        .select('id, lat, lng, source_ref, regie, type_panneau, ville, adresse')
+        .eq('statut', 'actif')
         .range(from, from + PAGE_PAN - 1);
       if (regie)        q = q.ilike('regie',        `%${regie}%`);
       if (ville)        q = q.ilike('ville',         `%${ville}%`);
-      if (region)       q = q.ilike('region',        `%${region}%`);
-      if (departement)  q = q.or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
       if (type_panneau) q = q.ilike('type_panneau',  `%${type_panneau}%`);
       const { data: pageData, error: pageErr } = await q;
       if (pageErr) return { error: pageErr.message };
@@ -398,13 +396,13 @@ export async function executeToolCall(
 
     const pois = allPanneaux.map((p: any) => ({
       id:             p.id,
-      nom:            p.reference_panneau ?? p.id,
+      nom:            p.source_ref ?? p.id,
       lat:            Number(p.lat),
       lng:            Number(p.lng),
       categorie:      'panneaux',
       sous_categorie: p.type_panneau ?? null,
       ville:          p.ville ?? undefined,
-      adresse:        p.regie ?? undefined,
+      adresse:        p.adresse ?? p.regie ?? undefined,
     })).filter((p: any) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0 && p.lng !== 0);
 
     const locationLabel = ville ?? region ?? departement
@@ -556,9 +554,9 @@ export async function executeToolCall(
     try {
       const supabase = createAdminClient();
       let q: any = supabase
-        .from('panneaux_affichage')
-        .select('id, reference_panneau, regie, type_panneau, lat, lng, ville')
-        .eq('actif', true)
+        .from('global_ooh')
+        .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
+        .eq('statut', 'actif')
         .ilike('ville', `%${ville}%`);
       if (regie) q = q.ilike('regie', `%${regie}%`);
       const { data: panneauxData, error: pErr } = await q.limit(2000);
@@ -613,7 +611,7 @@ export async function executeToolCall(
         .map((p: any, i: number) => ({
           rank:           i + 1,
           id:             p.id,
-          nom:            p.reference_panneau ?? p.id,
+          nom:            p.source_ref ?? p.id,
           regie:          p.regie,
           type:           p.type_panneau,
           lat:            p.lat,
@@ -622,7 +620,7 @@ export async function executeToolCall(
           audience:       p.audience,
           categorie:      'panneaux',
           sous_categorie: p.type_panneau ?? null,
-          adresse:        p.regie ?? undefined,
+          adresse:        p.adresse ?? p.regie ?? undefined,
         }));
 
       const totalAudience = ranked.reduce((s: number, p: any) => s + p.audience, 0);
@@ -676,9 +674,9 @@ export async function executeToolCall(
 
       // 1. Fetch panneaux
       let q: any = supabase
-        .from('panneaux_affichage')
-        .select('id, reference_panneau, regie, type_panneau, lat, lng, ville')
-        .eq('actif', true)
+        .from('global_ooh')
+        .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
+        .eq('statut', 'actif')
         .ilike('ville', `%${ville}%`);
       if (regie) q = q.ilike('regie', `%${regie}%`);
       const { data: panneauxData, error: pErr } = await q.limit(2000);
@@ -759,7 +757,7 @@ export async function executeToolCall(
         .map((p: any, i: number) => ({
           rank:           i + 1,
           id:             p.id,
-          nom:            p.reference_panneau ?? p.id,
+          nom:            p.source_ref ?? p.id,
           regie:          p.regie,
           type:           p.type_panneau,
           lat:            p.lat,
@@ -772,7 +770,7 @@ export async function executeToolCall(
           poi_count:      p.poi_count,
           categorie:      'top_ooh',
           sous_categorie: p.type_panneau ?? null,
-          adresse:        p.regie ?? undefined,
+          adresse:        p.adresse ?? p.regie ?? undefined,
         }));
 
       const totalAudience = ranked.reduce((s: number, p: any) => s + p.audience, 0);
@@ -801,6 +799,137 @@ export async function executeToolCall(
       };
     } catch (err: any) {
       console.error('[chat/scorer_panneaux_ooh]', err.message);
+      return { error: err.message };
+    }
+  }
+
+  if (name === 'exporter_rapport_ooh') {
+    const ville        = args.ville         ? String(args.ville)         : undefined;
+    const regie        = args.regie         ? String(args.regie)         : undefined;
+    const target_col   = args.target_column ? String(args.target_column) : 'ind_18_24';
+    const target_label = args.target_label  ? String(args.target_label)  : 'Jeunes 18-24 ans';
+    const rayon_m      = args.rayon_metres  ? Number(args.rayon_metres)  : 500;
+    const poids_demo   = args.poids_demo    ? Number(args.poids_demo)    : 0.65;
+    const poids_ctx    = args.poids_contexte ? Number(args.poids_contexte) : 0.35;
+
+    if (!ville) return { error: 'Ville requise pour exporter le rapport OOH.' };
+
+    const knownCols = ['Ind', 'Ind_0_3', 'Ind_4_5', 'Ind_6_10', 'Ind_11_17', 'ind_18_24',
+      'Ind_25_39', 'Ind_40_54', 'Ind_55_64', 'Ind_65_79', 'Ind_80p', 'Men', 'rev_median'];
+    if (!knownCols.includes(target_col)) {
+      return { error: `Indicateur inconnu: ${target_col}.` };
+    }
+
+    try {
+      const supabase = createAdminClient();
+
+      // 1. Fetch ALL panneaux (no limit for export)
+      let q: any = supabase
+        .from('global_ooh')
+        .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
+        .eq('statut', 'actif')
+        .ilike('ville', `%${ville}%`);
+      if (regie) q = q.ilike('regie', `%${regie}%`);
+      const { data: panneauxData, error: pErr } = await q.limit(5000);
+      if (pErr) return { error: pErr.message };
+      if (!panneauxData?.length) return { error: `Aucun panneau trouvé à ${ville}.` };
+
+      const panneaux = panneauxData
+        .filter((p: any) => p.lat && p.lng && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng)))
+        .map((p: any) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) }));
+      if (!panneaux.length) return { error: `Aucun panneau avec coordonnées valides à ${ville}.` };
+
+      // 2. Bbox
+      const bufferDeg = (rayon_m / 111320) * 1.2;
+      const cosLat    = Math.cos(panneaux[0].lat * Math.PI / 180);
+      const minLat    = Math.min(...panneaux.map((p: any) => p.lat)) - bufferDeg;
+      const maxLat    = Math.max(...panneaux.map((p: any) => p.lat)) + bufferDeg;
+      const minLng    = Math.min(...panneaux.map((p: any) => p.lng)) - bufferDeg / cosLat;
+      const maxLng    = Math.max(...panneaux.map((p: any) => p.lng)) + bufferDeg / cosLat;
+
+      // 3. Carreaux via RPC (returns val_cible + pop_totale)
+      const { data: carreaux, error: cErr } = await supabase.rpc('get_carreaux_for_scoring', {
+        p_table: 'carreaux_filosofi', p_col: target_col,
+        p_west: minLng, p_south: minLat, p_east: maxLng, p_north: maxLat,
+      });
+      if (cErr) return { error: cErr.message };
+
+      // 4. POI context
+      const { data: poisContext } = await supabase
+        .from('poi').select('lat, lng')
+        .gte('lat', minLat).lte('lat', maxLat)
+        .gte('lng', minLng).lte('lng', maxLng)
+        .limit(5000);
+
+      const toRad = Math.PI / 180;
+      function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
+        const dLat = (lat2 - lat1) * toRad, dLng = (lng2 - lng1) * toRad;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
+        return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      // 5. Score ALL panneaux (no slice)
+      const scored = panneaux.map((p: any) => {
+        let score_cible = 0, pop_totale = 0;
+        for (const c of (carreaux ?? [])) {
+          if (haversineM(p.lat, p.lng, Number(c.cy), Number(c.cx)) <= rayon_m) {
+            score_cible += Number(c.val_cible ?? 0) || 0;
+            pop_totale  += Number(c.pop_totale ?? 0) || 0;
+          }
+        }
+        let poi_count = 0;
+        for (const poi of (poisContext ?? [])) {
+          if (poi.lat && poi.lng && haversineM(p.lat, p.lng, Number(poi.lat), Number(poi.lng)) <= rayon_m) poi_count++;
+        }
+        return { ...p, score_cible, pop_totale, poi_count };
+      });
+
+      // 6. Normalize + composite score
+      const maxCible = Math.max(...scored.map((p: any) => p.score_cible), 1);
+      const maxCtx   = Math.max(...scored.map((p: any) => p.poi_count), 1);
+
+      const allRanked = scored
+        .map((p: any) => {
+          const norm_demo = (p.score_cible / maxCible) * 100;
+          const norm_ctx  = (p.poi_count   / maxCtx)   * 100;
+          return { ...p, norm_demo: Math.round(norm_demo), norm_ctx: Math.round(norm_ctx),
+            score_ooh: Math.round((poids_demo * norm_demo + poids_ctx * norm_ctx) * 10) / 10 };
+        })
+        .sort((a: any, b: any) => b.score_ooh - a.score_ooh)
+        .map((p: any, i: number) => ({
+          rank:                i + 1,
+          id:                  p.id,
+          nom:                 p.source_ref ?? p.id,
+          regie:               p.regie ?? '',
+          type:                p.type_panneau ?? '',
+          adresse:             p.adresse ?? '',
+          lat:                 p.lat,
+          lng:                 p.lng,
+          ville:               p.ville ?? ville,
+          score_ooh:           p.score_ooh,
+          audience:            Math.round(p.score_cible),
+          pop_totale_buffer:   Math.round(p.pop_totale),
+          score_demo:          p.norm_demo,
+          score_contexte:      p.norm_ctx,
+          poi_count:           p.poi_count,
+        }));
+
+      const coordonnees = getCoordsForVille(ville) ?? { lat: 46.8, lng: 2.3 };
+      console.log(`[chat] exporter_rapport_ooh(${ville}, ${target_col}, ${rayon_m}m) → ${allRanked.length} panneaux scored`);
+      return {
+        action:        'export_ooh' as const,
+        ville,
+        target_label,
+        target_column: target_col,
+        rayon_m,
+        poids_demo,
+        poids_contexte: poids_ctx,
+        pois:           allRanked,
+        nb_pois:        allRanked.length,
+        coordonnees,
+      };
+    } catch (err: any) {
+      console.error('[chat/exporter_rapport_ooh]', err.message);
       return { error: err.message };
     }
   }
@@ -850,7 +979,7 @@ export async function executeToolCall(
 
     const pois = rows.map((r: any, i: number) => ({
       id:             String(r.id),
-      nom:            r.reference_panneau ?? r.id,
+      nom:            r.source_ref ?? r.id,
       lat:            Number(r.lat),
       lng:            Number(r.lng),
       categorie:      'panneaux',
@@ -1025,7 +1154,7 @@ export function buildTools(
 
     analyser_panneaux: {
       description:
-        "Recherche et affiche des panneaux d'affichage OOH (Out-Of-Home) depuis la table panneaux_affichage. " +
+        "Recherche et affiche des panneaux d'affichage OOH (Out-Of-Home) depuis la table global_ooh. " +
         "OBLIGATOIRE pour : 'panneaux', 'OOH', 'affichage extérieur', 'outdoor', 'Clear Channel', 'JCDecaux', 'Exterion', " +
         "'4x3', 'mobilier urbain', 'abribus', toute régie d'affichage.",
       inputSchema: z.object({
@@ -1043,7 +1172,7 @@ export function buildTools(
     classer_panneaux_audience: {
       description:
         "Classe les panneaux d'affichage OOH par audience potentielle d'une cible démographique (ex: 18-24 ans) " +
-        "dans un rayon autour de chaque panneau, en croisant panneaux_affichage × carreaux INSEE Filosofi. " +
+        "dans un rayon autour de chaque panneau, en croisant global_ooh × carreaux INSEE Filosofi. " +
         "DÉCLENCHER pour : 'panneaux qui touchent le plus de [cible]', 'meilleurs panneaux pour [cible]', " +
         "'top N panneaux [cible]', 'classement panneaux par audience'.",
       inputSchema: z.object({
@@ -1076,6 +1205,25 @@ export function buildTools(
       }),
       execute: async (args: Record<string, unknown>) =>
         executeToolCall('scorer_panneaux_ooh', args, categoriesList, {}),
+    },
+
+    exporter_rapport_ooh: {
+      description:
+        "Génère un rapport Excel (.xlsx) complet des panneaux OOH d'une ville : score composite pour TOUS les panneaux, " +
+        "capture de carte, tableau de classement, graphiques de couverture audience par panneau. " +
+        "DÉCLENCHER pour : 'exporte le rapport OOH', 'génère le rapport panneaux', 'export Excel OOH', " +
+        "'rapport scoring panneaux', 'télécharger le rapport OOH'.",
+      inputSchema: z.object({
+        ville:          z.string().describe("Ville française (requis)."),
+        target_column:  z.string().describe("Colonne Filosofi cible : ind_18_24, Ind_25_39, Ind_40_54, Ind_65_79, Ind, Men."),
+        target_label:   z.string().describe("Label lisible (ex: 'Jeunes 18-24 ans')."),
+        rayon_metres:   z.number().optional().describe("Rayon en mètres par panneau (défaut: 500)."),
+        poids_demo:     z.number().optional().describe("Poids démographique [0-1] (défaut: 0.65)."),
+        poids_contexte: z.number().optional().describe("Poids contextuel POI [0-1] (défaut: 0.35)."),
+        regie:          z.string().optional().describe("Filtrer par régie."),
+      }),
+      execute: async (args: Record<string, unknown>) =>
+        executeToolCall('exporter_rapport_ooh', args, categoriesList, {}),
     },
 
     analyze_poi_synergy: {

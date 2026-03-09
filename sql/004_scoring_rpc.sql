@@ -2,6 +2,9 @@
 -- Utilisée par scorer_panneaux_ooh et classer_panneaux_audience (sans postgresLib)
 -- À exécuter dans Supabase Dashboard > SQL Editor
 
+-- Drop d'abord pour permettre le changement du type de retour
+DROP FUNCTION IF EXISTS get_carreaux_for_scoring(text,text,float8,float8,float8,float8,text);
+
 CREATE OR REPLACE FUNCTION get_carreaux_for_scoring(
   p_table    text,
   p_col      text,
@@ -11,7 +14,7 @@ CREATE OR REPLACE FUNCTION get_carreaux_for_scoring(
   p_north    float8,
   p_millesime text DEFAULT NULL
 )
-RETURNS TABLE(cx float8, cy float8, val_cible numeric)
+RETURNS TABLE(cx float8, cy float8, val_cible numeric, pop_totale numeric)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -37,7 +40,8 @@ BEGIN
   RETURN QUERY EXECUTE format(
     'SELECT ST_X(ST_Centroid(geom))::float8 AS cx,
             ST_Y(ST_Centroid(geom))::float8 AS cy,
-            (metadata->>$1)::numeric        AS val_cible
+            (metadata->>$1)::numeric        AS val_cible,
+            (metadata->>''Ind'')::numeric   AS pop_totale
      FROM public.%I
      WHERE millesime = $2
        AND geom && ST_MakeEnvelope($3, $4, $5, $6, 4326)

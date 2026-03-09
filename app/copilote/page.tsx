@@ -14,6 +14,7 @@ import { useProviderSelector } from './_hooks/useProviderSelector';
 import { ChatPanel }           from './_components/ChatPanel';
 import { MapPanel }            from './_components/MapPanel';
 import type { ZoneData }       from '@/types/spatial';
+import { exportOohReport, type OohExportData } from './_lib/ooh-export';
 
 interface SelectedBillboard {
   id: string;
@@ -83,6 +84,13 @@ export default function CopilotePage() {
       if (mapRef.current && mapReady) {
         mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
       }
+    },
+    triggerOohExport: async (data: OohExportData) => {
+      setError('📄 Génération du rapport Excel en cours…');
+      await exportOohReport(data, mapRef, (msg) => {
+        if (msg) setError(`📄 ${msg}`);
+        else setError(null);
+      });
     },
   });
 
@@ -174,6 +182,23 @@ export default function CopilotePage() {
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
         markersRef.current.push(marker);
+
+        // Clic sur les panneaux → ouvrir le drawer Street View
+        if (p.categorie === 'panneaux' || p.categorie === 'top_ooh') {
+          el.addEventListener('click', () => {
+            setSelectedBillboard({
+              id: p.id,
+              nom: p.nom ?? 'Panneau',
+              lat: p.lat,
+              lng: p.lng,
+              format: p.sous_categorie ?? undefined,
+              score: (p as any).score_ooh ?? null,
+              audience: (p as any).audience ?? null,
+              rank: (p as any).rank ?? null,
+              regie: p.adresse ?? undefined,
+            });
+          });
+        }
       });
     }
 

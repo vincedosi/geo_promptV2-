@@ -16,9 +16,15 @@ export default function RootLayout({
     <html lang="fr">
       <body>
         <div className="genesis-layout">
+          {/* Ta barre de navigation latérale */}
           <GenesisNav />
+          
+          {/* La zone principale à droite */}
           <main className="genesis-main">
-            {children}
+            {/* Le conteneur qui applique les marges intérieures de ton Design System */}
+            <div className="genesis-content">
+              {children}
+            </div>
           </main>
         </div>
       </body>
