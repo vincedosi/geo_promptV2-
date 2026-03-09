@@ -125,23 +125,7 @@ export const BATTLE_PALIER_OPACITY: Record<number, number> = {
 };
 
 // ---------------------------------------------------------------------------
-// Map style (CARTO Light)
+// Map style — OpenFreeMap Liberty (vecteur, gratuit, sans API key, labels FR)
 // ---------------------------------------------------------------------------
 
-export const MAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    carto: {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
-      maxzoom: 19,
-    },
-  },
-  layers: [{ id: 'carto-bg', type: 'raster', source: 'carto' }],
-};
+export const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';

@@ -260,7 +260,7 @@ export default function CopilotePage() {
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#0a0a1a', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#060608', fontFamily: "'Inter', system-ui, sans-serif" }}>
       <ChatPanel
         messages={chat.messages}
         isLoading={chat.isLoading}
