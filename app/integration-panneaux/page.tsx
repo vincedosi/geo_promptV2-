@@ -5,14 +5,32 @@ import { adminFetch } from '@/lib/admin-fetch';
 import type { ColumnInfo, ParseResult } from '@/lib/import/types';
 
 // ============================================================
+// Design tokens
+// ============================================================
+
+const C = {
+  bg: '#050505', bgElevated: '#0d0d0d', bgSurface: '#111118',
+  border: '#261a35', borderLight: 'rgba(168,85,247,0.2)',
+  accent: '#a855f7', accentDim: 'rgba(168,85,247,0.12)',
+  text: '#e2e8f0', textDim: '#94a3b8', textSec: '#6b7280', muted: '#4b5563',
+  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
+  red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
+  warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
+};
+const fontOrbitron = "'Orbitron',sans-serif";
+const fontMichroma = "'Michroma','Orbitron',sans-serif";
+const fontMono = "'JetBrains Mono',monospace";
+const fontInter = "'Inter',system-ui,sans-serif";
+
+// ============================================================
 // Constants
 // ============================================================
 
 type GeoMode = 'gps' | 'lambert93';
 
 const GEO_MODES: { val: GeoMode; label: string; desc: string }[] = [
-  { val: 'gps', label: '🌍 GPS (Lat/Lng)', desc: 'Colonnes latitude / longitude WGS84 déjà présentes' },
-  { val: 'lambert93', label: '📐 Lambert 93 (X/Y)', desc: 'Coordonnées projetées EPSG:2154 → transformées WGS84' },
+  { val: 'gps',       label: 'GPS (Lat/Lng)',      desc: 'Colonnes latitude / longitude WGS84 déjà présentes' },
+  { val: 'lambert93', label: 'Lambert 93 (X/Y)',   desc: 'Coordonnées projetées EPSG:2154 → transformées WGS84' },
 ];
 
 // Panneaux field definitions — displayed in the Smart Mapping UI
@@ -33,24 +51,24 @@ const PANNEAU_FIELDS: {
   { key: 'nom_regie',         label: 'Régie',       required: false, group: 'id',   hint: 'Afficheur / exploitant' },
   { key: 'nom_reseau',        label: 'Réseau',      required: false, group: 'id',   hint: 'Circuit / produit' },
   // Description
-  { key: 'type_panneau',  label: 'Format',        required: false, group: 'desc', hint: 'Type de panneau (4x3, 2x3…)' },
-  { key: 'nb_faces',      label: 'Nb faces',      required: false, group: 'desc', hint: 'Nombre de faces' },
-  { key: 'format_digital',label: 'Digital',       required: false, group: 'desc', hint: 'Colonne booléenne (oui/non)' },
-  { key: 'eclaire',       label: 'Éclairé',       required: false, group: 'desc', hint: 'Colonne booléenne (oui/non)' },
+  { key: 'type_panneau',   label: 'Format',   required: false, group: 'desc', hint: 'Type de panneau (4x3, 2x3…)' },
+  { key: 'nb_faces',       label: 'Nb faces', required: false, group: 'desc', hint: 'Nombre de faces' },
+  { key: 'format_digital', label: 'Digital',  required: false, group: 'desc', hint: 'Colonne booléenne (oui/non)' },
+  { key: 'eclaire',        label: 'Éclairé',  required: false, group: 'desc', hint: 'Colonne booléenne (oui/non)' },
   // Performance
-  { key: 'audience_vac',  label: 'Audience VAC',  required: false, group: 'perf', hint: 'Contacts / GRP' },
+  { key: 'audience_vac', label: 'Audience VAC', required: false, group: 'perf', hint: 'Contacts / GRP' },
   // Admin
-  { key: 'ville',        label: 'Ville',          required: false, group: 'id' },
-  { key: 'code_postal',  label: 'Code postal',    required: false, group: 'id' },
-  { key: 'departement',  label: 'Département',    required: false, group: 'id' },
-  { key: 'region',       label: 'Région',         required: false, group: 'id' },
+  { key: 'ville',       label: 'Ville',       required: false, group: 'id' },
+  { key: 'code_postal', label: 'Code postal', required: false, group: 'id' },
+  { key: 'departement', label: 'Département', required: false, group: 'id' },
+  { key: 'region',      label: 'Région',      required: false, group: 'id' },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
-  geo:  '📍 Coordonnées',
-  id:   '🏷️ Identifiant',
-  desc: '📋 Description',
-  perf: '📊 Performance',
+  geo:  'Coordonnées',
+  id:   'Identifiant',
+  desc: 'Description',
+  perf: 'Performance',
 };
 
 // ============================================================
@@ -173,7 +191,7 @@ function checkGeoColumns(
 
   const sA = getColSample(preview, colA);
   const sB = getColSample(preview, colB);
-  if (!sA || !sB) return { status: 'warn', message: 'Aucune valeur trouvée dans l\'aperçu' };
+  if (!sA || !sB) return { status: 'warn', message: "Aucune valeur trouvée dans l'aperçu" };
 
   const vA = parseFloat(sA);
   const vB = parseFloat(sB);
@@ -184,7 +202,7 @@ function checkGeoColumns(
   if (mode === 'lambert93') {
     // Lambert 93 (EPSG:2154) : X Easting 100k–1300k, Y Northing 5800k–7200k
     if (vA >= 5_800_000 && vA <= 7_200_000 && vB >= 100_000 && vB <= 1_300_000) {
-      return { status: 'warn', message: `⚠ Colonnes probablement inversées — X=${sB}, Y=${sA} (X=Easting ~700000, Y=Northing ~6600000)` };
+      return { status: 'warn', message: `! Colonnes probablement inversées — X=${sB}, Y=${sA} (X=Easting ~700000, Y=Northing ~6600000)` };
     }
     if (vA < 100_000 || vA > 1_300_000) {
       return { status: 'error', message: `Coord X hors plage Lambert 93 : ${vA.toFixed(0)} (attendu 100 000–1 300 000)` };
@@ -196,7 +214,7 @@ function checkGeoColumns(
   } else {
     // WGS84 — France métropolitaine
     if (vA >= -5.5 && vA <= 10 && vB >= 41 && vB <= 51.5) {
-      return { status: 'warn', message: `⚠ Colonnes probablement inversées — lat=${sB}, lng=${sA}` };
+      return { status: 'warn', message: `! Colonnes probablement inversées — lat=${sB}, lng=${sA}` };
     }
     if (vA < 41 || vA > 51.5) {
       return { status: 'error', message: `Latitude hors France : ${vA} (attendu 41–51.5)` };
@@ -211,6 +229,13 @@ function checkGeoColumns(
 // ============================================================
 // Main component
 // ============================================================
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'upload',    label: 'Fichier' },
+  { key: 'mapping',   label: 'Mapping' },
+  { key: 'importing', label: 'Import' },
+  { key: 'done',      label: 'Terminé' },
+];
 
 export default function IntegrationPanneauxPage() {
   const [step, setStep] = useState<Step>('upload');
@@ -368,7 +393,7 @@ export default function IntegrationPanneauxPage() {
         if (Date.now() - lastEventAt > 90_000) {
           setLogs((prev) => [
             ...prev,
-            { level: 'warn', text: '⚠ Aucune réponse depuis 90s — le serveur traite toujours (BAN / Supabase)…' },
+            { level: 'warn', text: '! Aucune réponse depuis 90s — le serveur traite toujours (BAN / Supabase)…' },
           ]);
           lastEventAt = Date.now(); // reset to avoid spam
         }
@@ -430,39 +455,81 @@ export default function IntegrationPanneauxPage() {
   const colOptions = ['', ...columns.map((c) => c.name)];
   const geoValid = geoColumnsValid(mapping);
 
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
+
   // ── Render ────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f1117', color: '#e2e8f0', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div style={{ background: '#1a1d26', borderBottom: '1px solid #2d3748', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 22 }}>📋</span>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: fontInter }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
+
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div style={{
+        background: C.bgElevated,
+        borderBottom: `1px solid ${C.border}`,
+        padding: '14px 28px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Intégration Panneaux</h1>
-          <p style={{ margin: 0, fontSize: 12, color: '#718096' }}>Import CSV · Excel · Shapefile → Supabase</p>
+          <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 4 }}>
+            GEO.PROMPT — Data Pipeline
+          </div>
+          <h1 style={{ margin: 0, fontSize: 20, fontFamily: fontOrbitron, fontWeight: 700, color: C.text }}>
+            INTÉGRATION PANNEAUX
+          </h1>
+          <div style={{ fontSize: 11, color: C.textSec, marginTop: 2, fontFamily: fontMono }}>
+            Import CSV · Excel · Shapefile → Supabase
+          </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {(['upload', 'mapping', 'importing', 'done'] as Step[]).map((s, i) => (
-            <div key={s} style={{
-              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-              color: step === s ? '#63b3ed' : '#4a5568',
-              fontWeight: step === s ? 600 : 400,
-            }}>
-              <span style={{
-                width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: step === s ? '#2b6cb0' : i < ['upload','mapping','importing','done'].indexOf(step) ? '#276749' : '#2d3748',
-                fontSize: 10, fontWeight: 700,
-              }}>{i + 1}</span>
-              {['Fichier', 'Mapping', 'Import', 'Terminé'][i]}
-              {i < 3 && <span style={{ color: '#2d3748' }}>›</span>}
-            </div>
-          ))}
+
+        {/* Step indicators */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {STEPS.map((s, i) => {
+            const isActive = step === s.key;
+            const isDone = i < stepIndex;
+            return (
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  opacity: isActive || isDone ? 1 : 0.35,
+                }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isDone ? C.greenDim : isActive ? C.accentDim : 'transparent',
+                    border: `1px solid ${isDone ? C.green : isActive ? C.accent : C.border}`,
+                    fontSize: 10, fontFamily: fontMichroma,
+                    color: isDone ? C.green : isActive ? C.accent : C.muted,
+                    fontWeight: 700,
+                  }}>
+                    {isDone ? '✓' : i + 1}
+                  </div>
+                  <span style={{
+                    fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase',
+                    letterSpacing: '0.14em',
+                    color: isDone ? C.green : isActive ? C.accent : C.muted,
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <span style={{ color: C.border, fontSize: 12, marginLeft: 2 }}>›</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
+      {/* ── Content ──────────────────────────────────────────── */}
+      <div style={{ maxWidth: 920, margin: '0 auto', padding: '32px 24px' }}>
 
-        {/* ── STEP 1: Upload ─────────────────────────────── */}
+        {/* ── STEP 1: Upload ──────────────────────────────────── */}
         {step === 'upload' && (
           <div>
             <div
@@ -471,33 +538,54 @@ export default function IntegrationPanneauxPage() {
               onDrop={onDrop}
               onClick={() => fileInputRef.current?.click()}
               style={{
-                border: `2px dashed ${isDragging ? '#63b3ed' : '#2d3748'}`,
-                borderRadius: 12,
+                border: `2px dashed ${isDragging ? C.accent : C.border}`,
+                borderRadius: 2,
                 padding: '64px 32px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                background: isDragging ? 'rgba(99,179,237,0.05)' : '#1a1d26',
+                background: isDragging ? C.accentDim : C.bgElevated,
                 transition: 'all 0.2s',
               }}
             >
-              <div style={{ fontSize: 48, marginBottom: 16 }}>
-                {isParsing ? '⏳' : '📂'}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+              {isParsing ? (
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  border: `2px solid ${C.border}`,
+                  borderTopColor: C.accent,
+                  animation: 'spin 0.8s linear infinite',
+                  margin: '0 auto 20px',
+                }} />
+              ) : (
+                <div style={{
+                  width: 48, height: 48, borderRadius: 2,
+                  border: `1px solid ${C.borderLight}`,
+                  background: C.accentDim,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 20px',
+                  fontFamily: fontMichroma, fontSize: 18, color: C.accent,
+                }}>
+                  +
+                </div>
+              )}
+              <div style={{ fontSize: 15, fontFamily: fontMichroma, fontWeight: 600, marginBottom: 8, color: isDragging ? C.accent : C.text, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 {isParsing ? 'Analyse du fichier…' : 'Déposez votre fichier ici'}
               </div>
-              <div style={{ fontSize: 13, color: '#718096', lineHeight: 1.6 }}>
+              <div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.7, fontFamily: fontMono }}>
                 CSV · Excel (.xlsx) · Shapefile (.shp + .dbf + .prj)
                 <br />
-                <span style={{ fontSize: 12, color: '#4a5568' }}>
+                <span style={{ fontSize: 11, color: C.muted }}>
                   Pour un Shapefile, sélectionnez les 3 fichiers simultanément
                 </span>
               </div>
               {!isParsing && (
                 <div style={{
-                  marginTop: 20, display: 'inline-block',
-                  background: '#2b6cb0', color: '#fff', padding: '8px 20px',
-                  borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  marginTop: 24, display: 'inline-block',
+                  background: C.accentDim,
+                  border: `1px solid ${C.accent}`,
+                  color: C.accent, padding: '8px 24px',
+                  borderRadius: 2, fontSize: 11,
+                  fontFamily: fontMichroma, textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
                 }}>
                   Choisir un fichier
                 </div>
@@ -512,31 +600,63 @@ export default function IntegrationPanneauxPage() {
               onChange={onFileInput}
             />
             {globalError && (
-              <div style={{ marginTop: 16, background: 'rgba(252,129,74,0.1)', border: '1px solid #c05621', borderRadius: 8, padding: 12, color: '#fc814a', fontSize: 13 }}>
-                ⚠ {globalError}
+              <div style={{
+                marginTop: 16,
+                background: C.redDim,
+                border: `1px solid ${C.red}`,
+                borderRadius: 2, padding: '10px 14px',
+                color: C.red, fontSize: 12, fontFamily: fontMono,
+              }}>
+                ! {globalError}
               </div>
             )}
           </div>
         )}
 
-        {/* ── STEP 2: Smart Mapping ──────────────────────── */}
+        {/* ── STEP 2: Smart Mapping ───────────────────────────── */}
         {step === 'mapping' && parseResult && (
           <div>
             {/* File info badge */}
-            <div style={{ background: '#1a1d26', border: '1px solid #2d3748', borderRadius: 8, padding: '10px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
-              <span style={{ fontSize: 20 }}>📄</span>
+            <div style={{
+              background: C.bgElevated, border: `1px solid ${C.border}`,
+              borderRadius: 2, padding: '10px 16px', marginBottom: 24,
+              display: 'flex', alignItems: 'center', gap: 12, fontSize: 13,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 2,
+                background: C.accentDim, border: `1px solid ${C.borderLight}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: fontMichroma, fontSize: 9, color: C.accent,
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+              }}>
+                {fileFormat || 'FILE'}
+              </div>
               <div>
-                <span style={{ fontWeight: 600 }}>{parseResult.fileName}</span>
-                <span style={{ color: '#718096', marginLeft: 12 }}>
+                <span style={{ fontWeight: 600, color: C.text }}>{parseResult.fileName}</span>
+                <span style={{ color: C.textSec, marginLeft: 12, fontFamily: fontMono, fontSize: 11 }}>
                   {parseResult.totalRows.toLocaleString('fr-FR')} lignes · {parseResult.columns.length} colonnes
                 </span>
-                <span style={{ marginLeft: 12, background: '#2d3748', padding: '2px 8px', borderRadius: 4, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+                <span style={{
+                  marginLeft: 10, background: C.bgSurface,
+                  border: `1px solid ${C.border}`,
+                  padding: '2px 8px', borderRadius: 2,
+                  fontSize: 9, fontFamily: fontMichroma, textTransform: 'uppercase',
+                  letterSpacing: '0.12em', color: C.textDim,
+                }}>
                   {fileFormat}
                 </span>
               </div>
               <button
                 onClick={() => { setStep('upload'); setParseResult(null); setMapping(emptyMapping()); setGlobalError(''); }}
-                style={{ marginLeft: 'auto', background: 'none', border: '1px solid #4a5568', borderRadius: 6, color: '#a0aec0', padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'transparent',
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 2, color: C.textDim,
+                  padding: '4px 12px', cursor: 'pointer',
+                  fontSize: 11, fontFamily: fontMichroma,
+                  textTransform: 'uppercase', letterSpacing: '0.1em',
+                }}
               >
                 ↩ Changer
               </button>
@@ -544,25 +664,36 @@ export default function IntegrationPanneauxPage() {
 
             {/* Geo mode selector */}
             <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#a0aec0', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+              <div style={{
+                fontFamily: fontMichroma, fontSize: 9, color: C.accent,
+                textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 10,
+              }}>
                 Mode de coordonnées
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                {GEO_MODES.map((m) => (
-                  <button
-                    key={m.val}
-                    onClick={() => setMapping((prev) => ({ ...prev, geoMode: m.val }))}
-                    style={{
-                      flex: 1, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                      border: `2px solid ${mapping.geoMode === m.val ? '#3182ce' : '#2d3748'}`,
-                      background: mapping.geoMode === m.val ? 'rgba(49,130,206,0.1)' : '#1a1d26',
-                      color: mapping.geoMode === m.val ? '#63b3ed' : '#a0aec0',
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{m.label}</div>
-                    <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>{m.desc}</div>
-                  </button>
-                ))}
+                {GEO_MODES.map((m) => {
+                  const active = mapping.geoMode === m.val;
+                  return (
+                    <button
+                      key={m.val}
+                      onClick={() => setMapping((prev) => ({ ...prev, geoMode: m.val }))}
+                      style={{
+                        flex: 1, padding: '10px 14px', borderRadius: 2, cursor: 'pointer', textAlign: 'left',
+                        border: `1px solid ${active ? C.accent : C.border}`,
+                        background: active ? C.accentDim : C.bgElevated,
+                        color: active ? C.accent : C.textDim,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ fontFamily: fontMichroma, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                        {m.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: active ? C.textDim : C.muted, fontFamily: fontInter }}>
+                        {m.desc}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -570,7 +701,6 @@ export default function IntegrationPanneauxPage() {
             {(['geo', 'id', 'desc', 'perf'] as const).map((group) => {
               const fields = PANNEAU_FIELDS.filter((f) => {
                 if (f.group !== group) return false;
-                // Show only relevant geo fields for the selected mode
                 if (group === 'geo') {
                   if (mapping.geoMode === 'gps') return f.key === 'colLat' || f.key === 'colLng';
                   return f.key === 'colX' || f.key === 'colY';
@@ -581,48 +711,69 @@ export default function IntegrationPanneauxPage() {
 
               return (
                 <div key={group} style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#718096', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  <div style={{
+                    fontFamily: fontMichroma, fontSize: 9, color: C.accent,
+                    textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 10,
+                  }}>
                     {GROUP_LABELS[group]}
                   </div>
+
                   {group === 'geo' && parseResult && (() => {
                     const chk = checkGeoColumns(mapping.geoMode, mapping, parseResult.preview);
                     const palette = {
-                      ok:      { color: '#68d391', bg: 'rgba(56,161,105,0.08)',  border: '#276749' },
-                      warn:    { color: '#f6e05e', bg: 'rgba(214,158,46,0.08)',  border: '#975a16' },
-                      error:   { color: '#fc8181', bg: 'rgba(229,62,62,0.08)',   border: '#9b2c2c' },
-                      pending: { color: '#718096', bg: 'transparent',            border: '#2d3748' },
+                      ok:      { color: C.green,    bg: C.greenDim,              border: C.green },
+                      warn:    { color: C.warn,     bg: C.warnDim,               border: C.warn },
+                      error:   { color: C.red,      bg: C.redDim,                border: C.red },
+                      pending: { color: C.textSec,  bg: 'transparent',           border: C.border },
                     }[chk.status];
-                    const icon = { ok: '✓', warn: '⚠', error: '✗', pending: 'ℹ' }[chk.status];
+                    const icon = { ok: '✓', warn: '!', error: '✕', pending: 'i' }[chk.status];
                     return (
-                      <div style={{ marginBottom: 10, padding: '7px 12px', borderRadius: 6, background: palette.bg, border: `1px solid ${palette.border}`, fontSize: 12, color: palette.color }}>
-                        {icon} {chk.message}
+                      <div style={{
+                        marginBottom: 10, padding: '7px 12px', borderRadius: 2,
+                        background: palette.bg, border: `1px solid ${palette.border}`,
+                        fontSize: 11, color: palette.color, fontFamily: fontMono,
+                        display: 'flex', gap: 8, alignItems: 'flex-start',
+                      }}>
+                        <span style={{ fontWeight: 700 }}>{icon}</span>
+                        <span>{chk.message}</span>
                       </div>
                     );
                   })()}
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                     {fields.map((field) => {
                       const val = (mapping as unknown as Record<string, string>)[field.key] ?? '';
                       const isMissing = field.required && !val;
                       return (
                         <div key={field.key}>
-                          <label style={{ fontSize: 12, color: isMissing ? '#fc8181' : '#a0aec0', display: 'block', marginBottom: 4 }}>
+                          <label style={{
+                            fontSize: 11, fontFamily: fontMichroma,
+                            color: isMissing ? C.red : C.textDim,
+                            display: 'block', marginBottom: 4,
+                            textTransform: 'uppercase', letterSpacing: '0.1em',
+                          }}>
                             {field.label}
-                            {field.required && <span style={{ color: '#fc8181', marginLeft: 4 }}>*</span>}
-                            {field.hint && <span style={{ color: '#4a5568', fontSize: 10, marginLeft: 6 }}>({field.hint})</span>}
+                            {field.required && <span style={{ color: C.red, marginLeft: 4 }}>*</span>}
+                            {field.hint && (
+                              <span style={{ color: C.muted, fontSize: 9, marginLeft: 6, textTransform: 'none', letterSpacing: 0, fontFamily: fontMono }}>
+                                ({field.hint})
+                              </span>
+                            )}
                           </label>
                           <select
                             value={val}
                             onChange={(e) => setMapping((prev) => ({ ...prev, [field.key]: e.target.value }))}
                             style={{
                               width: '100%',
-                              padding: '8px 10px',
-                              background: '#0f1117',
-                              border: `1px solid ${isMissing ? '#c53030' : '#2d3748'}`,
-                              borderRadius: 6,
-                              color: val ? '#e2e8f0' : '#4a5568',
-                              fontSize: 13,
+                              padding: '7px 10px',
+                              background: C.bg,
+                              border: `1px solid ${isMissing ? C.red : C.border}`,
+                              borderRadius: 2,
+                              color: val ? C.text : C.muted,
+                              fontSize: 12,
                               outline: 'none',
-                              boxShadow: isMissing ? '0 0 0 2px rgba(252,129,74,0.2)' : 'none',
+                              fontFamily: fontMono,
+                              boxShadow: isMissing ? `0 0 0 1px ${C.red}` : 'none',
                             }}
                           >
                             <option value="">— Non mappé —</option>
@@ -633,7 +784,11 @@ export default function IntegrationPanneauxPage() {
                           {val && parseResult && (() => {
                             const s = getColSample(parseResult.preview, val);
                             return s ? (
-                              <div style={{ fontSize: 10, color: '#4a9eca', marginTop: 2, paddingLeft: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{
+                                fontSize: 10, color: C.blue, marginTop: 3, paddingLeft: 4,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                fontFamily: fontMono,
+                              }}>
                                 ↳ {s}
                               </div>
                             ) : null;
@@ -647,39 +802,62 @@ export default function IntegrationPanneauxPage() {
             })}
 
             {/* Enrichment option */}
-            <div style={{ marginBottom: 20, background: 'rgba(66,153,225,0.06)', border: '1px solid #2b6cb0', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              marginBottom: 20,
+              background: 'rgba(59,130,246,0.07)',
+              border: `1px solid rgba(59,130,246,0.3)`,
+              borderRadius: 2, padding: '10px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
               <input
                 id="enrich-toggle"
                 type="checkbox"
                 checked={enrichDeptRegion}
                 onChange={(e) => setEnrichDeptRegion(e.target.checked)}
-                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#3182ce' }}
+                style={{ width: 15, height: 15, cursor: 'pointer', accentColor: C.blue }}
               />
-              <label htmlFor="enrich-toggle" style={{ cursor: 'pointer', fontSize: 13, color: '#90cdf4' }}>
-                <strong>Enrichir automatiquement département &amp; région</strong>
-                <span style={{ color: '#4a9eca', marginLeft: 6, fontSize: 12 }}>
+              <label htmlFor="enrich-toggle" style={{ cursor: 'pointer', fontSize: 12, color: C.textDim, fontFamily: fontInter }}>
+                <strong style={{ color: C.text }}>Enrichir automatiquement département &amp; région</strong>
+                <span style={{ color: C.blue, marginLeft: 8, fontSize: 11, fontFamily: fontMono }}>
                   (via API BAN reverse — lat/lng → "67, Bas-Rhin, Grand Est")
                 </span>
               </label>
             </div>
 
-            {/* Options */}
+            {/* Options row */}
             <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', gap: 16 }}>
               <div>
-                <label style={{ fontSize: 12, color: '#a0aec0', display: 'block', marginBottom: 4 }}>
-                  Nom de la régie <span style={{ color: '#4a5568' }}>(utilisé comme valeur par défaut si non mappé)</span>
+                <label style={{
+                  fontSize: 9, fontFamily: fontMichroma, color: C.textDim,
+                  display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.14em',
+                }}>
+                  Nom de la régie
+                  <span style={{ color: C.muted, fontSize: 9, marginLeft: 6, textTransform: 'none' }}>
+                    (valeur par défaut si non mappé)
+                  </span>
                 </label>
                 <input
                   type="text"
                   placeholder="ex: Clear Channel, JCDecaux…"
                   value={regieNom}
                   onChange={(e) => setRegieNom(e.target.value)}
-                  style={{ padding: '8px 10px', background: '#0f1117', border: '1px solid #2d3748', borderRadius: 6, color: '#e2e8f0', fontSize: 13, width: 220 }}
+                  style={{
+                    padding: '7px 10px',
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    color: C.text, fontSize: 12, width: 220,
+                    fontFamily: fontMono, outline: 'none',
+                  }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#a0aec0', display: 'block', marginBottom: 4 }}>
-                  Limiter à N lignes <span style={{ color: '#4a5568' }}>(vide = tout importer)</span>
+                <label style={{
+                  fontSize: 9, fontFamily: fontMichroma, color: C.textDim,
+                  display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.14em',
+                }}>
+                  Limiter à N lignes
+                  <span style={{ color: C.muted, fontSize: 9, marginLeft: 6, textTransform: 'none' }}>(vide = tout)</span>
                 </label>
                 <input
                   type="number"
@@ -687,24 +865,39 @@ export default function IntegrationPanneauxPage() {
                   placeholder="ex: 1000"
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
-                  style={{ padding: '8px 10px', background: '#0f1117', border: '1px solid #2d3748', borderRadius: 6, color: '#e2e8f0', fontSize: 13, width: 130 }}
+                  style={{
+                    padding: '7px 10px',
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    color: C.text, fontSize: 12, width: 130,
+                    fontFamily: fontMono, outline: 'none',
+                  }}
                 />
               </div>
             </div>
 
             {/* Column preview */}
             <details style={{ marginBottom: 24 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, color: '#718096', userSelect: 'none' }}>
+              <summary style={{
+                cursor: 'pointer', fontSize: 11, color: C.textSec,
+                userSelect: 'none', fontFamily: fontMichroma,
+                textTransform: 'uppercase', letterSpacing: '0.12em',
+              }}>
                 Aperçu colonnes ({columns.length})
               </summary>
               <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {columns.map((c) => (
                   <span key={c.name} style={{
-                    background: '#1a1d26', border: '1px solid #2d3748',
-                    borderRadius: 4, padding: '3px 8px', fontSize: 11, color: '#a0aec0',
+                    background: C.bgSurface,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2, padding: '3px 8px',
+                    fontSize: 10, color: C.textDim, fontFamily: fontMono,
                   }} title={`Exemples: ${c.sampleValues.join(', ')}`}>
                     {c.name}
-                    {c.sampleValues[0] && <span style={{ color: '#4a5568', marginLeft: 4 }}>({c.sampleValues[0]})</span>}
+                    {c.sampleValues[0] && (
+                      <span style={{ color: C.muted, marginLeft: 4 }}>({c.sampleValues[0]})</span>
+                    )}
                   </span>
                 ))}
               </div>
@@ -712,8 +905,14 @@ export default function IntegrationPanneauxPage() {
 
             {/* CTA */}
             {!geoValid && (
-              <div style={{ background: 'rgba(252,129,74,0.08)', border: '1px solid #c05621', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#fc8181' }}>
-                ⚠ Mappez les colonnes de coordonnées obligatoires avant de continuer.
+              <div style={{
+                background: C.warnDim,
+                border: `1px solid ${C.warn}`,
+                borderRadius: 2, padding: '10px 14px',
+                marginBottom: 14, fontSize: 12,
+                color: C.warn, fontFamily: fontMono,
+              }}>
+                ! Mappez les colonnes de coordonnées obligatoires avant de continuer.
               </div>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
@@ -721,30 +920,65 @@ export default function IntegrationPanneauxPage() {
                 disabled={!geoValid}
                 onClick={startImport}
                 style={{
-                  flex: 1, padding: '12px 20px', borderRadius: 8, cursor: geoValid ? 'pointer' : 'not-allowed',
-                  background: geoValid ? '#2b6cb0' : '#2d3748', color: geoValid ? '#fff' : '#4a5568',
-                  border: 'none', fontSize: 15, fontWeight: 700, transition: 'background 0.2s',
+                  flex: 1, padding: '12px 20px', borderRadius: 2,
+                  cursor: geoValid ? 'pointer' : 'not-allowed',
+                  background: geoValid ? C.accentDim : 'transparent',
+                  color: geoValid ? C.accent : C.muted,
+                  border: `1px solid ${geoValid ? C.accent : C.border}`,
+                  fontSize: 11, fontFamily: fontMichroma,
+                  fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  transition: 'all 0.2s',
                 }}
               >
-                🚀 Importer les panneaux
+                Importer les panneaux
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 3: Importing ──────────────────────────── */}
+        {/* ── STEP 3 & 4: Importing / Done ───────────────────── */}
         {(step === 'importing' || (step === 'done' && logs.length > 0)) && (
           <div>
-            <div style={{ background: '#1a1d26', border: '1px solid #2d3748', borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d3748', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>{step === 'importing' ? '⚙️' : '✅'}</span>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>
+            <div style={{
+              background: C.bgElevated,
+              border: `1px solid ${C.border}`,
+              borderRadius: 2, overflow: 'hidden',
+            }}>
+              {/* Terminal header */}
+              <div style={{
+                padding: '10px 16px',
+                borderBottom: `1px solid ${C.border}`,
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: C.bgSurface,
+              }}>
+                {step === 'importing' && (
+                  <div style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: `2px solid ${C.border}`,
+                    borderTopColor: C.accent,
+                    animation: 'spin 0.8s linear infinite',
+                    flexShrink: 0,
+                  }} />
+                )}
+                {step === 'done' && (
+                  <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>✓</span>
+                )}
+                <span style={{
+                  fontFamily: fontMichroma, fontSize: 10, textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  color: step === 'importing' ? C.accent : C.green,
+                }}>
                   {step === 'importing' ? 'Import en cours…' : 'Import terminé'}
                 </span>
                 {progress && progress.total > 0 && (
-                  <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: step === 'done' ? '#68d391' : '#63b3ed', fontVariantNumeric: 'tabular-nums' }}>
-                    {Math.round((progress.done / progress.total) * 100)} %
-                    <span style={{ fontWeight: 400, color: '#718096', fontSize: 11, marginLeft: 6 }}>
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 13, fontWeight: 700,
+                    color: step === 'done' ? C.green : C.accent,
+                    fontFamily: fontMono,
+                  }}>
+                    {Math.round((progress.done / progress.total) * 100)}%
+                    <span style={{ fontWeight: 400, color: C.textSec, fontSize: 11, marginLeft: 6 }}>
                       ({progress.done.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')})
                     </span>
                   </span>
@@ -753,33 +987,36 @@ export default function IntegrationPanneauxPage() {
 
               {/* Progress bar */}
               {progress && progress.total > 0 && (
-                <div style={{ height: 6, background: '#2d3748', position: 'relative' }}>
+                <div style={{ height: 3, background: C.bgSurface }}>
                   <div style={{
                     height: '100%',
-                    background: step === 'done' ? '#38a169' : '#3182ce',
+                    background: step === 'done' ? C.green : C.accent,
                     width: `${Math.round((progress.done / progress.total) * 100)}%`,
                     transition: 'width 0.4s ease-out',
+                    boxShadow: step === 'done' ? `0 0 6px ${C.green}` : `0 0 6px ${C.accent}`,
                   }} />
                 </div>
               )}
 
               {/* Log terminal */}
               <div style={{
-                fontFamily: 'monospace', fontSize: 12, padding: 12,
+                fontFamily: fontMono, fontSize: 11, padding: '12px 14px',
                 maxHeight: 360, overflowY: 'auto',
-                background: '#0d0f16',
+                background: C.bg,
               }}>
                 {logs.map((l, i) => (
                   <div key={i} style={{
-                    color: l.level === 'error' ? '#fc8181' : l.level === 'warn' ? '#f6e05e' : '#68d391',
-                    paddingBottom: 2, lineHeight: 1.5,
+                    color: l.level === 'error' ? C.red : l.level === 'warn' ? C.warn : C.green,
+                    paddingBottom: 3, lineHeight: 1.55, display: 'flex', gap: 8,
                   }}>
-                    <span style={{ opacity: 0.5 }}>{l.level === 'error' ? '✖' : l.level === 'warn' ? '⚠' : '✔'} </span>
-                    {l.text}
+                    <span style={{ opacity: 0.6, flexShrink: 0 }}>
+                      {l.level === 'error' ? '✕' : l.level === 'warn' ? '!' : '✓'}
+                    </span>
+                    <span>{l.text}</span>
                   </div>
                 ))}
                 {step === 'importing' && (
-                  <div style={{ color: '#4a5568', animation: 'pulse 1.5s infinite' }}>▋</div>
+                  <div style={{ color: C.accent, animation: 'blink 1.2s step-start infinite', marginTop: 2 }}>▋</div>
                 )}
                 <div ref={logEndRef} />
               </div>
@@ -790,30 +1027,66 @@ export default function IntegrationPanneauxPage() {
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    { label: 'Insérés', value: report.inserted, color: '#38a169' },
-                    { label: 'Doublons ignorés', value: report.ignored, color: '#d69e2e' },
-                    { label: 'Erreurs', value: report.errors, color: report.errors > 0 ? '#e53e3e' : '#4a5568' },
+                    { label: 'Insérés',          value: report.inserted, color: C.green,  dimColor: C.greenDim,  borderColor: C.green },
+                    { label: 'Doublons ignorés', value: report.ignored,  color: C.warn,   dimColor: C.warnDim,   borderColor: C.warn  },
+                    { label: 'Erreurs',          value: report.errors,   color: report.errors > 0 ? C.red : C.muted, dimColor: report.errors > 0 ? C.redDim : 'transparent', borderColor: report.errors > 0 ? C.red : C.border },
                   ].map((s) => (
                     <div key={s.label} style={{
-                      background: '#1a1d26', border: '1px solid #2d3748', borderRadius: 8,
-                      padding: '16px 20px', textAlign: 'center',
+                      background: s.dimColor,
+                      border: `1px solid ${s.borderColor}`,
+                      borderRadius: 2,
+                      padding: '18px 20px', textAlign: 'center',
                     }}>
-                      <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value.toLocaleString('fr-FR')}</div>
-                      <div style={{ fontSize: 12, color: '#718096', marginTop: 4 }}>{s.label}</div>
+                      <div style={{
+                        fontSize: 30, fontWeight: 800, color: s.color,
+                        fontFamily: fontOrbitron, fontVariantNumeric: 'tabular-nums',
+                      }}>
+                        {s.value.toLocaleString('fr-FR')}
+                      </div>
+                      <div style={{
+                        fontSize: 9, color: C.textSec, marginTop: 6,
+                        fontFamily: fontMichroma, textTransform: 'uppercase', letterSpacing: '0.14em',
+                      }}>
+                        {s.label}
+                      </div>
                     </div>
                   ))}
                 </div>
 
                 <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
                   <button
-                    onClick={() => { setStep('upload'); setParseResult(null); setMapping(emptyMapping()); setLogs([]); setReport(null); setProgress(null); setGlobalError(''); }}
-                    style={{ flex: 1, padding: '12px 20px', borderRadius: 8, cursor: 'pointer', background: '#2d3748', color: '#e2e8f0', border: 'none', fontSize: 14, fontWeight: 600 }}
+                    onClick={() => {
+                      setStep('upload');
+                      setParseResult(null);
+                      setMapping(emptyMapping());
+                      setLogs([]);
+                      setReport(null);
+                      setProgress(null);
+                      setGlobalError('');
+                    }}
+                    style={{
+                      flex: 1, padding: '12px 20px', borderRadius: 2, cursor: 'pointer',
+                      background: 'transparent',
+                      border: `1px solid ${C.border}`,
+                      color: C.textDim,
+                      fontSize: 10, fontFamily: fontMichroma,
+                      textTransform: 'uppercase', letterSpacing: '0.14em',
+                    }}
                   >
                     ↩ Nouvel import
                   </button>
                   <a
                     href="/admin"
-                    style={{ flex: 1, padding: '12px 20px', borderRadius: 8, cursor: 'pointer', background: '#2b6cb0', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{
+                      flex: 1, padding: '12px 20px', borderRadius: 2, cursor: 'pointer',
+                      background: C.accentDim,
+                      border: `1px solid ${C.accent}`,
+                      color: C.accent,
+                      fontSize: 10, fontFamily: fontMichroma,
+                      textTransform: 'uppercase', letterSpacing: '0.14em',
+                      textDecoration: 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
                   >
                     → Tableau de bord admin
                   </a>
@@ -825,8 +1098,14 @@ export default function IntegrationPanneauxPage() {
 
         {/* Global error outside of import step */}
         {globalError && step !== 'importing' && (
-          <div style={{ marginTop: 16, background: 'rgba(252,129,74,0.1)', border: '1px solid #c05621', borderRadius: 8, padding: 12, color: '#fc814a', fontSize: 13 }}>
-            ⚠ {globalError}
+          <div style={{
+            marginTop: 16,
+            background: C.redDim,
+            border: `1px solid ${C.red}`,
+            borderRadius: 2, padding: '10px 14px',
+            color: C.red, fontSize: 12, fontFamily: fontMono,
+          }}>
+            ! {globalError}
           </div>
         )}
       </div>
