@@ -4,6 +4,31 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { Organization } from '@/types/admin';
 
+const C = {
+  bg:          '#050505',
+  bgElevated:  '#0d0d0d',
+  bgSurface:   '#111118',
+  border:      '#261a35',
+  borderLight: 'rgba(168,85,247,0.2)',
+  accent:      '#a855f7',
+  accentDim:   'rgba(168,85,247,0.12)',
+  text:        '#e2e8f0',
+  textDim:     '#94a3b8',
+  textSec:     '#6b7280',
+  muted:       '#4b5563',
+  green:       '#3dffa0',
+  greenDim:    'rgba(61,255,160,0.12)',
+  red:         '#f87171',
+  redDim:      'rgba(248,113,113,0.1)',
+  warn:        '#fbbf24',
+  warnDim:     'rgba(251,191,36,0.1)',
+  blue:        '#3b82f6',
+};
+const fontOrbitron = "'Orbitron', sans-serif";
+const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
+const fontMono     = "'JetBrains Mono', monospace";
+const fontInter    = "'Inter', system-ui, sans-serif";
+
 function Spinner({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
@@ -55,69 +80,138 @@ export default function OrganizationsPage() {
   };
 
   return (
-    <div className="genesis-content" style={{ maxWidth: 900 }}>
+    <div style={{ maxWidth: 900, padding: '24px 20px', fontFamily: fontInter, color: C.text, background: C.bg, minHeight: '100vh' }}>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Header */}
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <h1 className="page-title">admin / organisations</h1>
-          <span className="g-badge g-badge-orange">ADMIN</span>
-          <span className="g-badge">{orgs.length} orgs</span>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, letterSpacing: '0.08em', color: C.text, margin: 0, fontWeight: 700 }}>
+            admin / organisations
+          </h1>
+          <span style={{
+            fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+            color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}`, borderRadius: 2,
+            padding: '2px 6px',
+          }}>
+            ADMIN
+          </span>
+          <span style={{
+            fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+            color: C.accent, background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2,
+            padding: '2px 6px',
+          }}>
+            {orgs.length} orgs
+          </span>
         </div>
-        <p className="page-subtitle">Gestion des clients — isolation des donnees, partage entre organisations</p>
+        <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, margin: 0, lineHeight: 1.5 }}>
+          Gestion des clients — isolation des donnees, partage entre organisations
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Create new org */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>+</span>
-            <span className="g-card-title">Nouvelle organisation</span>
+        <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
+              NOUVELLE ORGANISATION
+            </span>
           </div>
-          <div className="g-card-body">
+          <div style={{ padding: '14px 16px' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <input
                 type="text"
-                className="g-input"
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                 placeholder='Nom du client (ex: "BMW France", "Mercedes-Benz")'
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  background: C.bg,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 2,
+                  padding: '8px 12px',
+                  color: C.text,
+                  fontFamily: fontMono,
+                  fontSize: 12,
+                  outline: 'none',
+                }}
               />
               <button
-                className="g-btn g-btn-primary"
                 onClick={handleCreate}
                 disabled={isCreating || !newOrgName.trim()}
-                style={{ flexShrink: 0 }}
+                style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 16px',
+                  background: isCreating || !newOrgName.trim() ? C.muted : C.accent,
+                  border: 'none',
+                  borderRadius: 2,
+                  color: '#000',
+                  fontFamily: fontMichroma,
+                  fontSize: 10,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  cursor: isCreating || !newOrgName.trim() ? 'not-allowed' : 'pointer',
+                  fontWeight: 700,
+                }}
               >
                 {isCreating ? <Spinner /> : 'Creer'}
               </button>
             </div>
-            {error && <div className="g-alert g-alert-error" style={{ marginTop: 8 }}>{error}</div>}
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'JetBrains Mono, monospace' }}>
+            {error && (
+              <div style={{
+                marginTop: 8,
+                padding: '8px 12px',
+                background: C.redDim,
+                border: `1px solid ${C.red}`,
+                borderRadius: 2,
+                fontSize: 11,
+                color: C.red,
+                fontFamily: fontMono,
+              }}>
+                ! {error}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: C.textSec, marginTop: 8, fontFamily: fontMono }}>
               // chaque organisation a ses propres donnees isolees. Un admin peut partager des sources entre orgs.
             </div>
           </div>
         </div>
 
         {/* Orgs list */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <span className="g-card-title">Organisations</span>
+        <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
+              ORGANISATIONS
+            </span>
           </div>
-          <div className="g-card-body" style={{ padding: 0 }}>
+          <div style={{ padding: 0 }}>
             {isLoading ? (
-              <div style={{ textAlign: 'center', padding: 40 }}><Spinner size={20} /></div>
+              <div style={{ textAlign: 'center', padding: 40, color: C.textDim }}><Spinner size={20} /></div>
             ) : orgs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>Aucune organisation</div>
+              <div style={{ textAlign: 'center', padding: 40, color: C.textDim, fontFamily: fontMono, fontSize: 12 }}>
+                Aucune organisation
+              </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                     {['Organisation', 'Slug', 'Membres', 'Sources', 'Cree le'].map((h) => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-dim)', fontWeight: 600 }}>
+                      <th key={h} style={{
+                        padding: '10px 16px',
+                        textAlign: 'left',
+                        fontFamily: fontMichroma,
+                        fontSize: 9,
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        color: C.textDim,
+                        fontWeight: 400,
+                      }}>
                         {h}
                       </th>
                     ))}
@@ -125,20 +219,32 @@ export default function OrganizationsPage() {
                 </thead>
                 <tbody>
                   {orgs.map((org) => (
-                    <tr key={org.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <tr key={org.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                       <td style={{ padding: '10px 16px' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{org.name}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: C.text, fontFamily: fontInter }}>{org.name}</div>
                       </td>
-                      <td style={{ padding: '10px 16px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-dim)' }}>
+                      <td style={{ padding: '10px 16px', fontSize: 11, fontFamily: fontMono, color: C.textDim }}>
                         {org.slug}
                       </td>
                       <td style={{ padding: '10px 16px' }}>
-                        <span className="g-badge">{org.member_count}</span>
+                        <span style={{
+                          fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2,
+                          padding: '2px 6px',
+                        }}>
+                          {org.member_count}
+                        </span>
                       </td>
                       <td style={{ padding: '10px 16px' }}>
-                        <span className="g-badge g-badge-purple">{org.source_count}</span>
+                        <span style={{
+                          fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          color: C.accent, background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2,
+                          padding: '2px 6px',
+                        }}>
+                          {org.source_count}
+                        </span>
                       </td>
-                      <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-dim)' }}>
+                      <td style={{ padding: '10px 16px', fontSize: 11, color: C.textDim, fontFamily: fontMono }}>
                         {new Date(org.created_at).toLocaleDateString('fr-FR')}
                       </td>
                     </tr>
@@ -150,25 +256,36 @@ export default function OrganizationsPage() {
         </div>
 
         {/* Rights explanation */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+        <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span className="g-card-title">Isolation des donnees</span>
+            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
+              ISOLATION DES DONNEES
+            </span>
           </div>
-          <div className="g-card-body">
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              <p style={{ margin: '0 0 8px' }}><strong>Principe :</strong> Chaque organisation ne voit que ses propres donnees.</p>
-              <p style={{ margin: '0 0 8px' }}>Quand un admin importe des panneaux pour <strong>BMW France</strong>, ces donnees sont taggees avec l&apos;organisation BMW. Un utilisateur <strong>Mercedes</strong> ne les verra jamais.</p>
-              <p style={{ margin: 0 }}>L&apos;admin GENESIS (super_admin) peut <strong>partager</strong> une source entre organisations depuis la page <em>Sources</em>.</p>
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.6, fontFamily: fontInter }}>
+              <p style={{ margin: '0 0 8px' }}><strong style={{ color: C.text }}>Principe :</strong> Chaque organisation ne voit que ses propres donnees.</p>
+              <p style={{ margin: '0 0 8px' }}>Quand un admin importe des panneaux pour <strong style={{ color: C.text }}>BMW France</strong>, ces donnees sont taggees avec l&apos;organisation BMW. Un utilisateur <strong style={{ color: C.text }}>Mercedes</strong> ne les verra jamais.</p>
+              <p style={{ margin: 0 }}>L&apos;admin GENESIS (super_admin) peut <strong style={{ color: C.text }}>partager</strong> une source entre organisations depuis la page <em>Sources</em>.</p>
             </div>
-            <div className="g-code" style={{ marginTop: 10, fontSize: 11 }}>
-              <div style={{ color: 'var(--text-dim)' }}>// roles</div>
-              <div><span style={{ color: 'var(--accent)' }}>super_admin</span> : voit tout, gere tout</div>
-              <div><span style={{ color: 'var(--green)' }}>admin</span> : gere son organisation</div>
-              <div><span style={{ color: 'var(--orange)' }}>client</span> : lecture seule, son org uniquement</div>
+            <div style={{
+              marginTop: 12,
+              padding: '10px 14px',
+              background: C.bgSurface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 2,
+              fontFamily: fontMono,
+              fontSize: 11,
+              lineHeight: 1.8,
+            }}>
+              <div style={{ color: C.textDim }}>// roles</div>
+              <div><span style={{ color: C.accent }}>super_admin</span> <span style={{ color: C.textSec }}>:</span> voit tout, gere tout</div>
+              <div><span style={{ color: C.green }}>admin</span> <span style={{ color: C.textSec }}>:</span> gere son organisation</div>
+              <div><span style={{ color: C.warn }}>client</span> <span style={{ color: C.textSec }}>:</span> lecture seule, son org uniquement</div>
             </div>
           </div>
         </div>
