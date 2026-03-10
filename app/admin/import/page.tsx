@@ -18,6 +18,24 @@ import type {
 import { INSEE_CARREAUX_INDICATORS as INSEE_INDICATORS } from '@/lib/import/types';
 
 // ============================================================
+// Design tokens
+// ============================================================
+
+const C = {
+  bg: '#050505', bgElevated: '#0d0d0d', bgSurface: '#111118',
+  border: '#261a35', borderLight: 'rgba(168,85,247,0.2)',
+  accent: '#a855f7', accentDim: 'rgba(168,85,247,0.12)',
+  text: '#e2e8f0', textDim: '#94a3b8', textSec: '#6b7280', muted: '#4b5563',
+  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
+  red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
+  warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
+};
+const fontOrbitron = "'Orbitron',sans-serif";
+const fontMichroma = "'Michroma','Orbitron',sans-serif";
+const fontMono = "'JetBrains Mono',monospace";
+const fontInter = "'Inter',system-ui,sans-serif";
+
+// ============================================================
 // State interfaces
 // ============================================================
 
@@ -63,7 +81,7 @@ const GENESIS_FIELDS_PANNEAUX = [
 
 function Spinner({ size = 12 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite', display: 'inline-block', verticalAlign: 'middle' }}>
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   );
@@ -162,7 +180,7 @@ export default function ImportUniverselPage() {
           const cats = data.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
             val: c.categorie,
             label: c.label_fr || c.categorie,
-            icone: c.icone || '📍',
+            icone: c.icone || '',
           }));
           setPoiCategories(cats);
           // Auto-select first category if available
@@ -172,11 +190,11 @@ export default function ImportUniverselPage() {
       .catch(() => {
         // Fallback hardcoded if API not available
         setPoiCategories([
-          { val: 'lycee', label: 'Lycee', icone: '🏫' },
-          { val: 'college', label: 'College', icone: '🏫' },
-          { val: 'gare', label: 'Gare', icone: '🚂' },
-          { val: 'sport', label: 'Sport', icone: '⚽' },
-          { val: 'autre', label: 'Autre', icone: '📍' },
+          { val: 'lycee', label: 'Lycee', icone: '' },
+          { val: 'college', label: 'College', icone: '' },
+          { val: 'gare', label: 'Gare', icone: '' },
+          { val: 'sport', label: 'Sport', icone: '' },
+          { val: 'autre', label: 'Autre', icone: '' },
         ]);
       });
   }, []);
@@ -187,7 +205,7 @@ export default function ImportUniverselPage() {
 
   const handleFileUpload = useCallback(async (uploadedFiles: File | File[]) => {
     const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
-    
+
     // Display first file name in UI (or bundle name for Shapefile)
     const displayName = files.length === 1 ? files[0].name : `${files.length} fichiers`;
     setFile(files[0]); // Store primary file reference
@@ -199,7 +217,7 @@ export default function ImportUniverselPage() {
 
     try {
       const fd = new FormData();
-      
+
       // Add all files to FormData
       files.forEach((file, idx) => {
         if (idx === 0) {
@@ -262,7 +280,7 @@ export default function ImportUniverselPage() {
 
   const inferCarreauxSchema = useCallback(async () => {
     if (!parseResult?.success || !file) return;
-    
+
     setIsInferringSchema(true);
     try {
       const res = await adminFetch('/api/admin/carreaux-infer-schema', {
@@ -271,7 +289,7 @@ export default function ImportUniverselPage() {
       });
       const data: CarreauxSchemaInference = await res.json();
       setCarreauxSchemaInference(data);
-      
+
       if (data.success) {
         // Auto-populate
         setCarreauxTableName(data.suggestedTableName);
@@ -549,12 +567,21 @@ export default function ImportUniverselPage() {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <label className="g-label" style={{ minWidth: 130, margin: 0, flexShrink: 0 }}>{label}</label>
+        <label style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.accent, minWidth: 130, margin: 0, flexShrink: 0 }}>{label}</label>
         <select
-          className="g-input"
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
-          style={{ flex: 1 }}
+          style={{
+            flex: 1,
+            background: C.bg,
+            border: `1px solid ${C.border}`,
+            borderRadius: 2,
+            color: C.text,
+            fontFamily: fontMono,
+            fontSize: 11,
+            padding: '5px 8px',
+            outline: 'none',
+          }}
         >
           <option value="">— Non mappe —</option>
           {columns.map((col) => (
@@ -562,7 +589,7 @@ export default function ImportUniverselPage() {
           ))}
         </select>
         {sample && selectedCol && selectedCol.sampleValues.length > 0 && (
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
             ex: {selectedCol.sampleValues[0]}
           </span>
         )}
@@ -600,17 +627,165 @@ export default function ImportUniverselPage() {
   // For address mode: geocode step must be completed and validated before proceeding
   const isGeocodeReady = geoMode !== 'address' || geocodeValidated;
 
+  const sLabel: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 9,
+    textTransform: 'uppercase',
+    letterSpacing: '0.14em',
+    color: C.accent,
+    margin: 0,
+    display: 'block',
+    marginBottom: 6,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: C.bg,
+    border: `1px solid ${C.border}`,
+    borderRadius: 2,
+    color: C.text,
+    fontFamily: fontMono,
+    fontSize: 11,
+    padding: '6px 10px',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    background: C.accentDim,
+    border: `1px solid ${C.borderLight}`,
+    borderRadius: 2,
+    color: C.accent,
+    padding: '7px 16px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+  };
+
+  const btnSuccess: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    background: C.greenDim,
+    border: `1px solid rgba(61,255,160,0.3)`,
+    borderRadius: 2,
+    color: C.green,
+    padding: '7px 16px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+  };
+
+  const btnDanger: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    background: C.redDim,
+    border: `1px solid rgba(248,113,113,0.3)`,
+    borderRadius: 2,
+    color: C.red,
+    padding: '7px 16px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+  };
+
+  const btnGhost: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 9,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    background: 'transparent',
+    border: `1px solid ${C.border}`,
+    borderRadius: 2,
+    color: C.textDim,
+    padding: '4px 10px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+  };
+
+  const card: React.CSSProperties = {
+    background: C.bgElevated,
+    border: `1px solid ${C.border}`,
+    borderRadius: 2,
+  };
+
+  const cardHeader: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 14px',
+    borderBottom: `1px solid ${C.border}`,
+  };
+
+  const cardBody: React.CSSProperties = {
+    padding: '14px',
+  };
+
+  const stepNum: React.CSSProperties = {
+    fontFamily: fontMono,
+    fontSize: 11,
+    color: C.accent,
+    fontWeight: 700,
+  };
+
+  const cardTitle: React.CSSProperties = {
+    fontFamily: fontMichroma,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: '0.14em',
+    color: C.text,
+  };
+
+  const badge = (color: string, bg: string, border: string): React.CSSProperties => ({
+    fontFamily: fontMichroma,
+    fontSize: 8,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    background: bg,
+    border: `1px solid ${border}`,
+    borderRadius: 2,
+    color: color,
+    padding: '2px 6px',
+    display: 'inline-block',
+  });
+
+  const badgeGreen = badge(C.green, C.greenDim, 'rgba(61,255,160,0.3)');
+  const badgeWarn = badge(C.warn, C.warnDim, 'rgba(251,191,36,0.3)');
+  const badgeRed = badge(C.red, C.redDim, 'rgba(248,113,113,0.3)');
+  const badgeAccent = badge(C.accent, C.accentDim, C.borderLight);
+
+  const statusColor = (s: string) =>
+    s === 'green' ? C.green : s === 'orange' ? C.warn : C.red;
+  const statusLabel = (s: string) =>
+    s === 'green' ? 'OK' : s === 'orange' ? 'Approx.' : 'Echec';
+
   return (
-    <div className="genesis-content" style={{ maxWidth: 900 }}>
+    <div style={{ maxWidth: 900, fontFamily: fontInter, color: C.text }}>
 
       {/* Header */}
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <h1 className="page-title">admin / import-universel</h1>
-          <span className="g-badge g-badge-orange">ADMIN</span>
-          {parseResult?.success && <span className="g-badge g-badge-green">PARSED</span>}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, color: C.text, margin: 0, letterSpacing: '0.06em' }}>
+            admin / import-universel
+          </h1>
+          <span style={badgeWarn}>ADMIN</span>
+          {parseResult?.success && <span style={badgeGreen}>PARSED</span>}
         </div>
-        <p className="page-subtitle">Import universel — Panneaux d&apos;affichage ou Points d&apos;interet (POI)</p>
+        <p style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, margin: 0 }}>
+          Import universel — Panneaux d&apos;affichage ou Points d&apos;interet (POI)
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -618,17 +793,17 @@ export default function ImportUniverselPage() {
         {/* ============================================================ */}
         {/* STEP 01 — Upload fichier */}
         {/* ============================================================ */}
-        <div className="g-card">
-          <div className="g-card-header">
-            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>01</span>
-            <span className="g-card-title">Upload fichier</span>
+        <div style={card}>
+          <div style={cardHeader}>
+            <span style={stepNum}>01</span>
+            <span style={cardTitle}>Upload fichier</span>
             {parseResult?.success && (
-              <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>
+              <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
                 {parseResult.totalRows.toLocaleString()} lignes
               </span>
             )}
           </div>
-          <div className="g-card-body">
+          <div style={cardBody}>
             {/* Drop zone */}
             <div
               onDrop={handleDrop}
@@ -636,12 +811,12 @@ export default function ImportUniverselPage() {
               onDragLeave={handleDragLeave}
               onClick={() => fileInputRef.current?.click()}
               style={{
-                border: `2px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 8,
-                padding: '32px 20px',
+                border: `2px dashed ${isDragging ? C.accent : C.border}`,
+                borderRadius: 2,
+                padding: '28px 20px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                backgroundColor: isDragging ? 'var(--accent-dim)' : 'transparent',
+                backgroundColor: isDragging ? C.accentDim : 'transparent',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -657,30 +832,28 @@ export default function ImportUniverselPage() {
                 style={{ display: 'none' }}
               />
               {isParsing ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--accent)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.accent, fontFamily: fontMono, fontSize: 12 }}>
                   <Spinner size={16} /> Analyse du fichier...
                 </div>
               ) : file ? (
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--green)', marginBottom: 4 }}>
+                  <div style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 600, color: C.green, marginBottom: 4 }}>
                     {file.name}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>
                     {parseResult?.format === 'shapefile' ? (
                       <span>Shapefile bundle — {parseResult.totalRows?.toLocaleString()} enregistrements</span>
                     ) : (
-                      <>
-                        {(file.size / 1024 / 1024).toFixed(2)} MB — Cliquez pour changer
-                      </>
+                      <>{(file.size / 1024 / 1024).toFixed(2)} MB — Cliquez pour changer</>
                     )}
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 13, color: C.text, marginBottom: 6 }}>
                     Glissez un ou plusieurs fichiers ici ou cliquez pour selectionner
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                  <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
                     // formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)
                   </div>
                 </div>
@@ -690,48 +863,48 @@ export default function ImportUniverselPage() {
             {/* Parse result info */}
             {parseResult?.success && (
               <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)', marginBottom: 10 }}>
-                  <span>format: <span style={{ color: 'var(--accent)' }}>{parseResult.format}</span></span>
-                  <span>encoding: <span style={{ color: 'var(--accent)' }}>{parseResult.encoding}</span></span>
-                  {parseResult.format === 'csv' && <span>separator: <span style={{ color: 'var(--accent)' }}>{parseResult.separator === '\t' ? 'TAB' : `"${parseResult.separator}"`}</span></span>}
-                  <span>colonnes: <span style={{ color: 'var(--accent)' }}>{parseResult.columns.length}</span></span>
-                  <span>lignes: <span style={{ color: 'var(--green)' }}>{parseResult.totalRows.toLocaleString()}</span></span>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 10 }}>
+                  <span>format: <span style={{ color: C.accent }}>{parseResult.format}</span></span>
+                  <span>encoding: <span style={{ color: C.accent }}>{parseResult.encoding}</span></span>
+                  {parseResult.format === 'csv' && <span>separator: <span style={{ color: C.accent }}>{parseResult.separator === '\t' ? 'TAB' : `"${parseResult.separator}"`}</span></span>}
+                  <span>colonnes: <span style={{ color: C.accent }}>{parseResult.columns.length}</span></span>
+                  <span>lignes: <span style={{ color: C.green }}>{parseResult.totalRows.toLocaleString()}</span></span>
                 </div>
 
                 {/* Shapefile info box */}
                 {parseResult.format === 'shapefile' && (
-                  <div className="g-alert g-alert-info" style={{ marginBottom: 10, fontSize: 11 }}>
-                    ✓ Shapefile detecté et parsé avec succes. Les attributs du fichier .dbf sont maintenant disponibles pour la configuration.
+                  <div style={{ background: C.greenDim, border: `1px solid rgba(61,255,160,0.25)`, borderRadius: 2, padding: '8px 12px', marginBottom: 10, fontFamily: fontMono, fontSize: 11, color: C.green }}>
+                    [OK] Shapefile detecte et parse avec succes. Les attributs du fichier .dbf sont maintenant disponibles.
                   </div>
                 )}
 
                 {/* Preview table */}
                 {parseResult.preview.length > 0 && (
                   <details>
-                    <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 6 }}>
-                      Apercu des 5 premieres lignes
+                    <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textDim, cursor: 'pointer', marginBottom: 6 }}>
+                      Apercu — 5 premieres lignes
                     </summary>
-                    <div style={{ overflow: 'auto', maxHeight: 200 }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                    <div style={{ overflow: 'auto', maxHeight: 200, marginTop: 6 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fontMono, fontSize: 10 }}>
                         <thead>
-                          <tr>
+                          <tr style={{ background: C.bgSurface }}>
                             {parseResult.columns.slice(0, 8).map((col) => (
-                              <th key={col.name} style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', color: 'var(--accent)', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                                 {col.name}
                               </th>
                             ))}
-                            {parseResult.columns.length > 8 && <th style={{ padding: '4px 8px', color: 'var(--text-dim)' }}>...</th>}
+                            {parseResult.columns.length > 8 && <th style={{ padding: '5px 8px', color: C.muted }}>...</th>}
                           </tr>
                         </thead>
                         <tbody>
                           {parseResult.preview.map((row, idx) => (
-                            <tr key={idx}>
+                            <tr key={idx} style={{ background: idx % 2 === 0 ? 'transparent' : C.bgSurface }}>
                               {parseResult.columns.slice(0, 8).map((col) => (
-                                <td key={col.name} style={{ padding: '3px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {row[col.name] ?? <span style={{ color: 'var(--text-dim)' }}>null</span>}
+                                <td key={col.name} style={{ padding: '4px 8px', borderBottom: `1px solid ${C.border}`, color: C.textDim, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10 }}>
+                                  {row[col.name] ?? <span style={{ color: C.muted }}>null</span>}
                                 </td>
                               ))}
-                              {parseResult.columns.length > 8 && <td style={{ color: 'var(--text-dim)' }}>...</td>}
+                              {parseResult.columns.length > 8 && <td style={{ color: C.muted }}>...</td>}
                             </tr>
                           ))}
                         </tbody>
@@ -744,19 +917,19 @@ export default function ImportUniverselPage() {
 
             {/* Shapefile tips */}
             {!file && (
-              <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>💡 Formats supportés</div>
+              <div style={{ marginTop: 12, padding: 12, background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}`, fontFamily: fontInter, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>
+                <div style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.text, marginBottom: 8 }}>Formats supportes</div>
                 <ul style={{ margin: 0, paddingLeft: 16 }}>
-                  <li><strong>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
-                  <li><strong>Shapefile :</strong> Sélectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (même nom de base). Example: <code>carreaux_200m.shp</code>, <code>carreaux_200m.dbf</code>, etc.</li>
-                  <li><strong>Carreaux INSEE :</strong> Vous pouvez importer depuis CSV, GeoJSON, ou Shapefile. Le système detecte automatiquement les colonnes et demande quelle donnees inclure.</li>
+                  <li><strong style={{ color: C.textDim }}>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
+                  <li><strong style={{ color: C.textDim }}>Shapefile :</strong> Selectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (meme nom de base).</li>
+                  <li><strong style={{ color: C.textDim }}>Carreaux INSEE :</strong> Le systeme detecte automatiquement les colonnes.</li>
                 </ul>
               </div>
             )}
 
             {parseResult && !parseResult.success && (
-              <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
-                {parseResult.error}
+              <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                ! {parseResult.error}
               </div>
             )}
           </div>
@@ -766,23 +939,36 @@ export default function ImportUniverselPage() {
         {/* STEP 02 — Type de donnees */}
         {/* ============================================================ */}
         {parseResult?.success && (
-          <div className="g-card">
-            <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>02</span>
-              <span className="g-card-title">Type de donnees</span>
+          <div style={card}>
+            <div style={cardHeader}>
+              <span style={stepNum}>02</span>
+              <span style={cardTitle}>Type de donnees</span>
             </div>
-            <div className="g-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Radio cards */}
               {[
                 { val: 'poi' as DataType, title: 'Points d\'interet (POI)', desc: 'Lycees, colleges, gares, lieux de sport, etc.' },
                 { val: 'panneaux' as DataType, title: 'Panneaux d\'affichage', desc: 'Mobilier urbain publicitaire (JCDecaux, Clear Channel, etc.)' },
                 { val: 'carreaux' as DataType, title: 'Carreaux INSEE', desc: 'Donnees socio-demographiques par carreau 200m (Filosofi)' },
               ].map((opt) => (
-                <label key={opt.val} className={`g-radio-card${dataType === opt.val ? ' selected' : ''}`} onClick={() => setDataType(opt.val)}>
-                  <input type="radio" value={opt.val} checked={dataType === opt.val} onChange={() => setDataType(opt.val)} style={{ marginTop: 2 }} />
+                <label
+                  key={opt.val}
+                  onClick={() => setDataType(opt.val)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 2,
+                    border: `1px solid ${dataType === opt.val ? C.borderLight : C.border}`,
+                    background: dataType === opt.val ? C.accentDim : C.bgSurface,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input type="radio" value={opt.val} checked={dataType === opt.val} onChange={() => setDataType(opt.val)} style={{ marginTop: 2, accentColor: C.accent }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{opt.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{opt.desc}</div>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: dataType === opt.val ? C.accent : C.text, marginBottom: 3 }}>{opt.title}</div>
+                    <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{opt.desc}</div>
                   </div>
                 </label>
               ))}
@@ -790,34 +976,36 @@ export default function ImportUniverselPage() {
               {/* POI: category select — loaded from DB */}
               {dataType === 'poi' && (
                 <div style={{ marginTop: 8 }}>
-                  <label className="g-label">Categorie POI</label>
+                  <label style={sLabel}>Categorie POI</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select className="g-input" value={category} onChange={(e) => setCategory(e.target.value)} style={{ maxWidth: 300 }}>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      style={{ ...inputStyle, maxWidth: 300 }}
+                    >
                       {poiCategories.map((c) => (
-                        <option key={c.val} value={c.val}>{c.icone} {c.label}</option>
+                        <option key={c.val} value={c.val}>{c.label}</option>
                       ))}
                     </select>
                     {poiCategories.length === 0 && (
-                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Chargement...</span>
+                      <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>Chargement...</span>
                     )}
                   </div>
                   {/* Inline: create new category */}
                   <details style={{ marginTop: 8 }}>
-                    <summary style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>
+                    <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer' }}>
                       + Creer une nouvelle categorie
                     </summary>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
                       <input
                         type="text"
-                        className="g-input"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
                         placeholder="Ex: cirfa, commerce, sante..."
-                        style={{ maxWidth: 250, fontSize: 12, padding: '4px 8px' }}
+                        style={{ ...inputStyle, maxWidth: 250, fontSize: 11, padding: '5px 8px' }}
                       />
                       <button
-                        className="g-btn g-btn-success"
-                        style={{ fontSize: 11, padding: '4px 12px' }}
+                        style={{ ...btnSuccess, opacity: (!newCategoryName.trim() || isCreatingCategory) ? 0.5 : 1 }}
                         disabled={!newCategoryName.trim() || isCreatingCategory}
                         onClick={async () => {
                           setIsCreatingCategory(true);
@@ -834,7 +1022,7 @@ export default function ImportUniverselPage() {
                               const data2 = await res2.json();
                               if (data2.success) {
                                 const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
-                                  val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '📍',
+                                  val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '',
                                 }));
                                 setPoiCategories(cats);
                               }
@@ -856,38 +1044,34 @@ export default function ImportUniverselPage() {
               {/* Panneaux: regie input */}
               {dataType === 'panneaux' && (
                 <div style={{ marginTop: 8 }}>
-                  <label className="g-label">Nom de la regie</label>
+                  <label style={sLabel}>Nom de la regie</label>
                   <input
                     type="text"
-                    className="g-input"
                     value={regie}
                     onChange={(e) => setRegie(e.target.value)}
                     placeholder='Ex: "JCDecaux", "Clear Channel", "MULTI"'
-                    style={{ maxWidth: 400 }}
+                    style={{ ...inputStyle, maxWidth: 400 }}
                   />
                 </div>
               )}
 
               {/* CARREAUX: Schema inference + column selection */}
               {dataType === 'carreaux' && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                   {!carreauxSchemaInference ? (
                     <div>
-                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                      <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, marginBottom: 10, marginTop: 0 }}>
                         Analysez le fichier pour detecter les colonnes INSEE disponibles.
                       </p>
                       <button
-                        className="g-btn g-btn-primary"
+                        style={{ ...btnPrimary, opacity: isInferringSchema ? 0.6 : 1 }}
                         disabled={isInferringSchema}
                         onClick={inferCarreauxSchema}
-                        style={{ fontSize: 12 }}
                       >
                         {isInferringSchema ? (
-                          <>
-                            <Spinner size={10} style={{ marginRight: 6 }} /> Analyse en cours...
-                          </>
+                          <><Spinner size={10} /> Analyse en cours...</>
                         ) : (
-                          '🔍 Analyser le fichier'
+                          'Analyser le fichier'
                         )}
                       </button>
                     </div>
@@ -895,26 +1079,24 @@ export default function ImportUniverselPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       {/* Nom Table */}
                       <div>
-                        <label className="g-label">Nom de la table</label>
+                        <label style={sLabel}>Nom de la table</label>
                         <input
                           type="text"
-                          className="g-input"
                           value={carreauxTableName}
                           onChange={(e) => setCarreauxTableName(e.target.value)}
                           placeholder="carreaux_insee"
-                          style={{ maxWidth: 400 }}
+                          style={{ ...inputStyle, maxWidth: 400 }}
                         />
                       </div>
 
-                      {/* Géométrie */}
+                      {/* Geometrie */}
                       {carreauxSchemaInference.geometryColumns.length > 0 && (
                         <div>
-                          <label className="g-label">Colonne géométrie</label>
+                          <label style={sLabel}>Colonne geometrie</label>
                           <select
-                            className="g-input"
                             value={carreauxGeomColumn}
                             onChange={(e) => setCarreauxGeomColumn(e.target.value)}
-                            style={{ maxWidth: 300 }}
+                            style={{ ...inputStyle, maxWidth: 300 }}
                           >
                             {carreauxSchemaInference.geometryColumns.map((col) => (
                               <option key={col} value={col}>{col}</option>
@@ -926,12 +1108,11 @@ export default function ImportUniverselPage() {
                       {/* ID */}
                       {carreauxSchemaInference.idColumns.length > 0 && (
                         <div>
-                          <label className="g-label">Colonne identifiant</label>
+                          <label style={sLabel}>Colonne identifiant</label>
                           <select
-                            className="g-input"
                             value={carreauxIdColumn}
                             onChange={(e) => setCarreauxIdColumn(e.target.value)}
-                            style={{ maxWidth: 300 }}
+                            style={{ ...inputStyle, maxWidth: 300 }}
                           >
                             {carreauxSchemaInference.idColumns.map((col) => (
                               <option key={col} value={col}>{col}</option>
@@ -943,21 +1124,22 @@ export default function ImportUniverselPage() {
                       {/* Colonnes INSEE selection */}
                       {carreauxSchemaInference.inseeIndicators.length > 0 && (
                         <div>
-                          <label className="g-label">
-                            Indicateurs INSEE à importer ({carreauxSelectedColumns.length} sélectionnés)
+                          <label style={sLabel}>
+                            Indicateurs INSEE a importer ({carreauxSelectedColumns.length} selectionnes)
                           </label>
-                          <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-                            gap: 8, 
-                            maxHeight: 250, 
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                            gap: 6,
+                            maxHeight: 250,
                             overflowY: 'auto',
-                            padding: 8,
-                            backgroundColor: 'var(--bg-secondary)',
-                            borderRadius: 4,
+                            padding: 10,
+                            backgroundColor: C.bgSurface,
+                            borderRadius: 2,
+                            border: `1px solid ${C.border}`,
                           }}>
                             {carreauxSchemaInference.inseeIndicators.map(({ columnName, match }) => (
-                              <label key={columnName} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', padding: 4 }}>
+                              <label key={columnName} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: fontMono, fontSize: 11, cursor: 'pointer', padding: 3 }}>
                                 <input
                                   type="checkbox"
                                   checked={carreauxSelectedColumns.includes(columnName)}
@@ -968,11 +1150,12 @@ export default function ImportUniverselPage() {
                                       setCarreauxSelectedColumns(carreauxSelectedColumns.filter((c) => c !== columnName));
                                     }
                                   }}
+                                  style={{ accentColor: C.accent }}
                                 />
-                                <span>
-                                  {columnName} 
+                                <span style={{ color: C.text }}>
+                                  {columnName}
                                   {match && INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS] && (
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: 11, marginLeft: 4 }}>
+                                    <span style={{ color: C.textDim, fontSize: 10, marginLeft: 4 }}>
                                       ({INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS].label})
                                     </span>
                                   )}
@@ -985,15 +1168,16 @@ export default function ImportUniverselPage() {
 
                       {/* Colonnes inconnues alert */}
                       {carreauxSchemaInference.unknownColumns.length > 0 && (
-                        <div style={{ 
-                          padding: 8, 
-                          backgroundColor: 'var(--warning-dim)', 
-                          borderLeft: '3px solid var(--warning)',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          color: 'var(--text-secondary)'
+                        <div style={{
+                          padding: '8px 12px',
+                          backgroundColor: C.warnDim,
+                          borderLeft: `3px solid ${C.warn}`,
+                          borderRadius: 2,
+                          fontFamily: fontMono,
+                          fontSize: 10,
+                          color: C.warn,
                         }}>
-                          ⚠️ Colonnes non reconnues (ignorées): <br/>
+                          ! Colonnes non reconnues (ignorees):<br />
                           {carreauxSchemaInference.unknownColumns.slice(0, 5).join(', ')}
                           {carreauxSchemaInference.unknownColumns.length > 5 && ` ... +${carreauxSchemaInference.unknownColumns.length - 5}`}
                         </div>
@@ -1001,35 +1185,34 @@ export default function ImportUniverselPage() {
 
                       {/* Generate SQL button */}
                       <button
-                        className="g-btn g-btn-success"
+                        style={{ ...btnSuccess, opacity: (isGeneratingSchema || carreauxSelectedColumns.length === 0) ? 0.5 : 1 }}
                         disabled={isGeneratingSchema || carreauxSelectedColumns.length === 0}
                         onClick={generateCarreauxSchema}
-                        style={{ fontSize: 12 }}
                       >
                         {isGeneratingSchema ? (
-                          <>
-                            <Spinner size={10} /> Generation...
-                          </>
+                          <><Spinner size={10} /> Generation...</>
                         ) : (
-                          '⚙️ Generer schema SQL'
+                          'Generer schema SQL'
                         )}
                       </button>
 
                       {/* Generated SQL preview */}
                       {carreauxGeneratedSql && (
-                        <details style={{ marginTop: 8 }}>
-                          <summary style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>
-                            📋 Apercu SQL genere
+                        <details style={{ marginTop: 4 }}>
+                          <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer', fontWeight: 600 }}>
+                            Apercu SQL genere
                           </summary>
                           <pre style={{
-                            backgroundColor: 'var(--bg-secondary)',
-                            padding: 8,
-                            borderRadius: 4,
+                            background: C.bgSurface,
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 2,
+                            padding: 10,
+                            fontFamily: fontMono,
                             fontSize: 10,
                             overflow: 'auto',
                             maxHeight: 200,
-                            marginTop: 6,
-                            fontFamily: 'JetBrains Mono, monospace',
+                            marginTop: 8,
+                            color: C.textDim,
                           }}>
                             {carreauxGeneratedSql}
                           </pre>
@@ -1047,18 +1230,18 @@ export default function ImportUniverselPage() {
         {/* STEP 03 — Mapping colonnes */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && (
-          <div className="g-card">
-            <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03</span>
-              <span className="g-card-title">Mapping colonnes</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={card}>
+            <div style={cardHeader}>
+              <span style={stepNum}>03</span>
+              <span style={cardTitle}>Mapping colonnes</span>
+              <span style={{ marginLeft: 'auto', fontFamily: fontMono, fontSize: 10, color: C.muted }}>
                 {columns.length} colonnes detectees
               </span>
             </div>
-            <div className="g-card-body">
+            <div style={cardBody}>
               {/* Standard fields */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 8 }}>
+                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
                   // champs GENESIS → colonnes fichier
                 </div>
                 {genesisFields.map((field) => (
@@ -1073,17 +1256,30 @@ export default function ImportUniverselPage() {
               </div>
 
               {/* Geolocation section */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 10 }}>
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
                   // geolocalisation
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                   {GEO_MODES.map((mode) => (
-                    <label key={mode.val} className={`g-radio-card${geoMode === mode.val ? ' selected' : ''}`} onClick={() => setGeoMode(mode.val)}>
-                      <input type="radio" value={mode.val} checked={geoMode === mode.val} onChange={() => setGeoMode(mode.val)} style={{ marginTop: 2 }} />
+                    <label
+                      key={mode.val}
+                      onClick={() => setGeoMode(mode.val)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        padding: '9px 12px',
+                        borderRadius: 2,
+                        border: `1px solid ${geoMode === mode.val ? C.borderLight : C.border}`,
+                        background: geoMode === mode.val ? C.accentDim : C.bgSurface,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input type="radio" value={mode.val} checked={geoMode === mode.val} onChange={() => setGeoMode(mode.val)} style={{ marginTop: 2, accentColor: C.accent }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>{mode.title}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{mode.desc}</div>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{mode.desc}</div>
                       </div>
                     </label>
                   ))}
@@ -1101,7 +1297,7 @@ export default function ImportUniverselPage() {
                     <ColSelect label="Adresse" value={geoMapping.colAdresse || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colAdresse: v }))} sample />
                     <ColSelect label="Code postal" value={geoMapping.colCodePostal || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colCodePostal: v }))} sample />
                     <ColSelect label="Ville" value={geoMapping.colVille || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colVille: v }))} sample />
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 4 }}>
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
                       // geocodage via api-adresse.data.gouv.fr (BAN) — ~100ms/adresse
                     </div>
                   </div>
@@ -1110,7 +1306,7 @@ export default function ImportUniverselPage() {
                   <div>
                     <ColSelect label="X (Est)" value={geoMapping.colX || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colX: v }))} sample />
                     <ColSelect label="Y (Nord)" value={geoMapping.colY || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colY: v }))} sample />
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginTop: 4 }}>
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
                       // EPSG:2154 → EPSG:4326 via proj4
                     </div>
                   </div>
@@ -1121,7 +1317,7 @@ export default function ImportUniverselPage() {
         )}
 
         {/* ============================================================ */}
-        {/* STEP 03b — Sélection des colonnes à importer + filtres      */}
+        {/* STEP 03b — Selection des colonnes a importer + filtres        */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && isStep3Valid && columns.length > 0 && (() => {
           // Compute which columns are already handled by the schema/geo mapping
@@ -1144,9 +1340,9 @@ export default function ImportUniverselPage() {
           if (geoMapping.colLng) colToSchema[geoMapping.colLng] = 'longitude';
           if (geoMapping.colX) colToSchema[geoMapping.colX] = 'X Lambert';
           if (geoMapping.colY) colToSchema[geoMapping.colY] = 'Y Lambert';
-          if (geoMapping.colAdresse) colToSchema[geoMapping.colAdresse] = 'adresse (géoloc)';
-          if (geoMapping.colCodePostal) colToSchema[geoMapping.colCodePostal] = 'CP (géoloc)';
-          if (geoMapping.colVille) colToSchema[geoMapping.colVille] = 'ville (géoloc)';
+          if (geoMapping.colAdresse) colToSchema[geoMapping.colAdresse] = 'adresse (geoloc)';
+          if (geoMapping.colCodePostal) colToSchema[geoMapping.colCodePostal] = 'CP (geoloc)';
+          if (geoMapping.colVille) colToSchema[geoMapping.colVille] = 'ville (geoloc)';
 
           const unmappedCols = columns.filter(c => !mappedSourceCols.has(c.name));
           const importedCount = unmappedCols.filter(c => importedColumns.includes(c.name)).length;
@@ -1163,33 +1359,33 @@ export default function ImportUniverselPage() {
           };
 
           return (
-            <div className="g-card">
-              <div className="g-card-header">
-                <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03b</span>
-                <span className="g-card-title">Colonnes à importer</span>
+            <div style={card}>
+              <div style={cardHeader}>
+                <span style={stepNum}>03b</span>
+                <span style={cardTitle}>Colonnes a importer</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                  <span className="g-badge g-badge-green">{importedCount + mappedSourceCols.size} importées</span>
+                  <span style={badgeGreen}>{importedCount + mappedSourceCols.size} importees</span>
                   {filterFields.length > 0 && (
-                    <span className="g-badge" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>
+                    <span style={badgeAccent}>
                       {filterFields.length} filtre{filterFields.length > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="g-card-body">
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 10 }}>
-                  // schema = toujours importé via champs GENESIS · cochez Importer pour metadata · Filtre = filtre sur la carte
+              <div style={cardBody}>
+                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
+                  // schema = toujours importe via champs GENESIS · cochez Importer pour metadata · Filtre = filtre carte
                 </div>
 
                 {/* Table header */}
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
-                  gap: 4, padding: '4px 8px',
-                  fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
-                  color: 'var(--text-dim)', borderBottom: '1px solid var(--border)',
+                  gap: 4, padding: '5px 8px',
+                  fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                  color: C.muted, borderBottom: `1px solid ${C.border}`,
                   marginBottom: 4,
                 }}>
-                  <span>Colonne · exemples</span>
+                  <span>Colonne / exemples</span>
                   <span>Statut</span>
                   <span style={{ textAlign: 'center' }}>Importer</span>
                   <span style={{ textAlign: 'center' }}>Filtre</span>
@@ -1206,23 +1402,25 @@ export default function ImportUniverselPage() {
                     return (
                       <div key={col.name} style={{
                         display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
-                        gap: 4, padding: '5px 8px', borderRadius: 4,
-                        background: isMapped ? 'rgba(99,102,241,0.05)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
+                        gap: 4, padding: '5px 8px', borderRadius: 2,
+                        background: isMapped ? 'rgba(168,85,247,0.04)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
                         opacity: isMapped ? 0.75 : 1,
-                        borderBottom: '1px solid rgba(255,255,255,0.03)',
+                        borderBottom: `1px solid ${C.border}`,
                         alignItems: 'center',
                       }}>
                         {/* Nom + exemples */}
                         <div style={{ minWidth: 0 }}>
                           <div style={{
-                            fontSize: 12, fontWeight: 600,
-                            color: isMapped ? 'var(--accent)' : isImported ? 'var(--text-primary)' : 'var(--text-dim)',
+                            fontFamily: fontMono,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: isMapped ? C.accent : isImported ? C.text : C.muted,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>
                             {col.name}
                           </div>
                           {col.sampleValues.length > 0 && (
-                            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {col.sampleValues.slice(0, 2).join(' · ')}
                             </div>
                           )}
@@ -1230,11 +1428,11 @@ export default function ImportUniverselPage() {
 
                         {/* Statut */}
                         {isMapped ? (
-                          <span style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace' }}>
+                          <span style={{ fontFamily: fontMono, fontSize: 9, color: C.accent }}>
                             → schema:{schemaField}
                           </span>
                         ) : (
-                          <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                          <span style={{ fontFamily: fontMono, fontSize: 9, color: C.muted }}>
                             {isImported ? (isFilter ? 'metadata + filtre' : 'metadata') : 'exclu'}
                           </span>
                         )}
@@ -1242,13 +1440,13 @@ export default function ImportUniverselPage() {
                         {/* Importer checkbox */}
                         <div style={{ textAlign: 'center' }}>
                           {isMapped ? (
-                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>—</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>—</span>
                           ) : (
                             <input
                               type="checkbox"
                               checked={isImported}
                               onChange={() => toggleImport(col.name)}
-                              style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: 14, height: 14 }}
+                              style={{ accentColor: C.accent, cursor: 'pointer', width: 13, height: 13 }}
                             />
                           )}
                         </div>
@@ -1256,14 +1454,14 @@ export default function ImportUniverselPage() {
                         {/* Filtre checkbox */}
                         <div style={{ textAlign: 'center' }}>
                           {isMapped ? (
-                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>—</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>—</span>
                           ) : (
                             <input
                               type="checkbox"
                               checked={isFilter}
                               disabled={!isImported}
                               onChange={() => isImported && toggleFilter(col.name)}
-                              style={{ accentColor: '#10b981', cursor: isImported ? 'pointer' : 'not-allowed', width: 14, height: 14, opacity: isImported ? 1 : 0.3 }}
+                              style={{ accentColor: C.green, cursor: isImported ? 'pointer' : 'not-allowed', width: 13, height: 13, opacity: isImported ? 1 : 0.3 }}
                             />
                           )}
                         </div>
@@ -1273,30 +1471,18 @@ export default function ImportUniverselPage() {
                 </div>
 
                 {/* Footer actions */}
-                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                  <button
-                    className="g-btn g-btn-ghost"
-                    style={{ fontSize: 10, padding: '2px 8px' }}
-                    onClick={() => setImportedColumns(unmappedCols.map(c => c.name))}
-                  >
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                  <button style={btnGhost} onClick={() => setImportedColumns(unmappedCols.map(c => c.name))}>
                     Tout importer
                   </button>
-                  <button
-                    className="g-btn g-btn-ghost"
-                    style={{ fontSize: 10, padding: '2px 8px' }}
-                    onClick={() => { setImportedColumns([]); setFilterFields([]); }}
-                  >
+                  <button style={btnGhost} onClick={() => { setImportedColumns([]); setFilterFields([]); }}>
                     Tout exclure
                   </button>
-                  <button
-                    className="g-btn g-btn-ghost"
-                    style={{ fontSize: 10, padding: '2px 8px' }}
-                    onClick={() => setFilterFields([])}
-                  >
+                  <button style={btnGhost} onClick={() => setFilterFields([])}>
                     Effacer filtres
                   </button>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginLeft: 'auto' }}>
-                    {importedCount}/{unmappedCols.length} colonnes libres importées · {filterFields.length} filtres
+                  <span style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginLeft: 'auto' }}>
+                    {importedCount}/{unmappedCols.length} colonnes libres · {filterFields.length} filtres
                   </span>
                 </div>
               </div>
@@ -1305,7 +1491,7 @@ export default function ImportUniverselPage() {
         })()}
 
         {/* ============================================================ */}
-        {/* STEP 03c — Geocodage adresses (BAN API)                      */}
+        {/* STEP 03c — Geocodage adresses (BAN API)                       */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && isStep3Valid && geoMode === 'address' && (() => {
           const filteredResults = geocodeFilter === 'all'
@@ -1318,30 +1504,25 @@ export default function ImportUniverselPage() {
             return order[a.status] - order[b.status];
           });
 
-          const statusColor = (s: string) =>
-            s === 'green' ? '#22c55e' : s === 'orange' ? '#fb923c' : '#ef4444';
-          const statusLabel = (s: string) =>
-            s === 'green' ? 'OK' : s === 'orange' ? 'Approx.' : 'Echec';
-
           return (
-            <div className="g-card">
-              <div className="g-card-header">
-                <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>03c</span>
-                <span className="g-card-title">Geocodage adresses</span>
+            <div style={card}>
+              <div style={cardHeader}>
+                <span style={stepNum}>03c</span>
+                <span style={cardTitle}>Geocodage adresses</span>
                 {geocodeStats && (
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                    <span className="g-badge g-badge-green">{geocodeStats.green} OK</span>
+                    <span style={badgeGreen}>{geocodeStats.green} OK</span>
                     {geocodeStats.orange > 0 && (
-                      <span className="g-badge" style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c' }}>{geocodeStats.orange} approx.</span>
+                      <span style={badgeWarn}>{geocodeStats.orange} approx.</span>
                     )}
                     {geocodeStats.red > 0 && (
-                      <span className="g-badge" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{geocodeStats.red} echecs</span>
+                      <span style={badgeRed}>{geocodeStats.red} echecs</span>
                     )}
                   </div>
                 )}
               </div>
-              <div className="g-card-body">
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 10 }}>
+              <div style={cardBody}>
+                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
                   // geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV
                 </div>
 
@@ -1350,16 +1531,15 @@ export default function ImportUniverselPage() {
                   <button
                     onClick={handleGeocodeBatch}
                     disabled={isGeocoding}
-                    className="g-btn g-btn-success"
-                    style={{ minWidth: 250 }}
+                    style={{ ...btnSuccess, minWidth: 250, opacity: isGeocoding ? 0.6 : 1 }}
                   >
                     {isGeocoding ? <><Spinner /> Geocodage en cours...</> : `Lancer le geocodage (${parseResult.totalRows} adresses)`}
                   </button>
                 )}
 
                 {geocodeError && (
-                  <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
-                    {geocodeError}
+                  <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                    ! {geocodeError}
                   </div>
                 )}
 
@@ -1367,22 +1547,28 @@ export default function ImportUniverselPage() {
                 {geocodeResults.length > 0 && geocodeStats && (
                   <div style={{ marginTop: 16 }}>
                     {/* Stats */}
-                    <div className="g-grid-3" style={{ marginBottom: 16 }}>
-                      <div className="stat-card" onClick={() => setGeocodeFilter('green')} style={{ cursor: 'pointer', outline: geocodeFilter === 'green' ? '2px solid #22c55e' : 'none', borderRadius: 6 }}>
-                        <div className="stat-label">Geocodes OK</div>
-                        <div className="stat-value" style={{ color: '#22c55e' }}>{geocodeStats.green}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score ≥ 0.6</div>
-                      </div>
-                      <div className="stat-card" onClick={() => setGeocodeFilter('orange')} style={{ cursor: 'pointer', outline: geocodeFilter === 'orange' ? '2px solid #fb923c' : 'none', borderRadius: 6 }}>
-                        <div className="stat-label">Approximatifs</div>
-                        <div className="stat-value" style={{ color: '#fb923c' }}>{geocodeStats.orange}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score 0.3–0.6</div>
-                      </div>
-                      <div className="stat-card" onClick={() => setGeocodeFilter('red')} style={{ cursor: 'pointer', outline: geocodeFilter === 'red' ? '2px solid #ef4444' : 'none', borderRadius: 6 }}>
-                        <div className="stat-label">Non trouves</div>
-                        <div className="stat-value" style={{ color: '#ef4444' }}>{geocodeStats.red}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>score &lt; 0.3</div>
-                      </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                      {[
+                        { key: 'green', label: 'Geocodes OK', val: geocodeStats.green, note: 'score >= 0.6', color: C.green },
+                        { key: 'orange', label: 'Approximatifs', val: geocodeStats.orange, note: 'score 0.3–0.6', color: C.warn },
+                        { key: 'red', label: 'Non trouves', val: geocodeStats.red, note: 'score < 0.3', color: C.red },
+                      ].map(({ key, label, val, note, color }) => (
+                        <div
+                          key={key}
+                          onClick={() => setGeocodeFilter(key as 'green' | 'orange' | 'red')}
+                          style={{
+                            background: C.bgSurface,
+                            border: `1px solid ${geocodeFilter === key ? color : C.border}`,
+                            borderRadius: 2,
+                            padding: '12px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                          <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginTop: 4 }}>{note}</div>
+                        </div>
+                      ))}
                     </div>
 
                     {/* Filter bar */}
@@ -1390,33 +1576,43 @@ export default function ImportUniverselPage() {
                       {(['all', 'red', 'orange', 'green'] as const).map((f) => (
                         <button
                           key={f}
-                          className={`g-btn g-btn-ghost${geocodeFilter === f ? ' selected' : ''}`}
-                          style={{
-                            fontSize: 10,
-                            padding: '3px 10px',
-                            background: geocodeFilter === f ? (f === 'all' ? 'var(--accent-dim)' : `${statusColor(f)}22`) : 'transparent',
-                            color: geocodeFilter === f ? (f === 'all' ? 'var(--accent)' : statusColor(f)) : 'var(--text-dim)',
-                            border: `1px solid ${geocodeFilter === f ? (f === 'all' ? 'var(--accent)' : statusColor(f)) : 'var(--border)'}`,
-                          }}
                           onClick={() => setGeocodeFilter(f)}
+                          style={{
+                            fontFamily: fontMichroma,
+                            fontSize: 9,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
+                            padding: '4px 10px',
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            background: geocodeFilter === f
+                              ? (f === 'all' ? C.accentDim : `${statusColor(f)}22`)
+                              : 'transparent',
+                            color: geocodeFilter === f
+                              ? (f === 'all' ? C.accent : statusColor(f))
+                              : C.muted,
+                            border: `1px solid ${geocodeFilter === f
+                              ? (f === 'all' ? C.accent : statusColor(f))
+                              : C.border}`,
+                          }}
                         >
                           {f === 'all' ? `Tous (${geocodeResults.length})` : `${statusLabel(f)} (${geocodeResults.filter(r => r.status === f).length})`}
                         </button>
                       ))}
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      <span style={{ marginLeft: 'auto', fontFamily: fontMono, fontSize: 9, color: C.muted }}>
                         {filteredResults.length} resultats affiches
                       </span>
                     </div>
 
                     {/* Results table */}
-                    <div style={{ maxHeight: 500, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                    <div style={{ maxHeight: 500, overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 2 }}>
                       {/* Table header */}
                       <div style={{
                         display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
                         gap: 4, padding: '6px 8px',
-                        fontSize: 10, fontFamily: 'JetBrains Mono, monospace',
-                        color: 'var(--text-dim)', borderBottom: '1px solid var(--border)',
-                        position: 'sticky', top: 0, background: 'var(--card-bg)', zIndex: 1,
+                        fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                        color: C.muted, borderBottom: `1px solid ${C.border}`,
+                        position: 'sticky', top: 0, background: C.bgElevated, zIndex: 1,
                       }}>
                         <span>#</span>
                         <span>Adresse saisie</span>
@@ -1432,30 +1628,33 @@ export default function ImportUniverselPage() {
                           <div style={{
                             display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
                             gap: 4, padding: '5px 8px',
-                            borderBottom: '1px solid rgba(255,255,255,0.03)',
+                            borderBottom: `1px solid ${C.border}`,
                             alignItems: 'center',
-                            background: result.status === 'red' ? 'rgba(239,68,68,0.05)' : result.status === 'orange' ? 'rgba(251,146,60,0.03)' : 'transparent',
+                            background: result.status === 'red'
+                              ? 'rgba(248,113,113,0.04)'
+                              : result.status === 'orange'
+                                ? 'rgba(251,191,36,0.03)'
+                                : 'transparent',
                           }}>
-                            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{result.rowIndex + 1}</span>
-                            <span style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.inputAddress}>
-                              {result.inputAddress || <i style={{ color: 'var(--text-dim)' }}>vide</i>}
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>{result.rowIndex + 1}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.inputAddress}>
+                              {result.inputAddress || <i style={{ color: C.muted }}>vide</i>}
                             </span>
-                            <span style={{ fontSize: 11, color: result.status === 'green' ? 'var(--text-primary)' : 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.resultLabel}>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: result.status === 'green' ? C.text : C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.resultLabel}>
                               {result.resultLabel || '—'}
-                              {result.manualOverride && <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 4 }}>✎</span>}
+                              {result.manualOverride && <span style={{ fontFamily: fontMono, fontSize: 9, color: C.accent, marginLeft: 4 }}>[edit]</span>}
                             </span>
-                            <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: statusColor(result.status), fontWeight: 600 }}>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
                               {result.score.toFixed(2)}
                             </span>
-                            <span style={{ fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
+                            <span style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', color: statusColor(result.status), fontWeight: 600 }}>
                               {statusLabel(result.status)}
                             </span>
                             <div style={{ display: 'flex', gap: 4 }}>
                               {result.status !== 'green' && (
                                 <>
                                   <button
-                                    className="g-btn g-btn-ghost"
-                                    style={{ fontSize: 9, padding: '2px 6px' }}
+                                    style={{ ...btnGhost, fontSize: 8, padding: '2px 6px' }}
                                     onClick={() => {
                                       setEditingRow(editingRow === result.rowIndex ? null : result.rowIndex);
                                       setEditAddress(result.inputAddress);
@@ -1466,8 +1665,7 @@ export default function ImportUniverselPage() {
                                     {editingRow === result.rowIndex ? 'Fermer' : 'Corriger'}
                                   </button>
                                   <button
-                                    className="g-btn g-btn-ghost"
-                                    style={{ fontSize: 9, padding: '2px 6px', color: 'var(--text-dim)' }}
+                                    style={{ ...btnGhost, fontSize: 8, padding: '2px 6px', opacity: isUpdatingRow ? 0.5 : 1 }}
                                     onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'ignore' })}
                                     disabled={isUpdatingRow}
                                   >
@@ -1482,24 +1680,22 @@ export default function ImportUniverselPage() {
                           {editingRow === result.rowIndex && (
                             <div style={{
                               padding: '10px 8px 10px 58px',
-                              background: 'rgba(99,102,241,0.05)',
-                              borderBottom: '1px solid var(--border)',
+                              background: C.accentDim,
+                              borderBottom: `1px solid ${C.border}`,
                               display: 'flex', flexDirection: 'column', gap: 8,
                             }}>
                               {/* Re-geocode with corrected address */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontSize: 10, color: 'var(--text-dim)', minWidth: 80 }}>Adresse :</label>
+                                <label style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Adresse :</label>
                                 <input
                                   type="text"
-                                  className="g-input"
                                   value={editAddress}
                                   onChange={(e) => setEditAddress(e.target.value)}
-                                  style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
+                                  style={{ ...inputStyle, flex: 1, fontSize: 10, padding: '4px 8px' }}
                                   placeholder="Corrigez l'adresse et re-geocodez"
                                 />
                                 <button
-                                  className="g-btn g-btn-success"
-                                  style={{ fontSize: 10, padding: '4px 12px' }}
+                                  style={{ ...btnSuccess, fontSize: 9, padding: '4px 10px', opacity: (!editAddress.trim() || isUpdatingRow) ? 0.5 : 1 }}
                                   disabled={!editAddress.trim() || isUpdatingRow}
                                   onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'reGeocode', address: editAddress.trim() })}
                                 >
@@ -1508,26 +1704,23 @@ export default function ImportUniverselPage() {
                               </div>
                               {/* Manual lat/lng */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontSize: 10, color: 'var(--text-dim)', minWidth: 80 }}>Manuel :</label>
+                                <label style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Manuel :</label>
                                 <input
                                   type="text"
-                                  className="g-input"
                                   value={editLat}
                                   onChange={(e) => setEditLat(e.target.value)}
-                                  style={{ width: 100, fontSize: 11, padding: '4px 8px' }}
+                                  style={{ ...inputStyle, width: 100, fontSize: 10, padding: '4px 8px' }}
                                   placeholder="Latitude"
                                 />
                                 <input
                                   type="text"
-                                  className="g-input"
                                   value={editLng}
                                   onChange={(e) => setEditLng(e.target.value)}
-                                  style={{ width: 100, fontSize: 11, padding: '4px 8px' }}
+                                  style={{ ...inputStyle, width: 100, fontSize: 10, padding: '4px 8px' }}
                                   placeholder="Longitude"
                                 />
                                 <button
-                                  className="g-btn g-btn-success"
-                                  style={{ fontSize: 10, padding: '4px 12px' }}
+                                  style={{ ...btnSuccess, fontSize: 9, padding: '4px 10px', opacity: (!editLat || !editLng || isNaN(Number(editLat)) || isNaN(Number(editLng)) || isUpdatingRow) ? 0.5 : 1 }}
                                   disabled={!editLat || !editLng || isNaN(Number(editLat)) || isNaN(Number(editLng)) || isUpdatingRow}
                                   onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'manual', lat: Number(editLat), lng: Number(editLng) })}
                                 >
@@ -1540,7 +1733,7 @@ export default function ImportUniverselPage() {
                       ))}
 
                       {sortedResults.length > 200 && (
-                        <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: 'var(--text-dim)' }}>
+                        <div style={{ padding: 12, textAlign: 'center', fontFamily: fontMono, fontSize: 10, color: C.muted }}>
                           ... et {sortedResults.length - 200} autres resultats (utilisez les filtres pour affiner)
                         </div>
                       )}
@@ -1549,28 +1742,26 @@ export default function ImportUniverselPage() {
                     {/* Validate button */}
                     <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
                       <button
-                        className="g-btn g-btn-success"
-                        style={{ minWidth: 200 }}
+                        style={{ ...btnSuccess, minWidth: 200, opacity: geocodeStats.green === 0 ? 0.4 : 1 }}
                         onClick={() => setGeocodeValidated(true)}
                         disabled={geocodeStats.green === 0}
                       >
                         Valider le geocodage ({geocodeStats.green + geocodeStats.orange} lignes avec coordonnees)
                       </button>
                       {geocodeStats.red > 0 && (
-                        <span style={{ fontSize: 11, color: '#fb923c', fontFamily: 'JetBrains Mono, monospace' }}>
-                          {geocodeStats.red} ligne{geocodeStats.red > 1 ? 's' : ''} sans coordonnees (seront exclues de l&apos;import)
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.warn }}>
+                          ! {geocodeStats.red} ligne{geocodeStats.red > 1 ? 's' : ''} sans coordonnees (seront exclues)
                         </span>
                       )}
                       {geocodeValidated && (
-                        <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>VALIDE</span>
+                        <span style={{ ...badgeGreen, marginLeft: 'auto' }}>VALIDE</span>
                       )}
                     </div>
 
                     {/* Re-geocode button */}
                     <div style={{ marginTop: 8 }}>
                       <button
-                        className="g-btn g-btn-ghost"
-                        style={{ fontSize: 10 }}
+                        style={btnGhost}
                         onClick={() => {
                           setGeocodeId(null);
                           setGeocodeResults([]);
@@ -1593,73 +1784,68 @@ export default function ImportUniverselPage() {
         {/* STEP 04 — Dry-run */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && isStep3Valid && isGeocodeReady && (
-          <div className="g-card">
-            <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>04</span>
-              <span className="g-card-title">Test (dry-run)</span>
+          <div style={card}>
+            <div style={cardHeader}>
+              <span style={stepNum}>04</span>
+              <span style={cardTitle}>Test (dry-run)</span>
               {dryRunResult?.success && (
-                <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>
+                <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
                   {dryRunResult.stats.validRows} valides
                 </span>
               )}
             </div>
-            <div className="g-card-body">
+            <div style={cardBody}>
               <button
                 onClick={handleDryRun}
                 disabled={isDryRunning}
-                className="g-btn g-btn-success"
-                style={{ minWidth: 200 }}
+                style={{ ...btnSuccess, minWidth: 200, opacity: isDryRunning ? 0.6 : 1 }}
               >
-                {isDryRunning ? <><Spinner /> Test en cours...</> : '→ Tester (100 lignes)'}
+                {isDryRunning ? <><Spinner /> Test en cours...</> : '> Tester (100 lignes)'}
               </button>
 
               {dryRunResult?.success && (
                 <div style={{ marginTop: 16 }}>
                   {/* Stats grid */}
-                  <div className="g-grid-3">
-                    <div className="stat-card">
-                      <div className="stat-label">Valides</div>
-                      <div className="stat-value" style={{ color: 'var(--green)' }}>{dryRunResult.stats.validRows}</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-label">Sans coords</div>
-                      <div className="stat-value" style={{ color: 'var(--orange)' }}>{dryRunResult.stats.missingCoords}</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-label">Exclus</div>
-                      <div className="stat-value" style={{ color: 'var(--red)' }}>{dryRunResult.stats.invalidRows}</div>
-                    </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                    {[
+                      { label: 'Valides', val: dryRunResult.stats.validRows, color: C.green },
+                      { label: 'Sans coords', val: dryRunResult.stats.missingCoords, color: C.warn },
+                      { label: 'Exclus', val: dryRunResult.stats.invalidRows, color: C.red },
+                    ].map(({ label, val, color }) => (
+                      <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                        <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Additional geocoding stats */}
                   {dryRunResult.stats.geocodedRows !== undefined && (
-                    <div className="g-grid-3" style={{ marginTop: 8 }}>
-                      <div className="stat-card">
-                        <div className="stat-label">Geocodes</div>
-                        <div className="stat-value" style={{ color: 'var(--accent)' }}>{dryRunResult.stats.geocodedRows}</div>
-                      </div>
-                      <div className="stat-card">
-                        <div className="stat-label">Echecs geocodage</div>
-                        <div className="stat-value" style={{ color: 'var(--red)' }}>{dryRunResult.stats.geocodeErrors}</div>
-                      </div>
-                      <div className="stat-card">
-                        <div className="stat-label">Total fichier</div>
-                        <div className="stat-value" style={{ color: 'var(--text-secondary)' }}>{dryRunResult.stats.totalRows.toLocaleString()}</div>
-                      </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 10 }}>
+                      {[
+                        { label: 'Geocodes', val: dryRunResult.stats.geocodedRows, color: C.accent },
+                        { label: 'Echecs geocodage', val: dryRunResult.stats.geocodeErrors, color: C.red },
+                        { label: 'Total fichier', val: dryRunResult.stats.totalRows.toLocaleString(), color: C.textDim },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
+                          <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                          <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {/* Map preview */}
                   {dryRunResult.samplePoints.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 6 }}>
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 6 }}>
                         // apercu carte — {dryRunResult.samplePoints.length} premiers points
                       </div>
                       <iframe
                         src={getMapPreviewUrl(dryRunResult.samplePoints)}
                         width="100%"
                         height="250"
-                        style={{ border: '1px solid var(--border)', borderRadius: 6 }}
+                        style={{ border: `1px solid ${C.border}`, borderRadius: 2, display: 'block' }}
                         title="Apercu carte"
                       />
                     </div>
@@ -1668,10 +1854,10 @@ export default function ImportUniverselPage() {
                   {/* Sample points list */}
                   {dryRunResult.samplePoints.length > 0 && (
                     <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textDim, cursor: 'pointer' }}>
                         Points d&apos;apercu ({dryRunResult.samplePoints.length})
                       </summary>
-                      <pre className="g-code" style={{ marginTop: 6, fontSize: 11, maxHeight: 150, overflow: 'auto' }}>
+                      <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.textDim }}>
                         {JSON.stringify(dryRunResult.samplePoints, null, 2)}
                       </pre>
                     </details>
@@ -1680,10 +1866,10 @@ export default function ImportUniverselPage() {
                   {/* Errors */}
                   {dryRunResult.errors.length > 0 && (
                     <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontSize: 12, color: 'var(--orange)', cursor: 'pointer' }}>
+                      <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.warn, cursor: 'pointer' }}>
                         Erreurs ({dryRunResult.errors.length})
                       </summary>
-                      <pre className="g-code" style={{ marginTop: 6, fontSize: 11, maxHeight: 150, overflow: 'auto', color: 'var(--orange)' }}>
+                      <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.warn }}>
                         {dryRunResult.errors.map((e) => `Ligne ${e.row}: [${e.field}] ${e.message}`).join('\n')}
                       </pre>
                     </details>
@@ -1692,8 +1878,8 @@ export default function ImportUniverselPage() {
               )}
 
               {dryRunResult && !dryRunResult.success && (
-                <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
-                  {dryRunResult.error}
+                <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                  ! {dryRunResult.error}
                 </div>
               )}
             </div>
@@ -1704,35 +1890,35 @@ export default function ImportUniverselPage() {
         {/* STEP 05 — Import reel */}
         {/* ============================================================ */}
         {dryRunResult?.success && dryRunResult.stats.validRows > 0 && (
-          <div className="g-card">
-            <div className="g-card-header">
-              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--accent)', fontWeight: 700 }}>05</span>
-              <span className="g-card-title">Import reel</span>
+          <div style={card}>
+            <div style={cardHeader}>
+              <span style={stepNum}>05</span>
+              <span style={cardTitle}>Import reel</span>
               {importReport && (
-                <span className="g-badge g-badge-green" style={{ marginLeft: 'auto' }}>
+                <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
                   {importReport.inserted.toLocaleString()} inseres
                 </span>
               )}
             </div>
-            <div className="g-card-body">
+            <div style={cardBody}>
               {/* Source metadata */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div>
-                  <label className="g-label">Nom de la source (optionnel)</label>
+                  <label style={sLabel}>Nom de la source (optionnel)</label>
                   <input
                     type="text"
-                    className="g-input"
                     value={sourceName}
                     onChange={(e) => setSourceName(e.target.value)}
                     placeholder={`Import ${dataType} — ${new Date().toLocaleDateString('fr-FR')}`}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
-                  <label className="g-label">Organisation</label>
+                  <label style={sLabel}>Organisation</label>
                   <select
-                    className="g-input"
                     value={organizationId}
                     onChange={(e) => setOrganizationId(e.target.value)}
+                    style={inputStyle}
                   >
                     {organizations.length > 0 ? (
                       organizations.map((org) => (
@@ -1749,48 +1935,49 @@ export default function ImportUniverselPage() {
                 <button
                   onClick={handleImport}
                   disabled={isImporting}
-                  className="g-btn g-btn-danger"
-                  style={{ minWidth: 200 }}
+                  style={{ ...btnDanger, minWidth: 200, opacity: isImporting ? 0.6 : 1 }}
                 >
                   {isImporting ? <><Spinner /> Import en cours...</> : 'LANCER L\'IMPORT REEL'}
                 </button>
-                <span style={{ fontSize: 12, color: 'var(--red)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  Insertion en base Supabase ({parseResult?.totalRows.toLocaleString()} lignes)
+                <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                  ! Insertion en base Supabase ({parseResult?.totalRows.toLocaleString()} lignes)
                 </span>
               </div>
 
               {/* Progress bar */}
               {importProgress && importProgress.total && importProgress.total > 0 && (
                 <div style={{ marginTop: 16 }}>
-                  <div className="g-progress" style={{ marginBottom: 8 }}>
+                  <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, height: 6, overflow: 'hidden', marginBottom: 8 }}>
                     <div
-                      className="g-progress-bar"
                       style={{
+                        height: '100%',
+                        background: C.accent,
+                        borderRadius: 2,
                         width: `${((importProgress.processed || 0) / importProgress.total) * 100}%`,
                         transition: 'width 0.3s ease',
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>
-                    <span>traites: <span style={{ color: 'var(--text-primary)' }}>{(importProgress.processed || 0).toLocaleString()}/{importProgress.total.toLocaleString()}</span></span>
-                    {importProgress.inserted !== undefined && <span>inseres: <span style={{ color: 'var(--green)' }}>{importProgress.inserted.toLocaleString()}</span></span>}
-                    {importProgress.ignored !== undefined && importProgress.ignored > 0 && <span>ignores: <span style={{ color: 'var(--orange)' }}>{importProgress.ignored.toLocaleString()}</span></span>}
-                    {importProgress.errors !== undefined && importProgress.errors > 0 && <span>erreurs: <span style={{ color: 'var(--red)' }}>{importProgress.errors.toLocaleString()}</span></span>}
+                  <div style={{ display: 'flex', gap: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+                    <span>traites: <span style={{ color: C.text }}>{(importProgress.processed || 0).toLocaleString()}/{importProgress.total.toLocaleString()}</span></span>
+                    {importProgress.inserted !== undefined && <span>inseres: <span style={{ color: C.green }}>{importProgress.inserted.toLocaleString()}</span></span>}
+                    {importProgress.ignored !== undefined && importProgress.ignored > 0 && <span>ignores: <span style={{ color: C.warn }}>{importProgress.ignored.toLocaleString()}</span></span>}
+                    {importProgress.errors !== undefined && importProgress.errors > 0 && <span>erreurs: <span style={{ color: C.red }}>{importProgress.errors.toLocaleString()}</span></span>}
                   </div>
                 </div>
               )}
 
               {/* Geocoding progress */}
               {importProgress?.type === 'geocode' && (
-                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--accent)', fontFamily: 'JetBrains Mono, monospace' }}>
+                <div style={{ marginTop: 8, fontFamily: fontMono, fontSize: 11, color: C.accent }}>
                   {importProgress.message}
                 </div>
               )}
 
               {/* Error message */}
               {importProgress?.type === 'error' && (
-                <div className="g-alert g-alert-error" style={{ marginTop: 12 }}>
-                  {importProgress.message}
+                <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                  ! {importProgress.message}
                 </div>
               )}
 
@@ -1798,24 +1985,30 @@ export default function ImportUniverselPage() {
               {importReport && (
                 <div style={{ marginTop: 16 }}>
                   {importReport.errors > 0 && importReport.inserted === 0 ? (
-                    <div className="g-alert g-alert-error">Import echoue — {importReport.errors} erreurs, 0 inseres</div>
+                    <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red, marginBottom: 10 }}>
+                      ! Import echoue — {importReport.errors} erreurs, 0 inseres
+                    </div>
                   ) : importReport.errors > 0 ? (
-                    <div className="g-alert g-alert-warning">Import partiel — {importReport.inserted} inseres, {importReport.errors} erreurs</div>
+                    <div style={{ background: C.warnDim, border: `1px solid rgba(251,191,36,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.warn, marginBottom: 10 }}>
+                      ! Import partiel — {importReport.inserted} inseres, {importReport.errors} erreurs
+                    </div>
                   ) : (
-                    <div className="g-alert g-alert-success">Import termine avec succes !</div>
+                    <div style={{ background: C.greenDim, border: `1px solid rgba(61,255,160,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.green, marginBottom: 10 }}>
+                      [OK] Import termine avec succes
+                    </div>
                   )}
-                  <div className="g-code" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    <div><span style={{ color: 'var(--text-dim)' }}>total: </span><span style={{ color: 'var(--text-primary)' }}>{importReport.total.toLocaleString()}</span></div>
-                    <div><span style={{ color: 'var(--text-dim)' }}>inseres: </span><span style={{ color: 'var(--green)' }}>{importReport.inserted.toLocaleString()}</span></div>
-                    <div><span style={{ color: 'var(--text-dim)' }}>ignores: </span><span style={{ color: 'var(--orange)' }}>{importReport.ignored.toLocaleString()}</span></div>
-                    <div><span style={{ color: 'var(--text-dim)' }}>erreurs: </span><span style={{ color: importReport.errors > 0 ? 'var(--red)' : 'var(--text-primary)' }}>{importReport.errors.toLocaleString()}</span></div>
+                  <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12, fontFamily: fontMono, fontSize: 11, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    <div><span style={{ color: C.muted }}>total: </span><span style={{ color: C.text }}>{importReport.total.toLocaleString()}</span></div>
+                    <div><span style={{ color: C.muted }}>inseres: </span><span style={{ color: C.green }}>{importReport.inserted.toLocaleString()}</span></div>
+                    <div><span style={{ color: C.muted }}>ignores: </span><span style={{ color: C.warn }}>{importReport.ignored.toLocaleString()}</span></div>
+                    <div><span style={{ color: C.muted }}>erreurs: </span><span style={{ color: importReport.errors > 0 ? C.red : C.text }}>{importReport.errors.toLocaleString()}</span></div>
                   </div>
                   {/* Afficher le message d erreur SQL si present */}
                   {importProgress?.firstError && (
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: 6, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--red)' }}>
-                      <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠️ Erreur SQL detectee :</div>
+                    <div style={{ marginTop: 10, padding: '10px 12px', background: C.redDim, border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 2, fontFamily: fontMono, fontSize: 11, color: C.red }}>
+                      <div style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
                       <div style={{ wordBreak: 'break-all', lineHeight: 1.6 }}>{importProgress.firstError}</div>
-                      <div style={{ marginTop: 8, color: 'var(--text-dim)', fontSize: 10 }}>
+                      <div style={{ marginTop: 8, color: C.muted, fontSize: 9 }}>
                         → Si &quot;column does not exist&quot;: executer le SQL ALTER TABLE dans Supabase Dashboard
                       </div>
                     </div>
@@ -1834,20 +2027,20 @@ export default function ImportUniverselPage() {
                     alignItems: 'center',
                     gap: 12,
                     marginBottom: 6,
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 11,
+                    fontFamily: fontMono,
+                    fontSize: 10,
                   }}>
-                    <span style={{ color: 'var(--text-dim)', fontWeight: 700 }}>// JOURNAL EN DIRECT</span>
-                    <span style={{ color: 'var(--green)' }}>
+                    <span style={{ color: C.muted, fontWeight: 700 }}>// JOURNAL EN DIRECT</span>
+                    <span style={{ color: C.green }}>
                       OK {logLines.filter(l => l.level === 'info' && l.line.startsWith('[OK]')).length}
                     </span>
-                    <span style={{ color: 'var(--orange)' }}>
+                    <span style={{ color: C.warn }}>
                       SKIP {logLines.filter(l => l.level === 'warn' && l.line.startsWith('[SKIP]')).length}
                     </span>
-                    <span style={{ color: 'var(--red)' }}>
+                    <span style={{ color: C.red }}>
                       ERR {logLines.filter(l => l.level === 'error' && l.line.startsWith('[ERR]')).length}
                     </span>
-                    <span style={{ color: 'var(--text-dim)', marginLeft: 'auto' }}>
+                    <span style={{ color: C.muted, marginLeft: 'auto' }}>
                       {logLines.length} lignes
                     </span>
                   </div>
@@ -1856,13 +2049,13 @@ export default function ImportUniverselPage() {
                   <div
                     ref={logContainerRef}
                     style={{
-                      background: '#0a0a0f',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
+                      background: '#020202',
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 2,
                       padding: '8px 12px',
                       maxHeight: 350,
                       overflowY: 'auto',
-                      fontFamily: 'JetBrains Mono, monospace',
+                      fontFamily: fontMono,
                       fontSize: 10,
                       lineHeight: 1.7,
                     }}
@@ -1870,13 +2063,13 @@ export default function ImportUniverselPage() {
                     {logLines.map((log, idx) => (
                       <div key={idx} style={{
                         color: log.level === 'error'
-                          ? '#ef4444'
+                          ? C.red
                           : log.level === 'warn'
-                            ? '#fb923c'
+                            ? C.warn
                             : log.line.startsWith('[OK]')
-                              ? '#22c55e'
-                              : '#8b8b9a',
-                        borderBottom: log.line.startsWith('---') ? '1px solid #222' : 'none',
+                              ? C.green
+                              : C.muted,
+                        borderBottom: log.line.startsWith('---') ? `1px solid ${C.border}` : 'none',
                         paddingBottom: log.line.startsWith('---') ? 2 : 0,
                         marginBottom: log.line.startsWith('---') ? 2 : 0,
                       }}>
@@ -1884,7 +2077,7 @@ export default function ImportUniverselPage() {
                       </div>
                     ))}
                     {isImporting && (
-                      <div style={{ color: 'var(--accent)', animation: 'pulse 1.5s ease-in-out infinite' }}>
+                      <div style={{ color: C.accent }}>
                         {'>'} en cours...
                       </div>
                     )}
@@ -1896,10 +2089,17 @@ export default function ImportUniverselPage() {
         )}
 
         {/* Footer hint */}
-        <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace', borderTop: '1px solid var(--border)' }}>
-          <span>// </span>Formats supportes: CSV, Excel (.xlsx/.xls), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)
+        <div style={{ padding: '12px 0', fontFamily: fontMono, fontSize: 10, color: C.muted, borderTop: `1px solid ${C.border}` }}>
+          // Formats supportes: CSV, Excel (.xlsx/.xls), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

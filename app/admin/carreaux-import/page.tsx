@@ -237,6 +237,33 @@ function fmtNum(n: number): string {
   return n.toLocaleString('fr-FR');
 }
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const C = {
+  bg: '#050505',
+  bgElevated: '#0d0d0d',
+  bgSurface: '#111118',
+  border: '#261a35',
+  borderLight: 'rgba(168,85,247,0.2)',
+  accent: '#a855f7',
+  accentDim: 'rgba(168,85,247,0.12)',
+  text: '#e2e8f0',
+  textDim: '#94a3b8',
+  textSec: '#6b7280',
+  muted: '#4b5563',
+  green: '#3dffa0',
+  greenDim: 'rgba(61,255,160,0.12)',
+  red: '#f87171',
+  redDim: 'rgba(248,113,113,0.1)',
+  warn: '#fbbf24',
+  warnDim: 'rgba(251,191,36,0.1)',
+  blue: '#3b82f6',
+};
+const fontOrbitron = "'Orbitron',sans-serif";
+const fontMichroma = "'Michroma','Orbitron',sans-serif";
+const fontMono = "'JetBrains Mono',monospace";
+const fontInter = "'Inter',system-ui,sans-serif";
+
 // ═════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
@@ -411,7 +438,7 @@ export default function ImportShapefilePage() {
       // Default mappings: all columns → metadata
       setMappings(dbfFields.map(f => ({ source: f.name, target: '' })));
 
-      setParseProgress({ label: `✅ ${fmtNum(feats.length)} features prêtes`, pct: 100 });
+      setParseProgress({ label: `✓ ${fmtNum(feats.length)} features prêtes`, pct: 100 });
 
       // Auto-advance to step 2 after brief pause
       setTimeout(() => setStep(2), 600);
@@ -517,14 +544,14 @@ export default function ImportShapefilePage() {
 
         if (data.success) {
           inserted += data.inserted;
-          addLog(`✅ Lot ${batchIdx + 1}/${totalBatches} inséré (${fmtNum(data.inserted)} lignes) — total: ${fmtNum(inserted)}/${fmtNum(total)}`);
+          addLog(`✓ Lot ${batchIdx + 1}/${totalBatches} inséré (${fmtNum(data.inserted)} lignes) — total: ${fmtNum(inserted)}/${fmtNum(total)}`);
         } else {
           errors++;
-          addLog(`❌ Erreur lot ${batchIdx + 1}/${totalBatches} : ${data.error}`);
+          addLog(`✕ Erreur lot ${batchIdx + 1}/${totalBatches} : ${data.error}`);
 
           // Retry with half batch on 413
           if (data.error?.includes('413') || data.error?.includes('too large') || data.error?.includes('payload')) {
-            addLog(`  ↳ Tentative en demi-lots...`);
+            addLog(`  Tentative en demi-lots...`);
             const half = Math.ceil(rows.length / 2);
             for (const subBatch of [rows.slice(0, half), rows.slice(half)]) {
               try {
@@ -536,12 +563,12 @@ export default function ImportShapefilePage() {
                 const subData = await subRes.json();
                 if (subData.success) {
                   inserted += subData.inserted;
-                  addLog(`  ✅ Demi-lot inséré (${subData.inserted} lignes)`);
+                  addLog(`  ✓ Demi-lot inséré (${subData.inserted} lignes)`);
                 } else {
-                  addLog(`  ❌ Demi-lot échoué : ${subData.error}`);
+                  addLog(`  ✕ Demi-lot échoué : ${subData.error}`);
                 }
               } catch (se: unknown) {
-                addLog(`  ❌ Demi-lot exception : ${se instanceof Error ? se.message : 'erreur'}`);
+                addLog(`  ✕ Demi-lot exception : ${se instanceof Error ? se.message : 'erreur'}`);
               }
             }
           }
@@ -549,7 +576,7 @@ export default function ImportShapefilePage() {
       } catch (e: unknown) {
         errors++;
         const msg = e instanceof Error ? e.message : 'Erreur réseau';
-        addLog(`❌ Exception lot ${batchIdx + 1} : ${msg}`);
+        addLog(`✕ Exception lot ${batchIdx + 1} : ${msg}`);
       }
 
       setProgress({ current: Math.min(end, total), total });
@@ -574,7 +601,7 @@ export default function ImportShapefilePage() {
     // Register source in data_sources for /admin/sources visibility
     if (inserted > 0) {
       try {
-        addLog('📋 Enregistrement de la source dans le back-office...');
+        addLog('Enregistrement de la source dans le back-office...');
         const regRes = await adminFetch('/api/admin/import-geo/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -589,12 +616,12 @@ export default function ImportShapefilePage() {
         });
         const regData = await regRes.json();
         if (regData.success) {
-          addLog(`✅ Source enregistrée (id: ${regData.source_id})`);
+          addLog(`✓ Source enregistrée (id: ${regData.source_id})`);
         } else {
-          addLog(`⚠️ Enregistrement source : ${regData.error}`);
+          addLog(`! Enregistrement source : ${regData.error}`);
         }
       } catch {
-        addLog('⚠️ Impossible d\'enregistrer la source (non bloquant)');
+        addLog(`! Impossible d'enregistrer la source (non bloquant)`);
       }
     }
 
@@ -611,42 +638,83 @@ export default function ImportShapefilePage() {
   const eta = progress && speed > 0 ? Math.ceil((progress.total - progress.current) / speed) : 0;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white p-6">
-      <div className="max-w-5xl mx-auto">
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, padding: '24px', fontFamily: fontInter }}>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .spin { animation: spin 1s linear infinite; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0d0d0d; }
+        ::-webkit-scrollbar-thumb { background: #261a35; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.4); }
+      `}</style>
+
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold font-mono tracking-tight">
-            <span className="text-[#3dffa0]">admin</span> / import-shapefile
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '0.04em', color: C.text }}>
+            <span style={{ color: C.green }}>admin</span>
+            <span style={{ color: C.muted }}> / </span>
+            import-shapefile
           </h1>
-          <p className="text-sm text-gray-500 font-mono mt-1">
-            Import de données géographiques — Shapefile → Supabase
+          <p style={{ fontFamily: fontMono, fontSize: 12, color: C.textSec, marginTop: 6 }}>
+            Import de données géographiques — Shapefile &rarr; Supabase
           </p>
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-2 mb-8">
-          {[
-            { n: 1, label: 'Fichiers' },
-            { n: 2, label: 'Mapping' },
-            { n: 3, label: 'Import' },
-          ].map(({ n, label }) => (
-            <div key={n} className="flex items-center gap-2">
-              {n > 1 && <div className={`w-12 h-0.5 ${step >= n ? 'bg-[#3dffa0]' : 'bg-gray-700'}`} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
+          {([
+            { n: 1 as WizardStep, label: 'Fichiers' },
+            { n: 2 as WizardStep, label: 'Mapping' },
+            { n: 3 as WizardStep, label: 'Import' },
+          ]).map(({ n, label }) => (
+            <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {n > 1 && (
+                <div style={{
+                  width: 48,
+                  height: 1,
+                  background: step >= n ? C.green : C.border,
+                }} />
+              )}
               <button
-                onClick={() => n < step && setStep(n as WizardStep)}
+                onClick={() => n < step && setStep(n)}
                 disabled={n > step}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-                  step === n
-                    ? 'bg-[#3dffa0]/10 border border-[#3dffa0]/30 text-[#3dffa0] font-bold'
-                    : step > n
-                    ? 'bg-gray-800/50 border border-gray-700 text-gray-400 cursor-pointer hover:border-gray-500'
-                    : 'bg-gray-900/50 border border-gray-800 text-gray-600 cursor-not-allowed'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 16px',
+                  borderRadius: 2,
+                  fontFamily: fontMichroma,
+                  fontSize: 11,
+                  fontWeight: step === n ? 700 : 400,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  cursor: n > step ? 'not-allowed' : n < step ? 'pointer' : 'default',
+                  background: step === n ? C.greenDim : step > n ? C.bgElevated : C.bgElevated,
+                  border: `1px solid ${step === n ? 'rgba(61,255,160,0.3)' : step > n ? C.border : C.border}`,
+                  color: step === n ? C.green : step > n ? C.textDim : C.muted,
+                  transition: 'all 0.15s',
+                  outline: 'none',
+                }}
               >
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step > n ? 'bg-[#3dffa0] text-black' : step === n ? 'bg-[#3dffa0]/20 text-[#3dffa0]' : 'bg-gray-800 text-gray-600'
-                }`}>
+                <span style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: step > n ? C.green : step === n ? C.greenDim : C.bgSurface,
+                  color: step > n ? '#000' : step === n ? C.green : C.muted,
+                  fontFamily: fontMono,
+                }}>
                   {step > n ? '✓' : n}
                 </span>
                 {label}
@@ -657,7 +725,7 @@ export default function ImportShapefilePage() {
 
         {/* ═══════════════════════ STEP 1: FILES ═══════════════════════ */}
         {step === 1 && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Dropzone */}
             <div
               ref={dropRef}
@@ -665,11 +733,15 @@ export default function ImportShapefilePage() {
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onClick={() => inputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
-                isDragging
-                  ? 'border-[#3dffa0] bg-[#3dffa0]/5'
-                  : 'border-gray-700 hover:border-gray-500 bg-gray-900/30'
-              }`}
+              style={{
+                border: `2px dashed ${isDragging ? C.green : C.border}`,
+                borderRadius: 2,
+                padding: '48px 24px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: isDragging ? C.greenDim : C.bgElevated,
+                transition: 'all 0.15s',
+              }}
             >
               <input
                 ref={inputRef}
@@ -677,22 +749,31 @@ export default function ImportShapefilePage() {
                 multiple
                 accept=".shp,.dbf,.prj,.shx"
                 onChange={onFileInput}
-                className="hidden"
+                style={{ display: 'none' }}
               />
 
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#3dffa0' : '#888'} strokeWidth="1.5">
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 2,
+                  background: C.bgSurface,
+                  border: `1px solid ${C.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={isDragging ? C.green : C.muted} strokeWidth="1.5">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-gray-300">
+                  <p style={{ fontFamily: fontInter, fontSize: 15, fontWeight: 600, color: C.text, margin: 0 }}>
                     Glissez vos fichiers Shapefile ici
                   </p>
-                  <p className="text-sm text-gray-500 mt-1 font-mono">
+                  <p style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginTop: 6 }}>
                     .shp + .dbf + .prj + .shx — sélection multiple obligatoire
                   </p>
                 </div>
@@ -701,71 +782,131 @@ export default function ImportShapefilePage() {
 
             {/* Parse progress */}
             {isParsing && parseProgress && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-mono text-sm text-[#ffc832]">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffc832" strokeWidth="2.5" className="inline mr-2 animate-spin">
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                padding: 20,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontFamily: fontMono, fontSize: 12, color: C.warn, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24"
+                      fill="none" stroke={C.warn} strokeWidth="2.5"
+                      className="spin"
+                      style={{ display: 'inline-block' }}
+                    >
                       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
                     {parseProgress.label}
                   </span>
-                  <span className="font-mono text-sm text-[#ffc832] font-bold">{parseProgress.pct}%</span>
+                  <span style={{ fontFamily: fontMono, fontSize: 12, color: C.warn, fontWeight: 700 }}>{parseProgress.pct}%</span>
                 </div>
-                <div className="h-3 rounded-full bg-gray-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#ffc832] to-[#ff9500] transition-all duration-300"
-                    style={{ width: `${parseProgress.pct}%` }}
-                  />
+                <div style={{ height: 4, borderRadius: 2, background: C.bgSurface, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    borderRadius: 2,
+                    background: `linear-gradient(90deg, ${C.warn}, #f97316)`,
+                    width: `${parseProgress.pct}%`,
+                    transition: 'width 0.3s',
+                  }} />
                 </div>
               </div>
             )}
 
             {/* Parse error */}
             {parseError && (
-              <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-4">
-                <p className="text-red-400 font-mono text-sm">❌ {parseError}</p>
+              <div style={{
+                background: C.redDim,
+                border: `1px solid rgba(248,113,113,0.25)`,
+                borderRadius: 2,
+                padding: '12px 16px',
+              }}>
+                <p style={{ fontFamily: fontMono, fontSize: 12, color: C.red, margin: 0 }}>
+                  ! {parseError}
+                </p>
               </div>
             )}
 
             {/* File summary (when parsed) */}
             {bundle && features.length > 0 && (
-              <div className="bg-gray-900/50 border border-[#3dffa0]/20 rounded-xl p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#3dffa0]/10 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3dffa0" strokeWidth="2">
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid rgba(61,255,160,0.25)`,
+                borderRadius: 2,
+                padding: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 2,
+                    background: C.greenDim,
+                    border: `1px solid rgba(61,255,160,0.2)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </div>
                   <div>
-                    <p className="font-mono font-bold text-[#3dffa0]">{bundle.fileName}</p>
-                    <p className="font-mono text-xs text-gray-500">
+                    <p style={{ fontFamily: fontMono, fontWeight: 700, color: C.green, margin: 0, fontSize: 13 }}>{bundle.fileName}</p>
+                    <p style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginTop: 2 }}>
                       {fmtNum(features.length)} features · {fields.length} colonnes · CRS: {crs}
                     </p>
                   </div>
                 </div>
 
                 {/* File sizes */}
-                <div className="flex gap-3 flex-wrap">
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {[
                     { ext: '.shp', size: bundle.shp.byteLength },
                     { ext: '.dbf', size: bundle.dbf.byteLength },
                     ...(bundle.prj ? [{ ext: '.prj', size: bundle.prj.length }] : []),
                     ...(bundle.shx ? [{ ext: '.shx', size: bundle.shx.byteLength }] : []),
                   ].map(f => (
-                    <span key={f.ext} className="px-3 py-1 rounded-md bg-gray-800 font-mono text-xs text-gray-400">
-                      {f.ext} <span className="text-gray-500">{fmtBytes(f.size)}</span>
+                    <span key={f.ext} style={{
+                      padding: '3px 10px',
+                      borderRadius: 2,
+                      background: C.bgSurface,
+                      border: `1px solid ${C.border}`,
+                      fontFamily: fontMono,
+                      fontSize: 11,
+                      color: C.textDim,
+                    }}>
+                      {f.ext} <span style={{ color: C.textSec }}>{fmtBytes(f.size)}</span>
                     </span>
                   ))}
                 </div>
 
                 {/* Column preview */}
                 <div>
-                  <p className="font-mono text-xs text-gray-500 mb-2">Colonnes détectées :</p>
-                  <div className="flex gap-2 flex-wrap">
+                  <p style={{
+                    fontFamily: fontMichroma,
+                    fontSize: 9,
+                    color: C.accent,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.14em',
+                    marginBottom: 8,
+                  }}>Colonnes détectées</p>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {fields.map(f => (
-                      <span key={f.name} className="px-2 py-0.5 rounded bg-gray-800 font-mono text-xs text-gray-300">
+                      <span key={f.name} style={{
+                        padding: '2px 8px',
+                        borderRadius: 2,
+                        background: C.bgSurface,
+                        border: `1px solid ${C.border}`,
+                        fontFamily: fontMono,
+                        fontSize: 11,
+                        color: C.text,
+                      }}>
                         {f.name}
-                        <span className="text-gray-600 ml-1">{f.type === 'N' || f.type === 'F' ? '123' : 'abc'}</span>
+                        <span style={{ color: C.muted, marginLeft: 4 }}>{f.type === 'N' || f.type === 'F' ? '123' : 'abc'}</span>
                       </span>
                     ))}
                   </div>
@@ -773,9 +914,25 @@ export default function ImportShapefilePage() {
 
                 <button
                   onClick={() => setStep(2)}
-                  className="w-full py-3 rounded-lg bg-[#3dffa0] text-black font-mono font-bold text-sm hover:bg-[#2de090] transition-colors"
+                  style={{
+                    width: '100%',
+                    padding: '12px 0',
+                    borderRadius: 2,
+                    background: C.green,
+                    color: '#000',
+                    fontFamily: fontMichroma,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                 >
-                  Continuer → Mapping des colonnes
+                  Continuer — Mapping des colonnes
                 </button>
               </div>
             )}
@@ -784,36 +941,111 @@ export default function ImportShapefilePage() {
 
         {/* ═══════════════════════ STEP 2: MAPPING ═══════════════════════ */}
         {step === 2 && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Config cards */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
-                <label className="block font-mono text-xs text-gray-500 mb-2">Résolution</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {/* Resolution */}
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                padding: 16,
+              }}>
+                <label style={{
+                  display: 'block',
+                  fontFamily: fontMichroma,
+                  fontSize: 9,
+                  color: C.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  marginBottom: 8,
+                }}>Résolution</label>
                 <select
                   value={resolution}
                   onChange={e => setResolution(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
+                  style={{
+                    width: '100%',
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    padding: '8px 10px',
+                    fontFamily: fontMono,
+                    fontSize: 12,
+                    color: C.text,
+                    outline: 'none',
+                  }}
                 >
                   <option value="200m">200m × 200m</option>
                   <option value="1km">1km × 1km</option>
                 </select>
               </div>
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
-                <label className="block font-mono text-xs text-gray-500 mb-2">Millésime</label>
+
+              {/* Millesime */}
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                padding: 16,
+              }}>
+                <label style={{
+                  display: 'block',
+                  fontFamily: fontMichroma,
+                  fontSize: 9,
+                  color: C.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  marginBottom: 8,
+                }}>Millésime</label>
                 <input
                   value={millesime}
                   onChange={e => setMillesime(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
+                  style={{
+                    width: '100%',
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    padding: '8px 10px',
+                    fontFamily: fontMono,
+                    fontSize: 12,
+                    color: C.text,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
                   placeholder="2021"
                 />
               </div>
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
-                <label className="block font-mono text-xs text-gray-500 mb-2">Colonne ID (idcar)</label>
+
+              {/* ID column */}
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                padding: 16,
+              }}>
+                <label style={{
+                  display: 'block',
+                  fontFamily: fontMichroma,
+                  fontSize: 9,
+                  color: C.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  marginBottom: 8,
+                }}>Colonne ID (idcar)</label>
                 <select
                   value={idColumn}
                   onChange={e => setIdColumn(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-white"
+                  style={{
+                    width: '100%',
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 2,
+                    padding: '8px 10px',
+                    fontFamily: fontMono,
+                    fontSize: 12,
+                    color: C.text,
+                    outline: 'none',
+                  }}
                 >
                   <option value="">— Auto-index —</option>
                   {fields.map(f => (
@@ -824,32 +1056,93 @@ export default function ImportShapefilePage() {
             </div>
 
             {/* Column mapping table */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+            <div style={{
+              background: C.bgElevated,
+              border: `1px solid ${C.border}`,
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}>
+              {/* Table header */}
+              <div style={{
+                padding: '14px 20px',
+                borderBottom: `1px solid ${C.border}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
                 <div>
-                  <h3 className="font-mono font-bold text-sm text-white">Mapping des colonnes</h3>
-                  <p className="font-mono text-xs text-gray-500 mt-1">
-                    Sélectionnez les colonnes à inclure dans les metadata JSONB.
-                    Décochez celles à ignorer.
+                  <p style={{
+                    fontFamily: fontMichroma,
+                    fontSize: 9,
+                    color: C.accent,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.14em',
+                    margin: 0,
+                  }}>Mapping des colonnes</p>
+                  <p style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginTop: 4 }}>
+                    Sélectionnez les colonnes à inclure dans les metadata JSONB. Décochez celles à ignorer.
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={() => setMappings(mappings.map(m => ({ ...m, target: '' })))}
-                    className="px-3 py-1 rounded bg-gray-800 font-mono text-xs text-gray-400 hover:bg-gray-700"
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 2,
+                      background: C.bgSurface,
+                      border: `1px solid ${C.border}`,
+                      fontFamily: fontMichroma,
+                      fontSize: 9,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: C.textDim,
+                      cursor: 'pointer',
+                    }}
                   >
                     Tout inclure
                   </button>
                   <button
                     onClick={() => setMappings(mappings.map(m => ({ ...m, target: '__skip__' })))}
-                    className="px-3 py-1 rounded bg-gray-800 font-mono text-xs text-gray-400 hover:bg-gray-700"
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 2,
+                      background: C.bgSurface,
+                      border: `1px solid ${C.border}`,
+                      fontFamily: fontMichroma,
+                      fontSize: 9,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: C.textDim,
+                      cursor: 'pointer',
+                    }}
                   >
                     Tout exclure
                   </button>
                 </div>
               </div>
 
-              <div className="divide-y divide-gray-800/50 max-h-[500px] overflow-y-auto">
+              {/* Table rows */}
+              <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+                {/* Column headers */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '36px 1fr 160px 148px',
+                  gap: 0,
+                  padding: '6px 20px',
+                  borderBottom: `1px solid ${C.border}`,
+                  background: C.bgSurface,
+                }}>
+                  {['', 'Colonne source', 'Valeur exemple', 'Nom cible'].map((h, i) => (
+                    <span key={i} style={{
+                      fontFamily: fontMichroma,
+                      fontSize: 8,
+                      color: C.textSec,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.14em',
+                    }}>{h}</span>
+                  ))}
+                </div>
+
                 {mappings.map((m, idx) => {
                   const field = fields[idx];
                   const sample = features.length > 0 ? features[0].properties[m.source] : null;
@@ -858,35 +1151,55 @@ export default function ImportShapefilePage() {
                   return (
                     <div
                       key={m.source}
-                      className={`px-6 py-3 flex items-center gap-4 transition-colors ${
-                        isIncluded ? 'bg-transparent' : 'bg-gray-900/80 opacity-50'
-                      }`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '36px 1fr 160px 148px',
+                        gap: 0,
+                        padding: '8px 20px',
+                        borderBottom: `1px solid ${C.border}`,
+                        alignItems: 'center',
+                        opacity: isIncluded ? 1 : 0.4,
+                        background: isIncluded ? 'transparent' : C.bgSurface,
+                        transition: 'opacity 0.15s',
+                      }}
                     >
                       {/* Checkbox */}
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isIncluded}
-                          onChange={e => {
-                            const next = [...mappings];
-                            next[idx] = { ...m, target: e.target.checked ? '' : '__skip__' };
-                            setMappings(next);
-                          }}
-                          className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#3dffa0] focus:ring-[#3dffa0] focus:ring-offset-0"
-                        />
-                      </label>
+                      <input
+                        type="checkbox"
+                        checked={isIncluded}
+                        onChange={e => {
+                          const next = [...mappings];
+                          next[idx] = { ...m, target: e.target.checked ? '' : '__skip__' };
+                          setMappings(next);
+                        }}
+                        style={{
+                          width: 14,
+                          height: 14,
+                          accentColor: C.accent,
+                          cursor: 'pointer',
+                          borderRadius: 2,
+                        }}
+                      />
 
                       {/* Source column name */}
-                      <div className="flex-1 min-w-0">
-                        <span className="font-mono text-sm text-white font-medium">{m.source}</span>
-                        <span className="font-mono text-xs text-gray-600 ml-2">
+                      <div>
+                        <span style={{ fontFamily: fontMono, fontSize: 12, color: C.text, fontWeight: 500 }}>{m.source}</span>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginLeft: 8 }}>
                           {field?.type === 'N' || field?.type === 'F' ? 'numérique' : 'texte'}
                         </span>
                       </div>
 
                       {/* Sample value */}
-                      <div className="w-48 truncate">
-                        <span className="font-mono text-xs text-gray-500">
+                      <div style={{ overflow: 'hidden' }}>
+                        <span style={{
+                          fontFamily: fontMono,
+                          fontSize: 11,
+                          color: C.textSec,
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
                           {sample != null ? String(sample) : '—'}
                         </span>
                       </div>
@@ -901,7 +1214,19 @@ export default function ImportShapefilePage() {
                         }}
                         disabled={!isIncluded}
                         placeholder="(nom original)"
-                        className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 font-mono text-xs text-gray-300 disabled:opacity-30"
+                        style={{
+                          width: 140,
+                          background: C.bg,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 2,
+                          padding: '4px 8px',
+                          fontFamily: fontMono,
+                          fontSize: 11,
+                          color: C.textDim,
+                          opacity: isIncluded ? 1 : 0.3,
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
                       />
                     </div>
                   );
@@ -910,23 +1235,49 @@ export default function ImportShapefilePage() {
             </div>
 
             {/* Summary + next */}
-            <div className="flex items-center justify-between">
-              <div className="font-mono text-sm text-gray-400">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontFamily: fontMono, fontSize: 12, color: C.textDim }}>
                 {mappings.filter(m => m.target !== '__skip__').length} / {mappings.length} colonnes sélectionnées
-                · {fmtNum(features.length)} features à insérer
+                &nbsp;·&nbsp; {fmtNum(features.length)} features à insérer
               </div>
-              <div className="flex gap-3">
+              <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => setStep(1)}
-                  className="px-6 py-2.5 rounded-lg bg-gray-800 text-gray-400 font-mono text-sm hover:bg-gray-700"
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 2,
+                    background: C.bgElevated,
+                    border: `1px solid ${C.border}`,
+                    color: C.textDim,
+                    fontFamily: fontMichroma,
+                    fontSize: 10,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
                 >
-                  ← Retour
+                  Retour
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  className="px-6 py-2.5 rounded-lg bg-[#3dffa0] text-black font-mono font-bold text-sm hover:bg-[#2de090] transition-colors"
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: 2,
+                    background: C.green,
+                    border: 'none',
+                    color: '#000',
+                    fontFamily: fontMichroma,
+                    fontWeight: 700,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                 >
-                  Lancer l&apos;import →
+                  Lancer l&apos;import
                 </button>
               </div>
             </div>
@@ -935,29 +1286,40 @@ export default function ImportShapefilePage() {
 
         {/* ═══════════════════════ STEP 3: IMPORT ═══════════════════════ */}
         {step === 3 && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Summary card */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-              <div className="grid grid-cols-4 gap-6">
-                <div>
-                  <p className="font-mono text-xs text-gray-500">Features</p>
-                  <p className="font-mono text-xl font-bold text-white">{fmtNum(features.length)}</p>
-                </div>
-                <div>
-                  <p className="font-mono text-xs text-gray-500">Colonnes</p>
-                  <p className="font-mono text-xl font-bold text-white">
-                    {mappings.filter(m => m.target !== '__skip__').length}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-mono text-xs text-gray-500">Résolution</p>
-                  <p className="font-mono text-xl font-bold text-[#3dffa0]">{resolution}</p>
-                </div>
-                <div>
-                  <p className="font-mono text-xs text-gray-500">Millésime</p>
-                  <p className="font-mono text-xl font-bold text-[#3dffa0]">{millesime}</p>
-                </div>
+            <div style={{
+              background: C.bgElevated,
+              border: `1px solid ${C.border}`,
+              borderRadius: 2,
+              padding: 20,
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+                {[
+                  { label: 'Features', value: fmtNum(features.length), accent: false },
+                  { label: 'Colonnes', value: String(mappings.filter(m => m.target !== '__skip__').length), accent: false },
+                  { label: 'Résolution', value: resolution, accent: true },
+                  { label: 'Millésime', value: millesime, accent: true },
+                ].map(({ label, value, accent }) => (
+                  <div key={label}>
+                    <p style={{
+                      fontFamily: fontMichroma,
+                      fontSize: 9,
+                      color: C.textSec,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.14em',
+                      margin: 0,
+                    }}>{label}</p>
+                    <p style={{
+                      fontFamily: fontMono,
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: accent ? C.green : C.text,
+                      margin: '4px 0 0',
+                    }}>{value}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -965,51 +1327,103 @@ export default function ImportShapefilePage() {
             {!isImporting && !importDone && (
               <button
                 onClick={processImport}
-                className="w-full py-4 rounded-xl bg-[#3dffa0] text-black font-mono font-bold text-lg hover:bg-[#2de090] transition-colors"
+                style={{
+                  width: '100%',
+                  padding: '16px 0',
+                  borderRadius: 2,
+                  background: C.green,
+                  border: 'none',
+                  color: '#000',
+                  fontFamily: fontMichroma,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
               >
-                ⚡ Lancer l&apos;insertion ({fmtNum(features.length)} features)
+                Lancer l&apos;insertion ({fmtNum(features.length)} features)
               </button>
             )}
 
             {/* Progress bar */}
             {(isImporting || importDone) && progress && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
+              <div style={{
+                background: C.bgElevated,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                padding: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {isImporting && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3dffa0" strokeWidth="2.5" className="animate-spin">
+                      <svg
+                        width="15" height="15" viewBox="0 0 24 24"
+                        fill="none" stroke={C.green} strokeWidth="2.5"
+                        className="spin"
+                        style={{ display: 'inline-block' }}
+                      >
                         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                       </svg>
                     )}
-                    <span className="font-mono text-sm font-bold" style={{ color: importDone ? (importError ? '#ff5757' : '#3dffa0') : '#ffc832' }}>
+                    <span style={{
+                      fontFamily: fontMono,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: importDone ? (importError ? C.red : C.green) : C.warn,
+                    }}>
                       {importDone
-                        ? (importError ? `⚠️ ${importError}` : '✅ Import terminé')
-                        : `💾 Insertion en cours — ${fmtNum(progress.current)} / ${fmtNum(progress.total)}`
+                        ? (importError ? `! ${importError}` : '✓ Import terminé')
+                        : `Insertion en cours — ${fmtNum(progress.current)} / ${fmtNum(progress.total)}`
                       }
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 font-mono text-sm text-gray-400">
-                    {speed > 0 && <span>⚡ {fmtNum(speed)}/s</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontFamily: fontMono, fontSize: 12, color: C.textDim }}>
+                    {speed > 0 && <span>{fmtNum(speed)}/s</span>}
                     {isImporting && eta > 0 && <span>ETA ~{fmtTime(eta)}</span>}
-                    <span className="font-bold text-white">⏱ {fmtTime(elapsed)}</span>
+                    <span style={{ fontWeight: 700, color: C.text }}>
+                      {fmtTime(elapsed)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="relative">
-                  <div className="h-5 rounded-full bg-gray-800 overflow-hidden">
+                <div style={{ position: 'relative' }}>
+                  <div style={{ height: 18, borderRadius: 2, background: C.bgSurface, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                     <div
-                      className="h-full rounded-full transition-all duration-300"
                       style={{
+                        height: '100%',
+                        borderRadius: 2,
+                        transition: 'width 0.3s',
                         width: `${pct}%`,
                         background: importDone
-                          ? (importError ? 'linear-gradient(90deg, #ff5757, #ff8888)' : 'linear-gradient(90deg, #3dffa0, #58a6ff)')
-                          : 'linear-gradient(90deg, #ffc832, #ff9500)',
-                        boxShadow: `0 0 12px ${importDone ? (importError ? '#ff575740' : '#3dffa040') : '#ffc83240'}`,
+                          ? (importError
+                            ? `linear-gradient(90deg, ${C.red}, #fb8a8a)`
+                            : `linear-gradient(90deg, ${C.green}, ${C.blue})`)
+                          : `linear-gradient(90deg, ${C.warn}, #f97316)`,
+                        boxShadow: `0 0 10px ${importDone ? (importError ? 'rgba(248,113,113,0.25)' : 'rgba(61,255,160,0.25)') : 'rgba(251,191,36,0.25)'}`,
                       }}
                     />
                   </div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="font-mono text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <span style={{
+                      fontFamily: fontMono,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#fff',
+                      textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+                    }}>
                       {pct}%
                     </span>
                   </div>
@@ -1018,45 +1432,84 @@ export default function ImportShapefilePage() {
             )}
 
             {/* Terminal logs */}
-            <div className="bg-[#0d0d14] border border-gray-800 rounded-xl overflow-hidden">
-              <div className="px-4 py-2 bg-gray-900/80 border-b border-gray-800 flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-                  <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                  <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+            <div style={{
+              background: '#020202',
+              border: `1px solid ${C.border}`,
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}>
+              {/* Terminal bar */}
+              <div style={{
+                padding: '8px 14px',
+                background: C.bgElevated,
+                borderBottom: `1px solid ${C.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {['#ff5f56', '#ffbd2e', '#27c93f'].map((col, i) => (
+                    <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
+                  ))}
                 </div>
-                <span className="font-mono text-xs text-gray-500 ml-2">import-logs</span>
-                <span className="font-mono text-xs text-gray-600 ml-auto">{logs.length} lignes</span>
+                <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textSec, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                  import-logs
+                </span>
+                <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginLeft: 'auto' }}>
+                  {logs.length} lignes
+                </span>
               </div>
+
+              {/* Log output */}
               <div
                 ref={logRef}
-                className="p-4 h-80 overflow-y-auto font-mono text-xs leading-relaxed"
+                style={{
+                  padding: '14px 16px',
+                  height: 300,
+                  overflowY: 'auto',
+                  fontFamily: fontMono,
+                  fontSize: 11,
+                  lineHeight: 1.7,
+                }}
               >
                 {logs.length === 0 ? (
-                  <p className="text-gray-600">En attente du lancement…</p>
+                  <p style={{ color: C.muted, margin: 0 }}>En attente du lancement…</p>
                 ) : (
-                  logs.map((line, i) => (
-                    <div key={i} className={
-                      line.includes('❌') ? 'text-red-400'
-                      : line.includes('✅') ? 'text-[#3dffa0]'
-                      : line.includes('RAPPORT') || line.includes('═') ? 'text-[#58a6ff] font-bold'
-                      : 'text-gray-400'
-                    }>
-                      {line}
-                    </div>
-                  ))
+                  logs.map((line, i) => {
+                    let color = C.textDim;
+                    if (line.includes('✕') || line.includes('! ') || line.includes('Exception')) color = C.red;
+                    else if (line.includes('✓')) color = C.green;
+                    else if (line.includes('RAPPORT') || line.includes('═')) color = C.blue;
+                    return (
+                      <div key={i} style={{ color }}>
+                        {line}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
 
             {/* Back / Reset */}
-            <div className="flex gap-3">
+            <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => setStep(2)}
                 disabled={isImporting}
-                className="px-6 py-2.5 rounded-lg bg-gray-800 text-gray-400 font-mono text-sm hover:bg-gray-700 disabled:opacity-30"
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 2,
+                  background: C.bgElevated,
+                  border: `1px solid ${C.border}`,
+                  color: C.textDim,
+                  fontFamily: fontMichroma,
+                  fontSize: 10,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  cursor: isImporting ? 'not-allowed' : 'pointer',
+                  opacity: isImporting ? 0.3 : 1,
+                }}
               >
-                ← Retour au mapping
+                Retour au mapping
               </button>
               {importDone && (
                 <button
@@ -1070,9 +1523,23 @@ export default function ImportShapefilePage() {
                     setImportDone(false);
                     setImportError('');
                   }}
-                  className="px-6 py-2.5 rounded-lg bg-[#58a6ff]/10 border border-[#58a6ff]/30 text-[#58a6ff] font-mono text-sm hover:bg-[#58a6ff]/20"
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 2,
+                    background: 'rgba(59,130,246,0.1)',
+                    border: `1px solid rgba(59,130,246,0.3)`,
+                    color: C.blue,
+                    fontFamily: fontMichroma,
+                    fontSize: 10,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.18)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
                 >
-                  🔄 Nouvel import
+                  Nouvel import
                 </button>
               )}
             </div>
