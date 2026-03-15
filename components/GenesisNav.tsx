@@ -148,17 +148,6 @@ const navItems = [
                 badgeClass: '',
             },
             {
-                href: '/admin/network-cache',
-                label: 'Cache Réseau',
-                icon: (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                    </svg>
-                ),
-                badge: 'ORS',
-                badgeClass: 'badge-api',
-            },
-            {
                 href: '/admin/health',
                 label: 'Health Check',
                 icon: (
@@ -168,18 +157,6 @@ const navItems = [
                 ),
                 badge: 'SYS',
                 badgeClass: 'badge-api',
-            },
-            {
-                href: '/debug-coverage',
-                label: 'Debug Coverage',
-                icon: (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-                        <path d="M12 8v4M12 16h.01" />
-                    </svg>
-                ),
-                badge: 'DBG',
-                badgeClass: 'badge-admin',
             },
         ],
     },
