@@ -12,10 +12,7 @@ import type {
   FieldMapping,
   GeoConfig,
   GeocodeDetailedResult,
-  INSEE_CARREAUX_INDICATORS,
-  CarreauxSchemaInference,
 } from '@/lib/import/types';
-import { INSEE_CARREAUX_INDICATORS as INSEE_INDICATORS } from '@/lib/import/types';
 
 // ============================================================
 // Design tokens
@@ -135,16 +132,6 @@ export default function ImportUniverselPage() {
   const [geocodeFilter, setGeocodeFilter] = useState<'all' | 'green' | 'orange' | 'red'>('all');
   const [isUpdatingRow, setIsUpdatingRow] = useState(false);
   const [geocodeValidated, setGeocodeValidated] = useState(false);
-
-  // -- CARREAUX-specific states
-  const [carreauxSchemaInference, setCarreauxSchemaInference] = useState<CarreauxSchemaInference | null>(null);
-  const [isInferringSchema, setIsInferringSchema] = useState(false);
-  const [carreauxTableName, setCarreauxTableName] = useState('carreaux_imported');
-  const [carreauxSelectedColumns, setCarreauxSelectedColumns] = useState<string[]>([]);
-  const [carreauxGeomColumn, setCarreauxGeomColumn] = useState<string>('geom');
-  const [carreauxIdColumn, setCarreauxIdColumn] = useState<string>('idcar');
-  const [carreauxGeneratedSql, setCarreauxGeneratedSql] = useState<string | null>(null);
-  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
 
   // -- Column selection: which columns to include in metadata
   const [importedColumns, setImportedColumns] = useState<string[]>([]);
@@ -273,66 +260,6 @@ export default function ImportUniverselPage() {
   }, []);
 
   const handleDragLeave = useCallback(() => setIsDragging(false), []);
-
-  // ============================================================
-  // CARREAUX: Infer schema
-  // ============================================================
-
-  const inferCarreauxSchema = useCallback(async () => {
-    if (!parseResult?.success || !file) return;
-
-    setIsInferringSchema(true);
-    try {
-      const res = await adminFetch('/api/admin/carreaux-infer-schema', {
-        method: 'POST',
-        body: JSON.stringify({ fileId: parseResult.fileId, parseResult }),
-      });
-      const data: CarreauxSchemaInference = await res.json();
-      setCarreauxSchemaInference(data);
-
-      if (data.success) {
-        // Auto-populate
-        setCarreauxTableName(data.suggestedTableName);
-        if (data.geometryColumns.length > 0) {
-          setCarreauxGeomColumn(data.geometryColumns[0]);
-        }
-        if (data.idColumns.length > 0) {
-          setCarreauxIdColumn(data.idColumns[0]);
-        }
-        // Auto-select all INSEE indicators
-        const allInsee = data.inseeIndicators.map(x => x.columnName);
-        setCarreauxSelectedColumns(allInsee);
-      }
-    } catch (e) {
-      console.error('Erreur inférence schema:', e);
-    } finally {
-      setIsInferringSchema(false);
-    }
-  }, [parseResult, file]);
-
-  // Generate SQL from selected columns
-  const generateCarreauxSchema = useCallback(async () => {
-    setIsGeneratingSchema(true);
-    try {
-      const res = await adminFetch('/api/admin/carreaux-gen-schema', {
-        method: 'POST',
-        body: JSON.stringify({
-          tableName: carreauxTableName,
-          geomColumn: carreauxGeomColumn,
-          idColumn: carreauxIdColumn,
-          selectedColumns: carreauxSelectedColumns,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCarreauxGeneratedSql(data.sql);
-      }
-    } catch (e) {
-      console.error('Erreur génération schema:', e);
-    } finally {
-      setIsGeneratingSchema(false);
-    }
-  }, [carreauxTableName, carreauxGeomColumn, carreauxIdColumn, carreauxSelectedColumns]);
 
   // ============================================================
   // Step 4: Dry-run
@@ -1055,173 +982,6 @@ export default function ImportUniverselPage() {
                 </div>
               )}
 
-              {/* CARREAUX: Schema inference + column selection */}
-              {dataType === 'carreaux' && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-                  {!carreauxSchemaInference ? (
-                    <div>
-                      <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, marginBottom: 10, marginTop: 0 }}>
-                        Analysez le fichier pour detecter les colonnes INSEE disponibles.
-                      </p>
-                      <button
-                        style={{ ...btnPrimary, opacity: isInferringSchema ? 0.6 : 1 }}
-                        disabled={isInferringSchema}
-                        onClick={inferCarreauxSchema}
-                      >
-                        {isInferringSchema ? (
-                          <><Spinner size={10} /> Analyse en cours...</>
-                        ) : (
-                          'Analyser le fichier'
-                        )}
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {/* Nom Table */}
-                      <div>
-                        <label style={sLabel}>Nom de la table</label>
-                        <input
-                          type="text"
-                          value={carreauxTableName}
-                          onChange={(e) => setCarreauxTableName(e.target.value)}
-                          placeholder="carreaux_insee"
-                          style={{ ...inputStyle, maxWidth: 400 }}
-                        />
-                      </div>
-
-                      {/* Geometrie */}
-                      {carreauxSchemaInference.geometryColumns.length > 0 && (
-                        <div>
-                          <label style={sLabel}>Colonne geometrie</label>
-                          <select
-                            value={carreauxGeomColumn}
-                            onChange={(e) => setCarreauxGeomColumn(e.target.value)}
-                            style={{ ...inputStyle, maxWidth: 300 }}
-                          >
-                            {carreauxSchemaInference.geometryColumns.map((col) => (
-                              <option key={col} value={col}>{col}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* ID */}
-                      {carreauxSchemaInference.idColumns.length > 0 && (
-                        <div>
-                          <label style={sLabel}>Colonne identifiant</label>
-                          <select
-                            value={carreauxIdColumn}
-                            onChange={(e) => setCarreauxIdColumn(e.target.value)}
-                            style={{ ...inputStyle, maxWidth: 300 }}
-                          >
-                            {carreauxSchemaInference.idColumns.map((col) => (
-                              <option key={col} value={col}>{col}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Colonnes INSEE selection */}
-                      {carreauxSchemaInference.inseeIndicators.length > 0 && (
-                        <div>
-                          <label style={sLabel}>
-                            Indicateurs INSEE a importer ({carreauxSelectedColumns.length} selectionnes)
-                          </label>
-                          <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                            gap: 6,
-                            maxHeight: 250,
-                            overflowY: 'auto',
-                            padding: 10,
-                            backgroundColor: C.bgSurface,
-                            borderRadius: 2,
-                            border: `1px solid ${C.border}`,
-                          }}>
-                            {carreauxSchemaInference.inseeIndicators.map(({ columnName, match }) => (
-                              <label key={columnName} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: fontMono, fontSize: 11, cursor: 'pointer', padding: 3 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={carreauxSelectedColumns.includes(columnName)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setCarreauxSelectedColumns([...carreauxSelectedColumns, columnName]);
-                                    } else {
-                                      setCarreauxSelectedColumns(carreauxSelectedColumns.filter((c) => c !== columnName));
-                                    }
-                                  }}
-                                  style={{ accentColor: C.accent }}
-                                />
-                                <span style={{ color: C.text }}>
-                                  {columnName}
-                                  {match && INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS] && (
-                                    <span style={{ color: C.textDim, fontSize: 10, marginLeft: 4 }}>
-                                      ({INSEE_INDICATORS[match as keyof typeof INSEE_INDICATORS].label})
-                                    </span>
-                                  )}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Colonnes inconnues alert */}
-                      {carreauxSchemaInference.unknownColumns.length > 0 && (
-                        <div style={{
-                          padding: '8px 12px',
-                          backgroundColor: C.warnDim,
-                          borderLeft: `3px solid ${C.warn}`,
-                          borderRadius: 2,
-                          fontFamily: fontMono,
-                          fontSize: 10,
-                          color: C.warn,
-                        }}>
-                          ! Colonnes non reconnues (ignorees):<br />
-                          {carreauxSchemaInference.unknownColumns.slice(0, 5).join(', ')}
-                          {carreauxSchemaInference.unknownColumns.length > 5 && ` ... +${carreauxSchemaInference.unknownColumns.length - 5}`}
-                        </div>
-                      )}
-
-                      {/* Generate SQL button */}
-                      <button
-                        style={{ ...btnSuccess, opacity: (isGeneratingSchema || carreauxSelectedColumns.length === 0) ? 0.5 : 1 }}
-                        disabled={isGeneratingSchema || carreauxSelectedColumns.length === 0}
-                        onClick={generateCarreauxSchema}
-                      >
-                        {isGeneratingSchema ? (
-                          <><Spinner size={10} /> Generation...</>
-                        ) : (
-                          'Generer schema SQL'
-                        )}
-                      </button>
-
-                      {/* Generated SQL preview */}
-                      {carreauxGeneratedSql && (
-                        <details style={{ marginTop: 4 }}>
-                          <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer', fontWeight: 600 }}>
-                            Apercu SQL genere
-                          </summary>
-                          <pre style={{
-                            background: C.bgSurface,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 2,
-                            padding: 10,
-                            fontFamily: fontMono,
-                            fontSize: 10,
-                            overflow: 'auto',
-                            maxHeight: 200,
-                            marginTop: 8,
-                            color: C.textDim,
-                          }}>
-                            {carreauxGeneratedSql}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
