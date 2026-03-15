@@ -78,23 +78,9 @@ export interface CarreauxData {
   ville?: string;
   coordonnees: { lat: number; lng: number };
   rayon_km?: number;
+  resolution?: '200m' | '1km';
 }
 
-export interface NetworkCoverageData {
-  poi_category: string;
-  travel_time_minutes: number;
-  mode: string;
-  target_demo_column: string;
-  target_demo_label: string;
-  nb_pois: number;
-  coverage: number;
-  total_pop?: number;
-  penetration_rate?: number;
-  breakdown_by_poi?: { name: string; audience: number }[];
-  union_geojson: GeoJSON.Geometry;
-  from_cache: boolean;
-  geo_scope?: string;
-}
 
 export interface SavedMap {
   id: string;

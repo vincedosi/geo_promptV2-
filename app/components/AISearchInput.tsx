@@ -158,23 +158,9 @@ export default function AISearchInput({
 
   return (
     <div style={styles.container}>
-      {/* Pixel Art Robot */}
-      <div style={styles.robotBox}>
-        <canvas
-          ref={canvasRef}
-          width={40}
-          height={40}
-          style={styles.canvas}
-        />
-      </div>
-
       {/* Search area */}
       <div style={styles.inputWrapper}>
         <div style={styles.inputRow}>
-          <div style={styles.aiLabel}>
-            <span style={{ fontSize: 13 }}>✨</span>
-            <span style={styles.aiText}>GEO.AI</span>
-          </div>
           <input
             type="text"
             value={prompt}

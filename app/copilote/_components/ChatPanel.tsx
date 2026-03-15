@@ -5,7 +5,6 @@ import type { ZoneData, SavedMap } from '@/types/spatial';
 import { ZoneCard } from './ZoneCard';
 import { CoverageCard } from './CoverageCard';
 import { SynergyResults } from './SynergyResults';
-import { NetworkCoverageReport } from './NetworkCoverageReport';
 import { TypingDots } from './TypingDots';
 import { PromptsPanel } from './PromptsPanel';
 import { ChatMarkdown } from './ChatMarkdown';
@@ -71,32 +70,6 @@ const fontMichroma = "'Michroma', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', sans-serif";
 
-// ─── NetworkCoverageProgress ──────────────────────────────────────────────────
-function NetworkCoverageProgress() {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(s => s + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
-  return (
-    <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '10px 12px', marginBottom: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, color: C.accent, fontFamily: fontMono }}>
-        <span>Calcul empreinte réseau…</span>
-        <span style={{ color: C.textDim, fontSize: 10 }}>{mins}:{String(secs).padStart(2, '0')}</span>
-      </div>
-      <div style={{ height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1, overflow: 'hidden' }}>
-        <div style={{ height: '100%', background: `linear-gradient(90deg, transparent 0%, ${C.accent} 40%, #d8b4fe 60%, transparent 100%)`, width: '50%', animation: 'netCovScan 1.8s ease-in-out infinite' }} />
-      </div>
-      <div style={{ fontSize: 9, color: C.textDim, marginTop: 6, fontFamily: fontMono, letterSpacing: '0.06em' }}>
-        ORS isochrones → PostGIS union → calcul démographique
-      </div>
-      <style>{`@keyframes netCovScan { 0%{transform:translateX(-100%)} 100%{transform:translateX(300%)} }`}</style>
-    </div>
-  );
-}
-
 // ─── Tool labels ──────────────────────────────────────────────────────────────
 const runningToolLabels: Record<string, string> = {
   'tool-analyser_zone_pois':          'Recherche des établissements…',
@@ -106,7 +79,6 @@ const runningToolLabels: Record<string, string> = {
   'tool-isochrone_battle':            'Calcul Bataille d\'Isochrones (~1-2 min)…',
   'tool-calculate_audience_coverage': 'Calcul de couverture audience…',
   'tool-analyze_poi_synergy':         'Analyse synergies POI × démographie…',
-  'tool-calculate_network_coverage':  'Calcul empreinte réseau (~1-2 min)…',
   'tool-search_datasets':             'Recherche sur data.gouv.fr…',
   'tool-get_dataset_info':            'Récupération fiche dataset…',
   'tool-list_dataset_resources':      'Liste des ressources…',
@@ -337,10 +309,6 @@ export function ChatPanel({
             ? (msg.parts as any[]).find(p => p.type === 'tool-analyze_poi_synergy' && p.state === 'output-available' && p.output?._synergy)
             : null;
 
-          const networkCovPart = msg.role === 'assistant'
-            ? (msg.parts as any[]).find(p => p.type === 'tool-calculate_network_coverage' && p.state === 'output-available' && p.output?.union_geojson && !p.output?.error)
-            : null;
-
           const datagouvParts = msg.role === 'assistant'
             ? (msg.parts as any[]).filter(p => ['tool-search_datasets','tool-get_dataset_info','tool-list_dataset_resources','tool-query_resource_data','tool-search_dataservices','tool-get_metrics'].includes(p.type) && p.state === 'output-available' && p.output && !p.output?.error)
             : [];
@@ -371,17 +339,14 @@ export function ChatPanel({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* Running tool indicator */}
                     {runningTool && (
-                      runningTool.type === 'tool-calculate_network_coverage'
-                        ? <NetworkCoverageProgress />
-                        : <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '8px 12px', fontSize: 10, color: C.accent, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.accent }} />
-                            {runningToolLabels[runningTool.type] ?? 'Outil en cours…'}
-                          </div>
+                      <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '8px 12px', fontSize: 10, color: C.accent, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.accent }} />
+                        {runningToolLabels[runningTool.type] ?? 'Outil en cours…'}
+                      </div>
                     )}
 
                     {zonePart      && <ZoneCard zone={zonePart.output as ZoneData} />}
                     {synergyPart   && <SynergyResults zoneData={synergyPart.output as ZoneData} />}
-                    {networkCovPart && <NetworkCoverageReport data={networkCovPart.output} />}
                     {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as any} />}
                     {coveragePart  && (
                       <CoverageCard

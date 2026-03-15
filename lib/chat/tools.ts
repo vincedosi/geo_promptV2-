@@ -497,18 +497,21 @@ export async function executeToolCall(
     }
 
     const supabase = createAdminClient();
-    const { data: sources } = await supabase
-      .from('data_sources').select('geo_config').eq('type', 'carreaux').limit(1);
-    const cfg        = (sources?.[0]?.geo_config as any) ?? {};
-    const resolution = cfg.resolution ?? '200m';
-    const millesime  = cfg.millesime  ?? '2021';
+
+    // Table unique : carreaux_filosofi (contient tous les indicateurs)
+    const targetTable = 'carreaux_filosofi';
+    const resolution  = '200m';
+    const millesime   = '2021';
+
+    console.log(`[chat/coverage] table=${targetTable} col=${target_column}`);
 
     const isoGeoJSON = JSON.stringify(isoFeature.geometry);
     const { data: coverage, error: rpcErr } = await supabase.rpc('calculate_target_coverage', {
       isochrone_geojson: isoGeoJSON,
       target_column,
-      p_resolution: resolution,
-      p_millesime:  millesime,
+      target_table:  targetTable,
+      p_resolution:  resolution,
+      p_millesime:   millesime,
     });
 
     if (rpcErr) {
@@ -1012,63 +1015,6 @@ export async function executeToolCall(
     };
   }
 
-  if (name === 'calculate_network_coverage') {
-    const poi_category      = String(args.poi_category      ?? '');
-    const travel_time_min   = Number(args.travel_time_minutes ?? 60);
-    const target_demo_col   = String(args.target_demo_column  ?? 'ind_18_24');
-    const target_demo_label = String(args.target_demo_label   ?? 'Jeunes 18-24 ans');
-    const mode              = String(args.mode                ?? 'drive');
-    const filtre_region     = args.region      ? String(args.region)      : null;
-    const filtre_ville      = args.ville       ? String(args.ville)       : null;
-    const filtre_dept       = args.departement ? String(args.departement) : null;
-
-    if (!poi_category) return { error: 'poi_category requis pour calculate_network_coverage.' };
-
-    const knownCols = ['Ind','Ind_0_3','Ind_4_5','Ind_6_10','Ind_11_17','ind_18_24',
-      'Ind_25_39','Ind_40_54','Ind_55_64','Ind_65_79','Ind_80p','Men','rev_median'];
-    if (!knownCols.includes(target_demo_col)) {
-      return { error: `Indicateur inconnu: ${target_demo_col}. Valides: ${knownCols.join(', ')}` };
-    }
-
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 290_000);
-      const res = await fetch(`${baseUrl}/api/network-coverage`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal:  controller.signal,
-        body: JSON.stringify({
-          poi_category,
-          travel_time_minutes: travel_time_min,
-          target_demo_column:  target_demo_col,
-          target_demo_label,
-          mode,
-          region:            filtre_region,
-          ville:             filtre_ville,
-          departement:       filtre_dept,
-          force_recalculate: options.forceRecalculate ?? false,
-        }),
-      }).finally(() => clearTimeout(timer));
-
-      if (!res.ok) {
-        const errText = await res.text();
-        let friendlyErr = errText;
-        try { friendlyErr = JSON.parse(errText)?.error ?? errText; } catch { /* keep raw */ }
-        return { error: friendlyErr };
-      }
-
-      const data = await res.json();
-      console.log(`[chat/network_coverage] "${poi_category}" scope=${data.geo_scope} → coverage=${data.coverage} poi=${data.nb_pois}`);
-      return data;
-    } catch (e: any) {
-      const msg = e.name === 'AbortError'
-        ? 'Timeout (>290s) : trop de POIs à calculer sans cache. Précisez une région pour réduire la portée.'
-        : e.message;
-      return { error: msg };
-    }
-  }
-
   return { error: 'Outil inconnu: ' + name };
 }
 
@@ -1227,20 +1173,5 @@ export function buildTools(
         executeToolCall('calculate_audience_coverage', args, categoriesList, {}),
     },
 
-    calculate_network_coverage: {
-      description: "Empreinte démographique totale d'un réseau de POI (union isochrones).",
-      inputSchema: z.object({
-        poi_category:        z.string().describe(catsDesc),
-        travel_time_minutes: z.number().describe("Durée trajet min."),
-        target_demo_column:  z.string().describe("Colonne Filosofi."),
-        target_demo_label:   z.string().describe("Label cible."),
-        mode:        z.enum(['drive', 'walk', 'bike']).optional().describe("Mode (déf drive)."),
-        region:      z.string().optional().describe("Région (recommandé)."),
-        ville:       z.string().optional().describe("Ville."),
-        departement: z.string().optional().describe("Département."),
-      }),
-      execute: async (args: Record<string, unknown>) =>
-        executeToolCall('calculate_network_coverage', args, categoriesList, { forceRecalculate }),
-    },
   };
 }

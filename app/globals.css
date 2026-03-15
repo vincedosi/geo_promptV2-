@@ -40,8 +40,8 @@
   --orange: #ff9f43;
   --red: #ff5757;
   --red-dim: rgba(255, 87, 87, 0.12);
-  --text-primary: #f1f1f4;
-  --text-secondary: #6b6b8a;
+  --text-primary: #ffffff;
+  --text-secondary: #e5e7eb;
   --text-dim: #3a3a52;
   --sidebar-width: 248px;
 }
@@ -165,11 +165,11 @@ body {
 .sidebar-section-label {
   font-size: 9px;
   font-family: 'Michroma', sans-serif;
-  color: var(--text-dim);
+  color: #fff;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   padding: 0 10px 10px;
-  opacity: 0.7;
+  opacity: 0.9;
 }
 
 .sidebar-nav {
@@ -185,7 +185,7 @@ body {
   padding: 8px 16px;
   font-size: 10px;
   font-weight: 300;
-  color: var(--text-secondary);
+  color: #fff;
   text-decoration: none;
   border-radius: 2px;
   margin: 1px 10px;

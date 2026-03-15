@@ -32,6 +32,7 @@ export async function getDistinctCategories(): Promise<string[]> {
       .from('poi_france')
       .select('categorie')
       .not('categorie', 'is', null)
+      .order('categorie')
       .range(from, from + batchSize - 1);
 
     if (error) {

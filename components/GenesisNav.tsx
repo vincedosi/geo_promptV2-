@@ -65,6 +65,18 @@ const navItems = [
                 badgeClass: 'badge-admin',
             },
             {
+                href: '/admin/filosofi-import',
+                label: 'Filosofi Import',
+                icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 12h8M12 8v8" />
+                    </svg>
+                ),
+                badge: 'ADMIN',
+                badgeClass: 'badge-admin',
+            },
+            {
                 href: '/admin/import',
                 label: 'Import Universel',
                 icon: (

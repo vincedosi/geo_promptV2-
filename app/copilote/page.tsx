@@ -32,10 +32,11 @@ export default function CopilotePage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
-  const [mapStyleUrl, setMapStyleUrl] = useState<string>(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('genesis_map_style') ?? MAP_STYLE;
-    return MAP_STYLE;
-  });
+  const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
+  useEffect(() => {
+    const stored = localStorage.getItem('genesis_map_style');
+    if (stored) setMapStyleUrl(stored);
+  }, []);
 
   const handleMapStyleChange = (url: string) => {
     setMapStyleUrl(url);
@@ -88,7 +89,6 @@ export default function CopilotePage() {
     loadCarreauxFromAI:       mapLayers.loadCarreauxFromAI,
     carreauxSourcesRef:       mapLayers.carreauxSourcesRef,
     carreauxConfigForSaveRef: savedMaps.carreauxConfigForSaveRef,
-    applyNetworkCoverage:     mapLayers.applyNetworkCoverage,
     flyToCoords: (lat, lng) => {
       if (mapRef.current && mapReady) {
         mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });

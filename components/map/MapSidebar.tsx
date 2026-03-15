@@ -90,7 +90,7 @@ export default function MapSidebar({
         </Link>
         <button
           onClick={() => onToggleCollapse?.(true)}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="text-white transition-colors"
           title="Close filters"
         >
           ✕
@@ -102,7 +102,7 @@ export default function MapSidebar({
         className="px-4 py-3 text-xs border-b border-slate-700"
         style={{ backgroundColor: COLORS.bg.primary }}
       >
-        <p className="text-slate-300">
+        <p className="text-white">
           <span className="font-semibold text-accent-blue">
             {filteredCount}
           </span>{' '}
@@ -126,7 +126,7 @@ export default function MapSidebar({
             {/* Panel Types */}
             {panelTypes.length > 0 && (
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase block mb-2">
+                <label className="text-xs font-semibold text-white uppercase block mb-2">
                   Type de panneau
                 </label>
                 <div className="space-y-2">
@@ -138,7 +138,7 @@ export default function MapSidebar({
                         onChange={() => handlePanelTypeToggle(type as string)}
                         className="w-4 h-4 mr-2"
                       />
-                      <span className="text-slate-300 hover:text-white transition-colors">
+                      <span className="text-white transition-colors">
                         {type}
                       </span>
                     </label>
@@ -150,7 +150,7 @@ export default function MapSidebar({
             {/* Cities */}
             {cities.length > 0 && (
               <div>
-                <label className="text-xs font-semibold text-slate-400 uppercase block mb-2">
+                <label className="text-xs font-semibold text-white uppercase block mb-2">
                   Ville
                 </label>
                 <select
@@ -176,7 +176,7 @@ export default function MapSidebar({
                 clearFilters();
                 handleFilterChange({ panelTypes: [] });
               }}
-              className="w-full px-2 py-1 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 transition-colors"
+              className="w-full px-2 py-1 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 transition-colors"
             >
               Réinitialiser
             </button>
@@ -187,7 +187,7 @@ export default function MapSidebar({
       {/* Panel List */}
       <div className="flex-1 overflow-y-auto">
         {filteredPanels.length === 0 ? (
-          <div className="p-4 text-center text-slate-400 text-sm">
+          <div className="p-4 text-center text-white text-sm">
             Aucun panneau correspondant aux filtres
           </div>
         ) : (
@@ -209,7 +209,7 @@ export default function MapSidebar({
                 }`}>
                   {truncateText(panel.nom || 'Panel', 28)}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-white mt-1">
                   {panel.ville} • {getPanelType(panel)}
                 </p>
               </button>

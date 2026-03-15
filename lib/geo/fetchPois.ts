@@ -23,13 +23,23 @@ export async function fetchPois(
   resolvedCategory: string | null,
   poi_category: string,
   opts: {
-    region?:      string | null;
-    ville?:       string | null;
-    departement?: string | null;
-    limit?:       number;
+    region?:       string | null;
+    regions?:      string[] | null;
+    ville?:        string | null;
+    departement?:  string | null;
+    departements?: string[] | null;
+    limit?:        number;
   }
 ): Promise<{ pois: PoiRow[]; error: string | null }> {
-  const { region = null, ville = null, departement = null, limit = 5000 } = opts;
+  const { regions = null, region = null, ville = null, departement = null, departements = null, limit = 5000 } = opts;
+  // Normalize: regions array takes priority over legacy single region
+  const regionList: string[] | null = (Array.isArray(regions) && regions.length > 0)
+    ? regions
+    : (region ? [region] : null);
+  // Dept codes array (expanded from regions) takes priority over single departement
+  const deptList: string[] | null = (Array.isArray(departements) && departements.length > 0)
+    ? departements
+    : (departement ? [departement] : null);
   const poisMap = new Map<string, PoiRow>();
 
   function addRows(data: any[]) {
@@ -50,33 +60,49 @@ export async function fetchPois(
   }
 
   try {
-    // ── Requête par REGION ──────────────────────────────────────────────
-    if (region) {
-      const regionNorm = normStr(region);
-      let q = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${regionNorm}%`);
+    // ── Requête par DEPARTEMENT(S) ──────────────────────────────────────
+    if (deptList && deptList.length > 0) {
+      // Query each dept via ilike on departement column (code_departement unreliable)
+      for (const code of deptList) {
+        let qf = supabase.from('poi_france').select(SELECT_COLS)
+          .or(`departement.ilike.%${code}%,code_departement.eq.${code}`);
+        if (resolvedCategory) qf = qf.eq('categorie', resolvedCategory);
+        const { data: fd } = await qf.limit(limit);
+        addRows(fd ?? []);
+      }
+      console.log(`[fetchPois] departements (${deptList.length} codes) → ${poisMap.size} POIs`);
+    }
+
+    // ── Requête par REGION(S) — uniquement si pas de deptList ──────────
+    // regionList contient les noms complets (ex: "Auvergne-Rhône-Alpes")
+    // On utilise .in() pour un match exact — plus fiable que ilike sur noms accentués
+    if (!deptList && regionList && regionList.length > 0) {
+      let q = supabase.from('poi_france').select(SELECT_COLS).in('region', regionList);
       if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
       const { data, error } = await q.limit(limit);
-      if (error) console.error('[fetchPois] region query:', error.message);
-      else addRows(data ?? []);
+      if (error) {
+        console.error('[fetchPois] region .in() query:', error.message);
+        // Fallback: ilike par région individuelle (sans normalisation des accents)
+        for (const reg of regionList) {
+          let qr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${reg}%`);
+          if (resolvedCategory) qr = qr.eq('categorie', resolvedCategory);
+          const { data: rd } = await qr.limit(limit);
+          addRows(rd ?? []);
+        }
+      } else {
+        addRows(data ?? []);
+      }
+      console.log(`[fetchPois] regions (${regionList.length}) → ${poisMap.size} POIs`);
 
-      // Fallback: si l'IA a passé un nom de région dans le champ ville (confusion)
-      if (poisMap.size === 0) {
+      // Fallback: si aucun résultat et une seule région (cas confusion région/ville)
+      if (poisMap.size === 0 && regionList.length === 1) {
+        const regionNorm = normStr(regionList[0]);
         let qv = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`);
         if (resolvedCategory) qv = qv.eq('categorie', resolvedCategory);
         const { data: vd } = await qv.limit(limit);
-        if (vd?.length) console.log(`[fetchPois] region→ville fallback: ${vd.length} résultats pour "${region}"`);
+        if (vd?.length) console.log(`[fetchPois] region→ville fallback: ${vd.length} résultats pour "${regionList[0]}"`);
         addRows(vd ?? []);
       }
-    }
-
-    // ── Requête par DEPARTEMENT ─────────────────────────────────────────
-    if (departement) {
-      let q = supabase.from('poi_france').select(SELECT_COLS)
-        .or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`);
-      if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-      const { data, error } = await q.limit(limit);
-      if (error) console.error('[fetchPois] departement query:', error.message);
-      else addRows(data ?? []);
     }
 
     // ── Requête par VILLE ───────────────────────────────────────────────
@@ -89,7 +115,7 @@ export async function fetchPois(
       else addRows(data ?? []);
 
       // Fallback: si l'IA a passé un nom de région dans le champ ville (confusion fréquente)
-      if (poisMap.size === 0 && !region) {
+      if (poisMap.size === 0 && !regionList) {
         let qr = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeNorm}%`);
         if (resolvedCategory) qr = qr.eq('categorie', resolvedCategory);
         const { data: rd } = await qr.limit(limit);
@@ -99,7 +125,7 @@ export async function fetchPois(
     }
 
     // ── Fallback : aucun filtre geo → tous les POIs de la catégorie ─────
-    if (!region && !ville && !departement) {
+    if (!regionList && !deptList && !ville && !departement) {
       let q = supabase.from('poi_france').select(SELECT_COLS);
       if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
       const { data, error } = await q.limit(limit);

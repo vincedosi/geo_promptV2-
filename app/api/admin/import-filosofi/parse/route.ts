@@ -5,8 +5,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import { parquetMetadata, parquetRead } from 'hyparquet';
-import { compressors } from 'hyparquet-compressors';
+
+import Papa from 'papaparse';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -26,46 +26,18 @@ export async function POST(request: NextRequest) {
     const form = await request.formData();
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 });
+    if (!file.name.endsWith('.csv')) return NextResponse.json({ error: 'Seuls les fichiers .csv sont acceptés' }, { status: 400 });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    // Build AsyncBuffer from Node Buffer (hyparquet interface: { byteLength, slice })
-    const asyncBuf = {
-      byteLength: buffer.byteLength,
-      slice: (start: number, end: number) => Promise.resolve(buffer.buffer.slice(buffer.byteOffset + start, buffer.byteOffset + end)),
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const meta = parquetMetadata(asyncBuf as any);
-
-    // Colonnes du fichier
-    const columns: string[] = meta.schema
-      .filter(f => f.num_children === undefined || f.num_children === null)
-      .map(f => f.name)
-      .filter(n => n !== 'schema');
-
-    // Nombre de lignes
-    const rowCount = Number(meta.num_rows);
-
-    // Détecter la colonne idcar
+    const text = await file.text();
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    if (parsed.errors.length > 0) {
+      return NextResponse.json({ error: parsed.errors[0].message }, { status: 400 });
+    }
+    const columns = parsed.meta.fields || [];
+    const rowCount = parsed.data.length;
     const idcarColumn = IDCAR_CANDIDATES.find(c => columns.includes(c)) ?? null;
-
-    // Colonnes indicateurs (non-idcar, non-géo)
     const indicatorColumns = columns.filter(c => !EXCLUDED.has(c));
-
-    // Aperçu 5 premières lignes
-    const preview: Record<string, unknown>[] = [];
-    await parquetRead({
-      file: asyncBuf as Parameters<typeof parquetRead>[0]['file'],
-      compressors,
-      rowStart: 0,
-      rowEnd: Math.min(5, rowCount),
-      onComplete: (rows) => {
-        for (const row of rows) {
-          const obj: Record<string, unknown> = {};
-          columns.forEach((col, i) => { obj[col] = row[i]; });
-          preview.push(obj);
-        }
-      },
-    });
+    const preview = parsed.data.slice(0, 5);
 
     return NextResponse.json({
       rowCount,

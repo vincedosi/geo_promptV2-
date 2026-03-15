@@ -1,24 +1,31 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+// @ts-ignore
+import { parquetRead, parquetMetadata } from 'hyparquet';
+import { decompress } from 'fzstd';
+import proj4 from 'proj4';
+
+// Projections INSEE (Lambert 93 + LAEA Europe)
+proj4.defs('EPSG:2154', '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+proj4.defs('EPSG:3035', '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg:          '#050505',
   bgElevated:  '#0d0d0d',
+  bgCard:      '#111118',
   border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
+  borderLight: 'rgba(168,85,247,0.25)',
   accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.08)',
+  accentDim:   'rgba(168,85,247,0.10)',
   text:        '#e2e8f0',
   textDim:     '#94a3b8',
   textSec:     '#6b7280',
   green:       '#3dffa0',
   red:         '#f87171',
   yellow:      '#f59e0b',
-  blue:        '#60a5fa',
-  teal:        '#2dd4bf',
 };
 const fontOrbitron = "'Orbitron', sans-serif";
 const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
@@ -26,258 +33,624 @@ const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Step = 1 | 2 | 3;
-
-interface ParseResult {
-  rowCount:         number;
-  columns:          string[];
-  idcarColumn:      string | null;
-  indicatorColumns: string[];
-  preview:          Record<string, unknown>[];
-}
-
-interface SlotState {
-  file:      File | null;
-  parsing:   boolean;
-  parsed:    ParseResult | null;
-  idcarCol:  string;
-  error:     string;
-}
-
 interface LogLine {
   id:   number;
   text: string;
   kind: 'info' | 'ok' | 'error' | 'progress' | 'head';
 }
 
+interface DbfField { name: string; type: string; length: number; decimal: number; }
+interface DbfMeta  { fields: DbfField[]; headerSize: number; recordSize: number; }
+
+type FileType = 'parquet' | 'dbf' | 'shp';
+
+interface FileInfo {
+  file:       File;
+  buffer:     ArrayBuffer;  // DBF buffer (toujours présent)
+  columns:    string[];
+  rowCount:   number;
+  sampleRow:  Record<string, unknown>;
+  resolution: string;
+  millesime:  string;
+  fileType:   FileType;
+  dbfMeta?:   DbfMeta;
+  shpGeoms?:  any[];  // GeoJSON geometry objects indexés par ligne
+  shpSrcProj?: string; // 'EPSG:3035' | 'EPSG:2154'
+}
+
+// ─── Conversion GeoJSON geometry → WKT WGS84 ─────────────────────────────────
+
+function geomToWKT(geom: any, srcProj: string): string | null {
+  if (!geom) return null;
+  const reproject = ([x, y]: number[]) => {
+    const [lon, lat] = proj4(srcProj, 'WGS84', [x, y]);
+    return `${lon.toFixed(8)} ${lat.toFixed(8)}`;
+  };
+  const ringWkt = (ring: number[][]) => `(${ring.map(reproject).join(', ')})`;
+  if (geom.type === 'Polygon') {
+    return `POLYGON(${geom.coordinates.map(ringWkt).join(', ')})`;
+  }
+  if (geom.type === 'MultiPolygon') {
+    const polys = geom.coordinates.map((p: number[][][]) => `(${p.map(ringWkt).join(', ')})`);
+    return `MULTIPOLYGON(${polys.join(', ')})`;
+  }
+  return null;
+}
+
+function detectProj(geoms: any[]): string {
+  // Détecte EPSG:3035 ou EPSG:2154 selon l'ordre de grandeur des coords
+  const first = geoms.find(g => g?.coordinates?.[0]?.[0]);
+  if (!first) return 'EPSG:3035';
+  const [x] = first.coordinates[0][0];
+  return x > 2_000_000 ? 'EPSG:3035' : 'EPSG:2154';
+}
+
 const fmtNum = (n: number) => n.toLocaleString('fr-FR');
 
-const emptySlot = (): SlotState => ({ file: null, parsing: false, parsed: null, idcarCol: '', error: '' });
+// Colonnes géo/admin à exclure automatiquement des métadonnées
+const GEO_COLS = new Set([
+  'xmin', 'ymin', 'xmax', 'ymax', 'geometry', 'geom',
+  'x_wgs84', 'y_wgs84', 'x_lam', 'y_lam', 'lat', 'lon', 'lng',
+  'i_est_200', 'i_est_1km',
+]);
 
-// ─── Drop zone component ──────────────────────────────────────────────────────
-function DropZone({
-  slot, resolution, color,
-  onFile,
-}: {
-  slot: SlotState;
-  resolution: string;
-  color: string;
-  onFile: (f: File) => void;
+// ─── Parseur DBF pur TS ───────────────────────────────────────────────────────
+
+function parseDbfHeader(buf: ArrayBuffer): DbfMeta & { recordCount: number } {
+  const view  = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  const recordCount = view.getUint32(4, true);
+  const headerSize  = view.getUint16(8, true);
+  const recordSize  = view.getUint16(10, true);
+  const dec = new TextDecoder('ascii');
+  const fields: DbfField[] = [];
+  let offset = 32;
+  while (offset + 32 <= headerSize) {
+    if (bytes[offset] === 0x0D) break;
+    const nameRaw = bytes.slice(offset, offset + 11);
+    const nullIdx = nameRaw.indexOf(0);
+    const name = dec.decode(nullIdx === -1 ? nameRaw : nameRaw.slice(0, nullIdx)).trim();
+    if (!name) break;
+    const type    = String.fromCharCode(bytes[offset + 11]);
+    const length  = bytes[offset + 16];
+    const decimal = bytes[offset + 17];
+    fields.push({ name, type, length, decimal });
+    offset += 32;
+  }
+  return { fields, headerSize, recordSize, recordCount };
+}
+
+function parseDbfRows(
+  buf: ArrayBuffer,
+  meta: DbfMeta,
+  startRow: number,
+  endRow: number,
+): Record<string, unknown>[] {
+  const { fields, headerSize, recordSize } = meta;
+  const bytes = new Uint8Array(buf);
+  const dec   = new TextDecoder('latin1');
+  const rows: Record<string, unknown>[] = [];
+  for (let i = startRow; i < endRow; i++) {
+    const base = headerSize + i * recordSize;
+    if (base + recordSize > bytes.length) break;
+    if (bytes[base] === 0x2A) continue; // deleted
+    const row: Record<string, unknown> = {};
+    let off = base + 1;
+    for (const f of fields) {
+      const raw = dec.decode(bytes.slice(off, off + f.length)).trim();
+      if (f.type === 'N' || f.type === 'F') {
+        const n = parseFloat(raw);
+        row[f.name] = isNaN(n) ? null : n;
+      } else if (f.type === 'L') {
+        row[f.name] = /^[TYty]$/.test(raw) ? true : /^[FNfn]$/.test(raw) ? false : null;
+      } else {
+        row[f.name] = raw || null;
+      }
+      off += f.length;
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+// ─── Btn ──────────────────────────────────────────────────────────────────────
+function Btn({ onClick, disabled, children, variant = 'primary' }: {
+  onClick?: () => void; disabled?: boolean; children: React.ReactNode; variant?: 'primary' | 'ghost';
 }) {
-  const [dragging, setDragging] = useState(false);
-  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: '9px 22px',
+        background: variant === 'primary' ? C.accent : 'transparent',
+        color: variant === 'primary' ? '#fff' : C.textDim,
+        border: variant === 'ghost' ? `1px solid ${C.border}` : 'none',
+        borderRadius: 2,
+        fontFamily: fontMichroma,
+        fontSize: 11,
+        letterSpacing: '0.08em',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false);
-    const f = e.dataTransfer.files[0]; if (f) onFile(f);
+// ─── ÉTAPE 1 : Sélection fichier ──────────────────────────────────────────────
+function StepUpload({ onLoaded, addLog }: {
+  onLoaded: (info: FileInfo) => void;
+  addLog: (t: string, k: LogLine['kind']) => void;
+}) {
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [phase,    setPhase]    = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const log = (msg: string) => { addLog(msg, 'info'); setPhase(msg.slice(0, 70)); };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    addLog(`${files.length} fichier(s) sélectionné(s) : ${files.map(f => f.name).join(', ')}`, 'info');
+    if (!files.length) { setError('Aucun fichier reçu'); return; }
+    setLoading(true);
+    setError(null);
+    setProgress(0);
+    try {
+      const shpFile  = files.find(f => f.name.toLowerCase().endsWith('.shp'));
+      const dbfFile  = files.find(f => f.name.toLowerCase().endsWith('.dbf'));
+      const parqFile = files.find(f => f.name.toLowerCase().endsWith('.parquet'));
+      const refFile  = shpFile ?? dbfFile ?? parqFile ?? files[0];
+
+      const resolution = refFile.name.includes('1km') ? '1km' : '200m';
+      const millesimeM = refFile.name.match(/(20\d{2}|19\d{2})/);
+      const millesime  = millesimeM ? millesimeM[1] : '2021';
+
+      if (shpFile && dbfFile) {
+        // ── Mode SHP ────────────────────────────────────────────────────────
+        log(`Mode SHP — lecture ${shpFile.name} (${(shpFile.size / 1024 / 1024).toFixed(1)} Mo) + ${dbfFile.name}...`);
+        const [shpBuffer, dbfBuffer] = await Promise.all([shpFile.arrayBuffer(), dbfFile.arrayBuffer()]);
+        setProgress(15);
+        log('Parsing DBF header...');
+        const { fields, headerSize, recordSize, recordCount } = parseDbfHeader(dbfBuffer);
+        log(`DBF OK — ${recordCount.toLocaleString('fr-FR')} enregistrements, ${fields.length} colonnes`);
+        setProgress(30);
+        log('Parsing géométries SHP (298 Mo — environ 30-60 sec)...');
+        await new Promise(r => setTimeout(r, 50)); // flush UI avant parsing lourd
+        // @ts-ignore
+        const shpjsMod = await import('shpjs');
+        // shpjs exporte parseShp(buffer) → GeoJSON geometry[]
+        const parseShp = shpjsMod.parseShp ?? shpjsMod.default?.parseShp;
+        if (!parseShp) throw new Error('shpjs.parseShp introuvable');
+        const shpGeoms: any[] = parseShp(shpBuffer);
+        setProgress(60);
+        const srcProj = detectProj(shpGeoms);
+        log(`SHP OK — ${shpGeoms.length.toLocaleString('fr-FR')} géométries, projection détectée : ${srcProj}`);
+        const sampleRows = parseDbfRows(dbfBuffer, { fields, headerSize, recordSize }, 0, 1);
+        setProgress(100);
+        const columns = fields.map(f => f.name);
+        onLoaded({
+          file: dbfFile, buffer: dbfBuffer, columns, rowCount: recordCount,
+          sampleRow: sampleRows[0] ?? {}, resolution, millesime,
+          fileType: 'shp', dbfMeta: { fields, headerSize, recordSize },
+          shpGeoms, shpSrcProj: srcProj,
+        });
+
+      } else if (dbfFile) {
+        // ── Mode DBF ────────────────────────────────────────────────────────
+        log(`Mode DBF — lecture ${dbfFile.name} (${(dbfFile.size / 1024 / 1024).toFixed(1)} Mo)...`);
+        const buffer = await dbfFile.arrayBuffer();
+        log(`Buffer OK (${(buffer.byteLength / 1024 / 1024).toFixed(1)} Mo) — parsing header...`);
+        setProgress(10);
+        const { fields, headerSize, recordSize, recordCount } = parseDbfHeader(buffer);
+        log(`Header OK — ${recordCount.toLocaleString('fr-FR')} enregistrements, ${fields.length} colonnes, rec=${recordSize}o`);
+        setProgress(30);
+        log(`Colonnes : ${fields.slice(0, 10).map(f => f.name).join(', ')}${fields.length > 10 ? ' …' : ''}`);
+        log('Lecture aperçu (ligne 1)...');
+        const sampleRows = parseDbfRows(buffer, { fields, headerSize, recordSize }, 0, 1);
+        setProgress(50);
+        log(`Aperçu OK — ${JSON.stringify(sampleRows[0]).slice(0, 200)}`);
+        setProgress(100);
+        const columns = fields.map(f => f.name);
+        onLoaded({
+          file: dbfFile, buffer, columns, rowCount: recordCount,
+          sampleRow: sampleRows[0] ?? {}, resolution, millesime,
+          fileType: 'dbf', dbfMeta: { fields, headerSize, recordSize },
+        });
+
+      } else if (parqFile) {
+        // ── Mode Parquet ─────────────────────────────────────────────────────
+        log(`Mode Parquet — lecture ${parqFile.name} (${(parqFile.size / 1024 / 1024).toFixed(1)} Mo)...`);
+        const buffer = await parqFile.arrayBuffer();
+        const meta   = parquetMetadata(buffer);
+        const columns: string[] = meta.schema
+          .filter((s: any) => s.num_children === undefined || s.num_children === null)
+          .map((s: any) => s.name)
+          .filter((n: string) => n !== 'schema');
+        const rowCount = Number(meta.num_rows);
+        log(`Parquet — ${rowCount.toLocaleString('fr-FR')} lignes, ${columns.length} colonnes`);
+        setProgress(50);
+        let sampleRow: Record<string, unknown> = {};
+        await parquetRead({
+          file: buffer,
+          compressors: { ZSTD: (d: any) => decompress(d) },
+          rowStart: 0, rowEnd: 1,
+          onComplete: (rawRows: any[]) => {
+            if (rawRows[0]) columns.forEach((col, idx) => { sampleRow[col] = rawRows[0][idx]; });
+          },
+        });
+        setProgress(100);
+        log(`Aperçu OK — colonnes : ${columns.slice(0, 8).join(', ')}${columns.length > 8 ? ' …' : ''}`);
+        onLoaded({ file: parqFile, buffer, columns, rowCount, sampleRow, resolution, millesime, fileType: 'parquet' });
+
+      } else {
+        throw new Error('Sélectionne un .parquet, ou un .dbf seul, ou un .shp + .dbf ensemble');
+      }
+    } catch (e: any) {
+      setError(e.message ?? 'Erreur lecture fichier');
+      addLog(`! ${e.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div
-      onDrop={handleDrop}
-      onDragOver={e => { e.preventDefault(); setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
-      onClick={() => !slot.parsing && ref.current?.click()}
-      style={{
-        border:       `2px dashed ${dragging ? color : slot.parsed ? color + '55' : C.border}`,
-        borderRadius: 2,
-        background:   dragging ? `${color}10` : slot.parsed ? `${color}08` : C.bgElevated,
-        padding:      '22px 18px',
-        textAlign:    'center',
-        cursor:       slot.parsing ? 'wait' : 'pointer',
-        transition:   'all 0.15s',
-        minHeight:    100,
-        display:      'flex',
-        flexDirection:'column',
-        alignItems:   'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
-    >
-      <input ref={ref} type="file" accept=".parquet" style={{ display: 'none' }}
-        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
-
-      {/* Resolution badge */}
-      <div style={{
-        fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em',
-        color: color, border: `1px solid ${color}55`,
-        borderRadius: 2, padding: '2px 8px', marginBottom: 4,
-      }}>
-        {resolution}
+    <div style={{ padding: 32, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+      <input ref={inputRef} type="file" accept=".dbf,.parquet,.shp" multiple style={{ display: 'none' }} onChange={handleFile} />
+      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 16 }}>
+        ÉTAPE 1 — SÉLECTION FICHIER
       </div>
-
-      {slot.parsing ? (
-        <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>Analyse...</div>
-      ) : slot.parsed ? (
-        <>
-          <div style={{ fontFamily: fontMono, fontSize: 10, color: C.text, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {slot.file?.name}
+      <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec, marginBottom: 16, lineHeight: 1.9 }}>
+        Mode A : <span style={{ color: C.accent }}>.shp + .dbf</span> — géométrie réelle + attributs (sélectionner les 2 fichiers)<br/>
+        Mode B : <span style={{ color: C.accent }}>.dbf</span> — attributs seuls (géométrie reconstruite depuis idcar)<br/>
+        Mode C : <span style={{ color: C.accent }}>.parquet</span> — fichier Parquet INSEE
+      </div>
+      <Btn onClick={() => { if (inputRef.current) { inputRef.current.value = ''; inputRef.current.click(); } }} disabled={loading}>
+        {loading ? 'Analyse en cours...' : 'Charger fichier'}
+      </Btn>
+      {loading && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fontMono, fontSize: 10, marginBottom: 4, color: C.textDim }}>
+            <span style={{ maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{phase || 'Lecture...'}</span>
+            <span style={{ color: C.accent }}>{progress}%</span>
           </div>
-          <div style={{ fontFamily: fontMono, fontSize: 9, color: color }}>
-            {fmtNum(slot.parsed.rowCount)} carreaux · {slot.parsed.indicatorColumns.length} indicateurs
+          <div style={{ width: '100%', height: 4, background: C.border, borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ width: `${progress}%`, height: '100%', background: C.accent, transition: 'width 0.3s ease' }} />
           </div>
-          <div style={{ fontFamily: fontMono, fontSize: 8, color: C.textSec }}>
-            {((slot.file?.size ?? 0) / 1024 / 1024).toFixed(1)} Mo
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
-            <span style={{ color }}>carreaux_{resolution}_</span>*.parquet
-          </div>
-          <div style={{ fontFamily: fontMono, fontSize: 8, color: C.textSec }}>déposer ou cliquer</div>
-        </>
+        </div>
       )}
-
-      {slot.error && (
-        <div style={{ fontFamily: fontMono, fontSize: 9, color: C.red, marginTop: 4 }}>! {slot.error}</div>
-      )}
+      {error && <div style={{ marginTop: 12, color: C.red, fontFamily: fontMono, fontSize: 11 }}>! {error}</div>}
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── ÉTAPE 2 : Configuration colonnes ─────────────────────────────────────────
+function StepConfig({ info, onStart }: {
+  info:    FileInfo;
+  onStart: (idcarCol: string, selectedCols: string[], resolution: string, millesime: string) => void;
+}) {
+  const isDbf = info.fileType === 'dbf';
+  const isShp = info.fileType === 'shp';
+
+  const guessIdcar =
+    info.columns.find(c => c.toLowerCase() === 'idcar') ??
+    info.columns.find(c => c.toLowerCase().startsWith('idcar')) ??
+    info.columns.find(c => c.toLowerCase().includes('idcar')) ??
+    info.columns[0];
+
+  const [idcarCol,   setIdcarCol]   = useState(guessIdcar ?? '');
+  const [resolution, setResolution] = useState(info.resolution);
+  const [millesime,  setMillesime]  = useState(info.millesime);
+
+  const metaCols = info.columns.filter(c => !GEO_COLS.has(c.toLowerCase()) && c !== guessIdcar);
+  const [selected, setSelected] = useState<Set<string>>(new Set(metaCols));
+  const toggle     = (col: string) => setSelected(prev => { const s = new Set(prev); s.has(col) ? s.delete(col) : s.add(col); return s; });
+  const selectAll  = () => setSelected(new Set(metaCols));
+  const selectNone = () => setSelected(new Set());
+
+  const sampleVal = (col: string) => {
+    const v = info.sampleRow[col];
+    if (v === null || v === undefined) return '—';
+    return String(v).slice(0, 24);
+  };
+
+  const handleStart = () => {
+    const cols = [idcarCol, ...Array.from(selected).filter(c => c !== idcarCol)];
+    onStart(idcarCol, cols, resolution, millesime);
+  };
+
+  return (
+    <div style={{ padding: 24, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 20 }}>
+        ÉTAPE 2 — CONFIGURATION — {info.file.name} — {fmtNum(info.rowCount)} lignes
+        {isShp  && <span style={{ marginLeft: 12, color: C.green  }}>[ SHP ]</span>}
+        {isDbf  && <span style={{ marginLeft: 12, color: C.accent }}>[ DBF ]</span>}
+        {!isDbf && !isShp && <span style={{ marginLeft: 12, color: C.yellow }}>[ PARQUET ]</span>}
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>COLONNE IDCAR *</span>
+          <select
+            value={idcarCol}
+            onChange={e => setIdcarCol(e.target.value)}
+            style={{ background: C.bgElevated, color: C.text, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '6px 10px', fontFamily: fontMono, fontSize: 11 }}
+          >
+            {info.columns.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>RÉSOLUTION</span>
+          <select
+            value={resolution}
+            onChange={e => setResolution(e.target.value)}
+            style={{ background: C.bgElevated, color: C.text, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '6px 10px', fontFamily: fontMono, fontSize: 11 }}
+          >
+            <option value="200m">200m</option>
+            <option value="1km">1km</option>
+          </select>
+        </label>
+
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>MILLÉSIME</span>
+          <input
+            type="text"
+            value={millesime}
+            onChange={e => setMillesime(e.target.value)}
+            maxLength={4}
+            style={{ background: C.bgElevated, color: C.text, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '6px 10px', fontFamily: fontMono, fontSize: 11, width: 70 }}
+          />
+        </label>
+      </div>
+
+      {isShp && (
+        <div style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(61,255,160,0.06)', border: `1px solid rgba(61,255,160,0.25)`, borderRadius: 2, fontFamily: fontMono, fontSize: 10, color: C.green }}>
+          Geometrie reelle depuis .shp ({info.shpSrcProj ?? 'auto'} → WGS84) — {(info.shpGeoms?.length ?? 0).toLocaleString('fr-FR')} polygones charges
+        </div>
+      )}
+      {isDbf && (
+        <div style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(168,85,247,0.06)', border: `1px solid ${C.borderLight}`, borderRadius: 2, fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+          Geometrie reconstruite depuis idcar (Lambert 93 / ETRS89 → WGS84) — .shp non requis
+        </div>
+      )}
+
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>
+          COLONNES MÉTADONNÉES ({selected.size} / {metaCols.length})
+        </span>
+        <button onClick={selectAll}  style={{ background: 'none', border: 'none', color: C.accent, fontFamily: fontMono, fontSize: 10, cursor: 'pointer', padding: 0 }}>tout</button>
+        <button onClick={selectNone} style={{ background: 'none', border: 'none', color: C.textSec, fontFamily: fontMono, fontSize: 10, cursor: 'pointer', padding: 0 }}>aucun</button>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: 4, maxHeight: 280, overflowY: 'auto',
+        border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, marginBottom: 20,
+      }}>
+        {metaCols.map(col => (
+          <label key={col} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
+            background: selected.has(col) ? C.accentDim : 'transparent',
+            border: `1px solid ${selected.has(col) ? C.borderLight : 'transparent'}`,
+            borderRadius: 2, cursor: 'pointer',
+          }}>
+            <input type="checkbox" checked={selected.has(col)} onChange={() => toggle(col)} style={{ accentColor: C.accent, cursor: 'pointer' }} />
+            <span style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontFamily: fontMono, fontSize: 10, color: C.text }}>{col}</span>
+              <span style={{ fontFamily: fontMono, fontSize: 9, color: C.textSec }}>{sampleVal(col)}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: 20, padding: '10px 12px', background: C.bgElevated, borderRadius: 2, border: `1px solid ${C.border}` }}>
+        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em', marginBottom: 6 }}>APERÇU LIGNE 1</div>
+        <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, wordBreak: 'break-all' }}>
+          {JSON.stringify(info.sampleRow).slice(0, 400)}
+        </div>
+      </div>
+
+      <Btn onClick={handleStart}>
+        Lancer l'import — {fmtNum(info.rowCount)} lignes
+      </Btn>
+    </div>
+  );
+}
+
+// ─── ÉTAPE 3 : Import ─────────────────────────────────────────────────────────
+function StepImport({ info, idcarCol, selectedCols, resolution, millesime, addLog }: {
+  info:         FileInfo;
+  idcarCol:     string;
+  selectedCols: string[];
+  resolution:   string;
+  millesime:    string;
+  addLog:       (t: string, k: LogLine['kind']) => void;
+}) {
+  const [progress, setProgress] = useState(0);
+  const [done,     setDone]     = useState(false);
+  const isDbf = info.fileType === 'dbf';
+  const isShp = info.fileType === 'shp';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const CHUNK_SIZE  = 1500;
+      const CONCURRENCY = 3;
+      const rowCount    = info.rowCount;
+      const totalChunks = Math.ceil(rowCount / CHUNK_SIZE);
+      let totalInserted = 0;
+      let totalErrors   = 0;
+      let totalSkipped  = 0;
+      let doneChunks    = 0;
+
+      addLog(`Import ${isShp ? 'SHP' : isDbf ? 'DBF' : 'PARQUET'} — ${fmtNum(rowCount)} lignes, ${totalChunks} lots`, 'head');
+      addLog(`idcar: ${idcarCol} | résolution: ${resolution} | millésime: ${millesime}`, 'info');
+      addLog(`Colonnes sélectionnées (${selectedCols.length}) : ${selectedCols.slice(0, 8).join(', ')}${selectedCols.length > 8 ? ' …' : ''}`, 'info');
+
+      // ── Lecture d'un chunk ────────────────────────────────────────────────
+      const readChunk = (startRow: number, endRow: number): Promise<Record<string, unknown>[]> => {
+        if (isDbf || isShp) {
+          const meta = info.dbfMeta!;
+          const allRows = parseDbfRows(info.buffer, meta, startRow, endRow);
+          return Promise.resolve(allRows.map((row, i) => {
+            const out: Record<string, unknown> = {};
+            selectedCols.forEach(col => { out[col] = row[col]; });
+            if (isShp && info.shpGeoms && info.shpSrcProj) {
+              out.__geom_wkt__ = geomToWKT(info.shpGeoms[startRow + i], info.shpSrcProj) ?? null;
+            }
+            return out;
+          }));
+        }
+        return new Promise(resolve => {
+          const rows: Record<string, unknown>[] = [];
+          parquetRead({
+            file: info.buffer,
+            compressors: { ZSTD: (d: any) => decompress(d) },
+            rowStart: startRow, rowEnd: endRow,
+            onComplete: (rawRows: any[]) => {
+              for (const row of rawRows) {
+                const obj: Record<string, unknown> = {};
+                selectedCols.forEach(col => {
+                  const idx = info.columns.indexOf(col);
+                  if (idx !== -1) obj[col] = row[idx];
+                });
+                rows.push(obj);
+              }
+              resolve(rows);
+            },
+          });
+        });
+      };
+
+      // ── Envoi d'un chunk ──────────────────────────────────────────────────
+      const sendChunk = async (chunkIdx: number, rows: Record<string, unknown>[]) => {
+        if (cancelled) return;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 55_000);
+        try {
+          const res = await adminFetch('/api/admin/filosofi-import', {
+            method: 'POST',
+            body: JSON.stringify({
+              data: rows,
+              columns: isShp ? [...selectedCols, '__geom_wkt__'] : selectedCols,
+              idcar_col: idcarCol,
+              geom_col: isShp ? '__geom_wkt__' : undefined,
+              resolution, millesime,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (!res.ok) {
+            let detail = `Erreur lot ${chunkIdx + 1}`;
+            try { const j = await res.json(); if (j.error) detail = j.error; } catch {}
+            throw new Error(detail);
+          }
+          try {
+            const j = await res.json();
+            totalInserted += j.inserted ?? 0;
+            totalErrors   += j.errors   ?? 0;
+            totalSkipped  += j.skipped  ?? 0;
+          } catch {}
+        } catch (err: unknown) {
+          clearTimeout(timer);
+          const msg = err instanceof Error ? err.message : String(err);
+          addLog(`! Lot ${chunkIdx + 1} échoué : ${msg}`, 'error');
+          totalErrors += rows.length;
+        }
+        doneChunks++;
+        if (!cancelled) {
+          setProgress(Math.round((doneChunks / totalChunks) * 100));
+          if (doneChunks % 5 === 0 || doneChunks === totalChunks) {
+            addLog(`Lot ${doneChunks}/${totalChunks} — insérés: ${fmtNum(totalInserted)} | erreurs: ${fmtNum(totalErrors)} | ignorés: ${fmtNum(totalSkipped)}`, 'progress');
+          }
+        }
+      };
+
+      // ── Pipeline ──────────────────────────────────────────────────────────
+      try {
+        for (let wave = 0; wave < totalChunks; wave += CONCURRENCY) {
+          if (cancelled) break;
+          const tasks = [];
+          for (let i = wave; i < Math.min(wave + CONCURRENCY, totalChunks); i++) {
+            const startRow = i * CHUNK_SIZE;
+            const endRow   = Math.min(startRow + CHUNK_SIZE, rowCount);
+            tasks.push(readChunk(startRow, endRow).then(rows => sendChunk(i, rows)));
+          }
+          await Promise.all(tasks);
+        }
+
+        addLog(`Terminé — ${fmtNum(totalInserted)} insérés, ${fmtNum(totalErrors)} erreurs, ${fmtNum(totalSkipped)} ignorés.`, 'ok');
+
+        const srcRes = await adminFetch('/api/admin/sources', {
+          method: 'POST',
+          body: JSON.stringify({
+            name:              `Filosofi ${millesime} — Carreaux ${resolution}`,
+            type:              'carreaux', category: 'carreaux',
+            original_filename: info.file.name,
+            file_format:       isShp ? 'shp' : isDbf ? 'dbf' : 'parquet',
+            row_count:         rowCount,
+            valid_count:       totalInserted,
+            error_count:       totalErrors,
+            mapping:           { resolution, millesime, idcarCol, columns: selectedCols },
+            geo_config:        { table_name: 'carreaux_filosofi', resolution, millesime },
+          }),
+        });
+        if (srcRes.ok) addLog('Source enregistrée dans l\'onglet Données.', 'ok');
+        if (!cancelled) setDone(true);
+      } catch (e: any) {
+        addLog(`Erreur : ${e.message}`, 'error');
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{ padding: 24, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
+      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 16 }}>
+        ÉTAPE 3 — IMPORT EN COURS
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fontMono, fontSize: 10, marginBottom: 6, color: C.textDim }}>
+        <span>{done ? 'Terminé' : 'Avancement'}</span>
+        <span style={{ color: done ? C.green : C.accent }}>{progress}%</span>
+      </div>
+      <div style={{ width: '100%', height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${progress}%`, height: '100%', background: done ? C.green : C.accent, transition: 'width 0.3s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Page principale ──────────────────────────────────────────────────────────
 export default function FilosofiImportPage() {
-  const [step, setStep]         = useState<Step>(1);
-  const [millesime, setMillesime] = useState('2021');
-
-  // Deux slots : 200m et 1km
-  const [slot200, setSlot200]   = useState<SlotState>(emptySlot());
-  const [slot1km, setSlot1km]   = useState<SlotState>(emptySlot());
-
-  // Step 3 — log
-  const [logs, setLogs]         = useState<LogLine[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importDone, setImportDone]   = useState(false);
-  const [stats200, setStats200] = useState<{ inserted: number; errors: number; skipped: number } | null>(null);
-  const [stats1km, setStats1km] = useState<{ inserted: number; errors: number; skipped: number } | null>(null);
-
+  const [step,      setStep]      = useState<1 | 2 | 3>(1);
+  const [fileInfo,  setFileInfo]  = useState<FileInfo | null>(null);
+  const [importCfg, setImportCfg] = useState<{ idcarCol: string; selectedCols: string[]; resolution: string; millesime: string } | null>(null);
+  const [logs,      setLogs]      = useState<LogLine[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
-  const logId  = useRef(0);
+
+  const addLog = (text: string, kind: LogLine['kind'] = 'info') =>
+    setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, kind }]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs]);
 
-  const addLog = useCallback((text: string, kind: LogLine['kind'] = 'info') => {
-    setLogs(prev => [...prev, { id: logId.current++, text, kind }]);
-  }, []);
-
-  // ─── Parse un fichier ────────────────────────────────────────────────────
-  const parseFile = useCallback(async (
-    f: File,
-    resolution: string,
-    setSlot: React.Dispatch<React.SetStateAction<SlotState>>,
-  ) => {
-    if (!f.name.endsWith('.parquet')) {
-      setSlot(s => ({ ...s, error: 'Seuls les fichiers .parquet sont acceptés' }));
-      return;
-    }
-    setSlot(s => ({ ...s, file: f, parsing: true, error: '', parsed: null }));
-
-    // Auto-detect millésime
-    const m = f.name.match(/(\d{4})/);
-    if (m) setMillesime(m[1]);
-
-    try {
-      const form = new FormData();
-      form.append('file', f);
-      const res = await adminFetch('/api/admin/import-filosofi/parse', { method: 'POST', body: form });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({ error: 'Erreur serveur' }));
-        throw new Error(j.error ?? `HTTP ${res.status}`);
-      }
-      const data: ParseResult = await res.json();
-      setSlot(s => ({ ...s, parsing: false, parsed: data, idcarCol: data.idcarColumn ?? '', error: '' }));
-    } catch (e: unknown) {
-      setSlot(s => ({ ...s, parsing: false, error: e instanceof Error ? e.message : 'Erreur inconnue' }));
-    }
-  }, []);
-
-  const canProceed = (slot200.parsed && slot200.idcarCol) || (slot1km.parsed && slot1km.idcarCol);
-
-  // ─── Import d'un slot via SSE ────────────────────────────────────────────
-  const importSlot = useCallback(async (
-    slot: SlotState,
-    resolution: string,
-    onStats: (s: { inserted: number; errors: number; skipped: number }) => void,
-  ) => {
-    if (!slot.file || !slot.parsed) return;
-
-    addLog(``, 'info');
-    addLog(`── ${resolution} · ${fmtNum(slot.parsed.rowCount)} carreaux ─────────────────`, 'head');
-
-    const form = new FormData();
-    form.append('file',       slot.file);
-    form.append('idcar_col',  slot.idcarCol);
-    form.append('resolution', resolution);
-    form.append('millesime',  millesime);
-
-    const res = await adminFetch('/api/admin/import-filosofi/execute', { method: 'POST', body: form });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let   buf     = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const ev = JSON.parse(line);
-          if (ev.type === 'status') {
-            addLog(`  > ${ev.message}`, 'info');
-          } else if (ev.type === 'progress') {
-            const pct = Math.round((ev.done / ev.total) * 100);
-            addLog(`  [${String(pct).padStart(3)}%] ${fmtNum(ev.done)}/${fmtNum(ev.total)} insérés: ${fmtNum(ev.inserted)}`, 'progress');
-          } else if (ev.type === 'done') {
-            addLog(`  [OK] ${fmtNum(ev.inserted)} insérés / ${ev.errors} erreurs / ${ev.skipped} ignorés`, 'ok');
-            onStats({ inserted: ev.inserted, errors: ev.errors, skipped: ev.skipped });
-          } else if (ev.type === 'error') {
-            addLog(`  ! ${ev.message}`, 'error');
-          }
-        } catch { /* skip */ }
-      }
-    }
-  }, [millesime, addLog]);
-
-  // ─── Lancer l'import complet ─────────────────────────────────────────────
-  const runImport = useCallback(async () => {
+  const handleLoaded = (info: FileInfo) => { setFileInfo(info); setStep(2); };
+  const handleStart  = (idcarCol: string, selectedCols: string[], resolution: string, millesime: string) => {
+    setImportCfg({ idcarCol, selectedCols, resolution, millesime });
     setStep(3);
-    setIsImporting(true);
-    setImportDone(false);
-    setLogs([]);
-    setStats200(null);
-    setStats1km(null);
+  };
 
-    try {
-      if (slot200.parsed && slot200.idcarCol) {
-        await importSlot(slot200, '200m', setStats200);
-      }
-      if (slot1km.parsed && slot1km.idcarCol) {
-        await importSlot(slot1km, '1km', setStats1km);
-      }
-      addLog('', 'info');
-      addLog('[OK] Import Filosofi terminé.', 'ok');
-      setImportDone(true);
-    } catch (e: unknown) {
-      addLog(`! ${e instanceof Error ? e.message : 'Erreur réseau'}`, 'error');
-    } finally {
-      setIsImporting(false);
-    }
-  }, [slot200, slot1km, importSlot, addLog]);
-
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: fontInter, color: C.text }}>
-
-      {/* Header */}
       <header style={{ borderBottom: `1px solid ${C.border}`, padding: '12px 28px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <a href="/dashboard" style={{ color: C.textSec, fontFamily: fontMono, fontSize: 10, textDecoration: 'none' }}>←</a>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
@@ -286,289 +659,68 @@ export default function FilosofiImportPage() {
           </span>
           <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em' }}>FILOSOFI_IMPORT</span>
         </div>
-
-        {/* Step indicator */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {([1, 2, 3] as Step[]).map((s, i) => (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: fontMono, fontSize: 9, fontWeight: 700,
-                background: step === s ? C.accent : step > s ? 'rgba(61,255,160,0.15)' : 'transparent',
-                border: `1px solid ${step === s ? C.accent : step > s ? C.green : C.border}`,
-                color: step === s ? '#fff' : step > s ? C.green : C.textSec,
-              }}>{s}</div>
-              {i < 2 && <div style={{ width: 20, height: 1, background: C.border }} />}
-            </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {([1, 2, 3] as const).map(s => (
+            <div key={s} style={{
+              width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: step >= s ? C.accent : C.border,
+              fontFamily: fontMono, fontSize: 10, color: step >= s ? '#fff' : C.textSec, fontWeight: 700,
+            }}>{s}</div>
           ))}
-          <span style={{ fontFamily: fontMichroma, fontSize: 8, color: C.textDim, marginLeft: 8, letterSpacing: '0.1em' }}>
-            {step === 1 ? 'UPLOAD' : step === 2 ? 'CONFIG' : 'IMPORT'}
-          </span>
         </div>
       </header>
 
-      <main style={{ maxWidth: 860, margin: '0 auto', padding: '32px 24px' }}>
+      <main style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h1 style={{ fontFamily: fontOrbitron, fontSize: 16, fontWeight: 700, letterSpacing: '0.08em', margin: 0 }}>
+          Import Filosofi
+        </h1>
+        <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec }}>
+          Formats : <span style={{ color: C.accent }}>.dbf</span> (shapefile attributs, idcar → géométrie auto) · <span style={{ color: C.accent }}>.parquet</span>
+        </div>
 
-        {/* ── STEP 1 : Upload des deux fichiers ──────────────────────────── */}
-        {step === 1 && (
-          <div>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.18em', marginBottom: 6 }}>DATA_SOURCE</div>
-              <h1 style={{ fontFamily: fontOrbitron, fontSize: 18, fontWeight: 700, letterSpacing: '0.08em', margin: 0 }}>
-                Import Filosofi Parquet
-              </h1>
-              <p style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 8, lineHeight: 1.6 }}>
-                Déposer les deux fichiers INSEE Filosofi — 200m et 1km sont importés ensemble.<br />
-                La géométrie est reconstruite depuis l'identifiant idcar (Lambert 93 → WGS84).
-              </p>
-            </div>
-
-            {/* Millésime */}
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.textDim, letterSpacing: '0.12em', marginBottom: 6 }}>MILLESIME</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['2021', '2019', '2017', '2015'].map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setMillesime(m)}
-                    style={{
-                      background:   millesime === m ? C.accent : 'transparent',
-                      border:       `1px solid ${millesime === m ? C.accent : C.border}`,
-                      borderRadius: 2, padding: '5px 14px',
-                      color:        millesime === m ? '#fff' : C.textDim,
-                      cursor:       'pointer',
-                      fontFamily:   fontMono, fontSize: 10,
-                    }}
-                  >{m}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Deux drop zones côte à côte */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              <DropZone
-                slot={slot200}
-                resolution="200m"
-                color={C.accent}
-                onFile={f => parseFile(f, '200m', setSlot200)}
-              />
-              <DropZone
-                slot={slot1km}
-                resolution="1km"
-                color={C.teal}
-                onFile={f => parseFile(f, '1km', setSlot1km)}
-              />
-            </div>
-
-            {/* Info */}
-            <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '10px 14px', marginBottom: 20, fontFamily: fontMono, fontSize: 9, color: C.textSec, lineHeight: 1.7 }}>
-              Télécharger sur <span style={{ color: C.accent }}>data.gouv.fr</span> — chercher &quot;Filosofi carreaux&quot;<br />
-              Fichiers attendus : <span style={{ color: C.accent }}>carreaux_filosofi_200m_{millesime}.parquet</span> + <span style={{ color: C.teal }}>carreaux_filosofi_1km_{millesime}.parquet</span>
-            </div>
-
-            <button
-              onClick={() => setStep(2)}
-              disabled={!canProceed}
-              style={{
-                background:   canProceed ? C.accent : 'rgba(168,85,247,0.15)',
-                border:       `1px solid ${canProceed ? C.accent : C.border}`,
-                borderRadius: 2, padding: '10px 28px',
-                color:        canProceed ? '#fff' : C.textSec,
-                cursor:       canProceed ? 'pointer' : 'not-allowed',
-                fontFamily:   fontMichroma, fontSize: 9, letterSpacing: '0.12em', fontWeight: 700,
-              }}
-            >
-              SUIVANT →
-            </button>
-          </div>
+        {step === 1 && <StepUpload onLoaded={handleLoaded} addLog={addLog} />}
+        {step === 2 && fileInfo && <StepConfig info={fileInfo} onStart={handleStart} />}
+        {step === 3 && fileInfo && importCfg && (
+          <StepImport
+            info={fileInfo}
+            idcarCol={importCfg.idcarCol}
+            selectedCols={importCfg.selectedCols}
+            resolution={importCfg.resolution}
+            millesime={importCfg.millesime}
+            addLog={addLog}
+          />
         )}
 
-        {/* ── STEP 2 : Config & confirmation ──────────────────────────────── */}
-        {step === 2 && (
-          <div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.18em', marginBottom: 6 }}>CONFIRMATION</div>
-              <h1 style={{ fontFamily: fontOrbitron, fontSize: 16, fontWeight: 700, letterSpacing: '0.08em', margin: 0 }}>
-                Millésime {millesime}
-              </h1>
-            </div>
-
-            {/* Récapitulatif des deux slots */}
-            {([
-              { slot: slot200, res: '200m', color: C.accent,   setSlot: setSlot200 },
-              { slot: slot1km, res: '1km',  color: C.teal,     setSlot: setSlot1km },
-            ] as const).map(({ slot, res, color, setSlot }) => (
-              <div key={res} style={{
-                background: C.bgElevated, border: `1px solid ${slot.parsed ? color + '44' : C.border}`,
-                borderRadius: 2, padding: '14px 16px', marginBottom: 12,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: slot.parsed ? 10 : 0 }}>
-                  <span style={{ fontFamily: fontMichroma, fontSize: 8, color, letterSpacing: '0.14em', border: `1px solid ${color}55`, borderRadius: 2, padding: '2px 8px' }}>{res}</span>
-                  {slot.parsed ? (
-                    <span style={{ fontFamily: fontMono, fontSize: 10, color: C.text }}>{slot.file?.name}</span>
-                  ) : (
-                    <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec }}>— non fourni (ignoré)</span>
-                  )}
-                </div>
-
-                {slot.parsed && (
-                  <>
-                    {/* Stats */}
-                    <div style={{ display: 'flex', gap: 20, marginBottom: 10, fontFamily: fontMono, fontSize: 9 }}>
-                      <span><span style={{ color: C.textDim }}>carreaux </span><span style={{ color }}>{fmtNum(slot.parsed.rowCount)}</span></span>
-                      <span><span style={{ color: C.textDim }}>colonnes </span><span style={{ color: C.text }}>{slot.parsed.columns.length}</span></span>
-                      <span><span style={{ color: C.textDim }}>indicateurs </span><span style={{ color: C.blue }}>{slot.parsed.indicatorColumns.length}</span></span>
-                    </div>
-
-                    {/* Colonne idcar */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontFamily: fontMichroma, fontSize: 8, color: C.textDim, letterSpacing: '0.1em', width: 60, flexShrink: 0 }}>IDCAR_COL</span>
-                      <select
-                        value={slot.idcarCol}
-                        onChange={e => setSlot(s => ({ ...s, idcarCol: e.target.value }))}
-                        style={{ background: C.bg, border: `1px solid ${color}55`, borderRadius: 2, padding: '5px 8px', color: C.text, fontFamily: fontMono, fontSize: 9 }}
-                      >
-                        <option value="">— sélectionner —</option>
-                        {slot.parsed.columns.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      {slot.idcarCol && <span style={{ fontFamily: fontMono, fontSize: 8, color: C.green }}>[OK]</span>}
-                    </div>
-
-                    {/* Indicateurs */}
-                    <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {slot.parsed.indicatorColumns.slice(0, 30).map(col => (
-                        <span key={col} style={{
-                          background: `${color}10`, border: `1px solid ${color}30`,
-                          borderRadius: 2, padding: '1px 6px',
-                          fontFamily: fontMono, fontSize: 8, color,
-                        }}>{col}</span>
-                      ))}
-                      {slot.parsed.indicatorColumns.length > 30 && (
-                        <span style={{ fontFamily: fontMono, fontSize: 8, color: C.textSec }}>+{slot.parsed.indicatorColumns.length - 30}</span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-
-            {/* Résumé total */}
-            <div style={{ background: 'rgba(168,85,247,0.05)', border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '12px 16px', marginBottom: 20, fontFamily: fontMono, fontSize: 10 }}>
-              <span style={{ color: C.textDim }}>Total : </span>
-              <span style={{ color: C.accent, fontWeight: 700 }}>
-                {fmtNum((slot200.parsed?.rowCount ?? 0) + (slot1km.parsed?.rowCount ?? 0))} carreaux
-              </span>
-              <span style={{ color: C.textSec }}> · résolution 200m + 1km · millésime {millesime}</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setStep(1)}
-                style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 2, padding: '9px 18px', color: C.textDim, cursor: 'pointer', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}
-              >
-                RETOUR
-              </button>
-              <button
-                onClick={runImport}
-                disabled={!canProceed}
-                style={{
-                  background:   C.accent,
-                  border:       `1px solid ${C.accent}`,
-                  borderRadius: 2, padding: '9px 28px',
-                  color:        '#fff',
-                  cursor:       'pointer',
-                  fontFamily:   fontMichroma, fontSize: 9, letterSpacing: '0.12em', fontWeight: 700,
-                }}
-              >
-                LANCER_IMPORT
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP 3 : Import ─────────────────────────────────────────────── */}
-        {step === 3 && (
-          <div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.18em', marginBottom: 6 }}>
-                {importDone ? 'IMPORT_TERMINE' : 'IMPORT_EN_COURS'}
-              </div>
-              <h1 style={{ fontFamily: fontOrbitron, fontSize: 16, fontWeight: 700, letterSpacing: '0.08em', margin: 0 }}>
-                Filosofi {millesime}
-              </h1>
-            </div>
-
-            {/* Stats par résolution */}
-            {(stats200 || stats1km) && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                {[
-                  { label: '200m', stats: stats200, color: C.accent },
-                  { label: '1km',  stats: stats1km,  color: C.teal  },
-                ].map(({ label, stats, color }) => stats && (
-                  <div key={label} style={{ background: C.bgElevated, border: `1px solid ${color}44`, borderRadius: 2, padding: '12px 14px' }}>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, color, letterSpacing: '0.12em', marginBottom: 8 }}>{label}</div>
-                    <div style={{ display: 'flex', gap: 16, fontFamily: fontMono, fontSize: 9 }}>
-                      <span><span style={{ color: C.textDim }}>insérés </span><span style={{ color: C.green, fontWeight: 700 }}>{fmtNum(stats.inserted)}</span></span>
-                      <span><span style={{ color: C.textDim }}>erreurs </span><span style={{ color: stats.errors > 0 ? C.red : C.textSec }}>{stats.errors}</span></span>
-                      <span><span style={{ color: C.textDim }}>ignorés </span><span style={{ color: stats.skipped > 0 ? C.yellow : C.textSec }}>{stats.skipped}</span></span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Log terminal */}
+        {logs.length > 0 && (
+          <>
+            <div style={{ fontFamily: fontOrbitron, fontSize: 11, color: C.textDim }}>TERMINAL //</div>
             <div
               ref={logRef}
               style={{
-                background:   C.bgElevated,
-                border:       `1px solid ${C.border}`,
-                borderRadius: 2,
-                height:       380,
-                overflowY:    'auto',
-                padding:      '12px 14px',
-                fontFamily:   fontMono,
-                fontSize:     10,
-                lineHeight:   1.7,
-                marginBottom: 16,
+                background: '#0d0d0d', border: `1px solid ${C.border}`, borderRadius: 2,
+                height: 320, overflowY: 'auto', padding: '12px 14px',
+                fontFamily: fontMono, fontSize: 10, lineHeight: 1.7,
               }}
             >
-              {logs.length === 0 && <span style={{ color: C.textSec }}>Démarrage...</span>}
               {logs.map(l => (
                 <div key={l.id} style={{
                   color: l.kind === 'head'     ? C.accent
                        : l.kind === 'ok'       ? C.green
                        : l.kind === 'error'    ? C.red
-                       : l.kind === 'progress' ? C.textDim
+                       : l.kind === 'progress' ? C.textSec
                        : C.text,
                   fontWeight: l.kind === 'head' ? 700 : undefined,
-                }}>
-                  {l.text}
-                </div>
+                }}>{l.text}</div>
               ))}
-              {isImporting && <div style={{ color: C.accent }}>_</div>}
             </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              {importDone && (
-                <button
-                  onClick={() => { setStep(1); setSlot200(emptySlot()); setSlot1km(emptySlot()); setStats200(null); setStats1km(null); setLogs([]); setImportDone(false); }}
-                  style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '9px 20px', color: C.accent, cursor: 'pointer', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}
-                >
-                  NOUVEL_IMPORT
-                </button>
-              )}
-              <a href="/admin/carreaux-import"
-                style={{ background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 2, padding: '9px 18px', color: C.textDim, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textDecoration: 'none', display: 'inline-block' }}
-              >
-                IMPORT_SHAPEFILE
-              </a>
-            </div>
-          </div>
+          </>
         )}
 
+        {step === 3 && (
+          <Btn variant="ghost" onClick={() => { setStep(1); setFileInfo(null); setImportCfg(null); setLogs([]); }}>
+            Nouvel import
+          </Btn>
+        )}
       </main>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { UIMessage } from 'ai';
-import type { ZoneData, IsochroneData, VoronoiData, CarreauxData, NetworkCoverageData } from '@/types/spatial';
+import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 import type { OohExportData } from '../_lib/ooh-export';
 
 interface UseToolProcessorOpts {
@@ -18,7 +18,6 @@ interface UseToolProcessorOpts {
     tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
-  applyNetworkCoverage: (data: NetworkCoverageData) => void;
   triggerOohExport: (data: OohExportData) => Promise<void>;
 }
 
@@ -33,7 +32,6 @@ export function useToolProcessor({
   carreauxSourcesRef,
   carreauxConfigForSaveRef,
   flyToCoords,
-  applyNetworkCoverage,
   triggerOohExport,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
@@ -157,13 +155,6 @@ export function useToolProcessor({
           // Display synergy results (panneaux near POI with demo scoring)
           setZoneData(result as ZoneData);
           if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
-
-        } else if (toolName === 'calculate_network_coverage' && result) {
-          if (result.error) {
-            setError(`📡 Couverture réseau — ${result.error}`);
-          } else {
-            applyNetworkCoverage(result as NetworkCoverageData);
-          }
 
         } else if (toolName === 'calculate_audience_coverage' && result) {
           if (result.error) {

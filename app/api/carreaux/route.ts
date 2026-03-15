@@ -30,7 +30,7 @@ export async function GET() {
 
 // POST — fetch carreaux GeoJSON within a bounding box
 export async function POST(req: NextRequest) {
-  const { tableName, bbox, millesime } = await req.json();
+  const { tableName, bbox, millesime, resolution } = await req.json();
 
   if (!tableName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
     return NextResponse.json({ error: 'Invalid table name' }, { status: 400 });
@@ -46,16 +46,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = createAdminClient();
-    const milFilter = millesime ? String(millesime) : null;
+    const milFilter = millesime   ? String(millesime)   : null;
+    const resFilter = resolution  ? String(resolution)  : null;
 
-    // Call the get_carreaux SQL function (requires sql/003_carreaux_rpc.sql to be run)
     const { data, error } = await supabase.rpc('get_carreaux', {
-      p_table:     tableName,
-      p_west:      west,
-      p_south:     south,
-      p_east:      east,
-      p_north:     north,
-      p_millesime: milFilter,
+      p_table:      tableName,
+      p_west:       west,
+      p_south:      south,
+      p_east:       east,
+      p_north:      north,
+      p_millesime:  milFilter,
+      p_resolution: resFilter,
     });
 
     if (error) {

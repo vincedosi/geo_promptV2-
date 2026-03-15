@@ -17,8 +17,7 @@
 
 import { NextRequest } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import { parquetMetadata, parquetRead } from 'hyparquet';
-import { compressors } from 'hyparquet-compressors';
+import Papa from 'papaparse';
 import { createClient } from '@supabase/supabase-js';
 import proj4 from 'proj4';
 
@@ -97,28 +96,19 @@ export async function POST(request: NextRequest) {
         const millesime  = (form.get('millesime')  as string | null) ?? '2021';
 
         if (!file) { send({ type: 'error', message: 'Fichier manquant' }); controller.close(); return; }
-
-        // Validation
+        if (!file.name.endsWith('.csv')) { send({ type: 'error', message: 'Seuls les fichiers .csv sont acceptés' }); controller.close(); return; }
         if (!/^[0-9]+[a-z]+$/.test(resolution)) { send({ type: 'error', message: 'Résolution invalide' }); controller.close(); return; }
         if (!/^[0-9]{4}$/.test(millesime))       { send({ type: 'error', message: 'Millésime invalide'  }); controller.close(); return; }
 
         send({ type: 'status', message: `Lecture du fichier (${(file.size / 1024 / 1024).toFixed(1)} Mo)...` });
 
-        const buffer   = Buffer.from(await file.arrayBuffer());
-        // Build AsyncBuffer from Node Buffer (hyparquet interface: { byteLength, slice })
-        const asyncBuf = {
-          byteLength: buffer.byteLength,
-          slice: (start: number, end: number) => Promise.resolve(buffer.buffer.slice(buffer.byteOffset + start, buffer.byteOffset + end)),
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const meta     = parquetMetadata(asyncBuf as any);
-
-        const columns  = meta.schema
-          .filter(f => f.num_children === undefined || f.num_children === null)
-          .map(f => f.name)
-          .filter(n => n !== 'schema');
-        const rowCount = Number(meta.num_rows);
-
+        const text = await file.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        if (parsed.errors.length > 0) {
+          send({ type: 'error', message: parsed.errors[0].message }); controller.close(); return;
+        }
+        const columns = parsed.meta.fields || [];
+        const rowCount = parsed.data.length;
         if (!columns.includes(idcarCol)) {
           send({ type: 'error', message: `Colonne "${idcarCol}" introuvable. Colonnes disponibles : ${columns.join(', ')}` });
           controller.close();
@@ -148,32 +138,21 @@ export async function POST(request: NextRequest) {
           const rowEnd = Math.min(offset + chunkSize, rowCount);
           const batch: { idcar: string; geom_wkt: string; metadata: Record<string, unknown> }[] = [];
 
-          await parquetRead({
-            file: asyncBuf as Parameters<typeof parquetRead>[0]['file'],
-            compressors,
-            rowStart: offset,
-            rowEnd,
-            onComplete: (rows) => {
-              for (const row of rows) {
-                const idcar = String(row[idcarIdx] ?? '');
-                if (!idcar) { totalSkipped++; continue; }
-
-                const wkt = idcarToWKT(idcar, resolution);
-                if (!wkt) { totalSkipped++; continue; }
-
-                const metadata: Record<string, unknown> = {};
-                metaCols.forEach((col, ci) => {
-                  const actualIdx = columns.indexOf(col);
-                  const val = row[actualIdx];
-                  if (val !== null && val !== undefined) {
-                    metadata[col.toLowerCase()] = val;
-                  }
-                });
-
-                batch.push({ idcar, geom_wkt: wkt, metadata });
+          for (let i = offset; i < rowEnd; i++) {
+            const row = parsed.data[i] as Record<string, unknown>;
+            const idcar = String(row[idcarCol] ?? '');
+            if (!idcar) { totalSkipped++; continue; }
+            const wkt = idcarToWKT(idcar, resolution);
+            if (!wkt) { totalSkipped++; continue; }
+            const metadata: Record<string, unknown> = {};
+            metaCols.forEach((col) => {
+              const val = row[col];
+              if (val !== null && val !== undefined) {
+                metadata[col.toLowerCase()] = val;
               }
-            },
-          });
+            });
+            batch.push({ idcar, geom_wkt: wkt, metadata });
+          }
 
           if (batch.length > 0) {
             const { error } = await supabase.rpc('import_carreaux_batch', {
@@ -205,6 +184,38 @@ export async function POST(request: NextRequest) {
           offset = rowEnd;
           // Yield pour ne pas bloquer la boucle event
           await new Promise(r => setTimeout(r, 0));
+        }
+
+        // ── Enregistrement dans data_sources ────────────────────────────
+        if (totalInserted > 0) {
+          const { error: dsErr } = await supabase
+            .from('data_sources')
+            .upsert(
+              {
+                name:              `Filosofi ${millesime} — Carreaux ${resolution}`,
+                description:       `Données socio-démographiques INSEE Filosofi ${millesime} (résolution ${resolution}, France métropolitaine) — ${totalInserted.toLocaleString('fr-FR')} carreaux`,
+                type:              'carreaux',
+                category:          'carreaux',
+                original_filename: file.name,
+                file_format:       'parquet',
+                row_count:         rowCount,
+                valid_count:       totalInserted,
+                error_count:       totalErrors,
+                mapping:           { resolution, millesime, columns },
+                geo_config:        { table_name: 'carreaux_filosofi', resolution, millesime },
+                status:            'active',
+                organization_id:   '00000000-0000-0000-0000-000000000001',
+              },
+              {
+                onConflict:        'name',
+                ignoreDuplicates:  false,
+              }
+            );
+          if (dsErr) {
+            console.warn('[import-filosofi] data_sources upsert warning:', dsErr.message);
+          } else {
+            send({ type: 'status', message: `Source enregistrée dans l'onglet Données.` });
+          }
         }
 
         send({

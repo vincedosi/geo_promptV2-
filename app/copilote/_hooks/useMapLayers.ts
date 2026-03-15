@@ -8,7 +8,7 @@ import {
   VORONOI_PALETTE,
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
-import type { IsochroneData, VoronoiData, CarreauxData, NetworkCoverageData } from '@/types/spatial';
+import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 interface UseMapLayersOpts {
   mapRef: React.MutableRefObject<maplibregl.Map | null>;
@@ -438,7 +438,7 @@ export function useMapLayers({
       const gjData = await fetch('/api/carreaux', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableName, bbox }),
+        body: JSON.stringify({ tableName, bbox, resolution: cd.resolution ?? '200m' }),
       }).then(r => r.json());
 
       console.log('[Copilote] carreaux response:', {
@@ -472,48 +472,6 @@ export function useMapLayers({
     } catch (err) {
       console.error('[Copilote] loadCarreauxFromAI error:', err);
     }
-  };
-
-  const applyNetworkCoverage = (data: NetworkCoverageData) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const colors = ISOCHRONE_COLORS.network;
-    const geom   = data.union_geojson;
-
-    const source = map.getSource('isochrones') as maplibregl.GeoJSONSource | undefined;
-    if (!source) return;
-
-    // Wrap geometry in a FeatureCollection
-    const fc: GeoJSON.FeatureCollection = {
-      type: 'FeatureCollection',
-      features: [{ type: 'Feature', geometry: geom, properties: {} }],
-    };
-    source.setData(fc);
-    map.setPaintProperty('isochrones-fill', 'fill-color',   colors.fill);
-    map.setPaintProperty('isochrones-fill', 'fill-opacity', 0.25);
-    map.setPaintProperty('isochrones-line', 'line-color',   colors.line);
-    map.setPaintProperty('isochrones-line', 'line-width',   2);
-    map.setLayoutProperty('isochrones-fill', 'visibility', 'visible');
-    map.setLayoutProperty('isochrones-line', 'visibility', 'visible');
-    setIsochroneVisible(true);
-    setIsochroneMode('network');
-    setIsochroneMinutes(data.travel_time_minutes);
-    setIsochroneFromCache(data.from_cache ?? false);
-    setIsochroneCachedAt('');
-
-    // fitBounds over the union geometry
-    const bounds = new maplibregl.LngLatBounds();
-    let extended = false;
-    const extractCoords = (g: GeoJSON.Geometry) => {
-      if (g.type === 'Polygon') {
-        for (const ring of g.coordinates) for (const c of ring) { bounds.extend([c[0], c[1]]); extended = true; }
-      } else if (g.type === 'MultiPolygon') {
-        for (const poly of g.coordinates) for (const ring of poly) for (const c of ring) { bounds.extend([c[0], c[1]]); extended = true; }
-      }
-    };
-    extractCoords(geom);
-    if (extended) map.fitBounds(bounds, { padding: 60, maxZoom: 8, duration: 1500 });
   };
 
   const runTestIsochrone = async (
@@ -605,7 +563,6 @@ export function useMapLayers({
     applyVoronoi,
     applyIsochroneBattle,
     applyIsochrones,
-    applyNetworkCoverage,
     loadCarreauxFromAI,
     runTestIsochrone,
   };
