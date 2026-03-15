@@ -368,13 +368,28 @@ export async function POST(req: NextRequest) {
       return;
     }
 
+    // ── 2b. Clip aux frontières françaises ───────────────────────────────────
+    let clippedRings: RingEntry[] = rings;
+    {
+      const { data: clipped, error: clipErr } = await supabase.rpc(
+        'clip_rings_to_france',
+        { p_rings: rings }
+      );
+      if (clipErr) {
+        console.warn('[battle] clip_rings_to_france error (fallback unclipped):', clipErr.message);
+      } else if (Array.isArray(clipped) && clipped.length > 0) {
+        clippedRings = clipped as RingEntry[];
+        console.log(`[battle] Clip France OK → ${clippedRings.length}/${rings.length} rings retenus`);
+      }
+    }
+
     // ── 3. Appel PostGIS : ST_Difference pur, zéro Voronoï ──────────────────
-    console.log(`[battle] RPC get_isochrone_battle → ${rings.length} polygones…`);
+    console.log(`[battle] RPC get_isochrone_battle → ${clippedRings.length} polygones…`);
     send({ type: 'postgis' });
 
     const { data: battleRows, error: rpcErr } = await supabase.rpc(
       'get_isochrone_battle',
-      { p_rings: rings }
+      { p_rings: clippedRings }
     );
 
     if (rpcErr) {

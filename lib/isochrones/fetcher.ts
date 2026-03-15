@@ -176,7 +176,23 @@ export async function fetchIsochrones(
 
   if (allFeatures.length === 0) return null;
 
-  const geojson = { type: 'FeatureCollection', features: allFeatures };
+  const rawGeojson = { type: 'FeatureCollection', features: allFeatures };
+
+  // ── Clip aux frontières françaises ──────────────────────────────────────
+  let geojson: typeof rawGeojson = rawGeojson;
+  {
+    const { data: clipped, error: clipErr } = await supabase.rpc(
+      'clip_geojson_to_france',
+      { p_fc: rawGeojson }
+    );
+    if (clipErr) {
+      console.warn('[isochrone] clip_geojson_to_france error (fallback brut):', clipErr.message);
+    } else if (clipped) {
+      geojson = clipped as typeof rawGeojson;
+      const nb = (geojson as any).features?.length ?? 0;
+      console.log(`[isochrone] Clip France OK → ${nb} polygones retenus`);
+    }
+  }
 
   // ── Sauvegarde en cache ─────────────────────────────────────────────────
   const { error: cacheErr } = await supabase
