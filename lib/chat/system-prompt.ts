@@ -99,6 +99,5 @@ Panneaux combinant proximité POI + audience démo. VILLE OBLIGATOIRE (demander 
 Params: poi_category, ville, target_demo_col/label, max_distance_m, buffer_radius_m.
 Réponse: "X panneaux à moins de Ym d'un [POI], touchant >Z [cible]." + Top 3.
 
-OUTIL: calculate_audience_coverage
-Nombre de personnes d'une cible dans un isochrone réel autour d'un lieu unique.`;
+`;
 }

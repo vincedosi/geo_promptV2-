@@ -7,7 +7,6 @@ import {
 import {
   CITY_BASE_RADIUS, getCoordsForVille, getCoordsForRegion, normVille, resolveCategory,
 } from '@/lib/geo/locations';
-import postgresLib from 'postgres';
 import { CHORO_INDICATORS } from './system-prompt';
 
 // =============================================================================
