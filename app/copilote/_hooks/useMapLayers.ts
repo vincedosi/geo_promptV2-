@@ -289,7 +289,8 @@ export function useMapLayers({
   const applyIsochroneBattle = (
     ringData:   { type: string; features: GeoJSON.Feature[] },
     borderData: { type: string; features: GeoJSON.Feature[] } | null | undefined,
-    category?:  string
+    category?:  string,
+    poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]
   ) => {
     const map = mapRef.current;
     if (!map) return;
@@ -297,7 +298,9 @@ export function useMapLayers({
     const cirfaColorMap = new Map<string, string>();
     let _colorIdx = 0;
     for (const f of ringData.features) {
-      const cid = String((f.properties as Record<string, unknown>)?.id ?? '');
+      const p   = f.properties as Record<string, unknown>;
+      // Support: 'id' (v2) ou 'cirfa_id' (v1 éventuelle)
+      const cid = String(p?.id ?? p?.cirfa_id ?? '');
       if (cid && !cirfaColorMap.has(cid)) {
         cirfaColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
         _colorIdx++;
@@ -306,7 +309,7 @@ export function useMapLayers({
 
     const styledRings = ringData.features.map((f) => {
       const p      = f.properties as Record<string, unknown>;
-      const cid    = String(p?.id ?? '');
+      const cid    = String(p?.id ?? p?.cirfa_id ?? '');
       const palier = Number(p?.palier ?? 120);
       return {
         ...f,
@@ -335,20 +338,34 @@ export function useMapLayers({
     setBattleVisible(true);
     setBattleCategory(category ?? '');
 
-    const poisSeen = new Set<string>();
+    // Utiliser poisForMap (tous les CIRFAs) si disponible,
+    // sinon extraire des ring features (peut rater des CIRFAs sans territoire).
     const poiFeatures: GeoJSON.Feature[] = [];
-    for (const f of ringData.features) {
-      const p = f.properties as Record<string, unknown>;
-      const pid  = String(p.id  ?? '');
-      const plat = Number(p.lat);
-      const plng = Number(p.lng);
-      if (pid && !poisSeen.has(pid) && !isNaN(plat) && !isNaN(plng) && plat && plng) {
-        poisSeen.add(pid);
-        poiFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [plng, plat] },
-          properties: { nom: p.nom, adresse: p.adresse, ville: p.ville, id: pid },
-        });
+    if (poisForMap && poisForMap.length > 0) {
+      for (const p of poisForMap) {
+        if (!isNaN(p.lat) && !isNaN(p.lng) && p.lat && p.lng) {
+          poiFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+            properties: { nom: p.nom, adresse: p.adresse ?? '', ville: p.ville ?? '', id: p.id },
+          });
+        }
+      }
+    } else {
+      const poisSeen = new Set<string>();
+      for (const f of ringData.features) {
+        const p = f.properties as Record<string, unknown>;
+        const pid  = String(p.id ?? p.cirfa_id ?? '');
+        const plat = Number(p.lat);
+        const plng = Number(p.lng);
+        if (pid && !poisSeen.has(pid) && !isNaN(plat) && !isNaN(plng) && plat && plng) {
+          poisSeen.add(pid);
+          poiFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [plng, plat] },
+            properties: { nom: p.nom, adresse: p.adresse, ville: p.ville, id: pid },
+          });
+        }
       }
     }
     const poisSrc = map.getSource('battle-pois') as maplibregl.GeoJSONSource | undefined;

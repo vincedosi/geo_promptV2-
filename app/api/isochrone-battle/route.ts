@@ -43,7 +43,6 @@ const REGION_ID_TO_NAME: Record<string, string> = {
 export const maxDuration = 300;  // Vercel timeout étendu
 
 const ALL_LEVELS      = [10, 30, 60, 90, 120, 150, 180] as const;
-const ORS_BATCH_SIZE  = 5;
 const MAX_POIS_BATTLE = 500;
 
 // ── Normalisation des clés de cache ─────────────────────────────────────────
@@ -65,42 +64,40 @@ function perCircfaCacheKey(
   return `battle__${normKey(category)}__${normKey(cirfaId)}__${level}min__${normKey(mode)}`;
 }
 
-// ── Appel ORS pour un batch de locations ────────────────────────────────────
-interface OrsFeature {
-  group_index: number;
-  geometry:    object;  // GeoJSON Geometry
-}
-
-async function callORS(
-  locations: [number, number][],
-  minutes:   number,
-  mode:      string,
-  apiKey:    string
-): Promise<OrsFeature[]> {
+// ── Appel ORS : 1 seul POI par requête (plus fiable que les batches) ─────────
+/**
+ * Retourne la geometry GeoJSON pour un seul point, ou null en cas d'échec.
+ * Stratégie : 3 tentatives max avec backoff progressif.
+ *   - 429 → attente 12s puis retry
+ *   - Timeout (20s) → attente 3s puis retry
+ *   - Autre erreur → abandon immédiat
+ */
+async function callORSSingle(
+  location: [number, number],
+  minutes:  number,
+  mode:     string,
+  apiKey:   string
+): Promise<object | null> {
   const profile  = ORS_PROFILES[mode] ?? 'driving-car';
   const rangeSec = minutes * 60;
+  const TIMEOUT  = 20_000;
 
-  // Max 2 tentatives, timeout 12s par appel, retry delay 5s (pas 20s)
-  const MAX_ATTEMPTS  = 2;
-  const CALL_TIMEOUT  = 12_000;
-  const RATE_DELAY    = 5_000;
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CALL_TIMEOUT);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
     try {
       const res = await fetch(
         `https://api.openrouteservice.org/v2/isochrones/${profile}`,
         {
           method:  'POST',
-          signal:  controller.signal,
+          signal:  ctrl.signal,
           headers: {
             Authorization:  apiKey,
             'Content-Type': 'application/json',
-            Accept:         'application/json, application/geo+json',
+            Accept:         'application/geo+json',
           },
           body: JSON.stringify({
-            locations,
+            locations:  [location],
             range:      [rangeSec],
             range_type: 'time',
           }),
@@ -109,30 +106,29 @@ async function callORS(
       clearTimeout(timer);
 
       if (res.status === 429) {
-        console.warn(`[battle/ORS] Rate limit (tentative ${attempt + 1}), attente ${RATE_DELAY / 1000}s…`);
-        await new Promise(r => setTimeout(r, RATE_DELAY));
+        console.warn(`[ORS] 429 rate-limit (tentative ${attempt + 1}/3) — attente 12s`);
+        await new Promise(r => setTimeout(r, 12_000));
         continue;
       }
-
       if (!res.ok) {
-        console.error(`[battle/ORS] HTTP ${res.status}`);
-        return [];
+        const txt = await res.text().catch(() => '');
+        console.error(`[ORS] HTTP ${res.status} — ${txt.slice(0, 150)}`);
+        return null; // erreur définitive, pas de retry
       }
 
       const data = await res.json();
-      return (data.features ?? []).map((f: any) => ({
-        group_index: Number(f.properties?.group_index ?? 0),
-        geometry:    f.geometry,
-      }));
+      const geom  = data.features?.[0]?.geometry ?? null;
+      if (!geom) console.warn(`[ORS] Réponse OK mais aucune feature (${minutes}min, ${mode})`);
+      return geom;
+
     } catch (e: any) {
       clearTimeout(timer);
       const isTimeout = e.name === 'AbortError';
-      console.error(`[battle/ORS] ${isTimeout ? 'Timeout 12s' : e.message} (tentative ${attempt + 1})`);
-      if (attempt < MAX_ATTEMPTS - 1) await new Promise(r => setTimeout(r, 2_000));
+      console.error(`[ORS] ${isTimeout ? `Timeout ${TIMEOUT/1000}s` : e.message} (tentative ${attempt + 1}/3, ${minutes}min)`);
+      if (attempt < 2) await new Promise(r => setTimeout(r, isTimeout ? 3_000 : 2_000));
     }
   }
-
-  return [];
+  return null;
 }
 
 // ── Type d'entrée pour le RPC PostGIS ───────────────────────────────────────
@@ -159,10 +155,15 @@ export async function POST(req: NextRequest) {
     filtre_regions  = null,
     force_recalculate  = false,
     max_minutes        = 120,
+    durations          = null,
   } = body as Record<string, unknown>;
 
   const maxMin = Math.min(Math.max(Number(max_minutes) || 120, 30), 180);
-  const BATTLE_LEVELS = ALL_LEVELS.filter(l => l <= maxMin);
+  // Si l'UI envoie des durées explicites, on les utilise (évite de tripler les appels ORS).
+  // Sinon, fallback sur tous les niveaux standard jusqu'à maxMin.
+  const BATTLE_LEVELS = Array.isArray(durations) && durations.length > 0
+    ? (durations as number[]).map(Number).filter(n => n > 0 && n <= 180).sort((a, b) => a - b)
+    : ALL_LEVELS.filter(l => l <= maxMin);
 
   if (!category || typeof category !== 'string') {
     return NextResponse.json({ error: 'category requis' }, { status: 400 });
@@ -283,83 +284,65 @@ export async function POST(req: NextRequest) {
       levelCacheMaps.set(level, geomMap);
     }));
 
-    // ── Construire la liste complète des batches ORS manquants ───────────────
-    type OrsBatch = {
-      level: number;
-      batch: { poi: PoiRow; cacheKey: string }[];
-    };
-    const orsBatches: OrsBatch[] = [];
+    // ── Construire la liste plate des POIs manquants (1 entrée par POI×niveau) ─
+    type MissItem = { level: number; poi: PoiRow; cacheKey: string };
+    const missItems: MissItem[] = [];
 
     for (const level of BATTLE_LEVELS) {
-      const cacheGeomMap = levelCacheMaps.get(level)!;
-      const cacheKeys    = pois.map(p => perCircfaCacheKey(category, p.id, level, String(mode)));
-
-      const missedItems: { poi: PoiRow; cacheKey: string }[] = [];
-      for (let i = 0; i < pois.length; i++) {
-        const geom = cacheGeomMap.get(cacheKeys[i]);
+      const geomMap = levelCacheMaps.get(level)!;
+      let hits = 0;
+      for (const poi of pois) {
+        const ck   = perCircfaCacheKey(category, poi.id, level, String(mode));
+        const geom = geomMap.get(ck);
         if (geom) {
-          rings.push({ cirfa_id: pois[i].id, nom: pois[i].nom, lat: pois[i].lat, lng: pois[i].lng, palier: level, geojson: geom });
+          rings.push({ cirfa_id: poi.id, nom: poi.nom, lat: poi.lat, lng: poi.lng, palier: level, geojson: geom });
+          hits++;
         } else {
-          missedItems.push({ poi: pois[i], cacheKey: cacheKeys[i] });
+          missItems.push({ level, poi, cacheKey: ck });
         }
       }
-      console.log(`[battle] Palier ${level}min : ${pois.length - missedItems.length} hits, ${missedItems.length} miss`);
+      console.log(`[battle] Palier ${level}min : ${hits} hits cache, ${pois.length - hits} miss`);
+    }
 
-      for (let bi = 0; bi < missedItems.length; bi += ORS_BATCH_SIZE) {
-        orsBatches.push({ level, batch: missedItems.slice(bi, bi + ORS_BATCH_SIZE) });
+    // ── Appels ORS séquentiels, 1 POI à la fois, 500ms entre chaque ──────────
+    // Séquentiel = zéro rate-limit, compatible ORS free tier (≤40 req/min).
+    // Chaque appel est indépendant (pas de group_index), plus simple et fiable.
+    const ORS_CALL_DELAY = 500;
+    let orsOk = 0; let orsErr = 0;
+
+    console.log(`[battle] ${missItems.length} appels ORS séquentiels à lancer…`);
+
+    for (let i = 0; i < missItems.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, ORS_CALL_DELAY));
+
+      const { level, poi, cacheKey } = missItems[i];
+      const geom = await callORSSingle([poi.lng, poi.lat], level, String(mode), apiKey);
+
+      if (geom) {
+        rings.push({ cirfa_id: poi.id, nom: poi.nom, lat: poi.lat, lng: poi.lng, palier: level, geojson: geom });
+        orsOk++;
+        // Écriture cache fire-and-forget
+        const fc = {
+          type:     'FeatureCollection',
+          features: [{ type: 'Feature', geometry: geom, properties: {} }],
+        };
+        supabase.from('isochrones_cache').upsert(
+          { cache_key: cacheKey, ville: '_battle_', categorie: category, minutes: level, mode: String(mode), geojson: fc, poi_count: 1, created_at: new Date().toISOString() },
+          { onConflict: 'cache_key' }
+        ).then(({ error }) => {
+          if (error) console.warn('[battle] cache write fail:', error.message);
+        });
+      } else {
+        orsErr++;
+      }
+
+      // Progression toutes les 5 appels ou en fin
+      if ((i + 1) % 5 === 0 || i === missItems.length - 1) {
+        send({ type: 'progress', completed: i + 1, total: missItems.length, ok: orsOk, err: orsErr });
       }
     }
 
-    // ── Appels ORS en parallèle (5 simultanés max) ───────────────────────────
-    const ORS_CONCURRENCY = 10;
-    console.log(`[battle] ${orsBatches.length} batches ORS — concurrence ${ORS_CONCURRENCY}`);
-
-    // Collecter toutes les écritures cache pour les awaiter ensemble
-    const cacheWrites: Promise<any>[] = [];
-    const processedPoiIds = new Set<string>();
-
-    for (let i = 0; i < orsBatches.length; i += ORS_CONCURRENCY) {
-      const chunk = orsBatches.slice(i, i + ORS_CONCURRENCY);
-      await Promise.all(chunk.map(async ({ level, batch }) => {
-        const locations   = batch.map(({ poi }) => [poi.lng, poi.lat] as [number, number]);
-        const orsFeatures = await callORS(locations, level, String(mode), apiKey);
-
-        for (const f of orsFeatures) {
-          const item = batch[f.group_index];
-          if (!item || !f.geometry) continue;
-          const { poi, cacheKey } = item;
-
-          rings.push({ cirfa_id: poi.id, nom: poi.nom, lat: poi.lat, lng: poi.lng, palier: level, geojson: f.geometry });
-
-          const fc = {
-            type:     'FeatureCollection',
-            features: [{ type: 'Feature', geometry: f.geometry, properties: { group_index: 0 } }],
-          };
-          cacheWrites.push(
-            supabase.from('isochrones_cache').upsert(
-              { cache_key: cacheKey, ville: '_battle_', categorie: category, minutes: level, mode: String(mode), geojson: fc, poi_count: 1, created_at: new Date().toISOString() },
-              { onConflict: 'cache_key' }
-            )
-          );
-        }
-
-        if (orsFeatures.length < batch.length) {
-          console.warn(`[battle] Palier ${level}min: ORS ${orsFeatures.length}/${batch.length} polygones`);
-        }
-        for (const { poi } of batch) processedPoiIds.add(poi.id);
-      }));
-
-      // Progression après chaque vague ORS
-      send({ type: 'progress', completed: processedPoiIds.size, total: pois.length });
-    }
-
-    // Awaiter toutes les écritures cache avant de continuer
-    if (cacheWrites.length > 0) {
-      const results = await Promise.allSettled(cacheWrites);
-      const failed  = results.filter(r => r.status === 'rejected').length;
-      if (failed > 0) console.warn(`[battle] ${failed}/${cacheWrites.length} cache writes échouées`);
-      else console.log(`[battle] ${cacheWrites.length} isochrones mis en cache ✓`);
-    }
+    console.log(`[battle] ORS terminé — ${orsOk} ok, ${orsErr} erreurs`);
 
     console.log(`[battle] ORS terminé — ${rings.length} anneaux total`);
 
@@ -398,13 +381,40 @@ export async function POST(req: NextRequest) {
       return;
     }
 
-    const allFeatures     = Array.isArray(battleRows) ? battleRows : [];
-    const ringFeatures    = allFeatures.filter((f: any) => f?.properties?.feature_type === 'ring');
-    const borderFeatures  = allFeatures.filter((f: any) => f?.properties?.feature_type === 'border');
+    const allFeatures = Array.isArray(battleRows) ? battleRows : [];
+
+    // ── Filtrer les géométries dégénérées (slivers PostGIS) ──────────────────
+    // ST_Difference produit des micro-polygones (<0.0001 deg² ≈ <1 km²) quand
+    // deux isochrones se croisent. On les élimine avant affichage/cache.
+    const isValidGeom = (f: any): boolean => {
+      const geom = f?.geometry;
+      if (!geom) return false;
+      const type = geom.type;
+      if (type === 'Point' || type === 'LineString' || type === 'MultiLineString') return false;
+      // Polygon : au moins 4 coordonnées dans le premier ring
+      if (type === 'Polygon') return (geom.coordinates?.[0]?.length ?? 0) >= 4;
+      // MultiPolygon : au moins un polygon valide
+      if (type === 'MultiPolygon') return (geom.coordinates?.length ?? 0) > 0;
+      return false;
+    };
+
+    const ringFeatures   = allFeatures.filter((f: any) => f?.properties?.feature_type === 'ring'   && isValidGeom(f));
+    const borderFeatures = allFeatures.filter((f: any) => f?.properties?.feature_type === 'border' && isValidGeom(f));
 
     console.log(
       `[battle] → ${ringFeatures.length} anneaux, ${borderFeatures.length} bordures CIRFA`
     );
+
+    // ── Clip de secours sur le résultat final (double protection France) ──────
+    // Si clip_rings_to_france n'a pas fonctionné (migration non exécutée,
+    // france_borders vide), on tente de clipper la FeatureCollection résultat.
+    const clipResult = async (fc: { type: string; features: any[] }) => {
+      try {
+        const { data, error } = await supabase.rpc('clip_geojson_to_france', { p_fc: fc });
+        if (!error && data && (data as any).features?.length > 0) return data as typeof fc;
+      } catch { /* ignore */ }
+      return fc;
+    };
 
     // ── 4. Réponse ───────────────────────────────────────────────────────────
     const poisForMap = pois.map(p => ({
@@ -417,8 +427,11 @@ export async function POST(req: NextRequest) {
       ville:     p.ville,
     }));
 
-    const battleGeoJSON = { type: 'FeatureCollection', features: ringFeatures };
-    const battleBorders = { type: 'FeatureCollection', features: borderFeatures };
+    const battleGeoJSONRaw = { type: 'FeatureCollection', features: ringFeatures };
+    const battleBorders    = { type: 'FeatureCollection', features: borderFeatures };
+
+    // Double clip : garantit qu'aucun polygone ne dépasse les frontières françaises
+    const battleGeoJSON = await clipResult(battleGeoJSONRaw);
 
     // Stocker le résultat complet en cache (awaité pour garantir l'écriture)
     await supabase.from('isochrones_cache').upsert({

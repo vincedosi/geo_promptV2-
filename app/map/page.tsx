@@ -212,9 +212,11 @@ export default function MapPage() {
           category:           params.category,
           mode:               params.mode,
           max_minutes:        params.max_minutes,
-          filtre_ville:    params.filtre_ville    ?? null,
-          filtre_regions:  params.filtre_regions  ?? null,
-          metropolitaine:  params.metropolitaine,
+          durations:          params.durations,
+          filtre_ville:       params.filtre_ville    ?? null,
+          filtre_regions:     params.filtre_regions  ?? null,
+          metropolitaine:     params.metropolitaine,
+          force_recalculate:  params.force_recalculate ?? false,
         }),
       });
       if (!res.ok || !res.body) {
@@ -265,7 +267,7 @@ export default function MapPage() {
       throw new Error(data.error);
     }
     if (data.battleGeoJSON?.features?.length > 0) {
-      mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, data.category);
+      mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, data.category, data.poisForMap);
     }
     if (data.poisForMap?.length > 0) {
       setZoneData({

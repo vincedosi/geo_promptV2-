@@ -11,7 +11,7 @@ interface UseToolProcessorOpts {
   setError: (msg: string | null) => void;
   applyIsochrones:      (data: IsochroneData) => void;
   applyVoronoi:         (data: VoronoiData) => void;
-  applyIsochroneBattle: (rings: { type: string; features: GeoJSON.Feature[] }, borders: { type: string; features: GeoJSON.Feature[] } | null, category?: string) => void;
+  applyIsochroneBattle: (rings: { type: string; features: GeoJSON.Feature[] }, borders: { type: string; features: GeoJSON.Feature[] } | null, category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]) => void;
   loadCarreauxFromAI:   (cd: CarreauxData) => Promise<void>;
   carreauxSourcesRef:    React.MutableRefObject<{ tableName: string; name: string }[]>;
   carreauxConfigForSaveRef: React.MutableRefObject<{
@@ -188,7 +188,8 @@ export function useToolProcessor({
             applyIsochroneBattle(
               result.battleGeoJSON,
               result.battleBorders ?? null,
-              result.category
+              result.category,
+              result.poisForMap
             );
           }
         }

@@ -130,7 +130,7 @@ export async function fetchIsochrones(
             headers: {
               'Authorization':  apiKey,
               'Content-Type':   'application/json',
-              'Accept':         'application/json, application/geo+json',
+              'Accept':         'application/geo+json',
             },
             body: JSON.stringify({ locations, range: [rangeSec], range_type: 'time' }),
           }

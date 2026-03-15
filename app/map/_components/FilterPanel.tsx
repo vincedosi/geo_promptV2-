@@ -51,9 +51,11 @@ export interface DirectBattleParams {
   category: string;
   mode: string;
   max_minutes: number;
+  durations: number[];
   filtre_ville?: string;
   filtre_regions?: string[];
   metropolitaine: boolean;
+  force_recalculate?: boolean;
 }
 
 
@@ -358,18 +360,20 @@ export function FilterPanel({
     send(msg);
   };
 
-  const handleBattle = async () => {
+  const handleBattle = async (force = false) => {
     if (!exactlyOnePOI || isoDurations.length === 0 || battleLoading) return;
     const maxMin = Math.max(...isoDurations);
     const params: DirectBattleParams = {
-      category:        selectedPOI[0],
-      mode:            transportMode,
-      max_minutes:     maxMin,
-      filtre_ville:    ville || undefined,
+      category:          selectedPOI[0],
+      mode:              transportMode,
+      max_minutes:       maxMin,
+      durations:         [...isoDurations].sort((a, b) => a - b),
+      filtre_ville:      ville || undefined,
       // Quand toutes les régions sont sélectionnées = pas de filtre (évite les mismatches DB)
-      filtre_regions:  (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
-                         ? selectedRegions : undefined,
-      metropolitaine:  !selectedRegions.includes('dom'),
+      filtre_regions:    (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+                           ? selectedRegions : undefined,
+      metropolitaine:    !selectedRegions.includes('dom'),
+      force_recalculate: force,
     };
     console.log('[FilterPanel] handleBattle → direct API', params);
     const territoireLabel = params.filtre_ville
@@ -917,13 +921,22 @@ export function FilterPanel({
                         </div>
                       </div>
 
-                      <button
-                        style={primaryBtn(C.red, isoDurations.length === 0 || battleLoading)}
-                        disabled={isoDurations.length === 0 || battleLoading}
-                        onClick={handleBattle}
-                      >
-                        {battleLoading ? 'CALCUL ORS...' : 'LANCER LES ISOCHRONES'}
-                      </button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          style={primaryBtn(C.red, isoDurations.length === 0 || battleLoading)}
+                          disabled={isoDurations.length === 0 || battleLoading}
+                          onClick={() => handleBattle(false)}
+                        >
+                          {battleLoading ? 'CALCUL ORS...' : 'UTILISER LE CACHE'}
+                        </button>
+                        <button
+                          style={primaryBtn(C.amber, isoDurations.length === 0 || battleLoading)}
+                          disabled={isoDurations.length === 0 || battleLoading}
+                          onClick={() => handleBattle(true)}
+                        >
+                          RECALCULER
+                        </button>
+                      </div>
 
                       {battleLog.length > 0 && (
                         <div style={{
