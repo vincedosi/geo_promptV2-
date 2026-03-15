@@ -1,0 +1,142 @@
+/**
+ * lib/chat/tools/scorerOoh.ts
+ * Outil scorer_panneaux_ooh — score multi-critères panneaux OOH (audience × contexte POI).
+ */
+
+import { createAdminClient }               from '@/lib/auth';
+import { getCoordsForVille }               from '@/lib/geo/locations';
+import { haversineM, buildBbox, KNOWN_FILOSOFI_COLS } from './_shared';
+import type { BillboardRaw, CarreauRow }   from './types';
+
+export async function scorerOoh(args: Record<string, unknown>) {
+  const ville        = args.ville         ? String(args.ville)         : undefined;
+  const regie        = args.regie         ? String(args.regie)         : undefined;
+  const target_col   = args.target_column ? String(args.target_column) : 'ind_18_24';
+  const target_label = args.target_label  ? String(args.target_label)  : 'Jeunes 18-24 ans';
+  const rayon_m      = args.rayon_metres  ? Number(args.rayon_metres)  : 500;
+  const poids_demo   = args.poids_demo    ? Number(args.poids_demo)    : 0.65;
+  const poids_ctx    = args.poids_contexte ? Number(args.poids_contexte) : 0.35;
+  const limit_n      = args.limit         ? Math.min(Number(args.limit), 50) : 10;
+
+  if (!ville) return { error: 'Ville requise pour scorer les panneaux OOH.' };
+  if (!(KNOWN_FILOSOFI_COLS as readonly string[]).includes(target_col)) {
+    return { error: `Indicateur inconnu: ${target_col}. Valides: ${KNOWN_FILOSOFI_COLS.join(', ')}` };
+  }
+
+  try {
+    const supabase = createAdminClient();
+
+    let q = supabase
+      .from('global_ooh')
+      .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
+      .eq('statut', 'actif')
+      .ilike('ville', `%${ville}%`);
+    if (regie) q = q.ilike('regie', `%${regie}%`);
+
+    const { data: panneauxData, error: pErr } = await q.limit(2000);
+    if (pErr)  return { error: pErr.message };
+    if (!panneauxData?.length) return { error: `Aucun panneau trouvé à ${ville}.` };
+
+    const panneaux = (panneauxData as BillboardRaw[])
+      .filter(p => p.lat && p.lng && !isNaN(Number(p.lat)) && !isNaN(Number(p.lng)))
+      .map(p => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) }));
+    if (!panneaux.length) return { error: `Aucun panneau avec coordonnées valides à ${ville}.` };
+
+    const lats = panneaux.map(p => p.lat as number);
+    const lngs = panneaux.map(p => p.lng as number);
+    const { minLat, maxLat, minLng, maxLng } = buildBbox(lats, lngs, rayon_m);
+
+    const { data: carreaux, error: cErr } = await supabase.rpc('get_carreaux_for_scoring', {
+      p_table: 'carreaux_filosofi', p_col: target_col,
+      p_west: minLng, p_south: minLat, p_east: maxLng, p_north: maxLat,
+    });
+    if (cErr) return { error: cErr.message };
+
+    const { data: poisContext } = await supabase
+      .from('poi').select('lat, lng')
+      .gte('lat', minLat).lte('lat', maxLat)
+      .gte('lng', minLng).lte('lng', maxLng)
+      .limit(5000);
+
+    const scored = panneaux.map(p => {
+      let score_cible = 0;
+      for (const c of ((carreaux ?? []) as CarreauRow[])) {
+        if (haversineM(p.lat as number, p.lng as number, Number(c.cy), Number(c.cx)) <= rayon_m) {
+          score_cible += Number(c.val_cible ?? 0) || 0;
+        }
+      }
+      let poi_count = 0;
+      for (const poi of (poisContext ?? []) as { lat: number; lng: number }[]) {
+        if (poi.lat && poi.lng && haversineM(p.lat as number, p.lng as number, Number(poi.lat), Number(poi.lng)) <= rayon_m) {
+          poi_count++;
+        }
+      }
+      return { ...p, score_cible, poi_count };
+    });
+
+    const maxCible = Math.max(...scored.map(p => p.score_cible), 1);
+    const maxCtx   = Math.max(...scored.map(p => p.poi_count), 1);
+
+    const ranked = scored
+      .map(p => {
+        const norm_demo = (p.score_cible / maxCible) * 100;
+        const norm_ctx  = (p.poi_count   / maxCtx)   * 100;
+        return {
+          ...p,
+          norm_demo: Math.round(norm_demo),
+          norm_ctx:  Math.round(norm_ctx),
+          score_ooh: Math.round((poids_demo * norm_demo + poids_ctx * norm_ctx) * 10) / 10,
+        };
+      })
+      .sort((a, b) => b.score_ooh - a.score_ooh)
+      .slice(0, limit_n)
+      .map((p, i) => ({
+        rank:           i + 1,
+        id:             p.id,
+        nom:            p.source_ref ?? p.id,
+        regie:          p.regie,
+        type:           p.type_panneau,
+        lat:            p.lat,
+        lng:            p.lng,
+        ville:          p.ville,
+        score_ooh:      p.score_ooh,
+        audience:       Math.round(p.score_cible),
+        score_demo:     p.norm_demo,
+        score_contexte: p.norm_ctx,
+        poi_count:      p.poi_count,
+        categorie:      'top_ooh',
+        sous_categorie: p.type_panneau ?? null,
+        adresse:        p.adresse ?? p.regie ?? undefined,
+      }));
+
+    const totalAudience = ranked.reduce((s, p) => s + p.audience, 0);
+    const rLats         = ranked.map(p => p.lat as number);
+    const rLngs         = ranked.map(p => p.lng as number);
+    const coordonnees   = ranked.length > 0
+      ? { lat: (Math.min(...rLats) + Math.max(...rLats)) / 2, lng: (Math.min(...rLngs) + Math.max(...rLngs)) / 2 }
+      : getCoordsForVille(ville) ?? { lat: 46.8, lng: 2.3 };
+
+    console.log(`[chat] scorer_panneaux_ooh(${ville}, ${target_col}, ${rayon_m}m, top${limit_n}) → ${ranked.length} panneaux`);
+
+    return {
+      ville,
+      rayon_metres:     null,
+      rayon_poi_metres: rayon_m,
+      target_column:    target_col,
+      target_label,
+      poids_demo,
+      poids_contexte:   poids_ctx,
+      limit:            limit_n,
+      coordonnees,
+      pois:             ranked,
+      nb_pois:          ranked.length,
+      total_audience:   totalAudience,
+      categories:       { top_ooh: ranked.length },
+      couleur_overrides: { top_ooh: '#8b5cf6' },
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[chat/scorer_panneaux_ooh]', msg);
+    return { error: msg };
+  }
+}
