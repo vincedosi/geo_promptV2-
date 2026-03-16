@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['supercluster'],
   // Allow large request bodies — needed for multi-GB carreaux imports
   experimental: {
     serverActions: {
