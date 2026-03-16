@@ -16,6 +16,8 @@ import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams } from '@/app/map/_components/FilterPanel';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
+import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
+import type { POI } from '@/types/poi';
 
 interface SelectedBillboard {
   id: string; nom: string; lat: number; lng: number;
@@ -30,6 +32,10 @@ export default function MapPage() {
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
+  const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
+  const [battlePois,          setBattlePois]          = useState<POI[]>([]);
+  const [isResultsPanelOpen,  setIsResultsPanelOpen]  = useState(false);
+  const [coverageSummary,     setCoverageSummary]     = useState<CoverageSummaryEntry[]>([]);
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
@@ -293,8 +299,10 @@ export default function MapPage() {
         }));
       mapLayers.clearBattlePartialRings();
       mapLayers.addBattlePartialRings(rawRings);
+      setBattleFeatures(data.battleGeoJSON.features);
     }
     if (data.poisForMap?.length > 0) {
+      setBattlePois(data.poisForMap);
       setZoneData({
         coordonnees: { lat: data.poisForMap[0].lat, lng: data.poisForMap[0].lng },
         pois: data.poisForMap,
@@ -369,6 +377,7 @@ export default function MapPage() {
     }
     if (data.battleGeoJSON?.features?.length > 0) {
       mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, category, poisForMap);
+      setBattleFeatures(data.battleGeoJSON.features);
     }
   };
 
@@ -396,6 +405,7 @@ export default function MapPage() {
         isochroneVisible={mapLayers.isochroneVisible}
         setIsochroneVisible={mapLayers.setIsochroneVisible}
         setShowSavePanel={savedMaps.setShowSavePanel}
+        coverageSummary={coverageSummary}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}
@@ -429,6 +439,21 @@ export default function MapPage() {
         mapStyleUrl={mapStyleUrl}
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
+      />
+      {battleFeatures.length > 0 && (
+        <button
+          onClick={() => setIsResultsPanelOpen(true)}
+          style={{ position: 'fixed', bottom: 24, right: 16, zIndex: 40, background: '#0a0a12', border: '1px solid #a855f7', color: '#a855f7', fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer' }}
+        >
+          Résultats
+        </button>
+      )}
+      <CoverageResultsPanel
+        isOpen={isResultsPanelOpen}
+        onClose={() => setIsResultsPanelOpen(false)}
+        battleFeatures={battleFeatures}
+        pois={battlePois}
+        onResultsReady={setCoverageSummary}
       />
       <style>{`
         @keyframes mapSlide {

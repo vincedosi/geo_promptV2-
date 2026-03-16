@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { ZoneData } from '@/types/spatial';
-import { CoverageProgress } from '@/app/components/CoverageProgress';
+import type { CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -79,6 +79,7 @@ export interface FilterPanelProps {
   isochroneVisible: boolean;
   setIsochroneVisible: (v: boolean) => void;
   setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
+  coverageSummary?: CoverageSummaryEntry[];
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -192,6 +193,7 @@ export function FilterPanel({
   battleVisible, setBattleVisible,
   isochroneVisible, setIsochroneVisible,
   setShowSavePanel,
+  coverageSummary,
 }: FilterPanelProps) {
 
   // ── Tab state ─────────────────────────────────────────────────────────────
@@ -287,65 +289,8 @@ export function FilterPanel({
   const [battlePoiGroups,    setBattlePoiGroups]    = useState<{ id: string; nom: string; geometries: string[] }[]>([]);
   const [battleRings,        setBattleRings]        = useState<{ cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[]>([]);
   const [battleApplyLoading, setBattleApplyLoading] = useState(false);
-  const [coverageJobId,    setCoverageJobId]    = useState<string | null>(null);
-  const [coverageLoading,  setCoverageLoading]  = useState(false);
-  const [coverageError,    setCoverageError]    = useState<string | null>(null);
-  const [breakdown,        setBreakdown]        = useState<{ id: string; nom: string; coverage: number }[] | null>(null);
-  const [breakdownMetric,  setBreakdownMetric]  = useState<string>('');
   const battleTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleStartRef   = useRef<number>(0);
-
-  const launchCoverageCalculation = async (metric: string) => {
-    if (!battlePoiGroups.length || coverageLoading) return;
-    setCoverageJobId(null);
-    setCoverageError(null);
-    setBreakdown(null);
-    setBreakdownMetric(metric);
-    setCoverageLoading(true);
-    try {
-      const duration = isoDurations.length > 0 ? Math.max(...isoDurations) : 30;
-
-      // Job Inngest — progression + total dédupliqué via CoverageProgress
-      const res = await fetch('/api/coverage-jobs', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          categorie:          battleMeta?.categorie,
-          mode:               battleMeta?.mode,
-          target_column:      metric,
-          poi_count:          battlePoiGroups.length,
-          isochrone_duration: duration,
-        }),
-      });
-      const data = await res.json();
-      if (data.jobId) {
-        setCoverageJobId(data.jobId);
-      } else {
-        setCoverageError(data.error ?? 'Erreur inconnue');
-      }
-
-      // Détail par POI en parallèle (indépendant du job Inngest)
-      if (battlePoiGroups.length > 0) {
-        fetch('/api/coverage-breakdown', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ poiGroups: battlePoiGroups, metric }),
-        })
-          .then(r => r.json())
-          .then(d => {
-            if (d.results) setBreakdown(
-              (d.results as { id: string; nom: string; coverage: number }[])
-                .sort((a, b) => b.coverage - a.coverage)
-            );
-          })
-          .catch(() => {});
-      }
-    } catch (e: any) {
-      setCoverageError(e.message ?? 'Erreur réseau');
-    } finally {
-      setCoverageLoading(false);
-    }
-  };
 
   const handleSearchPOI = async () => {
     if (!hasAnyPOI || searchLoading) return;
@@ -438,8 +383,6 @@ export function FilterPanel({
       setBattleMeta({ categorie: params.category, mode: params.mode });
       setBattlePoiGroups(poiGroups);
       setBattleRings(rings);
-      setCoverageJobId(null);
-      setBreakdown(null);
     } catch (e: any) {
       const msg = e?.message ?? 'erreur inconnue';
       setBattleLog(prev => [...prev, `> ✕ ${msg}`]);
@@ -1000,77 +943,41 @@ export function FilterPanel({
                         </button>
                       )}
 
-                      {/* ── Couverture audience ──────────────────────────── */}
-                      {battleGeometry.length > 0 && !battleLoading && (
+                      {/* ── Couverture cumulée ───────────────────────────── */}
+                      {coverageSummary && coverageSummary.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                          <div style={{ fontFamily: fMichroma, fontSize: 8, color: C.amber, letterSpacing: '0.14em' }}>
-                            AUDIENCE DÉDUPLIQUÉE
+                          <div style={{ fontFamily: fMichroma, fontSize: 8, color: C.accent, letterSpacing: '0.14em' }}>
+                            COUVERTURE CUMULÉE
                           </div>
-                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                            {[
-                              { id: 'ind',       label: 'Population totale' },
-                              { id: 'ind_18_24', label: '18-24 ans' },
-                              { id: 'ind_25_39', label: '25-39 ans' },
-                              { id: 'ind_40_54', label: '40-54 ans' },
-                            ].map(m => (
-                              <button
-                                key={m.id}
-                                style={pill(true, C.amber)}
-                                onClick={() => launchCoverageCalculation(m.id)}
-                              >
-                                {m.label}
-                              </button>
-                            ))}
-                          </div>
-                          {coverageLoading && (
-                            <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                              Envoi du job...
-                            </div>
-                          )}
-                          {coverageError && (
-                            <div style={{ fontFamily: fMono, fontSize: 9, color: C.red }}>
-                              ✕ {coverageError}
-                            </div>
-                          )}
-                          {coverageJobId && (
-                            <CoverageProgress
-                              jobId={coverageJobId}
-                              onClose={() => setCoverageJobId(null)}
-                            />
-                          )}
-                          {/* Détail par POI */}
-                          {breakdown && breakdown.length > 0 && (
-                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
-                              <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.14em', marginBottom: 6 }}>
-                                DÉTAIL PAR POI — {AUDIENCE_METRICS.find(m => m.id === breakdownMetric)?.label ?? breakdownMetric}
-                              </div>
-                              <div style={{ maxHeight: 300, overflowY: 'auto', scrollbarWidth: 'thin' as const, scrollbarColor: `${C.border} transparent` }}>
-                                {breakdown.map((row, i) => (
-                                  <div key={row.id} style={{
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                    padding: '4px 8px',
-                                    background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                                    borderLeft: `2px solid ${i === 0 ? C.amber : C.border}`,
-                                  }}>
-                                    <div style={{ fontFamily: fMono, fontSize: 9, color: i === 0 ? C.text : C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                                      {i === 0 ? '▶ ' : `${i + 1}. `}{row.nom}
-                                    </div>
-                                    <div style={{ fontFamily: fMono, fontSize: 10, color: i === 0 ? C.amber : C.textDim, flexShrink: 0 }}>
-                                      {Math.round(row.coverage).toLocaleString('fr-FR')}
-                                    </div>
+                          {(() => {
+                            const maxTotal = Math.max(...coverageSummary.map(s => s.total), 1);
+                            return coverageSummary.map((s, i) => {
+                              const pct = (s.total / maxTotal) * 100;
+                              const val = s.total >= 1_000_000
+                                ? `${(s.total / 1_000_000).toFixed(1).replace('.', ',')}M`
+                                : s.total >= 1_000
+                                ? `${Math.round(s.total / 1_000)}K`
+                                : s.total.toLocaleString('fr-FR');
+                              return (
+                                <div key={s.metric} style={{
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  padding: '4px 8px',
+                                  background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                                  borderLeft: `2px solid ${i === 0 ? C.accent : C.border}`,
+                                }}>
+                                  <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 56, flexShrink: 0 }}>
+                                    {s.label === 'Total' ? 'TOTAL' : `${s.label} ANS`}
                                   </div>
-                                ))}
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', marginTop: 2, borderTop: `1px solid ${C.border}`, borderLeft: `2px solid ${C.amber}` }}>
-                                <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.1em' }}>
-                                  TOTAL {breakdown.length} POIs
+                                  <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
+                                    <div style={{ width: `${pct}%`, height: '100%', background: C.accent, borderRadius: 1 }} />
+                                  </div>
+                                  <div style={{ fontFamily: fMono, fontSize: 10, fontWeight: 700, color: i === 0 ? C.accent : C.textDim, flexShrink: 0, minWidth: 44, textAlign: 'right' }}>
+                                    {val}
+                                  </div>
                                 </div>
-                                <div style={{ fontFamily: fMono, fontSize: 11, fontWeight: 700, color: C.amber, flexShrink: 0 }}>
-                                  {breakdown.reduce((s, r) => s + r.coverage, 0).toLocaleString('fr-FR')}
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                              );
+                            });
+                          })()}
                         </div>
                       )}
                     </div>
