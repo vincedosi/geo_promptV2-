@@ -415,35 +415,20 @@ export async function POST(req: NextRequest) {
       return;
     }
 
-    // ── 5. BATAILLE POSTGIS : résolution des chevauchements (v6 — palier ASC) ──
-    // La fonction get_isochrone_battle attend geojson en string JSON
-    const ringsForRpc = rings.map(r => ({
-      cirfa_id: r.cirfa_id,
-      nom:      r.nom,
-      lat:      r.lat,
-      lng:      r.lng,
-      palier:   r.palier,
-      geojson:  typeof r.geojson === 'string' ? r.geojson : JSON.stringify(r.geojson),
+    // ── 5. Isochrones bruts → GeoJSON features ───────────────────────────────
+    const ringFeatures = rings.map(r => ({
+      type:       'Feature' as const,
+      geometry:   r.geojson,
+      properties: {
+        feature_type: 'ring',
+        id:           r.cirfa_id,
+        cirfa_id:     r.cirfa_id,
+        nom:          r.nom,
+        lat:          r.lat,
+        lng:          r.lng,
+        palier:       r.palier,
+      },
     }));
-
-    console.log(`[battle] Envoi de ${ringsForRpc.length} anneaux à get_isochrone_battle...`);
-    send({ type: 'progress', completed: poiEntries.length, total: poiEntries.length, ok: orsOk, err: orsErr, status: 'bataille_postgis' });
-
-    const { data: battleResult, error: battleError } = await supabase.rpc(
-      'get_isochrone_battle',
-      { p_rings: ringsForRpc }
-    );
-
-    if (battleError) {
-      console.error('[battle] Erreur RPC get_isochrone_battle:', battleError.message);
-      send({ type: 'error', message: `Erreur bataille spatiale : ${battleError.message}` });
-      return;
-    }
-
-    const allBattleFeatures = Array.isArray(battleResult) ? battleResult : [];
-    const ringFeatures   = allBattleFeatures.filter((f: any) => f?.properties?.feature_type === 'ring');
-    const borderFeatures = allBattleFeatures.filter((f: any) => f?.properties?.feature_type === 'border');
-    console.log(`[battle] Bataille terminée → ${ringFeatures.length} territoires, ${borderFeatures.length} bordures`);
 
     // ── 6. Réponse + cache complet ────────────────────────────────────────────
     const poisForMap = pois.map(p => ({
@@ -457,7 +442,7 @@ export async function POST(req: NextRequest) {
     }));
 
     const battleGeoJSON = { type: 'FeatureCollection', features: ringFeatures };
-    const battleBorders = { type: 'FeatureCollection', features: borderFeatures };
+    const battleBorders = null;
 
     await supabase.from('isochrones_cache').upsert({
       cache_key:  battleCacheKey,
@@ -475,7 +460,6 @@ export async function POST(req: NextRequest) {
       battleBorders,
       poisForMap,
       nb_features:   ringFeatures.length,
-      nb_borders:    borderFeatures.length,
       nb_pois:       pois.length,
       category,
       mode:          normalizedMode,

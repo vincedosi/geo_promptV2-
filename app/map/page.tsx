@@ -278,15 +278,21 @@ export default function MapPage() {
       setError(`Isochrones — ${cleanErr}`);
       throw new Error(data.error);
     }
-    // Stocker le résultat de bataille sans l'afficher — les isochrones bruts restent visibles.
-    // L'utilisateur déclenche l'affichage via le bouton "BATAILLE".
+    // Afficher les isochrones bruts (rings) — couvre cache hit et ORS path.
+    // La bataille (ST_Difference) n'est déclenchée que sur clic du bouton BATAILLE.
     if (data.battleGeoJSON?.features?.length > 0) {
-      pendingBattleRef.current = {
-        geoJSON:    data.battleGeoJSON,
-        borders:    data.battleBorders ?? null,
-        category:   data.category,
-        poisForMap: data.poisForMap,
-      };
+      const rawRings = (data.battleGeoJSON.features as any[])
+        .filter((f: any) => f?.geometry)
+        .map((f: any) => ({
+          cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
+          nom:      String(f.properties?.nom ?? ''),
+          lat:      Number(f.properties?.lat ?? 0),
+          lng:      Number(f.properties?.lng ?? 0),
+          palier:   Number(f.properties?.palier ?? 0),
+          geojson:  f.geometry,
+        }));
+      mapLayers.clearBattlePartialRings();
+      mapLayers.addBattlePartialRings(rawRings);
     }
     if (data.poisForMap?.length > 0) {
       setZoneData({
