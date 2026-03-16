@@ -129,9 +129,9 @@ export const AUDIENCE_METRICS = [
 ];
 
 export const ISO_MODES = [
-  { id: 'foot-walking',    label: 'Pied'    },
-  { id: 'cycling-regular', label: 'Velo'    },
-  { id: 'driving-car',     label: 'Voiture' },
+  { id: 'walk',  label: 'Pied'    },
+  { id: 'bike',  label: 'Velo'    },
+  { id: 'drive', label: 'Voiture' },
 ];
 
 export const ISO_DURATIONS = [5, 10, 15, 20, 30, 60, 90, 120];

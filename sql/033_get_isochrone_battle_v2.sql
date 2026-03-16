@@ -1,4 +1,6 @@
 -- Migration 033 : réécriture complète de get_isochrone_battle
+-- DROP requis car le type de retour change
+DROP FUNCTION IF EXISTS get_isochrone_battle(jsonb);
 -- Version 2 — robuste, rapide, artefacts filtrés
 --
 -- Corrections vs v1 :
