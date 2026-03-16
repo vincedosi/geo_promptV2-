@@ -133,15 +133,11 @@ export async function POST(request: NextRequest) {
     const { messages, forceRecalculate = false, provider = 'gemini' } = body;
 
     const categoriesList = await getDistinctCategories();
-    console.log('[chat] Catégories dynamiques:', categoriesList);
 
     // Opt-in data.gouv MCP : activé uniquement si l'utilisateur mentionne des mots-clés
-    const lastUserText = extractLastUserText(messages);
-    console.log('[chat] lastUserText:', JSON.stringify(lastUserText).substring(0, 120));
-
-    const useDatagouv      = hasDatagouvKeywords(lastUserText);
-    const datagouv_tools   = useDatagouv ? await loadDatagouvTools() : {};
-    console.log('[chat] datagouv:', useDatagouv, '—', Object.keys(datagouv_tools).length, 'tools');
+    const lastUserText   = extractLastUserText(messages);
+    const useDatagouv    = hasDatagouvKeywords(lastUserText);
+    const datagouv_tools = useDatagouv ? await loadDatagouvTools() : {};
 
     const datagouv_addendum = useDatagouv && Object.keys(datagouv_tools).length > 0
       ? '\n\n' + DATAGOUV_SYSTEM_ADDENDUM
@@ -175,7 +171,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[chat] streamText started — provider=${provider}, MCP=${Object.keys(datagouv_tools).length} tools`);
     // Accumule l'usage total sur tous les steps (agentic = plusieurs finish-step)
     let cumTokIn = 0, cumTokOut = 0;
     return result.toUIMessageStreamResponse({

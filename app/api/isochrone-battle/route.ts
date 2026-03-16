@@ -223,7 +223,6 @@ export async function POST(req: NextRequest) {
 
       if (cached?.geojson) {
         const c = cached.geojson as any;
-        console.log(`[battle] cache HIT — ${battleCacheKey}`);
         send({ type: 'result', data: {
           battleGeoJSON: c.battleGeoJSON,
           battleBorders: c.battleBorders,
@@ -284,7 +283,6 @@ export async function POST(req: NextRequest) {
       return;
     }
 
-    console.log(`[battle] "${category}" → ${pois.length} POIs, mode=${normalizedMode}, paliers=[${BATTLE_LEVELS.join(',')}]`);
     send({ type: 'pois_loaded', total: pois.length });
 
     // ── 2. Cache lookup : tous les niveaux en parallèle ──────────────────────
@@ -338,9 +336,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const poiEntries   = [...poisWithMisses.values()];
-    const totalOrsCall = poiEntries.reduce((s, e) => s + e.missingLevels.length, 0);
-    console.log(`[battle] Cache : ${totalHits} hits | ORS : ${poiEntries.length} POIs × multi-range = ${totalOrsCall} niveaux (concurrence ${ORS_CONCURRENCY})`);
+    const poiEntries = [...poisWithMisses.values()];
 
     // Streamer immédiatement les rings en cache pour affichage progressif
     if (rings.length > 0) {
@@ -407,7 +403,6 @@ export async function POST(req: NextRequest) {
       await Promise.all(poiEntries.slice(i, i + ORS_CONCURRENCY).map(processPoiORS));
     }
 
-    console.log(`[battle] ORS terminé — ${orsOk} niveaux ok, ${orsErr} erreurs, ${rings.length} anneaux total`);
 
     if (rings.length === 0) {
       const detail = firstOrsErr ? ` — ${firstOrsErr}` : ' Vérifier ORS_API_KEY et les coordonnées POIs.';
