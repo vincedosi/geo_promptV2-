@@ -365,7 +365,7 @@ export function ChatPanel({
                       );
                       if (isRawMcpOutput) return null;
                       return (
-                        <div style={{ marginTop: (zonePart || synergyPart || coveragePart || networkCovPart || datagouvParts.length > 0) ? 10 : 0, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: '2px 12px 12px 12px', padding: '10px 14px', fontSize: 13, color: 'rgba(241,241,244,0.88)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 300 }}>
+                        <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: '2px 12px 12px 12px', padding: '10px 14px', fontSize: 13, color: 'rgba(241,241,244,0.88)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 300 }}>
                           <ChatMarkdown text={textContent} />
                         </div>
                       );

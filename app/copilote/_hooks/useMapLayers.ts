@@ -532,24 +532,13 @@ export function useMapLayers({
         body: JSON.stringify({ tableName, bbox, resolution: cd.resolution ?? '200m' }),
       }).then(r => r.json());
 
-      console.log('[Copilote] carreaux response:', {
-        count: gjData.features?.length,
-        error: gjData.error,
-        indicateur: cd.indicateur,
-        sampleProps: gjData.features?.[0]?.properties,
-      });
-      if (!gjData.features || gjData.features.length === 0) {
-        console.warn('[Copilote] Aucun carreau dans la bbox');
-        return;
-      }
+      if (!gjData.features || gjData.features.length === 0) return;
 
       const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
-      console.log('[Copilote] carreaux source exists:', !!source);
       if (!source) return;
 
       source.setData(gjData as GeoJSON.FeatureCollection);
       applyChoropleth(map, gjData.features, cd.indicateur);
-      console.log('[Copilote] choropleth applied, setting visible');
       map.setLayoutProperty('carreaux-fill', 'visibility', 'visible');
       map.setLayoutProperty('carreaux-line', 'visibility', 'visible');
 
