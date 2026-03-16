@@ -138,6 +138,7 @@ export async function analyserZone(
       if (rayon_metres) {
         const cityBase      = CITY_BASE_RADIUS[villeKey] ?? 3000;
         const effectiveRadius = cityBase + rayon_metres;
+        // 111_000 m/deg (lat), ajusté par cos(lat) pour lng
         const dlat = effectiveRadius / 111_000;
         const dlng = effectiveRadius / (111_000 * Math.cos((coordonnees.lat * Math.PI) / 180));
         const { data: bboxData, error: bboxErr } = await supabase

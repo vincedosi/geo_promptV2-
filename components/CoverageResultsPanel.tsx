@@ -38,6 +38,7 @@ function fmtNum(n: number): string {
   return n.toLocaleString('fr-FR');
 }
 
+// Shoelace formula en degrés², converti en km² via projection lat≈46.5° (centre France)
 function approxAreaKm2(geom: any): number {
   try {
     const g = typeof geom === 'string' ? JSON.parse(geom) : geom;
@@ -52,6 +53,7 @@ function approxAreaKm2(geom: any): number {
       }
       totalDeg2 += Math.abs(a) / 2;
     }
+    // 111 km/deg × cos(46.5°) pour corriger la distorsion lng à la latitude FR
     return totalDeg2 * 111 * 111 * Math.cos(46.5 * Math.PI / 180);
   } catch { return 0; }
 }

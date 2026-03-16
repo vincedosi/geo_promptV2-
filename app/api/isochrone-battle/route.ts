@@ -114,7 +114,7 @@ async function callORSMulti(
 
       if (res.status === 429) {
         console.warn(`[ORS] 429 rate-limit (tentative ${attempt + 1}/3) — attente 15s`);
-        await new Promise(r => setTimeout(r, 15_000));
+        await new Promise(resolve => setTimeout(resolve, 15_000));
         continue;
       }
       if (!res.ok) {
@@ -141,7 +141,7 @@ async function callORSMulti(
       const isTimeout = e.name === 'AbortError';
       lastErr = isTimeout ? `Timeout ${TIMEOUT / 1000}s` : e.message;
       console.error(`[ORS] ${lastErr} (tentative ${attempt + 1}/3)`);
-      if (attempt < 2) await new Promise(r => setTimeout(r, isTimeout ? 5_000 : 2_000));
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, isTimeout ? 5_000 : 2_000));
     }
   }
   return { geomMap: new Map(), errorMsg: lastErr ?? 'Erreur inconnue' };

@@ -20,7 +20,7 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
   const allPanneaux: BillboardRaw[] = [];
   let from = 0;
 
-  while (from < 50_000) {
+  while (from < 50_000) { // max 50k panneaux en mémoire
     let q = supabase
       .from('global_ooh')
       .select('id, lat, lng, source_ref, regie, type_panneau, ville, adresse')
