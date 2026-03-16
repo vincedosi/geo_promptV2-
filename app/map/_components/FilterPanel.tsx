@@ -62,7 +62,8 @@ export interface DirectBattleParams {
 export interface FilterPanelProps {
   sendMessage: (text: string) => void;
   onDirectSearch:  (params: DirectPOISearchParams) => Promise<void>;
-  onDirectBattle:  (params: DirectBattleParams, onProgress?: (msg: string) => void) => Promise<{ geometry: string; nb_pois: number }>;
+  onDirectBattle:  (params: DirectBattleParams, onProgress?: (msg: string) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
+  onApplyBattle:   (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   zoneData: ZoneData | null;
@@ -185,7 +186,7 @@ function MultiDropdown({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function FilterPanel({
-  sendMessage, onDirectSearch, onDirectBattle, isLoading, error, zoneData, loadCarreauxFromAI,
+  sendMessage, onDirectSearch, onDirectBattle, onApplyBattle, isLoading, error, zoneData, loadCarreauxFromAI,
   carreauxVisible, carreauxLoaded, carreauxLabel, setCarreauxVisible,
   voronoiVisible, setVoronoiVisible,
   battleVisible, setBattleVisible,
@@ -213,7 +214,7 @@ export function FilterPanel({
   const [poisRayon,     setPoisRayon]     = useState<string | null>(null);
   const [showVoronoi,      setShowVoronoi]      = useState(false);
   const [showBattle,       setShowBattle]       = useState(false);
-  const [transportMode,    setTransportMode]    = useState('driving-car');
+  const [transportMode,    setTransportMode]    = useState('drive');
   const [isoDurations,     setIsoDurations]     = useState<number[]>([10, 30]);
 
   // ── Geographic cascade ────────────────────────────────────────────────────
@@ -283,7 +284,9 @@ export function FilterPanel({
   const [battleLog,        setBattleLog]        = useState<string[]>([]);
   const [battleGeometry,   setBattleGeometry]   = useState<string>('');
   const [battleMeta,       setBattleMeta]       = useState<{ categorie: string; mode: string } | null>(null);
-  const [battlePoiGroups,  setBattlePoiGroups]  = useState<{ id: string; nom: string; geometries: string[] }[]>([]);
+  const [battlePoiGroups,    setBattlePoiGroups]    = useState<{ id: string; nom: string; geometries: string[] }[]>([]);
+  const [battleRings,        setBattleRings]        = useState<{ cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[]>([]);
+  const [battleApplyLoading, setBattleApplyLoading] = useState(false);
   const [coverageJobId,    setCoverageJobId]    = useState<string | null>(null);
   const [coverageLoading,  setCoverageLoading]  = useState(false);
   const [coverageError,    setCoverageError]    = useState<string | null>(null);
@@ -293,23 +296,25 @@ export function FilterPanel({
   const battleStartRef   = useRef<number>(0);
 
   const launchCoverageCalculation = async (metric: string) => {
-    if (!battleGeometry || !battleMeta || coverageLoading) return;
+    if (!battlePoiGroups.length || coverageLoading) return;
     setCoverageJobId(null);
     setCoverageError(null);
     setBreakdown(null);
     setBreakdownMetric(metric);
     setCoverageLoading(true);
     try {
-      // Calcul total dédupliqué — lit isochrones depuis isochrones_cache en DB
+      const duration = isoDurations.length > 0 ? Math.max(...isoDurations) : 30;
+
+      // Job Inngest — progression + total dédupliqué via CoverageProgress
       const res = await fetch('/api/coverage-jobs', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          categorie:          battleMeta.categorie,
-          mode:               battleMeta.mode,
+          categorie:          battleMeta?.categorie,
+          mode:               battleMeta?.mode,
           target_column:      metric,
           poi_count:          battlePoiGroups.length,
-          isochrone_duration: isoDurations.length > 0 ? Math.max(...isoDurations) : 30,
+          isochrone_duration: duration,
         }),
       });
       const data = await res.json();
@@ -318,7 +323,8 @@ export function FilterPanel({
       } else {
         setCoverageError(data.error ?? 'Erreur inconnue');
       }
-      // Calcul détail par POI (en parallèle, résultat indépendant)
+
+      // Détail par POI en parallèle (indépendant du job Inngest)
       if (battlePoiGroups.length > 0) {
         fetch('/api/coverage-breakdown', {
           method:  'POST',
@@ -326,7 +332,12 @@ export function FilterPanel({
           body:    JSON.stringify({ poiGroups: battlePoiGroups, metric }),
         })
           .then(r => r.json())
-          .then(d => { if (d.results) setBreakdown(d.results); })
+          .then(d => {
+            if (d.results) setBreakdown(
+              (d.results as { id: string; nom: string; coverage: number }[])
+                .sort((a, b) => b.coverage - a.coverage)
+            );
+          })
           .catch(() => {});
       }
     } catch (e: any) {
@@ -410,7 +421,7 @@ export function FilterPanel({
       });
     }, 1000);
     try {
-      const { geometry: mergedGeometry, nb_pois } = await onDirectBattle(params, (msg: string) => {
+      const { geometry: mergedGeometry, nb_pois, poiGroups, battleRings: rings } = await onDirectBattle(params, (msg: string) => {
         setBattleLog(prev => {
           // Remplacer la dernière ligne de progression en-place, sinon ajouter
           for (let i = prev.length - 1; i >= 0; i--) {
@@ -425,7 +436,8 @@ export function FilterPanel({
       setBattleLog(prev => [...prev, `> ✓ ${nb_pois} POIs — isochrones affichés (${elapsed}s)`]);
       setBattleGeometry(mergedGeometry);
       setBattleMeta({ categorie: params.category, mode: params.mode });
-      setBattlePoiGroups([]);
+      setBattlePoiGroups(poiGroups);
+      setBattleRings(rings);
       setCoverageJobId(null);
       setBreakdown(null);
     } catch (e: any) {
@@ -966,6 +978,28 @@ export function FilterPanel({
                         </button>
                       )}
 
+                      {/* ── Bouton BATAILLE (Phase 2 — ST_Difference) ────── */}
+                      {battleRings.length > 0 && !battleLoading && (
+                        <button
+                          style={{ ...pill(false, C.accent), opacity: battleApplyLoading ? 0.5 : 1 }}
+                          disabled={battleApplyLoading}
+                          onClick={async () => {
+                            setBattleApplyLoading(true);
+                            setBattleLog(prev => [...prev, '> [BATAILLE] application des territoires...']);
+                            try {
+                              await onApplyBattle(battleRings, battleMeta?.categorie, undefined);
+                              setBattleLog(prev => [...prev, '> ✓ Territoires découpés sans chevauchement']);
+                            } catch (e: any) {
+                              setBattleLog(prev => [...prev, `> ✕ ${e.message ?? 'Erreur bataille'}`]);
+                            } finally {
+                              setBattleApplyLoading(false);
+                            }
+                          }}
+                        >
+                          {battleApplyLoading ? 'Application...' : 'X BATAILLE (ST_Difference)'}
+                        </button>
+                      )}
+
                       {/* ── Couverture audience ──────────────────────────── */}
                       {battleGeometry.length > 0 && !battleLoading && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
@@ -988,9 +1022,11 @@ export function FilterPanel({
                               </button>
                             ))}
                           </div>
-                          <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                            {coverageLoading ? 'Envoi du job...' : `${battleGeometry.length} isochrone(s) — calcul PostGIS asynchrone`}
-                          </div>
+                          {coverageLoading && (
+                            <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                              Envoi du job...
+                            </div>
+                          )}
                           {coverageError && (
                             <div style={{ fontFamily: fMono, fontSize: 9, color: C.red }}>
                               ✕ {coverageError}
@@ -1008,7 +1044,7 @@ export function FilterPanel({
                               <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.14em', marginBottom: 6 }}>
                                 DÉTAIL PAR POI — {AUDIENCE_METRICS.find(m => m.id === breakdownMetric)?.label ?? breakdownMetric}
                               </div>
-                              <div style={{ maxHeight: 220, overflowY: 'auto', scrollbarWidth: 'none' as const }}>
+                              <div style={{ maxHeight: 300, overflowY: 'auto', scrollbarWidth: 'thin' as const, scrollbarColor: `${C.border} transparent` }}>
                                 {breakdown.map((row, i) => (
                                   <div key={row.id} style={{
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1024,6 +1060,14 @@ export function FilterPanel({
                                     </div>
                                   </div>
                                 ))}
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', marginTop: 2, borderTop: `1px solid ${C.border}`, borderLeft: `2px solid ${C.amber}` }}>
+                                <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.1em' }}>
+                                  TOTAL {breakdown.length} POIs
+                                </div>
+                                <div style={{ fontFamily: fMono, fontSize: 11, fontWeight: 700, color: C.amber, flexShrink: 0 }}>
+                                  {breakdown.reduce((s, r) => s + r.coverage, 0).toLocaleString('fr-FR')}
+                                </div>
                               </div>
                             </div>
                           )}

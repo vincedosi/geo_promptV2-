@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
@@ -39,6 +39,9 @@ export default function MapPage() {
     setMapStyleUrl(url);
     localStorage.setItem('genesis_map_style', url);
   };
+
+  // Stocke le résultat de bataille pré-calculé (PostGIS) — appliqué uniquement sur clic "BATAILLE"
+  const pendingBattleRef = useRef<{ geoJSON: any; borders: any; category?: string; poisForMap?: any[] } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
@@ -200,8 +203,10 @@ export default function MapPage() {
   const handleDirectBattle = async (
     params: DirectBattleParams,
     onProgress?: (msg: string) => void,
-  ): Promise<{ geometry: string; nb_pois: number }> => {
+  ): Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }> => {
     setError(null);
+    pendingBattleRef.current = null;
+    mapLayers.clearBattlePartialRings();
     console.log('[map] handleDirectBattle →', params);
     let data: any;
     try {
@@ -241,13 +246,20 @@ export default function MapPage() {
             throw new Error(raw.startsWith('<') ? 'Service temporairement indisponible (503/521)' : raw.slice(0, 200));
           }
           if (evt.type === 'result') { data = evt.data; continue; }
-          if (evt.type === 'pois_loaded') {
+          if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
+            // Afficher les anneaux bruts dès qu'ils arrivent (avant ST_Difference)
+            mapLayers.addBattlePartialRings(evt.rings);
+            onProgress?.(`> ◆ +${evt.rings.length} isochrones sur la carte`);
+          } else if (evt.type === 'pois_loaded') {
             onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
           } else if (evt.type === 'progress') {
-            const pct = Math.round((evt.completed / evt.total) * 100);
-            onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%`);
-          } else if (evt.type === 'postgis') {
-            onProgress?.(`> [3/3] appel PostGIS (ST_Difference)...`);
+            if (evt.status === 'bataille_postgis') {
+              onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
+            } else {
+              const pct = Math.round((evt.completed / evt.total) * 100);
+              const errInfo = evt.err > 0 ? ` (${evt.err} erreurs ORS)` : '';
+              onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%${errInfo}`);
+            }
           }
         }
       }
@@ -266,8 +278,15 @@ export default function MapPage() {
       setError(`Isochrones — ${cleanErr}`);
       throw new Error(data.error);
     }
+    // Stocker le résultat de bataille sans l'afficher — les isochrones bruts restent visibles.
+    // L'utilisateur déclenche l'affichage via le bouton "BATAILLE".
     if (data.battleGeoJSON?.features?.length > 0) {
-      mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, data.category, data.poisForMap);
+      pendingBattleRef.current = {
+        geoJSON:    data.battleGeoJSON,
+        borders:    data.battleBorders ?? null,
+        category:   data.category,
+        poisForMap: data.poisForMap,
+      };
     }
     if (data.poisForMap?.length > 0) {
       setZoneData({
@@ -282,22 +301,69 @@ export default function MapPage() {
       });
     }
     // Fusionner tous les rings en un seul MultiPolygon simplifié (client-side, pas de Turf)
-    // Les rings sont déjà non-chevauchants (ST_Difference dans get_isochrone_battle)
     const allPolygons: number[][][][] = [];
+    // Grouper les géométries par cirfa_id pour le calcul couverture par POI
+    const groupMap = new Map<string, { nom: string; geoms: string[] }>();
     for (const f of data.battleGeoJSON?.features ?? []) {
       if (f.properties?.feature_type !== 'ring') continue;
       const geom = f.geometry;
       if (!geom) continue;
       if (geom.type === 'Polygon')      allPolygons.push(geom.coordinates);
       else if (geom.type === 'MultiPolygon') allPolygons.push(...geom.coordinates);
+      const cid = String(f.properties?.cirfa_id ?? f.properties?.id ?? '');
+      const nom = String(f.properties?.nom ?? '');
+      if (cid) {
+        if (!groupMap.has(cid)) groupMap.set(cid, { nom, geoms: [] });
+        groupMap.get(cid)!.geoms.push(JSON.stringify(geom));
+      }
     }
     // Réduire à 3 décimales (~111m) pour alléger le payload (~10× moins de bytes)
     const multiPoly = { type: 'MultiPolygon', coordinates: allPolygons };
     const simplified = JSON.parse(JSON.stringify(multiPoly, (_, v) =>
       typeof v === 'number' ? Math.round(v * 1000) / 1000 : v
     ));
-    const geometry = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
-    return { geometry, nb_pois: data.nb_pois ?? 0 };
+    const geometry  = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
+    const poiGroups = [...groupMap.entries()].map(([id, { nom, geoms }]) => ({ id, nom, geometries: geoms }));
+    // Convertir les ring features en RingEntry pour le bouton BATAILLE (Phase 2)
+    const battleRings = (data.battleGeoJSON?.features ?? [])
+      .filter((f: any) => f?.properties?.feature_type === 'ring' && f?.geometry)
+      .map((f: any) => ({
+        cirfa_id: String(f.properties.cirfa_id ?? f.properties.id ?? ''),
+        nom:      String(f.properties.nom ?? ''),
+        lat:      Number(f.properties.lat ?? 0),
+        lng:      Number(f.properties.lng ?? 0),
+        palier:   Number(f.properties.palier ?? 0),
+        geojson:  JSON.stringify(f.geometry),
+      }));
+    return { geometry, nb_pois: data.nb_pois ?? 0, poiGroups, battleRings };
+  };
+
+  const handleApplyBattle = async (
+    rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[],
+    category?: string,
+    poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]
+  ): Promise<void> => {
+    setError(null);
+    // Priorité : utiliser le résultat pré-calculé (déjà fait par la route en Phase 5)
+    if (pendingBattleRef.current) {
+      const { geoJSON, borders, category: cat, poisForMap: pois } = pendingBattleRef.current;
+      mapLayers.applyIsochroneBattle(geoJSON, borders, cat ?? category, pois ?? poisForMap);
+      return;
+    }
+    // Fallback : re-calculer via apply-battle (cas sans cache pré-calculé)
+    const res = await fetch('/api/isochrone-battle/apply-battle', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ rings }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      setError(`Bataille — ${data.error ?? `HTTP ${res.status}`}`);
+      return;
+    }
+    if (data.battleGeoJSON?.features?.length > 0) {
+      mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, category, poisForMap);
+    }
   };
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
@@ -308,6 +374,7 @@ export default function MapPage() {
         sendMessage={chat.sendMessage}
         onDirectSearch={handleDirectSearch}
         onDirectBattle={handleDirectBattle}
+        onApplyBattle={handleApplyBattle}
         isLoading={chat.isLoading}
         error={error}
         zoneData={zoneData}

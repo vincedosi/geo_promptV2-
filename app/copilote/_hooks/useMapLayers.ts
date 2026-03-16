@@ -286,6 +286,77 @@ export function useMapLayers({
     }
   };
 
+  // Référence interne pour accumuler les anneaux partiels côté client
+  const partialRingsRef = useRef<GeoJSON.Feature[]>([]);
+
+  /**
+   * Réinitialise les anneaux partiels — à appeler au début de chaque nouvelle bataille.
+   */
+  const clearBattlePartialRings = () => {
+    partialRingsRef.current = [];
+    const map = mapRef.current;
+    if (!map) return;
+    const ringSrc = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
+    if (ringSrc) ringSrc.setData({ type: 'FeatureCollection', features: [] });
+  };
+
+  /**
+   * Ajoute des anneaux bruts ORS sur la carte dès qu'ils arrivent (avant ST_Difference).
+   * Ces polygones se chevauchent — ils sont remplacés par le résultat final de applyIsochroneBattle.
+   */
+  const addBattlePartialRings = (
+    rawRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: object }[]
+  ) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Reconstruire la map cirfa_id → couleur depuis les rings déjà accumulés
+    const cirfaColorMap = new Map<string, string>();
+    let colorIdx = 0;
+    for (const f of partialRingsRef.current) {
+      const cid = String(f.properties?.cirfa_id ?? f.properties?.id ?? '');
+      if (cid && !cirfaColorMap.has(cid)) {
+        cirfaColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
+        colorIdx++;
+      }
+    }
+
+    for (const r of rawRings) {
+      const cid = r.cirfa_id;
+      if (!cirfaColorMap.has(cid)) {
+        cirfaColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
+        colorIdx++;
+      }
+
+      const feat: GeoJSON.Feature = {
+        type:       'Feature',
+        geometry:   r.geojson as GeoJSON.Geometry,
+        properties: {
+          id:             cid,
+          cirfa_id:       cid,
+          nom:            r.nom,
+          lat:            r.lat,
+          lng:            r.lng,
+          palier:         r.palier,
+          battle_color:   cirfaColorMap.get(cid)!,
+          battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[r.palier] ?? 0.15,
+          _partial:       true,
+        },
+      };
+      partialRingsRef.current.push(feat);
+    }
+
+    const ringSrc = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
+    if (ringSrc) {
+      ringSrc.setData({ type: 'FeatureCollection', features: partialRingsRef.current } as GeoJSON.FeatureCollection);
+      try {
+        map.setLayoutProperty('battle-fill',      'visibility', 'visible');
+        map.setLayoutProperty('battle-ring-line', 'visibility', 'visible');
+      } catch { /* layer pas encore prêt */ }
+      setBattleVisible(true);
+    }
+  };
+
   const applyIsochroneBattle = (
     ringData:   { type: string; features: GeoJSON.Feature[] },
     borderData: { type: string; features: GeoJSON.Feature[] } | null | undefined,
@@ -316,10 +387,13 @@ export function useMapLayers({
         properties: {
           ...p,
           battle_color:   cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0],
-          battle_opacity: BATTLE_PALIER_OPACITY[palier] ?? 0.18,
+          battle_opacity: 0.72,  // Opacité fixe après ST_Difference — plus d'overlap, territoires solides
         },
       };
     });
+
+    // Vider les anneaux partiels — le résultat final les remplace
+    partialRingsRef.current = [];
 
     const ringSrc = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
     if (!ringSrc) return;
@@ -578,6 +652,8 @@ export function useMapLayers({
     carreauxSourcesRef,
     // Visualization functions
     applyVoronoi,
+    clearBattlePartialRings,
+    addBattlePartialRings,
     applyIsochroneBattle,
     applyIsochrones,
     loadCarreauxFromAI,

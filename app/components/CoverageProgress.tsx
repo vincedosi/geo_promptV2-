@@ -111,8 +111,7 @@ export function CoverageProgress({ jobId, onClose }: {
             addLog('> [2/4] démarrage calcul...');
           }
           if (updated.status === 'processing' && updated.progress > 0 && updated.progress < 100) {
-            // Message de lot : "Lot 3/19 — 1 234 567 ind. cumulés"
-            if (updated.error_message) addLog(`> ${updated.error_message}`);
+            if (updated.error_message) addLog(updated.error_message);
           }
           if (updated.status === 'completed') {
             addLog('> [4/4] ✓ résultat disponible');

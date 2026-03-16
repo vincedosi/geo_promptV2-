@@ -425,13 +425,20 @@ export function useMapInit(
       });
       map.addLayer({
         id: 'battle-fill', type: 'fill', source: 'battle-rings',
+        // Filtre : ne jamais rendre les border features comme polygones remplis
+        filter: ['!=', ['get', 'feature_type'], 'border'] as unknown as maplibregl.ExpressionSpecification,
         paint: {
-          'fill-color':   ['get', 'battle_color']  as unknown as maplibregl.ExpressionSpecification,
-          'fill-opacity': ['get', 'battle_opacity'] as unknown as maplibregl.ExpressionSpecification,
+          'fill-color':   ['coalesce', ['get', 'battle_color'],   '#4e79a7'] as unknown as maplibregl.ExpressionSpecification,
+          'fill-opacity': ['coalesce', ['get', 'battle_opacity'], 0.5]       as unknown as maplibregl.ExpressionSpecification,
         },
         layout: { visibility: 'none' },
       });
-      map.addLayer({ id: 'battle-ring-line', type: 'line', source: 'battle-rings', paint: { 'line-color': 'rgba(0,0,0,0.15)', 'line-width': 0.5, 'line-opacity': 0.6 }, layout: { visibility: 'none' } });
+      map.addLayer({
+        id: 'battle-ring-line', type: 'line', source: 'battle-rings',
+        filter: ['!=', ['get', 'feature_type'], 'border'] as unknown as maplibregl.ExpressionSpecification,
+        paint: { 'line-color': 'rgba(0,0,0,0.15)', 'line-width': 0.5, 'line-opacity': 0.6 },
+        layout: { visibility: 'none' },
+      });
 
       map.addSource('battle-borders', {
         type: 'geojson',
@@ -439,7 +446,7 @@ export function useMapInit(
       });
       map.addLayer({
         id: 'battle-cirfa-border', type: 'line', source: 'battle-borders',
-        paint: { 'line-color': '#111827', 'line-width': 3, 'line-opacity': 0.85 },
+        paint: { 'line-color': '#111827', 'line-width': 1, 'line-opacity': 0.3 },
         layout: { visibility: 'none' },
       });
 
