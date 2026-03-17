@@ -77,7 +77,7 @@ interface Props {
 }
 
 interface CirfaEntry { id: string; nom: string; ville?: string }
-interface C1Entry    { id: string; name: string; value: number; fill: string }
+interface C1Entry    { id: string; name: string; value: number; fill: string; failed?: boolean }
 interface C2Row      { name: string; segments: { palier: number; value: number; color: string }[] }
 interface C3Point    { label: string; pct: number; coverage: number }
 interface C4Entry    { id: string; name: string; value: number; fill: string }
@@ -100,6 +100,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   const [progress,        setProgress]        = useState<{ current: number; total: number; cirfa: string; metricLabel: string } | null>(null);
   const [failedCount,     setFailedCount]     = useState(0);
   const [firstErr,        setFirstErr]        = useState<string | null>(null);
+  const [failedGroups,    setFailedGroups]    = useState<Set<string>>(new Set());
   const abortRef  = useRef<AbortController | null>(null);
   const groupsRef = useRef<{ id: string; nom: string; geometries: string[] }[]>([]);
 
@@ -170,12 +171,18 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
     setComputedMetrics(new Map()); // reset on new battle
     setFailedCount(0);
     setFirstErr(null);
+    setFailedGroups(new Set());
 
-    // Build API groups (c__* per CIRFA only — __total__ and cum__* filtered server-side)
+    // Build API groups :
+    //   c__<id>        — couverture par CIRFA (cacheable)
+    //   total_pal__<N> — union dédupliquée de TOUS les CIRFAs pour ce palier (jamais mis en cache)
     const groups: { id: string; nom: string; geometries: string[] }[] = [];
-    groups.push({ id: '__total__', nom: 'Total', geometries: [...cirfaGeoms.values()].flatMap(c => c.geoms) });
     for (const [cid, { nom, geoms }] of cirfaGeoms) {
       groups.push({ id: `c__${cid}`, nom, geometries: geoms });
+    }
+    // Un groupe total par palier — chaque groupe = toutes les géométries de ce palier (40 geoms max)
+    for (const [palier, geoms] of palierGeoms) {
+      groups.push({ id: `total_pal__${palier}`, nom: `Dédupliqué ${palier}min`, geometries: geoms });
     }
     groupsRef.current = groups;
 
@@ -192,6 +199,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
     setFetchErr(null);
     setFailedCount(0);
     setFirstErr(null);
+    setFailedGroups(new Set());
     setComputedMetrics(new Map()); // reset previous results
 
     const metricsToRun = METRICS.filter(m => selectedMetrics.has(m.key));
@@ -246,6 +254,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             } else if (event.type === 'error_partial') {
               setFailedCount(c => c + 1);
               setFirstErr(prev => prev ?? (event as any).message ?? null);
+              if ((event as any).cirfa) setFailedGroups(prev => new Set([...prev, (event as any).cirfa]));
             } else if (event.type === 'complete' && event.results) {
               for (const r of event.results) currentCovMap.set(r.group_id, r.coverage);
               allResults.set(metric, new Map(currentCovMap));
@@ -265,12 +274,20 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
           onResultsReady(
             METRICS
               .filter(m => allResults.has(m.key))
-              .map(m => ({
-                metric: m.key,
-                label:  m.label,
-                // __total__ = carreaux couverts par AU MOINS une géométrie (dédupliqué)
-                total: allResults.get(m.key)?.get('__total__') ?? 0,
-              })),
+              .map(m => {
+                const covByGroup = allResults.get(m.key)!;
+                // total_pal__* = couverture dédupliquée par palier — prendre le max palier disponible
+                const totalPalKeys = [...covByGroup.keys()].filter(k => k.startsWith('total_pal__'));
+                const maxPal = totalPalKeys.length > 0
+                  ? Math.max(...totalPalKeys.map(k => parseInt(k.replace('total_pal__', ''))))
+                  : 0;
+                const dedup = maxPal > 0 ? (covByGroup.get(`total_pal__${maxPal}`) ?? 0) : 0;
+                return {
+                  metric: m.key,
+                  label:  m.label,
+                  total: dedup || covByGroup.get('__total__') || 0,
+                };
+              }),
           );
         }
       });
@@ -292,10 +309,20 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   // ── Chart 1 : coverage per CIRFA ─────────────────────────────────────────
   const chart1: C1Entry[] = useMemo(() =>
     cirfaOrder
-      .map(c => ({ id: c.id, name: c.nom, value: covMap.get(`c__${c.id}`) ?? 0, fill: cirfaColors[c.id] ?? '#3b82f6' }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 20),
-    [cirfaOrder, covMap, cirfaColors],
+      .map(c => ({
+        id:     c.id,
+        name:   c.nom,
+        value:  covMap.get(`c__${c.id}`) ?? 0,
+        fill:   cirfaColors[c.id] ?? '#3b82f6',
+        failed: failedGroups.has(`c__${c.id}`),
+      }))
+      .sort((a, b) => {
+        // Failed entries go to the bottom, then sort by value desc
+        if (a.failed && !b.failed) return 1;
+        if (!a.failed && b.failed) return -1;
+        return b.value - a.value;
+      }),
+    [cirfaOrder, covMap, cirfaColors, failedGroups],
   );
 
   // ── Chart 2 : stacked by palier (area-proportional) ──────────────────────
@@ -322,10 +349,23 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
     [chart1, paliers, battleFeatures, areaMap],
   );
 
-  // ── Chart 3 : cumulative coverage % (derived from chart2) ────────────────
+  // ── Couverture dédupliquée par palier (depuis total_pal__*) ──────────────
+  const deduplicatedPerPalier = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const palier of paliers) {
+      const v = covMap.get(`total_pal__${palier}`);
+      if (v != null) map.set(palier, v);
+    }
+    return map;
+  }, [covMap, paliers]);
+
+  const maxPalier      = useMemo(() => paliers.length > 0 ? Math.max(...paliers) : 0, [paliers]);
+  const maxPalierDedup = useMemo(() => deduplicatedPerPalier.get(maxPalier) ?? 0, [deduplicatedPerPalier, maxPalier]);
+
+  // ── Chart 3 : cumulative coverage % (derived from chart2, ref = maxPalierDedup) ──
   const chart3: C3Point[] = useMemo(() => {
     if (!chart2.length || !paliers.length) return [];
-    const totalCovAll = covMap.get('__total__') ?? chart1.reduce((s, c) => s + c.value, 0);
+    const totalCovAll = maxPalierDedup || chart1.reduce((s, c) => s + c.value, 0);
     if (!totalCovAll) return [];
     let cumulative = 0;
     return paliers.map(p => {
@@ -336,7 +376,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
       cumulative += palierCov;
       return { label: `${p}min`, coverage: cumulative, pct: Math.round((cumulative / totalCovAll) * 100) };
     });
-  }, [chart1, chart2, paliers]);
+  }, [chart1, chart2, paliers, maxPalierDedup]);
 
   // ── Chart 4 : efficiency (pop/km²) ───────────────────────────────────────
   const chart4: C4Entry[] = useMemo(() =>
@@ -350,8 +390,8 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   );
 
   // ── Metric cards values ───────────────────────────────────────────────────
-  // __total__ = couverture dédupliquée (ST_UnaryUnion côté PostGIS)
-  const totalCov = useMemo(() => covMap.get('__total__') ?? 0, [covMap]);
+  // totalCov = couverture dédupliquée du plus grand palier (total_pal__<max>)
+  const totalCov = useMemo(() => maxPalierDedup || (chart1.reduce((s, c) => s + c.value, 0)), [maxPalierDedup, chart1]);
 
   const tempsMovenAcces = useMemo(() => {
     if (!totalCov || !chart3.length) return null;
@@ -613,7 +653,12 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             marginBottom: 12,
             lineHeight:   1.7,
           }}>
-            ! {failedCount} groupe(s) non calculé(s)
+            ! {failedCount} groupe(s) non calculé(s) — affiché "! erreur" dans le graphique
+            {failedGroups.size > 0 && (
+              <div style={{ color: '#92400e', marginTop: 3, fontSize: 8 }}>
+                {[...failedGroups].map(g => g.replace('c__', '').replace('total_pal__', 'pal ')).join(', ')}
+              </div>
+            )}
             {firstErr && (
               <div style={{ color: '#6b7280', marginTop: 3, fontSize: 8 }}>
                 {firstErr.slice(0, 120)}
@@ -694,19 +739,62 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
         {/* ── DATA CONTENT ────────────────────────────────────────────────── */}
         {hasData && (
           <>
-            {/* ── 3 Metric cards ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 22 }}>
+            {/* ── Big number : couverture dédupliquée + metric cards ── */}
+            {maxPalierDedup > 0 && (
+              <div style={{
+                background:   'rgba(168,85,247,0.06)',
+                border:       '1px solid #3b1d5a',
+                borderRadius: 2,
+                padding:      '14px 16px',
+                marginBottom: 14,
+                display:      'flex',
+                alignItems:   'center',
+                gap:          14,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily:    'Michroma, sans-serif',
+                    fontSize:      8,
+                    color:         '#9333ea',
+                    textTransform: 'uppercase',
+                    letterSpacing: 1.5,
+                    marginBottom:  6,
+                  }}>
+                    Couverture dédupliquée — {maxPalier}min
+                  </div>
+                  <div style={{
+                    fontFamily:  'JetBrains Mono, monospace',
+                    fontSize:    32,
+                    fontWeight:  700,
+                    color:       '#a855f7',
+                    lineHeight:  1,
+                    marginBottom: 4,
+                  }}>
+                    {fmtNum(maxPalierDedup)}
+                  </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#6b21a8' }}>
+                    hab. uniques — sans double comptage
+                  </div>
+                </div>
+                <div style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize:   28,
+                  color:      '#3b1d5a',
+                  lineHeight: 1,
+                  userSelect: 'none',
+                }}>
+                  ◆
+                </div>
+              </div>
+            )}
+
+            {/* ── 2 Metric cards ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 22 }}>
               <MetricCard
-                label={displayLabel === 'Total' ? 'Population couverte' : `Cible ${displayLabel} ans`}
-                value={fmtNum(totalCov)}
-                sub={`${cirfaOrder.length} points`}
+                label={displayLabel === 'Total' ? 'Pop. totale (somme CIRFA)' : `Cible ${displayLabel} ans`}
+                value={fmtNum(chart1.reduce((s, c) => s + c.value, 0))}
+                sub={`${cirfaOrder.length} points (avec doublons)`}
                 color="#3dffa0"
-              />
-              <MetricCard
-                label="Zones blanches"
-                value="—"
-                sub="(non disponible)"
-                color="#374151"
               />
               <MetricCard
                 label="Accès médian"
@@ -719,7 +807,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             {/* ── Chart 1 : Classement population ── */}
             <Section title={`Population couverte par point — ${displayLabel === 'Total' ? 'Total' : displayLabel + ' ans'}`}>
               <HBarChart
-                data={chart1.map(c => ({ label: c.name, value: c.value, color: c.fill }))}
+                data={chart1.map(c => ({ label: c.name, value: c.value, color: c.fill, failed: c.failed }))}
                 formatValue={fmtNum}
                 onHover={setTooltip}
               />
@@ -737,9 +825,26 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
               </Section>
             )}
 
+            {/* ── Chart 3b : Couverture dédupliquée par palier ── */}
+            {deduplicatedPerPalier.size > 0 && (
+              <Section title="Couverture dédupliquée par isochrone (sans double comptage)">
+                <HBarChart
+                  data={[...deduplicatedPerPalier.entries()]
+                    .sort((a, b) => a[0] - b[0])
+                    .map(([p, v]) => ({
+                      label: `${p} min`,
+                      value: v,
+                      color: PALIER_COLORS[p] ?? '#a855f7',
+                    }))}
+                  formatValue={fmtNum}
+                  onHover={setTooltip}
+                />
+              </Section>
+            )}
+
             {/* ── Chart 3 : Couverture cumulée ── */}
             {chart3.length > 1 && (
-              <Section title="Couverture cumulée">
+              <Section title="Couverture cumulée (estimation)">
                 <AreaLineChart data={chart3} onHover={setTooltip} />
               </Section>
             )}
@@ -916,7 +1021,7 @@ const LABEL_W   = 110;
 const BAR_GAP   = 4;
 const CHART_PAD = { top: 4, right: 50, bottom: 4, left: LABEL_W + 8 };
 
-interface HBarItem { label: string; value: number; color: string }
+interface HBarItem { label: string; value: number; color: string; failed?: boolean }
 
 function HBarChart({
   data, formatValue, onHover,
@@ -925,40 +1030,43 @@ function HBarChart({
   formatValue: (v: number) => string;
   onHover: (t: { x: number; y: number; text: string } | null) => void;
 }) {
-  const max    = Math.max(...data.map(d => d.value), 1);
+  const max    = Math.max(...data.filter(d => !d.failed).map(d => d.value), 1);
   const barW   = 384 - CHART_PAD.left - CHART_PAD.right;
   const height = data.length * (ROW_H + BAR_GAP) + CHART_PAD.top + CHART_PAD.bottom;
 
   return (
     <svg width="100%" viewBox={`0 0 384 ${height}`} style={{ overflow: 'visible' }}>
       {data.map((d, i) => {
-        const y = CHART_PAD.top + i * (ROW_H + BAR_GAP);
-        const w = Math.max((d.value / max) * barW, 2);
+        const y     = CHART_PAD.top + i * (ROW_H + BAR_GAP);
+        const color = d.failed ? '#7f1d1d' : d.color;
+        const w     = d.failed || d.value === 0 ? 0 : Math.max((d.value / max) * barW, 2);
         return (
           <g key={i}>
             <text
               x={LABEL_W}
               y={y + ROW_H / 2 + 4}
               textAnchor="end"
-              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fill: '#94a3b8' }}
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fill: d.failed ? '#6b7280' : '#94a3b8' }}
             >
               {d.label.length > 14 ? d.label.slice(0, 13) + '…' : d.label}
             </text>
             <rect x={CHART_PAD.left} y={y + 4} width={barW} height={ROW_H - 8} rx={2} fill="#0e0e1a" />
-            <rect
-              x={CHART_PAD.left} y={y + 4}
-              width={w} height={ROW_H - 8}
-              rx={2} fill={d.color}
-              style={{ cursor: 'default' }}
-              onMouseMove={e => onHover({ x: e.clientX, y: e.clientY, text: `${d.label} — ${d.value.toLocaleString('fr-FR')} hab` })}
-              onMouseLeave={() => onHover(null)}
-            />
+            {w > 0 && (
+              <rect
+                x={CHART_PAD.left} y={y + 4}
+                width={w} height={ROW_H - 8}
+                rx={2} fill={color}
+                style={{ cursor: 'default' }}
+                onMouseMove={e => onHover({ x: e.clientX, y: e.clientY, text: `${d.label} — ${d.value.toLocaleString('fr-FR')} hab` })}
+                onMouseLeave={() => onHover(null)}
+              />
+            )}
             <text
               x={CHART_PAD.left + w + 4}
               y={y + ROW_H / 2 + 4}
-              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fill: d.color }}
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fill: color }}
             >
-              {formatValue(d.value)}
+              {d.failed ? '! erreur' : d.value === 0 ? '0' : formatValue(d.value)}
             </text>
           </g>
         );

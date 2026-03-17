@@ -31,7 +31,7 @@ const fOrbitron = "'Orbitron',sans-serif";
 // ─── Données géographiques ─────────────────────────────────────────────────────
 import {
   REGIONS_ADMIN as REGIONS, ALL_DEPTS,
-  POI_TYPES, AUDIENCE_METRICS,
+  AUDIENCE_METRICS,
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
 
@@ -63,7 +63,7 @@ export interface FilterPanelProps {
   sendMessage: (text: string) => void;
   onDirectSearch:  (params: DirectPOISearchParams) => Promise<void>;
   onDirectBattle:  (params: DirectBattleParams, onProgress?: (msg: string) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
-  onApplyBattle:   (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]) => Promise<void>;
+  onApplyBattle:   (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[], onProgress?: (msg: string, pct: number) => void) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   zoneData: ZoneData | null;
@@ -76,6 +76,8 @@ export interface FilterPanelProps {
   setVoronoiVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleVisible: boolean;
   setBattleVisible: (v: boolean | ((p: boolean) => boolean)) => void;
+  battleOuterFillVisible: boolean;
+  setBattleOuterFillVisible: (v: boolean) => void;
   isochroneVisible: boolean;
   setIsochroneVisible: (v: boolean) => void;
   setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
@@ -196,6 +198,22 @@ export function FilterPanel({
   coverageSummary,
 }: FilterPanelProps) {
 
+  // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
+  const [poiTypes, setPoiTypes] = useState<{ id: string; label: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/map/categories')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.categories)) {
+          setPoiTypes(data.categories.map((c: string) => ({
+            id: c,
+            label: c.charAt(0).toUpperCase() + c.slice(1),
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('territoire');
 
@@ -289,6 +307,7 @@ export function FilterPanel({
   const [battlePoiGroups,    setBattlePoiGroups]    = useState<{ id: string; nom: string; geometries: string[] }[]>([]);
   const [battleRings,        setBattleRings]        = useState<{ cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[]>([]);
   const [battleApplyLoading, setBattleApplyLoading] = useState(false);
+  const [battleApplyPct,     setBattleApplyPct]     = useState(0);
   const battleTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleStartRef   = useRef<number>(0);
 
@@ -731,7 +750,7 @@ export function FilterPanel({
               </div>
               <MultiDropdown
                 label="Aucun type selectionne"
-                items={POI_TYPES.map(p => ({ id: p.id, label: p.label }))}
+                items={poiTypes}
                 selected={selectedPOI}
                 onChange={setSelectedPOI}
               />
@@ -923,14 +942,25 @@ export function FilterPanel({
 
                       {/* ── Bouton BATAILLE (Phase 2 — ST_Difference) ────── */}
                       {battleRings.length > 0 && !battleLoading && (
+                        <>
                         <button
                           style={{ ...pill(false, C.accent), opacity: battleApplyLoading ? 0.5 : 1 }}
                           disabled={battleApplyLoading}
                           onClick={async () => {
                             setBattleApplyLoading(true);
-                            setBattleLog(prev => [...prev, '> [BATAILLE] application des territoires...']);
+                            setBattleApplyPct(0);
+                            setBattleLog(prev => [...prev, '> [BATAILLE] ST_Difference en cours…']);
                             try {
-                              await onApplyBattle(battleRings, battleMeta?.categorie, undefined);
+                              await onApplyBattle(
+                                battleRings,
+                                battleMeta?.categorie,
+                                undefined,
+                                (msg, pct) => {
+                                  setBattleLog(prev => [...prev, `> ${msg}`]);
+                                  setBattleApplyPct(pct);
+                                },
+                              );
+                              setBattleApplyPct(100);
                               setBattleLog(prev => [...prev, '> ✓ Territoires découpés sans chevauchement']);
                             } catch (e: any) {
                               setBattleLog(prev => [...prev, `> ✕ ${e.message ?? 'Erreur bataille'}`]);
@@ -939,8 +969,20 @@ export function FilterPanel({
                             }
                           }}
                         >
-                          {battleApplyLoading ? 'Application...' : 'X BATAILLE (ST_Difference)'}
+                          {battleApplyLoading ? `BATAILLE… ${battleApplyPct}%` : 'X BATAILLE (ST_Difference)'}
                         </button>
+                        {/* Barre de progression BATAILLE */}
+                        {battleApplyLoading && (
+                          <div style={{ height: 3, background: 'rgba(168,85,247,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${battleApplyPct}%`,
+                              background: battleApplyPct === 100 ? C.green : C.accent,
+                              transition: 'width 0.4s ease, background 0.3s',
+                            }} />
+                          </div>
+                        )}
+                        </>
                       )}
 
                       {/* ── Couverture cumulée ───────────────────────────── */}

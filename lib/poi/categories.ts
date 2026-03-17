@@ -22,35 +22,42 @@ export async function getDistinctCategories(): Promise<string[]> {
 
   const supabase = createAdminClient();
   const catSet = new Set<string>();
-  let from = 0;
-  const batchSize = 1000;
 
-  // Paginer sur TOUTES les lignes pour ne rater aucune catégorie
-  // (ex: CIRAF importé après la 1000ème ligne serait invisible sans pagination)
-  while (true) {
-    const { data, error } = await supabase
-      .from('poi_france')
-      .select('categorie')
-      .not('categorie', 'is', null)
-      .order('categorie')
-      .range(from, from + batchSize - 1);
+  // Leapfrog : une requête par valeur distincte (O(N_catégories) au lieu de O(N_lignes/1000))
+  // Principe : SELECT categorie WHERE categorie > $lastSeen ORDER BY categorie LIMIT 1
+  // Sur index, chaque requête est instantanée (~5ms). Avec ~15 catégories → ~15 requêtes.
+  let lastSeen = '';
+  for (let i = 0; i < 100; i++) {
+    let data: any[] | null = null;
+    let error: any = null;
+    // Retry jusqu'à 3× si erreur schema cache (cold start Supabase PostgREST)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      ({ data, error } = await supabase
+        .from('poi_france')
+        .select('categorie')
+        .not('categorie', 'is', null)
+        .gt('categorie', lastSeen)
+        .order('categorie', { ascending: true })
+        .limit(1));
+      if (!error || !String(error.message).includes('schema cache')) break;
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+    }
 
     if (error) {
       console.error('[categories] Supabase error:', error.message);
       return cachedCategories ?? [];
     }
-    if (!data || data.length === 0) break;
-
-    data.forEach((row: { categorie: string }) => { if (row.categorie) catSet.add(row.categorie); });
-    from += batchSize;
-    if (data.length < batchSize) break; // dernier batch
+    if (!data?.length) break;
+    const cat = data[0].categorie as string;
+    catSet.add(cat);
+    lastSeen = cat;
   }
 
   const categories = [...catSet].sort();
   cachedCategories = categories;
   cacheTimestamp = now;
 
-  console.log(`[categories] Refreshed (${from} rows scannées): ${categories.length} catégories →`, categories.join(', '));
+  console.log(`[categories] Refreshed (leapfrog): ${categories.length} catégories →`, categories.join(', '));
   return categories;
 }
 

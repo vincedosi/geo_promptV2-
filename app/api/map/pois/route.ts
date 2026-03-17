@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const normStr = (s: string) =>
       s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
-    // ── helper: pagination ──────────────────────────────────────────────────
+    // ── helper: pagination avec retry schema cache ──────────────────────────
     async function fetchAllPages(
       buildQuery: (from: number, to: number) => any,
       max = 10000,
@@ -73,7 +73,14 @@ export async function POST(req: NextRequest) {
       let from = 0;
       while (from < max) {
         const to = from + PAGE_SIZE - 1;
-        const { data, error } = await buildQuery(from, to);
+        let data: any[] | null = null;
+        let error: any = null;
+        // Retry jusqu'à 3× si erreur schema cache (cold start Supabase PostgREST)
+        for (let attempt = 0; attempt < 3; attempt++) {
+          ({ data, error } = await buildQuery(from, to));
+          if (!error || !String(error.message).includes('schema cache')) break;
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+        }
         if (error) { console.error('[map/pois] pagination error:', error.message); break; }
         if (!data?.length) break;
         for (const p of data) {
@@ -120,7 +127,6 @@ export async function POST(req: NextRequest) {
         const regionNorms = regions.map(id => normStr(REGION_ID_TO_NAME[id] ?? id));
         const hasDom = regions.includes('dom');
         const regionFilter = (p: any) => {
-          // Fallback DROM : matcher par code département (region DB peut être 'Guadeloupe' etc.)
           if (hasDom && DROM_CODES.includes(String(p.departement))) return true;
           const pNorm = normStr(p.region ?? '');
           return regionNorms.some(rn => pNorm.includes(rn) || rn.includes(pNorm));
@@ -150,11 +156,8 @@ export async function POST(req: NextRequest) {
       // 4. Scope national
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
-        if (resolvedCat)   q = q.eq('categorie', resolvedCat);
-        // Exclure DROM si France métro
-        if (scope === 'metro') {
-          q = q.not('departement', 'in', `(${DROM_CODES.join(',')})`);
-        }
+        if (resolvedCat) q = q.eq('categorie', resolvedCat);
+        if (scope === 'metro') q = q.not('departement', 'in', `(${DROM_CODES.join(',')})`);
         return q;
       }, 10000);
     }

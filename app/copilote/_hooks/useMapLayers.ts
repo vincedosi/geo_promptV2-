@@ -35,9 +35,10 @@ export function useMapLayers({
   const [voronoiCirfas,   setVoronoiCirfas]   = useState<{ id: string; nom: string; color: string }[]>([]);
 
   // Bataille d'Isochrones
-  const [battleVisible,  setBattleVisible]  = useState(false);
-  const [battleCategory, setBattleCategory] = useState('');
-  const [battleCirfas,   setBattleCirfas]   = useState<{ id: string; nom: string; color: string }[]>([]);
+  const [battleVisible,          setBattleVisible]          = useState(false);
+  const [battleCategory,         setBattleCategory]         = useState('');
+  const [battleCirfas,           setBattleCirfas]           = useState<{ id: string; nom: string; color: string }[]>([]);
+  const [battleOuterFillVisible, setBattleOuterFillVisible] = useState(true);
 
   // Test ORS
   const [testIsoVisible, setTestIsoVisible] = useState(false);
@@ -105,6 +106,20 @@ export function useMapLayers({
       map.setLayoutProperty('battle-pois-circle',  'visibility', vis);
     } catch { /* layer pas encore prêt */ }
   }, [battleVisible, mapReady, mapRef]);
+
+  // Filtre outer fill (palier=0) selon battleOuterFillVisible
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const baseFilter = ['!=', ['get', 'feature_type'], 'border'];
+    const filter = battleOuterFillVisible
+      ? baseFilter
+      : ['all', baseFilter, ['!=', ['get', 'palier'], 0]];
+    try {
+      map.setFilter('battle-fill',      filter as any);
+      map.setFilter('battle-ring-line', filter as any);
+    } catch { /* layer pas encore prêt */ }
+  }, [battleOuterFillVisible, mapReady, mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -364,6 +379,7 @@ export function useMapLayers({
     poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]
   ) => {
     const map = mapRef.current;
+    console.log('[applyIsochroneBattle] called — map:', !!map, '| features:', ringData?.features?.length);
     if (!map) return;
 
     const cirfaColorMap = new Map<string, string>();
@@ -387,7 +403,8 @@ export function useMapLayers({
         properties: {
           ...p,
           battle_color:   cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0],
-          battle_opacity: 0.72,  // Opacité fixe après ST_Difference — plus d'overlap, territoires solides
+          // palier=0 : outer fill Voronoï (hors isochrones) → opacité réduite
+          battle_opacity: palier === 0 ? 0.35 : 0.72,
         },
       };
     });
@@ -396,8 +413,10 @@ export function useMapLayers({
     partialRingsRef.current = [];
 
     const ringSrc = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
+    console.log('[applyIsochroneBattle] ringSrc:', !!ringSrc, '| styledRings:', styledRings.length);
     if (!ringSrc) return;
     ringSrc.setData({ type: 'FeatureCollection', features: styledRings } as GeoJSON.FeatureCollection);
+    map.triggerRepaint();
 
     const borderSrc = map.getSource('battle-borders') as maplibregl.GeoJSONSource | undefined;
     if (borderSrc && borderData?.features?.length) {
@@ -479,7 +498,10 @@ export function useMapLayers({
           }
         }
       }
-      if (extended) map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 1200 });
+      if (extended) {
+        console.log('[applyIsochroneBattle] fitBounds called');
+        map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 1200 });
+      }
     }
   };
 
@@ -621,6 +643,7 @@ export function useMapLayers({
     battleVisible, setBattleVisible,
     battleCategory,
     battleCirfas,
+    battleOuterFillVisible, setBattleOuterFillVisible,
     // Test ORS
     testIsoVisible,
     testIsoLoading,

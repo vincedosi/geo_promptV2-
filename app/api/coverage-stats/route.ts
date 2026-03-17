@@ -1,10 +1,11 @@
 /**
  * POST /api/coverage-stats
  *
- * Calcule la couverture audience — streaming NDJSON, UN appel SQL par CIRFA.
+ * Calcule la couverture audience — streaming NDJSON, UN appel SQL par groupe.
  *
- * Seuls les groupes c__* (un par CIRFA) sont envoyés à la base de données.
- * __total__ et cum__* sont calculés côté client (panel) après réception de tous les c__*.
+ * Groupes acceptés :
+ *   c__<id>        — un par CIRFA (cacheable)
+ *   total_pal__<N> — union dédupliquée de TOUS les CIRFAs au palier N (JAMAIS mis en cache)
  *
  * IMPORTANT : utilise fetch() direct vers Supabase REST (PAS supabase.rpc()) pour deux raisons :
  *   1. supabase.rpc() passe par PgBouncer transaction mode → temp tables orphelines (OID error)
@@ -90,20 +91,22 @@ export async function POST(req: NextRequest) {
     battleCacheKey?: string;
   };
 
-  // __total__ (union de toutes les géométries) + c__* (par CIRFA)
-  // __total__ donne la couverture dédupliquée (carreaux couverts par AU MOINS une géométrie)
-  const cirfaGroups = poiGroups.filter(g => g.id === '__total__' || g.id.startsWith('c__'));
+  // c__*         → couverture par CIRFA (cacheable)
+  // total_pal__* → couverture dédupliquée par palier (JAMAIS mise en cache — toujours fraîche)
+  const cirfaGroups    = poiGroups.filter(g => g.id.startsWith('c__'));
+  const totalPalGroups = poiGroups.filter(g => g.id.startsWith('total_pal__'));
 
-  if (cirfaGroups.length === 0) {
-    console.log('[coverage-stats] Aucun groupe c__* dans le payload — complete immédiat');
+  if (cirfaGroups.length === 0 && totalPalGroups.length === 0) {
+    console.log('[coverage-stats] Aucun groupe dans le payload — complete immédiat');
     return new Response(
       JSON.stringify({ type: 'complete', results: [], failed: 0 }) + '\n',
       { headers: { 'Content-Type': 'application/x-ndjson' } },
     );
   }
 
-  // ── Vérification cache coverage ───────────────────────────────────────────
-  if (battleCacheKey) {
+  // ── Vérification cache (c__* seulement) ───────────────────────────────────
+  let cachedCirfaResults: { group_id: string; coverage: number; nom: string }[] | null = null;
+  if (battleCacheKey && cirfaGroups.length > 0) {
     const coverageCacheKey = `coverage__${battleCacheKey}__${metric}`;
     const supabaseAdmin = createAdminClient();
     const { data: cached } = await supabaseAdmin
@@ -114,32 +117,20 @@ export async function POST(req: NextRequest) {
 
     if (cached?.geojson) {
       const results = (cached.geojson as any).results as { group_id: string; coverage: number; nom: string }[];
-      if (results?.length > 0) {
-        const encoder2 = new TextEncoder();
-        const cachedStream = new ReadableStream({
-          start(ctrl) {
-            const send2 = (o: object) => ctrl.enqueue(encoder2.encode(JSON.stringify(o) + '\n'));
-            send2({ type: 'start', total: results.length, fromCache: true });
-            for (const r of results) {
-              send2({ type: 'cirfa_result', data: { group_id: r.group_id, coverage: r.coverage, nom: cirfaGroups.find(g => g.id === r.group_id)?.nom ?? r.group_id }, current: 1, total: 1 });
-            }
-            send2({ type: 'complete', results, failed: 0, fromCache: true });
-            ctrl.close();
-          },
-        });
-        return new Response(cachedStream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' } });
+      if (results?.filter(r => r.group_id.startsWith('c__')).length > 0) {
+        cachedCirfaResults = results.filter(r => r.group_id.startsWith('c__'));
+        console.log(`[coverage-stats] Cache HIT c__* (${cachedCirfaResults.length} résultats) — total_pal__* sera recalculé`);
       }
     }
   }
 
   const payloadKB = Math.round(JSON.stringify(poiGroups).length / 1024);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(manquant)';
+  const totalToCompute = (cachedCirfaResults ? 0 : cirfaGroups.length) + totalPalGroups.length;
 
   console.log(`[coverage-stats] ═══ DÉBUT ═══`);
-  console.log(`[coverage-stats] CIRFA: ${cirfaGroups.length} | metric: ${metric} | payload total: ~${payloadKB}KB`);
+  console.log(`[coverage-stats] CIRFA: ${cirfaGroups.length} (cache=${!!cachedCirfaResults}) | total_pal: ${totalPalGroups.length} | metric: ${metric} | ~${payloadKB}KB`);
   console.log(`[coverage-stats] Supabase URL: ${supabaseUrl.slice(0, 50)}...`);
-  console.log(`[coverage-stats] Groupes: ${cirfaGroups.map(g => g.id).join(', ')}`);
-  console.log(`[coverage-stats] Géométries par groupe: ${cirfaGroups.map(g => `${g.id.replace('c__', '')}=${g.geometries.filter(Boolean).length}`).join(', ')}`);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -150,31 +141,65 @@ export async function POST(req: NextRequest) {
       const t0 = Date.now();
       const allResults: { group_id: string; coverage: number; nom: string }[] = [];
       let failedCount = 0;
+      let idx = 0;
 
-      send({ type: 'start', total: cirfaGroups.length });
+      send({ type: 'start', total: totalToCompute });
 
-      for (let i = 0; i < cirfaGroups.length; i++) {
-        const group = cirfaGroups[i];
-        const tg    = Date.now();
+      // ── Étape 1 : c__* (cache ou calcul) ──────────────────────────────────
+      if (cachedCirfaResults) {
+        for (const r of cachedCirfaResults) {
+          allResults.push(r);
+          send({ type: 'cirfa_result', data: r, current: ++idx, total: totalToCompute, fromCache: true });
+        }
+      } else {
+        for (let i = 0; i < cirfaGroups.length; i++) {
+          const group = cirfaGroups[i];
+          const tg = Date.now();
 
-        console.log(`[coverage-stats] [${i + 1}/${cirfaGroups.length}] START ${group.id} (${group.nom})`);
-        send({ type: 'progress', current: i + 1, total: cirfaGroups.length, cirfa: group.id });
+          console.log(`[coverage-stats] [c ${i + 1}/${cirfaGroups.length}] START ${group.id}`);
+          send({ type: 'progress', current: ++idx, total: totalToCompute, cirfa: group.id });
+
+          try {
+            const coverage = await rpcSingle({ id: group.id, geometries: group.geometries }, metric);
+            const elapsed  = Date.now() - tg;
+            const result   = { group_id: group.id, coverage, nom: group.nom };
+            allResults.push(result);
+            console.log(`[coverage-stats] [c ${i + 1}/${cirfaGroups.length}] OK ${group.id} → ${coverage.toLocaleString('fr-FR')} hab (${elapsed}ms)`);
+            send({ type: 'cirfa_result', data: result, current: idx, total: totalToCompute });
+          } catch (e: any) {
+            failedCount++;
+            const isTimeout = e?.name === 'AbortError';
+            const msg = isTimeout
+              ? `Timeout (>${PER_GROUP_TIMEOUT_MS / 1000}s) — migration 043 appliquée dans Supabase ?`
+              : (e.message ?? 'Erreur inconnue');
+            console.error(`[coverage-stats] [c ${i + 1}/${cirfaGroups.length}] FAIL ${group.id} (${Date.now() - tg}ms): ${msg}`);
+            send({ type: 'error_partial', cirfa: group.id, message: msg });
+          }
+        }
+      }
+
+      // ── Étape 2 : total_pal__* — TOUJOURS calculé frais (jamais mis en cache) ──
+      for (let i = 0; i < totalPalGroups.length; i++) {
+        const group = totalPalGroups[i];
+        const tg = Date.now();
+
+        console.log(`[coverage-stats] [pal ${i + 1}/${totalPalGroups.length}] START ${group.id} (${group.geometries.filter(Boolean).length} geoms)`);
+        send({ type: 'progress', current: ++idx, total: totalToCompute, cirfa: group.id });
 
         try {
           const coverage = await rpcSingle({ id: group.id, geometries: group.geometries }, metric);
           const elapsed  = Date.now() - tg;
           const result   = { group_id: group.id, coverage, nom: group.nom };
           allResults.push(result);
-
-          console.log(`[coverage-stats] [${i + 1}/${cirfaGroups.length}] OK ${group.id} → ${coverage.toLocaleString('fr-FR')} hab (${elapsed}ms)`);
-          send({ type: 'cirfa_result', data: result, current: i + 1, total: cirfaGroups.length });
+          console.log(`[coverage-stats] [pal ${i + 1}/${totalPalGroups.length}] OK ${group.id} → ${coverage.toLocaleString('fr-FR')} hab (${elapsed}ms)`);
+          send({ type: 'cirfa_result', data: result, current: idx, total: totalToCompute });
         } catch (e: any) {
           failedCount++;
           const isTimeout = e?.name === 'AbortError';
           const msg = isTimeout
             ? `Timeout (>${PER_GROUP_TIMEOUT_MS / 1000}s) — migration 043 appliquée dans Supabase ?`
             : (e.message ?? 'Erreur inconnue');
-          console.error(`[coverage-stats] [${i + 1}/${cirfaGroups.length}] FAIL ${group.id} (${Date.now() - tg}ms): ${msg}`);
+          console.error(`[coverage-stats] [pal ${i + 1}/${totalPalGroups.length}] FAIL ${group.id} (${Date.now() - tg}ms): ${msg}`);
           send({ type: 'error_partial', cirfa: group.id, message: msg });
         }
       }
@@ -183,22 +208,25 @@ export async function POST(req: NextRequest) {
       console.log(`[coverage-stats] ═══ FIN ═══ total: ${totalElapsed}ms | ok: ${allResults.length} | échecs: ${failedCount}`);
       send({ type: 'complete', results: allResults, failed: failedCount });
 
-      // ── Écriture cache coverage ──────────────────────────────────────────
-      if (battleCacheKey && allResults.length > 0 && failedCount === 0) {
-        const coverageCacheKey = `coverage__${battleCacheKey}__${metric}`;
-        const supabaseAdmin = createAdminClient();
-        supabaseAdmin.from('isochrones_cache').upsert({
-          cache_key:  coverageCacheKey,
-          ville:      '_coverage_',
-          categorie:  metric,
-          minutes:    0,
-          mode:       'coverage',
-          geojson:    { results: allResults },
-          poi_count:  allResults.length,
-          created_at: new Date().toISOString(),
-        }, { onConflict: 'cache_key' }).then(({ error }) => {
-          if (error) console.warn('[coverage-stats] cache write fail:', error.message);
-        });
+      // ── Écriture cache c__* seulement ────────────────────────────────────
+      if (battleCacheKey && !cachedCirfaResults && failedCount === 0) {
+        const cirfaOnly = allResults.filter(r => r.group_id.startsWith('c__'));
+        if (cirfaOnly.length > 0) {
+          const coverageCacheKey = `coverage__${battleCacheKey}__${metric}`;
+          const supabaseAdmin = createAdminClient();
+          supabaseAdmin.from('isochrones_cache').upsert({
+            cache_key:  coverageCacheKey,
+            ville:      '_coverage_',
+            categorie:  metric,
+            minutes:    0,
+            mode:       'coverage',
+            geojson:    { results: cirfaOnly },
+            poi_count:  cirfaOnly.length,
+            created_at: new Date().toISOString(),
+          }, { onConflict: 'cache_key' }).then(({ error }) => {
+            if (error) console.warn('[coverage-stats] cache write fail:', error.message);
+          });
+        }
       }
 
       controller.close();

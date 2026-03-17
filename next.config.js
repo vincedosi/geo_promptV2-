@@ -6,6 +6,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10gb',
     },
+    instrumentationHook: true,
   },
   webpack: (config) => {
     // maplibre-gl v5 ships a pre-built UMD bundle (dist/maplibre-gl.js)

@@ -371,7 +371,8 @@ export default function MapPage() {
   const handleApplyBattle = async (
     rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[],
     category?: string,
-    poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]
+    poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[],
+    onProgress?: (msg: string, pct: number) => void,
   ): Promise<void> => {
     setError(null);
     // Priorité : utiliser le résultat pré-calculé (déjà fait par la route en Phase 5)
@@ -380,21 +381,49 @@ export default function MapPage() {
       mapLayers.applyIsochroneBattle(geoJSON, borders, cat ?? category, pois ?? poisForMap);
       return;
     }
-    // Fallback : re-calculer via apply-battle (cas sans cache pré-calculé)
+    // Stream NDJSON depuis apply-battle
     const res = await fetch('/api/isochrone-battle/apply-battle', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ rings }),
     });
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      setError(`Bataille — ${data.error ?? `HTTP ${res.status}`}`);
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      setError(`Bataille — ${err.error ?? `HTTP ${res.status}`}`);
       return;
     }
-    if (data.battleGeoJSON?.features?.length > 0) {
-      mapLayers.applyIsochroneBattle(data.battleGeoJSON, data.battleBorders ?? null, category, poisForMap);
-      setBattleFeatures(data.battleGeoJSON.features);
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const PCT: Record<string, number> = { clip: 15, clip_done: 45, battle: 50, done: 85 };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let evt: any;
+        try { evt = JSON.parse(line); } catch { continue; }
+        if (evt.type === 'error') {
+          setError(`Bataille — ${evt.message}`);
+          throw new Error(evt.message);
+        }
+        if (evt.type === 'progress') {
+          onProgress?.(evt.message, PCT[evt.step] ?? 50);
+        }
+        if (evt.type === 'result') {
+          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', evt.battleGeoJSON?.features?.length);
+          onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
+          if (evt.battleGeoJSON?.features?.length > 0) {
+            mapLayers.applyIsochroneBattle(evt.battleGeoJSON, evt.battleBorders ?? null, category, poisForMap);
+            setBattleFeatures(evt.battleGeoJSON.features);
+          }
+        }
+      }
     }
+    reader.releaseLock();
   };
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];

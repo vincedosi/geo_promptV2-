@@ -116,6 +116,7 @@ export const VORONOI_PALETTE = [
 // ---------------------------------------------------------------------------
 
 export const BATTLE_PALIER_OPACITY: Record<number, number> = {
+  0:   0.20,  // outer fill : territoire Voronoï hors portée des isochrones
   10:  0.65,
   30:  0.50,
   60:  0.38,
