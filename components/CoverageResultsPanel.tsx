@@ -267,9 +267,8 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
               .map(m => ({
                 metric: m.key,
                 label:  m.label,
-                total: [...(allResults.get(m.key) ?? new Map()).entries()]
-                  .filter(([k]) => k.startsWith('c__'))
-                  .reduce((s, [, v]) => s + v, 0),
+                // __total__ = carreaux couverts par AU MOINS une géométrie (dédupliqué)
+                total: allResults.get(m.key)?.get('__total__') ?? 0,
               })),
           );
         }
@@ -325,7 +324,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   // ── Chart 3 : cumulative coverage % (derived from chart2) ────────────────
   const chart3: C3Point[] = useMemo(() => {
     if (!chart2.length || !paliers.length) return [];
-    const totalCovAll = chart1.reduce((s, c) => s + c.value, 0);
+    const totalCovAll = covMap.get('__total__') ?? chart1.reduce((s, c) => s + c.value, 0);
     if (!totalCovAll) return [];
     let cumulative = 0;
     return paliers.map(p => {
@@ -350,12 +349,8 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   );
 
   // ── Metric cards values ───────────────────────────────────────────────────
-  const totalCov = useMemo(() =>
-    [...covMap.entries()]
-      .filter(([k]) => k.startsWith('c__'))
-      .reduce((s, [, v]) => s + v, 0),
-    [covMap],
-  );
+  // __total__ = couverture dédupliquée (ST_UnaryUnion côté PostGIS)
+  const totalCov = useMemo(() => covMap.get('__total__') ?? 0, [covMap]);
 
   const tempsMovenAcces = useMemo(() => {
     if (!totalCov || !chart3.length) return null;

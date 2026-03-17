@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '7.0.1',
+    date: '2026-03-16',
+    type: 'patch',
+    changes: [
+      'Fix: CIRFAs invisibles après battle sur cache v3 — poisForMap reconstruit depuis ring features si absent',
+    ],
+  },
+  {
     version: '7.0.0',
     date: '2026-03-16',
     type: 'major',

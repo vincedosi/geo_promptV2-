@@ -88,8 +88,9 @@ export async function POST(req: NextRequest) {
     metric?: string;
   };
 
-  // Seuls les groupes c__* vont en base
-  const cirfaGroups = poiGroups.filter(g => g.id.startsWith('c__'));
+  // __total__ (union de toutes les géométries) + c__* (par CIRFA)
+  // __total__ donne la couverture dédupliquée (carreaux couverts par AU MOINS une géométrie)
+  const cirfaGroups = poiGroups.filter(g => g.id === '__total__' || g.id.startsWith('c__'));
 
   if (cirfaGroups.length === 0) {
     console.log('[coverage-stats] Aucun groupe c__* dans le payload — complete immédiat');

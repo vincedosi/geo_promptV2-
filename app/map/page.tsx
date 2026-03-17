@@ -301,13 +301,27 @@ export default function MapPage() {
       mapLayers.addBattlePartialRings(rawRings);
       setBattleFeatures(data.battleGeoJSON.features);
     }
-    if (data.poisForMap?.length > 0) {
-      setBattlePois(data.poisForMap);
+    // poisForMap peut être absent des anciens caches v3 — fallback depuis les ring features
+    let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = data.poisForMap ?? [];
+    if (poisForMap.length === 0 && data.battleGeoJSON?.features?.length > 0) {
+      const poisSeen = new Set<string>();
+      for (const f of data.battleGeoJSON.features as any[]) {
+        const p = f?.properties ?? {};
+        const cid = String(p.cirfa_id ?? p.id ?? '');
+        const lat = Number(p.lat), lng = Number(p.lng);
+        if (cid && !poisSeen.has(cid) && !isNaN(lat) && !isNaN(lng) && lat && lng) {
+          poisSeen.add(cid);
+          poisForMap.push({ id: cid, nom: String(p.nom ?? ''), lat, lng, categorie: params.category, adresse: String(p.adresse ?? ''), ville: String(p.ville ?? '') });
+        }
+      }
+    }
+    if (poisForMap.length > 0) {
+      setBattlePois(poisForMap as any[]);
       setZoneData({
-        coordonnees: { lat: data.poisForMap[0].lat, lng: data.poisForMap[0].lng },
-        pois: data.poisForMap,
-        nb_pois: data.poisForMap.length,
-        categories: { [params.category]: data.poisForMap.length },
+        coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
+        pois: poisForMap as any[],
+        nb_pois: poisForMap.length,
+        categories: { [params.category]: poisForMap.length },
         couleur_overrides: {},
         ville: params.filtre_ville ?? '',
         rayon_metres: null,
