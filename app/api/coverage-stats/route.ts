@@ -19,6 +19,7 @@
  *   { type: 'complete',      results, failed }
  */
 import { NextRequest } from 'next/server';
+import { createAdminClient }  from '@/lib/auth';
 
 export const maxDuration = 120;
 
@@ -83,9 +84,10 @@ async function rpcSingle(
 
 // ── Route ──────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { poiGroups, metric = 'ind' } = await req.json() as {
+  const { poiGroups, metric = 'ind', battleCacheKey } = await req.json() as {
     poiGroups: { id: string; nom: string; geometries: string[] }[];
     metric?: string;
+    battleCacheKey?: string;
   };
 
   // __total__ (union de toutes les géométries) + c__* (par CIRFA)
@@ -98,6 +100,36 @@ export async function POST(req: NextRequest) {
       JSON.stringify({ type: 'complete', results: [], failed: 0 }) + '\n',
       { headers: { 'Content-Type': 'application/x-ndjson' } },
     );
+  }
+
+  // ── Vérification cache coverage ───────────────────────────────────────────
+  if (battleCacheKey) {
+    const coverageCacheKey = `coverage__${battleCacheKey}__${metric}`;
+    const supabaseAdmin = createAdminClient();
+    const { data: cached } = await supabaseAdmin
+      .from('isochrones_cache')
+      .select('geojson')
+      .eq('cache_key', coverageCacheKey)
+      .single();
+
+    if (cached?.geojson) {
+      const results = (cached.geojson as any).results as { group_id: string; coverage: number; nom: string }[];
+      if (results?.length > 0) {
+        const encoder2 = new TextEncoder();
+        const cachedStream = new ReadableStream({
+          start(ctrl) {
+            const send2 = (o: object) => ctrl.enqueue(encoder2.encode(JSON.stringify(o) + '\n'));
+            send2({ type: 'start', total: results.length, fromCache: true });
+            for (const r of results) {
+              send2({ type: 'cirfa_result', data: { group_id: r.group_id, coverage: r.coverage, nom: cirfaGroups.find(g => g.id === r.group_id)?.nom ?? r.group_id }, current: 1, total: 1 });
+            }
+            send2({ type: 'complete', results, failed: 0, fromCache: true });
+            ctrl.close();
+          },
+        });
+        return new Response(cachedStream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' } });
+      }
+    }
   }
 
   const payloadKB = Math.round(JSON.stringify(poiGroups).length / 1024);
@@ -150,6 +182,25 @@ export async function POST(req: NextRequest) {
       const totalElapsed = Date.now() - t0;
       console.log(`[coverage-stats] ═══ FIN ═══ total: ${totalElapsed}ms | ok: ${allResults.length} | échecs: ${failedCount}`);
       send({ type: 'complete', results: allResults, failed: failedCount });
+
+      // ── Écriture cache coverage ──────────────────────────────────────────
+      if (battleCacheKey && allResults.length > 0 && failedCount === 0) {
+        const coverageCacheKey = `coverage__${battleCacheKey}__${metric}`;
+        const supabaseAdmin = createAdminClient();
+        supabaseAdmin.from('isochrones_cache').upsert({
+          cache_key:  coverageCacheKey,
+          ville:      '_coverage_',
+          categorie:  metric,
+          minutes:    0,
+          mode:       'coverage',
+          geojson:    { results: allResults },
+          poi_count:  allResults.length,
+          created_at: new Date().toISOString(),
+        }, { onConflict: 'cache_key' }).then(({ error }) => {
+          if (error) console.warn('[coverage-stats] cache write fail:', error.message);
+        });
+      }
+
       controller.close();
     },
   });

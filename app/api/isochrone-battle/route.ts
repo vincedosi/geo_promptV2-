@@ -237,6 +237,7 @@ export async function POST(req: NextRequest) {
               nb_pois: c.poisForMap?.length ?? 0,
               category, mode: normalizedMode, levels: [...BATTLE_LEVELS], metropolitaine,
               fromCache: true,
+              battleCacheKey,
             }});
             return;
           }
@@ -425,6 +426,7 @@ export async function POST(req: NextRequest) {
           battleGeoJSON, battleBorders: null, poisForMap,
           nb_features: ringFeatures.length, nb_pois: pois.length,
           category, mode: normalizedMode, levels: [...BATTLE_LEVELS], metropolitaine,
+          battleCacheKey,
         }});
 
       } catch (e: unknown) {

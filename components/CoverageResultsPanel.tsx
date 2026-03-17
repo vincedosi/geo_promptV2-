@@ -73,6 +73,7 @@ interface Props {
   battleFeatures:  GeoJSON.Feature[];
   pois:            Array<{ id: string; nom: string; lat: number; lng: number; ville?: string; adresse?: string }>;
   onResultsReady?: (summary: CoverageSummaryEntry[]) => void;
+  battleCacheKey?: string;
 }
 
 interface CirfaEntry { id: string; nom: string; ville?: string }
@@ -84,7 +85,7 @@ interface C4Entry    { id: string; name: string; value: number; fill: string }
 // ──────────────────────────────────────────────────────────────────────────────
 // COMPONENT
 // ──────────────────────────────────────────────────────────────────────────────
-export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, onResultsReady }: Props) {
+export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, onResultsReady, battleCacheKey }: Props) {
   const [selectedMetrics, setSelectedMetrics] = useState<Set<MetricKey>>(
     new Set<MetricKey>(['ind', 'ind_18_24', 'ind_25_39', 'ind_40_54']),
   );
@@ -208,7 +209,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
           method:  'POST',
           signal:  abort.signal,
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ poiGroups: groups, metric }),
+          body:    JSON.stringify({ poiGroups: groups, metric, battleCacheKey }),
         });
 
         if (!res.ok || !res.body) {

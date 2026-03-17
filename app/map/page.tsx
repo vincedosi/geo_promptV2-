@@ -36,6 +36,7 @@ export default function MapPage() {
   const [battlePois,          setBattlePois]          = useState<POI[]>([]);
   const [isResultsPanelOpen,  setIsResultsPanelOpen]  = useState(false);
   const [coverageSummary,     setCoverageSummary]     = useState<CoverageSummaryEntry[]>([]);
+  const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
@@ -315,6 +316,7 @@ export default function MapPage() {
         }
       }
     }
+    if (data.battleCacheKey) setBattleCacheKey(data.battleCacheKey);
     if (poisForMap.length > 0) {
       setBattlePois(poisForMap as any[]);
       setZoneData({
@@ -468,6 +470,7 @@ export default function MapPage() {
         battleFeatures={battleFeatures}
         pois={battlePois}
         onResultsReady={setCoverageSummary}
+        battleCacheKey={battleCacheKey ?? undefined}
       />
       <style>{`
         @keyframes mapSlide {
