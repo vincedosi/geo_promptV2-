@@ -1,11 +1,13 @@
 /**
- * /api/isochrone-battle/route.ts — v4.0.0
+ * /api/isochrone-battle/route.ts — v5.0.0
  *
  * ZÉRO VORONOÏ — uniquement de vrais isochrones ORS par CIRFA.
  *
+ * Optimisations v5 (vs v4) :
+ *   v4 → v5 : ORS 1 POI/appel → batch 5 POIs/appel (40 POIs = 8 req au lieu de 40)
+ *
  * Optimisations v4 (vs v3) :
  *   v3 → v4 : cache lookup 7 requêtes → 1 (chunked 200 clés) = -300 à -600ms
- *   v3 → v4 : ORS concurrence 2 → 4 + sémaphore vrai (slot libéré immédiatement)
  *   v3 → v4 : N cache writes individuels → 1 batch upsert en fin
  *
  * Algorithme :
@@ -44,8 +46,10 @@ const REGION_ID_TO_NAME: Record<string, string> = {
 export const maxDuration  = 300;
 const ALL_LEVELS          = [10, 30, 60, 90, 120, 150, 180] as const;
 const MAX_POIS_BATTLE     = 500;
-// 4 POIs simultanés ≈ 40 req/min ORS max (limite free tier = 40 req/min)
-const ORS_CONCURRENCY     = 4;
+// ORS public API : 5 locations max par appel, 40 req/min
+// Avec batch=5 : 40 POIs → 8 appels ORS (5× moins que 40 appels individuels)
+const ORS_BATCH_SIZE      = 5;
+const ORS_CONCURRENCY     = 2;   // 2 batches simultanés = 10 POIs en parallèle
 // Taille max d'un chunk IN() Supabase (évite URL trop longue)
 const CACHE_CHUNK         = 200;
 
@@ -79,23 +83,29 @@ function perCirfaCacheKey(category: string, cirfaId: string, level: number, mode
   return `battle__${normKey(category)}__${normKey(cirfaId)}__${level}min__${normKey(mode)}`;
 }
 
-// ── Appel ORS multi-range : 1 POI, N paliers en une seule requête ─────────────
+// ── Appel ORS batch : jusqu'à ORS_BATCH_SIZE POIs, N paliers en une requête ───
 /**
- * Envoie UN appel ORS avec toutes les durées demandées.
- * ORS retourne une feature par durée (properties.value en secondes).
+ * Envoie UN appel ORS pour un batch de POIs (max 5 locations, limite API publique).
+ * ORS retourne une feature par (location, durée) — properties.group_index indique le POI.
  * Retry : 429 → 15s, Timeout → 5s, autre erreur → abandon immédiat.
+ *
+ * Gain : 40 POIs → 8 appels ORS (batch=5) au lieu de 40 appels individuels.
  */
-interface ORSResult { geomMap: Map<number, object>; errorMsg: string | null }
+interface ORSBatchResult {
+  byPoi: Map<string, Map<number, object>>; // poi.id → level → geometry
+  errorMsg: string | null;
+}
 
-async function callORSMulti(
-  location: [number, number],
-  levels:   number[],
-  mode:     string,
-  apiKey:   string,
-): Promise<ORSResult> {
-  const profile = ORS_PROFILES[mode] ?? 'driving-car';
-  const ranges  = levels.map(l => l * 60);
-  const TIMEOUT = 30_000;
+async function callORSBatch(
+  entries: PoiMissEntry[],
+  levels:  number[],
+  mode:    string,
+  apiKey:  string,
+): Promise<ORSBatchResult> {
+  const profile   = ORS_PROFILES[mode] ?? 'driving-car';
+  const locations = entries.map(e => [e.poi.lng, e.poi.lat] as [number, number]);
+  const ranges    = levels.map(l => l * 60);
+  const TIMEOUT   = 45_000;  // batches avec gros isochrones (180min) peuvent être lents
   let   lastErr: string | null = null;
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -108,44 +118,51 @@ async function callORSMulti(
           method:  'POST',
           signal:  ctrl.signal,
           headers: { Authorization: apiKey, 'Content-Type': 'application/json', Accept: 'application/geo+json' },
-          body:    JSON.stringify({ locations: [location], range: ranges, range_type: 'time' }),
+          body:    JSON.stringify({ locations, range: ranges, range_type: 'time' }),
         },
       );
       clearTimeout(timer);
 
       if (res.status === 429) {
-        console.warn(`[ORS] 429 rate-limit (tentative ${attempt + 1}/3) — attente 15s`);
-        await new Promise(resolve => setTimeout(resolve, 15_000));
+        console.warn(`[ORS batch] 429 rate-limit (tentative ${attempt + 1}/3) — attente 15s`);
+        await new Promise(r => setTimeout(r, 15_000));
         continue;
       }
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
         lastErr = `HTTP ${res.status} — ${txt.slice(0, 200)}`;
-        console.error(`[ORS] ${lastErr}`);
-        return { geomMap: new Map(), errorMsg: lastErr };
+        console.error(`[ORS batch] ${lastErr}`);
+        return { byPoi: new Map(), errorMsg: lastErr };
       }
 
-      const data    = await res.json();
-      const geomMap = new Map<number, object>();
+      const data  = await res.json();
+      const byPoi = new Map<string, Map<number, object>>();
       for (const feat of (data.features ?? [])) {
+        // group_index : index de la location dans le batch (absent = 0 pour 1 seule location)
+        const groupIdx = feat?.properties?.group_index ?? 0;
+        const entry    = entries[groupIdx];
+        if (!entry || !feat.geometry) continue;
         const valueSec = feat?.properties?.value;
-        if (valueSec == null || !feat.geometry) continue;
+        if (valueSec == null) continue;
         const levelMin = Math.round(Number(valueSec) / 60);
         // Tolérance ±1 min pour l'arrondi ORS
         const matched = levels.find(l => Math.abs(l - levelMin) <= 1);
-        if (matched !== undefined) geomMap.set(matched, feat.geometry);
+        if (matched === undefined) continue;
+        const pid = entry.poi.id;
+        if (!byPoi.has(pid)) byPoi.set(pid, new Map());
+        byPoi.get(pid)!.set(matched, feat.geometry);
       }
-      return { geomMap, errorMsg: null };
+      return { byPoi, errorMsg: null };
 
     } catch (e: any) {
       clearTimeout(timer);
       const isTimeout = e.name === 'AbortError';
       lastErr = isTimeout ? `Timeout ${TIMEOUT / 1000}s` : e.message;
-      console.error(`[ORS] ${lastErr} (tentative ${attempt + 1}/3)`);
-      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, isTimeout ? 5_000 : 2_000));
+      console.error(`[ORS batch] ${lastErr} (tentative ${attempt + 1}/3)`);
+      if (attempt < 2) await new Promise(r => setTimeout(r, isTimeout ? 5_000 : 2_000));
     }
   }
-  return { geomMap: new Map(), errorMsg: lastErr ?? 'Erreur inconnue' };
+  return { byPoi: new Map(), errorMsg: lastErr ?? 'Erreur inconnue' };
 }
 
 interface RingEntry {
@@ -312,50 +329,60 @@ export async function POST(req: NextRequest) {
           })) });
         }
 
-        // ── 4. ORS avec sémaphore (4 slots, libérés immédiatement) ──────────
-        const poiEntries     = [...poisWithMisses.values()];
-        const newCacheRows:  object[] = [];   // batch write en fin
-        const sem            = makeSemaphore(ORS_CONCURRENCY);
-        let orsCompleted = 0, orsOk = 0, orsErr = 0;
+        // ── 4. ORS — batches de ORS_BATCH_SIZE POIs ───────────────────────
+        // 40 POIs → 8 appels ORS (batch=5) au lieu de 40 individuels
+        // Chaque batch : 1 appel ORS avec N locations, N paliers → N×M features
+        const poiEntries  = [...poisWithMisses.values()];
+        const batches: PoiMissEntry[][] = [];
+        for (let i = 0; i < poiEntries.length; i += ORS_BATCH_SIZE)
+          batches.push(poiEntries.slice(i, i + ORS_BATCH_SIZE));
+
+        const newCacheRows: object[] = [];
+        const batchSem    = makeSemaphore(ORS_CONCURRENCY);
+        let poisCompleted = 0, orsOk = 0, orsErr = 0;
         let firstOrsErr: string | null = null;
 
-        const processPoiORS = async (entry: PoiMissEntry) => {
-          const { poi, missingLevels, cacheKeys } = entry;
-          const sortedLevels = [...missingLevels].sort((a, b) => a - b);
+        const processBatch = async (batch: PoiMissEntry[]) => {
+          // Union des paliers manquants pour tous les POIs du batch
+          const levelSet = new Set<number>();
+          for (const e of batch) e.missingLevels.forEach(l => levelSet.add(l));
+          const batchLevels = [...levelSet].sort((a, b) => a - b);
 
-          const { geomMap, errorMsg } = await callORSMulti([poi.lng, poi.lat], sortedLevels, normalizedMode, apiKey);
+          const { byPoi, errorMsg } = await callORSBatch(batch, batchLevels, normalizedMode, apiKey);
           if (errorMsg && !firstOrsErr) firstOrsErr = errorMsg;
 
           const newRings: object[] = [];
-          for (const level of sortedLevels) {
-            const geom = geomMap.get(level);
-            const ck   = cacheKeys.get(level)!;
-            if (geom) {
-              rings.push({ cirfa_id: poi.id, nom: poi.nom, lat: poi.lat, lng: poi.lng, palier: level, geojson: geom });
-              orsOk++;
-              // Accumule pour batch write en fin (remplace N fire-and-forget individuels)
-              newCacheRows.push({
-                cache_key: ck, ville: '_battle_', categorie: category,
-                minutes: level, mode: normalizedMode,
-                geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] },
-                poi_count: 1, created_at: new Date().toISOString(),
-              });
-              newRings.push({ cirfa_id: poi.id, nom: poi.nom, lat: poi.lat, lng: poi.lng, palier: level, geojson: geom });
-            } else {
-              orsErr++;
+          for (const entry of batch) {
+            const levelMap = byPoi.get(entry.poi.id) ?? new Map<number, object>();
+            for (const level of entry.missingLevels) {
+              const geom = levelMap.get(level);
+              const ck   = entry.cacheKeys.get(level)!;
+              if (geom) {
+                rings.push({ cirfa_id: entry.poi.id, nom: entry.poi.nom, lat: entry.poi.lat, lng: entry.poi.lng, palier: level, geojson: geom });
+                orsOk++;
+                newCacheRows.push({
+                  cache_key: ck, ville: '_battle_', categorie: category,
+                  minutes: level, mode: normalizedMode,
+                  geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] },
+                  poi_count: 1, created_at: new Date().toISOString(),
+                });
+                newRings.push({ cirfa_id: entry.poi.id, nom: entry.poi.nom, lat: entry.poi.lat, lng: entry.poi.lng, palier: level, geojson: geom });
+              } else {
+                orsErr++;
+              }
             }
+            poisCompleted++;
           }
-          orsCompleted++;
           if (newRings.length > 0) send({ type: 'partial_rings', rings: newRings });
-          send({ type: 'progress', completed: orsCompleted, total: poiEntries.length, ok: orsOk, err: orsErr });
+          send({ type: 'progress', completed: poisCompleted, total: poiEntries.length, ok: orsOk, err: orsErr });
         };
 
-        // Tous les POIs en parallèle, limités par le sémaphore
+        // Batches en parallèle, limités par le sémaphore
         await Promise.all(
-          poiEntries.map(async entry => {
-            await sem.acquire();
-            try   { await processPoiORS(entry); }
-            finally { sem.release(); }
+          batches.map(async batch => {
+            await batchSem.acquire();
+            try   { await processBatch(batch); }
+            finally { batchSem.release(); }
           }),
         );
 
