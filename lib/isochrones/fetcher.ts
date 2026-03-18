@@ -128,7 +128,7 @@ export async function fetchIsochrones(
             method: 'POST',
             signal: controller.signal,
             headers: {
-              'Authorization':  apiKey,
+              'Authorization':  `Bearer ${apiKey}`,
               'Content-Type':   'application/json',
               'Accept':         'application/geo+json',
             },

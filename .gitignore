@@ -32,3 +32,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Large data files
+public/data/
+*.pmtiles
+*.mbtiles
+*.mbtiles.temp.db

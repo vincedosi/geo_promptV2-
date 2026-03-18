@@ -59,6 +59,9 @@ export interface SynergyMeta {
 
 export interface ZoneData {
   ville: string;
+  region?: string | null;
+  departement?: string | null;
+  categorie_poi?: string | null;
   rayon_metres: number | null;
   rayon_poi_metres: number | null;
   coordonnees: { lat: number; lng: number };

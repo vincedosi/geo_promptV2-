@@ -120,7 +120,7 @@ export async function processRows(
   rawRows: Record<string, string | null>[],
   mapping: FieldMapping,
   geoConfig: GeoConfig,
-  dataType: 'panneaux' | 'poi',
+  dataType: 'panneaux' | 'poi' | 'carreaux',
   options: {
     category?: string;
     regie?: string;

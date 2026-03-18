@@ -16,7 +16,7 @@ export interface ParseResult {
   success: boolean;
   fileName: string;
   fileSize: number;
-  format: 'csv' | 'xlsx' | 'geojson';
+  format: 'csv' | 'xlsx' | 'geojson' | 'shapefile';
   encoding: string;
   separator: string;
   totalRows: number;

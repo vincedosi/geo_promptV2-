@@ -5,20 +5,46 @@ import { hasDatagouvKeywords, loadDatagouvTools, DATAGOUV_SYSTEM_ADDENDUM } from
 import { createModel, getMaxRetries, type Provider } from '@/lib/chat/providers';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { buildTools } from '@/lib/chat/tools';
+import { trimHistory } from '@/lib/chat/trim-history';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
 
-// ── Rate limiter in-memory (12 req/min/IP) ────────────────────────────────────
-const RL_MAP = new Map<string, { count: number; resetAt: number }>();
-const RL_MAX = 12;
-const RL_WINDOW_MS = 60_000;
+// ── Rate limiter : Upstash Redis (prod multi-instance) ou in-memory (dev) ─────
+// Pour activer Upstash : ajouter UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN dans .env.local
+// Sans ces vars → fallback in-memory (fonctionne en dev, pas sur Vercel multi-instance)
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 
-function checkRateLimit(ip: string): { ok: boolean; retrySec: number } {
+const RL_MAX    = 12;
+const RL_WINDOW = '60 s' as const;
+
+// Upstash sliding window — partagé entre toutes les instances Vercel
+const upstashRatelimit = (
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+) ? new Ratelimit({
+  redis: new Redis({
+    url:   process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  }),
+  limiter:   Ratelimit.slidingWindow(RL_MAX, RL_WINDOW),
+  prefix:    'geo:rl',
+  analytics: false,
+}) : null;
+
+// Fallback in-memory (dev local sans Upstash configuré)
+const RL_MAP: Map<string, { count: number; resetAt: number }> = new Map();
+
+async function checkRateLimit(ip: string): Promise<{ ok: boolean; retrySec: number }> {
+  if (upstashRatelimit) {
+    const { success, reset } = await upstashRatelimit.limit(ip);
+    return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
+  }
+  // Fallback in-memory
   const now = Date.now();
   const e   = RL_MAP.get(ip);
   if (!e || now >= e.resetAt) {
-    RL_MAP.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    RL_MAP.set(ip, { count: 1, resetAt: now + 60_000 });
     return { ok: true, retrySec: 0 };
   }
   if (e.count >= RL_MAX) {
@@ -46,71 +72,7 @@ function extractLastUserText(messages: any[]): string {
   return typeof content === 'string' ? content : '';
 }
 
-// ── Trim historique : limite à 8 messages et strip les gros champs des tool results anciens ──
-// pois[], isochroneGeoJSON, voronoiGeoJSON.features, poisForMap.pois peuvent peser 50k+ tokens.
-function stripHeavyFields(result: any): any {
-  if (!result || typeof result !== 'object') return result;
-  let r = result;
-
-  // Strip pois[]
-  if (Array.isArray(r.pois)) {
-    const { pois, ...rest } = r;
-    r = { ...rest, pois: [], nb_pois: pois.length, _stripped: true };
-  }
-
-  // Strip isochroneGeoJSON (polygones ORS — très volumineux)
-  if (r.isochroneGeoJSON && typeof r.isochroneGeoJSON === 'object') {
-    const nb = Array.isArray(r.isochroneGeoJSON.features) ? r.isochroneGeoJSON.features.length : 1;
-    r = { ...r, isochroneGeoJSON: { _stripped: true, nb_features: nb } };
-  }
-
-  // Strip voronoiGeoJSON.features
-  if (r.voronoiGeoJSON && Array.isArray(r.voronoiGeoJSON.features)) {
-    const nb = r.voronoiGeoJSON.features.length;
-    r = { ...r, voronoiGeoJSON: { ...r.voronoiGeoJSON, features: [], nb_features: nb, _stripped: true } };
-  }
-
-  // Strip poisForMap.pois (voronoi_analysis)
-  if (r.poisForMap && Array.isArray(r.poisForMap.pois)) {
-    const nb = r.poisForMap.pois.length;
-    r = { ...r, poisForMap: { ...r.poisForMap, pois: [], nb_pois: nb, _stripped: true } };
-  }
-
-  // Strip isochrone_battle features[]
-  if (Array.isArray(r.features) && r.features.length > 0 && r.features[0]?.geometry) {
-    r = { ...r, features: [], nb_features: r.features.length, _stripped: true };
-  }
-
-  return r;
-}
-
-function trimHistory(messages: any[]): any[] {
-  const MAX_MESSAGES = 8;
-  const recent = messages.slice(-MAX_MESSAGES);
-
-  // Dans les messages non-récents (tout sauf le dernier échange), strip les gros champs
-  return recent.map((msg: any, idx: number) => {
-    const isLast = idx >= recent.length - 2; // garde les 2 derniers messages intacts
-    if (isLast) return msg;
-
-    const parts = msg.parts ?? msg.content;
-    if (!Array.isArray(parts)) return msg;
-
-    const strippedParts = parts.map((part: any) => {
-      if (part.type !== 'tool-result' && part.type !== 'tool_result') return part;
-      const result = part.result ?? part.output;
-      if (!result || typeof result !== 'object') return part;
-      const stripped = stripHeavyFields(result);
-      return {
-        ...part,
-        result: stripped,
-        output: part.output ? stripped : undefined,
-      };
-    });
-
-    return { ...msg, parts: strippedParts };
-  });
-}
+// trimHistory et stripHeavyFields → lib/chat/trim-history.ts (testable)
 
 // =============================================================================
 // POST /api/chat — streamText (Vercel AI SDK v6)
@@ -118,7 +80,7 @@ function trimHistory(messages: any[]): any[] {
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'anon';
-  const rl  = checkRateLimit(ip);
+  const rl  = await checkRateLimit(ip);
   if (!rl.ok) {
     return new Response(
       JSON.stringify({ error: `RATE_LIMIT:${rl.retrySec}` }),
@@ -167,7 +129,7 @@ export async function POST(request: NextRequest) {
         google: { thinkingConfig: { thinkingBudget: 0 } },
       } : undefined,
       onFinish: ({ usage }) => {
-        console.log(`[chat] tokens — input:${usage.promptTokens} output:${usage.completionTokens} total:${usage.totalTokens}`);
+        console.log(`[chat] tokens — input:${usage.inputTokens} output:${usage.outputTokens} total:${usage.totalTokens}`);
       },
     });
 

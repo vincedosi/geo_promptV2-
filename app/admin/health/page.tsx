@@ -470,7 +470,7 @@ export default function HealthPage() {
                       <tr
                         key={table.table_name}
                         style={{
-                          borderBottom: idx < health.database.tables.length - 1 ? `1px solid ${C.border}` : 'none',
+                          borderBottom: idx < (health.database?.tables.length ?? 0) - 1 ? `1px solid ${C.border}` : 'none',
                           background: idx % 2 === 0 ? 'transparent' : C.bgSurface,
                         }}
                       >

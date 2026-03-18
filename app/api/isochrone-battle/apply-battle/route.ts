@@ -35,30 +35,15 @@ export async function POST(req: NextRequest) {
       try {
         const supabase = createAdminClient();
 
-        // ── 1. Clip aux frontières françaises ──────────────────────────────
-        emit({ type: 'progress', step: 'clip', message: `Clip France (${rings.length} anneaux)…` });
-
-        let clippedRings = rings;
-        const { data: clipped, error: clipErr } = await supabase.rpc(
-          'clip_rings_to_france',
-          { p_rings: rings }
-        );
-        if (clipErr) {
-          console.warn('[apply-battle] clip_rings_to_france error (fallback brut):', clipErr.message);
-          emit({ type: 'progress', step: 'clip_warn', message: `Clip ignoré (${clipErr.message.slice(0, 60)}) — utilisation brute` });
-        } else if (Array.isArray(clipped) && clipped.length > 0) {
-          clippedRings = clipped as typeof rings;
-          console.log(`[apply-battle] Clip France → ${clippedRings.length}/${rings.length} rings retenus`);
-          emit({ type: 'progress', step: 'clip_done', message: `${clippedRings.length}/${rings.length} anneaux retenus` });
-        }
-
-        // ── 2. ST_Difference via get_isochrone_battle ──────────────────────
-        emit({ type: 'progress', step: 'battle', message: `ST_Difference PostGIS (${clippedRings.length} anneaux)…` });
-        console.log(`[apply-battle] get_isochrone_battle → ${clippedRings.length} rings…`);
+        // ── 1. ST_Difference via get_isochrone_battle ──────────────────────
+        // Note: clip_rings_to_france (france_boundary) ne couvre pas correctement Lille/Nord
+        // → get_isochrone_battle effectue son propre clip via france_borders (correct)
+        emit({ type: 'progress', step: 'battle', message: `ST_Difference PostGIS (${rings.length} anneaux)…` });
+        console.log(`[apply-battle] get_isochrone_battle → ${rings.length} rings…`);
 
         const { data: battleRows, error: rpcErr } = await supabase.rpc(
           'get_isochrone_battle',
-          { p_rings: clippedRings }
+          { p_rings: rings }
         );
 
         if (rpcErr) {

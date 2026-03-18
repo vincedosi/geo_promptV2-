@@ -105,10 +105,10 @@ async function callORSBatch(
   const profile   = ORS_PROFILES[mode] ?? 'driving-car';
   const locations = entries.map(e => [e.poi.lng, e.poi.lat] as [number, number]);
   const ranges    = levels.map(l => l * 60);
-  const TIMEOUT   = 45_000;  // batches avec gros isochrones (180min) peuvent être lents
+  const TIMEOUT   = 60_000;  // 60s — ORS free tier peut être lent sur gros isochrones
   let   lastErr: string | null = null;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const ctrl  = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
     try {
@@ -117,7 +117,7 @@ async function callORSBatch(
         {
           method:  'POST',
           signal:  ctrl.signal,
-          headers: { Authorization: apiKey, 'Content-Type': 'application/json', Accept: 'application/geo+json' },
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/geo+json' },
           body:    JSON.stringify({ locations, range: ranges, range_type: 'time' }),
         },
       );
@@ -352,27 +352,45 @@ export async function POST(req: NextRequest) {
           const { byPoi, errorMsg } = await callORSBatch(batch, batchLevels, normalizedMode, apiKey);
           if (errorMsg && !firstOrsErr) firstOrsErr = errorMsg;
 
-          const newRings: object[] = [];
+          // Collecter d'abord toutes les géométries brutes du batch
+          type RawRing = { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: object; ck: string };
+          const rawNewRings: RawRing[] = [];
           for (const entry of batch) {
             const levelMap = byPoi.get(entry.poi.id) ?? new Map<number, object>();
             for (const level of entry.missingLevels) {
               const geom = levelMap.get(level);
               const ck   = entry.cacheKeys.get(level)!;
               if (geom) {
-                rings.push({ cirfa_id: entry.poi.id, nom: entry.poi.nom, lat: entry.poi.lat, lng: entry.poi.lng, palier: level, geojson: geom });
-                orsOk++;
-                newCacheRows.push({
-                  cache_key: ck, ville: '_battle_', categorie: category,
-                  minutes: level, mode: normalizedMode,
-                  geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] },
-                  poi_count: 1, created_at: new Date().toISOString(),
-                });
-                newRings.push({ cirfa_id: entry.poi.id, nom: entry.poi.nom, lat: entry.poi.lat, lng: entry.poi.lng, palier: level, geojson: geom });
+                rawNewRings.push({ cirfa_id: entry.poi.id, nom: entry.poi.nom, lat: entry.poi.lat, lng: entry.poi.lng, palier: level, geojson: geom, ck });
               } else {
                 orsErr++;
               }
             }
             poisCompleted++;
+          }
+
+          // Clipper tous les rings du batch à la France en 1 appel PostGIS
+          const newRings: object[] = [];
+          if (rawNewRings.length > 0) {
+            const fc = { type: 'FeatureCollection', features: rawNewRings.map((r, i) => ({ type: 'Feature', geometry: r.geojson, properties: { _idx: i } })) };
+            const { data: clipped } = await supabase.rpc('clip_geojson_to_france', { p_fc: fc }).single();
+            const clippedFeatures: any[] = (clipped as any)?.features ?? fc.features; // fallback si RPC échoue
+
+            for (const feat of clippedFeatures) {
+              const idx = feat?.properties?._idx ?? clippedFeatures.indexOf(feat);
+              const raw = rawNewRings[idx];
+              if (!raw || !feat?.geometry) continue;
+              const geom = feat.geometry;
+              rings.push({ cirfa_id: raw.cirfa_id, nom: raw.nom, lat: raw.lat, lng: raw.lng, palier: raw.palier, geojson: geom });
+              orsOk++;
+              newCacheRows.push({
+                cache_key: raw.ck, ville: '_battle_', categorie: category,
+                minutes: raw.palier, mode: normalizedMode,
+                geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] },
+                poi_count: 1, created_at: new Date().toISOString(),
+              });
+              newRings.push({ cirfa_id: raw.cirfa_id, nom: raw.nom, lat: raw.lat, lng: raw.lng, palier: raw.palier, geojson: geom });
+            }
           }
           if (newRings.length > 0) send({ type: 'partial_rings', rings: newRings });
           send({ type: 'progress', completed: poisCompleted, total: poiEntries.length, ok: orsOk, err: orsErr });

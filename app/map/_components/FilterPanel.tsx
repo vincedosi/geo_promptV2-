@@ -31,7 +31,6 @@ const fOrbitron = "'Orbitron',sans-serif";
 // ─── Données géographiques ─────────────────────────────────────────────────────
 import {
   REGIONS_ADMIN as REGIONS, ALL_DEPTS,
-  AUDIENCE_METRICS,
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
 
@@ -58,20 +57,26 @@ export interface DirectBattleParams {
   force_recalculate?: boolean;
 }
 
+export interface DirectBattleV2Params {
+  category: string;
+  mode: string;
+  filtre_ville?: string;
+  filtre_regions?: string[];
+  metropolitaine: boolean;
+  paliers: number[];
+  force_battle?: boolean;
+}
+
 
 export interface FilterPanelProps {
   sendMessage: (text: string) => void;
-  onDirectSearch:  (params: DirectPOISearchParams) => Promise<void>;
-  onDirectBattle:  (params: DirectBattleParams, onProgress?: (msg: string) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
-  onApplyBattle:   (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[], onProgress?: (msg: string, pct: number) => void) => Promise<void>;
+  onDirectSearch:   (params: DirectPOISearchParams) => Promise<void>;
+  onDirectBattle:   (params: DirectBattleParams, onProgress?: (msg: string, pct?: number) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
+  onDirectBattleV2: (params: DirectBattleV2Params, onProgress?: (msg: string) => void) => Promise<void>;
+  onApplyBattle:    (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[], onProgress?: (msg: string, pct: number) => void) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   zoneData: ZoneData | null;
-  loadCarreauxFromAI: (cd: import('@/types/spatial').CarreauxData) => Promise<void>;
-  carreauxVisible: boolean;
-  carreauxLoaded: boolean;
-  carreauxLabel: string;
-  setCarreauxVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   voronoiVisible: boolean;
   setVoronoiVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleVisible: boolean;
@@ -189,10 +194,10 @@ function MultiDropdown({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function FilterPanel({
-  sendMessage, onDirectSearch, onDirectBattle, onApplyBattle, isLoading, error, zoneData, loadCarreauxFromAI,
-  carreauxVisible, carreauxLoaded, carreauxLabel, setCarreauxVisible,
+  sendMessage, onDirectSearch, onDirectBattle, onDirectBattleV2, onApplyBattle, isLoading, error, zoneData,
   voronoiVisible, setVoronoiVisible,
   battleVisible, setBattleVisible,
+  battleOuterFillVisible, setBattleOuterFillVisible,
   isochroneVisible, setIsochroneVisible,
   setShowSavePanel,
   coverageSummary,
@@ -225,17 +230,18 @@ export function FilterPanel({
   const [codePostal,      setCodePostal]      = useState('');
 
   // ── Audience state ────────────────────────────────────────────────────────
-  const [audienceActive, setAudienceActive] = useState(false);
-  const [audienceMetric, setAudienceMetric] = useState('ind_18_24');
-  const [resolution,     setResolution]     = useState<'200m' | '1km'>('200m');
 
   // ── Analyses state ────────────────────────────────────────────────────────
   const [selectedPOI,   setSelectedPOI]   = useState<string[]>([]);
   const [poisRayon,     setPoisRayon]     = useState<string | null>(null);
   const [showVoronoi,      setShowVoronoi]      = useState(false);
   const [showBattle,       setShowBattle]       = useState(false);
+  const [showBattleV2,     setShowBattleV2]     = useState(false);
   const [transportMode,    setTransportMode]    = useState('drive');
   const [isoDurations,     setIsoDurations]     = useState<number[]>([10, 30]);
+  const [battleV2Paliers,  setBattleV2Paliers]  = useState<number[]>([10, 20, 30, 40, 50, 60, 90]);
+  const [battleV2Loading,  setBattleV2Loading]  = useState(false);
+  const [battleV2Log,      setBattleV2Log]      = useState<string[]>([]);
 
   // ── Geographic cascade ────────────────────────────────────────────────────
   const availableDepts = useMemo(() =>
@@ -289,15 +295,6 @@ export function FilterPanel({
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
 
-  const handleAudienceApply = () => {
-    const metric = AUDIENCE_METRICS.find(m => m.id === audienceMetric);
-    const label  = metric?.label ?? audienceMetric;
-    if (zoneData?.coordonnees) {
-      loadCarreauxFromAI({ action: 'afficher_carreaux', indicateur: audienceMetric, indicateur_label: label, coordonnees: zoneData.coordonnees, resolution });
-    } else {
-      send(`Montre les ${label} ${territoire}${resolution === '1km' ? ' en résolution 1km' : ''}`);
-    }
-  };
 
   const [searchLoading,    setSearchLoading]    = useState(false);
   const [battleLoading,    setBattleLoading]    = useState(false);
@@ -308,6 +305,9 @@ export function FilterPanel({
   const [battleRings,        setBattleRings]        = useState<{ cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[]>([]);
   const [battleApplyLoading, setBattleApplyLoading] = useState(false);
   const [battleApplyPct,     setBattleApplyPct]     = useState(0);
+  const [battleProgress,     setBattleProgress]     = useState(0);
+  const [battleTotal,        setBattleTotal]        = useState(0);
+  const [battleCompleted,    setBattleCompleted]    = useState(0);
   const battleTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleStartRef   = useRef<number>(0);
 
@@ -355,6 +355,9 @@ export function FilterPanel({
       ?? (selectedDepts.length > 0 ? `${selectedDepts.length} dept(s)` : null)
       ?? (selectedRegions.length > 0 ? selectedRegions.map(id => REGIONS.find(r => r.id === id)?.nom ?? id).join(' + ') : null)
       ?? 'France métropolitaine';
+    setBattleProgress(0);
+    setBattleTotal(0);
+    setBattleCompleted(0);
     setBattleLog([
       `> catégorie : ${params.category}`,
       `> mode : ${params.mode} | max : ${maxMin} min`,
@@ -385,9 +388,13 @@ export function FilterPanel({
       });
     }, 1000);
     try {
-      const { geometry: mergedGeometry, nb_pois, poiGroups, battleRings: rings } = await onDirectBattle(params, (msg: string) => {
+      const { geometry: mergedGeometry, nb_pois, poiGroups, battleRings: rings } = await onDirectBattle(params, (msg: string, pct?: number) => {
+        if (pct !== undefined) setBattleProgress(pct);
+        // Extraire completed/total depuis le message "X/Y POIs"
+        const m = msg.match(/(\d+)\/(\d+) POIs/);
+        if (m) { setBattleCompleted(Number(m[1])); setBattleTotal(Number(m[2])); }
+        else if (msg.includes('POIs trouvés')) { const t = msg.match(/(\d+) POIs/); if (t) setBattleTotal(Number(t[1])); }
         setBattleLog(prev => {
-          // Remplacer la dernière ligne de progression en-place, sinon ajouter
           for (let i = prev.length - 1; i >= 0; i--) {
             if (prev[i].includes('POIs traités') || prev[i].includes('POIs trouvés')) {
               return [...prev.slice(0, i), msg, ...prev.slice(i + 1)];
@@ -397,6 +404,7 @@ export function FilterPanel({
         });
       });
       const elapsed = ((Date.now() - battleStartRef.current) / 1000).toFixed(1);
+      setBattleProgress(100);
       setBattleLog(prev => [...prev, `> ✓ ${nb_pois} POIs — isochrones affichés (${elapsed}s)`]);
       setBattleGeometry(mergedGeometry);
       setBattleMeta({ categorie: params.category, mode: params.mode });
@@ -408,6 +416,36 @@ export function FilterPanel({
     } finally {
       if (battleTimerRef.current) { clearInterval(battleTimerRef.current); battleTimerRef.current = null; }
       setBattleLoading(false);
+    }
+  };
+
+  const handleBattleV2 = async (force = false) => {
+    if (!exactlyOnePOI || battleV2Paliers.length === 0 || battleV2Loading) return;
+    setBattleV2Loading(true);
+    setBattleV2Log([
+      `> catégorie : ${selectedPOI[0]}`,
+      `> mode : ${transportMode} | paliers : ${battleV2Paliers.join(', ')} min`,
+      `> lecture cache isochrones...`,
+    ]);
+    try {
+      await onDirectBattleV2(
+        {
+          category:        selectedPOI[0],
+          mode:            transportMode,
+          filtre_ville:    ville || undefined,
+          filtre_regions:  (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+                             ? selectedRegions : undefined,
+          metropolitaine:  !selectedRegions.includes('dom'),
+          paliers:         [...battleV2Paliers].sort((a, b) => a - b),
+          force_battle:    force,
+        },
+        (msg: string) => setBattleV2Log(prev => [...prev, msg]),
+      );
+      setBattleV2Log(prev => [...prev, '> ✓ Bataille v2 affichée sur la carte']);
+    } catch (e: any) {
+      setBattleV2Log(prev => [...prev, `> ✕ ${e.message ?? 'Erreur inconnue'}`]);
+    } finally {
+      setBattleV2Loading(false);
     }
   };
 
@@ -447,7 +485,7 @@ export function FilterPanel({
   // ── Tab config ────────────────────────────────────────────────────────────
   const TABS: { id: Tab; label: string; shortLabel: string; color: string; badge?: number }[] = [
     { id: 'territoire', label: 'TERRITOIRE', shortLabel: 'ZONE',     color: C.green,  badge: hasTerritoire ? 1 : 0 },
-    { id: 'audience',   label: 'AUDIENCE',   shortLabel: 'DATA',     color: C.amber,  badge: audienceActive ? 1 : 0 },
+    { id: 'audience',   label: 'AUDIENCE',   shortLabel: 'DATA',     color: C.amber,  badge: 0 },
     { id: 'analyses',   label: 'ANALYSES',   shortLabel: 'POI',      color: C.accent, badge: selectedPOI.length },
   ];
 
@@ -629,110 +667,20 @@ export function FilterPanel({
         )}
 
         {/* ════════════════════════════════════════
-            ONGLET 2 — AUDIENCE
+            ONGLET 2 — AUDIENCE (PMTiles)
         ════════════════════════════════════════ */}
         {activeTab === 'audience' && (
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            {/* Toggle population */}
-            <button
-              onClick={() => setAudienceActive(a => !a)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-                padding: '11px 13px', cursor: 'pointer',
-                background: audienceActive ? C.amberDim : C.bgInput,
-                border: `1px solid ${audienceActive ? C.amber : C.border}`, borderRadius: 2,
-                transition: 'all 0.2s',
-              }}
-            >
-              {/* Toggle switch */}
-              <div style={{ width: 32, height: 17, borderRadius: 9, background: audienceActive ? C.amber : C.muted, position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
-                <div style={{ position: 'absolute', top: 2.5, borderRadius: '50%', width: 12, height: 12, background: '#fff', left: audienceActive ? 17 : 3, transition: 'left 0.2s' }} />
+            <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 2 }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.12em', marginBottom: 8 }}>
+                CARREAUX INSEE — PMTiles
               </div>
-              <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.1em', color: audienceActive ? C.amber : C.textDim }}>
-                  POPULATION (CARREAUX INSEE)
-                </div>
-                <div style={{ fontFamily: fMono, fontSize: 10, color: C.muted, marginTop: 2 }}>
-                  Grille Filosofi — 200m / 1km
-                </div>
+              <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, lineHeight: 1.7 }}>
+                La couche démographique (Filosofi 2019) est disponible directement sur la carte.<br /><br />
+                <span style={{ color: C.text }}>Bouton</span> <span style={{ color: C.accent }}>[Carreaux]</span> en haut à droite pour afficher/masquer.<br />
+                <span style={{ color: C.text }}>Sélecteur d&apos;indicateur</span> : population, âge, ménages, revenus, logements.
               </div>
-            </button>
-
-            {/* Options (visible when active) */}
-            {audienceActive && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                {/* Résolution */}
-                <div>
-                  <div style={labelStyle}>RESOLUTION DE LA GRILLE</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {(['200m', '1km'] as const).map(r => (
-                      <button key={r} style={{ ...pill(resolution === r, C.amber), flex: 1, textAlign: 'center' }} onClick={() => setResolution(r)}>
-                        {r === '200m' ? '200m — Precis' : '1km — Large'}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 5, fontStyle: 'italic' }}>
-                    {resolution === '200m' ? 'Ideal zones urbaines denses' : 'Ideal zones rurales / regionales'}
-                  </div>
-                </div>
-
-                <div style={{ height: 1, background: C.border }} />
-
-                {/* Métrique */}
-                <div>
-                  <div style={labelStyle}>METRIQUE DEMOGRAPHIQUE</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {AUDIENCE_METRICS.map(m => (
-                      <button key={m.id}
-                        onClick={() => setAudienceMetric(m.id)}
-                        style={{
-                          width: '100%', textAlign: 'left', padding: '8px 11px',
-                          background: audienceMetric === m.id ? C.amberDim : 'none',
-                          border: `1px solid ${audienceMetric === m.id ? C.amber : C.border}`,
-                          borderRadius: 2, cursor: 'pointer', fontFamily: fMono, fontSize: 11,
-                          color: audienceMetric === m.id ? C.amber : C.textDim,
-                          display: 'flex', alignItems: 'center', gap: 9, transition: 'all 0.12s',
-                        }}
-                      >
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: audienceMetric === m.id ? C.amber : C.muted, flexShrink: 0, transition: 'background 0.15s' }} />
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Apply button */}
-                <button style={primaryBtn(C.amber, isLoading)} disabled={isLoading} onClick={handleAudienceApply}>
-                  {isLoading ? 'CHARGEMENT...' : 'AFFICHER LA COUCHE'}
-                </button>
-
-                {carreauxLoaded && (
-                  <button
-                    style={pill(carreauxVisible, C.amber)}
-                    onClick={() => setCarreauxVisible(v => !v)}
-                  >
-                    {carreauxVisible ? '✓ Couche visible' : 'Couche masquee'} — {carreauxLabel}
-                  </button>
-                )}
-
-                {!hasTerritoire && (
-                  <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                    Sans territoire — centré sur la derniere zone visitée
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!audienceActive && (
-              <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 2 }}>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.12em', marginBottom: 6 }}>A PROPOS DE CETTE COUCHE</div>
-                <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
-                  Superpose une grille de carreaux 200m ou 1km colorée par densité demographique (source INSEE Filosofi 2021) sur la carte.
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -866,11 +814,92 @@ export function FilterPanel({
                     </div>
                   )}
 
+                  {/* Bataille V2 — cache only */}
+                  <button
+                    style={primaryBtn('#22d3ee', battleV2Loading)}
+                    disabled={battleV2Loading}
+                    onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
+                  >
+                    {battleVisible ? '✓ ' : ''}{showBattleV2 ? '▲ ' : '▼ '}BATAILLE V2 (MULTI-PALIERS)
+                  </button>
+                  {showBattleV2 && (
+                    <div style={{ padding: '13px', background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.2)', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ fontFamily: fMono, fontSize: 10, color: '#67e8f9', lineHeight: 1.5 }}>
+                        Lit le cache existant — <span style={{ color: '#fff' }}>aucun appel ORS</span>. Paliers manquants skippés.
+                        Lance d'abord les isochrones v1 pour remplir le cache.
+                      </div>
+
+                      {/* Sélection des paliers */}
+                      <div>
+                        <div style={{ ...labelStyle, color: '#22d3ee' }}>
+                          PALIERS — {battleV2Paliers.join(', ')} min
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {[10, 20, 30, 40, 50, 60, 90].map(p => (
+                            <button
+                              key={p}
+                              style={pill(battleV2Paliers.includes(p), '#22d3ee')}
+                              onClick={() => setBattleV2Paliers(prev =>
+                                prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p].sort((a, b) => a - b)
+                              )}
+                            >
+                              {p} min
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Boutons lancer */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading)}
+                          disabled={battleV2Paliers.length === 0 || battleV2Loading}
+                          onClick={() => handleBattleV2(false)}
+                        >
+                          {battleV2Loading ? 'CALCUL...' : 'LANCER (CACHE)'}
+                        </button>
+                        <button
+                          style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading)}
+                          disabled={battleV2Paliers.length === 0 || battleV2Loading}
+                          onClick={() => handleBattleV2(true)}
+                        >
+                          FORCER
+                        </button>
+                      </div>
+
+                      {/* Log */}
+                      {battleV2Log.length > 0 && (
+                        <div style={{
+                          background: '#020205', border: '1px solid rgba(34,211,238,0.2)',
+                          borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
+                          color: '#9ca3af', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
+                          display: 'flex', flexDirection: 'column', gap: 1,
+                        }}>
+                          {battleV2Log.map((line, i) => (
+                            <div key={i} style={{
+                              color: line.startsWith('> ✓') ? '#22d3ee'
+                                   : line.startsWith('> ✕') ? C.red
+                                   : line.startsWith('> !') ? C.amber
+                                   : '#9ca3af',
+                            }}>{line}</div>
+                          ))}
+                          {battleV2Loading && <div style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
+                        </div>
+                      )}
+
+                      {battleVisible && (
+                        <button style={pill(false, '#22d3ee')} onClick={() => { setBattleVisible(false); setBattleV2Log([]); }}>
+                          Masquer
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* Isochrones Routiers */}
                   <button
                     style={primaryBtn(C.red, battleLoading)}
                     disabled={battleLoading}
-                    onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); }}
+                    onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
                   >
                     {battleVisible ? '✓ ' : ''}{showBattle ? '▲ ' : '▼ '}ISOCHRONES ROUTIERS (ORS)
                   </button>
@@ -913,31 +942,63 @@ export function FilterPanel({
                       </div>
 
                       {battleLog.length > 0 && (
-                        <div style={{
-                          background: '#020205', border: `1px solid rgba(248,113,113,0.25)`,
-                          borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
-                          color: '#9ca3af', lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
-                          display: 'flex', flexDirection: 'column', gap: 1,
-                        }}>
-                          {battleLog.map((line, i) => (
-                            <div key={i} style={{
-                              color: line.startsWith('> ✓') ? C.green
-                                   : line.startsWith('> ✕') ? C.red
-                                   : line.startsWith('> !') ? C.amber
-                                   : line.includes('[3/3]') ? C.green
-                                   : '#9ca3af',
-                            }}>{line}</div>
-                          ))}
-                          {battleLoading && (
-                            <div style={{ color: C.red, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {/* ── Barre de progression ── */}
+                          {battleLoading && battleTotal > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
+                                <span style={{ color: battleProgress === 100 ? C.green : C.amber }}>
+                                  {battleProgress === 100 ? '✓ TERMINÉ' : `ORS — ${battleCompleted}/${battleTotal} POIs`}
+                                </span>
+                                <span style={{ color: battleProgress > 0 ? C.green : C.muted }}>{battleProgress}%</span>
+                              </div>
+                              <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden' }}>
+                                <div style={{
+                                  height: '100%',
+                                  width: `${battleProgress}%`,
+                                  background: battleProgress === 100 ? C.green : C.accent,
+                                  transition: 'width 0.4s ease',
+                                  borderRadius: 2,
+                                }} />
+                              </div>
+                            </div>
                           )}
+                          {/* ── Log terminal ── */}
+                          <div style={{
+                            background: '#020205', border: `1px solid rgba(248,113,113,0.25)`,
+                            borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
+                            color: '#9ca3af', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
+                            display: 'flex', flexDirection: 'column', gap: 1,
+                          }}>
+                            {battleLog.map((line, i) => (
+                              <div key={i} style={{
+                                color: line.startsWith('> ✓') ? C.green
+                                     : line.startsWith('> ✕') ? C.red
+                                     : line.startsWith('> !') ? C.amber
+                                     : line.includes('[3/3]') ? C.green
+                                     : '#9ca3af',
+                              }}>{line}</div>
+                            ))}
+                            {battleLoading && (
+                              <div style={{ color: C.red, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {battleVisible && (
-                        <button style={pill(false, C.red)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
-                          Masquer les isochrones
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button style={pill(false, C.red)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
+                            Masquer les isochrones
+                          </button>
+                          <button
+                            style={pill(battleOuterFillVisible, C.muted)}
+                            onClick={() => setBattleOuterFillVisible(!battleOuterFillVisible)}
+                            title="Afficher/masquer le remplissage Voronoï résiduel (zones hors portée)"
+                          >
+                            {battleOuterFillVisible ? 'Voronoï ✓' : 'Voronoï'}
+                          </button>
+                        </div>
                       )}
 
                       {/* ── Bouton BATAILLE (Phase 2 — ST_Difference) ────── */}

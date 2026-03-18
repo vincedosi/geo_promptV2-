@@ -50,7 +50,7 @@ export async function audienceCoverage(args: Record<string, unknown>) {
         method:  'POST',
         signal:  ctrl.signal,
         headers: {
-          'Authorization': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type':  'application/json',
           'Accept':        'application/json, application/geo+json',
         },
