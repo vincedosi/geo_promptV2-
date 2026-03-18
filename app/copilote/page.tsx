@@ -306,6 +306,8 @@ export default function CopilotePage() {
       />
       <MapPanel
         mapContainerRef={mapContainerRef}
+        mapRef={mapRef}
+        mapReady={mapReady}
         zoneData={zoneData}
         activeCats={activeCats}
         isochroneVisible={mapLayers.isochroneVisible}
@@ -327,10 +329,18 @@ export default function CopilotePage() {
         battleCategory={mapLayers.battleCategory}
         battleCirfas={mapLayers.battleCirfas}
         setBattleVisible={mapLayers.setBattleVisible}
+        battleMaxPalier={mapLayers.battleMaxPalier}
+        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
         carreauxVisible={mapLayers.carreauxVisible}
         carreauxLoaded={mapLayers.carreauxLoaded}
         carreauxLabel={mapLayers.carreauxLabel}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxOpacity={mapLayers.carreauxOpacity}
         setCarreauxVisible={mapLayers.setCarreauxVisible}
+        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+        setCarreauxPalette={mapLayers.setCarreauxPalette}
+        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
         selectedBillboard={selectedBillboard}
         closeBillboardDrawer={() => setSelectedBillboard(null)}
         mapStyleUrl={mapStyleUrl}

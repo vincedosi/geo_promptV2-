@@ -63,6 +63,7 @@ export function useMapInit(
       zoom: 5.5,
     });
 
+
     // Canvas overlay POI circles
     const overlay = document.createElement('canvas');
     overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1';
@@ -381,23 +382,31 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
-      // ── Carreaux ──────────────────────────────────────────────────────────
-      map.addSource('carreaux', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      // ── Carreaux MVT (Filosofi) ────────────────────────────────────────────
+      map.addSource('carreaux-mvt', {
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}`],
+        minzoom: 10,
+        maxzoom: 14,
+        attribution: 'INSEE, Filosofi 2019',
       });
-      map.addLayer({ id: 'carreaux-fill', type: 'fill', source: 'carreaux', paint: { 'fill-color': '#6baed6', 'fill-opacity': 0.35 }, layout: { visibility: 'none' } });
-      map.addLayer({ id: 'carreaux-line', type: 'line', source: 'carreaux', paint: { 'line-color': '#2171b5', 'line-width': 1, 'line-opacity': 0.6 }, layout: { visibility: 'none' } });
-
-      map.on('click', 'carreaux-fill', (e) => {
-        if (!e.features || e.features.length === 0) return;
-        const props = e.features[0].properties as Record<string, unknown>;
-        const commune = props.commune || props.libelle_iris || '—';
-        const pop = props.population ?? '—';
-        new maplibregl.Popup({ closeButton: true, maxWidth: '250px' })
-          .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.5;max-width:220px"><b style="color:#1e40af">${commune}</b><br/><span style="color:#64748b;font-size:11px">${props.libelle_iris || ''}</span><div style="margin-top:4px">Pop: <b>${typeof pop === 'number' ? pop.toLocaleString('fr-FR') : pop}</b></div>${props.departement ? `<span style="color:#94a3b8;font-size:11px">Dept. ${props.departement}</span>` : ''}</div>`)
-          .addTo(map);
+      map.addLayer({
+        id: 'carreaux-mvt-fill', type: 'fill',
+        source: 'carreaux-mvt', 'source-layer': 'carreaux',
+        minzoom: 10,
+        paint: { 'fill-color': '#FC9272', 'fill-opacity': 0.72 },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'carreaux-mvt-line', type: 'line',
+        source: 'carreaux-mvt', 'source-layer': 'carreaux',
+        minzoom: 10,
+        paint: {
+          'line-color': '#555',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.1, 12, 0.3, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': 0.35,
+        },
+        layout: { visibility: 'none' },
       });
 
       // ── Test ORS ──────────────────────────────────────────────────────────

@@ -1,5 +1,8 @@
+import React, { useState } from 'react';
 import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
+import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
+import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 
 interface SelectedBillboard {
   id: string;
@@ -15,6 +18,8 @@ interface SelectedBillboard {
 
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;
+  mapRef?: React.MutableRefObject<maplibregl.Map | null>;
+  mapReady?: boolean;
   zoneData: ZoneData | null;
   activeCats: string[];
   isochroneVisible: boolean;
@@ -36,10 +41,18 @@ interface MapPanelProps {
   battleCategory: string;
   battleCirfas: { id: string; nom: string; color: string }[];
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
+  battleMaxPalier: number;
+  setBattleMaxPalier: (v: number) => void;
   carreauxVisible: boolean;
   carreauxLoaded: boolean;
   carreauxLabel: string;
+  carreauxIndicateur: string;
+  carreauxPalette: string;
+  carreauxOpacity: number;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setCarreauxIndicateur: (v: string) => void;
+  setCarreauxPalette: (v: string) => void;
+  setCarreauxOpacity: (v: number) => void;
   selectedBillboard: SelectedBillboard | null;
   closeBillboardDrawer: () => void;
   mapStyleUrl?: string;
@@ -105,16 +118,29 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
 });
 
 export function MapPanel({
-  mapContainerRef, zoneData, activeCats,
+  mapContainerRef, mapRef, mapReady, zoneData, activeCats,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
   setIsochroneVisible, recalculerIsochrone, isLoading,
   voronoiVisible, voronoiCategory, voronoiCirfas, setVoronoiVisible,
   voronoiDataForSaveRef, setShowSavePanel, setSaveError,
   battleVisible, battleCategory, battleCirfas, setBattleVisible,
-  carreauxVisible, carreauxLoaded, carreauxLabel, setCarreauxVisible,
+  battleMaxPalier, setBattleMaxPalier,
+  carreauxVisible, carreauxLoaded, carreauxLabel, carreauxIndicateur, carreauxPalette, carreauxOpacity,
+  setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity,
   selectedBillboard, closeBillboardDrawer,
   mapStyleUrl, mapStyles, onMapStyleChange,
 }: MapPanelProps) {
+  const [currentZoom, setCurrentZoom] = useState<number | null>(null);
+
+  // Écoute le zoom de la carte
+  React.useEffect(() => {
+    const map = mapRef?.current;
+    if (!map || !mapReady) return;
+    const update = () => setCurrentZoom(Math.round(map.getZoom() * 10) / 10);
+    update();
+    map.on('zoom', update);
+    return () => { map.off('zoom', update); };
+  }, [mapRef, mapReady]);
   const streetViewSrc = selectedBillboard
     ? `https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${selectedBillboard.lat},${selectedBillboard.lng}&heading=0&pitch=0&fov=90`
     : '';
@@ -122,6 +148,7 @@ export function MapPanel({
   return (
     <div style={{ flex: 1, position: 'relative', background: C.bg }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
+      {/* carreaux-mvt-fill/line init dans useMapInit, visibilité gérée par useMapLayers */}
 
       {/* Badge zone active */}
       {zoneData && (
@@ -193,13 +220,92 @@ export function MapPanel({
         </div>
       )}
 
-      {/* Badge carreaux indicateur */}
-      {carreauxVisible && carreauxLabel && (
-        <div style={{ ...badgeBase, top: 52, right: 12, borderColor: C.blue + '60' }}>
-          <span style={{ color: C.blue, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginRight: 6 }}>CARREAUX</span>
-          <span style={{ color: C.textDim }}>{carreauxLabel}</span>
-        </div>
-      )}
+      {/* Panneau carreaux : indicateur + palette + opacité + légende */}
+      {carreauxVisible && (() => {
+        const groups = Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group)));
+        const needsZoom = currentZoom !== null && currentZoom < 10;
+        const pal = CARREAUX_PALETTES.find(p => p.id === carreauxPalette) ?? CARREAUX_PALETTES[0];
+        return (
+          <div style={{ ...badgeBase, top: 52, right: 12, borderColor: C.blue + '60', minWidth: 200 }}>
+            {needsZoom && (
+              <div style={{ color: C.warn, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', marginBottom: 5 }}>
+                ! ZOOM &gt;= 10 REQUIS
+              </div>
+            )}
+            <div style={{ color: C.blue, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 5 }}>
+              CARREAUX_INSEE
+            </div>
+
+            {/* Indicateur */}
+            <select
+              value={carreauxIndicateur}
+              onChange={e => setCarreauxIndicateur(e.target.value)}
+              style={{ width: '100%', background: '#0a0a12', border: `1px solid ${C.blue}60`, borderRadius: 2, color: C.text, fontSize: 10, fontFamily: fontMono, padding: '3px 5px', marginBottom: 8, cursor: 'pointer', outline: 'none' }}
+            >
+              {groups.map(g => (
+                <optgroup key={g} label={g} style={{ color: C.textDim }}>
+                  {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
+                    <option key={ind.id} value={ind.id}>{ind.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+
+            {/* Palettes */}
+            <div style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>PALETTE</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+              {CARREAUX_PALETTES.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setCarreauxPalette(p.id)}
+                  title={p.label}
+                  style={{
+                    border: `1.5px solid ${carreauxPalette === p.id ? C.text : 'transparent'}`,
+                    borderRadius: 3,
+                    padding: 0,
+                    cursor: 'pointer',
+                    background: 'none',
+                    display: 'flex',
+                    overflow: 'hidden',
+                    width: 28,
+                    height: 12,
+                  }}
+                >
+                  {p.stops.map((c, i) => (
+                    <span key={i} style={{ flex: 1, background: c }} />
+                  ))}
+                </button>
+              ))}
+            </div>
+
+            {/* Opacité */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <span style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>OPACITÉ</span>
+              <input
+                type="range" min={0.1} max={1} step={0.05}
+                value={carreauxOpacity}
+                onChange={e => setCarreauxOpacity(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: C.blue, cursor: 'pointer', height: 4 }}
+              />
+              <span style={{ color: C.textDim, fontSize: 9, fontFamily: fontMono, minWidth: 26, textAlign: 'right' }}>
+                {Math.round(carreauxOpacity * 100)}%
+              </span>
+            </div>
+
+            {/* Légende rampe */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+              {pal.stops.map((c, i) => (
+                <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.muted, fontSize: 8 }}>min</span>
+              <span style={{ color: C.muted, fontSize: 8, fontFamily: fontMichroma, letterSpacing: '0.06em' }}>{carreauxLabel || 'MULTI-RES'}</span>
+              <span style={{ color: C.muted, fontSize: 8 }}>max</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Voronoï toggle */}
       {voronoiCategory && (
@@ -302,67 +408,116 @@ export function MapPanel({
               </div>
             );
           })()}
-          {battleVisible && battleCategory && (
-            <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', width: 9, height: 9, background: C.dangerBg, borderRadius: 1, border: `1.5px solid ${C.danger}`, flexShrink: 0 }} />
-                <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                {[10, 30, 60, 90, 120, 150].map(p => (
-                  <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <span style={{ display: 'inline-block', width: 14, height: 7, background: `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p]})`, borderRadius: 1 }} />
-                    <span style={{ fontSize: 8, color: C.muted }}>{p}m</span>
+          {battleVisible && battleCategory && (() => {
+            // Déduire les paliers présents depuis battleCirfas (ou utiliser valeurs fixes)
+            const visiblePaliers = [10, 20, 30, 40, 50, 60, 90].filter(p => p <= battleMaxPalier);
+            return (
+              <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 9, height: 9, background: C.dangerBg, borderRadius: 1, border: `1.5px solid ${C.danger}`, flexShrink: 0 }} />
+                  <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
+                </div>
+
+                {/* Slider palier max */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 8, color: C.muted, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>PALIER_MAX</span>
+                    <span style={{ fontSize: 9, color: C.danger, fontFamily: fontMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={10} max={90} step={10}
+                    value={battleMaxPalier}
+                    onChange={e => setBattleMaxPalier(Number(e.target.value))}
+                    style={{
+                      width: '100%', cursor: 'pointer', accentColor: C.danger,
+                      height: 14,
+                    }}
+                  />
+                  {/* Rampe opacité */}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 1 }}>
+                    {[10, 20, 30, 40, 50, 60, 90].map(p => {
+                      const active = p <= battleMaxPalier;
+                      return (
+                        <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 1 }}>
+                          <span style={{
+                            display: 'inline-block', width: '100%', height: 6,
+                            background: active ? `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p] ?? 0.15})` : C.bgElevated,
+                            borderRadius: 1,
+                            border: active ? 'none' : `1px solid ${C.border}`,
+                            transition: 'background 0.2s',
+                          }} />
+                          <span style={{ fontSize: 7, color: active ? C.textDim : C.muted }}>{p}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Légende POIs */}
+                {battleCirfas.slice(0, 8).map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                    <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
                   </div>
                 ))}
+                {battleCirfas.length > 8 && (
+                  <span style={{ fontSize: 9, color: C.muted }}>+{battleCirfas.length - 8} autres</span>
+                )}
               </div>
-              {battleCirfas.slice(0, 8).map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                  <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
-                </div>
-              ))}
-              {battleCirfas.length > 8 && (
-                <span style={{ fontSize: 9, color: C.muted }}>+{battleCirfas.length - 8} autres</span>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
       {/* Sélecteur de style de carte */}
+      {/* Boutons zoom custom + niveau de zoom */}
+      <div style={{
+        position: 'absolute', bottom: 48, left: 12, zIndex: 10,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+      }}>
+        <button
+          onClick={() => mapRef?.current?.zoomIn()}
+          style={{ width: 28, height: 28, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 16, lineHeight: '1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >+</button>
+        <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, padding: '2px 4px', background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, minWidth: 28, textAlign: 'center' }}>
+          {currentZoom !== null ? `z${Math.floor(currentZoom ?? 0)}` : '—'}
+        </div>
+        <button
+          onClick={() => mapRef?.current?.zoomOut()}
+          style={{ width: 28, height: 28, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 16, lineHeight: '1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >−</button>
+      </div>
+
+      {/* FOND_CARTE compact */}
       {mapStyles && onMapStyleChange && (
         <div style={{
-          position: 'absolute', bottom: 48, right: 12, zIndex: 10,
-          display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end',
+          position: 'absolute', bottom: 28, right: 12, zIndex: 10,
+          display: 'flex', flexDirection: 'row', gap: 2, alignItems: 'center',
         }}>
-          <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.muted, letterSpacing: '0.12em', marginBottom: 2 }}>
-            FOND_CARTE
-          </div>
+          <span style={{ fontFamily: fontMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.1em', marginRight: 4 }}>FOND</span>
           {mapStyles.map(s => {
             const active = mapStyleUrl === s.url;
             return (
               <button
                 key={s.id}
                 onClick={() => onMapStyleChange(s.url)}
+                title={s.label}
                 style={{
                   background: active ? C.accentDim : C.bgOverlay,
                   border: `1px solid ${active ? C.accent : C.border}`,
                   borderRadius: 2,
-                  padding: '4px 10px',
+                  padding: '3px 7px',
                   cursor: 'pointer',
-                  fontSize: 9,
+                  fontSize: 8,
                   fontFamily: fontMichroma,
                   color: active ? C.accent : C.textDim,
-                  letterSpacing: '0.1em',
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  transition: 'all 0.15s',
                   backdropFilter: 'blur(8px)',
-                  minWidth: 72,
-                  textAlign: 'right',
                 }}
               >
-                {active && <span style={{ marginRight: 5, fontSize: 7 }}>▶</span>}{s.label}
+                {s.label.slice(0, 3)}
               </button>
             );
           })}

@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import {
-  applyChoropleth,
   ISOCHRONE_COLORS,
   VORONOI_PALETTE,
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
+import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 interface UseMapLayersOpts {
@@ -38,7 +38,8 @@ export function useMapLayers({
   const [battleVisible,          setBattleVisible]          = useState(false);
   const [battleCategory,         setBattleCategory]         = useState('');
   const [battleCirfas,           setBattleCirfas]           = useState<{ id: string; nom: string; color: string }[]>([]);
-  const [battleOuterFillVisible, setBattleOuterFillVisible] = useState(true);
+  const [battleOuterFillVisible, setBattleOuterFillVisible] = useState(false);
+  const [battleMaxPalier,        setBattleMaxPalier]        = useState(90);
 
   // Test ORS
   const [testIsoVisible, setTestIsoVisible] = useState(false);
@@ -53,32 +54,16 @@ export function useMapLayers({
   const [isochroneCachedAt,  setIsochroneCachedAt]  = useState('');
   const lastIsochroneDataRef = useRef<IsochroneData | null>(null);
 
-  // Carreaux
+  // Carreaux — visibility state only; MVT layers managed by useMapInit
   const [carreauxVisible,    setCarreauxVisible]    = useState(false);
-  const [carreauxLoaded,     setCarreauxLoaded]     = useState(false);
-  const [carreauxIndicateur, setCarreauxIndicateur] = useState('');
-  const [carreauxLabel,      setCarreauxLabel]      = useState('');
-  const [carreauxSources,    setCarreauxSources]    = useState<{ tableName: string; name: string }[]>([]);
+  const [carreauxLoaded,     setCarreauxLoaded]     = useState(true);
+  const [carreauxIndicateur, setCarreauxIndicateur] = useState('population_totale');
+  const [carreauxLabel,      setCarreauxLabel]      = useState('Population totale');
+  const [carreauxPalette,    _setCarreauxPalette]   = useState('rouge');
+  const [carreauxOpacity,    _setCarreauxOpacity]   = useState(0.72);
   const carreauxSourcesRef = useRef<{ tableName: string; name: string }[]>([]);
-  const carreauxDataRef    = useRef<GeoJSON.FeatureCollection | null>(null);
-
-  // Sync ref
-  useEffect(() => { carreauxSourcesRef.current = carreauxSources; }, [carreauxSources]);
-
-  // Load carreaux sources on mount
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/carreaux', { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => {
-        if (data.sources?.length > 0) {
-          setCarreauxSources(data.sources);
-          carreauxSourcesRef.current = data.sources;
-        }
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
+  // Ref to always have current indicateur without stale closure
+  const carreauxIndicateurRef = useRef('population_totale');
 
   // ── Visibility toggles ────────────────────────────────────────────────────
 
@@ -112,14 +97,31 @@ export function useMapLayers({
     const map = mapRef.current;
     if (!map || !mapReady) return;
     const baseFilter = ['!=', ['get', 'feature_type'], 'border'];
-    const filter = battleOuterFillVisible
+    const outerFilter = battleOuterFillVisible
       ? baseFilter
       : ['all', baseFilter, ['!=', ['get', 'palier'], 0]];
+    try {
+      map.setFilter('battle-fill',      outerFilter as any);
+      map.setFilter('battle-ring-line', outerFilter as any);
+    } catch { /* layer pas encore prêt */ }
+  }, [battleOuterFillVisible, mapReady, mapRef]);
+
+  // Filtre palier max — cache les anneaux au-delà du palier sélectionné
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const filter = ['all',
+      ['!=', ['get', 'feature_type'], 'border'],
+      ['any',
+        ['==', ['get', 'palier'], 0],  // outer fill toujours inclus
+        ['<=', ['get', 'palier'], battleMaxPalier],
+      ],
+    ];
     try {
       map.setFilter('battle-fill',      filter as any);
       map.setFilter('battle-ring-line', filter as any);
     } catch { /* layer pas encore prêt */ }
-  }, [battleOuterFillVisible, mapReady, mapRef]);
+  }, [battleMaxPalier, mapReady, mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -141,74 +143,124 @@ export function useMapLayers({
     } catch { /* layer pas encore ajouté */ }
   }, [isochroneVisible, mapReady, mapRef]);
 
+  // Keep indicateur ref in sync with state
+  useEffect(() => { carreauxIndicateurRef.current = carreauxIndicateur; }, [carreauxIndicateur]);
+
+  // ── Carreaux MVT — visibilité ─────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-
     const vis = carreauxVisible ? 'visible' : 'none';
     try {
-      map.setLayoutProperty('carreaux-fill', 'visibility', vis);
-      map.setLayoutProperty('carreaux-line', 'visibility', vis);
-    } catch { /* layer not yet added */ }
+      map.setLayoutProperty('carreaux-mvt-fill', 'visibility', vis);
+      map.setLayoutProperty('carreaux-mvt-line', 'visibility', vis);
+    } catch { /* ok */ }
+  }, [carreauxVisible, mapReady, mapRef]);
 
-    if (carreauxVisible && !carreauxLoaded) {
-      (async () => {
-        try {
-          const listRes = await fetch('/api/carreaux');
-          const listData = await listRes.json();
-          if (!listData.sources || listData.sources.length === 0) return;
+  // Range mémorisé pour réappliquer la palette sans re-query
+  const carreauxRangeRef = useRef<{ ind: string; p5: number; p95: number } | null>(null);
 
-          const tableName = listData.sources[0].tableName;
-          const gjRes = await fetch('/api/carreaux', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tableName }),
-          });
-          const gjData = await gjRes.json();
-          if (!gjData.features) return;
+  // Applique fill-color avec les stops + range stocké
+  const applyCarreauxColor = useCallback((
+    map: maplibregl.Map,
+    paletteId: string,
+    ind: string,
+    p5: number,
+    p95: number,
+  ) => {
+    if (!map.getLayer('carreaux-mvt-fill')) return;
+    const pal = CARREAUX_PALETTES.find(p => p.id === paletteId) ?? CARREAUX_PALETTES[0];
+    const range = p95 - p5;
+    if (range <= 0) return;
+    const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
+    const expr = ['interpolate', ['linear'], ['coalesce', ['get', ind], 0],
+      ...positions.flatMap((t, i) => [p5 + t * range, pal.stops[i]]),
+    ] as unknown as maplibregl.ExpressionSpecification;
+    try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
+  }, []);
 
-          carreauxDataRef.current = gjData as GeoJSON.FeatureCollection;
-          setCarreauxLoaded(true);
+  // ── Setters directs — applique immédiatement sans passer par les effects ──
 
-          const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
-          if (source) {
-            source.setData(gjData as GeoJSON.FeatureCollection);
-            const skipKeys = new Set(['idcar', 'x', 'y', 'gml_id', 'objectid']);
-            let choroKey = '';
-            const sampleProps = (gjData.features[0]?.properties || {}) as Record<string, unknown>;
-            for (const [k, v] of Object.entries(sampleProps)) {
-              if (skipKeys.has(k)) continue;
-              if (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)) && v.trim() !== '')) {
-                choroKey = k;
-                break;
-              }
-            }
-            if (choroKey) {
-              const vals = gjData.features
-                .map((f: GeoJSON.Feature) => Number((f.properties as Record<string, unknown>)?.[choroKey]))
-                .filter((n: number) => !isNaN(n));
-              const mn = Math.min(...vals);
-              const mx = Math.max(...vals);
-              if (mx > mn) {
-                const step = (mx - mn) / 4;
-                map.setPaintProperty('carreaux-fill', 'fill-color', [
-                  'interpolate', ['linear'],
-                  ['coalesce', ['to-number', ['get', choroKey], 0], 0],
-                  mn, '#f7fbff',
-                  mn + step, '#c6dbef',
-                  mn + 2 * step, '#6baed6',
-                  mn + 3 * step, '#2171b5',
-                  mx, '#08306b',
-                ] as unknown as maplibregl.ExpressionSpecification);
-              }
-            }
-          }
-        } catch (err) {
-          console.error('[Copilote] carreaux error:', err);
-        }
-      })();
+  const setCarreauxPalette = useCallback((paletteId: string) => {
+    console.log('[palette] click', paletteId, 'map:', !!mapRef.current);
+    _setCarreauxPalette(paletteId);
+    const map = mapRef.current;
+    if (!map) { console.warn('[palette] no map'); return; }
+    const ind = carreauxIndicateurRef.current;
+    const r = carreauxRangeRef.current;
+    console.log('[palette] range:', r, 'ind:', ind, 'layer exists:', !!map.getLayer('carreaux-mvt-fill'));
+    if (r && r.p95 > r.p5) {
+      applyCarreauxColor(map, paletteId, r.ind, r.p5, r.p95);
+      console.log('[palette] applied from cache');
+    } else {
+      if (!map.getLayer('carreaux-mvt-fill')) { console.warn('[palette] layer not found'); return; }
+      const feats = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
+      console.log('[palette] queried features:', feats.length);
+      const values = feats
+        .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
+        .filter(v => v > 0);
+      if (values.length === 0) { console.warn('[palette] no values for ind:', ind); return; }
+      const sorted = [...values].sort((a, b) => a - b);
+      const p5  = sorted[Math.floor(sorted.length * 0.05)];
+      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+      if (p95 > p5) {
+        carreauxRangeRef.current = { ind, p5, p95 };
+        applyCarreauxColor(map, paletteId, ind, p5, p95);
+        console.log('[palette] applied from query, p5:', p5, 'p95:', p95);
+      }
     }
-  }, [carreauxVisible, carreauxLoaded, mapReady, mapRef]);
+  }, [mapRef, applyCarreauxColor]);
+
+  const setCarreauxOpacity = useCallback((v: number) => {
+    console.log('[opacity] set', v, 'map:', !!mapRef.current, 'layer:', !!mapRef.current?.getLayer('carreaux-mvt-fill'));
+    _setCarreauxOpacity(v);
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity', v);
+      console.log('[opacity] setPaintProperty ok');
+    } catch (e) { console.error('[opacity] error:', e); }
+  }, [mapRef]);
+
+  // ── Recoloration dynamique (pan + indicateur) ─────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !carreauxVisible) return;
+
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const recolor = () => {
+      if (!map.getLayer('carreaux-mvt-fill')) return;
+      const features = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
+      if (features.length === 0) return;
+      const values = features
+        .map(f => Number((f.properties as Record<string, unknown>)?.[carreauxIndicateur] ?? 0))
+        .filter(v => v > 0);
+      if (values.length === 0) return;
+      const sorted = [...values].sort((a, b) => a - b);
+      const p5  = sorted[Math.floor(sorted.length * 0.05)];
+      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+      if (p95 <= p5) return;
+      // Mémorise le range pour la palette
+      carreauxRangeRef.current = { ind: carreauxIndicateur, p5, p95 };
+      applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, p5, p95);
+    };
+
+    const scheduleRecolor = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(recolor, 150);
+    };
+
+    map.on('idle',    scheduleRecolor);
+    map.on('moveend', scheduleRecolor);
+    scheduleRecolor();
+
+    return () => {
+      map.off('idle',    scheduleRecolor);
+      map.off('moveend', scheduleRecolor);
+      if (debounce) clearTimeout(debounce);
+    };
+  }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor]);
 
   // ── Visualization functions ───────────────────────────────────────────────
 
@@ -403,8 +455,7 @@ export function useMapLayers({
         properties: {
           ...p,
           battle_color:   cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0],
-          // palier=0 : outer fill Voronoï (hors isochrones) → opacité réduite
-          battle_opacity: palier === 0 ? 0.35 : 0.72,
+          battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[palier] ?? 0.20,
         },
       };
     });
@@ -532,48 +583,16 @@ export function useMapLayers({
   };
 
   const loadCarreauxFromAI = async (cd: CarreauxData) => {
-    const map     = mapRef.current;
-    const sources = carreauxSourcesRef.current;
+    const map = mapRef.current;
     if (!map) return;
 
-    // Fallback sur carreaux_filosofi si data_sources n'a pas encore d'entrée carreaux
-    const tableName = sources.length > 0 ? sources[0].tableName : 'carreaux_filosofi';
     const { lat, lng } = cd.coordonnees;
+    // Fly to location at zoom >= 10 so MVT tiles are visible
+    map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
 
-    const dlat = cd.rayon_km ? cd.rayon_km / 111.32 : 0.04; // configurable, défaut ≈4.5km
-    const dlng = (cd.rayon_km ? cd.rayon_km / 111.32 : 0.055) / Math.cos(lat * Math.PI / 180);
-    const bbox = [lng - dlng, lat - dlat, lng + dlng, lat + dlat];
-
-    try {
-      // Fly and fetch in parallel — don't wait for moveend (can silently hang)
-      map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
-
-      const gjData = await fetch('/api/carreaux', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableName, bbox, resolution: cd.resolution ?? '200m' }),
-      }).then(r => r.json());
-
-      if (!gjData.features || gjData.features.length === 0) return;
-
-      const source = map.getSource('carreaux') as maplibregl.GeoJSONSource | undefined;
-      if (!source) return;
-
-      source.setData(gjData as GeoJSON.FeatureCollection);
-      applyChoropleth(map, gjData.features, cd.indicateur);
-      map.setLayoutProperty('carreaux-fill', 'visibility', 'visible');
-      map.setLayoutProperty('carreaux-line', 'visibility', 'visible');
-
-      // Force a repaint after data is loaded
-      map.triggerRepaint();
-
-      setCarreauxVisible(true);
-      setCarreauxLoaded(true);
-      setCarreauxIndicateur(cd.indicateur);
-      setCarreauxLabel(cd.indicateur_label + ` (${gjData.features.length} carreaux)`);
-    } catch (err) {
-      console.error('[Copilote] loadCarreauxFromAI error:', err);
-    }
+    setCarreauxVisible(true);
+    setCarreauxIndicateur(cd.indicateur);
+    setCarreauxLabel(cd.indicateur_label);
   };
 
   const runTestIsochrone = async (
@@ -644,6 +663,7 @@ export function useMapLayers({
     battleCategory,
     battleCirfas,
     battleOuterFillVisible, setBattleOuterFillVisible,
+    battleMaxPalier, setBattleMaxPalier,
     // Test ORS
     testIsoVisible,
     testIsoLoading,
@@ -658,9 +678,10 @@ export function useMapLayers({
     // Carreaux
     carreauxVisible, setCarreauxVisible,
     carreauxLoaded,
-    carreauxIndicateur,
+    carreauxIndicateur, setCarreauxIndicateur,
+    carreauxPalette,    setCarreauxPalette,
+    carreauxOpacity,    setCarreauxOpacity,
     carreauxLabel,
-    carreauxSources,
     carreauxSourcesRef,
     // Visualization functions
     applyVoronoi,

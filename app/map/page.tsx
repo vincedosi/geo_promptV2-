@@ -13,7 +13,7 @@ import { useToolProcessor }    from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
-import type { DirectPOISearchParams, DirectBattleParams } from '@/app/map/_components/FilterPanel';
+import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params } from '@/app/map/_components/FilterPanel';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
@@ -209,7 +209,7 @@ export default function MapPage() {
 
   const handleDirectBattle = async (
     params: DirectBattleParams,
-    onProgress?: (msg: string) => void,
+    onProgress?: (msg: string, pct?: number) => void,
   ): Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }> => {
     setError(null);
     pendingBattleRef.current = null;
@@ -426,6 +426,76 @@ export default function MapPage() {
     reader.releaseLock();
   };
 
+  const handleDirectBattleV2 = async (
+    params: DirectBattleV2Params,
+    onProgress?: (msg: string) => void,
+  ): Promise<void> => {
+    setError(null);
+    mapLayers.clearBattlePartialRings();
+    try {
+      const res = await fetch('/api/isochrone-battle-v2', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(params),
+      });
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let data: any;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let evt: any;
+          try { evt = JSON.parse(line); } catch { continue; }
+          if (evt.type === 'error') throw new Error(evt.message ?? 'Erreur inconnue');
+          if (evt.type === 'result') { data = evt.data; continue; }
+          if (evt.type === 'warning') onProgress?.(`> ! ${evt.message}`);
+          else if (evt.type === 'pois_loaded')  onProgress?.(`> ${evt.total} POIs chargés`);
+          else if (evt.type === 'rings_loaded') onProgress?.(`> ${evt.count} anneaux en cache (${evt.missing} manquants)`);
+          else if (evt.type === 'computing')    onProgress?.(`> ${evt.message}`);
+        }
+      }
+      reader.releaseLock();
+      if (!data) throw new Error('Réponse incomplète');
+      if (data.error) throw new Error(data.error);
+
+      // Afficher le résultat sur la carte
+      if (data.battleGeoJSON?.features?.length > 0) {
+        mapLayers.applyIsochroneBattle(data.battleGeoJSON, null, params.category, data.poisForMap);
+        setBattleFeatures(data.battleGeoJSON.features);
+      }
+
+      // Mettre à jour les POIs sur la carte
+      const poisForMap = data.poisForMap ?? [];
+      if (poisForMap.length > 0) {
+        setBattlePois(poisForMap);
+        setZoneData({
+          coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
+          pois: poisForMap,
+          nb_pois: poisForMap.length,
+          categories: { [params.category]: poisForMap.length },
+          couleur_overrides: {},
+          ville: params.filtre_ville ?? '',
+          rayon_metres: null,
+          rayon_poi_metres: null,
+        });
+      }
+    } catch (e: any) {
+      const msg = e?.message ?? 'Erreur réseau';
+      setError(`Bataille v2 — ${msg}`);
+      throw new Error(msg);
+    }
+  };
+
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
   return (
@@ -434,19 +504,17 @@ export default function MapPage() {
         sendMessage={chat.sendMessage}
         onDirectSearch={handleDirectSearch}
         onDirectBattle={handleDirectBattle}
+        onDirectBattleV2={handleDirectBattleV2}
         onApplyBattle={handleApplyBattle}
         isLoading={chat.isLoading}
         error={error}
         zoneData={zoneData}
-        loadCarreauxFromAI={mapLayers.loadCarreauxFromAI}
-        carreauxVisible={mapLayers.carreauxVisible}
-        carreauxLoaded={mapLayers.carreauxLoaded}
-        carreauxLabel={mapLayers.carreauxLabel}
-        setCarreauxVisible={mapLayers.setCarreauxVisible}
         voronoiVisible={mapLayers.voronoiVisible}
         setVoronoiVisible={mapLayers.setVoronoiVisible}
         battleVisible={mapLayers.battleVisible}
         setBattleVisible={mapLayers.setBattleVisible}
+        battleOuterFillVisible={mapLayers.battleOuterFillVisible}
+        setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
         isochroneVisible={mapLayers.isochroneVisible}
         setIsochroneVisible={mapLayers.setIsochroneVisible}
         setShowSavePanel={savedMaps.setShowSavePanel}
@@ -475,10 +543,18 @@ export default function MapPage() {
         battleCategory={mapLayers.battleCategory}
         battleCirfas={mapLayers.battleCirfas}
         setBattleVisible={mapLayers.setBattleVisible}
+        battleMaxPalier={mapLayers.battleMaxPalier}
+        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
         carreauxVisible={mapLayers.carreauxVisible}
         carreauxLoaded={mapLayers.carreauxLoaded}
         carreauxLabel={mapLayers.carreauxLabel}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxOpacity={mapLayers.carreauxOpacity}
         setCarreauxVisible={mapLayers.setCarreauxVisible}
+        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+        setCarreauxPalette={mapLayers.setCarreauxPalette}
+        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
         selectedBillboard={selectedBillboard}
         closeBillboardDrawer={() => setSelectedBillboard(null)}
         mapStyleUrl={mapStyleUrl}
