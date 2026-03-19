@@ -13,10 +13,11 @@ import { useToolProcessor }    from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
-import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params } from '@/app/map/_components/FilterPanel';
+import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
+import { ChatPanel } from '@/app/copilote/_components/ChatPanel';
 import type { POI } from '@/types/poi';
 
 interface SelectedBillboard {
@@ -37,9 +38,13 @@ export default function MapPage() {
   const [isResultsPanelOpen,  setIsResultsPanelOpen]  = useState(false);
   const [coverageSummary,     setCoverageSummary]     = useState<CoverageSummaryEntry[]>([]);
   const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
+  const [densityMode,         setDensityMode]         = useState<boolean>(false);
+  const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
+    const dm = localStorage.getItem('genesis_density_mode');
+    if (dm === 'true') setDensityMode(true);
   }, []);
 
   const handleMapStyleChange = (url: string) => {
@@ -66,7 +71,7 @@ export default function MapPage() {
     setIsochroneFromCache: mapLayers.setIsochroneFromCache,
     provider: providerSelector.provider,
   });
-  useRateLimitHandler({
+  const rateLimit = useRateLimitHandler({
     chatError:          chat.chatError,
     setError,
     sendChatMessage:    chat.sendChatMessage,
@@ -108,15 +113,17 @@ export default function MapPage() {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    const MAX_DOM = 300;
-    const useLayers = zoneData.pois.length > MAX_DOM;
+    const DENSITY_THRESHOLD = 500;
+    const useDensity = densityMode || zoneData.pois.length > DENSITY_THRESHOLD;
+    const useLayers  = !useDensity && zoneData.pois.length > 300;
 
     const heatSrc = map.getSource('pois-heat') as maplibregl.GeoJSONSource | undefined;
     if (heatSrc) {
       heatSrc.setData({
         type: 'FeatureCollection',
         features: zoneData.pois.map(p => {
-          const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+          const ps = poiStyles[p.categorie];
+          const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
           return {
             type: 'Feature' as const,
             geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
@@ -125,7 +132,28 @@ export default function MapPage() {
         }),
       });
     }
-    try { map.setLayoutProperty('pois-circles', 'visibility', useLayers ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('pois-heatmap', 'visibility', useDensity ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('pois-circles', 'visibility', (useLayers || useDensity) ? 'visible' : 'none'); } catch { /* */ }
+
+    // ── Couleur heatmap dynamique ──────────────────────────────────────────
+    if (useDensity) {
+      // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
+      const firstCat = zoneData.pois[0]?.categorie;
+      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? '#a855f7';
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      try {
+        map.setPaintProperty('pois-heatmap', 'heatmap-color', [
+          'interpolate', ['linear'], ['heatmap-density'],
+          0,    `rgba(${r},${g},${b},0)`,
+          0.15, `rgba(${r},${g},${b},0.25)`,
+          0.4,  `rgba(${r},${g},${b},0.55)`,
+          0.7,  `rgba(${r},${g},${b},0.82)`,
+          1,    `rgba(${r},${g},${b},1)`,
+        ]);
+      } catch { /* */ }
+    }
 
     (map.getSource('zone-circle') as maplibregl.GeoJSONSource)?.setData({
       type: 'FeatureCollection',
@@ -133,16 +161,19 @@ export default function MapPage() {
     });
     map.triggerRepaint();
 
-    if (!useLayers) {
+    const PIN_SIZE_PX: Record<string, number> = { Petite: 8, Standard: 12, Grosse: 16, Large: 22 };
+    if (!useDensity && !useLayers) {
       zoneData.pois.forEach(p => {
-        const color = zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+        const ps = poiStyles[p.categorie];
+        const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+        const sizePx = PIN_SIZE_PX[ps?.size ?? 'Standard'] ?? 12;
         const rankVal = (p as any).rank;
         const el = document.createElement('div');
         if (rankVal) {
           el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
           el.textContent = String(rankVal);
         } else {
-          el.style.cssText = `width:10px;height:10px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
+          el.style.cssText = `width:${sizePx}px;height:${sizePx}px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
         }
         const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const audienceVal = (p as any).audience;
@@ -189,7 +220,7 @@ export default function MapPage() {
     if (rPoi) zoom = rPoi < 300 ? 15 : rPoi < 800 ? 14 : rPoi < 2000 ? 13 : 12;
     else if (r) zoom = r < 1500 ? 14 : r < 4000 ? 13 : 11;
     map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
-  }, [zoneData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [zoneData, mapReady, densityMode, poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Note: no zoom-based opacity hiding on /map page — markers stay visible at all zoom levels.
   // (FilterPanel sends national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
@@ -197,14 +228,29 @@ export default function MapPage() {
   const handleDirectSearch = async (params: DirectPOISearchParams) => {
     setError(null);
     setZoneData(null);
-    const res = await fetch('/api/map/pois', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    const data = await res.json();
-    if (data.error) setError(data.error);
-    else setZoneData(data);
+    try {
+      const res = await fetch('/api/map/pois', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal: AbortSignal.timeout(25000),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setError(err.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else if (!data.pois?.length) setError(`Aucun POI trouvé pour "${params.poi_types.join(', ')}"`);
+      else setZoneData(data);
+    } catch (e: any) {
+      if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+        setError('Base de données lente — réessayez dans quelques instants');
+      } else {
+        setError(e?.message ?? 'Erreur réseau');
+      }
+    }
   };
 
   const handleDirectBattle = async (
@@ -368,6 +414,84 @@ export default function MapPage() {
     return { geometry, nb_pois: data.nb_pois ?? 0, poiGroups, battleRings };
   };
 
+  // Remplit le cache ORS sans écraser les POIs affichés sur la carte
+  const handleFillIsochroneCache = async (
+    params: FillIsochroneCacheParams,
+    onProgress?: (msg: string) => void,
+  ): Promise<void> => {
+    mapLayers.clearBattlePartialRings();
+    try {
+      const res = await fetch('/api/isochrone-battle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category:          params.category,
+          mode:              params.mode,
+          max_minutes:       params.max_minutes,
+          durations:         params.durations,
+          filtre_ville:      params.filtre_ville   ?? null,
+          filtre_regions:    params.filtre_regions ?? null,
+          metropolitaine:    params.metropolitaine,
+          force_recalculate: false,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let evt: any;
+          try { evt = JSON.parse(line); } catch { continue; }
+          if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue').slice(0, 200));
+          if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
+            mapLayers.addBattlePartialRings(evt.rings);
+            onProgress?.(`> ◆ +${evt.rings.length} isochrones sur la carte`);
+          } else if (evt.type === 'pois_loaded') {
+            onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
+          } else if (evt.type === 'progress') {
+            if (evt.status === 'bataille_postgis') {
+              onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
+            } else {
+              const pct    = Math.round((evt.completed / evt.total) * 100);
+              const errInfo = evt.err > 0 ? ` (${evt.err} erreurs ORS)` : '';
+              onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%${errInfo}`);
+            }
+          }
+          // result: on affiche juste les rings finaux si disponibles (pas de setZoneData)
+          if (evt.type === 'result' && evt.data?.battleGeoJSON?.features?.length > 0) {
+            const rawRings = (evt.data.battleGeoJSON.features as any[])
+              .filter((f: any) => f?.geometry)
+              .map((f: any) => ({
+                cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
+                nom:      String(f.properties?.nom ?? ''),
+                lat:      Number(f.properties?.lat ?? 0),
+                lng:      Number(f.properties?.lng ?? 0),
+                palier:   Number(f.properties?.palier ?? 0),
+                geojson:  f.geometry,
+              }));
+            mapLayers.clearBattlePartialRings();
+            mapLayers.addBattlePartialRings(rawRings);
+          }
+        }
+      }
+      reader.releaseLock();
+    } catch (e: any) {
+      const msg = e?.message ?? 'Erreur réseau';
+      setError(`Cache fill — ${msg}`);
+      throw new Error(msg);
+    }
+  };
+
   const handleApplyBattle = async (
     rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[],
     category?: string,
@@ -501,10 +625,49 @@ export default function MapPage() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#060608' }}>
       <FilterPanel
+        chatSlot={
+          <ChatPanel
+            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none' }}
+            hideHeader={true}
+            messages={chat.messages}
+            isLoading={chat.isLoading}
+            input={chat.input}
+            setInput={chat.setInput}
+            handleSubmit={chat.handleSubmit}
+            handleKeyDown={chat.handleKeyDown}
+            sendMessage={chat.sendMessage}
+            messagesEndRef={chat.messagesEndRef}
+            rateLimitCooldown={rateLimit.rateLimitCooldown}
+            cancelCooldown={rateLimit.cancelCooldown}
+            error={error}
+            showSavePanel={savedMaps.showSavePanel}
+            showLoadPanel={savedMaps.showLoadPanel}
+            setShowSavePanel={savedMaps.setShowSavePanel}
+            setShowLoadPanel={savedMaps.setShowLoadPanel}
+            saveName={savedMaps.saveName}
+            setSaveName={savedMaps.setSaveName}
+            saveLoading={savedMaps.saveLoading}
+            saveError={savedMaps.saveError}
+            setSaveError={savedMaps.setSaveError}
+            savedMaps={savedMaps.savedMaps}
+            saveCurrentMap={savedMaps.saveCurrentMap}
+            loadSavedMaps={savedMaps.loadSavedMaps}
+            loadMap={savedMaps.loadMap}
+            deleteMap={savedMaps.deleteMap}
+            zoneData={zoneData}
+            provider={providerSelector.provider}
+            setProvider={providerSelector.setProvider}
+            providerStatus={providerSelector.providerStatus}
+            statusLoading={providerSelector.statusLoading}
+            refreshProviderStatus={providerSelector.refreshStatus}
+            sessionTokens={chat.sessionTokens}
+          />
+        }
         sendMessage={chat.sendMessage}
         onDirectSearch={handleDirectSearch}
         onDirectBattle={handleDirectBattle}
         onDirectBattleV2={handleDirectBattleV2}
+        onFillIsochroneCache={handleFillIsochroneCache}
         onApplyBattle={handleApplyBattle}
         isLoading={chat.isLoading}
         error={error}
@@ -519,6 +682,9 @@ export default function MapPage() {
         setIsochroneVisible={mapLayers.setIsochroneVisible}
         setShowSavePanel={savedMaps.setShowSavePanel}
         coverageSummary={coverageSummary}
+        densityMode={densityMode}
+        onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
+        onPOIStylesChange={setPoiStyles}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}
@@ -551,24 +717,33 @@ export default function MapPage() {
         carreauxIndicateur={mapLayers.carreauxIndicateur}
         carreauxPalette={mapLayers.carreauxPalette}
         carreauxOpacity={mapLayers.carreauxOpacity}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         setCarreauxVisible={mapLayers.setCarreauxVisible}
         setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
         setCarreauxPalette={mapLayers.setCarreauxPalette}
         setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
         selectedBillboard={selectedBillboard}
         closeBillboardDrawer={() => setSelectedBillboard(null)}
         mapStyleUrl={mapStyleUrl}
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
-      {battleFeatures.length > 0 && (
-        <button
-          onClick={() => setIsResultsPanelOpen(true)}
-          style={{ position: 'fixed', bottom: 24, right: 16, zIndex: 40, background: '#0a0a12', border: '1px solid #a855f7', color: '#a855f7', fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer' }}
-        >
-          Résultats
-        </button>
-      )}
+      <button
+        onClick={() => setIsResultsPanelOpen(true)}
+        style={{
+          position: 'fixed', top: 12, right: 16, zIndex: 510,
+          background: battleFeatures.length > 0 ? '#0a0a12' : 'rgba(10,10,18,0.6)',
+          border: `1px solid ${battleFeatures.length > 0 ? '#a855f7' : '#3a2a50'}`,
+          color: battleFeatures.length > 0 ? '#a855f7' : '#5a4a70',
+          fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2,
+          textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer',
+          transition: 'all 0.2s',
+        }}
+      >
+        COUVERTURE
+      </button>
       <CoverageResultsPanel
         isOpen={isResultsPanelOpen}
         onClose={() => setIsResultsPanelOpen(false)}

@@ -12,6 +12,8 @@ import { DataGouvCard } from './DataGouvCard';
 import type { Provider, ProviderStatus } from '../_hooks/useProviderSelector';
 
 interface ChatPanelProps {
+  containerStyle?: React.CSSProperties;
+  hideHeader?: boolean;
   messages: UIMessage[];
   isLoading: boolean;
   input: string;
@@ -61,8 +63,8 @@ const C = {
   orange:       '#fbbf24',
   red:          '#f87171',
   text:         '#f1f1f4',
-  textSec:      '#6b6b8a',
-  textDim:      '#3a3a52',
+  textSec:      '#9090b8',
+  textDim:      '#6b6b9a',
 };
 
 const fontOrbitron = "'Orbitron', sans-serif";
@@ -113,6 +115,8 @@ function ProviderBadge({ status, provider }: { status: ProviderStatus; provider:
 
 // ─── ChatPanel ────────────────────────────────────────────────────────────────
 export function ChatPanel({
+  containerStyle,
+  hideHeader,
   messages, isLoading, input, setInput, handleSubmit, handleKeyDown, sendMessage,
   messagesEndRef, rateLimitCooldown, cancelCooldown, error,
   showSavePanel, showLoadPanel, setShowSavePanel, setShowLoadPanel,
@@ -141,47 +145,63 @@ export function ChatPanel({
   });
 
   return (
-    <div style={{ width: 400, minWidth: 360, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}` }}>
+    <div style={{ width: 400, minWidth: 360, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, ...containerStyle }}>
 
       {/* ── Header ── */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${C.border}`, position: 'relative' }}>
-        {/* Accent line */}
-        <div style={{ position: 'absolute', bottom: 0, left: 16, width: 40, height: 1, background: C.accent, boxShadow: `0 0 8px ${C.accentGlow}` }} />
+      {!hideHeader ? (
+        <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${C.border}`, position: 'relative' }}>
+          {/* Accent line */}
+          <div style={{ position: 'absolute', bottom: 0, left: 16, width: 40, height: 1, background: C.accent, boxShadow: `0 0 8px ${C.accentGlow}` }} />
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.15s' }}>←</Link>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.15s' }}>←</Link>
 
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 14, fontFamily: fontOrbitron, fontWeight: 700, color: C.text, letterSpacing: '0.14em' }}>
-                <span style={{ color: C.textDim }}>geo</span><span style={{ color: C.accent }}>.</span><span style={{ color: C.text }}>prompt</span>
-              </span>
-              <span style={{ fontSize: 8, fontFamily: fontMono, background: C.accentDim, color: C.accent, padding: '2px 5px', border: `1px solid ${C.borderLight}`, borderRadius: 2, letterSpacing: '0.1em' }}>
-                BETA
-              </span>
-              {isLoading && (
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
-              )}
-            </div>
-            <div style={{ fontSize: 9, color: C.textDim, fontFamily: fontMono, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>{providerModel} · function calling</span>
-              {sessionTokens && (
-                <span style={{ display: 'flex', gap: 4 }}>
-                  <span style={{ color: 'rgba(168,85,247,0.7)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
-                  <span style={{ color: 'rgba(61,255,160,0.6)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
-                  <span style={{ color: C.textDim }}>tok</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontFamily: fontOrbitron, fontWeight: 700, color: C.text, letterSpacing: '0.14em' }}>
+                  <span style={{ color: C.textDim }}>geo</span><span style={{ color: C.accent }}>.</span><span style={{ color: C.text }}>prompt</span>
                 </span>
-              )}
+                <span style={{ fontSize: 8, fontFamily: fontMono, background: C.accentDim, color: C.accent, padding: '2px 5px', border: `1px solid ${C.borderLight}`, borderRadius: 2, letterSpacing: '0.1em' }}>
+                  BETA
+                </span>
+                {isLoading && (
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
+                )}
+              </div>
+              <div style={{ fontSize: 9, color: C.textDim, fontFamily: fontMono, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>{providerModel} · function calling</span>
+                {sessionTokens && (
+                  <span style={{ display: 'flex', gap: 4 }}>
+                    <span style={{ color: 'rgba(168,85,247,0.7)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
+                    <span style={{ color: 'rgba(61,255,160,0.6)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
+                    <span style={{ color: C.textDim }}>tok</span>
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: 5 }}>
-            <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}>?</button>
-            <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
-            <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
+            <div style={{ display: 'flex', gap: 5 }}>
+              <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}>?</button>
+              <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
+              <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ padding: '6px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {isLoading && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />}
+          <div style={{ flex: 1 }} />
+          <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}>?</button>
+          <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
+          <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
+          {sessionTokens && sessionTokens.total > 0 && (
+            <span style={{ fontSize: 8, fontFamily: fontMono, color: C.textSec, marginLeft: 4 }}>
+              <span style={{ color: 'rgba(168,85,247,0.8)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
+              {' '}<span style={{ color: 'rgba(61,255,160,0.7)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── Provider selector ── */}
       <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -279,7 +299,7 @@ export function ChatPanel({
                   border: `1px solid ${C.border}`,
                   borderRadius: 2,
                   padding: '9px 14px',
-                  color: C.textSec,
+                  color: '#c4c4d4',
                   cursor: 'pointer',
                   fontSize: 11,
                   textAlign: 'left',
@@ -287,7 +307,10 @@ export function ChatPanel({
                   fontFamily: fontInter,
                   fontWeight: 300,
                   letterSpacing: '0.03em',
-                }}>{text}</button>
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.4)'; e.currentTarget.style.color = '#e2e2f0'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = '#c4c4d4'; }}
+                >{text}</button>
               ))}
             </div>
           </div>
@@ -416,6 +439,7 @@ export function ChatPanel({
             disabled={isLoading}
             placeholder="Décrivez votre cible : ville, type d'établissement, rayon…"
             rows={2}
+            className="gp-input"
             style={{ flex: 1, background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '10px 14px', color: C.text, fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: fontInter, fontWeight: 300, transition: 'border-color 0.2s, box-shadow 0.2s' }}
             onFocus={e => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.5)'; e.currentTarget.style.boxShadow = `0 0 0 2px rgba(168,85,247,0.08), 0 0 16px rgba(168,85,247,0.1)`; }}
             onBlur={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = 'none'; }}
@@ -454,6 +478,7 @@ export function ChatPanel({
       <style>{`
         @keyframes pulseDot { 0%,100%{opacity:1;box-shadow:0 0 8px currentColor} 50%{opacity:0.4;box-shadow:none} }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        .gp-input::placeholder { color: #6b6b9a !important; }
       `}</style>
     </div>
   );

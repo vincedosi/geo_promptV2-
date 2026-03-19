@@ -55,12 +55,14 @@ export function useMapLayers({
   const lastIsochroneDataRef = useRef<IsochroneData | null>(null);
 
   // Carreaux — visibility state only; MVT layers managed by useMapInit
-  const [carreauxVisible,    setCarreauxVisible]    = useState(false);
-  const [carreauxLoaded,     setCarreauxLoaded]     = useState(true);
-  const [carreauxIndicateur, setCarreauxIndicateur] = useState('population_totale');
-  const [carreauxLabel,      setCarreauxLabel]      = useState('Population totale');
-  const [carreauxPalette,    _setCarreauxPalette]   = useState('rouge');
-  const [carreauxOpacity,    _setCarreauxOpacity]   = useState(0.72);
+  const [carreauxVisible,        setCarreauxVisible]        = useState(false);
+  const [carreauxLoaded,         setCarreauxLoaded]         = useState(true);
+  const [carreauxIndicateur,     setCarreauxIndicateur]     = useState('population_totale');
+  const [carreauxLabel,          setCarreauxLabel]          = useState('Population totale');
+  const [carreauxPalette,        _setCarreauxPalette]       = useState('rouge');
+  const [carreauxOpacity,        _setCarreauxOpacity]       = useState(0.72);
+  const [carreauxRange,          setCarreauxRange]          = useState<{ p5: number; p95: number } | null>(null);
+  const [carreauxSelectedBucket, _setCarreauxSelectedBucket] = useState<number | null>(null);
   const carreauxSourcesRef = useRef<{ tableName: string; name: string }[]>([]);
   // Ref to always have current indicateur without stale closure
   const carreauxIndicateurRef = useRef('population_totale');
@@ -143,8 +145,16 @@ export function useMapLayers({
     } catch { /* layer pas encore ajouté */ }
   }, [isochroneVisible, mapReady, mapRef]);
 
-  // Keep indicateur ref in sync with state
-  useEffect(() => { carreauxIndicateurRef.current = carreauxIndicateur; }, [carreauxIndicateur]);
+  // Keep indicateur ref in sync with state + reset bucket on change
+  useEffect(() => {
+    carreauxIndicateurRef.current = carreauxIndicateur;
+    _setCarreauxSelectedBucket(null);
+    setCarreauxRange(null);
+    const map = mapRef.current;
+    if (map) {
+      try { map.setFilter('carreaux-mvt-fill', null); map.setFilter('carreaux-mvt-line', null); } catch {}
+    }
+  }, [carreauxIndicateur, mapRef]);
 
   // ── Carreaux MVT — visibilité ─────────────────────────────────────────────
   useEffect(() => {
@@ -205,6 +215,7 @@ export function useMapLayers({
       const p95 = sorted[Math.floor(sorted.length * 0.95)];
       if (p95 > p5) {
         carreauxRangeRef.current = { ind, p5, p95 };
+        setCarreauxRange({ p5, p95 });
         applyCarreauxColor(map, paletteId, ind, p5, p95);
         console.log('[palette] applied from query, p5:', p5, 'p95:', p95);
       }
@@ -220,6 +231,31 @@ export function useMapLayers({
       map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity', v);
       console.log('[opacity] setPaintProperty ok');
     } catch (e) { console.error('[opacity] error:', e); }
+  }, [mapRef]);
+
+  // Sélection d'une tranche de la légende → filtre MVT
+  const setCarreauxSelectedBucket = useCallback((bucket: number | null) => {
+    _setCarreauxSelectedBucket(bucket);
+    const map = mapRef.current;
+    if (!map) return;
+    if (bucket === null) {
+      try { map.setFilter('carreaux-mvt-fill', null); map.setFilter('carreaux-mvt-line', null); } catch {}
+      return;
+    }
+    const r = carreauxRangeRef.current;
+    if (!r) return;
+    const ind = carreauxIndicateurRef.current;
+    const step = (r.p95 - r.p5) / 6;
+    const min = r.p5 + bucket * step;
+    const max = r.p5 + (bucket + 1) * step;
+    const val = ['coalesce', ['get', ind], 0];
+    const filter = bucket === 5
+      ? ['>=', val, min]
+      : ['all', ['>=', val, min], ['<', val, max]];
+    try {
+      map.setFilter('carreaux-mvt-fill', filter as any);
+      map.setFilter('carreaux-mvt-line', filter as any);
+    } catch {}
   }, [mapRef]);
 
   // ── Recoloration dynamique (pan + indicateur) ─────────────────────────────
@@ -241,8 +277,9 @@ export function useMapLayers({
       const p5  = sorted[Math.floor(sorted.length * 0.05)];
       const p95 = sorted[Math.floor(sorted.length * 0.95)];
       if (p95 <= p5) return;
-      // Mémorise le range pour la palette
+      // Mémorise le range pour la palette + état React pour la légende
       carreauxRangeRef.current = { ind: carreauxIndicateur, p5, p95 };
+      setCarreauxRange({ p5, p95 });
       applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, p5, p95);
     };
 
@@ -681,6 +718,8 @@ export function useMapLayers({
     carreauxIndicateur, setCarreauxIndicateur,
     carreauxPalette,    setCarreauxPalette,
     carreauxOpacity,    setCarreauxOpacity,
+    carreauxRange,
+    carreauxSelectedBucket, setCarreauxSelectedBucket,
     carreauxLabel,
     carreauxSourcesRef,
     // Visualization functions

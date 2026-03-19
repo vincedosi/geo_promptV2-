@@ -1,14 +1,9 @@
 import { createMistral } from '@ai-sdk/mistral';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
-export type Provider = 'mistral' | 'claude' | 'gemini';
+export type Provider = 'mistral' | 'gemini';
 
 export function createModel(provider: Provider) {
-  if (provider === 'claude') {
-    const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    return anthropic('claude-haiku-4-5-20251001');
-  }
   if (provider === 'gemini') {
     const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
     // gemini-2.5-flash avec thinking désactivé = coût minimal, modèle actif

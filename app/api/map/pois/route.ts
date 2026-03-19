@@ -77,11 +77,21 @@ export async function POST(req: NextRequest) {
         let error: any = null;
         // Retry jusqu'à 3× si erreur schema cache (cold start Supabase PostgREST)
         for (let attempt = 0; attempt < 3; attempt++) {
-          ({ data, error } = await buildQuery(from, to));
+          const result = await Promise.race([
+            buildQuery(from, to),
+            new Promise<{ data: null; error: { message: string } }>(resolve =>
+              setTimeout(() => resolve({ data: null, error: { message: 'DB timeout (20s)' } }), 20000)
+            ),
+          ]);
+          ({ data, error } = result);
           if (!error || !String(error.message).includes('schema cache')) break;
           await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
         }
-        if (error) { console.error('[map/pois] pagination error:', error.message); break; }
+        if (error) {
+          console.error('[map/pois] pagination error:', error.message);
+          if (String(error.message).includes('timeout')) throw new Error('Base de données temporairement indisponible — réessayez dans quelques instants');
+          break;
+        }
         if (!data?.length) break;
         for (const p of data) {
           if (filter && !filter(p)) continue;
@@ -157,7 +167,7 @@ export async function POST(req: NextRequest) {
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
-        if (scope === 'metro') q = q.not('departement', 'in', `(${DROM_CODES.join(',')})`);
+        if (scope === 'metro') q = q.or(`departement.is.null,departement.not.in.(${DROM_CODES.join(',')})`);
         return q;
       }, 10000);
     }

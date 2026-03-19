@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server';
 const CACHE_TTL = 5 * 60_000;
 
 let mistralCache: { remaining: number; limit: number; ts: number } | null = null;
-let claudeCache: { available: boolean; ts: number } | null = null;
 
 export async function GET() {
   const now = Date.now();
@@ -33,36 +32,7 @@ export async function GET() {
     }
   }
 
-  // ── Claude (Anthropic) — appel réel pour valider la clé ─────────────────────
-  if (!claudeCache || now - claudeCache.ts > CACHE_TTL) {
-    const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
-    if (!apiKey) {
-      claudeCache = { available: false, ts: now };
-    } else {
-      try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            messages: [{ role: 'user', content: 'ok' }],
-            max_tokens: 1,
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
-        claudeCache = { available: res.ok, ts: now };
-      } catch {
-        claudeCache = { available: false, ts: now };
-      }
-    }
-  }
-
   // ── Gemini — on vérifie juste la présence de la clé (pas d'appel API) ───────
-  // Un appel génère un 429 si billing non activé, ce qui n'est pas une erreur de clé
   const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? '';
   const geminiStatus = geminiKey
     ? { keyPresent: true, available: true }
@@ -72,7 +42,6 @@ export async function GET() {
     mistral: mistralCache
       ? { remaining: mistralCache.remaining, limit: mistralCache.limit }
       : null,
-    claude: claudeCache ?? { available: false },
     gemini: geminiStatus,
   });
 }

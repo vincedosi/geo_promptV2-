@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type Provider = 'mistral' | 'claude' | 'gemini';
+export type Provider = 'mistral' | 'gemini';
 
 export interface ProviderStatus {
   mistral: { remaining: number; limit: number } | null;
-  claude: { available: boolean } | null;
   gemini: { available: boolean; keyPresent: boolean } | null;
 }
 
@@ -14,7 +13,6 @@ export function useProviderSelector() {
   const [provider, setProvider] = useState<Provider>('gemini');
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>({
     mistral: null,
-    claude: null,
     gemini: null,
   });
   const [statusLoading, setStatusLoading] = useState(false);

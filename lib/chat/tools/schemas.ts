@@ -55,8 +55,22 @@ export function buildTools(
         executeToolCall('afficher_carreaux', args, categoriesList, {}),
     },
 
+    isochrone_battle_v2: {
+      description: 'Sectorisation ST_Difference depuis cache ORS (rapide, sans calcul). Paliers libres.',
+      inputSchema: z.object({
+        category:       z.string().describe(catsDesc),
+        paliers:        z.array(z.number()).optional().describe('Paliers min (ex: [10,20,30,60]). Déf: [10,20,30,60,90].'),
+        mode:           z.enum(['drive', 'walk', 'bike']).optional().describe('Mode (déf drive).'),
+        ville:          z.string().optional().describe('Filtre ville.'),
+        region:         z.string().optional().describe('Filtre région.'),
+        metropolitaine: z.boolean().optional().describe('true=métropole (déf).'),
+      }),
+      execute: (args: Record<string, unknown>) =>
+        executeToolCall('isochrone_battle_v2', args, categoriesList, {}),
+    },
+
     isochrone_battle: {
-      description: 'Sectorisation routière par anneaux isochrones (10/30/60/90/120 min).',
+      description: 'Sectorisation ORS live (calcul ~1-2 min). Utiliser si cache absent.',
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
         mode:           z.enum(['drive', 'walk', 'bike']).optional().describe('Mode (déf drive).'),

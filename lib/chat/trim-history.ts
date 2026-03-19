@@ -3,8 +3,8 @@
  * Séparés de route.ts pour être testables.
  */
 
-const MAX_MESSAGES = 14; // 7 échanges complets
-const KEEP_INTACT  = 4;  // 2 derniers échanges préservés intacts
+const MAX_MESSAGES = 10; // 5 échanges complets
+const KEEP_INTACT  = 2;  // 1 dernier échange préservé intact
 
 /**
  * Supprime les champs volumineux des anciens tool results.

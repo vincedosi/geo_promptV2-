@@ -20,14 +20,40 @@ const CIRFA_PALETTE = [
   '#ec4899', '#6366f1', '#14b8a6', '#a855f7',
 ];
 
-export type MetricKey = 'ind' | 'ind_18_24' | 'ind_25_39' | 'ind_40_54';
+export type MetricKey =
+  | 'ind' | 'ind_0_3' | 'ind_4_5' | 'ind_6_10'
+  | 'ind_18_24' | 'ind_25_39' | 'ind_40_54' | 'ind_55_64' | 'ind_65_79' | 'ind_80p'
+  | 'ind_snv' | 'men_pauv'
+  | 'men' | 'men_prop' | 'men_fmp' | 'men_coll'
+  | 'log_soc' | 'log_ap90' | 'log_av45';
 
-export const METRICS: { key: MetricKey; label: string }[] = [
-  { key: 'ind',       label: 'Total'    },
-  { key: 'ind_18_24', label: '18-24'    },
-  { key: 'ind_25_39', label: '25-39'    },
-  { key: 'ind_40_54', label: '40-54'    },
+export const METRICS: { key: MetricKey; label: string; group: string }[] = [
+  // Population
+  { key: 'ind',       label: 'Total pop.',   group: 'Population' },
+  { key: 'ind_0_3',   label: '0-3 ans',      group: 'Population' },
+  { key: 'ind_4_5',   label: '4-5 ans',      group: 'Population' },
+  { key: 'ind_6_10',  label: '6-10 ans',     group: 'Population' },
+  { key: 'ind_18_24', label: '18-24 ans',    group: 'Population' },
+  { key: 'ind_25_39', label: '25-39 ans',    group: 'Population' },
+  { key: 'ind_40_54', label: '40-54 ans',    group: 'Population' },
+  { key: 'ind_55_64', label: '55-64 ans',    group: 'Population' },
+  { key: 'ind_65_79', label: '65-79 ans',    group: 'Population' },
+  { key: 'ind_80p',   label: '80+ ans',      group: 'Population' },
+  // Socio-économique
+  { key: 'ind_snv',   label: 'Sous niv.vie', group: 'Socio' },
+  { key: 'men_pauv',  label: 'Mén.pauvres',  group: 'Socio' },
+  // Ménages
+  { key: 'men',       label: 'Total mén.',   group: 'Ménages' },
+  { key: 'men_prop',  label: 'Propriétaires',group: 'Ménages' },
+  { key: 'men_fmp',   label: 'Monoparen.',   group: 'Ménages' },
+  { key: 'men_coll',  label: 'Collectif',    group: 'Ménages' },
+  // Logements
+  { key: 'log_soc',   label: 'Social',       group: 'Logements' },
+  { key: 'log_ap90',  label: 'Après 1990',   group: 'Logements' },
+  { key: 'log_av45',  label: 'Avant 1945',   group: 'Logements' },
 ];
+
+const METRIC_GROUPS = ['Population', 'Socio', 'Ménages', 'Logements'] as const;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -517,35 +543,47 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
         flexDirection: 'column',
         gap:          8,
       }}>
-        {/* Checkboxes */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {METRICS.map(m => {
-            const checked = selectedMetrics.has(m.key);
+        {/* Checkboxes grouped by category */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {METRIC_GROUPS.map(group => {
+            const groupMetrics = METRICS.filter(m => m.group === group);
             return (
-              <button
-                key={m.key}
-                disabled={loading}
-                onClick={() => setSelectedMetrics(prev => {
-                  const s = new Set(prev);
-                  if (s.has(m.key)) s.delete(m.key); else s.add(m.key);
-                  return s;
-                })}
-                style={{
-                  background:    checked ? '#1e0d35' : 'none',
-                  border:        `1px solid ${checked ? '#a855f7' : '#1e1e2e'}`,
-                  color:         checked ? '#a855f7' : '#4b5563',
-                  fontFamily:    'JetBrains Mono, monospace',
-                  fontSize:      9,
-                  padding:       '3px 9px',
-                  borderRadius:  2,
-                  cursor:        loading ? 'not-allowed' : 'pointer',
-                  letterSpacing: 0.5,
-                  flexShrink:    0,
-                  opacity:       loading ? 0.5 : 1,
-                }}
-              >
-                {checked ? '✓ ' : ''}{m.label === 'Total' ? 'Total' : `${m.label} ans`}
-              </button>
+              <div key={group}>
+                <div style={{ fontFamily: 'Michroma, sans-serif', fontSize: 7, color: '#3a3a52', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  {group}
+                </div>
+                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                  {groupMetrics.map(m => {
+                    const checked = selectedMetrics.has(m.key);
+                    return (
+                      <button
+                        key={m.key}
+                        disabled={loading}
+                        onClick={() => setSelectedMetrics(prev => {
+                          const s = new Set(prev);
+                          if (s.has(m.key)) s.delete(m.key); else s.add(m.key);
+                          return s;
+                        })}
+                        style={{
+                          background:    checked ? '#1e0d35' : 'none',
+                          border:        `1px solid ${checked ? '#a855f7' : '#1e1e2e'}`,
+                          color:         checked ? '#a855f7' : '#4b5563',
+                          fontFamily:    'JetBrains Mono, monospace',
+                          fontSize:      9,
+                          padding:       '3px 8px',
+                          borderRadius:  2,
+                          cursor:        loading ? 'not-allowed' : 'pointer',
+                          letterSpacing: 0.3,
+                          flexShrink:    0,
+                          opacity:       loading ? 0.5 : 1,
+                        }}
+                      >
+                        {checked ? '✓ ' : ''}{m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -602,7 +640,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
                 letterSpacing: 0.5,
               }}
             >
-              {m.label === 'Total' ? 'Total' : `${m.label} ans`}
+              {m.label}
             </button>
           ))}
         </div>
@@ -614,14 +652,17 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
         {/* Empty state */}
         {battleFeatures.length === 0 && !loading && (
           <div style={{
-            color:      '#374151',
+            color:      '#8888aa',
             fontFamily: 'JetBrains Mono, monospace',
             fontSize:   11,
             textAlign:  'center',
             paddingTop: 60,
-            lineHeight: 1.8,
+            lineHeight: 2,
           }}>
-            Lancez la bataille pour<br />voir les résultats
+            Calculez des isochrones<br />
+            <span style={{ color: '#6060a0', fontSize: 10 }}>
+              Territoire → Isochrones<br />ou Bataille isochrones
+            </span>
           </div>
         )}
 
@@ -791,7 +832,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             {/* ── 2 Metric cards ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 22 }}>
               <MetricCard
-                label={displayLabel === 'Total' ? 'Pop. totale (somme CIRFA)' : `Cible ${displayLabel} ans`}
+                label={`${displayLabel} — somme CIRFA`}
                 value={fmtNum(chart1.reduce((s, c) => s + c.value, 0))}
                 sub={`${cirfaOrder.length} points (avec doublons)`}
                 color="#3dffa0"
@@ -805,7 +846,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             </div>
 
             {/* ── Chart 1 : Classement population ── */}
-            <Section title={`Population couverte par point — ${displayLabel === 'Total' ? 'Total' : displayLabel + ' ans'}`}>
+            <Section title={`Couverture par point — ${displayLabel}`}>
               <HBarChart
                 data={chart1.map(c => ({ label: c.name, value: c.value, color: c.fill, failed: c.failed }))}
                 formatValue={fmtNum}

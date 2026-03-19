@@ -49,10 +49,13 @@ interface MapPanelProps {
   carreauxIndicateur: string;
   carreauxPalette: string;
   carreauxOpacity: number;
+  carreauxRange: { p5: number; p95: number } | null;
+  carreauxSelectedBucket: number | null;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   setCarreauxIndicateur: (v: string) => void;
   setCarreauxPalette: (v: string) => void;
   setCarreauxOpacity: (v: number) => void;
+  setCarreauxSelectedBucket: (v: number | null) => void;
   selectedBillboard: SelectedBillboard | null;
   closeBillboardDrawer: () => void;
   mapStyleUrl?: string;
@@ -117,6 +120,16 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   textTransform: 'uppercase' as const,
 });
 
+// Formate une valeur numérique pour la légende (arrondi lisible)
+function fmtVal(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 10_000)    return `${Math.round(v / 1000)}k`;
+  if (v >= 1_000)     return `${(v / 1000).toFixed(1)}k`;
+  if (v >= 100)       return String(Math.round(v));
+  if (v >= 10)        return String(Math.round(v));
+  return v % 1 === 0 ? String(v) : v.toFixed(1);
+}
+
 export function MapPanel({
   mapContainerRef, mapRef, mapReady, zoneData, activeCats,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
@@ -126,7 +139,8 @@ export function MapPanel({
   battleVisible, battleCategory, battleCirfas, setBattleVisible,
   battleMaxPalier, setBattleMaxPalier,
   carreauxVisible, carreauxLoaded, carreauxLabel, carreauxIndicateur, carreauxPalette, carreauxOpacity,
-  setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity,
+  carreauxRange, carreauxSelectedBucket,
+  setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   selectedBillboard, closeBillboardDrawer,
   mapStyleUrl, mapStyles, onMapStyleChange,
 }: MapPanelProps) {
@@ -150,9 +164,16 @@ export function MapPanel({
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
       {/* carreaux-mvt-fill/line init dans useMapInit, visibilité gérée par useMapLayers */}
 
-      {/* Badge zone active */}
+      {/* ── Colonne contrôles top-left ───────────────────────────────────── */}
+      <div style={{
+        position: 'absolute', top: 12, left: 12, zIndex: 10,
+        display: 'flex', flexDirection: 'column', gap: 6,
+        width: 220, maxHeight: 'calc(100% - 80px)', overflowY: 'auto',
+      }}>
+
+      {/* ZONE_ACTIVE */}
       {zoneData && (
-        <div style={{ ...badgeBase, top: 12, left: 12 }}>
+        <div style={{ ...badgeBase, position: 'relative' }}>
           <div style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 3 }}>
             ZONE_ACTIVE
           </div>
@@ -167,8 +188,7 @@ export function MapPanel({
       {isochroneVisible && isochroneMinutes > 0 && (
         <div style={{
           ...badgeBase,
-          top: 12,
-          left: zoneData ? 150 : 12,
+          position: 'relative',
           borderColor: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line + '80',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -203,8 +223,7 @@ export function MapPanel({
       {voronoiVisible && voronoiCategory && (
         <div style={{
           ...badgeBase,
-          top: isochroneVisible && isochroneMinutes > 0 ? 100 : 60,
-          left: 12,
+          position: 'relative',
           borderColor: C.warn + '60',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -220,18 +239,37 @@ export function MapPanel({
         </div>
       )}
 
+      {/* Toggles layers : ligne compacte */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button
+          onClick={() => setCarreauxVisible(v => !v)}
+          style={{ ...toggleBtnBase(carreauxVisible, C.blue), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}
+        >
+          <span style={{ width: 7, height: 7, background: carreauxVisible ? C.blue : 'transparent', border: `1.5px solid ${C.blue}`, borderRadius: 1, flexShrink: 0 }} />
+          Carreaux{carreauxLoaded ? ' ✓' : ''}
+        </button>
+        {voronoiCategory && (
+          <button onClick={() => setVoronoiVisible(v => !v)}
+            style={{ ...toggleBtnBase(voronoiVisible, C.warn), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}>
+            <span style={{ width: 7, height: 7, background: voronoiVisible ? C.warn : 'transparent', border: `1.5px solid ${C.warn}`, borderRadius: 1, flexShrink: 0 }} />
+            Voronoï
+          </button>
+        )}
+        {battleCategory && (
+          <button onClick={() => setBattleVisible(v => !v)}
+            style={{ ...toggleBtnBase(battleVisible, C.danger), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}>
+            <span style={{ width: 7, height: 7, background: battleVisible ? C.danger : 'transparent', border: `1.5px solid ${C.danger}`, borderRadius: 1, flexShrink: 0 }} />
+            Bataille
+          </button>
+        )}
+      </div>
+
       {/* Panneau carreaux : indicateur + palette + opacité + légende */}
       {carreauxVisible && (() => {
         const groups = Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group)));
-        const needsZoom = currentZoom !== null && currentZoom < 10;
         const pal = CARREAUX_PALETTES.find(p => p.id === carreauxPalette) ?? CARREAUX_PALETTES[0];
         return (
-          <div style={{ ...badgeBase, top: 52, right: 12, borderColor: C.blue + '60', minWidth: 200 }}>
-            {needsZoom && (
-              <div style={{ color: C.warn, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', marginBottom: 5 }}>
-                ! ZOOM &gt;= 10 REQUIS
-              </div>
-            )}
+          <div style={{ ...badgeBase, position: 'relative', borderColor: C.blue + '60' }}>
             <div style={{ color: C.blue, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 5 }}>
               CARREAUX_INSEE
             </div>
@@ -292,65 +330,66 @@ export function MapPanel({
               </span>
             </div>
 
-            {/* Légende rampe */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-              {pal.stops.map((c, i) => (
-                <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />
-              ))}
+            {/* Légende cliquable par tranche */}
+            <div style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>
+              LÉGENDE {carreauxSelectedBucket !== null && (
+                <button
+                  onClick={() => setCarreauxSelectedBucket(null)}
+                  style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 8, fontFamily: fontMichroma, letterSpacing: '0.08em', padding: '0 0 0 6px' }}
+                >✕ TOUT</button>
+              )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: C.muted, fontSize: 8 }}>min</span>
-              <span style={{ color: C.muted, fontSize: 8, fontFamily: fontMichroma, letterSpacing: '0.06em' }}>{carreauxLabel || 'MULTI-RES'}</span>
-              <span style={{ color: C.muted, fontSize: 8 }}>max</span>
-            </div>
+            {carreauxRange ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {pal.stops.map((color, i) => {
+                  const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
+                  const min  = carreauxRange.p5 + i * step;
+                  const max  = carreauxRange.p5 + (i + 1) * step;
+                  const isSelected = carreauxSelectedBucket === i;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setCarreauxSelectedBucket(isSelected ? null : i)}
+                      title={isSelected ? 'Désélectionner' : `Filtrer : ${fmtVal(min)} – ${fmtVal(max)}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        width: '100%', textAlign: 'left',
+                        background: isSelected ? color + '22' : 'none',
+                        border: `1px solid ${isSelected ? color : 'transparent'}`,
+                        borderRadius: 2, padding: '1px 3px', cursor: 'pointer',
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                      <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 8, fontFamily: fontMono, flex: 1 }}>
+                        {i === 5 ? `≥ ${fmtVal(min)}` : `${fmtVal(min)} – ${fmtVal(max)}`}
+                      </span>
+                      {isSelected && <span style={{ color: color, fontSize: 7, fontFamily: fontMichroma }}>●</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+                {pal.stops.map((c, i) => (
+                  <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />
+                ))}
+                <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fontMono }}>z≥10</span>
+              </div>
+            )}
           </div>
         );
       })()}
 
-      {/* Voronoï toggle */}
-      {voronoiCategory && (
-        <button
-          onClick={() => setVoronoiVisible(v => !v)}
-          title={voronoiVisible ? 'Masquer le Voronoï' : 'Afficher le Voronoï'}
-          style={{ ...toggleBtnBase(voronoiVisible, C.warn), top: 52, right: 12 }}
-        >
-          <span style={{ width: 8, height: 8, background: voronoiVisible ? C.warn : 'transparent', border: `1.5px solid ${C.warn}`, borderRadius: 1, flexShrink: 0 }} />
-          Voronoï
-        </button>
-      )}
-
-      {/* Bataille toggle */}
-      {battleCategory && (
-        <button
-          onClick={() => setBattleVisible(v => !v)}
-          title={battleVisible ? 'Masquer la Bataille' : "Afficher la Bataille d'Isochrones"}
-          style={{ ...toggleBtnBase(battleVisible, C.danger), top: voronoiCategory ? 86 : 52, right: 12 }}
-        >
-          <span style={{ width: 8, height: 8, background: battleVisible ? C.danger : 'transparent', border: `1.5px solid ${C.danger}`, borderRadius: 1, flexShrink: 0 }} />
-          Bataille
-        </button>
-      )}
-
-      {/* Carreaux toggle */}
-      <button
-        onClick={() => setCarreauxVisible(v => !v)}
-        title={carreauxVisible ? 'Masquer les carreaux' : 'Afficher les carreaux démographiques'}
-        style={{ ...toggleBtnBase(carreauxVisible, C.blue), top: 12, right: 12 }}
-      >
-        <span style={{ width: 8, height: 8, background: carreauxVisible ? C.blue : 'transparent', border: `1.5px solid ${C.blue}`, borderRadius: 1, flexShrink: 0 }} />
-        Carreaux{carreauxLoaded ? ' ✓' : ''}
-      </button>
 
       {/* Légende catégories */}
       {activeCats.length > 0 && (
         <div style={{
           ...badgeBase,
-          bottom: 48,
-          left: 12,
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           gap: 5,
-          maxWidth: 220,
         }}>
           <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.12em', marginBottom: 2 }}>
             LEGENDE
@@ -470,24 +509,7 @@ export function MapPanel({
         </div>
       )}
 
-      {/* Sélecteur de style de carte */}
-      {/* Boutons zoom custom + niveau de zoom */}
-      <div style={{
-        position: 'absolute', bottom: 48, left: 12, zIndex: 10,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-      }}>
-        <button
-          onClick={() => mapRef?.current?.zoomIn()}
-          style={{ width: 28, height: 28, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 16, lineHeight: '1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >+</button>
-        <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, padding: '2px 4px', background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, minWidth: 28, textAlign: 'center' }}>
-          {currentZoom !== null ? `z${Math.floor(currentZoom ?? 0)}` : '—'}
-        </div>
-        <button
-          onClick={() => mapRef?.current?.zoomOut()}
-          style={{ width: 28, height: 28, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 16, lineHeight: '1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >−</button>
-      </div>
+      </div>{/* ── fin colonne top-left ── */}
 
       {/* FOND_CARTE compact */}
       {mapStyles && onMapStyleChange && (

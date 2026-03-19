@@ -6,7 +6,7 @@
 import { analyserZone }    from './analyserZone';
 import { voronoiAnalysis } from './voronoi';
 import { afficherCarreaux } from './carreaux';
-import { isochroneBattle }  from './isochrones';
+import { isochroneBattle, isochroneBattleV2 } from './isochrones';
 import { analyserPanneaux } from './panneaux';
 import { audienceCoverage } from './audienceCoverage';
 import { classerAudience }  from './classerAudience';
@@ -32,6 +32,9 @@ export async function executeToolCall(
 
     case 'isochrone_battle':
       return isochroneBattle(args, options);
+
+    case 'isochrone_battle_v2':
+      return isochroneBattleV2(args);
 
     case 'analyser_panneaux':
       return analyserPanneaux(args);

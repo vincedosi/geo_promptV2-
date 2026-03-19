@@ -176,7 +176,7 @@ export function useMapInit(
         id: 'pois-circles',
         type: 'circle',
         source: 'pois-heat',
-        minzoom: 3,
+        minzoom: 11,
         paint: {
           'circle-color': ['coalesce', ['get', 'color'], '#6366f1'] as unknown as maplibregl.ExpressionSpecification,
           'circle-radius': [

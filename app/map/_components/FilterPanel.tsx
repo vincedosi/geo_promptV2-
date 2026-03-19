@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { ZoneData } from '@/types/spatial';
 import type { CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 
@@ -20,7 +20,7 @@ const C = {
   redDim:    'rgba(248,113,113,0.08)',
   redBorder: 'rgba(248,113,113,0.25)',
   violet:    '#c4b5fd',
-  muted:     '#4b5563',
+  muted:     '#8888aa',
   textDim:   '#6b7280',
   text:      '#e2e8f0',
 };
@@ -34,7 +34,11 @@ import {
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
 
-type Tab = 'territoire' | 'audience' | 'analyses';
+type Tab = 'geoprompt' | 'territoire' | 'analyses';
+
+// ─── POI Style ────────────────────────────────────────────────────────────────
+export interface POIStyle { size: string; color: string; }
+export type POIStylesMap = Record<string, POIStyle>;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
@@ -67,12 +71,23 @@ export interface DirectBattleV2Params {
   force_battle?: boolean;
 }
 
+export interface FillIsochroneCacheParams {
+  category: string;
+  mode: string;
+  max_minutes: number;
+  durations: number[];
+  filtre_ville?: string;
+  filtre_regions?: string[];
+  metropolitaine: boolean;
+}
 
 export interface FilterPanelProps {
+  chatSlot?: React.ReactNode;
   sendMessage: (text: string) => void;
   onDirectSearch:   (params: DirectPOISearchParams) => Promise<void>;
-  onDirectBattle:   (params: DirectBattleParams, onProgress?: (msg: string, pct?: number) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
-  onDirectBattleV2: (params: DirectBattleV2Params, onProgress?: (msg: string) => void) => Promise<void>;
+  onDirectBattle:       (params: DirectBattleParams, onProgress?: (msg: string, pct?: number) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
+  onDirectBattleV2:     (params: DirectBattleV2Params, onProgress?: (msg: string) => void) => Promise<void>;
+  onFillIsochroneCache: (params: FillIsochroneCacheParams, onProgress?: (msg: string) => void) => Promise<void>;
   onApplyBattle:    (rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[], category?: string, poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[], onProgress?: (msg: string, pct: number) => void) => Promise<void>;
   isLoading: boolean;
   error: string | null;
@@ -87,6 +102,9 @@ export interface FilterPanelProps {
   setIsochroneVisible: (v: boolean) => void;
   setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
   coverageSummary?: CoverageSummaryEntry[];
+  densityMode?: boolean;
+  onDensityModeChange?: (v: boolean) => void;
+  onPOIStylesChange?: (styles: POIStylesMap) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -194,13 +212,16 @@ function MultiDropdown({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function FilterPanel({
-  sendMessage, onDirectSearch, onDirectBattle, onDirectBattleV2, onApplyBattle, isLoading, error, zoneData,
+  chatSlot,
+  sendMessage, onDirectSearch, onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle, isLoading, error, zoneData,
+  densityMode, onDensityModeChange,
   voronoiVisible, setVoronoiVisible,
   battleVisible, setBattleVisible,
   battleOuterFillVisible, setBattleOuterFillVisible,
   isochroneVisible, setIsochroneVisible,
   setShowSavePanel,
   coverageSummary,
+  onPOIStylesChange,
 }: FilterPanelProps) {
 
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
@@ -220,7 +241,7 @@ export function FilterPanel({
   }, []);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<Tab>('territoire');
+  const [activeTab, setActiveTab] = useState<Tab>('geoprompt');
 
   // ── Territoire state ──────────────────────────────────────────────────────
   const [scope,           setScope]           = useState<'metro' | 'all' | null>(null);
@@ -233,6 +254,26 @@ export function FilterPanel({
 
   // ── Analyses state ────────────────────────────────────────────────────────
   const [selectedPOI,   setSelectedPOI]   = useState<string[]>([]);
+
+  // ── POI pin styles ─────────────────────────────────────────────────────────
+  const PIN_SIZES = ['Petite', 'Standard', 'Grosse', 'Large'] as const;
+  const PIN_COLORS: { label: string; hex: string }[] = [
+    { label: 'Noir',    hex: '#111111' },
+    { label: 'Blanc',   hex: '#eeeeee' },
+    { label: 'Gris',    hex: '#888888' },
+    { label: 'Violet',  hex: '#a855f7' },
+    { label: 'Vert',    hex: '#3dffa0' },
+    { label: 'Cyan',    hex: '#00d4ff' },
+    { label: 'Rouge',   hex: '#ff4444' },
+    { label: 'Orange',  hex: '#ff8c00' },
+    { label: 'Jaune',   hex: '#ffd700' },
+    { label: 'Bleu',    hex: '#3b82f6' },
+  ];
+  const [poiStyles, setPoiStyles] = useState<Record<string, { size: string; color: string }>>({});
+  const getPOIStyle = (poi: string) => poiStyles[poi] ?? { size: 'Standard', color: '#a855f7' };
+  const setPOIStyle = (poi: string, patch: Partial<{ size: string; color: string }>) =>
+    setPoiStyles(prev => ({ ...prev, [poi]: { ...getPOIStyle(poi), ...patch } }));
+  useEffect(() => { onPOIStylesChange?.(poiStyles); }, [poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
   const [poisRayon,     setPoisRayon]     = useState<string | null>(null);
   const [showVoronoi,      setShowVoronoi]      = useState(false);
   const [showBattle,       setShowBattle]       = useState(false);
@@ -242,6 +283,18 @@ export function FilterPanel({
   const [battleV2Paliers,  setBattleV2Paliers]  = useState<number[]>([10, 20, 30, 40, 50, 60, 90]);
   const [battleV2Loading,  setBattleV2Loading]  = useState(false);
   const [battleV2Log,      setBattleV2Log]      = useState<string[]>([]);
+
+  // ── Cache check state ──────────────────────────────────────────────────────
+  type CacheStatus = { total_pois: number; total_combos: number; cached_combos: number; missing_combos: number; missing_pois: number; cached_pois: number } | null;
+  const [v2CacheStatus,   setV2CacheStatus]   = useState<CacheStatus>(null);
+  const [v2Checking,      setV2Checking]      = useState(false);
+  const [v2Filling,       setV2Filling]       = useState(false);
+  const [v2FillTotal,     setV2FillTotal]     = useState(0);
+  const [v2FillCompleted, setV2FillCompleted] = useState(0);
+  const [v2FillPct,       setV2FillPct]       = useState(0);
+  const [v2FillRings,     setV2FillRings]     = useState(0);
+  const [orsCacheStatus,  setOrsCacheStatus]  = useState<CacheStatus>(null);
+  const [orsChecking,     setOrsChecking]     = useState(false);
 
   // ── Geographic cascade ────────────────────────────────────────────────────
   const availableDepts = useMemo(() =>
@@ -287,8 +340,10 @@ export function FilterPanel({
   const exactlyOnePOI = selectedPOI.length === 1;
   const hasAnyPOI     = selectedPOI.length > 0;
 
-  const toggleDuration = (d: number) =>
+  const toggleDuration = (d: number) => {
+    setOrsCacheStatus(null);
     setIsoDurations(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
+  };
 
   const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
 
@@ -335,8 +390,133 @@ export function FilterPanel({
     send(msg);
   };
 
+  // ── Vérification cache — partagée ORS + V2 ────────────────────────────────
+  const buildCheckParams = (paliers: number[]) => ({
+    category:       selectedPOI[0],
+    mode:           transportMode,
+    paliers,
+    metropolitaine: !selectedRegions.includes('dom'),
+    filtre_ville:   ville || undefined,
+    filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+                      ? selectedRegions : undefined,
+  });
+
+  const handleCheckV2 = async () => {
+    if (!exactlyOnePOI || battleV2Paliers.length === 0) return;
+    setV2Checking(true);
+    setV2CacheStatus(null);
+    try {
+      const res  = await fetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(battleV2Paliers)) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setV2CacheStatus(data);
+    } catch (e: any) {
+      setBattleV2Log(prev => [...prev, `> ✕ Erreur vérif. cache : ${e.message}`]);
+    } finally {
+      setV2Checking(false);
+    }
+  };
+
+  const handleCheckORS = async () => {
+    if (!exactlyOnePOI || isoDurations.length === 0) return;
+    setOrsChecking(true);
+    setOrsCacheStatus(null);
+    try {
+      const res  = await fetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(isoDurations)) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setOrsCacheStatus(data);
+    } catch (e: any) {
+      setBattleLog(prev => [...prev, `> ✕ Erreur vérif. cache : ${e.message}`]);
+    } finally {
+      setOrsChecking(false);
+    }
+  };
+
+  // Remplir le cache manquant via ORS (pour V2) — streaming carte + progress détaillée
+  const handleFillMissingV2 = async () => {
+    if (!exactlyOnePOI || battleV2Paliers.length === 0 || v2Filling) return;
+    setV2Filling(true);
+    setV2CacheStatus(null);
+    setV2FillTotal(0);
+    setV2FillCompleted(0);
+    setV2FillPct(0);
+    setV2FillRings(0);
+    setBattleV2Log([
+      `> [ORS] Calcul des isochrones manquants...`,
+      `> catégorie : ${selectedPOI[0]} | mode : ${transportMode}`,
+      `> paliers : ${battleV2Paliers.join(', ')} min`,
+    ]);
+    try {
+      await onFillIsochroneCache(
+        {
+          category:       selectedPOI[0],
+          mode:           transportMode,
+          durations:      [...battleV2Paliers].sort((a, b) => a - b),
+          max_minutes:    Math.max(...battleV2Paliers),
+          filtre_ville:   ville || undefined,
+          filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length) ? selectedRegions : undefined,
+          metropolitaine: !selectedRegions.includes('dom'),
+        },
+        (msg: string) => {
+          // Parser "N POIs trouvés" → total
+          const mTotal = msg.match(/(\d+) POIs trouv/);
+          if (mTotal) { setV2FillTotal(Number(mTotal[1])); setBattleV2Log(prev => [...prev, `> ${msg}`]); return; }
+
+          // Parser "X/Y POIs traités — Z%" → progress
+          const mProgress = msg.match(/(\d+)\/(\d+) POIs traités.*?(\d+)%/);
+          if (mProgress) {
+            const [, done, total, pct] = mProgress.map(Number);
+            setV2FillCompleted(done);
+            setV2FillTotal(total);
+            setV2FillPct(pct);
+            // Mise à jour in-place de la ligne de progress dans le log
+            setBattleV2Log(prev => {
+              const line = `> ORS — ${done}/${total} POIs — ${pct}%`;
+              const lastIdx = prev.map((l, i) => l.startsWith('> ORS —') ? i : -1).filter(i => i >= 0).pop();
+              if (lastIdx !== undefined) { const next = [...prev]; next[lastIdx] = line; return next; }
+              return [...prev, line];
+            });
+            return;
+          }
+
+          // Parser "+N isochrones sur la carte" → compteur anneaux
+          const mRings = msg.match(/\+(\d+) isochrones/);
+          if (mRings) {
+            setV2FillRings(prev => prev + Number(mRings[1]));
+            setBattleV2Log(prev => {
+              const line = `> ◆ ${msg.replace('> ', '')}`;
+              // Mise à jour in-place si c'est une ligne ◆
+              const lastIdx = prev.map((l, i) => l.startsWith('> ◆') ? i : -1).filter(i => i >= 0).pop();
+              if (lastIdx !== undefined) { const next = [...prev]; next[lastIdx] = line; return next; }
+              return [...prev, line];
+            });
+            return;
+          }
+
+          // Autres messages → append direct
+          if (msg.trim()) setBattleV2Log(prev => [...prev, `> ${msg.replace(/^> /, '')}`]);
+        },
+      );
+      setV2FillPct(100);
+      setBattleV2Log(prev => [...prev, `> ✓ Cache rempli (${v2FillRings || '?'} isochrones) — relancez Bataille V2`]);
+      // Re-vérifier le statut cache
+      const checkRes = await fetch('/api/isochrone-cache-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildCheckParams(battleV2Paliers)),
+      });
+      if (checkRes.ok) setV2CacheStatus(await checkRes.json());
+    } catch (e: any) {
+      if (e.name !== 'AbortError') setBattleV2Log(prev => [...prev, `> ✕ ${e.message}`]);
+    } finally {
+      setV2Filling(false);
+    }
+  };
+
   const handleBattle = async (force = false) => {
     if (!exactlyOnePOI || isoDurations.length === 0 || battleLoading) return;
+    setOrsCacheStatus(null);
     const maxMin = Math.max(...isoDurations);
     const params: DirectBattleParams = {
       category:          selectedPOI[0],
@@ -473,7 +653,7 @@ export function FilterPanel({
 
   const labelStyle = {
     fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.16em',
-    color: C.textDim, marginBottom: 6, textTransform: 'uppercase' as const,
+    color: '#9898b8', marginBottom: 6, textTransform: 'uppercase' as const,
   };
 
   const inputStyle = {
@@ -483,30 +663,19 @@ export function FilterPanel({
   };
 
   // ── Tab config ────────────────────────────────────────────────────────────
-  const TABS: { id: Tab; label: string; shortLabel: string; color: string; badge?: number }[] = [
-    { id: 'territoire', label: 'TERRITOIRE', shortLabel: 'ZONE',     color: C.green,  badge: hasTerritoire ? 1 : 0 },
-    { id: 'audience',   label: 'AUDIENCE',   shortLabel: 'DATA',     color: C.amber,  badge: 0 },
-    { id: 'analyses',   label: 'ANALYSES',   shortLabel: 'POI',      color: C.accent, badge: selectedPOI.length },
+  const TABS: { id: Tab; label: string; color: string; badge?: number }[] = [
+    { id: 'geoprompt',  label: 'GEO.PROMPT', color: C.accent, badge: 0 },
+    { id: 'territoire', label: 'TERRITOIRE', color: C.green,  badge: hasTerritoire ? 1 : 0 },
+    { id: 'analyses',   label: 'ANALYSES',   color: C.accent, badge: selectedPOI.length },
   ];
 
   return (
     <div style={{
-      width: 300, minWidth: 300, height: '100%',
+      width: 320, minWidth: 320, height: '100%',
       background: C.bgPanel, borderRight: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div style={{ padding: '12px 16px 10px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <div style={{ fontFamily: fOrbitron, fontSize: 13, letterSpacing: '0.08em' }}>
-          <span style={{ color: C.muted }}>geo</span>
-          <span style={{ color: C.accent }}>.</span>
-          <span style={{ color: C.text }}>filter</span>
-        </div>
-        <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.18em', marginTop: 2 }}>
-          MEDIA PLANNING — FILTRES AVANCES
-        </div>
-      </div>
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}
       {error && (
@@ -525,7 +694,7 @@ export function FilterPanel({
       )}
 
       {/* ── Tab navigation ───────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#060612' }}>
         {TABS.map(tab => {
           const active = activeTab === tab.id;
           return (
@@ -533,7 +702,7 @@ export function FilterPanel({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                flex: 1, padding: '10px 4px 9px',
+                flex: 1, padding: '11px 6px 10px',
                 background: active ? `rgba(${hexToRgb(tab.color)},0.07)` : 'none',
                 border: 'none',
                 borderBottom: active ? `2px solid ${tab.color}` : '2px solid transparent',
@@ -541,9 +710,17 @@ export function FilterPanel({
                 transition: 'all 0.15s',
               }}
             >
-              <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: active ? tab.color : C.muted, transition: 'color 0.15s' }}>
-                {tab.label}
-              </div>
+              {tab.id === 'geoprompt' ? (
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', transition: 'color 0.15s' }}>
+                  <span style={{ color: active ? '#3dffa0' : '#8888aa' }}>GEO</span>
+                  <span style={{ color: active ? C.accent : '#8888aa' }}>.</span>
+                  <span style={{ color: active ? C.text : '#8888aa' }}>PROMPT</span>
+                </div>
+              ) : (
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: active ? tab.color : '#8888aa', transition: 'color 0.15s' }}>
+                  {tab.label}
+                </div>
+              )}
               {(tab.badge ?? 0) > 0 && (
                 <div style={{
                   position: 'absolute', top: 6, right: 8,
@@ -558,10 +735,23 @@ export function FilterPanel({
       </div>
 
       {/* ── Tab content ──────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
-            ONGLET 1 — TERRITOIRE
+            ONGLET 1 — GEO.PROMPT (chat IA)
+        ════════════════════════════════════════ */}
+        {activeTab === 'geoprompt' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+            {chatSlot}
+          </div>
+        )}
+
+        {/* ── Scrollable wrapper for territoire + analyses ── */}
+        {activeTab !== 'geoprompt' && (
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
+        {/* ════════════════════════════════════════
+            ONGLET 2 — TERRITOIRE
         ════════════════════════════════════════ */}
         {activeTab === 'territoire' && (
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -667,24 +857,6 @@ export function FilterPanel({
         )}
 
         {/* ════════════════════════════════════════
-            ONGLET 2 — AUDIENCE (PMTiles)
-        ════════════════════════════════════════ */}
-        {activeTab === 'audience' && (
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 2 }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.amber, letterSpacing: '0.12em', marginBottom: 8 }}>
-                CARREAUX INSEE — PMTiles
-              </div>
-              <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, lineHeight: 1.7 }}>
-                La couche démographique (Filosofi 2019) est disponible directement sur la carte.<br /><br />
-                <span style={{ color: C.text }}>Bouton</span> <span style={{ color: C.accent }}>[Carreaux]</span> en haut à droite pour afficher/masquer.<br />
-                <span style={{ color: C.text }}>Sélecteur d&apos;indicateur</span> : population, âge, ménages, revenus, logements.
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ════════════════════════════════════════
             ONGLET 3 — ANALYSES & POI
         ════════════════════════════════════════ */}
         {activeTab === 'analyses' && (
@@ -702,24 +874,126 @@ export function FilterPanel({
                 selected={selectedPOI}
                 onChange={setSelectedPOI}
               />
-              {/* Pills sélectionnés */}
+              {/* Cartes POI sélectionnés */}
               {selectedPOI.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                  {selectedPOI.map(poi => (
-                    <button key={poi} onClick={() => setSelectedPOI(prev => prev.filter(p => p !== poi))}
-                      style={{ ...pill(true, C.accent), display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {poi} <span style={{ color: C.muted, fontSize: 7 }}>✕</span>
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  {selectedPOI.map(poi => {
+                    const style = getPOIStyle(poi);
+                    // Style commun pour les selects : avec flèche ▾ custom
+                    const selectBase: React.CSSProperties = {
+                      fontFamily: fMono, fontSize: 10,
+                      background: '#0a0a14',
+                      border: `1px solid ${C.border}`, borderRadius: 2,
+                      color: C.text, padding: '4px 22px 4px 6px',
+                      outline: 'none', cursor: 'pointer', flex: 1, width: '100%',
+                      appearance: 'none' as const,
+                    };
+                    const selectWrap: React.CSSProperties = {
+                      position: 'relative', flex: 1, display: 'flex', alignItems: 'center',
+                    };
+                    const selectArrow: React.CSSProperties = {
+                      position: 'absolute', right: 7, pointerEvents: 'none',
+                      fontFamily: fMono, fontSize: 8, color: C.muted, lineHeight: 1,
+                    };
+                    return (
+                      <div key={poi} style={{
+                        background: 'rgba(168,85,247,0.06)',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 2, padding: '8px 10px',
+                        display: 'flex', flexDirection: 'column', gap: 7,
+                      }}>
+                        {/* Header : nom + bouton X */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.14em', color: C.accent }}>
+                            {poi.toUpperCase()}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setSelectedPOI(prev => prev.filter(p => p !== poi));
+                              setPoiStyles(prev => { const n = { ...prev }; delete n[poi]; return n; });
+                            }}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: C.muted, fontSize: 11, lineHeight: 1, padding: '0 2px',
+                              fontFamily: fMono,
+                            }}
+                            title="Retirer ce POI"
+                          >✕</button>
+                        </div>
+
+                        {/* Épingle (taille) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, whiteSpace: 'nowrap', width: 50 }}>
+                            EPINGLE
+                          </span>
+                          <div style={selectWrap}>
+                            <select
+                              value={style.size}
+                              onChange={e => setPOIStyle(poi, { size: e.target.value })}
+                              style={selectBase}
+                            >
+                              {PIN_SIZES.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                            <span style={selectArrow}>▾</span>
+                          </div>
+                        </div>
+
+                        {/* Couleur */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, whiteSpace: 'nowrap', width: 50 }}>
+                            COULEUR
+                          </span>
+                          <div style={{ ...selectWrap }}>
+                            <div style={{
+                              width: 10, height: 10, borderRadius: '50%',
+                              background: style.color,
+                              border: `1px solid rgba(255,255,255,0.15)`,
+                              position: 'absolute', left: 7, pointerEvents: 'none', zIndex: 1,
+                              flexShrink: 0,
+                            }} />
+                            <select
+                              value={style.color}
+                              onChange={e => setPOIStyle(poi, { color: e.target.value })}
+                              style={{ ...selectBase, paddingLeft: 24 }}
+                            >
+                              {PIN_COLORS.map(c => (
+                                <option key={c.hex} value={c.hex}>{c.label}</option>
+                              ))}
+                            </select>
+                            <span style={selectArrow}>▾</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* AFFICHER button */}
+            {/* AFFICHER button + densité toggle */}
             {hasAnyPOI && (
-              <button style={primaryBtn(C.green, searchLoading)} disabled={searchLoading} onClick={handleSearchPOI}>
-                {searchLoading ? 'CHARGEMENT...' : 'AFFICHER LES POI SUR LA CARTE'}
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button style={{ ...primaryBtn(C.green, searchLoading), flex: 1 }} disabled={searchLoading} onClick={handleSearchPOI}>
+                  {searchLoading ? 'CHARGEMENT...' : 'AFFICHER LES POI SUR LA CARTE'}
+                </button>
+                <button
+                  title={densityMode ? 'Mode densité activé — cliquer pour repasser en marqueurs' : 'Passer en carte de densité'}
+                  onClick={() => onDensityModeChange?.(!densityMode)}
+                  style={{
+                    flexShrink: 0, padding: '0 10px',
+                    background: densityMode ? 'rgba(168,85,247,0.18)' : C.bgInput,
+                    border: `1px solid ${densityMode ? C.accent : C.border}`,
+                    borderRadius: 2, cursor: 'pointer',
+                    fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.1em',
+                    color: densityMode ? C.accent : C.muted,
+                    whiteSpace: 'nowrap', transition: 'all 0.15s',
+                  }}
+                >
+                  {densityMode ? '◉ DENSITÉ' : '◎ DENSITÉ'}
+                </button>
+              </div>
             )}
 
             {/* Divider */}
@@ -790,40 +1064,57 @@ export function FilterPanel({
                     </div>
                   </div>
 
-                  {/* Voronoï Géométrique */}
-                  <button
-                    style={primaryBtn('#a78bfa', isLoading)}
-                    disabled={isLoading}
-                    onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); }}
-                  >
-                    {voronoiVisible ? '✓ ' : ''}{showVoronoi ? '▲ ' : '▼ '}VORONOI GEOMETRIQUE
-                  </button>
-                  {showVoronoi && (
-                    <div style={{ padding: '12px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.22)`, borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontFamily: fMono, fontSize: 10, color: C.violet, lineHeight: 1.5 }}>
-                        Chaque zone appartient au <span style={{ color: '#fff' }}>{selectedPOI[0]}</span> le plus proche à vol d'oiseau. Instantané, sans API.
-                      </div>
-                      <button style={primaryBtn('#a78bfa', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
-                        LANCER LE CALCUL
-                      </button>
-                      {voronoiVisible && (
-                        <button style={pill(false, '#a78bfa')} onClick={() => setVoronoiVisible(false)}>
-                          Masquer le Voronoi
+                  {/* ── Voronoï Géométrique ── */}
+                  <div style={{ border: `1px solid ${showVoronoi ? 'rgba(167,139,250,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                    <button
+                      disabled={isLoading}
+                      onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); setShowBattleV2(false); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '9px 12px', background: showVoronoi ? 'rgba(167,139,250,0.1)' : 'rgba(167,139,250,0.04)',
+                        border: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: voronoiVisible ? '#a78bfa' : '#c4b5fd' }}>
+                        {voronoiVisible ? '✓ ' : ''}VORONOI GEOMETRIQUE
+                      </span>
+                      <span style={{ color: '#a78bfa', fontSize: 9 }}>{showVoronoi ? '▲' : '▼'}</span>
+                    </button>
+                    {showVoronoi && (
+                      <div style={{ padding: '12px', background: 'rgba(167,139,250,0.04)', borderTop: `1px solid rgba(167,139,250,0.15)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.violet, lineHeight: 1.5 }}>
+                          Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
+                        </div>
+                        <button style={primaryBtn('#a78bfa', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
+                          LANCER LE CALCUL
                         </button>
-                      )}
-                    </div>
-                  )}
+                        {voronoiVisible && (
+                          <button style={pill(false, '#a78bfa')} onClick={() => setVoronoiVisible(false)}>
+                            Masquer le Voronoi
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                  {/* Bataille V2 — cache only */}
-                  <button
-                    style={primaryBtn('#22d3ee', battleV2Loading)}
-                    disabled={battleV2Loading}
-                    onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
-                  >
-                    {battleVisible ? '✓ ' : ''}{showBattleV2 ? '▲ ' : '▼ '}BATAILLE V2 (MULTI-PALIERS)
-                  </button>
+                  {/* ── Bataille V2 — cache only ── */}
+                  <div style={{ border: `1px solid ${showBattleV2 ? 'rgba(34,211,238,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                    <button
+                      disabled={battleV2Loading}
+                      onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '9px 12px', background: showBattleV2 ? 'rgba(34,211,238,0.07)' : 'rgba(34,211,238,0.03)',
+                        border: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: battleVisible ? '#22d3ee' : '#67e8f9' }}>
+                        {battleVisible ? '✓ ' : ''}BATAILLE V2 (MULTI-PALIERS)
+                      </span>
+                      <span style={{ color: '#22d3ee', fontSize: 9 }}>{showBattleV2 ? '▲' : '▼'}</span>
+                    </button>
                   {showBattleV2 && (
-                    <div style={{ padding: '13px', background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.2)', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ padding: '13px', background: 'rgba(34,211,238,0.03)', borderTop: '1px solid rgba(34,211,238,0.15)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={{ fontFamily: fMono, fontSize: 10, color: '#67e8f9', lineHeight: 1.5 }}>
                         Lit le cache existant — <span style={{ color: '#fff' }}>aucun appel ORS</span>. Paliers manquants skippés.
                         Lance d'abord les isochrones v1 pour remplir le cache.
@@ -839,9 +1130,12 @@ export function FilterPanel({
                             <button
                               key={p}
                               style={pill(battleV2Paliers.includes(p), '#22d3ee')}
-                              onClick={() => setBattleV2Paliers(prev =>
-                                prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p].sort((a, b) => a - b)
-                              )}
+                              onClick={() => {
+                                setV2CacheStatus(null);
+                                setBattleV2Paliers(prev =>
+                                  prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p].sort((a, b) => a - b)
+                                );
+                              }}
                             >
                               {p} min
                             </button>
@@ -849,30 +1143,138 @@ export function FilterPanel({
                         </div>
                       </div>
 
-                      {/* Boutons lancer */}
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading)}
-                          disabled={battleV2Paliers.length === 0 || battleV2Loading}
-                          onClick={() => handleBattleV2(false)}
-                        >
-                          {battleV2Loading ? 'CALCUL...' : 'LANCER (CACHE)'}
-                        </button>
-                        <button
-                          style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading)}
-                          disabled={battleV2Paliers.length === 0 || battleV2Loading}
-                          onClick={() => handleBattleV2(true)}
-                        >
-                          FORCER
-                        </button>
+                      {/* ── Statut cache V2 ── */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Barre de statut */}
+                        {v2CacheStatus && (
+                          <div style={{
+                            background: v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
+                            border: `1px solid ${v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(251,191,36,0.35)'}`,
+                            borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
+                                {v2CacheStatus.total_pois} POIs · {v2CacheStatus.total_combos} isochrones
+                              </span>
+                              <span style={{ fontFamily: fMono, fontSize: 9, color: v2CacheStatus.missing_combos === 0 ? '#3dffa0' : C.amber, fontWeight: 700 }}>
+                                {v2CacheStatus.missing_combos === 0
+                                  ? '✓ 100% en cache'
+                                  : `✕ ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 's' : ''} manquants`}
+                              </span>
+                            </div>
+                            {/* Barre de progression cache */}
+                            <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%', borderRadius: 2,
+                                width: `${Math.round((v2CacheStatus.cached_combos / Math.max(v2CacheStatus.total_combos, 1)) * 100)}%`,
+                                background: v2CacheStatus.missing_combos === 0 ? '#3dffa0' : '#22d3ee',
+                                transition: 'width 0.4s ease',
+                              }} />
+                            </div>
+                            <div style={{ fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                              {v2CacheStatus.cached_combos}/{v2CacheStatus.total_combos} en cache
+                              {v2CacheStatus.missing_combos > 0 && ` · ${v2CacheStatus.missing_combos} à calculer`}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Bouton calculer manquants (si POIs sans cache) */}
+                        {v2CacheStatus && v2CacheStatus.missing_pois > 0 && (
+                          <button
+                            style={primaryBtn(C.amber, v2Filling || battleV2Loading)}
+                            disabled={v2Filling || battleV2Loading}
+                            onClick={handleFillMissingV2}
+                          >
+                            {v2Filling
+                              ? 'ORS EN COURS...'
+                              : `CALCULER ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 'S' : ''} MANQUANTS (ORS)`}
+                          </button>
+                        )}
+
+                        {/* Boutons lancer */}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            style={primaryBtn('#6b7280', battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading)}
+                            disabled={battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading}
+                            onClick={handleCheckV2}
+                          >
+                            {v2Checking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
+                          </button>
+                          <button
+                            style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
+                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
+                            onClick={() => { setV2CacheStatus(null); handleBattleV2(false); }}
+                          >
+                            {battleV2Loading ? 'CALCUL...' : 'LANCER'}
+                          </button>
+                          <button
+                            style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
+                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
+                            onClick={() => { setV2CacheStatus(null); handleBattleV2(true); }}
+                          >
+                            FORCER
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Log */}
+                      {/* ── Barre de progression ORS fill ── */}
+                      {v2Filling && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {/* Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
+                            <span style={{ color: C.amber }}>
+                              {v2FillTotal > 0 ? `ORS — ${v2FillCompleted}/${v2FillTotal} POIs` : 'ORS — initialisation...'}
+                            </span>
+                            <span style={{ color: v2FillPct > 0 ? C.green : C.muted }}>{v2FillPct}%</span>
+                          </div>
+                          {/* Barre principale */}
+                          <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 2,
+                              width: `${v2FillPct}%`,
+                              background: v2FillPct === 100 ? C.green : C.amber,
+                              transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                          {/* Sous-stats */}
+                          <div style={{ display: 'flex', gap: 10, fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                            {v2FillTotal > 0 && (
+                              <>
+                                <span style={{ color: '#22d3ee' }}>↗ {v2FillRings} isochrones reçus</span>
+                                <span>·</span>
+                                <span>{v2FillTotal - v2FillCompleted} POIs restants</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Barre de progression Bataille V2 ── */}
+                      {battleV2Loading && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
+                            <span style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>
+                              BATAILLE V2 — PostGIS ST_Difference...
+                            </span>
+                          </div>
+                          {/* Barre indéterminée */}
+                          <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                            <div style={{
+                              position: 'absolute', height: '100%', width: '40%',
+                              background: 'linear-gradient(90deg, transparent, #22d3ee, transparent)',
+                              animation: 'fpScan 1.8s linear infinite',
+                              borderRadius: 2,
+                            }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Log terminal ── */}
                       {battleV2Log.length > 0 && (
                         <div style={{
                           background: '#020205', border: '1px solid rgba(34,211,238,0.2)',
                           borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
-                          color: '#9ca3af', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
+                          color: '#9ca3af', lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
                           display: 'flex', flexDirection: 'column', gap: 1,
                         }}>
                           {battleV2Log.map((line, i) => (
@@ -880,10 +1282,12 @@ export function FilterPanel({
                               color: line.startsWith('> ✓') ? '#22d3ee'
                                    : line.startsWith('> ✕') ? C.red
                                    : line.startsWith('> !') ? C.amber
+                                   : line.startsWith('> ◆') ? '#a78bfa'
+                                   : line.startsWith('> ORS') ? C.amber
                                    : '#9ca3af',
                             }}>{line}</div>
                           ))}
-                          {battleV2Loading && <div style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
+                          {(battleV2Loading || v2Filling) && <div style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
                         </div>
                       )}
 
@@ -894,17 +1298,26 @@ export function FilterPanel({
                       )}
                     </div>
                   )}
+                  </div>
 
-                  {/* Isochrones Routiers */}
-                  <button
-                    style={primaryBtn(C.red, battleLoading)}
-                    disabled={battleLoading}
-                    onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
-                  >
-                    {battleVisible ? '✓ ' : ''}{showBattle ? '▲ ' : '▼ '}ISOCHRONES ROUTIERS (ORS)
-                  </button>
-                  {showBattle && (
-                    <div style={{ padding: '13px', background: 'rgba(248,113,113,0.05)', border: `1px solid rgba(248,113,113,0.2)`, borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 13 }}>
+                  {/* ── Isochrones Routiers (ORS) ── */}
+                  <div style={{ border: `1px solid ${showBattle ? 'rgba(248,113,113,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                    <button
+                      disabled={battleLoading}
+                      onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '9px 12px', background: showBattle ? 'rgba(248,113,113,0.08)' : 'rgba(248,113,113,0.03)',
+                        border: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: battleVisible ? C.red : '#fca5a5' }}>
+                        {battleVisible ? '✓ ' : ''}ISOCHRONES ROUTIERS (ORS)
+                      </span>
+                      <span style={{ color: C.red, fontSize: 9 }}>{showBattle ? '▲' : '▼'}</span>
+                    </button>
+                    {showBattle && (
+                    <div style={{ padding: '13px', background: 'rgba(248,113,113,0.03)', borderTop: `1px solid rgba(248,113,113,0.15)`, display: 'flex', flexDirection: 'column', gap: 13 }}>
 
                       {/* Durées */}
                       <div>
@@ -924,13 +1337,52 @@ export function FilterPanel({
                         </div>
                       </div>
 
+                      {/* ── Statut cache ORS ── */}
+                      {orsCacheStatus && (
+                        <div style={{
+                          background: orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
+                          border: `1px solid ${orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(251,191,36,0.35)'}`,
+                          borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
+                              {orsCacheStatus.total_pois} POIs · {orsCacheStatus.total_combos} isochrones
+                            </span>
+                            <span style={{ fontFamily: fMono, fontSize: 9, color: orsCacheStatus.missing_combos === 0 ? '#3dffa0' : C.amber, fontWeight: 700 }}>
+                              {orsCacheStatus.missing_combos === 0
+                                ? '✓ 100% en cache'
+                                : `${orsCacheStatus.missing_pois} POI${orsCacheStatus.missing_pois > 1 ? 's' : ''} à calculer`}
+                            </span>
+                          </div>
+                          <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 2,
+                              width: `${Math.round((orsCacheStatus.cached_combos / Math.max(orsCacheStatus.total_combos, 1)) * 100)}%`,
+                              background: orsCacheStatus.missing_combos === 0 ? '#3dffa0' : C.red,
+                              transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                          <div style={{ fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                            {orsCacheStatus.cached_combos}/{orsCacheStatus.total_combos} en cache
+                            {orsCacheStatus.missing_combos > 0 && ` · ORS calculera les ${orsCacheStatus.missing_combos} manquants automatiquement`}
+                          </div>
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          style={primaryBtn('#6b7280', isoDurations.length === 0 || battleLoading || orsChecking)}
+                          disabled={isoDurations.length === 0 || battleLoading || orsChecking}
+                          onClick={handleCheckORS}
+                        >
+                          {orsChecking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
+                        </button>
                         <button
                           style={primaryBtn(C.red, isoDurations.length === 0 || battleLoading)}
                           disabled={isoDurations.length === 0 || battleLoading}
                           onClick={() => handleBattle(false)}
                         >
-                          {battleLoading ? 'CALCUL ORS...' : 'UTILISER LE CACHE'}
+                          {battleLoading ? 'CALCUL ORS...' : 'LANCER'}
                         </button>
                         <button
                           style={primaryBtn(C.amber, isoDurations.length === 0 || battleLoading)}
@@ -1068,8 +1520,8 @@ export function FilterPanel({
                                   background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
                                   borderLeft: `2px solid ${i === 0 ? C.accent : C.border}`,
                                 }}>
-                                  <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 56, flexShrink: 0 }}>
-                                    {s.label === 'Total' ? 'TOTAL' : `${s.label} ANS`}
+                                  <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 72, flexShrink: 0 }}>
+                                    {s.label.toUpperCase()}
                                   </div>
                                   <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
                                     <div style={{ width: `${pct}%`, height: '100%', background: C.accent, borderRadius: 1 }} />
@@ -1084,7 +1536,8 @@ export function FilterPanel({
                         </div>
                       )}
                     </div>
-                  )}
+                    )}
+                  </div>
 
                 </div>
               )}
@@ -1093,9 +1546,13 @@ export function FilterPanel({
           </div>
         )}
 
+        </div>
+        )}
+
       </div>
 
       {/* ── Footer actions ────────────────────────────────────────────────── */}
+      {activeTab !== 'geoprompt' && (
       <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 14px', display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => setShowSavePanel(true)}
@@ -1110,6 +1567,7 @@ export function FilterPanel({
           SAUVEGARDER
         </button>
       </div>
+      )}
 
       <style>{`
         @keyframes fpSlide {
@@ -1120,6 +1578,10 @@ export function FilterPanel({
         @keyframes fpBlink {
           0%, 100% { opacity: 1; }
           50%       { opacity: 0; }
+        }
+        @keyframes fpScan {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
         }
       `}</style>
     </div>
