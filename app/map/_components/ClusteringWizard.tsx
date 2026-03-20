@@ -444,7 +444,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {ALL_THEME_IDS.map(tid => {
                   const theme = FEATURE_THEMES[tid];
-                  const themeFeats = [...theme.features];
+                  const themeFeats: string[] = [...theme.features];
                   const checkedCount = themeFeats.filter(f => selectedFeatures.includes(f)).length;
                   const allChecked   = checkedCount === themeFeats.length;
                   const noneChecked  = checkedCount === 0;
@@ -493,13 +493,13 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                         <span onClick={toggleTheme} style={{ flex: 1, cursor: 'pointer', fontSize: 10, color: checkedCount > 0 ? C.text : C.muted }}>
                           {theme.label}
                         </span>
-                        <span style={{ fontSize: 9, fontFamily: fMichroma, color: C.dim }}>
+                        <span style={{ fontSize: 9, fontFamily: fMichroma, color: C.textDim }}>
                           {checkedCount}/{themeFeats.length}
                         </span>
                         {/* Chevron */}
                         <button onClick={toggleOpen} style={{
                           background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                          color: C.dim, fontSize: 10, lineHeight: 1,
+                          color: C.textDim, fontSize: 10, lineHeight: 1,
                         }}>
                           {isOpen ? '▲' : '▼'}
                         </button>
@@ -526,7 +526,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                                 >
                                   {checked && <span style={{ fontSize: 7, color: theme.color, lineHeight: 1 }}>✓</span>}
                                 </div>
-                                <span onClick={toggle} style={{ fontSize: 10, color: checked ? C.muted : C.dim }}>
+                                <span onClick={toggle} style={{ fontSize: 10, color: checked ? C.muted : C.textDim }}>
                                   {FEATURE_LABELS[feat] ?? feat}
                                 </span>
                               </label>

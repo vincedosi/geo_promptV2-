@@ -25,7 +25,10 @@ const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HAS_ENV       = !!(SUPABASE_URL && SERVICE_KEY);
 
 // ── Client Supabase admin ──────────────────────────────────────────────────────
-let supabase: ReturnType<typeof createClient>;
+// Using `any` for the DB generic: these RPC functions exist in the DB
+// but are not yet included in the generated Supabase TypeScript types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let supabase: any;
 
 beforeAll(() => {
   if (HAS_ENV) {

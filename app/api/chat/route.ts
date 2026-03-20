@@ -65,8 +65,8 @@ function extractLastUserText(messages: UIMessage[]): string {
       .map(p => p.text)
       .join(' ');
   }
-  // Fallback : content string (format legacy ou server-side)
-  return typeof last.content === 'string' ? last.content : '';
+  // UIMessage v6 has no .content property — parts[] is the only source
+  return '';
 }
 
 // trimHistory et stripHeavyFields → lib/chat/trim-history.ts (testable)

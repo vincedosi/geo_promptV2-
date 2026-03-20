@@ -293,7 +293,7 @@ function TabResume({ model, summary, franceAvg }: {
               data={donutData} dataKey="value"
               innerRadius={55} outerRadius={85}
               paddingAngle={2}
-              label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+              label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
               labelLine={false}
             >
               {donutData.map((entry, i) => (
@@ -1005,7 +1005,9 @@ async function exportPDF(
     };
 
     const blob = await pdf(
-      React.createElement(ClusteringPDFReport, { data, franceAverages: franceAvgForPDF })
+      // Cast needed: pdf() expects ReactElement<DocumentProps> but our component wraps Document internally
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      React.createElement(ClusteringPDFReport, { data, franceAverages: franceAvgForPDF }) as React.ReactElement<any>
     ).toBlob();
 
     const url = URL.createObjectURL(blob);

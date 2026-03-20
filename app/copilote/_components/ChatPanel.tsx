@@ -99,13 +99,6 @@ function ProviderBadge({ status, provider }: { status: ProviderStatus; provider:
     const label = m.remaining <= 0 ? 'Quota épuisé' : `${m.remaining.toLocaleString('fr-FR')} tok`;
     return <span style={{ fontSize: 9, color, fontFamily: fontMono, letterSpacing: '0.04em' }}>{label}</span>;
   }
-  if (provider === 'claude') {
-    const c = status.claude;
-    if (!c) return <span style={{ fontSize: 9, color: C.textDim }}>…</span>;
-    return <span style={{ fontSize: 9, color: c.available ? C.green : C.red, fontFamily: fontMono }}>
-      {c.available ? 'Disponible' : 'Clé manquante'}
-    </span>;
-  }
   const g = status.gemini;
   if (!g) return <span style={{ fontSize: 9, color: C.textDim }}>…</span>;
   const geminiLabel = !g.keyPresent ? 'Clé manquante' : 'Clé OK · billing requis';
@@ -127,8 +120,8 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [showPromptsPanel, setShowPromptsPanel] = useState(false);
 
-  const providerName  = provider === 'mistral' ? 'Mistral' : provider === 'claude' ? 'Claude' : 'Gemini';
-  const providerModel = provider === 'mistral' ? 'mistral-small' : provider === 'claude' ? 'claude-haiku' : 'gemini-2.5-flash';
+  const providerName  = provider === 'mistral' ? 'Mistral' : 'Gemini';
+  const providerModel = provider === 'mistral' ? 'mistral-small' : 'gemini-2.5-flash';
 
   // ── Icon bouton utilitaire
   const iconBtn = (active = false) => ({

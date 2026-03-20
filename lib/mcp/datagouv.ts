@@ -27,7 +27,18 @@ export function hasDatagouvKeywords(text: string): boolean {
 
 // ── Minimal JSON-RPC over Streamable HTTP ─────────────────────────────────────
 
-interface JsonRpcResult { data: unknown; sessionId: string | null }
+/** Shape of a JSON-RPC 2.0 response from the data.gouv MCP server */
+interface McpJsonRpcResponse {
+  error?: { message?: string };
+  result?: {
+    serverInfo?: { name?: string };
+    tools?: unknown[];
+    content?: Array<{ type: string; text?: string }>;
+    [key: string]: unknown;
+  };
+}
+
+interface JsonRpcResult { data: McpJsonRpcResponse; sessionId: string | null }
 
 /** Subset of JSON Schema used by data.gouv MCP tools */
 interface JsonSchema {
@@ -163,7 +174,9 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
 
       tools[t.name] = {
         description: t.description ?? t.name,
-        inputSchema: jsonSchema(inputSchema),
+        // sanitizeSchema returns unknown — cast to JSONSchema7 for AI SDK
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        inputSchema: jsonSchema(inputSchema as any),
         execute: async (args: Record<string, unknown>) => {
           try {
             const { data } = await mcpPost(capturedSession, {
