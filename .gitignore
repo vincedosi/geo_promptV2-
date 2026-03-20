@@ -38,3 +38,5 @@ public/data/
 *.pmtiles
 *.mbtiles
 *.mbtiles.temp.db
+
+.vercel

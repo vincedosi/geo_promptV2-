@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
 
         const insertResult = await insertRows(
           result.validRows,
-          config.dataType,
+          config.dataType as "poi" | "panneaux",
           (processed, total, inserted, ignored, errors) => {
             send({
               type: 'progress',

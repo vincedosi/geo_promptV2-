@@ -5,6 +5,7 @@
  */
 import { createAdminClient } from '@/lib/auth';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
+import { enrichMissingGeo } from './geo-enricher';
 import type { ProcessedRow, LogCallback } from './types';
 
 const BATCH_SIZE = 50;
@@ -242,6 +243,14 @@ export async function insertRows(
   // Invalider le cache des catégories pour que les nouvelles catégories soient visibles immédiatement
   if (dataType === 'poi' && totalInserted > 0) {
     invalidateCategoriesCache();
+
+    // Enrichissement automatique région/département pour les POIs importés sans ces données
+    const dataSourceIds = [...new Set(rows.map(r => r.data_source_id).filter(Boolean) as string[])];
+    for (const dsId of dataSourceIds) {
+      enrichMissingGeo(dsId, onLog).catch(err =>
+        console.error('[INSERTER] enrichMissingGeo error:', err?.message ?? err)
+      );
+    }
   }
 
   if (firstError) {

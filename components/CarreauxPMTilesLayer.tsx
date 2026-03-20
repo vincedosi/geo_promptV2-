@@ -231,7 +231,7 @@ const initializedRef = useRef(false);
         map.addSource(SOURCE_ID, {
           type: 'vector',
           tiles: [tilesUrl],
-          minzoom: 10,
+          minzoom: 6,
           maxzoom: 14,
           attribution: 'INSEE, Filosofi 2019',
         });
@@ -247,7 +247,7 @@ const initializedRef = useRef(false);
           type:   'fill',
           source: SOURCE_ID,
           'source-layer': SOURCE_LAYER,
-          minzoom: 10,
+          minzoom: 6,
           paint: {
             'fill-color':   '#FC9272',
             'fill-opacity': opacity,
@@ -266,7 +266,7 @@ const initializedRef = useRef(false);
           type:   'line',
           source: SOURCE_ID,
           'source-layer': SOURCE_LAYER,
-          minzoom: 10,
+          minzoom: 6,
           paint: {
             'line-color':   '#555',
             'line-width':   [

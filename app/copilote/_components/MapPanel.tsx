@@ -32,14 +32,14 @@ interface MapPanelProps {
   isLoading: boolean;
   voronoiVisible: boolean;
   voronoiCategory: string;
-  voronoiCirfas: { id: string; nom: string; color: string }[];
+  voronoiPois: { id: string; nom: string; color: string }[];
   setVoronoiVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   voronoiDataForSaveRef: React.MutableRefObject<VoronoiData | null>;
   setShowSavePanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   setSaveError: (v: string | null) => void;
   battleVisible: boolean;
   battleCategory: string;
-  battleCirfas: { id: string; nom: string; color: string }[];
+  battlePois: { id: string; nom: string; color: string }[];
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   battleMaxPalier: number;
   setBattleMaxPalier: (v: number) => void;
@@ -134,9 +134,9 @@ export function MapPanel({
   mapContainerRef, mapRef, mapReady, zoneData, activeCats,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
   setIsochroneVisible, recalculerIsochrone, isLoading,
-  voronoiVisible, voronoiCategory, voronoiCirfas, setVoronoiVisible,
+  voronoiVisible, voronoiCategory, voronoiPois, setVoronoiVisible,
   voronoiDataForSaveRef, setShowSavePanel, setSaveError,
-  battleVisible, battleCategory, battleCirfas, setBattleVisible,
+  battleVisible, battleCategory, battlePois, setBattleVisible,
   battleMaxPalier, setBattleMaxPalier,
   carreauxVisible, carreauxLoaded, carreauxLabel, carreauxIndicateur, carreauxPalette, carreauxOpacity,
   carreauxRange, carreauxSelectedBucket,
@@ -427,7 +427,7 @@ export function MapPanel({
               <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ display: 'inline-block', width: 9, height: 9, background: (voronoiCirfas[0]?.color ?? C.warn) + '40', borderRadius: 1, border: `1.5px solid ${voronoiCirfas[0]?.color ?? C.warn}`, flexShrink: 0 }} />
+                    <span style={{ display: 'inline-block', width: 9, height: 9, background: (voronoiPois[0]?.color ?? C.warn) + '40', borderRadius: 1, border: `1.5px solid ${voronoiPois[0]?.color ?? C.warn}`, flexShrink: 0 }} />
                     <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>
                       VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
                     </span>
@@ -438,7 +438,7 @@ export function MapPanel({
                     style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, borderRadius: 2, padding: '2px 7px', fontSize: 9, color: C.accent, cursor: 'pointer', fontFamily: fontMichroma, letterSpacing: '0.08em' }}
                   >SAVE</button>
                 </div>
-                {voronoiCirfas.map(c => (
+                {voronoiPois.map(c => (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
                     <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
@@ -448,7 +448,7 @@ export function MapPanel({
             );
           })()}
           {battleVisible && battleCategory && (() => {
-            // Déduire les paliers présents depuis battleCirfas (ou utiliser valeurs fixes)
+            // Déduire les paliers présents depuis battlePois (ou utiliser valeurs fixes)
             const visiblePaliers = [10, 20, 30, 40, 50, 60, 90].filter(p => p <= battleMaxPalier);
             return (
               <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -494,14 +494,14 @@ export function MapPanel({
                 </div>
 
                 {/* Légende POIs */}
-                {battleCirfas.slice(0, 8).map(c => (
+                {battlePois.slice(0, 8).map(c => (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ display: 'inline-block', width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
                     <span style={{ fontSize: 9, color: C.textDim }}>{c.nom}</span>
                   </div>
                 ))}
-                {battleCirfas.length > 8 && (
-                  <span style={{ fontSize: 9, color: C.muted }}>+{battleCirfas.length - 8} autres</span>
+                {battlePois.length > 8 && (
+                  <span style={{ fontSize: 9, color: C.muted }}>+{battlePois.length - 8} autres</span>
                 )}
               </div>
             );

@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { ZoneData } from '@/types/spatial';
 import type { CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
+import { ClusterPanel } from './ClusterPanel';
+import type { ClusterGeoJSON } from './ClusterPanel';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -34,7 +36,7 @@ import {
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
 
-type Tab = 'geoprompt' | 'territoire' | 'analyses';
+type Tab = 'geoprompt' | 'territoire' | 'analyses' | 'clusters';
 
 // ─── POI Style ────────────────────────────────────────────────────────────────
 export interface POIStyle { size: string; color: string; }
@@ -105,6 +107,18 @@ export interface FilterPanelProps {
   densityMode?: boolean;
   onDensityModeChange?: (v: boolean) => void;
   onPOIStylesChange?: (styles: POIStylesMap) => void;
+  // Clusters
+  clusterGeoJSON?:          ClusterGeoJSON | null;
+  clustersVisible?:         boolean;
+  clusterLoading?:          boolean;
+  clusterDuration?:         number;
+  onToggleClusters?:        () => void;
+  onLoadClusters?:          () => void;
+  onClusterDurationChange?: (d: number) => void;
+  onFlyTo?:                 (lat: number, lng: number, zoom?: number) => void;
+  onFitBounds?:             (bounds: [[number, number], [number, number]]) => void;
+  onWizardHighlight?:       (poiTypes: string[], metropolitaine: boolean) => void;
+  onWizardClose?:           () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -222,12 +236,17 @@ export function FilterPanel({
   setShowSavePanel,
   coverageSummary,
   onPOIStylesChange,
+  clusterGeoJSON, clustersVisible, clusterLoading, clusterDuration,
+  onToggleClusters, onLoadClusters, onClusterDurationChange, onFlyTo, onFitBounds,
+  onWizardHighlight, onWizardClose,
 }: FilterPanelProps) {
 
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
   const [poiTypes, setPoiTypes] = useState<{ id: string; label: string }[]>([]);
-  useEffect(() => {
-    fetch('/api/map/categories')
+  const [catsLoading, setCatsLoading] = useState(false);
+  const fetchCategories = (forceRefresh = false) => {
+    setCatsLoading(true);
+    fetch(forceRefresh ? '/api/map/categories?refresh=1' : '/api/map/categories')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data.categories)) {
@@ -237,8 +256,10 @@ export function FilterPanel({
           })));
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {})
+      .finally(() => setCatsLoading(false));
+  };
+  useEffect(() => { fetchCategories(); }, []);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('geoprompt');
@@ -667,6 +688,7 @@ export function FilterPanel({
     { id: 'geoprompt',  label: 'GEO.PROMPT', color: C.accent, badge: 0 },
     { id: 'territoire', label: 'TERRITOIRE', color: C.green,  badge: hasTerritoire ? 1 : 0 },
     { id: 'analyses',   label: 'ANALYSES',   color: C.accent, badge: selectedPOI.length },
+    { id: 'clusters',   label: 'CLUSTERS',   color: '#76b7b2', badge: clusterGeoJSON ? 1 : 0 },
   ];
 
   return (
@@ -746,8 +768,29 @@ export function FilterPanel({
           </div>
         )}
 
+        {/* ════════════════════════════════════════
+            ONGLET 4 — CLUSTERS (inline, pas de scroll externe)
+        ════════════════════════════════════════ */}
+        {activeTab === 'clusters' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+            <ClusterPanel
+              geojson={clusterGeoJSON ?? null}
+              visible={clustersVisible ?? false}
+              loading={clusterLoading ?? false}
+              duration={clusterDuration ?? 60}
+              onToggle={onToggleClusters ?? (() => {})}
+              onLoad={onLoadClusters ?? (() => {})}
+              onDurationChange={onClusterDurationChange ?? (() => {})}
+              onFlyTo={onFlyTo ?? (() => {})}
+              onFitBounds={onFitBounds ?? (() => {})}
+              onWizardHighlight={onWizardHighlight}
+              onWizardClose={onWizardClose}
+            />
+          </div>
+        )}
+
         {/* ── Scrollable wrapper for territoire + analyses ── */}
-        {activeTab !== 'geoprompt' && (
+        {activeTab !== 'geoprompt' && activeTab !== 'clusters' && (
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
@@ -864,9 +907,16 @@ export function FilterPanel({
 
             {/* Sélection POI */}
             <div>
-              <div style={labelStyle}>
-                TYPES DE POI
-                {selectedPOI.length > 0 && <span style={{ color: C.accent }}> — {selectedPOI.length} selectionne{selectedPOI.length > 1 ? 's' : ''}</span>}
+              <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>
+                  TYPES DE POI
+                  {selectedPOI.length > 0 && <span style={{ color: C.accent }}> — {selectedPOI.length} selectionne{selectedPOI.length > 1 ? 's' : ''}</span>}
+                </span>
+                <button
+                  onClick={() => fetchCategories(true)}
+                  title="Rafraîchir la liste"
+                  style={{ background: 'none', border: 'none', color: catsLoading ? C.muted : C.textDim, cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
+                >{catsLoading ? '…' : '↻'}</button>
               </div>
               <MultiDropdown
                 label="Aucun type selectionne"

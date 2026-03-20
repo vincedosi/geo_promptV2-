@@ -14,7 +14,7 @@ const PALIER_COLORS: Record<number, string> = {
   180: '#475569',
 };
 
-const CIRFA_PALETTE = [
+const POI_PALETTE = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#06b6d4', '#84cc16', '#f97316',
   '#ec4899', '#6366f1', '#14b8a6', '#a855f7',
@@ -102,7 +102,7 @@ interface Props {
   battleCacheKey?: string;
 }
 
-interface CirfaEntry { id: string; nom: string; ville?: string }
+interface PoiEntry { id: string; nom: string; ville?: string }
 interface C1Entry    { id: string; name: string; value: number; fill: string; failed?: boolean }
 interface C2Row      { name: string; segments: { palier: number; value: number; color: string }[] }
 interface C3Point    { label: string; pct: number; coverage: number }
@@ -119,11 +119,11 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   const [displayMetric,   setDisplayMetric]   = useState<MetricKey>('ind');
   const [loading,         setLoading]         = useState(false);
   const [fetchErr,        setFetchErr]        = useState<string | null>(null);
-  const [cirfaOrder,      setCirfaOrder]      = useState<CirfaEntry[]>([]);
+  const [poiOrder,      setPoiOrder]      = useState<PoiEntry[]>([]);
   const [paliers,         setPaliers]         = useState<number[]>([]);
   const [areaMap,         setAreaMap]         = useState<Map<string, number>>(new Map());
   const [tooltip,         setTooltip]         = useState<{ x: number; y: number; text: string } | null>(null);
-  const [progress,        setProgress]        = useState<{ current: number; total: number; cirfa: string; metricLabel: string } | null>(null);
+  const [progress,        setProgress]        = useState<{ current: number; total: number; poi: string; metricLabel: string } | null>(null);
   const [failedCount,     setFailedCount]     = useState(0);
   const [firstErr,        setFirstErr]        = useState<string | null>(null);
   const [failedGroups,    setFailedGroups]    = useState<Set<string>>(new Set());
@@ -139,7 +139,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
       computedMetrics: Object.fromEntries(
         [...computedMetrics.entries()].map(([k, v]) => [k, Object.fromEntries(v)]),
       ),
-      cirfaOrder:         cirfaOrder.map(c => c.id),
+      poiOrder:         poiOrder.map(c => c.id),
       paliers,
       areaMap:            Object.fromEntries(areaMap),
       battleFeaturesCount: battleFeatures.length,
@@ -156,15 +156,15 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   // ── Build static state (groups) when features change ─────────────────────
   useEffect(() => {
     if (!battleFeatures.length) {
-      setCirfaOrder([]); setPaliers([]); setAreaMap(new Map());
+      setPoiOrder([]); setPaliers([]); setAreaMap(new Map());
       setComputedMetrics(new Map());
       groupsRef.current = [];
       return;
     }
 
-    const cirfaGeoms  = new Map<string, { nom: string; ville?: string; geoms: string[] }>();
+    const poiGeoms  = new Map<string, { nom: string; ville?: string; geoms: string[] }>();
     const palierGeoms = new Map<number, string[]>();
-    const areaByCirfa = new Map<string, number>();
+    const areaByPoi = new Map<string, number>();
     const poisIdx     = new Map(pois.map(p => [p.id, p]));
 
     for (const f of battleFeatures) {
@@ -176,34 +176,34 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
 
       const geomStr = JSON.stringify(f.geometry);
 
-      if (!cirfaGeoms.has(cid)) {
+      if (!poiGeoms.has(cid)) {
         const poi = poisIdx.get(cid);
-        cirfaGeoms.set(cid, { nom, ville: poi?.ville, geoms: [] });
+        poiGeoms.set(cid, { nom, ville: poi?.ville, geoms: [] });
       }
-      cirfaGeoms.get(cid)!.geoms.push(geomStr);
+      poiGeoms.get(cid)!.geoms.push(geomStr);
 
       if (!palierGeoms.has(palier)) palierGeoms.set(palier, []);
       palierGeoms.get(palier)!.push(geomStr);
 
-      areaByCirfa.set(cid, (areaByCirfa.get(cid) ?? 0) + approxAreaKm2(f.geometry));
+      areaByPoi.set(cid, (areaByPoi.get(cid) ?? 0) + approxAreaKm2(f.geometry));
     }
 
     const sortedPaliers = [...palierGeoms.keys()].sort((a, b) => a - b);
-    const cirfaList     = [...cirfaGeoms.entries()].map(([id, d]) => ({ id, nom: d.nom, ville: d.ville }));
+    const poiList     = [...poiGeoms.entries()].map(([id, d]) => ({ id, nom: d.nom, ville: d.ville }));
 
-    setCirfaOrder(cirfaList);
+    setPoiOrder(poiList);
     setPaliers(sortedPaliers);
-    setAreaMap(areaByCirfa);
+    setAreaMap(areaByPoi);
     setComputedMetrics(new Map()); // reset on new battle
     setFailedCount(0);
     setFirstErr(null);
     setFailedGroups(new Set());
 
     // Build API groups :
-    //   c__<id>        — couverture par CIRFA (cacheable)
-    //   total_pal__<N> — union dédupliquée de TOUS les CIRFAs pour ce palier (jamais mis en cache)
+    //   c__<id>        — couverture par POI (cacheable)
+    //   total_pal__<N> — union dédupliquée de TOUS les POIs pour ce palier (jamais mis en cache)
     const groups: { id: string; nom: string; geometries: string[] }[] = [];
-    for (const [cid, { nom, geoms }] of cirfaGeoms) {
+    for (const [cid, { nom, geoms }] of poiGeoms) {
       groups.push({ id: `c__${cid}`, nom, geometries: geoms });
     }
     // Un groupe total par palier — chaque groupe = toutes les géométries de ce palier (40 geoms max)
@@ -266,21 +266,21 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
           for (const line of lines) {
             if (!line.trim()) continue;
             const event = JSON.parse(line) as {
-              type: 'start' | 'progress' | 'cirfa_result' | 'error_partial' | 'complete';
-              total?: number; current?: number; cirfa?: string;
+              type: 'start' | 'progress' | 'poi_result' | 'error_partial' | 'complete';
+              total?: number; current?: number; poi?: string;
               data?: { group_id: string; coverage: number; nom: string };
               results?: { group_id: string; coverage: number; nom: string }[];
             };
             if (event.type === 'progress') {
-              setProgress({ current: event.current ?? 0, total: event.total ?? 1, cirfa: event.cirfa ?? '', metricLabel });
-            } else if (event.type === 'cirfa_result' && event.data) {
+              setProgress({ current: event.current ?? 0, total: event.total ?? 1, poi: event.poi ?? '', metricLabel });
+            } else if (event.type === 'poi_result' && event.data) {
               currentCovMap.set(event.data.group_id, event.data.coverage);
               allResults.set(metric, new Map(currentCovMap));
               setComputedMetrics(new Map(allResults));
             } else if (event.type === 'error_partial') {
               setFailedCount(c => c + 1);
               setFirstErr(prev => prev ?? (event as any).message ?? null);
-              if ((event as any).cirfa) setFailedGroups(prev => new Set([...prev, (event as any).cirfa]));
+              if ((event as any).poi) setFailedGroups(prev => new Set([...prev, (event as any).poi]));
             } else if (event.type === 'complete' && event.results) {
               for (const r of event.results) currentCovMap.set(r.group_id, r.coverage);
               allResults.set(metric, new Map(currentCovMap));
@@ -326,20 +326,20 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
   );
 
   // ── Derived colors ────────────────────────────────────────────────────────
-  const cirfaColors = useMemo(() => {
+  const poiColors = useMemo(() => {
     const m: Record<string, string> = {};
-    cirfaOrder.forEach((c, i) => { m[c.id] = CIRFA_PALETTE[i % CIRFA_PALETTE.length]; });
+    poiOrder.forEach((c, i) => { m[c.id] = POI_PALETTE[i % POI_PALETTE.length]; });
     return m;
-  }, [cirfaOrder]);
+  }, [poiOrder]);
 
-  // ── Chart 1 : coverage per CIRFA ─────────────────────────────────────────
+  // ── Chart 1 : coverage per POI ───────────────────────────────────────────
   const chart1: C1Entry[] = useMemo(() =>
-    cirfaOrder
+    poiOrder
       .map(c => ({
         id:     c.id,
         name:   c.nom,
         value:  covMap.get(`c__${c.id}`) ?? 0,
-        fill:   cirfaColors[c.id] ?? '#3b82f6',
+        fill:   poiColors[c.id] ?? '#3b82f6',
         failed: failedGroups.has(`c__${c.id}`),
       }))
       .sort((a, b) => {
@@ -348,7 +348,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
         if (!a.failed && b.failed) return -1;
         return b.value - a.value;
       }),
-    [cirfaOrder, covMap, cirfaColors, failedGroups],
+    [poiOrder, covMap, poiColors, failedGroups],
   );
 
   // ── Chart 2 : stacked by palier (area-proportional) ──────────────────────
@@ -486,7 +486,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             padding:      '2px 7px',
             flexShrink:   0,
           }}>
-            {cirfaOrder.length} CIRFA
+            {poiOrder.length} POI
           </span>
         )}
         {!loading && computedMetrics.size > 0 && (
@@ -676,7 +676,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             paddingTop: 60,
             lineHeight: 2,
           }}>
-            {cirfaOrder.length} CIRFA · {paliers.length} palier{paliers.length > 1 ? 's' : ''}<br />
+            {poiOrder.length} POI · {paliers.length} palier{paliers.length > 1 ? 's' : ''}<br />
             <span style={{ color: '#6b7280', fontSize: 9 }}>Sélectionnez les cibles et lancez le calcul</span>
           </div>
         )}
@@ -743,7 +743,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
                 whiteSpace:   'nowrap',
               }}>
                 {progress
-                  ? `[${progress.metricLabel}] ${progress.cirfa.replace('c__', '')}…`
+                  ? `[${progress.metricLabel}] ${progress.poi.replace('c__', '')}…`
                   : 'Initialisation...'}
               </div>
             </div>
@@ -832,9 +832,9 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
             {/* ── 2 Metric cards ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 22 }}>
               <MetricCard
-                label={`${displayLabel} — somme CIRFA`}
+                label={`${displayLabel} — somme POI`}
                 value={fmtNum(chart1.reduce((s, c) => s + c.value, 0))}
-                sub={`${cirfaOrder.length} points (avec doublons)`}
+                sub={`${poiOrder.length} points (avec doublons)`}
                 color="#3dffa0"
               />
               <MetricCard

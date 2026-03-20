@@ -1,0 +1,125 @@
+/**
+ * GET /api/poi-clusters/models/[version]
+ * Retourne le modèle + tous les POI clustérisés + résumé qualité.
+ */
+import { NextResponse }    from 'next/server';
+import { createAdminClient } from '@/lib/auth';
+
+export const revalidate = 300;
+
+const CLUSTER_COLORS = [
+  '#4e79a7', '#f28e2b', '#59a14f', '#e15759',
+  '#76b7b2', '#edc948', '#b07aa1', '#ff9da7',
+  '#9c755f', '#bab0ac',
+];
+
+export async function GET(
+  _req: Request,
+  { params }: { params: { version: string } },
+) {
+  const version = parseInt(params.version, 10);
+  if (isNaN(version)) return NextResponse.json({ error: 'Version invalide' }, { status: 400 });
+
+  const sb = createAdminClient();
+
+  // Model
+  const { data: model, error: mErr } = await sb
+    .from('clustering_models')
+    .select(
+      'version, k, silhouette_score, n_pca_components, variance_explained, ' +
+      'feature_names, feature_themes, cluster_labels, cluster_avg_profiles, centroids, ' +
+      'scaler_mean, scaler_scale, pca_components, n_poi_trained, ' +
+      'duration_minutes, mode, created_at, cluster_mapping_from_previous'
+    )
+    .eq('version', version)
+    .single();
+
+  if (mErr || !model) return NextResponse.json({ error: 'Modèle introuvable' }, { status: 404 });
+  const m = model as any;
+
+  // POI clusters
+  const { data: clusters, error: cErr } = await sb
+    .from('poi_clusters')
+    .select(
+      'poi_id, cluster_id, cluster_label, profile_features, pca_components, ' +
+      'n_carreaux_intersected, population_totale_couverte, imputed_features, ' +
+      'duration_minutes, mode'
+    )
+    .eq('model_version', version);
+
+  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+
+  const clusterRows = (clusters ?? []) as any[];
+  const poiIds = clusterRows.map(c => c.poi_id);
+  const { data: pois } = poiIds.length
+    ? await sb.from('poi_france').select('id, nom, lat, lng, categorie, ville').in('id', poiIds)
+    : { data: [] };
+
+  const poiMap = new Map((pois ?? []).map(p => [p.id, p]));
+
+  const clusterLabels  = (m.cluster_labels       as Record<string, string>)                  ?? {};
+  const clusterAvgProf = (m.cluster_avg_profiles as Record<string, Record<string, number>>) ?? {};
+
+  // Build cluster summary
+  const summary: Record<string, {
+    label:       string;
+    count:       number;
+    color:       string;
+    avg_profile: Record<string, number>;
+  }> = {};
+  for (let i = 0; i < m.k; i++) {
+    const cid = String(i);
+    summary[cid] = {
+      label:       clusterLabels[cid] ?? `Cluster ${i}`,
+      count:       0,
+      color:       CLUSTER_COLORS[i % CLUSTER_COLORS.length],
+      avg_profile: clusterAvgProf[cid] ?? {},
+    };
+  }
+
+  // POI list with coordinates
+  const poiList = clusterRows.map(c => {
+    const poi = poiMap.get(c.poi_id);
+    const cid = String(c.cluster_id);
+    if (summary[cid]) summary[cid].count++;
+    return {
+      poi_id:                    c.poi_id,
+      poi_name:                  poi?.nom ?? '',
+      categorie:                 poi?.categorie ?? '',
+      ville:                     poi?.ville ?? '',
+      lat:                       poi?.lat,
+      lng:                       poi?.lng,
+      cluster_id:                c.cluster_id,
+      cluster_label:             c.cluster_label ?? clusterLabels[cid] ?? `Cluster ${c.cluster_id}`,
+      cluster_color:             CLUSTER_COLORS[c.cluster_id % CLUSTER_COLORS.length],
+      profile_features:          c.profile_features          as Record<string, number>,
+      pca_components:            c.pca_components            as number[],
+      n_carreaux_intersected:    c.n_carreaux_intersected,
+      population_totale_couverte: c.population_totale_couverte,
+      imputed_features:          (c.imputed_features as string[]) ?? [],
+      duration_minutes:          c.duration_minutes,
+      mode:                      c.mode,
+    };
+  });
+
+  return NextResponse.json({
+    model: {
+      version:                    m.version,
+      k:                          m.k,
+      silhouette_score:           m.silhouette_score,
+      n_pca_components:           m.n_pca_components,
+      variance_explained:         m.variance_explained,
+      feature_names:              (m.feature_names as string[]) ?? [],
+      cluster_labels:             clusterLabels,
+      cluster_avg_profiles:       clusterAvgProf,
+      centroids:                  m.centroids,
+      n_poi_trained:              m.n_poi_trained,
+      duration_minutes:           m.duration_minutes,
+      mode:                       m.mode,
+      created_at:                 m.created_at,
+      cluster_mapping_from_previous: m.cluster_mapping_from_previous,
+    },
+    cluster_summary: summary,
+    poi_list:        poiList,
+  });
+}

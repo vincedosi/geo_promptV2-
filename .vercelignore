@@ -1,0 +1,12 @@
+node_modules
+.next
+public/data
+*.pmtiles
+*.mbtiles
+*.mbtiles.temp.db
+coverage
+.env
+.env.local
+.env*.local
+supabase/.branches
+supabase/seed.sql

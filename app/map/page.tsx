@@ -14,6 +14,7 @@ import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
@@ -40,6 +41,13 @@ export default function MapPage() {
   const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
+  // Clustering clusters
+  const [clusterGeoJSON,    setClusterGeoJSON]    = useState<ClusterGeoJSON | null>(null);
+  const [clustersVisible,   setClustersVisible]   = useState(false);
+  const [clusterLoading,    setClusterLoading]    = useState(false);
+  const [clusterDuration,   setClusterDuration]   = useState(60);
+  // Wizard highlight — POIs preview pendant la configuration du clustering
+  const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
@@ -56,6 +64,111 @@ export default function MapPage() {
   const pendingBattleRef = useRef<{ geoJSON: any; borders: any; category?: string; poisForMap?: any[] } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
+
+  // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('wizard-highlight') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (wizardHighlightGeoJSON) {
+      src.setData(wizardHighlightGeoJSON);
+      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'visible'); } catch { /* */ }
+    } else {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'none'); } catch { /* */ }
+    }
+  }, [wizardHighlightGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync cluster GeoJSON → map source ──────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !clusterGeoJSON) return;
+    const src = map.getSource('clusters-source') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(clusterGeoJSON as unknown as GeoJSON.FeatureCollection);
+  }, [clusterGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync clustersVisible → layer visibility ─────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
+  }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
+  const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
+    if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom, duration: 1000 });
+  };
+  const handleFitBounds = (bounds: [[number, number], [number, number]]) => {
+    if (mapRef.current && mapReady)
+      mapRef.current.fitBounds(
+        new maplibregl.LngLatBounds(bounds[0], bounds[1]),
+        { padding: 60, duration: 1000 },
+      );
+  };
+
+  // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
+  const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
+    try {
+      const res = await fetch('/api/map/pois', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poi_types: poiTypes,
+          scope:     metropolitaine ? 'metro' : 'all',
+          regions:   [],
+          depts:     [],
+          ville:     '',
+          rayon_poi: null,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.pois?.length) { setWizardHighlightGeoJSON(null); return; }
+      const fc: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: (data.pois as { id: string; nom: string; lat: number; lng: number }[]).map(p => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+          properties: { id: p.id, nom: p.nom },
+        })),
+      };
+      setWizardHighlightGeoJSON(fc);
+    } catch { /* ignore */ }
+  };
+
+  // ── Charger les clusters (lazy) ────────────────────────────────────────────
+  const handleToggleClusters = async () => {
+    if (!clustersVisible && !clusterGeoJSON) {
+      setClusterLoading(true);
+      try {
+        const res  = await fetch(`/api/poi-clusters?duration=${clusterDuration}`);
+        const data = await res.json();
+        if (data.type === 'FeatureCollection') {
+          setClusterGeoJSON(data as ClusterGeoJSON);
+          setClustersVisible(true);
+        }
+      } catch { /* ignore */ } finally { setClusterLoading(false); }
+    } else {
+      setClustersVisible(v => !v);
+    }
+  };
+
+  // ── Changer la durée de clustering — re-fetch ───────────────────────────────
+  const handleClusterDurationChange = async (d: number) => {
+    setClusterDuration(d);
+    setClusterLoading(true);
+    try {
+      const res  = await fetch(`/api/poi-clusters?duration=${d}`);
+      const data = await res.json();
+      if (data.type === 'FeatureCollection') {
+        setClusterGeoJSON(data as ClusterGeoJSON);
+        setClustersVisible(true);
+      }
+    } catch { /* ignore */ } finally { setClusterLoading(false); }
+  };
+
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
   const mapLayers = useMapLayers({
     mapRef, mapReady,
@@ -178,13 +291,13 @@ export default function MapPage() {
         const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const audienceVal = (p as any).audience;
         const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="font-size:12px;padding:6px 8px">` +
+          `<div style="font-size:12px;padding:6px 8px;color:#888">` +
           (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-          `<strong>${nom}</strong><br/>` +
+          `<strong style="color:#fff;font-size:13px">${nom}</strong><br/>` +
           `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie}</span>` +
-          (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
-          (audienceVal != null ? `<br/><span style="color:#10b981;font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">${p.adresse}</span>` : '') +
+          (p.sous_categorie ? ` <span style="color:#555;font-size:11px">· ${p.sous_categorie}</span>` : '') +
+          (audienceVal != null ? `<br/><span style="color:#3dffa0;font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
+          (p.adresse ? `<br/><span style="color:#555;font-size:11px">${p.adresse}</span>` : '') +
           `</div>`
         );
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
@@ -685,6 +798,17 @@ export default function MapPage() {
         densityMode={densityMode}
         onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
         onPOIStylesChange={setPoiStyles}
+        clusterGeoJSON={clusterGeoJSON}
+        clustersVisible={clustersVisible}
+        clusterLoading={clusterLoading}
+        clusterDuration={clusterDuration}
+        onToggleClusters={handleToggleClusters}
+        onLoadClusters={handleToggleClusters}
+        onClusterDurationChange={handleClusterDurationChange}
+        onFlyTo={handleFlyTo}
+        onFitBounds={handleFitBounds}
+        onWizardHighlight={handleWizardHighlight}
+        onWizardClose={() => setWizardHighlightGeoJSON(null)}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}
@@ -700,14 +824,14 @@ export default function MapPage() {
         isLoading={chat.isLoading}
         voronoiVisible={mapLayers.voronoiVisible}
         voronoiCategory={mapLayers.voronoiCategory}
-        voronoiCirfas={mapLayers.voronoiCirfas}
+        voronoiPois={mapLayers.voronoiPois}
         setVoronoiVisible={mapLayers.setVoronoiVisible}
         voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
         setShowSavePanel={savedMaps.setShowSavePanel}
         setSaveError={savedMaps.setSaveError}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
-        battleCirfas={mapLayers.battleCirfas}
+        battlePois={mapLayers.battlePois}
         setBattleVisible={mapLayers.setBattleVisible}
         battleMaxPalier={mapLayers.battleMaxPalier}
         setBattleMaxPalier={mapLayers.setBattleMaxPalier}
@@ -730,6 +854,25 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
+      {/* Bouton HOME → dashboard */}
+      <a
+        href="/dashboard"
+        style={{
+          position: 'fixed', top: 12, right: 130, zIndex: 510,
+          background: 'rgba(10,10,18,0.6)',
+          border: '1px solid #261a35',
+          color: '#6b7280',
+          fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2,
+          textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer',
+          textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
+          transition: 'all 0.2s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a855f7'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#a855f7'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#6b7280'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#261a35'; }}
+      >
+        ⌂ HOME
+      </a>
+
       <button
         onClick={() => setIsResultsPanelOpen(true)}
         style={{
@@ -759,8 +902,11 @@ export default function MapPage() {
           100% { transform: translateX(250%); }
         }
         .maplibregl-popup-content {
-          background:#fff!important;border:none!important;padding:0!important;
-          box-shadow:0 2px 8px rgba(0,0,0,0.15)!important;border-radius:4px!important;
+          background:#0a0a0a!important;border:1px solid #261a35!important;padding:0!important;
+          box-shadow:0 2px 12px rgba(0,0,0,0.6)!important;border-radius:2px!important;
+        }
+        .maplibregl-popup-tip {
+          border-top-color:#0a0a0a!important;border-bottom-color:#0a0a0a!important;
         }
       `}</style>
     </div>

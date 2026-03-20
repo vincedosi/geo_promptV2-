@@ -44,10 +44,9 @@ export default function DashboardPage() {
   }
 
   const navLinks = [
-    { href: '/map',      label: 'geo.prompt', sub: 'Carte + IA media planning', accent: true  },
-    { href: '/admin/ooh-import', label: 'OOH Import', sub: 'Data lake',       accent: false },
-    { href: '/admin/import',          label: 'Import POI',      sub: 'Établissements',    accent: false },
-    { href: '/admin/filosofi-import', label: 'Filosofi Import', sub: 'Carreaux .parquet', accent: false },
+    { href: '/admin/ooh-import',      label: 'OOH Import',      sub: 'Data lake',          accent: false },
+    { href: '/admin/import',          label: 'Import POI',       sub: 'Établissements',     accent: false },
+    { href: '/admin/filosofi-import', label: 'Filosofi Import',  sub: 'Carreaux .parquet',  accent: false },
   ];
 
   return (

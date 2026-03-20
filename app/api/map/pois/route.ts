@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
         const regionFilter = (p: any) => {
           if (hasDom && DROM_CODES.includes(String(p.departement))) return true;
           const pNorm = normStr(p.region ?? '');
+          if (!pNorm) return false; // pas de région renseignée → n'appartient à aucune région
           return regionNorms.some(rn => pNorm.includes(rn) || rn.includes(pNorm));
         };
         await fetchAllPages((from, to) => {

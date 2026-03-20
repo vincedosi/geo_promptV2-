@@ -32,12 +32,12 @@ export function useMapLayers({
   // Voronoï
   const [voronoiVisible,  setVoronoiVisible]  = useState(false);
   const [voronoiCategory, setVoronoiCategory] = useState('');
-  const [voronoiCirfas,   setVoronoiCirfas]   = useState<{ id: string; nom: string; color: string }[]>([]);
+  const [voronoiPois,   setVoronoiPois]   = useState<{ id: string; nom: string; color: string }[]>([]);
 
   // Bataille d'Isochrones
   const [battleVisible,          setBattleVisible]          = useState(false);
   const [battleCategory,         setBattleCategory]         = useState('');
-  const [battleCirfas,           setBattleCirfas]           = useState<{ id: string; nom: string; color: string }[]>([]);
+  const [battlePois,           setBattlePois]           = useState<{ id: string; nom: string; color: string }[]>([]);
   const [battleOuterFillVisible, setBattleOuterFillVisible] = useState(false);
   const [battleMaxPalier,        setBattleMaxPalier]        = useState(90);
 
@@ -310,19 +310,19 @@ export function useMapLayers({
     const geo  = meta?.filtre_region ?? meta?.filtre_ville ?? meta?.filtre_dept ?? '';
     setSaveName(`Voronoï ${meta?.category ?? ''} ${geo}`.trim().replace(/\s+/g, ' '));
 
-    const cirfaColorMap = new Map<string, string>();
+    const poiColorMap = new Map<string, string>();
     let _colorIdx = 0;
     for (const f of vData.features) {
       const cid = String((f.properties as Record<string, unknown>)?.id ?? '');
-      if (cid && !cirfaColorMap.has(cid)) {
-        cirfaColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
+      if (cid && !poiColorMap.has(cid)) {
+        poiColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
         _colorIdx++;
       }
     }
 
     const featuresWithColors = vData.features.map((f) => {
       const cid = String((f.properties as Record<string, unknown>)?.id ?? '');
-      const voronoi_color = cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0];
+      const voronoi_color = poiColorMap.get(cid) ?? VORONOI_PALETTE[0];
       return { ...f, properties: { ...f.properties, voronoi_color } };
     });
 
@@ -363,17 +363,17 @@ export function useMapLayers({
       }
     }
 
-    const _cirfaSeen = new Set<string>();
-    const cirfaLegend: { id: string; nom: string; color: string }[] = [];
+    const _poiSeen = new Set<string>();
+    const poiLegend: { id: string; nom: string; color: string }[] = [];
     for (const f of featuresWithColors) {
       const p = f.properties as Record<string, unknown>;
       const cid = String(p?.id ?? '');
-      if (cid && !_cirfaSeen.has(cid)) {
-        _cirfaSeen.add(cid);
-        cirfaLegend.push({ id: cid, nom: String(p?.nom ?? cid), color: cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0] });
+      if (cid && !_poiSeen.has(cid)) {
+        _poiSeen.add(cid);
+        poiLegend.push({ id: cid, nom: String(p?.nom ?? cid), color: poiColorMap.get(cid) ?? VORONOI_PALETTE[0] });
       }
     }
-    setVoronoiCirfas(cirfaLegend);
+    setVoronoiPois(poiLegend);
 
     if (featuresWithColors.length > 0) {
       const bounds = new maplibregl.LngLatBounds();
@@ -414,21 +414,21 @@ export function useMapLayers({
     const map = mapRef.current;
     if (!map) return;
 
-    // Reconstruire la map cirfa_id → couleur depuis les rings déjà accumulés
-    const cirfaColorMap = new Map<string, string>();
+    // Reconstruire la map poi_id → couleur depuis les rings déjà accumulés
+    const poiColorMap = new Map<string, string>();
     let colorIdx = 0;
     for (const f of partialRingsRef.current) {
       const cid = String(f.properties?.cirfa_id ?? f.properties?.id ?? '');
-      if (cid && !cirfaColorMap.has(cid)) {
-        cirfaColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
+      if (cid && !poiColorMap.has(cid)) {
+        poiColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
         colorIdx++;
       }
     }
 
     for (const r of rawRings) {
       const cid = r.cirfa_id;
-      if (!cirfaColorMap.has(cid)) {
-        cirfaColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
+      if (!poiColorMap.has(cid)) {
+        poiColorMap.set(cid, VORONOI_PALETTE[colorIdx % VORONOI_PALETTE.length]);
         colorIdx++;
       }
 
@@ -442,7 +442,7 @@ export function useMapLayers({
           lat:            r.lat,
           lng:            r.lng,
           palier:         r.palier,
-          battle_color:   cirfaColorMap.get(cid)!,
+          battle_color:   poiColorMap.get(cid)!,
           battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[r.palier] ?? 0.15,
           _partial:       true,
         },
@@ -471,14 +471,14 @@ export function useMapLayers({
     console.log('[applyIsochroneBattle] called — map:', !!map, '| features:', ringData?.features?.length);
     if (!map) return;
 
-    const cirfaColorMap = new Map<string, string>();
+    const poiColorMap = new Map<string, string>();
     let _colorIdx = 0;
     for (const f of ringData.features) {
       const p   = f.properties as Record<string, unknown>;
       // Support: 'id' (v2) ou 'cirfa_id' (v1 éventuelle)
       const cid = String(p?.id ?? p?.cirfa_id ?? '');
-      if (cid && !cirfaColorMap.has(cid)) {
-        cirfaColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
+      if (cid && !poiColorMap.has(cid)) {
+        poiColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
         _colorIdx++;
       }
     }
@@ -491,7 +491,7 @@ export function useMapLayers({
         ...f,
         properties: {
           ...p,
-          battle_color:   cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0],
+          battle_color:   poiColorMap.get(cid) ?? VORONOI_PALETTE[0],
           battle_opacity: (BATTLE_PALIER_OPACITY as Record<number, number>)[palier] ?? 0.20,
         },
       };
@@ -519,8 +519,8 @@ export function useMapLayers({
     setBattleVisible(true);
     setBattleCategory(category ?? '');
 
-    // Utiliser poisForMap (tous les CIRFAs) si disponible,
-    // sinon extraire des ring features (peut rater des CIRFAs sans territoire).
+    // Utiliser poisForMap (tous les POIs) si disponible,
+    // sinon extraire des ring features (peut rater des POIs sans territoire).
     const poiFeatures: GeoJSON.Feature[] = [];
     if (poisForMap && poisForMap.length > 0) {
       for (const p of poisForMap) {
@@ -565,10 +565,10 @@ export function useMapLayers({
       const cid = String(p?.id ?? '');
       if (cid && !_seen.has(cid)) {
         _seen.add(cid);
-        legend.push({ id: cid, nom: String(p?.nom ?? cid), color: cirfaColorMap.get(cid) ?? VORONOI_PALETTE[0] });
+        legend.push({ id: cid, nom: String(p?.nom ?? cid), color: poiColorMap.get(cid) ?? VORONOI_PALETTE[0] });
       }
     }
-    setBattleCirfas(legend);
+    setBattlePois(legend);
 
     if (styledRings.length > 0) {
       const bounds = new maplibregl.LngLatBounds();
@@ -694,11 +694,11 @@ export function useMapLayers({
     // Voronoï
     voronoiVisible, setVoronoiVisible,
     voronoiCategory,
-    voronoiCirfas,
+    voronoiPois,
     // Bataille
     battleVisible, setBattleVisible,
     battleCategory,
-    battleCirfas,
+    battlePois,
     battleOuterFillVisible, setBattleOuterFillVisible,
     battleMaxPalier, setBattleMaxPalier,
     // Test ORS

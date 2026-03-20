@@ -22,8 +22,8 @@ export async function GET(
     return new NextResponse('Invalid tile coordinates', { status: 400 });
   }
 
-  // Pas de carreaux en dessous du zoom 10
-  if (zoom < 10) {
+  // Pas de carreaux en dessous du zoom 6 (carreaux_5km = résolution minimale utile)
+  if (zoom < 6) {
     return new NextResponse(null, { status: 204 });
   }
 

@@ -69,6 +69,7 @@ const GENESIS_FIELD_CANDIDATES: Record<string, string[]> = {
   y: ['y', 'coord_y', 'lambert_y', 'l93_y'],
   reference_panneau: ['reference', 'external_id', 'id_panneau', 'ref', 'code', 'face_locator_external_id', 'reference_panneau'],
   type_panneau: ['format', 'type_panneau', 'type', 'format_panneau', 'produit'],
+  categorie: ['categorie', 'category', 'type_poi', 'poi_type', 'famille', 'segment'],
 };
 
 export function suggestMapping(fileColumns: string[]): Record<string, string | null> {

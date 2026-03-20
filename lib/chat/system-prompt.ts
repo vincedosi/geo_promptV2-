@@ -75,4 +75,3 @@ OUTIL analyze_poi_synergy: ville OBLIGATOIRE (demander si absent).
 
 `;
 }
-}

@@ -35,7 +35,6 @@ export async function getDistinctCategories(): Promise<string[]> {
       ({ data, error } = await supabase
         .from('poi_france')
         .select('categorie')
-        .not('categorie', 'is', null)
         .gt('categorie', lastSeen)
         .order('categorie', { ascending: true })
         .limit(1));
