@@ -8,5 +8,5 @@
  */
 
 export const APP_NAME    = 'GEO.Prompt';
-export const APP_VERSION = '7.1.0';
-export const BUILD_DATE  = '2026-03-17';
+export const APP_VERSION = '7.3.0';
+export const BUILD_DATE  = '2026-03-20';

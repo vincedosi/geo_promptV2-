@@ -1,7 +1,7 @@
 
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 7.2.0 — 18 mars 2026
+> **Version** : 7.3.0 — 20 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
@@ -21,7 +21,7 @@ Import CSV/Parquet/Shapefile, sécurité renforcée, Data Lake OOH unifié, et s
 | **Framework** | Next.js 14 (App Router, TypeScript strict, Tailwind CSS) |
 | **Base de données** | Supabase (PostgreSQL + PostGIS) |
 | **Cartographie** | MapLibre GL JS 5 + OpenFreeMap tiles (Liberty/Bright/Positron) |
-| **IA / NLP** | Multi-provider via Vercel AI SDK v6 : Gemini, Mistral, Claude (function calling, sélecteur dynamique) |
+| **IA / NLP** | Multi-provider via Vercel AI SDK v6 : Gemini 2.5 Flash (défaut), Mistral Small (function calling, sélecteur dynamique) |
 | **Parsing fichiers** | PapaParse (CSV), SheetJS (XLSX), hyparquet (Parquet), shpjs (Shapefile), fzstd (compression), natif (GeoJSON) |
 | **Géocodage** | API BAN data.gouv.fr (adresses FR, gratuit) + proj4 (Lambert 93/EPSG:3035 ↔ WGS84) |
 | **Isochrones** | OpenRouteService API (ORS) — temps de trajet réel voiture/vélo/marche, batch 5 POIs/appel |
@@ -285,7 +285,6 @@ Chat conversationnel IA + carte interactive split screen.
 **Multi-provider** (Vercel AI SDK v6) :
 - **Gemini** `gemini-2.5-flash` — provider par défaut, thinking désactivé (`budget=0`), `maxRetries=0`
 - **Mistral** `mistral-small-latest`
-- **Claude** `claude-haiku-4-5-20251001`
 
 **10 Outils IA** (modules séparés dans `lib/chat/tools/`, schémas Zod compressés ~60%) :
 
@@ -397,6 +396,9 @@ Table centralisée pour tous les panneaux OOH toutes régies :
 - **ON CONFLICT DO NOTHING** sur tous les inserts
 - **global_ooh** : toujours filtrer `.eq('statut', 'actif')`
 - **.env.local** obligatoire pour les opérations admin
+- **`geojsonUrl`** : validée par `new URL()` + whitelist HTTPS (`data.gouv.fr`, `arcgis.com`, `opendatasoft.com`...) — anti-SSRF
+- **`organization_id`** : toujours issu de `profile.organization_id` (session admin), jamais hardcodé
+- **Cache `?refresh=1`** : protégé par `requireAdmin()` sur `/api/map/categories`
 
 ---
 
@@ -477,7 +479,6 @@ const { messages, sendMessage, status } = useChat({
 | Provider | Modele | Remarques |
 |----------|--------|-----------|
 | `gemini` | `gemini-2.5-flash` | Défaut, thinking=0, maxRetries=0 (quota strict) |
-| `claude` | `claude-haiku-4-5-20251001` | |
 | `mistral` | `mistral-small-latest` | |
 
 ### 5. Regles generales
@@ -527,6 +528,7 @@ npx next dev
 
 | Version | Date | Changements cles |
 |---------|------|------------------|
+| **7.3.0** | 2026-03-20 | Grand nettoyage codebase. TypeScript strict : `catch (e: unknown)` uniformisé (30 fichiers), 0 erreur `tsc --noEmit`. Sécurité : `init-admin GET` protégé, SSRF bloqué sur `geojsonUrl` (whitelist), cache `/map/categories` protégé, org UUID hardcodé → `profile.organization_id`. Perf : N+1 `/admin/organizations` → 3 requêtes fixes. Dead code : 2 fichiers orphelins supprimés, packages `@ai-sdk/anthropic` + `fflate` retirés. Provider Claude retiré (Gemini + Mistral uniquement). |
 | **7.2.0** | 2026-03-18 | Rate limit Upstash Redis (prod multi-instance Vercel). `trimHistory` 8→14 messages. sql/ consolidé (18 scripts archivés, SETUP.md). Middleware passthrough supprimé. 45 tests Vitest (unit + intégration Supabase RPC). 10 erreurs TypeScript corrigées. |
 | **7.1.0** | 2026-03-17 | ORS batch 5 POIs/appel (5× speedup), cache couverture Filosofi dans `isochrones_cache`, stats couverture améliorées, filtrage /map. |
 | **7.0.1** | 2026-03-16 | Fix: CIRFAs invisibles après battle — `poisForMap` reconstruit depuis ring features si absent. |
@@ -603,10 +605,10 @@ npx next dev
 | `.env.local` pas chargé | Redémarrer le serveur Next.js |
 | Bataille timeout (>280s) | Lancer d'abord depuis `/map` pour remplir le cache ORS |
 | Routes admin 403 | Vérifier `SUPABASE_SERVICE_ROLE_KEY` dans `.env.local` |
-| Gemini rate limit 429 | Billing non activé — switcher sur Mistral ou Claude |
+| Gemini rate limit 429 | Billing non activé — switcher sur Mistral |
 | MCP data.gouv.fr timeout | Serveur parfois lent — timeout 5s, skippé silencieusement |
 | MVT tuiles vides | Vérifier zoom ≥10 et que `carreaux_2km`/`carreaux_5km` sont peuplées (migration 034) |
 
 ---
 
-*GEO.Prompt v7.1.0 — AI Media Planning Platform*
+*GEO.Prompt v7.3.0 — AI Media Planning Platform*
