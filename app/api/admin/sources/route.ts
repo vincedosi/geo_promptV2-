@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         type: body.type,
         category: body.category || null,
         regie: body.regie || null,
-        organization_id: body.organization_id || '00000000-0000-0000-0000-000000000001',
+        organization_id: body.organization_id || profile.organization_id,
         original_filename: body.original_filename || null,
         file_format: body.file_format || null,
         row_count: body.row_count || 0,

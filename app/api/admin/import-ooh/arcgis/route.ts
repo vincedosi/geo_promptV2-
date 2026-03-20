@@ -13,6 +13,7 @@
 
 import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const maxDuration = 300;
 
@@ -83,6 +84,9 @@ function normalizeFeature(f: ArcGISFeature, source: string) {
 
 // ─── Handler principal ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   let sourceKey: string;
   let customUrl: string | undefined;
   let customLabel: string | undefined;
@@ -250,7 +254,7 @@ export async function POST(req: NextRequest) {
           valid_count:       nbInseres,
           error_count:       nbErreurs,
           status:            'active',
-          organization_id:   '00000000-0000-0000-0000-000000000001',
+          organization_id:   profile.organization_id,
           mapping:           { source_key: sourceKey, run_id: runId },
         }).select('id').single();
 

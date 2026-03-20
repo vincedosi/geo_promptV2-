@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create data_source record for tracking
-        const orgId = config.organizationId || '00000000-0000-0000-0000-000000000001';
+        const orgId = config.organizationId || profile.organization_id;
         let dataSourceId: string | null = null;
         try {
           const supabase = createAdminClient();

@@ -54,8 +54,14 @@ export async function POST(request: Request) {
 /**
  * GET /api/admin/init-admin
  * Liste les utilisateurs existants.
+ * Protégé par la même clé x-admin-key que le POST.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const authKey = request.headers.get("x-admin-key");
+  if (authKey !== process.env.ADMIN_INIT_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 50 });

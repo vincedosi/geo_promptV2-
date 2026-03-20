@@ -294,7 +294,7 @@ export function FilterPanel({
   const getPOIStyle = (poi: string) => poiStyles[poi] ?? { size: 'Standard', color: '#a855f7' };
   const setPOIStyle = (poi: string, patch: Partial<{ size: string; color: string }>) =>
     setPoiStyles(prev => ({ ...prev, [poi]: { ...getPOIStyle(poi), ...patch } }));
-  useEffect(() => { onPOIStylesChange?.(poiStyles); }, [poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { onPOIStylesChange?.(poiStyles); }, [poiStyles, onPOIStylesChange]);
   const [poisRayon,     setPoisRayon]     = useState<string | null>(null);
   const [showVoronoi,      setShowVoronoi]      = useState(false);
   const [showBattle,       setShowBattle]       = useState(false);

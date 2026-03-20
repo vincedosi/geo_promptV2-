@@ -21,20 +21,27 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Enrich with member count + source count
-    const enriched = await Promise.all(
-      (orgs || []).map(async (org) => {
-        const [members, sources] = await Promise.all([
-          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('organization_id', org.id),
-          supabase.from('data_sources').select('id', { count: 'exact', head: true }).eq('organization_id', org.id).neq('status', 'deleted'),
-        ]);
-        return {
-          ...org,
-          member_count: members.count || 0,
-          source_count: sources.count || 0,
-        };
-      })
-    );
+    // Enrich with member count + source count — 3 queries total regardless of org count
+    const orgIds = (orgs || []).map((o) => o.id);
+    const [membersRes, sourcesRes] = await Promise.all([
+      supabase.from('profiles').select('organization_id').in('organization_id', orgIds),
+      supabase.from('data_sources').select('organization_id').in('organization_id', orgIds).neq('status', 'deleted'),
+    ]);
+
+    const memberCounts: Record<string, number> = {};
+    const sourceCounts: Record<string, number> = {};
+    for (const m of membersRes.data ?? []) {
+      memberCounts[m.organization_id] = (memberCounts[m.organization_id] ?? 0) + 1;
+    }
+    for (const s of sourcesRes.data ?? []) {
+      sourceCounts[s.organization_id] = (sourceCounts[s.organization_id] ?? 0) + 1;
+    }
+
+    const enriched = (orgs || []).map((org) => ({
+      ...org,
+      member_count: memberCounts[org.id] ?? 0,
+      source_count: sourceCounts[org.id] ?? 0,
+    }));
 
     return NextResponse.json({ success: true, organizations: enriched });
   } catch (err: unknown) {

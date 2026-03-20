@@ -99,6 +99,35 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'geojsonUrl et categorie sont requis' }, { status: 400 });
   }
 
+  // Validation URL : prévenir les SSRF (Server-Side Request Forgery)
+  const ALLOWED_DOMAINS = [
+    'data.gouv.fr',
+    'static.data.gouv.fr',
+    'tabular-api.data.gouv.fr',
+    'geo.api.gouv.fr',
+    'services.arcgis.com',
+    'geo.brest-metropole.fr',
+    'opendata.reseaux-energies.fr',
+    'public.opendatasoft.com',
+  ];
+  try {
+    const parsedUrl = new URL(geojsonUrl);
+    if (parsedUrl.protocol !== 'https:') {
+      return Response.json({ error: 'geojsonUrl doit utiliser HTTPS' }, { status: 400 });
+    }
+    const isAllowed = ALLOWED_DOMAINS.some(
+      (d) => parsedUrl.hostname === d || parsedUrl.hostname.endsWith('.' + d)
+    );
+    if (!isAllowed) {
+      return Response.json(
+        { error: `Domaine non autorisé: ${parsedUrl.hostname}. Domaines acceptés: ${ALLOWED_DOMAINS.join(', ')}` },
+        { status: 400 }
+      );
+    }
+  } catch {
+    return Response.json({ error: 'geojsonUrl invalide (URL malformée)' }, { status: 400 });
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
