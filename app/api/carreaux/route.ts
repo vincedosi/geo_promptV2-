@@ -22,8 +22,8 @@ export async function GET() {
       millesime: r.geo_config?.millesime,
     }));
     return NextResponse.json({ sources });
-  } catch (err: any) {
-    console.error('[api/carreaux GET]', err?.message ?? err);
+  } catch (err: unknown) {
+    console.error('[api/carreaux GET]', err instanceof Error ? err.message : err);
     return NextResponse.json({ sources: [] });
   }
 }
@@ -81,8 +81,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ type: 'FeatureCollection', features });
-  } catch (err: any) {
-    console.error('[api/carreaux POST] ERREUR:', err?.message ?? err);
-    return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[api/carreaux POST] ERREUR:', errMsg);
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

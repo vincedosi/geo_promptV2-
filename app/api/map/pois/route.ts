@@ -215,8 +215,9 @@ export async function POST(req: NextRequest) {
     console.log(`[api/map/pois] ${pois.length} POIs — types: ${poi_types.join(', ')} — lieu: ${locationLabel}`);
     return NextResponse.json(zoneData);
 
-  } catch (err: any) {
-    console.error('[api/map/pois] ERREUR:', err?.message ?? err);
-    return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[api/map/pois] ERREUR:', errMsg);
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

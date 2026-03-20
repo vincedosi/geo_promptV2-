@@ -431,8 +431,8 @@ export function FilterPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setV2CacheStatus(data);
-    } catch (e: any) {
-      setBattleV2Log(prev => [...prev, `> ✕ Erreur vérif. cache : ${e.message}`]);
+    } catch (e: unknown) {
+      setBattleV2Log(prev => [...prev, `> ✕ Erreur vérif. cache : ${e instanceof Error ? e.message : 'Erreur inconnue'}`]);
     } finally {
       setV2Checking(false);
     }
@@ -447,8 +447,8 @@ export function FilterPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setOrsCacheStatus(data);
-    } catch (e: any) {
-      setBattleLog(prev => [...prev, `> ✕ Erreur vérif. cache : ${e.message}`]);
+    } catch (e: unknown) {
+      setBattleLog(prev => [...prev, `> ✕ Erreur vérif. cache : ${e instanceof Error ? e.message : 'Erreur inconnue'}`]);
     } finally {
       setOrsChecking(false);
     }
@@ -528,8 +528,8 @@ export function FilterPanel({
         body: JSON.stringify(buildCheckParams(battleV2Paliers)),
       });
       if (checkRes.ok) setV2CacheStatus(await checkRes.json());
-    } catch (e: any) {
-      if (e.name !== 'AbortError') setBattleV2Log(prev => [...prev, `> ✕ ${e.message}`]);
+    } catch (e: unknown) {
+      if (!(e instanceof Error && e.name === 'AbortError')) setBattleV2Log(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur inconnue'}`]);
     } finally {
       setV2Filling(false);
     }
@@ -611,8 +611,8 @@ export function FilterPanel({
       setBattleMeta({ categorie: params.category, mode: params.mode });
       setBattlePoiGroups(poiGroups);
       setBattleRings(rings);
-    } catch (e: any) {
-      const msg = e?.message ?? 'erreur inconnue';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'erreur inconnue';
       setBattleLog(prev => [...prev, `> ✕ ${msg}`]);
     } finally {
       if (battleTimerRef.current) { clearInterval(battleTimerRef.current); battleTimerRef.current = null; }
@@ -643,8 +643,8 @@ export function FilterPanel({
         (msg: string) => setBattleV2Log(prev => [...prev, msg]),
       );
       setBattleV2Log(prev => [...prev, '> ✓ Bataille v2 affichée sur la carte']);
-    } catch (e: any) {
-      setBattleV2Log(prev => [...prev, `> ✕ ${e.message ?? 'Erreur inconnue'}`]);
+    } catch (e: unknown) {
+      setBattleV2Log(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur inconnue'}`]);
     } finally {
       setBattleV2Loading(false);
     }
@@ -1525,8 +1525,8 @@ export function FilterPanel({
                               );
                               setBattleApplyPct(100);
                               setBattleLog(prev => [...prev, '> ✓ Territoires découpés sans chevauchement']);
-                            } catch (e: any) {
-                              setBattleLog(prev => [...prev, `> ✕ ${e.message ?? 'Erreur bataille'}`]);
+                            } catch (e: unknown) {
+                              setBattleLog(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur bataille'}`]);
                             } finally {
                               setBattleApplyLoading(false);
                             }

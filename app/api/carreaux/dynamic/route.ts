@@ -93,8 +93,8 @@ export async function GET(req: NextRequest) {
       { type: 'FeatureCollection', features },
       { headers: { 'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}` } }
     );
-  } catch (err: any) {
-    console.error('[carreaux/dynamic] error:', err?.message ?? err);
+  } catch (err: unknown) {
+    console.error('[carreaux/dynamic] error:', err instanceof Error ? err.message : err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

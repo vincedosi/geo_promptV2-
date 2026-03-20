@@ -61,7 +61,12 @@ export default function MapPage() {
   };
 
   // Stocke le résultat de bataille pré-calculé (PostGIS) — appliqué uniquement sur clic "BATAILLE"
-  const pendingBattleRef = useRef<{ geoJSON: any; borders: any; category?: string; poisForMap?: any[] } | null>(null);
+  const pendingBattleRef = useRef<{
+    geoJSON: GeoJSON.FeatureCollection;
+    borders: GeoJSON.FeatureCollection;
+    category?: string;
+    poisForMap?: POI[];
+  } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
@@ -280,7 +285,7 @@ export default function MapPage() {
         const ps = poiStyles[p.categorie];
         const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
         const sizePx = PIN_SIZE_PX[ps?.size ?? 'Standard'] ?? 12;
-        const rankVal = (p as any).rank;
+        const rankVal = p.rank;
         const el = document.createElement('div');
         if (rankVal) {
           el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
@@ -289,7 +294,7 @@ export default function MapPage() {
           el.style.cssText = `width:${sizePx}px;height:${sizePx}px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
         }
         const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const audienceVal = (p as any).audience;
+        const audienceVal = p.audience;
         const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
           `<div style="font-size:12px;padding:6px 8px;color:#888">` +
           (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
@@ -307,8 +312,8 @@ export default function MapPage() {
         if (p.categorie === 'panneaux' || p.categorie === 'top_ooh') {
           el.addEventListener('click', () => {
             setSelectedBillboard({ id: p.id, nom: p.nom ?? 'Panneau', lat: p.lat, lng: p.lng,
-              format: p.sous_categorie ?? undefined, score: (p as any).score_ooh ?? null,
-              audience: (p as any).audience ?? null, rank: (p as any).rank ?? null, regie: p.adresse ?? undefined });
+              format: p.sous_categorie ?? undefined, score: p.score_ooh ?? null,
+              audience: p.audience ?? null, rank: p.rank ?? null, regie: p.adresse ?? undefined });
           });
         }
       });
@@ -357,11 +362,11 @@ export default function MapPage() {
       if (data.error) setError(data.error);
       else if (!data.pois?.length) setError(`Aucun POI trouvé pour "${params.poi_types.join(', ')}"`);
       else setZoneData(data);
-    } catch (e: any) {
-      if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+    } catch (e: unknown) {
+      if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
         setError('Base de données lente — réessayez dans quelques instants');
       } else {
-        setError(e?.message ?? 'Erreur réseau');
+        setError(e instanceof Error ? e.message : 'Erreur réseau');
       }
     }
   };
@@ -431,8 +436,8 @@ export default function MapPage() {
       }
       reader.releaseLock();
       if (!data) throw new Error('Réponse incomplète');
-    } catch (e: any) {
-      const msg = e?.message ?? 'Erreur réseau';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erreur réseau';
       setError(`Isochrones — ${msg}`);
       throw new Error(msg);
     }
@@ -598,8 +603,8 @@ export default function MapPage() {
         }
       }
       reader.releaseLock();
-    } catch (e: any) {
-      const msg = e?.message ?? 'Erreur réseau';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erreur réseau';
       setError(`Cache fill — ${msg}`);
       throw new Error(msg);
     }
@@ -726,8 +731,8 @@ export default function MapPage() {
           rayon_poi_metres: null,
         });
       }
-    } catch (e: any) {
-      const msg = e?.message ?? 'Erreur réseau';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erreur réseau';
       setError(`Bataille v2 — ${msg}`);
       throw new Error(msg);
     }

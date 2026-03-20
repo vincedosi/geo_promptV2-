@@ -1,6 +1,6 @@
 /**
- * GET /api/poi-clusters/models/[version]
- * Retourne le modèle + tous les POI clustérisés + résumé qualité.
+ * GET  /api/poi-clusters/models/[version]  — détail du modèle
+ * DELETE /api/poi-clusters/models/[version] — supprime le modèle + ses poi_clusters + historique
  */
 import { NextResponse }    from 'next/server';
 import { createAdminClient } from '@/lib/auth';
@@ -110,6 +110,7 @@ export async function GET(
       n_pca_components:           m.n_pca_components,
       variance_explained:         m.variance_explained,
       feature_names:              (m.feature_names as string[]) ?? [],
+      feature_themes:             m.feature_themes ?? null,
       cluster_labels:             clusterLabels,
       cluster_avg_profiles:       clusterAvgProf,
       centroids:                  m.centroids,
@@ -122,4 +123,36 @@ export async function GET(
     cluster_summary: summary,
     poi_list:        poiList,
   });
+}
+
+// ── DELETE — supprimer un modèle + ses données associées ─────────────────────
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { version: string } },
+) {
+  const version = parseInt(params.version, 10);
+  if (isNaN(version)) return NextResponse.json({ error: 'Version invalide' }, { status: 400 });
+
+  const sb = createAdminClient();
+
+  // Supprimer dans l'ordre (FK : poi_clusters → clustering_models)
+  const { error: e1 } = await sb
+    .from('poi_cluster_history')
+    .delete()
+    .eq('model_version', version);
+  if (e1) return NextResponse.json({ error: `Historique : ${e1.message}` }, { status: 500 });
+
+  const { error: e2 } = await sb
+    .from('poi_clusters')
+    .delete()
+    .eq('model_version', version);
+  if (e2) return NextResponse.json({ error: `POI clusters : ${e2.message}` }, { status: 500 });
+
+  const { error: e3 } = await sb
+    .from('clustering_models')
+    .delete()
+    .eq('version', version);
+  if (e3) return NextResponse.json({ error: `Modèle : ${e3.message}` }, { status: 500 });
+
+  return NextResponse.json({ deleted: version });
 }

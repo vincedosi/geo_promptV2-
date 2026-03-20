@@ -129,8 +129,9 @@ export async function POST(req: NextRequest) {
         'Content-Disposition': `attachment; filename="rapport-ooh-${safeName}.xlsx"`,
       },
     });
-  } catch (err: any) {
-    console.error('[export/ooh-report]', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : 'Erreur inconnue';
+    console.error('[export/ooh-report]', errMsg);
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

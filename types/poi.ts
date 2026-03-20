@@ -25,6 +25,12 @@ export interface POI {
   organization_id?: string;
   data_source_id?: string;
   metadata?: unknown;
+  /** Classement OOH (tool scorer_panneaux_ooh) */
+  rank?: number | null;
+  /** Audience estimée (tool classer_panneaux_audience) */
+  audience?: number | null;
+  /** Score OOH composite (tool scorer_panneaux_ooh) */
+  score_ooh?: number | null;
 }
 
 /**
@@ -33,5 +39,6 @@ export interface POI {
  */
 export type PoiRow = Pick<POI,
   'id' | 'nom' | 'lat' | 'lng' | 'categorie' |
-  'sous_categorie' | 'adresse' | 'ville'
+  'sous_categorie' | 'adresse' | 'ville' |
+  'rank' | 'audience' | 'score_ooh'
 >;

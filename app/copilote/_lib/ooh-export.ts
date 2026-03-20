@@ -124,7 +124,7 @@ export async function exportOohReport(
     a.click();
     URL.revokeObjectURL(url);
     onStatus?.('');
-  } catch (err: any) {
+  } catch (err: unknown) {
     onStatus?.('');
     throw err;
   }

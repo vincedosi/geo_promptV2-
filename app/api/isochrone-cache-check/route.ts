@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       missing_list,  // top 20 pour affichage éventuel
     });
 
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? 'Erreur inconnue' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Erreur inconnue' }, { status: 500 });
   }
 }

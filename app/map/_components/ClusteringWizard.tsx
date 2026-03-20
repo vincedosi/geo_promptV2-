@@ -207,8 +207,8 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
       if (!res.ok) throw new Error(d.error ?? `HTTP ${res.status}`);
       setJobId(d.job_id);
       setStep(4);
-    } catch (e: any) {
-      setLaunchError(e.message ?? 'Erreur lancement');
+    } catch (e: unknown) {
+      setLaunchError(e instanceof Error ? e.message : 'Erreur lancement');
     } finally {
       setLaunching(false);
     }

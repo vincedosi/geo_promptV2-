@@ -91,9 +91,9 @@ export async function POST(req: NextRequest) {
     console.log(`[coverage-breakdown] total elapsed: ${Date.now() - t0}ms`);
     return NextResponse.json({ results });
 
-  } catch (e: any) {
-    const isTimeout = e?.name === 'AbortError';
-    const msg = isTimeout ? `Timeout après ${RPC_TIMEOUT_MS / 1000}s — canceling statement due to statement timeout` : (e.message ?? 'Erreur inconnue');
+  } catch (e: unknown) {
+    const isTimeout = e instanceof Error && e.name === 'AbortError';
+    const msg = isTimeout ? `Timeout après ${RPC_TIMEOUT_MS / 1000}s — canceling statement due to statement timeout` : (e instanceof Error ? e.message : 'Erreur inconnue');
     console.error(`[coverage-breakdown] ${isTimeout ? 'TIMEOUT' : 'exception'} après ${Date.now() - t0}ms : ${msg}`);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

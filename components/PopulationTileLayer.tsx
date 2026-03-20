@@ -180,9 +180,9 @@ export function PopulationTileLayer({
           } catch { /* layer pas encore prêt */ }
         }
       }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        console.warn('[PopulationTileLayer] fetch error:', err?.message);
+    } catch (err: unknown) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        console.warn('[PopulationTileLayer] fetch error:', err instanceof Error ? err.message : err);
       }
     }
   }, []);

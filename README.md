@@ -9,6 +9,8 @@ Plateforme SaaS B2B de géomarketing pour planneurs média outdoor (OOH).
 L'utilisateur tape un prompt en français → l'IA extrait des filtres structurés → recherche géospatiale dans Supabase → affichage carte interactive.
 Import CSV/Parquet/Shapefile, sécurité renforcée, Data Lake OOH unifié, et serveur de tuiles vectorielles (MVT) pour les carreaux INSEE.
 
+> **Nouveau dev ?** Commence par lire **[ARCHITECTURE.md](./ARCHITECTURE.md)** — arborescence, flux de données, RPC PostGIS, routes API, variables d'env.
+
 ---
 
 
@@ -140,7 +142,6 @@ genesis_app/
 │
 ├── lib/                                   ← Librairies et utilitaires
 │   ├── version.ts                         ← APP_VERSION = '7.1.0' (TOUJOURS INCRÉMENTER)
-│   ├── changelog.ts                       ← Historique versions (séparé pour tree-shaking)
 │   ├── auth.ts                            ← createAdminClient(), requireAdmin(), adminFetch()
 │   ├── admin-fetch.ts                     ← Helper adminFetch() côté client
 │   ├── auth-client.ts                     ← Client auth côté navigateur
@@ -411,7 +412,6 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...    # OBLIGATOIRE pour les opérations admin
 # IA — provider par défaut : Gemini
 GOOGLE_GENERATIVE_AI_API_KEY=...    # Gemini 2.5-flash (billing requis)
 MISTRAL_API_KEY=sk_...              # Mistral small (optionnel)
-ANTHROPIC_API_KEY=sk-ant-...        # Claude haiku (optionnel)
 
 # Isochrones ORS
 ORS_API_KEY=...
@@ -445,7 +445,7 @@ export const APP_VERSION = '7.1.0'; // TOUJOURS INCRÉMENTER
 | Nouvelle feature | MINOR |
 | Bugfix / logs / petits ajustements | PATCH |
 
-Le changelog détaillé est dans `lib/changelog.ts` (séparé pour tree-shaking).
+Le changelog détaillé est dans le fichier `ARCHITECTURE.md`.
 
 ### 2. Securite routes admin
 

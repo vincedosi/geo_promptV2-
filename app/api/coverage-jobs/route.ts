@@ -63,8 +63,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ jobId: job.id });
 
-  } catch (e: any) {
-    console.error('[coverage-jobs] Erreur:', e.message);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : 'Erreur inconnue';
+    console.error('[coverage-jobs] Erreur:', errMsg);
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

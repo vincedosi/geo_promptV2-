@@ -65,12 +65,12 @@ function fmtNum(n: number): string {
 }
 
 // Shoelace formula en degrés², converti en km² via projection lat≈46.5° (centre France)
-function approxAreaKm2(geom: any): number {
+function approxAreaKm2(geom: GeoJSON.Geometry | string): number {
   try {
-    const g = typeof geom === 'string' ? JSON.parse(geom) : geom;
+    const g: GeoJSON.Geometry = typeof geom === 'string' ? JSON.parse(geom) : geom;
     const rings =
       g.type === 'Polygon'      ? [g.coordinates[0]] :
-      g.type === 'MultiPolygon' ? g.coordinates.map((p: any) => p[0]) : [];
+      g.type === 'MultiPolygon' ? g.coordinates.map((p: GeoJSON.Position[][]) => p[0]) : [];
     let totalDeg2 = 0;
     for (const ring of rings) {
       let a = 0;

@@ -78,8 +78,8 @@ export async function POST(req: NextRequest) {
           nb_borders: borderFeatures.length,
         });
 
-      } catch (err: any) {
-        emit({ type: 'error', message: err?.message ?? String(err) });
+      } catch (err: unknown) {
+        emit({ type: 'error', message: err instanceof Error ? err.message : String(err) });
       } finally {
         controller.close();
       }

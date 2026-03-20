@@ -3,19 +3,6 @@
  * Interfaces partagées entre tous les outils IA.
  */
 
-export interface PoiResult {
-  id:              string;
-  nom:             string;
-  lat:             number;
-  lng:             number;
-  categorie:       string;
-  sous_categorie?: string | null;
-  adresse?:        string;
-  ville?:          string;
-  rank?:           number;
-  audience?:       number;
-}
-
 export interface BillboardRaw {
   id:           string;
   source_ref?:  string;

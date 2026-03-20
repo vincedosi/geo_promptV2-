@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import { hasDatagouvKeywords, loadDatagouvTools, DATAGOUV_SYSTEM_ADDENDUM } from '@/lib/mcp/datagouv';
 import { createModel, getMaxRetries, type Provider } from '@/lib/chat/providers';
@@ -55,21 +55,18 @@ async function checkRateLimit(ip: string): Promise<{ ok: boolean; retrySec: numb
 }
 
 // ── Extraction du texte du dernier message utilisateur ────────────────────────
-function extractLastUserText(messages: any[]): string {
-  const last = [...messages].reverse().find((m: any) => m.role === 'user');
+function extractLastUserText(messages: UIMessage[]): string {
+  const last = [...messages].reverse().find(m => m.role === 'user');
   if (!last) return '';
-  const content = last.content;
-  if (typeof content === 'string' && content) return content;
-  if (Array.isArray(content)) {
-    const txt = content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ');
-    if (txt) return txt;
+  // AI SDK v6 useChat envoie parts[] — chaque part {type:'text', text:string}
+  if (Array.isArray(last.parts) && last.parts.length > 0) {
+    return last.parts
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text)
+      .join(' ');
   }
-  // AI SDK React useChat envoie parts[] et non content
-  const parts = (last as any).parts;
-  if (Array.isArray(parts)) {
-    return parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ');
-  }
-  return typeof content === 'string' ? content : '';
+  // Fallback : content string (format legacy ou server-side)
+  return typeof last.content === 'string' ? last.content : '';
 }
 
 // trimHistory et stripHeavyFields → lib/chat/trim-history.ts (testable)
@@ -90,7 +87,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json() as {
-      messages: any[]; forceRecalculate?: boolean; provider?: Provider;
+      messages: UIMessage[]; forceRecalculate?: boolean; provider?: Provider;
     };
     const { messages, forceRecalculate = false, provider = 'gemini' } = body;
 
@@ -147,10 +144,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  } catch (error: any) {
-    const msg: string = error.message ?? 'Erreur inconnue';
+  } catch (error: unknown) {
+    const msg: string = error instanceof Error ? error.message : 'Erreur inconnue';
     const isRateLimit = msg.includes('Rate limit') || msg.includes('rate_limit') || msg.includes('429')
-      || error.statusCode === 429
+      || (error as { statusCode?: number }).statusCode === 429
       || msg.toLowerCase().includes('quota exceeded')    // Gemini quota
       || msg.toLowerCase().includes('exceeded your current quota'); // Gemini quota v2
 

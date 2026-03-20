@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-// @ts-ignore
+// @ts-ignore — hyparquet has no TypeScript type definitions (no @types/hyparquet package)
 import { parquetRead, parquetMetadata } from 'hyparquet';
 import { decompress } from 'fzstd';
 import proj4 from 'proj4';
@@ -220,7 +220,7 @@ function StepUpload({ onLoaded, addLog }: {
         setProgress(30);
         log('Parsing géométries SHP (298 Mo — environ 30-60 sec)...');
         await new Promise(r => setTimeout(r, 50)); // flush UI avant parsing lourd
-        // @ts-ignore
+        // @ts-ignore — shpjs dynamic import: the package types don't expose parseShp on the default export
         const shpjsMod = await import('shpjs');
         // shpjs exporte parseShp(buffer) → GeoJSON geometry[]
         const parseShp = shpjsMod.parseShp ?? shpjsMod.default?.parseShp;
@@ -289,9 +289,10 @@ function StepUpload({ onLoaded, addLog }: {
       } else {
         throw new Error('Sélectionne un .parquet, ou un .dbf seul, ou un .shp + .dbf ensemble');
       }
-    } catch (e: any) {
-      setError(e.message ?? 'Erreur lecture fichier');
-      addLog(`! ${e.message}`, 'error');
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : 'Erreur lecture fichier';
+      setError(errMsg);
+      addLog(`! ${errMsg}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -602,8 +603,8 @@ function StepImport({ info, idcarCol, selectedCols, resolution, millesime, addLo
         });
         if (srcRes.ok) addLog('Source enregistrée dans l\'onglet Données.', 'ok');
         if (!cancelled) setDone(true);
-      } catch (e: any) {
-        addLog(`Erreur : ${e.message}`, 'error');
+      } catch (e: unknown) {
+        addLog(`Erreur : ${e instanceof Error ? e.message : 'Erreur inconnue'}`, 'error');
       }
     };
 

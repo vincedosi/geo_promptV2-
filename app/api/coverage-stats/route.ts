@@ -201,11 +201,11 @@ export async function POST(req: NextRequest) {
             if (error) console.warn(`[coverage-stats] cache write fail ${ck}:`, error.message);
           });
 
-        } catch (e: any) {
+        } catch (e: unknown) {
           failedCount++;
-          const msg = e?.name === 'AbortError'
+          const msg = e instanceof Error && e.name === 'AbortError'
             ? `Timeout (>${PER_GROUP_TIMEOUT_MS / 1000}s)`
-            : (e.message ?? 'Erreur inconnue');
+            : (e instanceof Error ? e.message : 'Erreur inconnue');
           console.error(`[coverage-stats] [calc ${i + 1}/${toCompute.length}] FAIL ${group.id} (${Date.now() - tg}ms): ${msg}`);
           send({ type: 'error_partial', poi: group.id, message: msg });
         }
@@ -225,11 +225,11 @@ export async function POST(req: NextRequest) {
           allResults.push(result);
           console.log(`[coverage-stats] [pal ${i + 1}/${totalPalGroups.length}] OK ${group.id} → ${coverage.toLocaleString('fr-FR')} hab (${Date.now() - tg}ms)`);
           send({ type: 'poi_result', data: result, current: idx, total: totalSteps });
-        } catch (e: any) {
+        } catch (e: unknown) {
           failedCount++;
-          const msg = e?.name === 'AbortError'
+          const msg = e instanceof Error && e.name === 'AbortError'
             ? `Timeout (>${PER_GROUP_TIMEOUT_MS / 1000}s)`
-            : (e.message ?? 'Erreur inconnue');
+            : (e instanceof Error ? e.message : 'Erreur inconnue');
           console.error(`[coverage-stats] [pal ${i + 1}/${totalPalGroups.length}] FAIL ${group.id} (${Date.now() - tg}ms): ${msg}`);
           send({ type: 'error_partial', poi: group.id, message: msg });
         }

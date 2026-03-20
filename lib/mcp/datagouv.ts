@@ -27,7 +27,18 @@ export function hasDatagouvKeywords(text: string): boolean {
 
 // ── Minimal JSON-RPC over Streamable HTTP ─────────────────────────────────────
 
-interface JsonRpcResult { data: any; sessionId: string | null }
+interface JsonRpcResult { data: unknown; sessionId: string | null }
+
+/** Subset of JSON Schema used by data.gouv MCP tools */
+interface JsonSchema {
+  type?: string;
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  anyOf?: JsonSchema[];
+  required?: string[];
+  description?: string;
+  [key: string]: unknown;
+}
 
 async function mcpPost(
   sessionId: string | null,
@@ -75,22 +86,24 @@ async function mcpPost(
  * Converts "integer" → "number", flattens anyOf nullable unions to base type.
  * Ensures every object has { type: 'object', properties: {} } at minimum.
  */
-function sanitizeSchema(s: any): any {
+function sanitizeSchema(s: unknown): unknown {
   if (!s || typeof s !== 'object') return s;
   if (Array.isArray(s)) return s.map(sanitizeSchema);
 
+  const schema = s as JsonSchema;
+
   // Handle anyOf nullable pattern: anyOf: [{type:"string"},{type:"null"}] → {type:"string"}
-  if (s.anyOf && Array.isArray(s.anyOf)) {
-    const nonNull = s.anyOf.filter((x: any) => x?.type !== 'null');
+  if (schema.anyOf && Array.isArray(schema.anyOf)) {
+    const nonNull = schema.anyOf.filter(x => x?.type !== 'null');
     if (nonNull.length === 1) {
       // Flatten to the single non-null type, preserve other keys (description, etc.)
-      const { anyOf: _, ...rest } = s;
+      const { anyOf: _, ...rest } = schema;
       return sanitizeSchema({ ...rest, ...nonNull[0] });
     }
   }
 
-  const out: any = {};
-  for (const [k, v] of Object.entries(s)) {
+  const out: JsonSchema = {};
+  for (const [k, v] of Object.entries(schema)) {
     // Drop keys Gemini rejects
     if (['additionalProperties', '$ref', '$schema', 'allOf', 'anyOf', 'oneOf',
          'default', 'examples', 'example', '$id', '$comment', 'title'].includes(k)) continue;
@@ -169,8 +182,8 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
               .join('\n');
 
             return text || JSON.stringify(data?.result ?? {});
-          } catch (err: any) {
-            return { error: `data.gouv MCP: ${err.message}` };
+          } catch (err: unknown) {
+            return { error: `data.gouv MCP: ${err instanceof Error ? err.message : 'Erreur inconnue'}` };
           }
         },
       };
@@ -178,8 +191,8 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
 
     console.log(`[data.gouv MCP] ${mcpTools.length} tools loaded`);
     return tools;
-  } catch (err: any) {
-    console.warn('[data.gouv MCP] Skipped (non-blocking):', err.message);
+  } catch (err: unknown) {
+    console.warn('[data.gouv MCP] Skipped (non-blocking):', err instanceof Error ? err.message : err);
     return {};
   }
 }

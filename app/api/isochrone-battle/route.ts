@@ -154,10 +154,10 @@ async function callORSBatch(
       }
       return { byPoi, errorMsg: null };
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       clearTimeout(timer);
-      const isTimeout = e.name === 'AbortError';
-      lastErr = isTimeout ? `Timeout ${TIMEOUT / 1000}s` : e.message;
+      const isTimeout = e instanceof Error && e.name === 'AbortError';
+      lastErr = isTimeout ? `Timeout ${TIMEOUT / 1000}s` : (e instanceof Error ? e.message : 'Erreur inconnue');
       console.error(`[ORS batch] ${lastErr} (tentative ${attempt + 1}/3)`);
       if (attempt < 2) await new Promise(r => setTimeout(r, isTimeout ? 5_000 : 2_000));
     }
