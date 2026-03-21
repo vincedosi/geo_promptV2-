@@ -399,28 +399,31 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
-      // ── Carreaux MVT (Filosofi) ────────────────────────────────────────────
+      // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
+      // z6-7  → carreaux_5km  (SQL 035)
+      // z8-9  → carreaux_2km  (SQL 035)
+      // z10+  → carreaux_filosofi 200m
       map.addSource('carreaux-mvt', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}`],
-        minzoom: 10,
+        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=4`],
+        minzoom: 6,
         maxzoom: 14,
         attribution: 'INSEE, Filosofi 2019',
       });
       map.addLayer({
         id: 'carreaux-mvt-fill', type: 'fill',
         source: 'carreaux-mvt', 'source-layer': 'carreaux',
-        minzoom: 10,
-        paint: { 'fill-color': '#FC9272', 'fill-opacity': 0.72 },
+        minzoom: 6,
+        paint: { 'fill-color': '#FC9272', 'fill-opacity': 0.65 },
         layout: { visibility: 'none' },
       });
       map.addLayer({
         id: 'carreaux-mvt-line', type: 'line',
         source: 'carreaux-mvt', 'source-layer': 'carreaux',
-        minzoom: 10,
+        minzoom: 9,
         paint: {
           'line-color': '#555',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.1, 12, 0.3, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.05, 10, 0.1, 12, 0.3, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
           'line-opacity': 0.35,
         },
         layout: { visibility: 'none' },

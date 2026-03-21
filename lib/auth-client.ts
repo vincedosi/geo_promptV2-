@@ -103,7 +103,8 @@ export function useSignIn() {
       const sb = getBrowserClient();
       const { error: sbError } = await sb.auth.signInWithPassword({ email, password });
       if (sbError) throw new Error(sbError.message);
-      window.location.href = "/dashboard";
+      const params = new URLSearchParams(window.location.search);
+      window.location.href = params.get('redirect') || "/dashboard";
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);

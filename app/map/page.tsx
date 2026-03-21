@@ -895,24 +895,6 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
-      {/* Bouton HOME → dashboard */}
-      <a
-        href="/dashboard"
-        style={{
-          position: 'fixed', top: 12, right: 130, zIndex: 510,
-          background: 'rgba(10,10,18,0.6)',
-          border: '1px solid #261a35',
-          color: '#6b7280',
-          fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2,
-          textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer',
-          textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
-          transition: 'all 0.2s',
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a855f7'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#a855f7'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#6b7280'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#261a35'; }}
-      >
-        ⌂ HOME
-      </a>
 
       <button
         onClick={() => setIsResultsPanelOpen(true)}

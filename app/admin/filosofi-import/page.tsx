@@ -722,7 +722,62 @@ export default function FilosofiImportPage() {
             Nouvel import
           </Btn>
         )}
+
+        <RefreshVilleStats />
       </main>
+    </div>
+  );
+}
+
+// ─── Bouton recalcul cache villes ─────────────────────────────────────────────
+function RefreshVilleStats() {
+  const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [msg, setMsg]       = useState('');
+
+  async function run() {
+    setStatus('running');
+    setMsg('Calcul en cours... (peut prendre 2-3 min)');
+    try {
+      const res = await fetch('/api/admin/refresh-ville-stats', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setStatus('done');
+      setMsg(`✓ Cache recalculé — ${json.rows} lignes en ${json.elapsed_s}s`);
+    } catch (e: unknown) {
+      setStatus('error');
+      setMsg(`! ${e instanceof Error ? e.message : 'Erreur'}`);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 32, padding: '16px 20px', background: '#0d0d0d', border: '1px solid #261a35', borderRadius: 2 }}>
+      <div style={{ fontFamily: "'Michroma', sans-serif", fontSize: 9, color: '#94a3b8', letterSpacing: '0.1em', marginBottom: 10 }}>
+        CACHE SMART PROMPT — CLASSEMENT VILLES
+      </div>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
+        Pré-calcule les totaux Filosofi par ville (contours IRIS). A lancer après chaque import de carreaux.
+      </div>
+      <button
+        onClick={run}
+        disabled={status === 'running'}
+        style={{
+          fontFamily: "'Michroma', sans-serif", fontSize: 11, letterSpacing: '0.08em',
+          padding: '8px 16px', borderRadius: 2, border: '1px solid #a855f7',
+          background: status === 'running' ? 'rgba(168,85,247,0.05)' : 'rgba(168,85,247,0.12)',
+          color: status === 'running' ? '#6b7280' : '#a855f7',
+          cursor: status === 'running' ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {status === 'running' ? 'CALCUL EN COURS...' : 'RECALCULER CACHE VILLES'}
+      </button>
+      {msg && (
+        <div style={{
+          marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+          color: status === 'error' ? '#f87171' : status === 'done' ? '#3dffa0' : '#94a3b8',
+        }}>
+          {msg}
+        </div>
+      )}
     </div>
   );
 }

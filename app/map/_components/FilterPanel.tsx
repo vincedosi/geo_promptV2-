@@ -763,6 +763,24 @@ export function FilterPanel({
         </div>
       )}
 
+      {/* ── Bouton HOME ───────────────────────────────────────────────────── */}
+      <a href="/dashboard" style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '9px 14px', flexShrink: 0,
+        background: 'none', borderBottom: `1px solid ${C.border}`,
+        color: '#6b7280', textDecoration: 'none',
+        fontFamily: "'Michroma', sans-serif", fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+        transition: 'all 0.15s',
+      }}
+        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a855f7'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(168,85,247,0.06)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#6b7280'; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Home
+      </a>
+
       {/* ── Tab navigation (2 onglets maîtres) ──────────────────────────── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#060612' }}>
         {/* GEO.PROMPT */}

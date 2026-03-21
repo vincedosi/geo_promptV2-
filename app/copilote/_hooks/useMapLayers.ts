@@ -187,9 +187,12 @@ export function useMapLayers({
     const pal = CARREAUX_PALETTES.find(p => p.id === paletteId) ?? CARREAUX_PALETTES[0];
     const range = p95 - p5;
     if (range <= 0) return;
+    // safeNum : null-safe — to-number with fallback 0 ensures static return type = number
+    // so interpolate doesn't get a Value/unknown from ['get', ind]
+    const safeNum = ['to-number', ['get', ind], 0];
     const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
     const expr = ['interpolate', ['linear'],
-      ['case', ['has', ind], ['to-number', ['get', ind], 0], 0],
+      safeNum,
       ...positions.flatMap((t, i) => [p5 + t * range, pal.stops[i]]),
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
@@ -254,7 +257,7 @@ export function useMapLayers({
     const step = (r.p95 - r.p5) / 6;
     const min = r.p5 + bucket * step;
     const max = r.p5 + (bucket + 1) * step;
-    const val = ['case', ['has', ind], ['to-number', ['get', ind], 0], 0];
+    const val = ['to-number', ['get', ind], 0];
     const filter = bucket === 5
       ? ['>=', val, min]
       : ['all', ['>=', val, min], ['<', val, max]];
@@ -630,7 +633,7 @@ export function useMapLayers({
     if (!map) return;
 
     const { lat, lng } = cd.coordonnees;
-    // Fly to location at zoom >= 10 so MVT tiles are visible
+    // Fly to z12 pour vue détaillée 200m (carreaux visibles dès z6)
     map.flyTo({ center: [lng, lat], zoom: 12, duration: 1000 });
 
     setCarreauxVisible(true);

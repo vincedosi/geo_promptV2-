@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { Organization } from '@/types/admin';
 
@@ -38,6 +39,7 @@ function Spinner({ size = 12 }: { size?: number }) {
 }
 
 export default function OrganizationsPage() {
+  const router = useRouter();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newOrgName, setNewOrgName] = useState('');
@@ -48,9 +50,12 @@ export default function OrganizationsPage() {
     setIsLoading(true);
     try {
       const res = await adminFetch('/api/admin/organizations');
-      const data = await res.json();
-      if (data.success) setOrgs(data.organizations || []);
-    } catch { /* ignore */ }
+      const text = await res.text();
+      let data: Record<string, unknown>;
+      try { data = JSON.parse(text); } catch { setError(`HTTP ${res.status} — réponse non-JSON`); setIsLoading(false); return; }
+      if (data.success) setOrgs((data.organizations as typeof orgs) || []);
+      else setError(`${res.status} — ${data.error ?? 'Erreur inconnue'}`);
+    } catch (e) { setError(String(e)); }
     setIsLoading(false);
   }, []);
 
@@ -219,9 +224,15 @@ export default function OrganizationsPage() {
                 </thead>
                 <tbody>
                   {orgs.map((org) => (
-                    <tr key={org.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <tr
+                      key={org.id}
+                      onClick={() => router.push(`/admin/organizations/${org.id}`)}
+                      style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = C.bgSurface)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
                       <td style={{ padding: '10px 16px' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: C.text, fontFamily: fontInter }}>{org.name}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: C.accent, fontFamily: fontInter }}>{org.name}</div>
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 11, fontFamily: fontMono, color: C.textDim }}>
                         {org.slug}

@@ -10,6 +10,7 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 import { ClusterRadar, FEAT_SHORT, FEAT_LABEL } from '@/components/ClusterRadar';
+import type { GeminiAnalysis } from '@/components/ClusteringPDFReport';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -64,6 +65,7 @@ interface ClusterSummary {
   color:       string;
   avg_profile: Record<string, number>;
 }
+
 
 interface PoiRecord {
   poi_id:                     string;
@@ -962,11 +964,12 @@ async function exportXlsx(model: ModelDetail, poiList: PoiRecord[]) {
 
 // ─── Export PDF ───────────────────────────────────────────────────────────────
 async function exportPDF(
-  model:      ModelDetail,
-  summary:    Record<string, ClusterSummary>,
-  poiList:    PoiRecord[],
-  franceAvg:  FranceAverages | null,
+  model:        ModelDetail,
+  summary:      Record<string, ClusterSummary>,
+  poiList:      PoiRecord[],
+  franceAvg:    FranceAverages | null,
   setExporting: (v: boolean) => void,
+  analysis?:    GeminiAnalysis,
 ) {
   setExporting(true);
   try {
@@ -1007,7 +1010,7 @@ async function exportPDF(
     const blob = await pdf(
       // Cast needed: pdf() expects ReactElement<DocumentProps> but our component wraps Document internally
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      React.createElement(ClusteringPDFReport, { data, franceAverages: franceAvgForPDF }) as React.ReactElement<any>
+      React.createElement(ClusteringPDFReport, { data, franceAverages: franceAvgForPDF, analysis }) as React.ReactElement<any>
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -1037,7 +1040,11 @@ export default function ClusterVersionPage() {
   const [summary,    setSummary]    = useState<Record<string, ClusterSummary>>({});
   const [poiList,    setPoiList]    = useState<PoiRecord[]>([]);
   const [franceAvg,  setFranceAvg]  = useState<FranceAverages | null>(null);
-  const [exporting,  setExporting]  = useState(false);
+  const [exporting,         setExporting]         = useState(false);
+  const [analysis,          setAnalysis]          = useState<GeminiAnalysis | null>(null);
+  const [generatingAnalysis, setGeneratingAnalysis] = useState(false);
+  const [analysisJobId,     setAnalysisJobId]     = useState<string | null>(null);
+  const [analysisError,     setAnalysisError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (!version) return;
@@ -1047,15 +1054,56 @@ export default function ClusterVersionPage() {
     Promise.all([
       fetch(`/api/poi-clusters/models/${version}`).then(r => r.json()),
       fetch('/api/poi-clusters/france-averages').then(r => r.json()),
-    ]).then(([modelData, avgData]) => {
+      fetch(`/api/poi-clusters/models/${version}/analysis`).then(r => r.ok ? r.json() : null),
+    ]).then(([modelData, avgData, analysisData]) => {
       if (modelData.error) { setError(modelData.error); return; }
       setModel(modelData.model);
       setSummary(modelData.cluster_summary);
       setPoiList(modelData.poi_list);
       if (!avgData.error) setFranceAvg(avgData.averages);
+      if (analysisData && !analysisData.error) setAnalysis(analysisData);
     }).catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [version]);
+
+  // Poll job de génération d'analyse
+  useEffect(() => {
+    if (!analysisJobId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/poi-clusters/run?job_id=${analysisJobId}`);
+        const data = await res.json();
+        if (data.status === 'done') {
+          clearInterval(interval);
+          setAnalysisJobId(null);
+          setGeneratingAnalysis(false);
+          // Recharger l'analyse depuis la base
+          const ar = await fetch(`/api/poi-clusters/models/${version}/analysis`);
+          if (ar.ok) setAnalysis(await ar.json());
+        } else if (data.status === 'failed') {
+          clearInterval(interval);
+          setAnalysisJobId(null);
+          setGeneratingAnalysis(false);
+          setAnalysisError(data.error ?? 'Erreur lors de la génération');
+        }
+      } catch { /* réseau temporairement indispo */ }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [analysisJobId, version]);
+
+  const handleGenerateAnalysis = async () => {
+    setGeneratingAnalysis(true);
+    setAnalysisError(null);
+    try {
+      const res = await fetch(`/api/poi-clusters/models/${version}/generate-analysis`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
+      setAnalysisJobId(data.job_id);
+    } catch (e) {
+      setGeneratingAnalysis(false);
+      setAnalysisError(String(e));
+    }
+  };
 
   if (loading) return (
     <div style={{ padding: 40, fontFamily: fMono, fontSize: 12, color: C.muted, textAlign: 'center' }}>
@@ -1114,7 +1162,47 @@ export default function ClusterVersionPage() {
           </span>
 
           {/* Export buttons */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Analyse Gemini */}
+            {analysisError && (
+              <span style={{ fontFamily: fMono, fontSize: 9, color: C.red }}>! {analysisError}</span>
+            )}
+            {!analysis && !generatingAnalysis && (
+              <button
+                onClick={handleGenerateAnalysis}
+                style={{
+                  background: 'none', border: `1px solid ${C.accent}50`, borderRadius: 2,
+                  padding: '4px 10px', cursor: 'pointer',
+                  fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.accent,
+                }}
+                title="Générer l'analyse Gemini (rapport PDF enrichi)"
+              >
+                + ANALYSER
+              </button>
+            )}
+            {generatingAnalysis && (
+              <span style={{
+                fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em',
+                color: C.accent, border: `1px solid ${C.accent}40`, borderRadius: 2,
+                padding: '4px 10px', opacity: 0.7,
+              }}>
+                … GEMINI
+              </span>
+            )}
+            {analysis && !generatingAnalysis && (
+              <button
+                onClick={handleGenerateAnalysis}
+                title="Regénérer l'analyse Gemini"
+                style={{
+                  background: 'none', border: `1px solid ${C.border}`, borderRadius: 2,
+                  padding: '4px 8px', cursor: 'pointer',
+                  fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.06em', color: C.dim,
+                }}
+              >
+                ↺ IA
+              </button>
+            )}
+
             <button
               onClick={() => exportXlsx(model, poiList)}
               style={{
@@ -1126,18 +1214,19 @@ export default function ClusterVersionPage() {
               ↓ XLSX
             </button>
             <button
-              onClick={() => exportPDF(model, summary, poiList, franceAvg, setExporting)}
+              onClick={() => exportPDF(model, summary, poiList, franceAvg, setExporting, analysis ?? undefined)}
               disabled={exporting}
               style={{
-                background: exporting ? C.accent + '20' : 'none',
-                border: `1px solid ${exporting ? C.accent : C.border}`,
+                background: exporting ? C.accent + '20' : analysis ? C.accent + '15' : 'none',
+                border: `1px solid ${exporting || analysis ? C.accent : C.border}`,
                 borderRadius: 2, padding: '4px 10px',
                 cursor: exporting ? 'wait' : 'pointer',
                 fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em',
-                color: exporting ? C.accent : C.muted,
+                color: exporting || analysis ? C.accent : C.muted,
               }}
+              title={analysis ? 'Exporter le rapport PDF enrichi (analyse Gemini incluse)' : 'Exporter le rapport PDF'}
             >
-              {exporting ? '… PDF' : '↓ PDF'}
+              {exporting ? '… PDF' : analysis ? '↓ PDF RAPPORT' : '↓ PDF'}
             </button>
           </div>
         </div>
