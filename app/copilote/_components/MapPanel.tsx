@@ -241,13 +241,7 @@ export function MapPanel({
 
       {/* Toggles layers : ligne compacte */}
       <div style={{ display: 'flex', gap: 4 }}>
-        <button
-          onClick={() => setCarreauxVisible(v => !v)}
-          style={{ ...toggleBtnBase(carreauxVisible, C.blue), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}
-        >
-          <span style={{ width: 7, height: 7, background: carreauxVisible ? C.blue : 'transparent', border: `1.5px solid ${C.blue}`, borderRadius: 1, flexShrink: 0 }} />
-          Carreaux{carreauxLoaded ? ' ✓' : ''}
-        </button>
+        {/* Carreaux : contrôles déplacés dans FilterPanel > ANALYSE > CARREAUX */}
         {voronoiCategory && (
           <button onClick={() => setVoronoiVisible(v => !v)}
             style={{ ...toggleBtnBase(voronoiVisible, C.warn), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}>
@@ -264,8 +258,8 @@ export function MapPanel({
         )}
       </div>
 
-      {/* Panneau carreaux : indicateur + palette + opacité + légende */}
-      {carreauxVisible && (() => {
+      {/* Panneau carreaux déplacé dans FilterPanel > ANALYSE > CARREAUX */}
+      {false && (() => {
         const groups = Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group)));
         const pal = CARREAUX_PALETTES.find(p => p.id === carreauxPalette) ?? CARREAUX_PALETTES[0];
         return (

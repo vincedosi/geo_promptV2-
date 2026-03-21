@@ -343,6 +343,29 @@ export default function MapPage() {
   // Note: no zoom-based opacity hiding on /map page — markers stay visible at all zoom levels.
   // (FilterPanel sends national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
 
+  const handleDirectOOH = async (regies?: string[]) => {
+    setError(null);
+    setZoneData(null);
+    try {
+      const res = await fetch('/api/map/ooh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regies: regies ?? [] }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setError(err.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else setZoneData(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur réseau');
+    }
+  };
+
   const handleDirectSearch = async (params: DirectPOISearchParams) => {
     setError(null);
     setZoneData(null);
@@ -782,6 +805,7 @@ export default function MapPage() {
           />
         }
         sendMessage={chat.sendMessage}
+        onDirectOOH={handleDirectOOH}
         onDirectSearch={handleDirectSearch}
         onDirectBattle={handleDirectBattle}
         onDirectBattleV2={handleDirectBattleV2}
@@ -814,6 +838,18 @@ export default function MapPage() {
         onFitBounds={handleFitBounds}
         onWizardHighlight={handleWizardHighlight}
         onWizardClose={() => setWizardHighlightGeoJSON(null)}
+        carreauxVisible={mapLayers.carreauxVisible}
+        carreauxLoaded={mapLayers.carreauxLoaded}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxOpacity={mapLayers.carreauxOpacity}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        setCarreauxVisible={mapLayers.setCarreauxVisible}
+        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+        setCarreauxPalette={mapLayers.setCarreauxPalette}
+        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
       />
       <MapPanel
         mapContainerRef={mapContainerRef}

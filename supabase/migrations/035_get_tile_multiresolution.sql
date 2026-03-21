@@ -7,6 +7,11 @@
 --   z  6-7   → carreaux_5km       5km    (~17k cellules)
 --   z  < 6   → tuile vide (204 géré côté API)
 --
+-- IMPORTANT : carreaux_filosofi/2km/5km sont en SRID 4326
+-- ST_TileEnvelope retourne du 3857 → transformation obligatoire :
+--   WHERE clause  : geom && ST_Transform(tile_envelope_3857, 4326)
+--   ST_AsMVTGeom  : ST_Transform(geom, 3857) pour clipper en 3857
+--
 -- Prérequis : migration 034 exécutée (carreaux_2km + carreaux_5km peuplées)
 -- Colonnes exposées : noms matchant CARREAUX_INDICATEURS dans le frontend
 -- =============================================================================
@@ -21,17 +26,19 @@ LANGUAGE plpgsql
 STABLE PARALLEL SAFE
 AS $$
 DECLARE
-  v_bounds  BOX2D;
-  v_mvt     BYTEA;
+  v_bounds      BOX2D;       -- 3857 pour ST_AsMVTGeom
+  v_bounds_4326 geometry;    -- 4326 pour le filtre spatial (SRID des tables)
+  v_mvt         BYTEA;
 BEGIN
-  v_bounds := ST_TileEnvelope(z, x, y);
+  v_bounds      := ST_TileEnvelope(z, x, y);
+  v_bounds_4326 := ST_Transform(ST_TileEnvelope(z, x, y), 4326);
 
   -- ── z >= 10 : carreaux 200m natifs ──────────────────────────────────────────
   IF z >= 10 THEN
     SELECT INTO v_mvt ST_AsMVT(q, 'carreaux', 4096, 'geom')
     FROM (
       SELECT
-        ST_AsMVTGeom(geom, v_bounds, 4096, 0, true)     AS geom,
+        ST_AsMVTGeom(ST_Transform(geom, 3857), v_bounds, 4096, 0, true) AS geom,
         idcar,
         COALESCE((metadata->>'ind')::numeric,       0)  AS population_totale,
         COALESCE((metadata->>'ind_0_3')::numeric,   0)  AS ind_0_3,
@@ -62,7 +69,7 @@ BEGIN
         COALESCE((metadata->>'log_soc')::numeric,   0)  AS logements_sociaux,
         COALESCE((metadata->>'log_inc')::numeric,   0)  AS logements_inconnus
       FROM carreaux_filosofi
-      WHERE geom && v_bounds
+      WHERE geom && v_bounds_4326
         AND resolution = '200m'
       LIMIT 2000
     ) q;
@@ -72,7 +79,7 @@ BEGIN
     SELECT INTO v_mvt ST_AsMVT(q, 'carreaux', 4096, 'geom')
     FROM (
       SELECT
-        ST_AsMVTGeom(geom, v_bounds, 4096, 0, true) AS geom,
+        ST_AsMVTGeom(ST_Transform(geom, 3857), v_bounds, 4096, 0, true) AS geom,
         id                    AS idcar,
         COALESCE(ind,       0) AS population_totale,
         COALESCE(ind_0_3,   0) AS ind_0_3,
@@ -103,7 +110,7 @@ BEGIN
         COALESCE(log_soc,   0) AS logements_sociaux,
         COALESCE(log_inc,   0) AS logements_inconnus
       FROM carreaux_2km
-      WHERE geom && v_bounds
+      WHERE geom && v_bounds_4326
     ) q;
 
   -- ── z 6-7 : carreaux 5km ────────────────────────────────────────────────────
@@ -111,7 +118,7 @@ BEGIN
     SELECT INTO v_mvt ST_AsMVT(q, 'carreaux', 4096, 'geom')
     FROM (
       SELECT
-        ST_AsMVTGeom(geom, v_bounds, 4096, 0, true) AS geom,
+        ST_AsMVTGeom(ST_Transform(geom, 3857), v_bounds, 4096, 0, true) AS geom,
         id                    AS idcar,
         COALESCE(ind,       0) AS population_totale,
         COALESCE(ind_0_3,   0) AS ind_0_3,
@@ -142,7 +149,7 @@ BEGIN
         COALESCE(log_soc,   0) AS logements_sociaux,
         COALESCE(log_inc,   0) AS logements_inconnus
       FROM carreaux_5km
-      WHERE geom && v_bounds
+      WHERE geom && v_bounds_4326
     ) q;
   END IF;
 
@@ -156,4 +163,5 @@ COMMENT ON FUNCTION get_tile IS
 'Tuiles MVT multi-résolution pour carreaux Filosofi.
 z>=10 : carreaux_filosofi 200m | z8-9 : carreaux_2km | z6-7 : carreaux_5km
 Colonnes exposées : noms matchant CARREAUX_INDICATEURS (frontend)
-Prérequis : migration 034 exécutée pour carreaux_2km + carreaux_5km';
+SRID : tables en 4326 → ST_Transform vers 3857 pour ST_AsMVTGeom
+       filtre spatial via ST_Transform(envelope_3857, 4326)';

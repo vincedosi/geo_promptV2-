@@ -5,6 +5,7 @@ import type { ZoneData } from '@/types/spatial';
 import type { CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
+import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -36,7 +37,8 @@ import {
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
 
-type Tab = 'geoprompt' | 'territoire' | 'analyses' | 'clusters';
+type Tab = 'geoprompt' | 'expert';
+type ExpertSubTab = 'territoire' | 'poi' | 'analyse';
 
 // ─── POI Style ────────────────────────────────────────────────────────────────
 export interface POIStyle { size: string; color: string; }
@@ -86,6 +88,7 @@ export interface FillIsochroneCacheParams {
 export interface FilterPanelProps {
   chatSlot?: React.ReactNode;
   sendMessage: (text: string) => void;
+  onDirectOOH: (regies?: string[]) => Promise<void>;
   onDirectSearch:   (params: DirectPOISearchParams) => Promise<void>;
   onDirectBattle:       (params: DirectBattleParams, onProgress?: (msg: string, pct?: number) => void) => Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }>;
   onDirectBattleV2:     (params: DirectBattleV2Params, onProgress?: (msg: string) => void) => Promise<void>;
@@ -119,6 +122,19 @@ export interface FilterPanelProps {
   onFitBounds?:             (bounds: [[number, number], [number, number]]) => void;
   onWizardHighlight?:       (poiTypes: string[], metropolitaine: boolean) => void;
   onWizardClose?:           () => void;
+  // Carreaux
+  carreauxVisible?:         boolean;
+  carreauxLoaded?:          boolean;
+  carreauxIndicateur?:      string;
+  carreauxPalette?:         string;
+  carreauxOpacity?:         number;
+  carreauxRange?:           { p5: number; p95: number } | null;
+  carreauxSelectedBucket?:  number | null;
+  setCarreauxVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
+  setCarreauxIndicateur?:   (v: string) => void;
+  setCarreauxPalette?:      (v: string) => void;
+  setCarreauxOpacity?:      (v: number) => void;
+  setCarreauxSelectedBucket?: (v: number | null) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -227,7 +243,7 @@ function MultiDropdown({
 // ─── Main component ───────────────────────────────────────────────────────────
 export function FilterPanel({
   chatSlot,
-  sendMessage, onDirectSearch, onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle, isLoading, error, zoneData,
+  sendMessage, onDirectOOH, onDirectSearch, onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle, isLoading, error, zoneData,
   densityMode, onDensityModeChange,
   voronoiVisible, setVoronoiVisible,
   battleVisible, setBattleVisible,
@@ -239,6 +255,9 @@ export function FilterPanel({
   clusterGeoJSON, clustersVisible, clusterLoading, clusterDuration,
   onToggleClusters, onLoadClusters, onClusterDurationChange, onFlyTo, onFitBounds,
   onWizardHighlight, onWizardClose,
+  carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
+  carreauxOpacity, carreauxRange, carreauxSelectedBucket,
+  setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
 }: FilterPanelProps) {
 
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
@@ -263,6 +282,28 @@ export function FilterPanel({
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('geoprompt');
+  const [activeExpertTab, setActiveExpertTab] = useState<ExpertSubTab>('territoire');
+
+  // ── OOH / DOOH state ──────────────────────────────────────────────────────
+  // Régies disponibles dans global_ooh (source: Brest Métropole)
+  const OOH_REGIES = [
+    { id: 'DECAUX',       label: 'JCDecaux' },
+    { id: 'Clear Chanel', label: 'Clear Channel' },
+    { id: 'SIGNALI',      label: 'Signali' },
+    { id: 'PUBLI ESPACE', label: 'Publi Espace' },
+    { id: 'AFFIOUEST',    label: 'Affiouest' },
+    { id: 'PUB OCEANNE',  label: 'Pub Océanne' },
+    { id: 'PROMOVIL',     label: 'Promovil' },
+    { id: 'RDPP',         label: 'RDPP' },
+  ];
+  const [selectedOOH, setSelectedOOH] = useState<string[]>([]);
+
+  // ── Analyse accordions ────────────────────────────────────────────────────
+  const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
+    spatiale: false, clustering: false, carreaux: false, couverture: false,
+  });
+  const toggleAnalyse = (key: string) =>
+    setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
   // ── Territoire state ──────────────────────────────────────────────────────
   const [scope,           setScope]           = useState<'metro' | 'all' | null>(null);
@@ -367,6 +408,13 @@ export function FilterPanel({
   };
 
   const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
+
+  // Auto-ouvrir l'accordéon COUVERTURE quand des données arrivent
+  useEffect(() => {
+    if (coverageSummary && coverageSummary.length > 0) {
+      setAnalyseOpen(prev => ({ ...prev, couverture: true }));
+    }
+  }, [coverageSummary]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
@@ -684,11 +732,11 @@ export function FilterPanel({
   };
 
   // ── Tab config ────────────────────────────────────────────────────────────
-  const TABS: { id: Tab; label: string; color: string; badge?: number }[] = [
-    { id: 'geoprompt',  label: 'GEO.PROMPT', color: C.accent, badge: 0 },
-    { id: 'territoire', label: 'TERRITOIRE', color: C.green,  badge: hasTerritoire ? 1 : 0 },
-    { id: 'analyses',   label: 'ANALYSES',   color: C.accent, badge: selectedPOI.length },
-    { id: 'clusters',   label: 'CLUSTERS',   color: '#76b7b2', badge: clusterGeoJSON ? 1 : 0 },
+  const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0) + (clusterGeoJSON ? 1 : 0);
+  const EXPERT_SUBTABS: { id: ExpertSubTab; label: string; color: string; badge?: number }[] = [
+    { id: 'territoire', label: 'TERRITOIRE', color: C.green,   badge: hasTerritoire ? 1 : 0 },
+    { id: 'poi',        label: 'POI',        color: C.accent,  badge: selectedPOI.length + selectedOOH.length },
+    { id: 'analyse',    label: 'ANALYSE',    color: '#76b7b2', badge: clusterGeoJSON ? 1 : 0 },
   ];
 
   return (
@@ -715,52 +763,76 @@ export function FilterPanel({
         </div>
       )}
 
-      {/* ── Tab navigation ───────────────────────────────────────────────── */}
+      {/* ── Tab navigation (2 onglets maîtres) ──────────────────────────── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#060612' }}>
-        {TABS.map(tab => {
-          const active = activeTab === tab.id;
+        {/* GEO.PROMPT */}
+        {(() => {
+          const active = activeTab === 'geoprompt';
           return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex: 1, padding: '11px 6px 10px',
-                background: active ? `rgba(${hexToRgb(tab.color)},0.07)` : 'none',
-                border: 'none',
-                borderBottom: active ? `2px solid ${tab.color}` : '2px solid transparent',
-                cursor: 'pointer', position: 'relative',
-                transition: 'all 0.15s',
-              }}
-            >
-              {tab.id === 'geoprompt' ? (
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', transition: 'color 0.15s' }}>
-                  <span style={{ color: active ? '#3dffa0' : '#8888aa' }}>GEO</span>
-                  <span style={{ color: active ? C.accent : '#8888aa' }}>.</span>
-                  <span style={{ color: active ? C.text : '#8888aa' }}>PROMPT</span>
-                </div>
-              ) : (
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: active ? tab.color : '#8888aa', transition: 'color 0.15s' }}>
-                  {tab.label}
-                </div>
-              )}
-              {(tab.badge ?? 0) > 0 && (
-                <div style={{
-                  position: 'absolute', top: 6, right: 8,
-                  width: 5, height: 5, borderRadius: '50%',
-                  background: tab.color,
-                  boxShadow: `0 0 6px ${tab.color}`,
-                }} />
+            <button onClick={() => setActiveTab('geoprompt')} style={{
+              flex: 1, padding: '11px 6px 10px',
+              background: active ? `rgba(168,85,247,0.07)` : 'none',
+              border: 'none', borderBottom: active ? `2px solid ${C.accent}` : '2px solid transparent',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em' }}>
+                <span style={{ color: active ? '#3dffa0' : '#8888aa' }}>GEO</span>
+                <span style={{ color: active ? C.accent : '#8888aa' }}>.</span>
+                <span style={{ color: active ? C.text : '#8888aa' }}>PROMPT</span>
+              </div>
+            </button>
+          );
+        })()}
+        {/* EXPERT */}
+        {(() => {
+          const active = activeTab === 'expert';
+          return (
+            <button onClick={() => setActiveTab('expert')} style={{
+              flex: 1, padding: '11px 6px 10px', position: 'relative',
+              background: active ? 'rgba(61,255,160,0.05)' : 'none',
+              border: 'none', borderBottom: active ? `2px solid ${C.green}` : '2px solid transparent',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: active ? C.green : '#8888aa', transition: 'color 0.15s' }}>
+                EXPERT
+              </div>
+              {EXPERT_BADGE > 0 && (
+                <div style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
               )}
             </button>
           );
-        })}
+        })()}
       </div>
+
+      {/* ── Sous-onglets EXPERT ───────────────────────────────────────────── */}
+      {activeTab === 'expert' && (
+        <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#070710' }}>
+          {EXPERT_SUBTABS.map(sub => {
+            const active = activeExpertTab === sub.id;
+            return (
+              <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} style={{
+                flex: 1, padding: '8px 4px 7px', position: 'relative',
+                background: active ? `rgba(${hexToRgb(sub.color)},0.07)` : 'none',
+                border: 'none', borderBottom: active ? `1px solid ${sub.color}` : '1px solid transparent',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                <div style={{ fontFamily: fMichroma, fontSize: 6, letterSpacing: '0.1em', color: active ? sub.color : '#666688', transition: 'color 0.15s' }}>
+                  {sub.label}
+                </div>
+                {(sub.badge ?? 0) > 0 && (
+                  <div style={{ position: 'absolute', top: 5, right: 6, width: 4, height: 4, borderRadius: '50%', background: sub.color, boxShadow: `0 0 4px ${sub.color}` }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Tab content ──────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
-            ONGLET 1 — GEO.PROMPT (chat IA)
+            ONGLET MAÎTRE 1 — GEO.PROMPT (chat IA)
         ════════════════════════════════════════ */}
         {activeTab === 'geoprompt' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -769,34 +841,16 @@ export function FilterPanel({
         )}
 
         {/* ════════════════════════════════════════
-            ONGLET 4 — CLUSTERS (inline, pas de scroll externe)
+            ONGLET MAÎTRE 2 — EXPERT (sous-onglets)
         ════════════════════════════════════════ */}
-        {activeTab === 'clusters' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-            <ClusterPanel
-              geojson={clusterGeoJSON ?? null}
-              visible={clustersVisible ?? false}
-              loading={clusterLoading ?? false}
-              duration={clusterDuration ?? 60}
-              onToggle={onToggleClusters ?? (() => {})}
-              onLoad={onLoadClusters ?? (() => {})}
-              onDurationChange={onClusterDurationChange ?? (() => {})}
-              onFlyTo={onFlyTo ?? (() => {})}
-              onFitBounds={onFitBounds ?? (() => {})}
-              onWizardHighlight={onWizardHighlight}
-              onWizardClose={onWizardClose}
-            />
-          </div>
-        )}
-
-        {/* ── Scrollable wrapper for territoire + analyses ── */}
-        {activeTab !== 'geoprompt' && activeTab !== 'clusters' && (
+        {/* ── Scrollable wrapper pour territoire + poi + analyse ── */}
+        {activeTab === 'expert' && (
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
             ONGLET 2 — TERRITOIRE
         ════════════════════════════════════════ */}
-        {activeTab === 'territoire' && (
+        {activeExpertTab === 'territoire' && (
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
@@ -900,12 +954,16 @@ export function FilterPanel({
         )}
 
         {/* ════════════════════════════════════════
-            ONGLET 3 — ANALYSES & POI
+            ONGLET POI — Points d'intérêt
         ════════════════════════════════════════ */}
-        {activeTab === 'analyses' && (
+        {activeExpertTab === 'poi' && (
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Sélection POI */}
+            {/* ── Section : Points d'intérêt ─────────────────────────────── */}
+            <div style={{ paddingBottom: 4 }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent, marginBottom: 10, borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                POINTS D'INTÉRÊT (POI)
+              </div>
             <div>
               <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>
@@ -1046,12 +1104,88 @@ export function FilterPanel({
               </div>
             )}
 
-            {/* Divider */}
-            {hasAnyPOI && <div style={{ height: 1, background: C.border }} />}
+            </div>{/* fin section POI */}
 
-            {/* ── SPATIAL ANALYSIS SECTION ──────────────────── */}
-            <div>
-              <div style={labelStyle}>ANALYSE SPATIALE</div>
+            {/* ── Divider ─────────────────────────────────────────────────── */}
+            <div style={{ height: 1, background: C.border }} />
+
+            {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#76b7b2', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                PANNEAUX OOH &amp; DOOH
+              </div>
+
+              {/* Info stock */}
+              <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, lineHeight: 1.5 }}>
+                <span style={{ color: '#76b7b2' }}>1 434</span> panneaux · Brest Métropole
+                <span style={{ color: C.muted }}> · DECAUX, Clear Channel…</span>
+              </div>
+
+              {/* Filtre par régie (optionnel) */}
+              <div>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>
+                    FILTRER PAR RÉGIE (optionnel)
+                    {selectedOOH.length > 0 && <span style={{ color: C.accent }}> — {selectedOOH.length} sélectionnée{selectedOOH.length > 1 ? 's' : ''}</span>}
+                  </span>
+                  <span style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      title="Tout sélectionner"
+                      onClick={() => setSelectedOOH(OOH_REGIES.map(r => r.id))}
+                      style={{ background: 'none', border: `1px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 8, padding: '1px 5px', letterSpacing: '0.08em', fontFamily: fMichroma }}
+                    >ALL</button>
+                    <button
+                      title="Tout désélectionner"
+                      onClick={() => setSelectedOOH([])}
+                      style={{ background: 'none', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 5px', lineHeight: 1 }}
+                    >✕</button>
+                  </span>
+                </div>
+                <MultiDropdown
+                  label="Toutes les régies"
+                  items={OOH_REGIES}
+                  selected={selectedOOH}
+                  onChange={setSelectedOOH}
+                />
+              </div>
+
+              {/* Bouton toujours visible */}
+              <button
+                style={{ ...primaryBtn('#76b7b2', false) }}
+                onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
+              >
+                {selectedOOH.length > 0
+                  ? `AFFICHER — ${selectedOOH.length} RÉGIE${selectedOOH.length > 1 ? 'S' : ''}`
+                  : 'AFFICHER TOUS LES PANNEAUX'}
+              </button>
+            </div>
+
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════
+            ONGLET ANALYSE — accordéons
+        ════════════════════════════════════════ */}
+        {activeExpertTab === 'analyse' && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+            {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('spatiale')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.spatiale ? 'rgba(168,85,247,0.07)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent }}>
+                ANALYSE SPATIALE
+              </span>
+              <span style={{ color: C.accent, fontSize: 9 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.spatiale && (
+            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ paddingBottom: 4 }}>
 
               {/* Info encart — 0 POI sélectionné */}
               {!hasAnyPOI && (
@@ -1548,50 +1682,236 @@ export function FilterPanel({
                         </>
                       )}
 
-                      {/* ── Couverture cumulée ───────────────────────────── */}
-                      {coverageSummary && coverageSummary.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                          <div style={{ fontFamily: fMichroma, fontSize: 8, color: C.accent, letterSpacing: '0.14em' }}>
-                            COUVERTURE CUMULÉE
-                          </div>
-                          {(() => {
-                            const maxTotal = Math.max(...coverageSummary.map(s => s.total), 1);
-                            return coverageSummary.map((s, i) => {
-                              const pct = (s.total / maxTotal) * 100;
-                              const val = s.total >= 1_000_000
-                                ? `${(s.total / 1_000_000).toFixed(1).replace('.', ',')}M`
-                                : s.total >= 1_000
-                                ? `${Math.round(s.total / 1_000)}K`
-                                : s.total.toLocaleString('fr-FR');
-                              return (
-                                <div key={s.metric} style={{
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  padding: '4px 8px',
-                                  background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                                  borderLeft: `2px solid ${i === 0 ? C.accent : C.border}`,
-                                }}>
-                                  <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 72, flexShrink: 0 }}>
-                                    {s.label.toUpperCase()}
-                                  </div>
-                                  <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
-                                    <div style={{ width: `${pct}%`, height: '100%', background: C.accent, borderRadius: 1 }} />
-                                  </div>
-                                  <div style={{ fontFamily: fMono, fontSize: 10, fontWeight: 700, color: i === 0 ? C.accent : C.textDim, flexShrink: 0, minWidth: 44, textAlign: 'right' }}>
-                                    {val}
-                                  </div>
-                                </div>
-                              );
-                            });
-                          })()}
-                        </div>
-                      )}
+                      {/* couverture déplacée dans l'accordéon COUVERTURE */}
                     </div>
                     )}
                   </div>
 
                 </div>
               )}
+
+            </div>{/* fin section analyse spatiale */}
             </div>
+            )}
+
+            {/* ── Accordéon : CLUSTERING ──────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('clustering')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.clustering ? 'rgba(118,183,178,0.07)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#76b7b2' }}>
+                CLUSTERING
+              </span>
+              <span style={{ color: '#76b7b2', fontSize: 9 }}>{analyseOpen.clustering ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.clustering && (
+            <div style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ minHeight: 400 }}>
+                <ClusterPanel
+                  geojson={clusterGeoJSON ?? null}
+                  visible={clustersVisible ?? false}
+                  loading={clusterLoading ?? false}
+                  duration={clusterDuration ?? 60}
+                  onToggle={onToggleClusters ?? (() => {})}
+                  onLoad={onLoadClusters ?? (() => {})}
+                  onDurationChange={onClusterDurationChange ?? (() => {})}
+                  onFlyTo={onFlyTo ?? (() => {})}
+                  onFitBounds={onFitBounds ?? (() => {})}
+                  onWizardHighlight={onWizardHighlight}
+                  onWizardClose={onWizardClose}
+                />
+              </div>
+            </div>
+            )}
+
+            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('carreaux')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.carreaux ? 'rgba(251,191,36,0.07)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.amber }}>
+                CARREAUX
+              </span>
+              <span style={{ color: C.amber, fontSize: 9 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.carreaux && (
+            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setCarreauxVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: carreauxVisible ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${carreauxVisible ? '#60a5fa60' : C.border}`,
+                  borderRadius: 2, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 7, height: 7, background: carreauxVisible ? '#60a5fa' : 'transparent', border: `1.5px solid #60a5fa`, borderRadius: 1, flexShrink: 0 }} />
+                <span style={{ fontFamily: fMono, fontSize: 10, color: carreauxVisible ? '#60a5fa' : C.textDim }}>
+                  Carreaux{carreauxLoaded ? ' ✓' : ''}
+                </span>
+              </button>
+
+              {/* Indicateur */}
+              <select
+                value={carreauxIndicateur ?? 'population_totale'}
+                onChange={e => setCarreauxIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: '#0a0a12', border: `1px solid #60a5fa40`, borderRadius: 2, color: '#e2e8f0', fontSize: 10, fontFamily: fMono, padding: '3px 5px', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
+                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
+                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
+                      <option key={ind.id} value={ind.id}>{ind.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 5 }}>PALETTE</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {CARREAUX_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? '#e2e8f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, whiteSpace: 'nowrap' }}>OPACITÉ</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={carreauxOpacity ?? 0.72}
+                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: '#60a5fa', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 9, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  LÉGENDE
+                  {carreauxSelectedBucket !== null && (
+                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
+                      style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 8, fontFamily: fMichroma, letterSpacing: '0.08em', padding: 0 }}
+                    >✕ TOUT</button>
+                  )}
+                </div>
+                {(() => {
+                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
+                  if (carreauxRange) {
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => {
+                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
+                          const min = carreauxRange.p5 + i * step;
+                          const max = carreauxRange.p5 + (i + 1) * step;
+                          const isSelected = carreauxSelectedBucket === i;
+                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
+                          return (
+                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `1px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
+                            >
+                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                              <span style={{ color: isSelected ? '#e2e8f0' : C.textDim, fontSize: 8, fontFamily: fMono, flex: 1 }}>
+                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
+                              </span>
+                              {isSelected && <span style={{ color, fontSize: 7, fontFamily: fMichroma }}>●</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                      <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
+            {/* ── Accordéon : COUVERTURE ──────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('couverture')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.couverture ? 'rgba(61,255,160,0.05)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.green }}>
+                COUVERTURE
+                {coverageSummary && coverageSummary.length > 0 && (
+                  <span style={{ color: C.accent, marginLeft: 6 }}>● {coverageSummary.length}</span>
+                )}
+              </span>
+              <span style={{ color: C.green, fontSize: 9 }}>{analyseOpen.couverture ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.couverture && (
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(!coverageSummary || coverageSummary.length === 0) ? (
+                <div style={{ fontFamily: fMono, fontSize: 10, color: C.muted, lineHeight: 1.6 }}>
+                  Lance une Bataille V2 ou des Isochrones ORS pour afficher la couverture cumulée.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 2 }}>
+                    RÉSULTATS FILOSOFI — POPULATION COUVERTE
+                  </div>
+                  {(() => {
+                    const maxTotal = Math.max(...coverageSummary.map(s => s.total), 1);
+                    return coverageSummary.map((s, i) => {
+                      const pct = (s.total / maxTotal) * 100;
+                      const val = s.total >= 1_000_000
+                        ? `${(s.total / 1_000_000).toFixed(1).replace('.', ',')}M`
+                        : s.total >= 1_000
+                        ? `${Math.round(s.total / 1_000)}K`
+                        : s.total.toLocaleString('fr-FR');
+                      return (
+                        <div key={s.metric} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '4px 8px',
+                          background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                          borderLeft: `2px solid ${i === 0 ? C.green : C.border}`,
+                        }}>
+                          <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 72, flexShrink: 0 }}>
+                            {s.label.toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: C.green, borderRadius: 1 }} />
+                          </div>
+                          <div style={{ fontFamily: fMono, fontSize: 10, fontWeight: 700, color: i === 0 ? C.green : C.textDim, flexShrink: 0, minWidth: 44, textAlign: 'right' }}>
+                            {val}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
+            )}
 
           </div>
         )}

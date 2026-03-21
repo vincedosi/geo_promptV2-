@@ -64,8 +64,10 @@ export function useMapLayers({
   const [carreauxRange,          setCarreauxRange]          = useState<{ p5: number; p95: number } | null>(null);
   const [carreauxSelectedBucket, _setCarreauxSelectedBucket] = useState<number | null>(null);
   const carreauxSourcesRef = useRef<{ tableName: string; name: string }[]>([]);
-  // Ref to always have current indicateur without stale closure
+  // Refs to always have current values without stale closures
   const carreauxIndicateurRef = useRef('population_totale');
+  // Range mémorisé pour réappliquer la palette sans re-query (déclaré ici pour usage dans les effects)
+  const carreauxRangeRef = useRef<{ ind: string; p5: number; p95: number } | null>(null);
 
   // ── Visibility toggles ────────────────────────────────────────────────────
 
@@ -145,14 +147,20 @@ export function useMapLayers({
     } catch { /* layer pas encore ajouté */ }
   }, [isochroneVisible, mapReady, mapRef]);
 
-  // Keep indicateur ref in sync with state + reset bucket on change
+  // Keep indicateur ref in sync with state + reset bucket/range/fill-color on change
   useEffect(() => {
     carreauxIndicateurRef.current = carreauxIndicateur;
     _setCarreauxSelectedBucket(null);
     setCarreauxRange(null);
+    carreauxRangeRef.current = null;
     const map = mapRef.current;
     if (map) {
-      try { map.setFilter('carreaux-mvt-fill', null); map.setFilter('carreaux-mvt-line', null); } catch {}
+      try {
+        map.setFilter('carreaux-mvt-fill', null);
+        map.setFilter('carreaux-mvt-line', null);
+        // Reset fill-color to static default so stale expressions don't corrupt tile parsing
+        map.setPaintProperty('carreaux-mvt-fill', 'fill-color', '#FC9272');
+      } catch { /* ok */ }
     }
   }, [carreauxIndicateur, mapRef]);
 
@@ -167,9 +175,6 @@ export function useMapLayers({
     } catch { /* ok */ }
   }, [carreauxVisible, mapReady, mapRef]);
 
-  // Range mémorisé pour réappliquer la palette sans re-query
-  const carreauxRangeRef = useRef<{ ind: string; p5: number; p95: number } | null>(null);
-
   // Applique fill-color avec les stops + range stocké
   const applyCarreauxColor = useCallback((
     map: maplibregl.Map,
@@ -183,7 +188,8 @@ export function useMapLayers({
     const range = p95 - p5;
     if (range <= 0) return;
     const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
-    const expr = ['interpolate', ['linear'], ['coalesce', ['get', ind], 0],
+    const expr = ['interpolate', ['linear'],
+      ['case', ['has', ind], ['to-number', ['get', ind], 0], 0],
       ...positions.flatMap((t, i) => [p5 + t * range, pal.stops[i]]),
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
@@ -248,7 +254,7 @@ export function useMapLayers({
     const step = (r.p95 - r.p5) / 6;
     const min = r.p5 + bucket * step;
     const max = r.p5 + (bucket + 1) * step;
-    const val = ['coalesce', ['get', ind], 0];
+    const val = ['case', ['has', ind], ['to-number', ['get', ind], 0], 0];
     const filter = bucket === 5
       ? ['>=', val, min]
       : ['all', ['>=', val, min], ['<', val, max]];
