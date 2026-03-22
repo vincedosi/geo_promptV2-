@@ -731,22 +731,38 @@ export default function FilosofiImportPage() {
 
 // ─── Bouton recalcul cache villes ─────────────────────────────────────────────
 function RefreshVilleStats() {
-  const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-  const [msg, setMsg]       = useState('');
+  const [status,   setStatus]   = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [msg,      setMsg]      = useState('');
+  const [progress, setProgress] = useState(0);
+  const [total,    setTotal]    = useState(0);
 
   async function run() {
     setStatus('running');
-    setMsg('Calcul en cours... (peut prendre 2-3 min)');
-    try {
-      const res = await fetch('/api/admin/refresh-ville-stats', { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setStatus('done');
-      setMsg(`✓ Cache recalculé — ${json.rows} lignes en ${json.elapsed_s}s`);
-    } catch (e: unknown) {
-      setStatus('error');
-      setMsg(`! ${e instanceof Error ? e.message : 'Erreur'}`);
+    setProgress(0);
+
+    // Étape 1 : vider le cache + récupérer nb chunks
+    const initRes  = await fetch('/api/admin/refresh-ville-stats', { method: 'POST' });
+    const initJson = await initRes.json() as { total_chunks: number };
+    const nChunks  = initJson.total_chunks;
+    setTotal(nChunks);
+    setMsg(`0 / ${nChunks} chunks traités…`);
+
+    let inserted = 0;
+    for (let i = 0; i < nChunks; i++) {
+      const res  = await fetch(`/api/admin/refresh-ville-stats?chunk=${i}`, { method: 'POST' });
+      const json = await res.json() as { ok: boolean; inserted?: number; error?: string };
+      if (!res.ok || !json.ok) {
+        setStatus('error');
+        setMsg(`! Erreur chunk ${i} : ${json.error}`);
+        return;
+      }
+      inserted += json.inserted ?? 0;
+      setProgress(i + 1);
+      setMsg(`${i + 1} / ${nChunks} chunks — ${inserted} lignes insérées`);
     }
+
+    setStatus('done');
+    setMsg(`✓ Cache complet — ${inserted} lignes`);
   }
 
   return (
@@ -770,6 +786,11 @@ function RefreshVilleStats() {
       >
         {status === 'running' ? 'CALCUL EN COURS...' : 'RECALCULER CACHE VILLES'}
       </button>
+      {status === 'running' && total > 0 && (
+        <div style={{ marginTop: 10, height: 4, background: '#261a35', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#a855f7', width: `${(progress/total)*100}%`, transition: 'width 0.3s' }} />
+        </div>
+      )}
       {msg && (
         <div style={{
           marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,

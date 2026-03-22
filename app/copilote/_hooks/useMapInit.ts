@@ -70,6 +70,33 @@ export function useMapInit(
     mapContainerRef.current.appendChild(overlay);
     canvasOverlayRef.current = overlay;
 
+    // ── Zoom indicator ────────────────────────────────────────────────────────
+    const zoomBadge = document.createElement('div');
+    zoomBadge.style.cssText = [
+      'position:absolute',
+      'top:10px',
+      'left:10px',
+      'z-index:10',
+      'pointer-events:none',
+      'background:rgba(5,5,5,0.82)',
+      'border:1px solid #a855f7',
+      'color:#a855f7',
+      'font-family:JetBrains Mono,monospace',
+      'font-size:11px',
+      'letter-spacing:0.05em',
+      'padding:3px 8px',
+      'border-radius:2px',
+    ].join(';');
+    const updateZoomBadge = () => {
+      const z = map.getZoom();
+      const zInt = Math.floor(z);
+      const tier = zInt >= 10 ? '200m' : zInt >= 8 ? '2km' : zInt >= 6 ? '5km' : '—';
+      zoomBadge.textContent = `z${zInt}  ${tier}`;
+    };
+    updateZoomBadge();
+    map.on('zoom', updateZoomBadge);
+    mapContainerRef.current.appendChild(zoomBadge);
+
     // Draw POI radius circles on every frame
     map.on('render', () => {
       const data = zoneDataRef.current;
@@ -405,7 +432,7 @@ export function useMapInit(
       // z10+  → carreaux_filosofi 200m
       map.addSource('carreaux-mvt', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=4`],
+        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=11`],
         minzoom: 6,
         maxzoom: 14,
         attribution: 'INSEE, Filosofi 2019',
@@ -580,6 +607,7 @@ export function useMapInit(
       map.remove();
       mapRef.current = null;
       overlay.remove();
+      zoomBadge.remove();
       canvasOverlayRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

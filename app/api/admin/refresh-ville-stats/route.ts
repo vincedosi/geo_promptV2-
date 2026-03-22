@@ -1,32 +1,49 @@
 /**
  * app/api/admin/refresh-ville-stats/route.ts
- * Lance le calcul du cache smart_ville_stats (long-running, ~2-3 min).
- * Appelle refresh_smart_ville_stats() via service role (pas de timeout HTTP court).
+ * Peuple smart_ville_stats chunk par chunk (5 villes/chunk).
+ * POST ?chunk=N pour traiter le chunk N (appelé en boucle depuis le client).
+ * POST sans param → lance tous les chunks séquentiellement.
  */
 
 import { createAdminClient } from '@/lib/auth';
-import { NextResponse }      from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export const maxDuration = 300; // Vercel Pro : 5 min max
+export const maxDuration = 60;
 
-export async function POST() {
+const TOTAL_CITIES = 300;
+const CHUNK_SIZE   = 5;
+const TOTAL_CHUNKS = Math.ceil(TOTAL_CITIES / CHUNK_SIZE);
+
+export async function POST(req: NextRequest) {
   const sb = createAdminClient();
+  const { searchParams } = new URL(req.url);
+  const chunkParam = searchParams.get('chunk');
 
-  console.log('[refresh-ville-stats] start');
-  const t0 = Date.now();
+  // Mode chunk unique : POST ?chunk=N
+  if (chunkParam !== null) {
+    const chunk  = parseInt(chunkParam, 10);
+    const offset = chunk * CHUNK_SIZE;
 
-  const { error } = await sb.rpc('refresh_smart_ville_stats');
+    const { data, error } = await sb.rpc('refresh_ville_stats_chunk', {
+      p_offset: offset,
+      p_limit:  CHUNK_SIZE,
+    });
 
-  if (error) {
-    console.error('[refresh-ville-stats] error:', error.message);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ ok: false, chunk, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, chunk, inserted: data as number });
   }
 
-  const elapsed = Math.round((Date.now() - t0) / 1000);
-  console.log('[refresh-ville-stats] done in', elapsed, 's');
+  // Mode full : vider le cache + retourner le nb de chunks à traiter
+  await sb.from('smart_ville_stats').delete().gte('total', 0);
 
-  // Vérifier combien de lignes ont été insérées
+  return NextResponse.json({ ok: true, total_chunks: TOTAL_CHUNKS, chunk_size: CHUNK_SIZE });
+}
+
+export async function GET() {
+  const sb = createAdminClient();
   const { count } = await sb.from('smart_ville_stats').select('*', { count: 'exact', head: true });
-
-  return NextResponse.json({ ok: true, elapsed_s: elapsed, rows: count });
+  return NextResponse.json({ rows: count, total_chunks: TOTAL_CHUNKS });
 }

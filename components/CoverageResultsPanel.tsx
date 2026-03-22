@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -94,8 +94,9 @@ export interface CoverageSummaryEntry {
 }
 
 interface Props {
-  isOpen:          boolean;
-  onClose:         () => void;
+  isOpen?:         boolean;
+  onClose?:        () => void;
+  inline?:         boolean;
   battleFeatures:  GeoJSON.Feature[];
   pois:            Array<{ id: string; nom: string; lat: number; lng: number; ville?: string; adresse?: string }>;
   onResultsReady?: (summary: CoverageSummaryEntry[]) => void;
@@ -111,7 +112,7 @@ interface C4Entry    { id: string; name: string; value: number; fill: string }
 // ──────────────────────────────────────────────────────────────────────────────
 // COMPONENT
 // ──────────────────────────────────────────────────────────────────────────────
-export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, onResultsReady, battleCacheKey }: Props) {
+export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFeatures, pois, onResultsReady, battleCacheKey }: Props) {
   const [selectedMetrics, setSelectedMetrics] = useState<Set<MetricKey>>(
     new Set<MetricKey>(['ind', 'ind_18_24', 'ind_25_39', 'ind_40_54']),
   );
@@ -435,23 +436,19 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{
-      position:      'fixed',
-      top:           0,
-      right:         0,
-      bottom:        0,
-      width:         420,
-      zIndex:        50,
-      background:    '#0a0a12',
-      borderLeft:    '1px solid #1e1e2e',
-      display:       'flex',
-      flexDirection: 'column',
-      transform:     isOpen ? 'translateX(0)' : 'translateX(100%)',
-      transition:    'transform 0.25s cubic-bezier(.4,0,.2,1)',
+    <div style={inline ? {
+      display: 'flex', flexDirection: 'column',
+    } : {
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 50,
+      background: '#0a0a12', borderLeft: '1px solid #1e1e2e',
+      display: 'flex', flexDirection: 'column',
+      transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.25s cubic-bezier(.4,0,.2,1)',
       pointerEvents: isOpen ? 'auto' : 'none',
-    }}>
+    } as React.CSSProperties}>
 
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      {/* ── Header (non-inline only) ─────────────────────────────────────── */}
+      {!inline && (
       <div style={{
         padding:      '14px 18px',
         borderBottom: '1px solid #1e1e2e',
@@ -533,6 +530,7 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
           ✕
         </button>
       </div>
+      )}
 
       {/* ── Metric selector + Lancer ─────────────────────────────────────────── */}
       <div style={{
@@ -646,8 +644,8 @@ export function CoverageResultsPanel({ isOpen, onClose, battleFeatures, pois, on
         </div>
       )}
 
-      {/* ── Scrollable body ──────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
+      {/* ── Body ─────────────────────────────────────────────────────────────── */}
+      <div style={inline ? { padding: '12px 0' } : { flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
         {/* Empty state */}
         {battleFeatures.length === 0 && !loading && (

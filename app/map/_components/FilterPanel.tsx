@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { ZoneData } from '@/types/spatial';
-import type { CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
+import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
@@ -106,7 +106,9 @@ export interface FilterPanelProps {
   isochroneVisible: boolean;
   setIsochroneVisible: (v: boolean) => void;
   setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
-  coverageSummary?: CoverageSummaryEntry[];
+  battleFeatures?: GeoJSON.Feature[];
+  battlePois?:     Array<{ id: string; nom: string; lat: number; lng: number; ville?: string; adresse?: string }>;
+  battleCacheKey?: string | null;
   densityMode?: boolean;
   onDensityModeChange?: (v: boolean) => void;
   onPOIStylesChange?: (styles: POIStylesMap) => void;
@@ -250,7 +252,9 @@ export function FilterPanel({
   battleOuterFillVisible, setBattleOuterFillVisible,
   isochroneVisible, setIsochroneVisible,
   setShowSavePanel,
-  coverageSummary,
+  battleFeatures: battleFeaturesProp = [],
+  battlePois: battlePoisProp = [],
+  battleCacheKey,
   onPOIStylesChange,
   clusterGeoJSON, clustersVisible, clusterLoading, clusterDuration,
   onToggleClusters, onLoadClusters, onClusterDurationChange, onFlyTo, onFitBounds,
@@ -297,6 +301,9 @@ export function FilterPanel({
     { id: 'RDPP',         label: 'RDPP' },
   ];
   const [selectedOOH, setSelectedOOH] = useState<string[]>([]);
+
+  // ── Coverage summary (managed internally, fed by CoverageResultsPanel) ──
+  const [coverageSummary, setCoverageSummary] = useState<CoverageSummaryEntry[]>([]);
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
@@ -1887,47 +1894,14 @@ export function FilterPanel({
               <span style={{ color: C.green, fontSize: 9 }}>{analyseOpen.couverture ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.couverture && (
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(!coverageSummary || coverageSummary.length === 0) ? (
-                <div style={{ fontFamily: fMono, fontSize: 10, color: C.muted, lineHeight: 1.6 }}>
-                  Lance une Bataille V2 ou des Isochrones ORS pour afficher la couverture cumulée.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 2 }}>
-                    RÉSULTATS FILOSOFI — POPULATION COUVERTE
-                  </div>
-                  {(() => {
-                    const maxTotal = Math.max(...coverageSummary.map(s => s.total), 1);
-                    return coverageSummary.map((s, i) => {
-                      const pct = (s.total / maxTotal) * 100;
-                      const val = s.total >= 1_000_000
-                        ? `${(s.total / 1_000_000).toFixed(1).replace('.', ',')}M`
-                        : s.total >= 1_000
-                        ? `${Math.round(s.total / 1_000)}K`
-                        : s.total.toLocaleString('fr-FR');
-                      return (
-                        <div key={s.metric} style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '4px 8px',
-                          background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                          borderLeft: `2px solid ${i === 0 ? C.green : C.border}`,
-                        }}>
-                          <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.08em', width: 72, flexShrink: 0 }}>
-                            {s.label.toUpperCase()}
-                          </div>
-                          <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: C.green, borderRadius: 1 }} />
-                          </div>
-                          <div style={{ fontFamily: fMono, fontSize: 10, fontWeight: 700, color: i === 0 ? C.green : C.textDim, flexShrink: 0, minWidth: 44, textAlign: 'right' }}>
-                            {val}
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
+            <div style={{ padding: '0 4px 4px' }}>
+              <CoverageResultsPanel
+                inline
+                battleFeatures={battleFeaturesProp}
+                pois={battlePoisProp}
+                onResultsReady={setCoverageSummary}
+                battleCacheKey={battleCacheKey ?? undefined}
+              />
             </div>
             )}
 

@@ -701,7 +701,15 @@ export function ChatPanel({
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={e => {
+              // Enter sans Shift → passe par onFormSubmit (smart routing)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onFormSubmit(e as unknown as FormEvent);
+              } else {
+                handleKeyDown(e);
+              }
+            }}
             disabled={isDisabled}
             placeholder={
               smartMode === 'smart' ? 'Smart Prompt — ex: "Population à Brest", "Seniors en Bretagne"…' :

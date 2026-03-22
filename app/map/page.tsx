@@ -15,10 +15,12 @@ import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
+import { ScoringPanel }        from '@/app/map/_components/ScoringPanel';
+import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
-import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
-import { ChatPanel } from '@/app/copilote/_components/ChatPanel';
+import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
+import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import type { POI } from '@/types/poi';
 
 interface SelectedBillboard {
@@ -32,12 +34,12 @@ interface SelectedBillboard {
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
+  const [activeTab,   setActiveTab]   = useState<'map' | 'study'>('map');
+  const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
   const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
   const [battlePois,          setBattlePois]          = useState<POI[]>([]);
-  const [isResultsPanelOpen,  setIsResultsPanelOpen]  = useState(false);
-  const [coverageSummary,     setCoverageSummary]     = useState<CoverageSummaryEntry[]>([]);
   const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
@@ -823,7 +825,9 @@ export default function MapPage() {
         isochroneVisible={mapLayers.isochroneVisible}
         setIsochroneVisible={mapLayers.setIsochroneVisible}
         setShowSavePanel={savedMaps.setShowSavePanel}
-        coverageSummary={coverageSummary}
+        battleFeatures={battleFeatures}
+        battlePois={battlePois}
+        battleCacheKey={battleCacheKey}
         densityMode={densityMode}
         onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
         onPOIStylesChange={setPoiStyles}
@@ -851,6 +855,36 @@ export default function MapPage() {
         setCarreauxOpacity={mapLayers.setCarreauxOpacity}
         setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
       />
+      {/* ── Right panel: tabs Carte / Étude ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+
+        {/* Tab bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 0,
+          background: '#060608', borderBottom: '1px solid #261a35',
+          padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
+          position: 'relative',
+        }}>
+          {(['map', 'study'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: '0 16px', height: '100%',
+              background: 'transparent',
+              border: 'none', borderBottom: activeTab === tab ? '2px solid #a855f7' : '2px solid transparent',
+              color: activeTab === tab ? '#e8e0f0' : '#4a3a5c',
+              fontFamily: 'Michroma, sans-serif', fontSize: 10, letterSpacing: 1,
+              textTransform: 'uppercase', cursor: 'pointer',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}>
+              {tab === 'map' ? 'Carte' : 'Étude'}
+              {tab === 'study' && studyVille && (
+                <span style={{ marginLeft: 6, fontSize: 9, color: '#a855f7', opacity: 0.7 }}>{studyVille}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Map area — kept mounted, hidden when study tab active */}
+        <div style={{ flex: 1, position: 'relative', display: activeTab === 'map' ? 'flex' : 'none' }}>
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
@@ -896,28 +930,32 @@ export default function MapPage() {
         onMapStyleChange={handleMapStyleChange}
       />
 
-      <button
-        onClick={() => setIsResultsPanelOpen(true)}
-        style={{
-          position: 'fixed', top: 12, right: 16, zIndex: 510,
-          background: battleFeatures.length > 0 ? '#0a0a12' : 'rgba(10,10,18,0.6)',
-          border: `1px solid ${battleFeatures.length > 0 ? '#a855f7' : '#3a2a50'}`,
-          color: battleFeatures.length > 0 ? '#a855f7' : '#5a4a70',
-          fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 2,
-          textTransform: 'uppercase', padding: '8px 14px', borderRadius: 2, cursor: 'pointer',
-          transition: 'all 0.2s',
-        }}
-      >
-        COUVERTURE
-      </button>
-      <CoverageResultsPanel
-        isOpen={isResultsPanelOpen}
-        onClose={() => setIsResultsPanelOpen(false)}
-        battleFeatures={battleFeatures}
-        pois={battlePois}
-        onResultsReady={setCoverageSummary}
-        battleCacheKey={battleCacheKey ?? undefined}
-      />
+          {/* Scoring OOH panel — overlay positionné en haut à droite de la carte */}
+          <ScoringPanel
+            mapRef={mapRef}
+            mapReady={mapReady}
+            onFlyTo={handleFlyTo}
+            onScoreComputed={(v) => setStudyVille(v)}
+          />
+
+          {/* Welcome overlay — affiché au premier chargement, par-dessus la carte */}
+          <WelcomeOverlay sendMessage={chat.sendMessage} />
+        </div>
+
+        {/* Study dashboard — lazy, affiché quand onglet Étude */}
+        {activeTab === 'study' && (
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#060608' }}>
+            <StudyDashboard
+              ville={studyVille}
+              onPanneauClick={(lat, lng) => {
+                setActiveTab('map');
+                setTimeout(() => handleFlyTo(lat, lng, 17), 80);
+              }}
+            />
+          </div>
+        )}
+      </div>{/* end right panel */}
+
       <style>{`
         @keyframes mapSlide {
           0% { transform: translateX(-100%); }

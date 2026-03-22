@@ -68,6 +68,10 @@ export function useMapLayers({
   const carreauxIndicateurRef = useRef('population_totale');
   // Range mémorisé pour réappliquer la palette sans re-query (déclaré ici pour usage dans les effects)
   const carreauxRangeRef = useRef<{ ind: string; p5: number; p95: number } | null>(null);
+  // Opacity ref — mir ror de _setCarreauxOpacity, accessible sans stale closure
+  const carreauxOpacityRef = useRef(0.72);
+  // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
+  const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
 
   // ── Visibility toggles ────────────────────────────────────────────────────
 
@@ -156,9 +160,9 @@ export function useMapLayers({
     const map = mapRef.current;
     if (map) {
       try {
-        map.setFilter('carreaux-mvt-fill', null);
-        map.setFilter('carreaux-mvt-line', null);
-        // Reset fill-color to static default so stale expressions don't corrupt tile parsing
+        // Restaurer l'opacité statique (plus de setFilter — voir applyBucketOpacity)
+        map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity', carreauxOpacityRef.current);
+        map.setPaintProperty('carreaux-mvt-line', 'line-opacity', 0.35);
         map.setPaintProperty('carreaux-mvt-fill', 'fill-color', '#FC9272');
       } catch { /* ok */ }
     }
@@ -231,41 +235,69 @@ export function useMapLayers({
     }
   }, [mapRef, applyCarreauxColor]);
 
+  // ── Helper : applique l'opacité bucket via setPaintProperty (pas setFilter) ──
+  // Raison : setFilter s'exécute dans le worker MapLibre (_parseWorkerTile) avec
+  // un type checker strict qui rejette Value → "Expected number, found null" → tuile droppée.
+  // setPaintProperty s'évalue au render time dans le thread principal → pas de crash.
+  const applyBucketOpacity = useCallback((
+    map: maplibregl.Map,
+    info: { bucket: number; min: number; max: number; ind: string } | null,
+    opacity: number,
+  ) => {
+    if (!map.getLayer('carreaux-mvt-fill')) return;
+    if (!info) {
+      try {
+        map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity', opacity);
+        map.setPaintProperty('carreaux-mvt-line', 'line-opacity', 0.35);
+      } catch { /* ok */ }
+      return;
+    }
+    const { bucket, min, max, ind } = info;
+    const val = ['to-number', ['get', ind], 0] as unknown as maplibregl.ExpressionSpecification;
+    const inBucket = (bucket === 5
+      ? ['>=', val, min]
+      : ['all', ['>=', val, min], ['<', val, max]]
+    ) as unknown as maplibregl.ExpressionSpecification;
+    try {
+      map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity',
+        ['case', inBucket, opacity, 0] as unknown as maplibregl.ExpressionSpecification);
+      map.setPaintProperty('carreaux-mvt-line', 'line-opacity',
+        ['case', inBucket, 0.35, 0] as unknown as maplibregl.ExpressionSpecification);
+    } catch { /* ok */ }
+  }, []);
+
   const setCarreauxOpacity = useCallback((v: number) => {
-    console.log('[opacity] set', v, 'map:', !!mapRef.current, 'layer:', !!mapRef.current?.getLayer('carreaux-mvt-fill'));
+    carreauxOpacityRef.current = v;
     _setCarreauxOpacity(v);
     const map = mapRef.current;
     if (!map) return;
-    try {
-      map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity', v);
-      console.log('[opacity] setPaintProperty ok');
-    } catch (e) { console.error('[opacity] error:', e); }
-  }, [mapRef]);
+    applyBucketOpacity(map, carreauxBucketInfoRef.current, v);
+  }, [mapRef, applyBucketOpacity]);
 
-  // Sélection d'une tranche de la légende → filtre MVT
+  // Sélection d'une tranche de la légende → fill-opacity expression (PAS setFilter)
   const setCarreauxSelectedBucket = useCallback((bucket: number | null) => {
     _setCarreauxSelectedBucket(bucket);
     const map = mapRef.current;
     if (!map) return;
     if (bucket === null) {
-      try { map.setFilter('carreaux-mvt-fill', null); map.setFilter('carreaux-mvt-line', null); } catch {}
+      carreauxBucketInfoRef.current = null;
+      applyBucketOpacity(map, null, carreauxOpacityRef.current);
       return;
     }
     const r = carreauxRangeRef.current;
-    if (!r) return;
+    if (!r) {
+      carreauxBucketInfoRef.current = null;
+      applyBucketOpacity(map, null, carreauxOpacityRef.current);
+      return;
+    }
     const ind = carreauxIndicateurRef.current;
     const step = (r.p95 - r.p5) / 6;
     const min = r.p5 + bucket * step;
     const max = r.p5 + (bucket + 1) * step;
-    const val = ['to-number', ['get', ind], 0];
-    const filter = bucket === 5
-      ? ['>=', val, min]
-      : ['all', ['>=', val, min], ['<', val, max]];
-    try {
-      map.setFilter('carreaux-mvt-fill', filter as any);
-      map.setFilter('carreaux-mvt-line', filter as any);
-    } catch {}
-  }, [mapRef]);
+    const info = { bucket, min, max, ind };
+    carreauxBucketInfoRef.current = info;
+    applyBucketOpacity(map, info, carreauxOpacityRef.current);
+  }, [mapRef, applyBucketOpacity]);
 
   // ── Recoloration dynamique (pan + indicateur) ─────────────────────────────
   useEffect(() => {

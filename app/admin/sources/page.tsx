@@ -4,6 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { DataSource, Organization } from '@/types/admin';
 
+// ── IRIS stats types ──────────────────────────────────────────────────────────
+interface IrisStats {
+  total: number; nb_depts: number; nb_communes: number;
+  type_h: number; type_a: number; type_d: number; type_z: number;
+  with_geom: number; table_size: string; index_size: string;
+}
+interface IrisDept { code: string; nom: string; nb: number; }
+interface IrisSource {
+  name: string; edition: string; provider: string; license: string;
+  format: string; coverage: string; imported_at: string; schema: string[];
+}
+
 // Schema columns meaningful as map filters (no id/lat/lng/geom)
 const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'categorie', 'sous_categorie'];
 
@@ -99,7 +111,13 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris'>('all');
+
+  // IRIS stats
+  const [irisStats,   setIrisStats]   = useState<IrisStats | null>(null);
+  const [irisDepts,   setIrisDepts]   = useState<IrisDept[]>([]);
+  const [irisSource,  setIrisSource]  = useState<IrisSource | null>(null);
+  const [irisLoading, setIrisLoading] = useState(false);
 
   // ============================================================
   // Fetch data
@@ -123,10 +141,28 @@ export default function SourcesPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchIrisStats = useCallback(async () => {
+    setIrisLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/iris/stats');
+      const data = await res.json();
+      if (data.success) {
+        setIrisStats(data.stats);
+        setIrisDepts(data.top_depts || []);
+        setIrisSource(data.source || null);
+      }
+    } catch { /* ignore */ }
+    setIrisLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchSources();
     fetchOrgs();
   }, [fetchSources, fetchOrgs]);
+
+  useEffect(() => {
+    if (activeTab === 'iris' && !irisStats && !irisLoading) fetchIrisStats();
+  }, [activeTab, irisStats, irisLoading, fetchIrisStats]);
 
   // ============================================================
   // Actions
@@ -378,11 +414,12 @@ export default function SourcesPage() {
 
       {/* ── Tabs ─────────────────────────────────────────────── */}
       {(() => {
-        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux'; label: string; color: string }[] = [
+        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris'; label: string; color: string }[] = [
           { key: 'all',      label: `Toutes (${sources.length})`,                                          color: C.accent },
           { key: 'poi',      label: `POI (${sources.filter((s) => s.type === 'poi').length})`,             color: '#8b5cf6' },
           { key: 'carreaux', label: `Carreaux (${sources.filter((s) => s.type === 'carreaux').length})`,  color: C.green },
           { key: 'panneaux', label: `OOH (${sources.filter((s) => s.type === 'panneaux').length})`,       color: C.warn },
+          { key: 'iris',     label: 'IRIS IGN 2025',                                                       color: '#06b6d4' },
         ];
         return (
           <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
@@ -414,6 +451,160 @@ export default function SourcesPage() {
         );
       })()}
 
+      {/* ── IRIS Panel ──────────────────────────────────────────────────────── */}
+      {activeTab === 'iris' && (() => {
+        const cyan = '#06b6d4';
+        const cyanDim = 'rgba(6,182,212,0.10)';
+        const cyanBorder = 'rgba(6,182,212,0.25)';
+        return (
+          <div>
+            {irisLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '40px 0', color: C.textDim, fontFamily: fontMono, fontSize: 12 }}>
+                <Spinner size={18} /> Chargement des statistiques IRIS...
+              </div>
+            )}
+            {!irisLoading && irisStats && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Source info banner */}
+                <div style={{ background: cyanDim, border: `1px solid ${cyanBorder}`, borderRadius: 2, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: cyan, letterSpacing: 1, marginBottom: 4 }}>
+                      {irisSource?.name ?? 'CONTOURS-IRIS-PE — IGN 2025'}
+                    </div>
+                    <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
+                      <span style={{ color: C.textSec }}>Fournisseur: </span>{irisSource?.provider}<br />
+                      <span style={{ color: C.textSec }}>Licence: </span>{irisSource?.license}<br />
+                      <span style={{ color: C.textSec }}>Format: </span>{irisSource?.format}<br />
+                      <span style={{ color: C.textSec }}>Couverture: </span>{irisSource?.coverage}<br />
+                      <span style={{ color: C.textSec }}>Importé le: </span>
+                      <span style={{ color: C.green }}>{irisSource?.imported_at}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: cyan, lineHeight: 1 }}>
+                      {irisStats.total.toLocaleString('fr-FR')}
+                    </div>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                      zones IRIS
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[
+                    { label: 'Départements',  value: irisStats.nb_depts.toLocaleString('fr-FR'),    color: cyan },
+                    { label: 'Communes',      value: irisStats.nb_communes.toLocaleString('fr-FR'), color: C.accent },
+                    { label: 'Avec géométrie',value: irisStats.with_geom.toLocaleString('fr-FR'),   color: C.green },
+                    { label: 'Taille table',  value: irisStats.table_size,                          color: C.warn },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px' }}>
+                      <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                      <div style={{ fontFamily: fontMono, fontSize: 20, fontWeight: 700, color }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+                  {/* Types IRIS */}
+                  <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 12 }}>
+                      Répartition par type
+                    </div>
+                    {[
+                      { code: 'Z', label: 'Zone d\'activité économique', value: irisStats.type_z, color: C.warn },
+                      { code: 'H', label: 'Habitation',                  value: irisStats.type_h, color: C.accent },
+                      { code: 'A', label: 'Activité',                    value: irisStats.type_a, color: C.green },
+                      { code: 'D', label: 'Divers',                      value: irisStats.type_d, color: C.textDim },
+                    ].map(({ code, label, value, color }) => {
+                      const pct = Math.round((value / irisStats.total) * 100);
+                      return (
+                        <div key={code} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`, padding: '1px 5px', borderRadius: 1 }}>{code}</span>
+                              <span style={{ fontFamily: fontInter, fontSize: 11, color: C.textSec }}>{label}</span>
+                            </div>
+                            <span style={{ fontFamily: fontMono, fontSize: 11, color, fontWeight: 700 }}>{value.toLocaleString('fr-FR')} <span style={{ color: C.muted, fontSize: 9 }}>({pct}%)</span></span>
+                          </div>
+                          <div style={{ height: 4, background: C.bgSurface, borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Top départements */}
+                  <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 12 }}>
+                      Top 15 départements
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {irisDepts.map(({ code, nom, nb }, i) => {
+                        const max = irisDepts[0]?.nb ?? 1;
+                        const pct = Math.round((nb / max) * 100);
+                        return (
+                          <div key={code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: i < irisDepts.length - 1 ? `1px solid ${C.bgSurface}` : 'none' }}>
+                            <span style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, width: 20, textAlign: 'right', flexShrink: 0 }}>{code}</span>
+                            <span style={{ fontFamily: fontInter, fontSize: 11, color: C.textSec, width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{nom}</span>
+                            <div style={{ flex: 1, height: 3, background: C.bgSurface, borderRadius: 1 }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: i === 0 ? cyan : `${cyan}66`, borderRadius: 1 }} />
+                            </div>
+                            <span style={{ fontFamily: fontMono, fontSize: 10, color: i === 0 ? cyan : C.textDim, fontWeight: i === 0 ? 700 : 400, width: 40, textAlign: 'right', flexShrink: 0 }}>{nb}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Schema */}
+                <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
+                  <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 10 }}>
+                    Schéma de la table <span style={{ color: C.accent }}>public.iris</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      { col: 'code_iris',     type: 'TEXT',        note: 'code unique à 9 chiffres' },
+                      { col: 'nom_iris',      type: 'TEXT',        note: 'libellé IRIS' },
+                      { col: 'code_commune',  type: 'TEXT',        note: 'code INSEE commune' },
+                      { col: 'nom_commune',   type: 'TEXT',        note: 'nom commune' },
+                      { col: 'code_dept',     type: 'TEXT',        note: 'code département (2 ou 3 car.)' },
+                      { col: 'type_iris',     type: 'TEXT',        note: 'H / A / D / Z' },
+                      { col: 'geom',          type: 'GEOMETRY',    note: 'MultiPolygon — EPSG:4326' },
+                    ].map(({ col, type, note }) => (
+                      <div key={col} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: fontMono, fontSize: 11, color: C.text, fontWeight: 600 }}>{col}</span>
+                        <span style={{ fontFamily: fontMichroma, fontSize: 7, color: type === 'GEOMETRY' ? C.green : C.accent, background: type === 'GEOMETRY' ? C.greenDim : C.accentDim, border: `1px solid ${type === 'GEOMETRY' ? `${C.green}44` : C.borderLight}`, padding: '1px 5px', borderRadius: 1, letterSpacing: '0.06em' }}>{type}</span>
+                        <span style={{ fontFamily: fontInter, fontSize: 10, color: C.muted }}>{note}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 10, fontFamily: fontMono, fontSize: 10, color: C.muted }}>
+                    Index: <span style={{ color: C.textDim }}>PRIMARY KEY (code_iris)</span> · <span style={{ color: C.green }}>GIST (geom)</span> · Taille index: {irisStats.index_size}
+                  </div>
+                </div>
+
+                {/* Usage note */}
+                <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
+                  <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
+                  Utilisé pour les analyses de <span style={{ color: C.accent }}>bassins de population</span> Filosofi.<br />
+                  Jointure spatiale avec <span style={{ color: C.green }}>public.carreaux_filosofi</span> via <span style={{ color: cyan }}>ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
+                  Requête type: <span style={{ color: C.text }}>SELECT code_iris, SUM(ind) FROM iris JOIN carreaux_filosofi ON ST_Intersects(...)</span>
+                </div>
+
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Sources list (non-IRIS tabs) ──────────────────────────────────── */}
+      {activeTab !== 'iris' && (
       <div style={{ display: 'flex', gap: 16 }}>
         {/* ============================================================ */}
         {/* LEFT: Sources List */}
@@ -770,6 +961,7 @@ export default function SourcesPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

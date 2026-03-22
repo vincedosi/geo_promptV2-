@@ -60,7 +60,8 @@ export async function GET(
     return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const key = `${zoom}/${tileX}/${tileY}`;
+  const v   = req.nextUrl.searchParams.get('v') ?? '0';
+  const key = `${v}/${zoom}/${tileX}/${tileY}`;
   const now = Date.now();
 
   // 1. Cache mémoire hit
