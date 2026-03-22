@@ -22,8 +22,6 @@ export async function analyserZone(
   validCategories: string[],
   options:         { forceRecalculate?: boolean } = {},
 ) {
-  console.log('[tool:analyser_zone_pois] args reçus:', JSON.stringify(args));
-
   const villeRaw   = args.ville ? String(args.ville) : undefined;
   const isNational = villeRaw
     ? NATIONAL_TERMS.some(t => villeRaw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(t))
@@ -32,8 +30,6 @@ export async function analyserZone(
   const ville       = isNational ? undefined : villeRaw;
   const region      = args.region      ? String(args.region)      : undefined;
   const departement = args.departement ? String(args.departement) : undefined;
-  if (isNational) console.log('[tool:analyser_zone_pois] détecté scope national, filtre géo ignoré');
-
   const categorie_poi       = args.categorie_poi       ? String(args.categorie_poi)       : undefined;
   const rayonRaw            = args.rayon_metres    != null ? Number(args.rayon_metres)    : null;
   const rayon_metres        = rayonRaw && rayonRaw > 0 ? rayonRaw : null;

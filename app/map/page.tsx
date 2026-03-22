@@ -403,8 +403,8 @@ export default function MapPage() {
     setError(null);
     pendingBattleRef.current = null;
     mapLayers.clearBattlePartialRings();
-    console.log('[map] handleDirectBattle →', params);
-    let data: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let battleData: Record<string, any> | null = null;
     try {
       const res = await fetch('/api/isochrone-battle', {
         method: 'POST',
@@ -435,13 +435,14 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: any;
+          let evt: { type: string; message?: string; data?: typeof battleData; rings?: unknown[]; total?: number; completed?: number; err?: number; status?: string } | null = null;
           try { evt = JSON.parse(line); } catch { continue; }
+          if (!evt) continue;
           if (evt.type === 'error') {
             const raw = String(evt.message ?? 'Erreur inconnue');
             throw new Error(raw.startsWith('<') ? 'Service temporairement indisponible (503/521)' : raw.slice(0, 200));
           }
-          if (evt.type === 'result') { data = evt.data; continue; }
+          if (evt.type === 'result') { battleData = evt.data ?? null; continue; }
           if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
             // Afficher les anneaux bruts dès qu'ils arrivent (avant ST_Difference)
             mapLayers.addBattlePartialRings(evt.rings);
@@ -460,24 +461,23 @@ export default function MapPage() {
         }
       }
       reader.releaseLock();
-      if (!data) throw new Error('Réponse incomplète');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erreur réseau';
+      if (!battleData) throw new Error('Réponse incomplète');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur réseau';
       setError(`Isochrones — ${msg}`);
       throw new Error(msg);
     }
-    console.log('[map] battle response:', data.error ?? `${data.nb_pois} POIs, ${data.nb_features} features`);
-    if (data.error) {
+    if (battleData!.error) {
       // Tronquer les erreurs HTML (ex: page 521 Supabase/Cloudflare)
-      const rawErr: string = String(data.error);
+      const rawErr: string = String(battleData!.error);
       const cleanErr = rawErr.startsWith('<') ? 'Service temporairement indisponible (503/521)' : rawErr.slice(0, 200);
       setError(`Isochrones — ${cleanErr}`);
-      throw new Error(data.error);
+      throw new Error(battleData!.error);
     }
     // Afficher les isochrones bruts (rings) — couvre cache hit et ORS path.
     // La bataille (ST_Difference) n'est déclenchée que sur clic du bouton BATAILLE.
-    if (data.battleGeoJSON?.features?.length > 0) {
-      const rawRings = (data.battleGeoJSON.features as any[])
+    if (battleData!.battleGeoJSON?.features?.length > 0) {
+      const rawRings = (battleData!.battleGeoJSON.features as any[])
         .filter((f: any) => f?.geometry)
         .map((f: any) => ({
           cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
@@ -489,13 +489,13 @@ export default function MapPage() {
         }));
       mapLayers.clearBattlePartialRings();
       mapLayers.addBattlePartialRings(rawRings);
-      setBattleFeatures(data.battleGeoJSON.features);
+      setBattleFeatures(battleData!.battleGeoJSON.features);
     }
     // poisForMap peut être absent des anciens caches v3 — fallback depuis les ring features
-    let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = data.poisForMap ?? [];
-    if (poisForMap.length === 0 && data.battleGeoJSON?.features?.length > 0) {
+    let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = battleData!.poisForMap ?? [];
+    if (poisForMap.length === 0 && battleData!.battleGeoJSON?.features?.length > 0) {
       const poisSeen = new Set<string>();
-      for (const f of data.battleGeoJSON.features as any[]) {
+      for (const f of battleData!.battleGeoJSON.features as any[]) {
         const p = f?.properties ?? {};
         const cid = String(p.cirfa_id ?? p.id ?? '');
         const lat = Number(p.lat), lng = Number(p.lng);
@@ -505,7 +505,7 @@ export default function MapPage() {
         }
       }
     }
-    if (data.battleCacheKey) setBattleCacheKey(data.battleCacheKey);
+    if (battleData!.battleCacheKey) setBattleCacheKey(battleData!.battleCacheKey);
     if (poisForMap.length > 0) {
       setBattlePois(poisForMap as any[]);
       setZoneData({
@@ -544,7 +544,7 @@ export default function MapPage() {
     const geometry  = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
     const poiGroups = [...groupMap.entries()].map(([id, { nom, geoms }]) => ({ id, nom, geometries: geoms }));
     // Convertir les ring features en RingEntry pour le bouton BATAILLE (Phase 2)
-    const battleRings = (data.battleGeoJSON?.features ?? [])
+    const battleRings = (battleData!.battleGeoJSON?.features ?? [])
       .filter((f: any) => f?.properties?.feature_type === 'ring' && f?.geometry)
       .map((f: any) => ({
         cirfa_id: String(f.properties.cirfa_id ?? f.properties.id ?? ''),
@@ -554,7 +554,7 @@ export default function MapPage() {
         palier:   Number(f.properties.palier ?? 0),
         geojson:  JSON.stringify(f.geometry),
       }));
-    return { geometry, nb_pois: data.nb_pois ?? 0, poiGroups, battleRings };
+    return { geometry, nb_pois: battleData!.nb_pois ?? 0, poiGroups, battleRings };
   };
 
   // Remplit le cache ORS sans écraser les POIs affichés sur la carte

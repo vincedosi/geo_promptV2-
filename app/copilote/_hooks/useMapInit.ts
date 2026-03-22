@@ -56,11 +56,14 @@ export function useMapInit(
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    const DEFAULT_CENTER: [number, number] = [2.3, 46.6];
+    const DEFAULT_ZOOM = 5.5;
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: (mapStyleUrl ?? MAP_STYLE) as any,
-      center: [2.3, 46.6],
-      zoom: 5.5,
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
     });
 
 
@@ -238,20 +241,16 @@ export function useMapInit(
         const p = e.features[0].properties as Record<string, string>;
         const categorie = String(p.categorie ?? '').toLowerCase();
         const isBillboard = categorie === 'panneaux' || categorie === 'top_ooh';
-        console.log('[useMapInit click] categorie:', categorie, 'isBillboard:', isBillboard, 'p:', p);
 
         if (isBillboard && onBillboardSelect) {
           const lat = Number(p.lat ?? e.lngLat.lat);
           const lng = Number(p.lng ?? e.lngLat.lng);
-          console.log('[useMapInit click] lat:', lat, 'lng:', lng, 'isFinite:', Number.isFinite(lat), Number.isFinite(lng));
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
           const toNumOrNull = (v: unknown): number | null => {
             const n = Number(v);
             return Number.isFinite(n) ? n : null;
           };
-
-          console.log('[useMapInit click] CALLING onBillboardSelect');
           onBillboardSelect({
             id: String(p.id ?? p.nom ?? 'panneau'),
             nom: p.nom ?? 'Panneau',

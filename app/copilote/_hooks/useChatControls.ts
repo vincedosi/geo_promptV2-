@@ -64,7 +64,7 @@ export function useChatControls({
     let changed = false;
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue;
-      const meta = (msg as any).metadata;
+      const meta = (msg as unknown as { metadata?: { tok_in?: number; tok_out?: number } }).metadata;
       if (!meta?.tok_in) continue;
       const existing = msgTokensRef.current.get(msg.id);
       const newIn = Number(meta.tok_in), newOut = Number(meta.tok_out ?? 0);

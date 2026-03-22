@@ -6,7 +6,8 @@
 import { createAdminClient } from '@/lib/auth';
 import type { BillboardRaw }  from './types';
 
-const PAGE_PAN = 1000;
+const PAGE_PAN             = 1000;
+const MAX_PANNEAUX_IN_MEMORY = 50_000;
 
 export async function analyserPanneaux(args: Record<string, unknown>) {
   const regie        = args.regie        ? String(args.regie)        : undefined;
@@ -20,7 +21,7 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
   const allPanneaux: BillboardRaw[] = [];
   let from = 0;
 
-  while (from < 50_000) { // max 50k panneaux en mémoire
+  while (from < MAX_PANNEAUX_IN_MEMORY) {
     let q = supabase
       .from('global_ooh')
       .select('id, lat, lng, source_ref, regie, type_panneau, ville, adresse')
@@ -60,8 +61,6 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
         lng: pois.reduce((s, p) => s + p.lng, 0) / pois.length,
       }
     : { lat: 46.8, lng: 2.3 };
-
-  console.log(`[chat] analyser_panneaux(regie=${regie ?? '*'}, ${locationLabel}) → ${pois.length} panneaux`);
 
   return {
     ville:             locationLabel,

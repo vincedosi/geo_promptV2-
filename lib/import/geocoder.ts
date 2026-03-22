@@ -23,8 +23,10 @@ proj4.defs(
 // Mirrors Python geocoder.py lines 20-96
 // ============================================================
 
-const BAN_API_URL = 'https://api-adresse.data.gouv.fr/search/';
-const SCORE_THRESHOLD = 0.6;
+const BAN_API_URL         = 'https://api-adresse.data.gouv.fr/search/';
+const SCORE_THRESHOLD     = 0.6;
+const BAN_TIMEOUT_MS      = 10_000;  // timeout par requête single
+const BAN_BATCH_TIMEOUT_MS = 60_000; // timeout pour requête CSV batch
 
 export async function geocodeSingle(adresse: string, retries = 2): Promise<GeoResult> {
   if (!adresse || !adresse.trim()) {
@@ -36,7 +38,7 @@ export async function geocodeSingle(adresse: string, retries = 2): Promise<GeoRe
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), BAN_TIMEOUT_MS);
 
       const response = await fetch(`${BAN_API_URL}?${params}`, {
         signal: controller.signal,
@@ -203,7 +205,7 @@ export async function reverseGeocodeRows(
       formData.append('data', new Blob([csvContent], { type: 'text/csv' }), 'points.csv');
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
+      const timeout = setTimeout(() => controller.abort(), BAN_BATCH_TIMEOUT_MS);
 
       const res = await fetch(BAN_REVERSE_URL, {
         method: 'POST',
@@ -334,7 +336,7 @@ async function geocodeChunkCSV(
       // postcode=code_postal means: use 'code_postal' to restrict by postal code
       // citycode is not used; instead we let BAN use the full address + postal code
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for batch
+      const timeout = setTimeout(() => controller.abort(), BAN_BATCH_TIMEOUT_MS); // 60s timeout for batch
 
       const response = await fetch(`${BAN_CSV_URL}?columns=adresse&columns=ville&postcode=code_postal`, {
         method: 'POST',
