@@ -107,9 +107,15 @@ genesis_app/
 │   └── SETUP.md                # Ordre d'exécution pour une fresh DB
 ├── supabase/
 │   └── migrations/             # Migrations gérées par Supabase CLI
-├── scripts/                    # Scripts Python (clustering offline)
-│   ├── clustering_poi_filosofi.py
-│   └── requirements_clustering.txt
+├── scripts/                    # Scripts de migration et d'import ponctuels (non dans package.json)
+│   ├── clustering_poi_filosofi.py     # Clustering K-means POI × Filosofi — appelé par /api/poi-clusters/run
+│   ├── requirements_clustering.txt    # Dépendances Python pour clustering_poi_filosofi.py
+│   ├── populate_geom_3857.ts          # Peuple carreaux_filosofi.geom_3857 (2.3M lignes) — migration one-shot, npx tsx
+│   ├── import_gtfs_stops.py           # Import arrêts GTFS (bus/tram) dans poi — script one-shot
+│   ├── import_iris_insee.py           # Import contours IRIS depuis fichier INSEE .zip — script one-shot
+│   └── import_iris_local.py           # Import contours IRIS depuis fichier local déjà extrait — script one-shot
+├── data/                       # Fichiers source de données volumineux (hors git, .gitignore)
+│   └── iris/                   # CSVs INSEE Filosofi IRIS 2021-2022 (92 Mo) — utilisés par import_iris_*.py
 ├── tests/
 │   ├── unit/                   # Tests unitaires Vitest (trim-history, etc.)
 │   └── integration/            # Tests d'intégration Supabase RPC

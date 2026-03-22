@@ -40,3 +40,6 @@ public/data/
 *.mbtiles.temp.db
 
 .vercel
+
+# Données source volumineuses (INSEE, GTFS, etc.)
+data/

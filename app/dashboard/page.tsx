@@ -44,9 +44,11 @@ export default function DashboardPage() {
   }
 
   const navLinks = [
-    { href: '/admin/ooh-import',      label: 'OOH Import',      sub: 'Data lake',          accent: false },
-    { href: '/admin/import',          label: 'Import POI',       sub: 'Établissements',     accent: false },
-    { href: '/admin/filosofi-import', label: 'Filosofi Import',  sub: 'Carreaux .parquet',  accent: false },
+    { href: '/admin/ooh-import',      label: 'OOH Import',       sub: 'Data lake',          accent: false },
+    { href: '/admin/import',          label: 'Import POI',        sub: 'Établissements',     accent: false },
+    { href: '/admin/filosofi-import', label: 'Filosofi Import',   sub: 'Carreaux .parquet',  accent: false },
+    { href: '/admin/carreaux-import', label: 'Carreaux Import',   sub: 'GeoJSON/Shapefile',  accent: false },
+    { href: '/admin/profiles',        label: 'Scoring Profiles',  sub: 'Profils OOH',        accent: false },
   ];
 
   return (
