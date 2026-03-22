@@ -2,7 +2,7 @@
  * CarreauxPMTilesLayer — Carroyage Filosofi via tuiles MVT dynamiques
  *
  * Source: /api/tiles/{z}/{x}/{y} → ST_AsMVT (PostGIS)
- * Z10-11 : carreaux 1km | Z12+ : carreaux 200m
+ * z>=10 : carreaux 200m | z8-9 : carreaux 2km | z6-7 : carreaux 5km
  * Coloration dynamique : percentiles 5-95 des features visibles (queryRenderedFeatures)
  */
 
@@ -156,10 +156,12 @@ export function CarreauxPMTilesLayer({
   opacity   = 0.72,
 }: CarreauxPMTilesLayerProps) {
 
-const initializedRef = useRef(false);
+  const initializedRef = useRef(false);
   const indicatorRef   = useRef(indicator);
   const visibleRef     = useRef(visible);
   const colorDebRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Fix 6 — ref pour cleanup du listener error
+  const errorHandlerRef = useRef<((ev: maplibregl.ErrorEvent) => void) | null>(null);
 
   useEffect(() => { indicatorRef.current = indicator; }, [indicator]);
   useEffect(() => { visibleRef.current = visible; },    [visible]);
@@ -169,20 +171,18 @@ const initializedRef = useRef(false);
     if (!initializedRef.current || !map.getLayer(FILL_ID)) return;
 
     const features = map.queryRenderedFeatures(undefined, { layers: [FILL_ID] });
-    console.log('[carreaux] updateColors — features rendues:', features.length, 'indicator:', indicatorRef.current);
-    if (features.length === 0) return;
+    // Fix 5 — guard transition de zoom : trop peu de features = mid-transition, on skip
+    if (features.length < 10) return;
 
     const ind = indicatorRef.current;
     const values = features
       .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
       .filter(v => v > 0);
 
-    console.log('[carreaux] updateColors — valeurs > 0:', values.length, 'sur', features.length, 'features');
     if (values.length === 0) return;
 
     const p5  = percentile(values, 0.05);
     const p95 = percentile(values, 0.95);
-    console.log('[carreaux] updateColors — p5:', p5, 'p95:', p95);
 
     try {
       map.setPaintProperty(FILL_ID, 'fill-color', buildColorExpression(p5, p95, ind));
@@ -195,47 +195,33 @@ const initializedRef = useRef(false);
   }, [updateColors]);
 
   // ── Init source + layers ───────────────────────────────────────────────────
+  // Fix 2 — opacity retiré des dépendances (géré dans un effect séparé)
   useEffect(() => {
     const map = mapRef?.current;
 
-    // LOG #2 — déclenché quand mapRef/mapReady/scheduleColor/opacity changent
-    console.log('[carreaux] EFFECT INIT — map:', !!map, 'mapReady:', mapReady, 'styleLoaded:', map?.isStyleLoaded(), 'alreadyInit:', initializedRef.current);
-
-    if (!map) {
-      console.warn('[carreaux] SKIP init — map est null (carte pas encore créée)');
-      return;
-    }
-    if (initializedRef.current) {
-      console.warn('[carreaux] SKIP init — déjà initialisé');
-      return;
-    }
+    if (!map) return;
+    if (initializedRef.current) return;
 
     let pendingLoadListener: (() => void) | null = null;
 
     const doInit = () => {
-      if (initializedRef.current) {
-        console.warn('[carreaux] doInit SKIP — déjà initialisé (double appel)');
-        return;
-      }
-      console.log('[carreaux] doInit START — zoom:', map.getZoom().toFixed(1), 'styleLoaded:', map.isStyleLoaded());
+      if (initializedRef.current) return;
 
       // Nettoyage préventif des layers/source orphelins
-      try { map.removeLayer(LINE_ID); console.log('[carreaux] supprimé LINE orphelin'); } catch { /* ok */ }
-      try { map.removeLayer(FILL_ID); console.log('[carreaux] supprimé FILL orphelin'); } catch { /* ok */ }
-      try { map.removeSource(SOURCE_ID); console.log('[carreaux] supprimé SOURCE orpheline'); } catch { /* ok */ }
+      try { map.removeLayer(LINE_ID); } catch { /* ok */ }
+      try { map.removeLayer(FILL_ID); } catch { /* ok */ }
+      try { map.removeSource(SOURCE_ID); } catch { /* ok */ }
 
       const tilesUrl = `${window.location.origin}/api/tiles/{z}/{x}/{y}`;
-      console.log('[carreaux] addSource → tiles:', tilesUrl);
 
       try {
         map.addSource(SOURCE_ID, {
           type: 'vector',
           tiles: [tilesUrl],
           minzoom: 6,
-          maxzoom: 14,
+          maxzoom: 16, // Fix 1 — over-zoom fluide au-delà de z14
           attribution: 'INSEE, Filosofi 2019',
         });
-        console.log('[carreaux] addSource OK — getSource:', !!map.getSource(SOURCE_ID));
       } catch (e) {
         console.error('[carreaux] addSource ERREUR:', e);
         return;
@@ -250,11 +236,10 @@ const initializedRef = useRef(false);
           minzoom: 6,
           paint: {
             'fill-color':   '#FC9272',
-            'fill-opacity': opacity,
+            'fill-opacity': visibleRef.current ? 0.72 : 0, // valeur initiale, gérée par l'effect opacity
           },
           layout: { visibility: visibleRef.current ? 'visible' : 'none' },
         });
-        console.log('[carreaux] addLayer FILL OK — visibility:', visibleRef.current ? 'visible' : 'none');
       } catch (e) {
         console.error('[carreaux] addLayer FILL ERREUR:', e);
         return;
@@ -279,15 +264,16 @@ const initializedRef = useRef(false);
           },
           layout: { visibility: visibleRef.current ? 'visible' : 'none' },
         });
-        console.log('[carreaux] addLayer LINE OK');
       } catch (e) {
         console.error('[carreaux] addLayer LINE ERREUR:', e);
       }
 
-      // Log toutes les erreurs MapLibre (tuiles 404/500, source corrompue, etc.)
-      map.on('error', (ev) => {
+      // Fix 6 — stocker le handler error pour pouvoir le retirer au cleanup
+      const onError = (ev: maplibregl.ErrorEvent) => {
         console.error('[carreaux] MAP ERROR EVENT:', ev?.error?.message ?? ev);
-      });
+      };
+      errorHandlerRef.current = onError;
+      map.on('error', onError);
 
       // Popup hover
       const popup = new maplibregl.Popup({
@@ -319,31 +305,30 @@ const initializedRef = useRef(false);
         popup.remove();
       });
 
-      // Recoloration dynamique après chaque rendu de tuile
+      // Fix 3 — idle seul suffit (idle se déclenche après moveend quand tout est rendu)
       const onIdle = () => {
-        console.log('[carreaux] idle/moveend — visible:', visibleRef.current, 'init:', initializedRef.current);
         if (visibleRef.current) scheduleColor(map);
       };
-      map.on('idle',    onIdle);
-      map.on('moveend', onIdle);
+      map.on('idle', onIdle);
 
       initializedRef.current = true;
-      console.log('[carreaux] doInit TERMINÉ ✓ — source:', !!map.getSource(SOURCE_ID), '| FILL layer:', !!map.getLayer(FILL_ID), '| LINE layer:', !!map.getLayer(LINE_ID));
     };
 
     if (map.isStyleLoaded()) {
-      console.log('[carreaux] style déjà chargé → doInit immédiat');
       doInit();
     } else {
-      console.log('[carreaux] style PAS encore chargé → en attente event "load"');
       pendingLoadListener = doInit;
       map.once('load', pendingLoadListener);
     }
 
     return () => {
-      console.log('[carreaux] CLEANUP — suppression layers/source, init → false');
       if (pendingLoadListener) map.off('load', pendingLoadListener);
       if (colorDebRef.current) clearTimeout(colorDebRef.current);
+      // Fix 6 — retirer le listener error
+      if (errorHandlerRef.current) {
+        map.off('error', errorHandlerRef.current);
+        errorHandlerRef.current = null;
+      }
       try {
         if (map.getLayer(LINE_ID)) map.removeLayer(LINE_ID);
         if (map.getLayer(FILL_ID)) map.removeLayer(FILL_ID);
@@ -351,22 +336,26 @@ const initializedRef = useRef(false);
       } catch { /* cleanup silencieux */ }
       initializedRef.current = false;
     };
-  }, [mapRef, mapReady, scheduleColor, opacity]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapRef, mapReady, scheduleColor]); // Fix 2 — opacity retiré des dépendances
+
+  // Fix 2 — Effect séparé pour opacity : juste setPaintProperty, pas de destroy/recreate
+  useEffect(() => {
+    const map = mapRef?.current;
+    if (!map || !mapReady || !initializedRef.current) return;
+    try {
+      map.setPaintProperty(FILL_ID, 'fill-opacity', opacity);
+    } catch (e) { console.error('[carreaux] setPaintProperty opacity ERREUR:', e); }
+  }, [opacity, mapRef, mapReady]);
 
   // ── Visibilité ─────────────────────────────────────────────────────────────
   useEffect(() => {
     visibleRef.current = visible;
     const map = mapRef?.current;
-    console.log('[carreaux] EFFECT VIS — visible:', visible, 'map:', !!map, 'mapReady:', mapReady, 'init:', initializedRef.current);
-    if (!map || !mapReady || !initializedRef.current) {
-      console.warn('[carreaux] EFFECT VIS SKIP — conditions non remplies');
-      return;
-    }
+    if (!map || !mapReady || !initializedRef.current) return;
     const vis = visible ? 'visible' : 'none';
     try {
       map.setLayoutProperty(FILL_ID, 'visibility', vis);
       map.setLayoutProperty(LINE_ID, 'visibility', vis);
-      console.log('[carreaux] visibility mis à jour →', vis);
       if (visible) scheduleColor(map);
     } catch (e) { console.error('[carreaux] setLayoutProperty ERREUR:', e); }
   }, [visible, mapRef, mapReady, scheduleColor]);
@@ -374,7 +363,6 @@ const initializedRef = useRef(false);
   // ── Indicateur ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef?.current;
-    console.log('[carreaux] EFFECT INDICATOR — indicator:', indicator, 'init:', initializedRef.current, 'visible:', visible);
     if (!map || !mapReady || !initializedRef.current || !visible) return;
     scheduleColor(map);
   }, [indicator]); // eslint-disable-line react-hooks/exhaustive-deps
