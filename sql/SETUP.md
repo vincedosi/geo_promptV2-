@@ -81,6 +81,12 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 008_carreaux_multiresolution.sql    -- Vues matérialisées 1km/5km + RPC sélection dynamique
 034_populate_carreaux_preaggregate.sql -- ⚠ LONG (~5-10 min) — peuple carreaux_2km + carreaux_5km
                                        -- Exécuter dans SQL Editor, pas via API REST
+035_get_tile_multiresolution.sql       -- Ancienne version get_tile (supersédée par 043+045)
+043_get_tile_geom_3857.sql             -- get_tile optimisé geom_3857 pré-calculé (z>=10: 200m)
+044_carreaux_1km.sql                   -- ⚠ LONG (~2-5 min) — table carreaux_1km agrégée depuis 200m
+                                       -- Exécuter dans SQL Editor
+045_update_get_tile.sql                -- Nouveaux paliers : z>=13: 200m | z10-12: 1km | z8-9: 2km | z6-7: 5km
+                                       -- ⚠ Exécuter APRÈS 043 + 044
 ```
 
 ---
@@ -96,6 +102,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `calculation_jobs` | 013 | Jobs async couverture |
 | `carreaux_2km` | migrations/034 | ~75k cellules 2km pré-agrégées |
 | `carreaux_5km` | migrations/034 | ~17k cellules 5km pré-agrégées |
+| `carreaux_1km` | migrations/044 | ~250k cellules 1km pré-agrégées (fix trous z10-12) |
 | `france_borders` | (manuel) | MultiPolygon France — requis pour clip isochrones |
 
 ## Fonctions RPC actives (état final)
@@ -109,7 +116,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `get_carreaux()` | 003_rpc | Carreaux par bbox |
 | `get_carreaux_for_scoring()` | 004 | Données démo pour outils IA |
 | `find_synergy_billboards()` | 006 | Synergie panneaux × POI × démo |
-| `get_tile_mvt()` | migrations/006 | Tuiles vectorielles MVT |
+| `get_tile()` | migrations/045 | Tuiles MVT multi-res : z>=13: 200m, z10-12: 1km, z8-9: 2km, z6-7: 5km |
 | `get_table_sizes()` | 004 | Tailles des tables (monitoring) |
 | `notify_pgrst_reload()` | 005_upsert | Reload cache PostgREST |
 

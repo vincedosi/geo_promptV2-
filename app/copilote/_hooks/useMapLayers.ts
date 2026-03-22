@@ -10,6 +10,21 @@ import {
 import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
+// ── IRIS — palettes + types ───────────────────────────────────────────────────
+export interface IrisStats {
+  min: number; max: number; avg: number;
+  p10: number; p25: number; p50: number; p75: number; p90: number;
+  col_exists: boolean;
+}
+
+export const IRIS_PALETTES = [
+  { id: 'bleu',    label: 'Bleu',    stops: ['#F7FBFF','#C6DBEF','#9ECAE1','#4292C6','#2171B5','#08306B'] },
+  { id: 'violet',  label: 'Violet',  stops: ['#F2F0F7','#DADAEB','#BCBDDC','#9E9AC8','#756BB1','#54278F'] },
+  { id: 'vert',    label: 'Vert',    stops: ['#F7FCF5','#C7E9C0','#74C476','#41AB5D','#238B45','#00441B'] },
+  { id: 'chaleur', label: 'Chaleur', stops: ['#FAEEDA','#FAC775','#EF9F27','#D85A30','#993C1D','#501313'] },
+  { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
+];
+
 interface UseMapLayersOpts {
   mapRef: React.MutableRefObject<maplibregl.Map | null>;
   mapReady: boolean;
@@ -72,6 +87,24 @@ export function useMapLayers({
   const carreauxOpacityRef = useRef(0.72);
   // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
   const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
+
+  // ── IRIS choroplèthe ─────────────────────────────────────────────────────────
+  const [irisVisible,    setIrisVisible]    = useState(false);
+  const [irisIndicateur, setIrisIndicateur] = useState('pop_15_29');
+  const [irisPalette,    _setIrisPalette]   = useState('bleu');
+  const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
+  const [irisStats,      setIrisStats]      = useState<IrisStats | null>(null);
+  const [irisTruncated,  setIrisTruncated]  = useState(false);
+
+  const irisIndicateurRef = useRef('pop_15_29');
+  const irisPaletteRef    = useRef('bleu');
+  const irisOpacityRef    = useRef(0.45);
+  const irisLastKeyRef    = useRef('');
+  const irisDebRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const irisLoadingRef    = useRef(false);
+
+  useEffect(() => { irisIndicateurRef.current = irisIndicateur; }, [irisIndicateur]);
+  useEffect(() => { irisPaletteRef.current    = irisPalette;    }, [irisPalette]);
 
   // ── Visibility toggles ────────────────────────────────────────────────────
 
@@ -339,6 +372,146 @@ export function useMapLayers({
       if (debounce) clearTimeout(debounce);
     };
   }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor]);
+
+  // ── IRIS — fonctions couleur + chargement ─────────────────────────────────
+
+  const applyIrisColor = useCallback((
+    map: maplibregl.Map,
+    paletteId: string,
+    stats: IrisStats,
+  ) => {
+    if (!map.getLayer('iris-fill')) return;
+    const pal = IRIS_PALETTES.find(p => p.id === paletteId) ?? IRIS_PALETTES[0];
+    const { p10, p25, p50, p75, p90, max } = stats;
+    if (max === 0 || !stats.col_exists) return;
+    // Garantir que les stops sont strictement croissants (évite erreur MapLibre)
+    const pts = [p10, p25, p50, p75, p90, max];
+    const deduped: number[] = [];
+    let prev = -Infinity;
+    for (const v of pts) {
+      if (v > prev) { deduped.push(v); prev = v; }
+    }
+    if (deduped.length < 2) return;
+    // Interpoler les couleurs sur les stops dédupliqués
+    const colors = pal.stops.slice(pal.stops.length - deduped.length);
+    const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
+    const expr = [
+      'interpolate', ['linear'],
+      ['coalesce', ['get', 'value'], 0],
+      ...stopPairs,
+    ] as unknown as maplibregl.ExpressionSpecification;
+    try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
+  }, []);
+
+  // Setter palette — applique couleur immédiatement si stats disponibles
+  const setIrisPalette = useCallback((paletteId: string) => {
+    _setIrisPalette(paletteId);
+    irisPaletteRef.current = paletteId;
+    const map = mapRef.current;
+    if (!map || !irisStats || !irisStats.col_exists) return;
+    applyIrisColor(map, paletteId, irisStats);
+  }, [mapRef, irisStats, applyIrisColor]);
+
+  const setIrisOpacity = useCallback((v: number) => {
+    irisOpacityRef.current = v;
+    _setIrisOpacity(v);
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      map.setPaintProperty('iris-fill',   'fill-opacity', v);
+      map.setPaintProperty('iris-border', 'line-opacity', Math.min(v * 0.8, 0.5));
+    } catch { /* ok */ }
+  }, [mapRef]);
+
+  // Visibilité IRIS — masque quand toggle off
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!irisVisible) {
+      try {
+        map.setLayoutProperty('iris-fill',   'visibility', 'none');
+        map.setLayoutProperty('iris-border', 'visibility', 'none');
+      } catch { /* ok */ }
+    }
+  }, [irisVisible, mapReady, mapRef]);
+
+  // Chargement GeoJSON IRIS par viewport (moveend + indicateur)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !irisVisible) return;
+
+    const loadIris = async () => {
+      if (irisLoadingRef.current) return;
+      const zoom = map.getZoom();
+
+      // Zoom trop bas → masquer couche + message géré par le state
+      if (zoom < 9) {
+        try {
+          map.setLayoutProperty('iris-fill',   'visibility', 'none');
+          map.setLayoutProperty('iris-border', 'visibility', 'none');
+        } catch { /* ok */ }
+        return;
+      }
+
+      const bounds = map.getBounds();
+      const bbox = `${bounds.getWest().toFixed(5)},${bounds.getSouth().toFixed(5)},${bounds.getEast().toFixed(5)},${bounds.getNorth().toFixed(5)}`;
+      const simplify = zoom > 13 ? 0.0001 : zoom > 11 ? 0.0005 : zoom > 9 ? 0.002 : 0.005;
+      const key = `${bbox}-${irisIndicateurRef.current}-${simplify.toFixed(5)}`;
+
+      if (key === irisLastKeyRef.current) return; // cache client
+      irisLastKeyRef.current = key;
+
+      irisLoadingRef.current = true;
+      try {
+        const [geojsonRes, statsRes] = await Promise.all([
+          fetch(`/api/iris/geojson?bbox=${bbox}&colonne=${irisIndicateurRef.current}&simplify=${simplify}`),
+          fetch(`/api/iris/stats?colonne=${irisIndicateurRef.current}&bbox=${bbox}`),
+        ]);
+
+        if (!geojsonRes.ok) return;
+        const geojson = await geojsonRes.json() as { type: string; features: unknown[]; truncated?: boolean };
+
+        const src = map.getSource('iris-source') as maplibregl.GeoJSONSource | undefined;
+        if (src) {
+          src.setData(geojson as GeoJSON.FeatureCollection);
+          try {
+            map.setLayoutProperty('iris-fill',   'visibility', 'visible');
+            map.setLayoutProperty('iris-border', 'visibility', 'visible');
+          } catch { /* ok */ }
+          // Restaurer l'opacité souhaitée
+          try {
+            map.setPaintProperty('iris-fill',   'fill-opacity',   irisOpacityRef.current);
+            map.setPaintProperty('iris-border', 'line-opacity', Math.min(irisOpacityRef.current * 0.8, 0.5));
+          } catch { /* ok */ }
+        }
+
+        setIrisTruncated(!!geojson.truncated);
+
+        if (statsRes.ok) {
+          const stats = await statsRes.json() as IrisStats;
+          setIrisStats(stats);
+          if (stats.col_exists) {
+            applyIrisColor(map, irisPaletteRef.current, stats);
+          }
+        }
+      } catch { /* silencieux */ } finally {
+        irisLoadingRef.current = false;
+      }
+    };
+
+    const scheduleLoad = () => {
+      if (irisDebRef.current) clearTimeout(irisDebRef.current);
+      irisDebRef.current = setTimeout(() => { loadIris(); }, 300);
+    };
+
+    map.on('moveend', scheduleLoad);
+    scheduleLoad(); // chargement initial
+
+    return () => {
+      map.off('moveend', scheduleLoad);
+      if (irisDebRef.current) clearTimeout(irisDebRef.current);
+    };
+  }, [irisVisible, irisIndicateur, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Visualization functions ───────────────────────────────────────────────
 
@@ -763,6 +936,13 @@ export function useMapLayers({
     carreauxSelectedBucket, setCarreauxSelectedBucket,
     carreauxLabel,
     carreauxSourcesRef,
+    // IRIS
+    irisVisible,    setIrisVisible,
+    irisIndicateur, setIrisIndicateur,
+    irisPalette,    setIrisPalette,
+    irisOpacity,    setIrisOpacity,
+    irisStats,
+    irisTruncated,
     // Visualization functions
     applyVoronoi,
     clearBattlePartialRings,

@@ -425,6 +425,35 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
+      // ── IRIS choroplèthe (IGN 2025) ─────────────────────────────────────────
+      // Source GeoJSON rechargée par viewport via moveend (useMapLayers)
+      // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
+      map.addSource('iris-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'iris-fill', type: 'fill',
+        source: 'iris-source',
+        minzoom: 9,
+        paint: {
+          'fill-color':   '#4292C6',
+          'fill-opacity': 0.45,
+        },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'iris-border', type: 'line',
+        source: 'iris-source',
+        minzoom: 9,
+        paint: {
+          'line-color':   'rgba(0,0,0,0.18)',
+          'line-width':   0.5,
+          'line-opacity': 0.5,
+        },
+        layout: { visibility: 'none' },
+      });
+
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
       // z6-7  → carreaux_5km  (SQL 035)
       // z8-9  → carreaux_2km  (SQL 035)

@@ -75,6 +75,8 @@ interface Props {
   mapReady: boolean;
   onFlyTo:  (lat: number, lng: number, zoom?: number) => void;
   onScoreComputed?: (ville: string) => void;
+  /** Quand true : embarqué dans un accordéon (pas de position absolute, pas de toggle) */
+  inline?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -174,8 +176,13 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
 // ── Composant principal ────────────────────────────────────────────────────────
 const ISO_SOURCE_PREFIX = 'scoring-iso';
 
-export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed }: Props) {
+export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inline = false }: Props) {
   const [open,       setOpen]       = useState(false);
+
+  // En mode embarqué, forcer l'ouverture du contenu
+  useEffect(() => {
+    if (inline) setOpen(true);
+  }, [inline]);
   const [panneaux,   setPanneaux]   = useState<ScoredPanneau[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [computing,  setComputing]  = useState(false);
@@ -212,9 +219,16 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed }: Pro
     setLoading(true);
     try {
       const res  = await fetch(`/api/scoring?ville=${encodeURIComponent(v)}&limit=100`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setComputeMsg(`! Erreur chargement: ${err.error ?? res.statusText}`);
+        return;
+      }
       const data = await res.json();
       setPanneaux((data.panneaux ?? []) as ScoredPanneau[]);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (e) {
+      setComputeMsg(`! Erreur chargement: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setLoading(false); }
   };
 
   // ── Déclencher le calcul scoring ─────────────────────────────────────────
@@ -231,14 +245,19 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed }: Pro
         body:    JSON.stringify(body),
       });
       const data = await res.json();
+      if (!res.ok || data.error) {
+        setComputeMsg(`! Erreur scoring: ${data.error ?? res.statusText}`);
+        return;
+      }
       setComputeMsg(
         `OK : ${data.panneaux_scored_proximity ?? 0} panneaux (${data.duration_ms ?? 0}ms)` +
         (data.isochrones_generated != null ? ` · ${data.isochrones_generated} iso` : '')
       );
-      await loadPanneaux();
+      // Notifier l'onglet Étude avant le rechargement (garantit studyVille même si loadPanneaux échoue)
       onScoreComputed?.(ville);
+      await loadPanneaux();
     } catch (e) {
-      setComputeMsg(`Erreur : ${e instanceof Error ? e.message : 'inconnue'}`);
+      setComputeMsg(`! Erreur: ${e instanceof Error ? e.message : 'inconnue'}`);
     } finally { setComputing(false); }
   };
 
@@ -387,30 +406,41 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed }: Pro
 
   // ── Rendu ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 900, fontFamily: "'JetBrains Mono','Michroma',monospace" }}>
-      {/* Toggle */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{
-          background: open ? '#a855f7' : '#0d0d14',
-          border: `1px solid ${open ? '#a855f7' : '#261a35'}`,
-          color: open ? '#fff' : '#a855f7',
-          padding: '5px 10px', borderRadius: 2, cursor: 'pointer',
-          fontSize: 10, fontWeight: 700, letterSpacing: '.1em',
-          textTransform: 'uppercase', fontFamily: 'inherit',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          display: 'block', marginLeft: 'auto',
-        }}
-      >
-        {open ? '✕ SCORING' : '★ SCORING OOH'}
-      </button>
+    <div style={inline
+      ? { fontFamily: "'JetBrains Mono','Michroma',monospace" }
+      : { position: 'absolute', top: 8, right: 8, zIndex: 900, fontFamily: "'JetBrains Mono','Michroma',monospace" }
+    }>
+      {/* Toggle — masqué en mode inline (l'accordéon joue ce rôle) */}
+      {!inline && (
+        <button
+          onClick={() => setOpen(v => !v)}
+          style={{
+            background: open ? '#a855f7' : '#0d0d14',
+            border: `1px solid ${open ? '#a855f7' : '#261a35'}`,
+            color: open ? '#fff' : '#a855f7',
+            padding: '5px 10px', borderRadius: 2, cursor: 'pointer',
+            fontSize: 10, fontWeight: 700, letterSpacing: '.1em',
+            textTransform: 'uppercase', fontFamily: 'inherit',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+            display: 'block', marginLeft: 'auto',
+          }}
+        >
+          {open ? '✕ SCORING' : '★ SCORING OOH'}
+        </button>
+      )}
 
-      {open && (
-        <div style={{
-          marginTop: 4, background: '#090912', border: '1px solid #261a35',
-          borderRadius: 2, width: 288, boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
-          display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)',
-        }}>
+      {(open || inline) && (
+        <div style={inline
+          ? {
+              background: '#090912', borderRadius: 2,
+              display: 'flex', flexDirection: 'column', maxHeight: '60vh', width: '100%',
+            }
+          : {
+              marginTop: 4, background: '#090912', border: '1px solid #261a35',
+              borderRadius: 2, width: 288, boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
+              display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)',
+            }
+        }>
           {/* ─── Header ──────────────────────────────────────────────── */}
           <div style={{ padding: '8px 10px', borderBottom: '1px solid #1a1a2e' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -532,7 +562,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed }: Pro
               </button>
             </div>
             {computeMsg && (
-              <div style={{ fontSize: 9, color: computing ? '#888' : '#3dffa0', padding: '2px 0' }}>{computeMsg}</div>
+              <div style={{ fontSize: 9, color: computing ? '#888' : computeMsg.startsWith('!') ? '#ef4444' : '#3dffa0', padding: '2px 0' }}>{computeMsg}</div>
             )}
           </div>
 

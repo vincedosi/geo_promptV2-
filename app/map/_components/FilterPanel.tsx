@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
+import { ScoringPanel } from './ScoringPanel';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -137,6 +140,21 @@ export interface FilterPanelProps {
   setCarreauxPalette?:      (v: string) => void;
   setCarreauxOpacity?:      (v: number) => void;
   setCarreauxSelectedBucket?: (v: number | null) => void;
+  // IRIS
+  irisVisible?:         boolean;
+  irisIndicateur?:      string;
+  irisPalette?:         string;
+  irisOpacity?:         number;
+  irisStats?:           IrisStats | null;
+  irisTruncated?:       boolean;
+  setIrisVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
+  setIrisIndicateur?:   (v: string) => void;
+  setIrisPalette?:      (v: string) => void;
+  setIrisOpacity?:      (v: number) => void;
+  // Scoring OOH
+  scoringMapRef?:       React.MutableRefObject<MaplibreMap | null>;
+  scoringMapReady?:     boolean;
+  onScoreComputed?:     (ville: string) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -262,6 +280,9 @@ export function FilterPanel({
   carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
   carreauxOpacity, carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
+  irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTruncated,
+  setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity,
+  scoringMapRef, scoringMapReady, onScoreComputed,
 }: FilterPanelProps) {
 
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
@@ -307,7 +328,7 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, clustering: false, carreaux: false, couverture: false,
+    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1876,6 +1897,135 @@ export function FilterPanel({
             </div>
             )}
 
+            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('iris')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.iris ? 'rgba(66,146,198,0.07)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#4292C6' }}>
+                IRIS
+                {irisVisible && <span style={{ color: '#4292C6', marginLeft: 6 }}>●</span>}
+              </span>
+              <span style={{ color: '#4292C6', fontSize: 9 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.iris && (
+            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setIrisVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: irisVisible ? 'rgba(66,146,198,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${irisVisible ? '#4292C660' : C.border}`,
+                  borderRadius: 2, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 7, height: 7, background: irisVisible ? '#4292C6' : 'transparent', border: `1.5px solid #4292C6`, borderRadius: 1, flexShrink: 0 }} />
+                <span style={{ fontFamily: fMono, fontSize: 10, color: irisVisible ? '#9ECAE1' : C.textDim }}>
+                  Couche IRIS — z≥9
+                </span>
+              </button>
+
+              {/* Indicateur */}
+              <select
+                value={irisIndicateur ?? 'pop_15_29'}
+                onChange={e => setIrisIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: '#0a0a12', border: `1px solid #4292C640`, borderRadius: 2, color: '#e2e8f0', fontSize: 10, fontFamily: fMono, padding: '3px 5px', cursor: 'pointer', outline: 'none' }}
+              >
+                <optgroup label="Population totale" style={{ color: C.textDim }}>
+                  <option value="population">Population totale</option>
+                </optgroup>
+                <optgroup label="Âge" style={{ color: C.textDim }}>
+                  <option value="pop_0_14">0-14 ans</option>
+                  <option value="pop_15_29">15-29 ans</option>
+                  <option value="pop_30_44">30-44 ans</option>
+                  <option value="pop_45_59">45-59 ans</option>
+                  <option value="pop_60_74">60-74 ans</option>
+                  <option value="pop_75_plus">75+ ans</option>
+                </optgroup>
+                <optgroup label="CSP" style={{ color: C.textDim }}>
+                  <option value="nb_csp_cadre">Cadres &amp; prof. intel.</option>
+                  <option value="nb_csp_employe">Employés</option>
+                  <option value="nb_csp_ouvrier">Ouvriers</option>
+                </optgroup>
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 5 }}>PALETTE</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {IRIS_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${irisPalette === p.id ? '#e2e8f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, whiteSpace: 'nowrap' }}>OPACITÉ</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={irisOpacity ?? 0.45}
+                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: '#4292C6', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 9, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((irisOpacity ?? 0.45) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 4 }}>LÉGENDE</div>
+                {(() => {
+                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
+                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
+                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
+                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
+                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
+                            </span>
+                          </div>
+                        ))}
+                        {irisTruncated && (
+                          <div style={{ color: C.amber, fontSize: 8, fontFamily: fMono, marginTop: 4 }}>
+                            ! Données tronquées — zoomez
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (irisVisible && !irisStats) {
+                    return <div style={{ color: C.muted, fontSize: 8, fontFamily: fMono }}>Chargement...</div>;
+                  }
+                  if (irisStats && !irisStats.col_exists) {
+                    return <div style={{ color: C.amber, fontSize: 8, fontFamily: fMono }}>! Colonne non disponible en base</div>;
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                      <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fMono }}>z≥9</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
             {/* ── Accordéon : COUVERTURE ──────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('couverture')}
@@ -1901,6 +2051,32 @@ export function FilterPanel({
                 pois={battlePoisProp}
                 onResultsReady={setCoverageSummary}
                 battleCacheKey={battleCacheKey ?? undefined}
+              />
+            </div>
+            )}
+
+            {/* ── Accordéon : SCORING OOH ─────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('scoring')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.scoring ? 'rgba(61,255,160,0.05)' : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.green }}>
+                SCORING OOH
+              </span>
+              <span style={{ color: C.green, fontSize: 9 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.scoring && scoringMapRef && (
+            <div style={{ padding: '0 4px 4px' }}>
+              <ScoringPanel
+                inline
+                mapRef={scoringMapRef}
+                mapReady={scoringMapReady ?? false}
+                onFlyTo={onFlyTo ?? (() => {})}
+                onScoreComputed={onScoreComputed}
               />
             </div>
             )}

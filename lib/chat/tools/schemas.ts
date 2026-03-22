@@ -14,7 +14,7 @@ export function buildTools(
 
   return {
     analyser_zone_pois: {
-      description: 'Affiche POI sur carte géographique.',
+      description: "Affiche POI sur carte géographique. Avec isochrone_minutes + isochrone_mode, calcule aussi les zones accessibles en X min autour des POI (ORS).",
       inputSchema: z.object({
         ville:             z.string().optional().describe('Ville française.'),
         region:            z.string().optional().describe('Région française.'),
@@ -31,7 +31,7 @@ export function buildTools(
     },
 
     voronoi_analysis: {
-      description: "Polygones de Voronoï / zones d'influence territoriales.",
+      description: "Polygones de Voronoï : chaque zone appartient au POI le plus proche (vol d'oiseau). Instantané. metropolitaine=true par défaut (exclut DROM).",
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
         ville:          z.string().optional().describe('Ville (opt).'),
@@ -44,7 +44,7 @@ export function buildTools(
     },
 
     afficher_carreaux: {
-      description: 'Carte thermique carreaux INSEE Filosofi 200m.',
+      description: "Carte thermique carreaux INSEE Filosofi 200m. Utilise les colonnes CHORO_INDICATORS pour l'indicateur (ex: ind_18_24=jeunes, ind_snv=revenus, men_pauv=pauvreté).",
       inputSchema: z.object({
         indicateur:       z.string().describe('Colonne Filosofi (ind_18_24, Ind, rev_median…).'),
         indicateur_label: z.string().describe('Label lisible.'),
@@ -56,7 +56,7 @@ export function buildTools(
     },
 
     isochrone_battle_v2: {
-      description: 'Sectorisation ST_Difference depuis cache ORS (rapide, sans calcul). Paliers libres.',
+      description: "Sectorisation ST_Difference depuis cache ORS (rapide, sans calcul). Appeler EN PREMIER. Si cache absent → proposer isochrone_battle. Paliers libres (ex: [10,20,30,60] min).",
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
         paliers:        z.array(z.number()).optional().describe('Paliers min (ex: [10,20,30,60]). Déf: [10,20,30,60,90].'),
@@ -70,7 +70,7 @@ export function buildTools(
     },
 
     isochrone_battle: {
-      description: 'Sectorisation ORS live (calcul ~1-2 min). Utiliser si cache absent.',
+      description: "Sectorisation ORS live (calcul ~1-2 min). Utiliser si cache absent ou forceRecalculate. Avertir l'utilisateur avant d'appeler.",
       inputSchema: z.object({
         category:       z.string().describe(catsDesc),
         mode:           z.enum(['drive', 'walk', 'bike']).optional().describe('Mode (déf drive).'),
@@ -85,7 +85,7 @@ export function buildTools(
     },
 
     analyser_panneaux: {
-      description: 'Affiche panneaux OOH sur carte.',
+      description: "Affiche panneaux OOH/DOOH sur carte. Sans filtre géo = France entière. Filtrables par régie, type de format, ville/région.",
       inputSchema: z.object({
         regie:        z.string().optional().describe('Régie (ex: JCDecaux).'),
         ville:        z.string().optional().describe('Ville.'),
@@ -99,7 +99,7 @@ export function buildTools(
     },
 
     classer_panneaux_audience: {
-      description: 'Classe panneaux OOH par audience démographique.',
+      description: "Classe panneaux OOH par audience démographique cible. Renvoie tableau rang|ref|régie|type|audience + total. ville est requis.",
       inputSchema: z.object({
         ville:         z.string().describe('Ville (requis).'),
         target_column: z.string().describe('Colonne Filosofi (ind_18_24, Ind…).'),
@@ -113,7 +113,7 @@ export function buildTools(
     },
 
     scorer_panneaux_ooh: {
-      description: 'Score multi-critères panneaux OOH (audience × contexte POI).',
+      description: "Score multi-critères panneaux OOH : audience démographique × contexte POI. Plus complet que classer_panneaux_audience. ville est requis.",
       inputSchema: z.object({
         ville:          z.string().describe('Ville (requis).'),
         target_column:  z.string().describe('Colonne Filosofi (ind_18_24, Ind…).'),
@@ -129,7 +129,7 @@ export function buildTools(
     },
 
     exporter_rapport_ooh: {
-      description: "Export rapport Excel OOH complet d'une ville.",
+      description: "Export rapport OOH complet d'une ville (tous panneaux scorés) pour Excel ou rapport client. ville est requis.",
       inputSchema: z.object({
         ville:          z.string().describe('Ville (requis).'),
         target_column:  z.string().describe('Colonne Filosofi.'),
@@ -144,7 +144,7 @@ export function buildTools(
     },
 
     analyze_poi_synergy: {
-      description: "Panneaux OOH proches d'un POI ET à forte densité démographique.",
+      description: "Panneaux OOH proches d'un type de POI ET à forte densité démographique (synergies d'implantation). ville et poi_category sont requis.",
       inputSchema: z.object({
         poi_category:      z.string().describe(catsDesc),
         ville:             z.string().describe('Ville (requis).'),
@@ -159,7 +159,7 @@ export function buildTools(
     },
 
     calculate_audience_coverage: {
-      description: "Nb de personnes d'une cible dans un isochrone autour d'un lieu.",
+      description: "Compte combien de personnes d'une cible démographique habitent dans un isochrone autour d'un lieu. Renvoie le total + GeoJSON isochrone. location_name et travel_time_minutes sont requis.",
       inputSchema: z.object({
         location_name:       z.string().describe('Lieu ou ville.'),
         travel_time_minutes: z.number().describe('Durée trajet min.'),

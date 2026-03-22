@@ -220,6 +220,8 @@ const SMART_KEYWORDS = [
 ];
 
 function detectSmartMode(text: string): boolean {
+  return false; // V2 : SMART désactivé — tout passe par CHAT (system prompt v2 + 11 outils function calling)
+  // eslint-disable-next-line no-unreachable
   return SMART_KEYWORDS.some(re => re.test(text));
 }
 
@@ -287,9 +289,7 @@ export function ChatPanel({
     e.preventDefault();
     if (!input.trim()) return;
 
-    const useSmart =
-      smartMode === 'smart' ||
-      (smartMode === 'auto' && detectSmartMode(input));
+    const useSmart = smartMode === 'smart' && false; // V2 : SMART désactivé — tout passe par CHAT (system prompt v2 + 11 outils function calling)
 
     if (useSmart) {
       handleSmartSend(input);

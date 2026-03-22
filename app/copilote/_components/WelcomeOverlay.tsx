@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 
 const SUGGESTIONS = [
-  'Affiche la densité des 18-24 ans en France',
-  'Compare la couverture population de deux villes',
-  'Quels panneaux couvrent le plus de monde à 10 min à pied ?',
+  "Affiche la densité des 18-24 ans en France",
+  "Panneaux d'affichage à Brest et population jeune autour",
+  "Zone accessible en 15 min en voiture depuis le CIRFA de Lyon",
 ];
 
 const fontOrbitron = "'Orbitron', sans-serif";
@@ -73,7 +73,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
         WebkitBackdropFilter: 'blur(8px)',
         border: '0.5px solid rgba(255, 255, 255, 0.12)',
         borderRadius: 12,
-        padding: '20px 24px',
+        padding: '16px',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
       }}>
 

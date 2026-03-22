@@ -15,7 +15,6 @@ import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
-import { ScoringPanel }        from '@/app/map/_components/ScoringPanel';
 import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
 import type { ZoneData }       from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
@@ -854,6 +853,19 @@ export default function MapPage() {
         setCarreauxPalette={mapLayers.setCarreauxPalette}
         setCarreauxOpacity={mapLayers.setCarreauxOpacity}
         setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+        irisVisible={mapLayers.irisVisible}
+        irisIndicateur={mapLayers.irisIndicateur}
+        irisPalette={mapLayers.irisPalette}
+        irisOpacity={mapLayers.irisOpacity}
+        irisStats={mapLayers.irisStats}
+        irisTruncated={mapLayers.irisTruncated}
+        setIrisVisible={mapLayers.setIrisVisible}
+        setIrisIndicateur={mapLayers.setIrisIndicateur}
+        setIrisPalette={mapLayers.setIrisPalette}
+        setIrisOpacity={mapLayers.setIrisOpacity}
+        scoringMapRef={mapRef}
+        scoringMapReady={mapReady}
+        onScoreComputed={(v) => setStudyVille(v)}
       />
       {/* ── Right panel: tabs Carte / Étude ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -930,13 +942,7 @@ export default function MapPage() {
         onMapStyleChange={handleMapStyleChange}
       />
 
-          {/* Scoring OOH panel — overlay positionné en haut à droite de la carte */}
-          <ScoringPanel
-            mapRef={mapRef}
-            mapReady={mapReady}
-            onFlyTo={handleFlyTo}
-            onScoreComputed={(v) => setStudyVille(v)}
-          />
+          {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
 
           {/* Welcome overlay — affiché au premier chargement, par-dessus la carte */}
           <WelcomeOverlay sendMessage={chat.sendMessage} />
