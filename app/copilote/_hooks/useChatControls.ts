@@ -4,8 +4,21 @@ import { useEffect, useRef, useState, useMemo, FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import type { UIMessage } from 'ai';
+import { createClient } from '@supabase/supabase-js';
 import type { ZoneData } from '@/types/spatial';
 import type { Provider } from './useProviderSelector';
+
+// Singleton browser client — même pattern que lib/admin-fetch.ts
+let _sb: ReturnType<typeof createClient> | null = null;
+function getSupabaseClient() {
+  if (!_sb) {
+    _sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _sb;
+}
 
 interface UseChatControlsOpts {
   setError: (v: string | null) => void;
@@ -33,6 +46,11 @@ export function useChatControls({
 
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
+    headers: async (): Promise<Record<string, string>> => {
+      const { data: { session } } = await getSupabaseClient().auth.getSession();
+      if (!session?.access_token) return {};
+      return { Authorization: `Bearer ${session.access_token}` };
+    },
     prepareSendMessagesRequest: ({ id, messages: msgs, body }) => ({
       body: {
         ...body,

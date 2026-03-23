@@ -5,6 +5,7 @@
 
 import { createAdminClient } from '@/lib/auth';
 import type { BillboardRaw }  from './types';
+import { getOrgSourceIds }    from './orgContext';
 
 const PAGE_PAN             = 1000;
 const MAX_PANNEAUX_IN_MEMORY = 50_000;
@@ -17,7 +18,11 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
   const type_panneau = args.type_panneau ? String(args.type_panneau) : undefined;
   const couleur      = args.couleur      ? String(args.couleur)      : '#f97316';
 
-  const supabase    = createAdminClient();
+  const supabase      = createAdminClient();
+  const orgSourceIds  = getOrgSourceIds();
+  if (orgSourceIds !== null && orgSourceIds.length === 0) {
+    return { error: "Aucune source configurée pour votre organisation." };
+  }
   const allPanneaux: BillboardRaw[] = [];
   let from = 0;
 
@@ -30,6 +35,7 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
     if (regie)        q = q.ilike('regie',        `%${regie}%`);
     if (ville)        q = q.ilike('ville',         `%${ville}%`);
     if (type_panneau) q = q.ilike('type_panneau',  `%${type_panneau}%`);
+    if (orgSourceIds !== null) q = q.in('data_source_id', orgSourceIds);
 
     const { data: pageData, error: pageErr } = await q;
     if (pageErr) return { error: pageErr.message };

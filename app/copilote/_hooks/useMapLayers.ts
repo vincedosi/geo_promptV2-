@@ -94,14 +94,10 @@ export function useMapLayers({
   const [irisPalette,    _setIrisPalette]   = useState('bleu');
   const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
   const [irisStats,      setIrisStats]      = useState<IrisStats | null>(null);
-  const [irisTruncated,  setIrisTruncated]  = useState(false);
 
   const irisIndicateurRef = useRef('pop_15_29');
   const irisPaletteRef    = useRef('bleu');
   const irisOpacityRef    = useRef(0.45);
-  const irisLastKeyRef    = useRef('');
-  const irisDebRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const irisLoadingRef    = useRef(false);
 
   useEffect(() => { irisIndicateurRef.current = irisIndicateur; }, [irisIndicateur]);
   useEffect(() => { irisPaletteRef.current    = irisPalette;    }, [irisPalette]);
@@ -379,12 +375,13 @@ export function useMapLayers({
     map: maplibregl.Map,
     paletteId: string,
     stats: IrisStats,
+    colonne?: string,
   ) => {
     if (!map.getLayer('iris-fill')) return;
     const pal = IRIS_PALETTES.find(p => p.id === paletteId) ?? IRIS_PALETTES[0];
     const { p10, p25, p50, p75, p90, max } = stats;
     if (max === 0 || !stats.col_exists) return;
-    // Garantir que les stops sont strictement croissants (évite erreur MapLibre)
+    const col = colonne ?? irisIndicateurRef.current;
     const pts = [p10, p25, p50, p75, p90, max];
     const deduped: number[] = [];
     let prev = -Infinity;
@@ -392,12 +389,12 @@ export function useMapLayers({
       if (v > prev) { deduped.push(v); prev = v; }
     }
     if (deduped.length < 2) return;
-    // Interpoler les couleurs sur les stops dédupliqués
     const colors = pal.stops.slice(pal.stops.length - deduped.length);
     const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
+    // Les tiles MVT exposent les colonnes par leur vrai nom (population, pop_15_29…)
     const expr = [
       'interpolate', ['linear'],
-      ['coalesce', ['get', 'value'], 0],
+      ['coalesce', ['to-number', ['get', col], 0], 0],
       ...stopPairs,
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
@@ -435,82 +432,37 @@ export function useMapLayers({
     }
   }, [irisVisible, mapReady, mapRef]);
 
-  // Chargement GeoJSON IRIS par viewport (moveend + indicateur)
+  // Chargement IRIS — les tiles MVT sont gérées automatiquement par MapLibre.
+  // On charge les stats globales (France entière) une seule fois pour calibrer la palette.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !irisVisible) return;
+    if (!map || !mapReady) return;
 
-    const loadIris = async () => {
-      if (irisLoadingRef.current) return;
-      const zoom = map.getZoom();
-
-      // Zoom trop bas → masquer couche + message géré par le state
-      if (zoom < 9) {
-        try {
-          map.setLayoutProperty('iris-fill',   'visibility', 'none');
-          map.setLayoutProperty('iris-border', 'visibility', 'none');
-        } catch { /* ok */ }
-        return;
-      }
-
-      const bounds = map.getBounds();
-      const bbox = `${bounds.getWest().toFixed(5)},${bounds.getSouth().toFixed(5)},${bounds.getEast().toFixed(5)},${bounds.getNorth().toFixed(5)}`;
-      const simplify = zoom > 13 ? 0.0001 : zoom > 11 ? 0.0005 : zoom > 9 ? 0.002 : 0.005;
-      const key = `${bbox}-${irisIndicateurRef.current}-${simplify.toFixed(5)}`;
-
-      if (key === irisLastKeyRef.current) return; // cache client
-      irisLastKeyRef.current = key;
-
-      irisLoadingRef.current = true;
+    if (!irisVisible) {
       try {
-        const [geojsonRes, statsRes] = await Promise.all([
-          fetch(`/api/iris/geojson?bbox=${bbox}&colonne=${irisIndicateurRef.current}&simplify=${simplify}`),
-          fetch(`/api/iris/stats?colonne=${irisIndicateurRef.current}&bbox=${bbox}`),
-        ]);
+        map.setLayoutProperty('iris-fill',   'visibility', 'none');
+        map.setLayoutProperty('iris-border', 'visibility', 'none');
+      } catch { /* ok */ }
+      return;
+    }
 
-        if (!geojsonRes.ok) return;
-        const geojson = await geojsonRes.json() as { type: string; features: unknown[]; truncated?: boolean };
+    // Afficher les layers vector tiles
+    try {
+      map.setLayoutProperty('iris-fill',   'visibility', 'visible');
+      map.setLayoutProperty('iris-border', 'visibility', 'visible');
+      map.setPaintProperty('iris-fill', 'fill-opacity', irisOpacityRef.current);
+    } catch { /* ok */ }
 
-        const src = map.getSource('iris-source') as maplibregl.GeoJSONSource | undefined;
-        if (src) {
-          src.setData(geojson as GeoJSON.FeatureCollection);
-          try {
-            map.setLayoutProperty('iris-fill',   'visibility', 'visible');
-            map.setLayoutProperty('iris-border', 'visibility', 'visible');
-          } catch { /* ok */ }
-          // Restaurer l'opacité souhaitée
-          try {
-            map.setPaintProperty('iris-fill',   'fill-opacity',   irisOpacityRef.current);
-            map.setPaintProperty('iris-border', 'line-opacity', Math.min(irisOpacityRef.current * 0.8, 0.5));
-          } catch { /* ok */ }
-        }
-
-        setIrisTruncated(!!geojson.truncated);
-
-        if (statsRes.ok) {
-          const stats = await statsRes.json() as IrisStats;
-          setIrisStats(stats);
-          if (stats.col_exists) {
-            applyIrisColor(map, irisPaletteRef.current, stats);
-          }
-        }
-      } catch { /* silencieux */ } finally {
-        irisLoadingRef.current = false;
-      }
-    };
-
-    const scheduleLoad = () => {
-      if (irisDebRef.current) clearTimeout(irisDebRef.current);
-      irisDebRef.current = setTimeout(() => { loadIris(); }, 300);
-    };
-
-    map.on('moveend', scheduleLoad);
-    scheduleLoad(); // chargement initial
-
-    return () => {
-      map.off('moveend', scheduleLoad);
-      if (irisDebRef.current) clearTimeout(irisDebRef.current);
-    };
+    // Charger les stats France entière pour calibrer les couleurs
+    const col = irisIndicateurRef.current;
+    fetch(`/api/iris/stats?colonne=${col}&bbox=-5.5,41.0,10.0,51.5`)
+      .then(r => r.ok ? r.json() : null)
+      .then((stats: IrisStats | null) => {
+        if (!stats) return;
+        setIrisStats(stats);
+        if (stats.col_exists) applyIrisColor(map, irisPaletteRef.current, stats, col);
+      })
+      .catch(() => {});
   }, [irisVisible, irisIndicateur, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Visualization functions ───────────────────────────────────────────────
@@ -942,7 +894,6 @@ export function useMapLayers({
     irisPalette,    setIrisPalette,
     irisOpacity,    setIrisOpacity,
     irisStats,
-    irisTruncated,
     // Visualization functions
     applyVoronoi,
     clearBattlePartialRings,

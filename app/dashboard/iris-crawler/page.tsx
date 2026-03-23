@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { IRIS_CATALOG } from '@/lib/iris-crawler/catalog';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/iris-crawler/types';
+import { autoMap } from '@/lib/iris-crawler/auto-map';
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import type {
   CatalogStatus, DiscoverResponse, PreviewResponse,
   DownloadStreamEvent, IrisCatalogCategory,
@@ -44,6 +46,13 @@ interface EntryState {
   selectedUrl:      string;
   downloading:      boolean;
   downloadError?:   string;
+  // Mapping & upload
+  showMapping:      boolean;
+  irisKeyCol:       string;
+  mapping:          Record<string, string>; // csvCol → irisDbCol
+  uploading:        boolean;
+  uploadProgress:   number;
+  uploadMsg?:       string;
 }
 
 type PreviewTab = 'data' | 'columns' | 'stats';
@@ -121,6 +130,7 @@ export default function IrisCrawlerPage() {
   const [entryStates,  setEntryStates]  = useState<Record<string, EntryState>>(() =>
     Object.fromEntries(IRIS_CATALOG.map(e => [e.id, {
       discovering: false, foundUrls: [], selectedUrl: '', downloading: false,
+      showMapping: false, irisKeyCol: 'IRIS', mapping: {}, uploading: false, uploadProgress: 0,
     }]))
   );
   const [loadingStatus,   setLoadingStatus]   = useState(true);
@@ -314,6 +324,95 @@ export default function IrisCrawlerPage() {
     setDownloadingAll(false);
     log('Téléchargement tout : terminé');
   }, [statusMap, handleDownload, log]);
+
+  // ── Ouvrir le panel de mapping ───────────────────────────────────────────────
+  const handleShowMapping = useCallback(async (catalogId: string) => {
+    const es = entryStates[catalogId];
+    if (es.showMapping) {
+      setEntryStates(prev => ({ ...prev, [catalogId]: { ...prev[catalogId], showMapping: false } }));
+      return;
+    }
+    // Charger les colonnes depuis le preview pour construire l'auto-map
+    try {
+      const res = await fetch(`/api/iris-crawler/preview?catalogId=${catalogId}&limit=1`);
+      if (!res.ok) return;
+      const data = await res.json() as { headers: string[]; geoColumns: string[] };
+      const csvDataCols = data.headers.filter(h => !data.geoColumns.includes(h));
+      const { irisKeyCol, mapping } = autoMap(data.headers);
+      setEntryStates(prev => ({
+        ...prev,
+        [catalogId]: { ...prev[catalogId], showMapping: true, irisKeyCol, mapping },
+      }));
+      log(`Mapping ${catalogId} : ${Object.keys(mapping).length} colonnes auto-détectées`);
+    } catch (e) {
+      log(`! Erreur mapping ${catalogId} : ${String(e)}`);
+    }
+  }, [entryStates, log]);
+
+  // ── Upload vers Supabase (streaming) ─────────────────────────────────────────
+  const handleUpload = useCallback(async (catalogId: string) => {
+    const es = entryStates[catalogId];
+    if (Object.keys(es.mapping).length === 0) {
+      log(`! ${catalogId} : aucun mapping défini`);
+      return;
+    }
+    setEntryStates(prev => ({
+      ...prev,
+      [catalogId]: { ...prev[catalogId], uploading: true, uploadProgress: 0, uploadMsg: undefined },
+    }));
+    log(`Upload ${catalogId} → Supabase (${Object.keys(es.mapping).length} colonnes)…`);
+
+    try {
+      const res = await fetch('/api/iris-crawler/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalogId, irisKeyCol: es.irisKeyCol, mapping: es.mapping }),
+      });
+      if (!res.body) throw new Error('Pas de stream');
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line) as { type: string; message: string; percent?: number };
+            log(`  ${catalogId} upload : ${evt.message}`);
+            if (evt.type === 'progress') {
+              setEntryStates(prev => ({
+                ...prev,
+                [catalogId]: { ...prev[catalogId], uploadProgress: evt.percent ?? 0 },
+              }));
+            } else if (evt.type === 'done') {
+              setEntryStates(prev => ({
+                ...prev,
+                [catalogId]: { ...prev[catalogId], uploading: false, uploadProgress: 100, uploadMsg: evt.message },
+              }));
+              await loadStatus();
+            } else if (evt.type === 'error') {
+              setEntryStates(prev => ({
+                ...prev,
+                [catalogId]: { ...prev[catalogId], uploading: false, uploadMsg: `! ${evt.message}` },
+              }));
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
+    } catch (e) {
+      log(`! Upload ${catalogId} erreur : ${String(e)}`);
+      setEntryStates(prev => ({
+        ...prev,
+        [catalogId]: { ...prev[catalogId], uploading: false, uploadMsg: `! ${String(e)}` },
+      }));
+    }
+  }, [entryStates, log, loadStatus]);
 
   // ── Preview ─────────────────────────────────────────────────────────────────
   const handlePreview = useCallback(async (catalogId: string) => {
@@ -519,14 +618,31 @@ export default function IrisCrawlerPage() {
                       </button>
                     )}
 
-                    {/* Upload Supabase (stub) */}
+                    {/* Mapping & Upload Supabase */}
                     {hasDl && (
                       <button
-                        disabled
-                        title="Schéma de mapping à définir"
-                        style={{ ...btnSmall(C.muted, 'transparent', 'rgba(75,85,99,0.2)'), cursor: 'not-allowed', opacity: 0.5 }}>
-                        ↑ Supabase
+                        onClick={() => handleShowMapping(entry.id)}
+                        disabled={es.uploading}
+                        style={btnSmall(
+                          es.showMapping ? C.accent : C.textDim,
+                          es.showMapping ? C.accentDim : 'transparent',
+                          es.showMapping ? C.borderLight : C.border,
+                        )}>
+                        {es.showMapping ? '▲ Mapper' : '▼ Mapper'}
                       </button>
+                    )}
+                    {hasDl && es.showMapping && Object.keys(es.mapping).length > 0 && (
+                      <button
+                        onClick={() => handleUpload(entry.id)}
+                        disabled={es.uploading}
+                        style={btnSmall('#a855f7', 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)')}>
+                        {es.uploading ? `⏳ ${es.uploadProgress}%` : `↑ Importer ${Object.keys(es.mapping).length} col.`}
+                      </button>
+                    )}
+                    {es.uploadMsg && (
+                      <span style={{ fontFamily: fMono, fontSize: 8, color: es.uploadMsg.startsWith('!') ? C.red : C.green, maxWidth: 240 }}>
+                        {es.uploadMsg}
+                      </span>
                     )}
 
                     {/* Lien INSEE */}
@@ -581,6 +697,57 @@ export default function IrisCrawlerPage() {
                         </span>
                       </label>
                     ))}
+                      </div>
+                    )}
+
+                    {/* ── Panel mapping colonnes ── */}
+                    {es.showMapping && (
+                      <div style={{ background: '#06060f', borderTop: `1px solid ${C.borderLight}`, padding: '12px 14px 14px' }}>
+                        <div style={{ fontFamily: fMichroma, fontSize: 8, color: C.accent, letterSpacing: '0.14em', marginBottom: 10 }}>
+                          MAPPING COLONNES CSV → BASE IRIS
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '6px 16px' }}>
+                          {IRIS_DB_COLUMNS.map(dbCol => {
+                            const csvCol = Object.entries(es.mapping).find(([, v]) => v === dbCol.name)?.[0] ?? '';
+                            const allCsvCols = statusMap[entry.id]
+                              ? Object.keys(es.mapping).concat(
+                                  Object.keys(es.mapping).length === 0 ? [] : []
+                                )
+                              : [];
+                            return (
+                              <div key={dbCol.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontFamily: fMono, fontSize: 9, color: csvCol ? C.green : C.muted, width: 140, flexShrink: 0 }}>
+                                  {csvCol ? '✓' : '–'} {dbCol.label}
+                                </span>
+                                <input
+                                  type="text"
+                                  value={csvCol}
+                                  placeholder="col. CSV…"
+                                  onChange={e => {
+                                    const val = e.target.value.trim();
+                                    setEntryStates(prev => {
+                                      const cur = { ...prev[entry.id].mapping };
+                                      // Retirer l'ancienne entrée pour cette colonne DB
+                                      for (const k of Object.keys(cur)) {
+                                        if (cur[k] === dbCol.name) delete cur[k];
+                                      }
+                                      if (val) cur[val] = dbCol.name;
+                                      return { ...prev, [entry.id]: { ...prev[entry.id], mapping: cur } };
+                                    });
+                                  }}
+                                  style={{
+                                    flex: 1, background: '#0a0a14', border: `1px solid ${csvCol ? 'rgba(61,255,160,0.3)' : C.border}`,
+                                    borderRadius: 2, padding: '3px 7px', fontFamily: fMono, fontSize: 9,
+                                    color: csvCol ? C.green : C.textDim, outline: 'none',
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 8, color: C.textSec }}>
+                          {Object.keys(es.mapping).length} colonnes mappées · clé IRIS : <span style={{ color: C.blue }}>{es.irisKeyCol}</span>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { fetchIsochrones, buildIsochCacheKey } from '@/lib/isochrones/fetcher';
 import type { PoiRow } from '@/lib/isochrones/fetcher';
+
+export const dynamic = 'force-dynamic';
 
 // ── GET — Panneaux scorés ──────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -58,12 +61,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
   try {
+    const session    = await getSessionOrg(req);
     const body       = await req.json() as { ville?: string; layers?: string[]; profile_id?: string };
     const ville      = body.ville ?? 'Brest';
     const layers: string[] = body.layers ?? ['proximity'];
     const profileId  = body.profile_id ?? null;
 
     const supabase = createAdminClient();
+
+    // ── Vérifier que le profil demandé est accessible ──────────────────────
+    if (profileId && session && session.role !== 'super_admin') {
+      const { data: prof } = await supabase
+        .from('scoring_profiles')
+        .select('organization_id, is_template')
+        .eq('id', profileId)
+        .single();
+
+      if (prof && !prof.is_template && prof.organization_id !== session.orgId) {
+        console.warn(`[api/scoring] accès refusé au profil ${profileId} pour org ${session.orgId}`);
+        return NextResponse.json({ error: "Accès refusé à ce profil de scoring." }, { status: 403 });
+      }
+    }
     const results: Record<string, unknown> = { ville, layers };
 
     // ── Couche 1 : Proximité (v2 si profile_id fourni, v1 sinon) ─────────────

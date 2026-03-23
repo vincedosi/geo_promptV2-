@@ -6,6 +6,9 @@ import { createModel, getMaxRetries, type Provider } from '@/lib/chat/providers'
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { buildTools } from '@/lib/chat/tools';
 import { trimHistory } from '@/lib/chat/trim-history';
+import { getSessionOrg } from '@/lib/auth/getSessionOrg';
+import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
+import { orgContextStorage } from '@/lib/chat/tools/orgContext';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
@@ -86,6 +89,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // ── Session + filtre org par data_source_id ───────────────────────────────
+    const session      = await getSessionOrg(request);
+    const orgSourceIds = await getOrgSourceIds(session);
+    console.log('[CHAT] session:', session?.orgId ?? 'null', session?.role ?? 'no-session',
+      '| sources:', orgSourceIds === null ? 'all' : orgSourceIds.length);
+
     const body = await request.json() as {
       messages: UIMessage[]; forceRecalculate?: boolean; provider?: Provider;
     };
@@ -109,7 +118,7 @@ export async function POST(request: NextRequest) {
     const modelMessages = await convertToModelMessages(trimmedMessages as any);
     const selectedModel = createModel(provider);
 
-    const result = streamText({
+    const result = orgContextStorage.run({ orgSourceIds }, () => streamText({
       model:       selectedModel,
       system:      systemPrompt,
       messages:    modelMessages,
@@ -128,7 +137,7 @@ export async function POST(request: NextRequest) {
       onFinish: ({ usage }) => {
         console.log(`[chat] tokens — input:${usage.inputTokens} output:${usage.outputTokens} total:${usage.totalTokens}`);
       },
-    });
+    }));
 
     // Accumule l'usage total sur tous les steps (agentic = plusieurs finish-step)
     let cumTokIn = 0, cumTokOut = 0;

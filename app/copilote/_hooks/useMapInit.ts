@@ -425,17 +425,19 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
-      // ── IRIS choroplèthe (IGN 2025) ─────────────────────────────────────────
-      // Source GeoJSON rechargée par viewport via moveend (useMapLayers)
+      // ── IRIS choroplèthe — Vector Tiles MVT ──────────────────────────────────
+      // z 5-6  : agrégation département | z >= 7 : IRIS individuels
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
       map.addSource('iris-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=3`],
+        minzoom: 5,
+        maxzoom: 14,
       });
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
-        minzoom: 9,
+        'source-layer': 'iris',
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
@@ -445,11 +447,11 @@ export function useMapInit(
       map.addLayer({
         id: 'iris-border', type: 'line',
         source: 'iris-source',
-        minzoom: 9,
+        'source-layer': 'iris',
         paint: {
-          'line-color':   'rgba(0,0,0,0.18)',
-          'line-width':   0.5,
-          'line-opacity': 0.5,
+          'line-color':   'rgba(0,0,0,0.25)',
+          'line-width':   ['interpolate', ['linear'], ['zoom'], 5, 0.3, 7, 0.5, 11, 0.8],
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 7, 0.35, 11, 0.5],
         },
         layout: { visibility: 'none' },
       });

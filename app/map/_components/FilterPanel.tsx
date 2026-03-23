@@ -55,6 +55,7 @@ export interface DirectPOISearchParams {
   depts: string[];
   ville: string;
   rayon_poi: string | null;
+  poi_natures?: Record<string, string[]>;
 }
 
 export interface DirectBattleParams {
@@ -146,7 +147,6 @@ export interface FilterPanelProps {
   irisPalette?:         string;
   irisOpacity?:         number;
   irisStats?:           IrisStats | null;
-  irisTruncated?:       boolean;
   setIrisVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
   setIrisIndicateur?:   (v: string) => void;
   setIrisPalette?:      (v: string) => void;
@@ -280,7 +280,7 @@ export function FilterPanel({
   carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
   carreauxOpacity, carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
-  irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTruncated,
+  irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity,
   scoringMapRef, scoringMapReady, onScoreComputed,
 }: FilterPanelProps) {
@@ -288,6 +288,24 @@ export function FilterPanel({
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
   const [poiTypes, setPoiTypes] = useState<{ id: string; label: string }[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
+
+  // ── POI natures (metadata->>'libelle_nature' par categorie) ───────────────
+  const [poiNatures, setPoiNatures] = useState<Record<string, string[]>>({});
+  const [selectedPoiNatures, setSelectedPoiNatures] = useState<Record<string, string[]>>({});
+  const fetchedNaturesRef = useRef<Set<string>>(new Set());
+
+  const fetchPoiNatures = async (poiType: string) => {
+    if (fetchedNaturesRef.current.has(poiType)) return;
+    fetchedNaturesRef.current.add(poiType);
+    try {
+      const res = await fetch(`/api/map/poi-natures?categorie=${encodeURIComponent(poiType)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.natures) && data.natures.length > 0) {
+        setPoiNatures(prev => ({ ...prev, [poiType]: data.natures }));
+      }
+    } catch { /* ignore */ }
+  };
   const fetchCategories = (forceRefresh = false) => {
     setCatsLoading(true);
     fetch(forceRefresh ? '/api/map/categories?refresh=1' : '/api/map/categories')
@@ -344,6 +362,10 @@ export function FilterPanel({
 
   // ── Analyses state ────────────────────────────────────────────────────────
   const [selectedPOI,   setSelectedPOI]   = useState<string[]>([]);
+
+  useEffect(() => {
+    for (const poi of selectedPOI) fetchPoiNatures(poi);
+  }, [selectedPOI]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── POI pin styles ─────────────────────────────────────────────────────────
   const PIN_SIZES = ['Petite', 'Standard', 'Grosse', 'Large'] as const;
@@ -474,6 +496,9 @@ export function FilterPanel({
         depts: selectedDepts,
         ville,
         rayon_poi: poisRayon,
+        poi_natures: Object.fromEntries(
+          Object.entries(selectedPoiNatures).filter(([, v]) => v.length > 0)
+        ),
       });
     } finally {
       setSearchLoading(false);
@@ -1119,6 +1144,26 @@ export function FilterPanel({
                             <span style={selectArrow}>▾</span>
                           </div>
                         </div>
+
+                        {/* Nature (metadata->>'libelle_nature') */}
+                        {poiNatures[poi]?.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted }}>
+                              NATURE
+                              {(selectedPoiNatures[poi]?.length ?? 0) > 0 && (
+                                <span style={{ color: C.accent }}>
+                                  {' '}— {selectedPoiNatures[poi].length} selectionnee{selectedPoiNatures[poi].length > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </span>
+                            <MultiDropdown
+                              label="Toutes les natures"
+                              items={poiNatures[poi].map(n => ({ id: n, label: n }))}
+                              selected={selectedPoiNatures[poi] ?? []}
+                              onChange={sel => setSelectedPoiNatures(prev => ({ ...prev, [poi]: sel }))}
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1927,7 +1972,7 @@ export function FilterPanel({
               >
                 <span style={{ width: 7, height: 7, background: irisVisible ? '#4292C6' : 'transparent', border: `1.5px solid #4292C6`, borderRadius: 1, flexShrink: 0 }} />
                 <span style={{ fontFamily: fMono, fontSize: 10, color: irisVisible ? '#9ECAE1' : C.textDim }}>
-                  Couche IRIS — z≥9
+                  Couche IRIS
                 </span>
               </button>
 
@@ -2000,11 +2045,6 @@ export function FilterPanel({
                             </span>
                           </div>
                         ))}
-                        {irisTruncated && (
-                          <div style={{ color: C.amber, fontSize: 8, fontFamily: fMono, marginTop: 4 }}>
-                            ! Données tronquées — zoomez
-                          </div>
-                        )}
                       </div>
                     );
                   }
@@ -2017,7 +2057,6 @@ export function FilterPanel({
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fMono }}>z≥9</span>
                     </div>
                   );
                 })()}

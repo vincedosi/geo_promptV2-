@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { getSessionOrg, type SessionOrg } from '@/lib/auth/getSessionOrg';
 import { resolveCategory, normVille } from '@/lib/geo/locations';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+// ── Filtre org : retourne les IDs de sources autorisées pour cette session ─────
+// null = pas de filtre (super_admin ou dev sans session)
+// []   = aucune source configurée → aucun POI accessible
+// [...] = filtre .in('data_source_id', ids)
+async function getOrgSourceIds(
+  session: SessionOrg | null,
+  supabase: SupabaseClient
+): Promise<string[] | null> {
+  if (!session || session.role === 'super_admin') return null;
+  if (!session.orgId) return null; // pas de session → pas de filtre (dev bypass)
+
+  const { data: sources } = await supabase
+    .from('data_sources')
+    .select('id')
+    .neq('status', 'deleted')
+    .or(`organization_id.eq.${session.orgId},shared_with.cs.{${session.orgId}}`);
+
+  return sources?.map((s: { id: string }) => s.id) ?? [];
+}
 
 // Mapping FilterPanel region IDs → noms DB
 const REGION_ID_TO_NAME: Record<string, string> = {
@@ -43,6 +65,7 @@ export async function POST(req: NextRequest) {
       depts,              // string[]  — dept codes (ex: ['29','35'])
       ville,              // string
       rayon_poi,          // string | null  (ex: '2km')
+      poi_natures,        // Record<string, string[]> — filtres nature par type (ex: { lycee: ['LYCEE PROFESSIONNEL'] })
     } = body as {
       poi_types: string[];
       scope: 'metro' | 'all' | null;
@@ -50,15 +73,31 @@ export async function POST(req: NextRequest) {
       depts: string[];
       ville: string;
       rayon_poi: string | null;
+      poi_natures?: Record<string, string[]>;
     };
 
     if (!poi_types?.length) {
       return NextResponse.json({ error: 'Aucun type de POI sélectionné' }, { status: 400 });
     }
 
+    const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();
     const validCats = await getDistinctCategories();
     const poisMap   = new Map<string, PoiRow>();
+
+    // ── Filtre org : sources autorisées (null = tout voir) ───────────────────
+    const allowedSourceIds = await getOrgSourceIds(session, supabase);
+    if (allowedSourceIds !== null && allowedSourceIds.length === 0) {
+      // Org configurée mais aucune source → aucun POI accessible
+      console.log('[map/pois] Org sans sources configurées — résultat vide');
+      return NextResponse.json({
+        ville: ville ?? 'France',
+        region: null, departement: null, categorie_poi: poi_types[0] ?? null,
+        rayon_metres: null, rayon_poi_metres: null,
+        coordonnees: { lat: 46.8, lng: 2.3 },
+        pois: [], nb_pois: 0, categories: {},
+      } satisfies ZoneData);
+    }
 
     // ── Normalisation pour filtre région JS ─────────────────────────────────
     const normStr = (s: string) =>
@@ -114,6 +153,15 @@ export async function POST(req: NextRequest) {
     // ── Pour chaque type de POI sélectionné ────────────────────────────────
     for (const poiType of poi_types) {
       const resolvedCat = resolveCategory(poiType, validCats);
+      const natures = poi_natures?.[poiType] ?? [];
+
+      // Helper : applique cat + filtres nature + filtre org (data_source_id)
+      const applyFilters = (q: any) => {
+        if (resolvedCat) q = q.eq('categorie', resolvedCat);
+        if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);
+        if (allowedSourceIds !== null) q = q.in('data_source_id', allowedSourceIds);
+        return q;
+      };
 
       // ── Filtrage géographique ─────────────────────────────────────────────
 
@@ -125,8 +173,7 @@ export async function POST(req: NextRequest) {
               .ilike('departement', `%${dept}%`)
               .order('id')
               .range(from, to);
-            if (resolvedCat) q = q.eq('categorie', resolvedCat);
-            return q;
+            return applyFilters(q);
           });
         }
         continue;
@@ -144,8 +191,7 @@ export async function POST(req: NextRequest) {
         };
         await fetchAllPages((from, to) => {
           let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
-          if (resolvedCat) q = q.eq('categorie', resolvedCat);
-          return q;
+          return applyFilters(q);
         }, 10000, regionFilter);
         continue;
       }
@@ -158,8 +204,7 @@ export async function POST(req: NextRequest) {
             .ilike('ville', `%${villeKey}%`)
             .order('id')
             .range(from, to);
-          if (resolvedCat) q = q.eq('categorie', resolvedCat);
-          return q;
+          return applyFilters(q);
         }, 4000);
         continue;
       }
@@ -167,9 +212,8 @@ export async function POST(req: NextRequest) {
       // 4. Scope national
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
-        if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (scope === 'metro') q = q.or(`departement.is.null,departement.not.in.(${DROM_CODES.join(',')})`);
-        return q;
+        return applyFilters(q);
       }, 10000);
     }
 

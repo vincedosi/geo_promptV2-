@@ -7,6 +7,7 @@ import { createAdminClient }               from '@/lib/auth';
 import { getCoordsForVille }               from '@/lib/geo/locations';
 import { haversineM, buildBbox, KNOWN_FILOSOFI_COLS } from './_shared';
 import type { BillboardRaw, CarreauRow }   from './types';
+import { getOrgSourceIds }                 from './orgContext';
 
 export async function classerAudience(args: Record<string, unknown>) {
   const ville        = args.ville         ? String(args.ville)         : undefined;
@@ -22,14 +23,19 @@ export async function classerAudience(args: Record<string, unknown>) {
   }
 
   try {
-    const supabase = createAdminClient();
+    const supabase     = createAdminClient();
+    const orgSourceIds = getOrgSourceIds();
+    if (orgSourceIds !== null && orgSourceIds.length === 0) {
+      return { error: "Aucune source configurée pour votre organisation." };
+    }
 
     let q = supabase
       .from('global_ooh')
       .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
       .eq('statut', 'actif')
       .ilike('ville', `%${ville}%`);
-    if (regie) q = q.ilike('regie', `%${regie}%`);
+    if (regie)             q = q.ilike('regie', `%${regie}%`);
+    if (orgSourceIds !== null) q = q.in('data_source_id', orgSourceIds);
 
     const { data: panneauxData, error: pErr } = await q.limit(2000);
     if (pErr)  return { error: pErr.message };

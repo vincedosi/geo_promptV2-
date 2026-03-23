@@ -12,6 +12,7 @@ import {
 import {
   CITY_BASE_RADIUS, getCoordsForVille, getCoordsForRegion, normVille, resolveCategory,
 } from '@/lib/geo/locations';
+import { orgContextStorage } from './orgContext';
 
 const NATIONAL_TERMS = ['france', 'france entiere', 'france entière', 'national', 'tout', 'tous', 'toute'];
 const SELECT_COLS    = 'id, nom, lat, lng, categorie, sous_categorie, adresse, ville, region, departement';
@@ -51,7 +52,14 @@ export async function analyserZone(
   }
 
   const supabase = createAdminClient();
+  const { orgSourceIds = null } = orgContextStorage.getStore() ?? {};
   const poisMap  = new Map<string, PoiRow>();
+
+  // Applique le filtre org (data_source_id) si l'org a des sources restreintes
+  function applyOrgFilter(q: any) {
+    if (orgSourceIds !== null) q = q.in('data_source_id', orgSourceIds);
+    return q;
+  }
 
   function addRows(data: PoiRow[]) {
     for (const p of data) {
@@ -92,13 +100,13 @@ export async function analyserZone(
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${regionNorm}%`).range(from, to);
         if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-        return q;
+        return applyOrgFilter(q);
       });
       if (poisMap.size === 0) {
         await fetchAllPages((from, to) => {
           let q = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${regionNorm}%`).range(from, to);
           if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-          return q;
+          return applyOrgFilter(q);
         });
         if (poisMap.size > 0) console.log(`[chat] region→ville fallback: ${poisMap.size} résultats pour "${region}"`);
       }
@@ -110,7 +118,7 @@ export async function analyserZone(
           .or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`)
           .range(from, to);
         if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-        return q;
+        return applyOrgFilter(q);
       });
     }
 
@@ -119,14 +127,14 @@ export async function analyserZone(
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).ilike('ville', `%${villeKey}%`).range(from, to);
         if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-        return q;
+        return applyOrgFilter(q);
       }, 4000);
 
       if (poisMap.size === 0 && !region) {
         await fetchAllPages((from, to) => {
           let q = supabase.from('poi_france').select(SELECT_COLS).ilike('region', `%${villeKey}%`).range(from, to);
           if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-          return q;
+          return applyOrgFilter(q);
         });
         if (poisMap.size > 0) console.log(`[chat] ville→region fallback: ${poisMap.size} résultats pour "${ville}"`);
       }
@@ -137,12 +145,14 @@ export async function analyserZone(
         // 111_000 m/deg (lat), ajusté par cos(lat) pour lng
         const dlat = effectiveRadius / 111_000;
         const dlng = effectiveRadius / (111_000 * Math.cos((coordonnees.lat * Math.PI) / 180));
-        const { data: bboxData, error: bboxErr } = await supabase
+        let bboxQ = supabase
           .from('poi_france').select(SELECT_COLS)
           .gte('lat', coordonnees.lat - dlat).lte('lat', coordonnees.lat + dlat)
           .gte('lng', coordonnees.lng - dlng).lte('lng', coordonnees.lng + dlng)
           .eq('categorie', resolvedCategory ?? '')
           .limit(1000);
+        bboxQ = applyOrgFilter(bboxQ);
+        const { data: bboxData, error: bboxErr } = await bboxQ;
         if (bboxErr) console.error('[chat] bbox error:', bboxErr.message);
         else addRows((bboxData ?? []) as PoiRow[]);
       }
@@ -152,7 +162,7 @@ export async function analyserZone(
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS).range(from, to);
         if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
-        return q;
+        return applyOrgFilter(q);
       }, 10_000);
     }
   } catch (error) {

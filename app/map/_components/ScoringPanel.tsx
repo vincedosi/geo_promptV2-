@@ -218,7 +218,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
   const loadPanneaux = async (v = ville) => {
     setLoading(true);
     try {
-      const res  = await fetch(`/api/scoring?ville=${encodeURIComponent(v)}&limit=100`);
+      const res  = await fetch(`/api/scoring?ville=${encodeURIComponent(v)}&limit=100`, { cache: 'no-store' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         setComputeMsg(`! Erreur chargement: ${err.error ?? res.statusText}`);
