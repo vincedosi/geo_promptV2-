@@ -621,7 +621,7 @@ export function FilterPanel({
         },
       );
       setV2FillPct(100);
-      setBattleV2Log(prev => [...prev, `> ✓ Cache rempli (${v2FillRings || '?'} isochrones) — relancez Bataille V2`]);
+      setBattleV2Log(prev => [...prev, `> ✓ Cache rempli (${v2FillRings || '?'} isochrones) — lancement Bataille V2...`]);
       // Re-vérifier le statut cache
       const checkRes = await fetch('/api/isochrone-cache-check', {
         method: 'POST',
@@ -629,6 +629,10 @@ export function FilterPanel({
         body: JSON.stringify(buildCheckParams(battleV2Paliers)),
       });
       if (checkRes.ok) setV2CacheStatus(await checkRes.json());
+      // Auto-lancer Bataille V2 maintenant que le cache est complet
+      setV2Filling(false);
+      await handleBattleV2(false);
+      return;
     } catch (e: unknown) {
       if (!(e instanceof Error && e.name === 'AbortError')) setBattleV2Log(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur inconnue'}`]);
     } finally {
