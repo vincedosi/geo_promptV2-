@@ -588,6 +588,7 @@ export function ChatPanel({
                           {runningToolLabels[(runningTool as { type: string }).type] ?? 'Outil en cours…'}
                         </div>
                       )}
+                      {analysePart && <AnalyseCard output={analysePart.output} />}
                       {zonePart    && <ZoneCard zone={zonePart.output as unknown as ZoneData} />}
                       {synergyPart && <SynergyResults zoneData={synergyPart.output as unknown as ZoneData} />}
                       {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as unknown as Parameters<typeof DataGouvCard>[0]['parts']} />}
