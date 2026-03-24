@@ -17,12 +17,10 @@ const ALLOWED_IRIS_COLUMNS = new Set([
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
 
-  const bbox        = searchParams.get('bbox');
-  const colonne     = searchParams.get('colonne') ?? '';
-  const simplify    = parseFloat(searchParams.get('simplify') ?? '0.0005');
-  const maxRows     = parseInt(searchParams.get('max_rows') ?? '5000', 10);
-  const granularity = searchParams.get('granularity') ?? 'iris'; // 'iris' | 'dept'
-  const agg         = searchParams.get('agg') ?? 'sum';          // 'sum' | 'avg'
+  const bbox     = searchParams.get('bbox');
+  const colonne  = searchParams.get('colonne') ?? '';
+  const simplify = parseFloat(searchParams.get('simplify') ?? '0.0005');
+  const maxRows  = parseInt(searchParams.get('max_rows') ?? '5000', 10);
 
   // ── Validation bbox ──────────────────────────────────────────────────────
   if (!bbox) {
@@ -45,46 +43,24 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  let data: unknown = null;
-  let rpcError: { message: string } | null = null;
-  let truncated = false;
-  let featureCount = 0;
+  const { data, error } = await supabase.rpc('get_iris_geojson_by_bbox', {
+    p_west:     west,
+    p_south:    south,
+    p_east:     east,
+    p_north:    north,
+    p_colonne:  safeColonne,
+    p_simplify: safeSimplify,
+    p_max_rows: safeMaxRows,
+  });
 
-  if (granularity === 'dept') {
-    const safeAgg = agg === 'avg' ? 'avg' : 'sum';
-    const res = await supabase.rpc('get_iris_dept_geojson_by_bbox', {
-      p_west:     west,
-      p_south:    south,
-      p_east:     east,
-      p_north:    north,
-      p_colonne:  safeColonne,
-      p_simplify: safeSimplify,
-      p_agg:      safeAgg,
-    });
-    data     = res.data;
-    rpcError = res.error;
-  } else {
-    const res = await supabase.rpc('get_iris_geojson_by_bbox', {
-      p_west:     west,
-      p_south:    south,
-      p_east:     east,
-      p_north:    north,
-      p_colonne:  safeColonne,
-      p_simplify: safeSimplify,
-      p_max_rows: safeMaxRows,
-    });
-    data     = res.data;
-    rpcError = res.error;
-  }
-
-  if (rpcError) {
-    console.error('[iris/geojson] RPC error:', rpcError.message);
+  if (error) {
+    console.error('[iris/geojson] RPC error:', error.message);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 
   const geojson = data as { type: string; features: unknown[] } | null;
-  featureCount = geojson?.features?.length ?? 0;
-  if (granularity === 'iris') truncated = featureCount >= safeMaxRows;
+  const featureCount = geojson?.features?.length ?? 0;
+  const truncated = featureCount >= safeMaxRows;
 
   return NextResponse.json(
     { ...(geojson ?? { type: 'FeatureCollection', features: [] }), truncated },

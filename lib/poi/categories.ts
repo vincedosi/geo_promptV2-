@@ -8,7 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 
 let cachedCategories: string[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60_000; // 60 secondes
+const CACHE_TTL_MS = 300_000; // 5 minutes — les catégories changent rarement en cours de session
 
 /**
  * Récupère toutes les catégories distinctes de la table poi.
@@ -39,7 +39,7 @@ export async function getDistinctCategories(): Promise<string[]> {
         .order('categorie', { ascending: true })
         .limit(1));
       if (!error || !String(error.message).includes('schema cache')) break;
-      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // 500ms / 1s / 1.5s (était 1.5s / 3s / 4.5s)
     }
 
     if (error) {

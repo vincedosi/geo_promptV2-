@@ -20,7 +20,7 @@ export async function GET(
     return new Response('Coordonnées invalides', { status: 400 });
   }
 
-  if (z < 5) return new Response(null, { status: 204 });
+  if (z < 8) return new Response(null, { status: 204 });
 
   const v   = _req.nextUrl.searchParams.get('v') ?? '1';
   const key = `${v}/${z}/${x}/${y}`;

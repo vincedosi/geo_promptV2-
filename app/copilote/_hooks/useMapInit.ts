@@ -426,18 +426,19 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
       // ── IRIS choroplèthe — Vector Tiles MVT ──────────────────────────────────
-      // z 5-6  : agrégation département | z >= 7 : IRIS individuels
+      // z7+ : IRIS individuels (z6 trop grossier — grandes zones rurales visuellement = département)
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
       map.addSource('iris-source', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=3`],
-        minzoom: 5,
+        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=11`],
+        minzoom: 8,
         maxzoom: 14,
       });
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
+        minzoom: 8,
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
@@ -448,10 +449,11 @@ export function useMapInit(
         id: 'iris-border', type: 'line',
         source: 'iris-source',
         'source-layer': 'iris',
+        minzoom: 8,
         paint: {
-          'line-color':   'rgba(0,0,0,0.25)',
-          'line-width':   ['interpolate', ['linear'], ['zoom'], 5, 0.3, 7, 0.5, 11, 0.8],
-          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 7, 0.35, 11, 0.5],
+          'line-color': 'rgba(66,146,198,0.7)',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 8, 0.4, 11, 0.8] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.3, 8, 0.5] as unknown as maplibregl.ExpressionSpecification,
         },
         layout: { visibility: 'none' },
       });

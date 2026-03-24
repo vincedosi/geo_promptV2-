@@ -504,7 +504,7 @@ export function ChatPanel({
               {[
                 { text: 'Lycées et CIRFA à Brest' },
                 { text: 'Lycées à Brest + où vivent les 18-24 ans' },
-                { text: 'Isochrone 5 min à pied autour des lycées à Brest' },
+                { text: "Zone piétonne 5 min autour des lycées à Brest" },
                 { text: 'Zone 15 min voiture autour des CIRFA de Lyon' },
               ].map(({ text }) => (
                 <button key={text} onClick={() => sendMessage(text)} style={{
@@ -581,8 +581,8 @@ export function ChatPanel({
                           {runningToolLabels[(runningTool as { type: string }).type] ?? 'Outil en cours…'}
                         </div>
                       )}
-                      {zonePart    && <ZoneCard zone={zonePart.output as ZoneData} />}
-                      {synergyPart && <SynergyResults zoneData={synergyPart.output as ZoneData} />}
+                      {zonePart    && <ZoneCard zone={zonePart.output as unknown as ZoneData} />}
+                      {synergyPart && <SynergyResults zoneData={synergyPart.output as unknown as ZoneData} />}
                       {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as unknown as Parameters<typeof DataGouvCard>[0]['parts']} />}
                       {coveragePart && (
                         <CoverageCard

@@ -23,6 +23,8 @@ export const IRIS_PALETTES = [
   { id: 'vert',    label: 'Vert',    stops: ['#F7FCF5','#C7E9C0','#74C476','#41AB5D','#238B45','#00441B'] },
   { id: 'chaleur', label: 'Chaleur', stops: ['#FAEEDA','#FAC775','#EF9F27','#D85A30','#993C1D','#501313'] },
   { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
+  { id: 'turbo',   label: 'Turbo',   stops: ['#30123b','#4675ed','#1bcfd4','#61fc6c','#f6a91b','#c42503'] },
+  { id: 'plasma',  label: 'Plasma',  stops: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921'] },
 ];
 
 interface UseMapLayersOpts {
@@ -90,6 +92,7 @@ export function useMapLayers({
 
   // ── IRIS choroplèthe ─────────────────────────────────────────────────────────
   const [irisVisible,    setIrisVisible]    = useState(false);
+  const [irisChoro,      setIrisChoro]      = useState(true);  // false = contours seuls
   const [irisIndicateur, setIrisIndicateur] = useState('pop_15_29');
   const [irisPalette,    _setIrisPalette]   = useState('bleu');
   const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
@@ -98,9 +101,11 @@ export function useMapLayers({
   const irisIndicateurRef = useRef('pop_15_29');
   const irisPaletteRef    = useRef('bleu');
   const irisOpacityRef    = useRef(0.45);
+  const irisChoroRef      = useRef(true);
 
   useEffect(() => { irisIndicateurRef.current = irisIndicateur; }, [irisIndicateur]);
   useEffect(() => { irisPaletteRef.current    = irisPalette;    }, [irisPalette]);
+  useEffect(() => { irisChoroRef.current      = irisChoro;      }, [irisChoro]);
 
   // ── Visibility toggles ────────────────────────────────────────────────────
 
@@ -391,7 +396,7 @@ export function useMapLayers({
     if (deduped.length < 2) return;
     const colors = pal.stops.slice(pal.stops.length - deduped.length);
     const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
-    // Les tiles MVT exposent les colonnes par leur vrai nom (population, pop_15_29…)
+    // Choroplèthe à tous les zooms — z<7 : agrégats département, z>=7 : IRIS individuels
     const expr = [
       'interpolate', ['linear'],
       ['coalesce', ['to-number', ['get', col], 0], 0],
@@ -399,6 +404,19 @@ export function useMapLayers({
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
   }, []);
+
+  // Toggle choroplèthe — bascule entre couleur plate et coloration démographique
+  const toggleIrisChoro = useCallback((choro: boolean) => {
+    irisChoroRef.current = choro;
+    setIrisChoro(choro);
+    const map = mapRef.current;
+    if (!map || !irisVisible) return;
+    if (!choro) {
+      try { map.setPaintProperty('iris-fill', 'fill-color', 'rgba(66,146,198,0.4)'); } catch { /* ok */ }
+    } else if (irisStats?.col_exists) {
+      applyIrisColor(map, irisPaletteRef.current, irisStats);
+    }
+  }, [mapRef, irisVisible, irisStats, applyIrisColor]);
 
   // Setter palette — applique couleur immédiatement si stats disponibles
   const setIrisPalette = useCallback((paletteId: string) => {
@@ -415,8 +433,9 @@ export function useMapLayers({
     const map = mapRef.current;
     if (!map) return;
     try {
-      map.setPaintProperty('iris-fill',   'fill-opacity', v);
-      map.setPaintProperty('iris-border', 'line-opacity', Math.min(v * 0.8, 0.5));
+      // Garde l'expression zoom-dépendante pour éviter les blobs région à bas zoom
+      map.setPaintProperty('iris-fill', 'fill-opacity', v);
+      map.setPaintProperty('iris-border', 'line-opacity', Math.min(v * 0.8, 0.6));
     } catch { /* ok */ }
   }, [mapRef]);
 
@@ -447,15 +466,27 @@ export function useMapLayers({
     }
 
     // Afficher les layers vector tiles
+    const op = irisOpacityRef.current;
     try {
       map.setLayoutProperty('iris-fill',   'visibility', 'visible');
       map.setLayoutProperty('iris-border', 'visibility', 'visible');
-      map.setPaintProperty('iris-fill', 'fill-opacity', irisOpacityRef.current);
+      map.setPaintProperty('iris-fill', 'fill-opacity', op);
     } catch { /* ok */ }
 
-    // Charger les stats France entière pour calibrer les couleurs
+    // Mode contours seuls : couleur plate, pas de chargement stats
+    if (!irisChoroRef.current) {
+      try {
+        map.setPaintProperty('iris-fill', 'fill-color', 'rgba(66,146,198,0.4)');
+      } catch { /* ok */ }
+      return;
+    }
+
+    // Mode choroplèthe : charger les stats France entière pour calibrer la palette
+    // Zoom < 7 → agrégats département (AVG), zoom ≥ 7 → IRIS individuels
     const col = irisIndicateurRef.current;
-    fetch(`/api/iris/stats?colonne=${col}&bbox=-5.5,41.0,10.0,51.5`)
+    const zoom = map.getZoom();
+    const level = zoom < 7 ? 'dept' : 'iris';
+    fetch(`/api/iris/stats?colonne=${col}&bbox=-5.5,41.0,10.0,51.5`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then((stats: IrisStats | null) => {
         if (!stats) return;
@@ -463,7 +494,7 @@ export function useMapLayers({
         if (stats.col_exists) applyIrisColor(map, irisPaletteRef.current, stats, col);
       })
       .catch(() => {});
-  }, [irisVisible, irisIndicateur, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [irisVisible, irisIndicateur, irisChoro, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Visualization functions ───────────────────────────────────────────────
 
@@ -890,6 +921,7 @@ export function useMapLayers({
     carreauxSourcesRef,
     // IRIS
     irisVisible,    setIrisVisible,
+    irisChoro,      toggleIrisChoro,
     irisIndicateur, setIrisIndicateur,
     irisPalette,    setIrisPalette,
     irisOpacity,    setIrisOpacity,

@@ -1,13 +1,13 @@
 
 # GEO.Prompt — AI Media Planning Platform
 
-> **Version** : 7.3.0 — 20 mars 2026
+> **Version** : 7.4.0 — 24 mars 2026
 > **Anciennement** : GENESIS — rebaptisé GEO.Prompt en v4.1.0
 > **Repo** : [vincedosi/geo_promptV2-](https://github.com/vincedosi/geo_promptV2-)
 
 Plateforme SaaS B2B de géomarketing pour planneurs média outdoor (OOH).
 L'utilisateur tape un prompt en français → l'IA extrait des filtres structurés → recherche géospatiale dans Supabase → affichage carte interactive.
-Import CSV/Parquet/Shapefile, sécurité renforcée, Data Lake OOH unifié, et serveur de tuiles vectorielles (MVT) pour les carreaux INSEE.
+Import CSV/Parquet/Shapefile, sécurité renforcée, Data Lake OOH unifié, serveur de tuiles vectorielles (MVT) pour carreaux INSEE et zones IRIS, crawler INSEE intégré.
 
 > **Nouveau dev ?** Commence par lire **[ARCHITECTURE.md](./ARCHITECTURE.md)** — arborescence, flux de données, RPC PostGIS, routes API, variables d'env.
 
@@ -44,6 +44,7 @@ genesis_app/
 │   ├── layout.tsx                         ← Layout global + GenesisNav sidebar
 │   │
 │   ├── copilote/                          ← Page principale : Copilote Media IA
+│   │   ├── layout.tsx                     ← Guard session (redirect /login en prod)
 │   │   ├── page.tsx                       ← Orchestration (~160 lignes, 6 hooks)
 │   │   ├── _hooks/
 │   │   │   ├── useMapInit.ts              ← Init MapLibre GL + markers + patchLabelFr()
@@ -65,6 +66,7 @@ genesis_app/
 │   │       └── constants.ts               ← circleGeoJSON, getCatColor
 │   │
 │   ├── map/                               ← Carte POI standalone
+│   │   ├── layout.tsx                     ← Guard session (redirect /login en prod)
 │   │   ├── page.tsx                       ← Carte interactive (POI, carreaux, Voronoï, Bataille)
 │   │   └── _components/
 │   │       └── FilterPanel.tsx            ← Filtres (catégorie, rayon, couverture cumulée)
@@ -72,10 +74,12 @@ genesis_app/
 │   ├── admin/                             ← Back-office (protected)
 │   │   ├── ooh-import/page.tsx            ← Import OOH ArcGIS REST → global_ooh (streaming NDJSON)
 │   │   ├── import/page.tsx                ← Import Universel (CSV/XLSX/GeoJSON, wizard 5 étapes)
+│   │   ├── imports/page.tsx               ← Historique et gestion des imports
 │   │   ├── carreaux-import/page.tsx       ← Import Carreaux INSEE (upload web, CSV only)
 │   │   ├── filosofi-import/page.tsx       ← Import batch Filosofi (CSV/Parquet)
 │   │   ├── sources/page.tsx               ← Gestion des sources de données (CRUD)
 │   │   ├── organizations/page.tsx         ← Gestion multi-tenant
+│   │   ├── profiles/page.tsx              ← Gestion des profils utilisateurs
 │   │   └── health/page.tsx                ← Health Check système + diagnostics
 │   │
 │   ├── login/page.tsx
@@ -98,7 +102,19 @@ genesis_app/
 │       │   ├── route.ts                   ← GET: sources / POST: GeoJSON bbox
 │       │   └── dynamic/route.ts           ← Requêtes carreaux dynamiques (multi-résolution)
 │       │
-│       ├── tiles/[z]/[x]/[y]/route.ts     ← Serveur MVT (ST_AsMVT PostGIS, zoom ≥10)
+│       ├── tiles/[z]/[x]/[y]/route.ts     ← Serveur MVT carreaux (ST_AsMVT PostGIS, zoom ≥10)
+│       ├── iris-tiles/[z]/[x]/[y]/route.ts ← Serveur MVT zones IRIS (ST_AsMVT, geom IRIS)
+│       │
+│       ├── iris/
+│       │   ├── geojson/route.ts           ← IRIS GeoJSON bbox + colonne (whitelist sécurisée)
+│       │   └── stats/route.ts             ← Stats IRIS par colonne et niveau (iris/dept)
+│       │
+│       ├── iris-crawler/                  ← Crawler INSEE IRIS (5 routes)
+│       │   ├── discover/route.ts          ← Découverte URLs sur page INSEE
+│       │   ├── download/route.ts          ← Téléchargement CSV streaming
+│       │   ├── preview/route.ts           ← Aperçu colonnes + stats
+│       │   ├── status/route.ts            ← Statut téléchargements en cours
+│       │   └── upload/route.ts            ← Upload fichier vers Supabase Storage
 │       │
 │       ├── isochrone-battle/
 │       │   ├── route.ts                   ← Bataille Isochrones (ORS batch, cache, PostGIS v9)
@@ -116,6 +132,7 @@ genesis_app/
 │       ├── inngest/route.ts               ← Webhook Inngest (jobs asynchrones)
 │       │
 │       └── admin/                         ← Routes admin (toutes protégées par requireAdmin())
+│           ├── iris/stats/route.ts        ← Stats admin IRIS (toutes colonnes)
 │           ├── import-poi/
 │           │   ├── parse/route.ts
 │           │   ├── execute/route.ts       ← SSE import POI (streaming temps réel)
@@ -141,7 +158,7 @@ genesis_app/
 │   └── PopulationTileLayer.tsx            ← Couche population MVT (tiles API)
 │
 ├── lib/                                   ← Librairies et utilitaires
-│   ├── version.ts                         ← APP_VERSION = '7.1.0' (TOUJOURS INCRÉMENTER)
+│   ├── version.ts                         ← APP_VERSION = '7.4.0' (TOUJOURS INCRÉMENTER)
 │   ├── auth.ts                            ← createAdminClient(), requireAdmin(), adminFetch()
 │   ├── admin-fetch.ts                     ← Helper adminFetch() côté client
 │   ├── auth-client.ts                     ← Client auth côté navigateur
@@ -165,6 +182,14 @@ genesis_app/
 │   │       ├── classerAudience.ts         ← classer_panneaux_audience
 │   │       ├── scorerOoh.ts               ← scorer_panneaux_ooh
 │   │       └── exporterRapport.ts         ← exporter_rapport_ooh
+│   │
+│   ├── iris-crawler/                      ← Crawler INSEE IRIS — téléchargement & parsing
+│   │   ├── types.ts                       ← IrisCatalogEntry, CatalogStatus, DownloadedBase…
+│   │   ├── catalog.ts                     ← Catalogue jeux de données IRIS (RP, Filosofi, BPE…)
+│   │   ├── parser.ts                      ← Parsing CSV IRIS (headers, stats colonnes)
+│   │   ├── storage.ts                     ← Persistance Supabase Storage (status, download)
+│   │   ├── db-columns.ts                  ← Mapping colonnes CSV → colonnes DB `iris`
+│   │   └── auto-map.ts                    ← Auto-mapping colonnes CSV → schema IRIS
 │   │
 │   ├── mcp/
 │   │   └── datagouv.ts                    ← Client MCP data.gouv.fr (JSON-RPC, sanitizeSchema Gemini)
@@ -261,6 +286,7 @@ genesis_app/
 | **saved_maps** | Analyses géospatiales sauvegardées |
 | **france_borders** | MultiPolygon France métropolitaine (clip Voronoï + isochrones) |
 | **calculation_jobs** | Suivi des jobs de calcul couverture |
+| **iris** | Zones IRIS INSEE — code_iris, nom_iris, code_commune, code_dept, geom (MultiPolygon 4326), colonnes démographiques (population, CSP, tranches d'âge) |
 
 ### Fonctions & RPC PostGIS
 
@@ -270,7 +296,8 @@ genesis_app/
 | `get_isochrone_battle(p_rings JSONB)` | Bataille d'Isochrones v9 — palier-ASC, raw rings (version active) |
 | `get_voronoi_by_category(cat, ...)` | Voronoï géométrique par catégorie POI, clippé France |
 | `compute_coverage_fast(...)` | Couverture audience rapide (colonnes directes, ST_UnaryUnion) |
-| `get_tile_mvt(z, x, y)` | Tuiles vectorielles MVT (ST_AsMVT, zoom ≥10) |
+| `get_tile_mvt(z, x, y)` | Tuiles vectorielles MVT carreaux (ST_AsMVT, zoom ≥10) |
+| `get_iris_tile_mvt(z, x, y)` | Tuiles vectorielles MVT zones IRIS (ST_AsMVT) |
 | `calculate_coverage_per_group(...)` | Couverture par groupe (CIRFAs, dédupliquée) |
 
 ---
@@ -345,6 +372,30 @@ Composants client :
 - `PopulationTileLayer.tsx` — couche MVT population
 
 
+### Zones IRIS (`/api/iris/`, `/api/iris-tiles/`)
+
+Table `iris` : zones géographiques INSEE (2 000+ communes, ~50k zones) avec données démographiques.
+
+- **Tuiles MVT** : `/api/iris-tiles/[z]/[x]/[y]` — rendu MapLibre vectoriel direct via ST_AsMVT
+- **GeoJSON bbox** : `/api/iris/geojson?bbox=...&colonne=pop_15_29` — whitelist colonnes sécurisée (8 colonnes autorisées)
+- **Stats** : `/api/iris/stats?colonne=...&level=iris|dept` — agrégation par niveau
+- Colonnes disponibles : `population`, `pop_0_14`, `pop_15_29`, `pop_30_44`, `pop_45_59`, `pop_60_74`, `pop_75_plus`, `nb_csp_cadre`, `nb_csp_employe`, `nb_csp_ouvrier`
+- Index GIST sur `geom` pour performances spatiales
+
+
+### Crawler INSEE IRIS (`/api/iris-crawler/`)
+
+Pipeline de téléchargement et ingestion des données tabulaires INSEE (RP, Filosofi, BPE, Referentiel) :
+
+1. **Discover** → scrape la page INSEE pour trouver les URLs CSV/ZIP disponibles
+2. **Download** → télécharge en streaming, parse headers + stats colonnes, stocke dans Supabase Storage
+3. **Preview** → aperçu des premières lignes + profil des colonnes (type, null%, min/max, samples)
+4. **Upload** → intègre le fichier dans la table `iris` (auto-mapping colonnes CSV → schema DB)
+5. **Status** → suivi des téléchargements actifs
+
+Catalogue géré dans `lib/iris-crawler/catalog.ts` — 5 catégories : `rp`, `filosofi`, `carreaux`, `bpe`, `referentiel`.
+
+
 ### Couverture Audience Multi-Cibles
 
 - Analyse simultanée de plusieurs points (CIRFAs, zones)
@@ -390,6 +441,7 @@ Table centralisée pour tous les panneaux OOH toutes régies :
 
 - **Toutes les routes** `app/api/admin/*` sont protégées par `requireAdmin()` en première ligne
 - **Pages admin** : utilisent `adminFetch()` (jamais `fetch()` nu)
+- **Pages utilisateur** (`/copilote`, `/map`) : protégées par layout guard session (redirect `/login` en prod, accès libre en dev)
 - **RLS activé** sur toutes les tables publiques (voir `010_security_hardening.sql`)
 - **Policies SQL** : accès lecture/écriture finement contrôlé (service_role, authenticated)
 - **Aucune clé API** ne doit être committée
@@ -438,7 +490,7 @@ INNGEST_SIGNING_KEY=...             # Optionnel
 **Fichier central** : `lib/version.ts`
 
 ```typescript
-export const APP_VERSION = '7.1.0'; // TOUJOURS INCRÉMENTER
+export const APP_VERSION = '7.4.0'; // TOUJOURS INCRÉMENTER
 ```
 
 | Type | Version |
@@ -515,10 +567,12 @@ npx next dev
 | `/dashboard` | Tableau de bord |
 | `/admin/ooh-import` | Import OOH ArcGIS REST → global_ooh |
 | `/admin/import` | Import Universel (CSV/XLSX/GeoJSON) |
+| `/admin/imports` | Historique et gestion des imports |
 | `/admin/carreaux-import` | Import Carreaux INSEE (CSV only) |
 | `/admin/filosofi-import` | Import batch Filosofi (CSV/Parquet) |
 | `/admin/sources` | Gestion des sources de données |
 | `/admin/organizations` | Gestion des organisations |
+| `/admin/profiles` | Gestion des profils utilisateurs |
 | `/admin/health` | Health Check système |
 
 ---
@@ -528,6 +582,7 @@ npx next dev
 
 | Version | Date | Changements cles |
 |---------|------|------------------|
+| **7.4.0** | 2026-03-24 | Zones IRIS : table `iris` + serveur MVT `/api/iris-tiles/[z]/[x]/[y]` + API GeoJSON/stats whitelist colonnes. Crawler INSEE IRIS : pipeline 5 routes (discover/download/preview/upload/status), `lib/iris-crawler/` (catalog, parser, storage, db-columns, auto-map). Layouts session guard `/copilote` et `/map` (redirect prod). Pages admin : `/admin/imports` (historique imports), `/admin/profiles` (gestion profils). Fix bataille v2 auto-trigger après calcul ORS des manquants. |
 | **7.3.0** | 2026-03-20 | Grand nettoyage codebase. TypeScript strict : `catch (e: unknown)` uniformisé (30 fichiers), 0 erreur `tsc --noEmit`. Sécurité : `init-admin GET` protégé, SSRF bloqué sur `geojsonUrl` (whitelist), cache `/map/categories` protégé, org UUID hardcodé → `profile.organization_id`. Perf : N+1 `/admin/organizations` → 3 requêtes fixes. Dead code : 2 fichiers orphelins supprimés, packages `@ai-sdk/anthropic` + `fflate` retirés. Provider Claude retiré (Gemini + Mistral uniquement). |
 | **7.2.0** | 2026-03-18 | Rate limit Upstash Redis (prod multi-instance Vercel). `trimHistory` 8→14 messages. sql/ consolidé (18 scripts archivés, SETUP.md). Middleware passthrough supprimé. 45 tests Vitest (unit + intégration Supabase RPC). 10 erreurs TypeScript corrigées. |
 | **7.1.0** | 2026-03-17 | ORS batch 5 POIs/appel (5× speedup), cache couverture Filosofi dans `isochrones_cache`, stats couverture améliorées, filtrage /map. |
@@ -561,6 +616,7 @@ npx next dev
 | 2 | **Choroplèthe (Carroyage)** | Carreaux INSEE Filosofi 200m/2km/5km, MVT tile server, PMTiles |
 | 3 | **Voronoï (Thiessen)** | Géométrique (`voronoi_analysis`) + Routier (`isochrone_battle` anneaux palier-ASC) |
 | 5 | **Valeurs Uniques (Catégories)** | `getCatColor()`, markers colorés par catégorie |
+| 10 | **Heatmap** | Layer `pois-heatmap` MapLibre (source `pois-heat`), density visualization >300 POIs, fade zoom 11-13 |
 
 ### MVP Vital — Restant
 
@@ -611,4 +667,4 @@ npx next dev
 
 ---
 
-*GEO.Prompt v7.3.0 — AI Media Planning Platform*
+*GEO.Prompt v7.4.0 — AI Media Planning Platform*

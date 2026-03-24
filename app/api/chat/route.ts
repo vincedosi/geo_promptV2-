@@ -89,18 +89,25 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // ── Session + filtre org par data_source_id ───────────────────────────────
-    const session      = await getSessionOrg(request);
+    const t0 = Date.now();
+
+    // ── Session + catégories en parallèle (indépendants) ─────────────────────
+    const [session, categoriesList] = await Promise.all([
+      getSessionOrg(request),
+      getDistinctCategories(),
+    ]);
+
+    // getOrgSourceIds dépend de session — reste séquentiel
     const orgSourceIds = await getOrgSourceIds(session);
-    console.log('[CHAT] session:', session?.orgId ?? 'null', session?.role ?? 'no-session',
+
+    console.log('[CHAT] pre-LLM:', Date.now() - t0, 'ms |',
+      'session:', session?.orgId ?? 'null', session?.role ?? 'no-session',
       '| sources:', orgSourceIds === null ? 'all' : orgSourceIds.length);
 
     const body = await request.json() as {
       messages: UIMessage[]; forceRecalculate?: boolean; provider?: Provider;
     };
     const { messages, forceRecalculate = false, provider = 'gemini' } = body;
-
-    const categoriesList = await getDistinctCategories();
 
     // Opt-in data.gouv MCP : activé uniquement si l'utilisateur mentionne des mots-clés
     const lastUserText   = extractLastUserText(messages);
@@ -118,6 +125,7 @@ export async function POST(request: NextRequest) {
     const modelMessages = await convertToModelMessages(trimmedMessages as any);
     const selectedModel = createModel(provider);
 
+    const t1 = Date.now();
     const result = orgContextStorage.run({ orgSourceIds }, () => streamText({
       model:       selectedModel,
       system:      systemPrompt,
@@ -135,7 +143,7 @@ export async function POST(request: NextRequest) {
         google: { thinkingConfig: { thinkingBudget: 0 } },
       } : undefined,
       onFinish: ({ usage }) => {
-        console.log(`[chat] tokens — input:${usage.inputTokens} output:${usage.outputTokens} total:${usage.totalTokens}`);
+        console.log(`[CHAT] LLM total: ${Date.now() - t1}ms | tokens — input:${usage.inputTokens} output:${usage.outputTokens} total:${usage.totalTokens}`);
       },
     }));
 

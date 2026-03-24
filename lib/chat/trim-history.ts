@@ -4,7 +4,7 @@
  */
 
 const MAX_MESSAGES = 10; // 5 échanges complets
-const KEEP_INTACT  = 2;  // 1 dernier échange préservé intact
+const KEEP_INTACT  = 1;  // uniquement le tout dernier message préservé intact
 
 /**
  * Supprime les champs volumineux des anciens tool results.
@@ -14,10 +14,12 @@ export function stripHeavyFields(result: unknown): unknown {
   if (!result || typeof result !== 'object') return result;
   let r = result as Record<string, unknown>;
 
-  // Strip pois[]
-  if (Array.isArray(r.pois)) {
-    const { pois, ...rest } = r;
-    r = { ...rest, pois: [], nb_pois: (pois as unknown[]).length, _stripped: true };
+  // Strip pois[] — résumé compact si > 5 éléments
+  if (Array.isArray(r.pois) && (r.pois as unknown[]).length > 5) {
+    const pois = r.pois as Array<Record<string, unknown>>;
+    const cats = [...new Set(pois.map(p => p.categorie).filter(Boolean))];
+    const { pois: _p, ...rest } = r;
+    r = { ...rest, nb_resultats: pois.length, categories: cats, _stripped: true };
   }
 
   // Strip isochroneGeoJSON (polygones ORS — très volumineux)
