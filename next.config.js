@@ -43,7 +43,7 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  typescript: { ignoreBuildErrors: true }, // TODO: passer à false après `npx tsc --noEmit` propre
+  typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true },
   // Allow large request bodies — needed for multi-GB carreaux imports
   experimental: {

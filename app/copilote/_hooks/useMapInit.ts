@@ -430,15 +430,15 @@ export function useMapInit(
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
       map.addSource('iris-source', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=11`],
-        minzoom: 8,
+        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=13`],
+        minzoom: 1,
         maxzoom: 14,
       });
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 8,
+        minzoom: 1,
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
@@ -449,7 +449,7 @@ export function useMapInit(
         id: 'iris-border', type: 'line',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 8,
+        minzoom: 1,
         paint: {
           'line-color': 'rgba(66,146,198,0.7)',
           'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 8, 0.4, 11, 0.8] as unknown as maplibregl.ExpressionSpecification,

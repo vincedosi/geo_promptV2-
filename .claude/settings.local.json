@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl:*)",
+      "Bash(\"/c/Program Files/Git/bin/git.exe\" status)",
+      "Bash(cmd.exe /c \"git status\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\GENESIS\\\\genesis_app && git status\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\GENESIS\\\\genesis_app && git status 2>&1\")",
+      "Bash(cmd.exe /c \"cd C:\\\\GENESIS\\\\genesis_app & git status & echo DONE\")",
+      "Bash(export PATH=\"/c/Program Files/Git/cmd:$PATH\")",
+      "Bash(npx next:*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\GENESIS\\\\genesis_app && npx next build 2>&1\")",
+      "Bash(powershell.exe -Command \"Set-Location C:\\\\GENESIS\\\\genesis_app; npx next build 2>&1 | Out-String\")",
+      "Bash(powershell.exe -Command \"Set-Location C:\\\\GENESIS\\\\genesis_app; npx tsc --noEmit --pretty app/login/page.tsx app/layout.tsx components/LayoutShell.tsx 2>&1 | Out-String\")",
+      "Bash(powershell.exe -Command \"Set-Location C:\\\\GENESIS\\\\genesis_app; git checkout -- . 2>&1; git clean -fd 2>&1; git status 2>&1\")",
+      "Bash(powershell.exe -Command \"& 'C:\\\\Program Files\\\\Git\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' show 'HEAD:app/admin/sources/page.tsx'\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Program Files' -Filter git.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName\")",
+      "Bash(powershell.exe -Command \"Get-Command git -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\' -Filter git.exe -Recurse -Depth 4 -ErrorAction SilentlyContinue | Select-Object -First 5 -ExpandProperty FullName\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Users' -Filter git.exe -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 5 -ExpandProperty FullName\")",
+      "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' show 'HEAD:app/admin/sources/page.tsx'\" 2>&1)",
+      "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' checkout HEAD -- 'app/admin/sources/page.tsx' 'app/login/page.tsx' 'app/layout.tsx' 'app/globals.css'\" 2>&1)",
+      "Bash(powershell.exe -Command \"Remove-Item 'C:\\\\GENESIS\\\\genesis_app\\\\components\\\\LayoutShell.tsx' -Force\" 2>&1)",
+      "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' status\" 2>&1)"
+    ]
+  }
+}

@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import postgres from 'postgres';
 import type { Check, TableStats, DatabaseOverview } from '@/types/admin';
 
@@ -16,10 +17,8 @@ function formatBytes(bytes: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  const adminKey = req.headers.get('x-admin-key') ?? req.nextUrl.searchParams.get('key');
-  if (adminKey !== process.env.ADMIN_INIT_KEY) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
-  }
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
 
   const checks: Check[] = [];
 

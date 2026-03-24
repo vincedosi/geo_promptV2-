@@ -170,5 +170,36 @@ export function buildTools(
       execute: (args: Record<string, unknown>) =>
         executeToolCall('calculate_audience_coverage', args, categoriesList, {}),
     },
+
+    ask_configuration: {
+      description: "Appeler cet outil quand l'utilisateur demande une analyse complète, un rapport, une étude, ou un profil d'une zone — même sans précisions supplémentaires. Retourne les options disponibles (cibles démo + catégories POI présentes dans la zone) pour configurer l'analyse. NE PAS demander de clarification : appeler directement.",
+      inputSchema: z.object({
+        perimetre_type:  z.enum(['ville', 'agglomeration', 'departement', 'region', 'isochrone'])
+          .describe('Type de périmètre.'),
+        perimetre_value: z.string().describe('Nom de la zone (ex: Brest, Finistère, Bretagne).'),
+        poi_centre:          z.string().optional().describe('POI centre si isochrone.'),
+        isochrone_minutes:   z.number().optional().describe('Durée isochrone si pertinent.'),
+        isochrone_mode:      z.enum(['driving-car', 'foot-walking', 'cycling-regular']).optional()
+          .describe('Mode isochrone.'),
+      }),
+      execute: (args: Record<string, unknown>) =>
+        executeToolCall('ask_configuration', args, categoriesList, {}),
+    },
+
+    analyse_complete: {
+      description: "Rapport complet d'une zone : démographie multi-indicateurs, panneaux OOH, POI par catégorie. Tout en 1 step. Appeler APRÈS ask_configuration quand l'utilisateur a choisi ses paramètres.",
+      inputSchema: z.object({
+        perimetre_type:  z.enum(['ville', 'agglomeration', 'departement', 'region', 'isochrone'])
+          .describe('Type de périmètre.'),
+        perimetre_value: z.string().describe('Nom de la zone.'),
+        cible:           z.string().describe('Colonne Filosofi cible (ex: ind_18_24).'),
+        poi_categories:  z.array(z.string()).describe('Catégories POI à inclure dans le rapport.'),
+        poi_centre:          z.string().optional().describe('POI centre si isochrone.'),
+        isochrone_minutes:   z.number().optional().describe('Durée isochrone si pertinent.'),
+        isochrone_mode:      z.string().optional().describe('Mode isochrone.'),
+      }),
+      execute: (args: Record<string, unknown>) =>
+        executeToolCall('analyse_complete', args, categoriesList, {}),
+    },
   };
 }
