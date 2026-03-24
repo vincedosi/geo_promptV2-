@@ -40,20 +40,35 @@ function extractToken(request: NextRequest): string | null {
     return authHeader.slice(7);
   }
 
-  // 2. Fallback cookie (Supabase JS v2 peut en écrire un dans certains contextes)
+  // 2. Fallback cookie — gère le format simple ET chunké (@supabase/ssr)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const match       = supabaseUrl.match(/https?:\/\/([^.]+)\./);
   const projectRef  = match?.[1] ?? '';
 
   if (projectRef) {
-    const cookieVal = request.cookies.get(`sb-${projectRef}-auth-token`)?.value;
-    if (cookieVal) {
+    const base = `sb-${projectRef}-auth-token`;
+
+    // Cookie simple
+    const simple = request.cookies.get(base)?.value;
+    if (simple) {
       try {
-        const parsed = JSON.parse(decodeURIComponent(cookieVal)) as { access_token?: string };
+        const parsed = JSON.parse(decodeURIComponent(simple)) as { access_token?: string };
         if (parsed.access_token) return parsed.access_token;
-      } catch {
-        // cookie malformé — ignorer
-      }
+      } catch { /* malformé */ }
+    }
+
+    // Cookie chunké (.0, .1, ...) — format @supabase/ssr
+    const chunks: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const chunk = request.cookies.get(`${base}.${i}`)?.value;
+      if (!chunk) break;
+      chunks.push(chunk);
+    }
+    if (chunks.length > 0) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(chunks.join(''))) as { access_token?: string };
+        if (parsed.access_token) return parsed.access_token;
+      } catch { /* malformé */ }
     }
   }
 
