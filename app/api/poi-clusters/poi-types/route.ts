@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/poi-clusters/poi-types
 // Retourne les types de POI disponibles, avec leur nombre total et leur nb de POI clustérisés.
 // Utilisé par le front et le CLI pour lister les types dynamiquement.
