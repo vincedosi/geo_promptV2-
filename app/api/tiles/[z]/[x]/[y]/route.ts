@@ -67,7 +67,7 @@ export async function GET(
   // 1. Cache mémoire hit
   const cached = tileMemCache.get(key);
   if (cached && now < cached.expires) {
-    return new NextResponse(cached.buf, {
+    return new NextResponse(cached.buf as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.mapbox-vector-tile',
         'Cache-Control': 'public, max-age=3600',
@@ -96,7 +96,7 @@ export async function GET(
   pruneCacheIfNeeded();
   tileMemCache.set(key, { buf: buffer, expires: now + CACHE_TTL_MS });
 
-  return new NextResponse(buffer, {
+  return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/vnd.mapbox-vector-tile',
       'Cache-Control': 'public, max-age=3600',

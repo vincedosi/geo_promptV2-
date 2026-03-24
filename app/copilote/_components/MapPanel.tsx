@@ -336,9 +336,10 @@ export function MapPanel({
             {carreauxRange ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {pal.stops.map((color, i) => {
-                  const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                  const min  = carreauxRange.p5 + i * step;
-                  const max  = carreauxRange.p5 + (i + 1) * step;
+                  const range = carreauxRange!;
+                  const step = (range.p95 - range.p5) / 6;
+                  const min  = range.p5 + i * step;
+                  const max  = range.p5 + (i + 1) * step;
                   const isSelected = carreauxSelectedBucket === i;
                   return (
                     <button

@@ -20,14 +20,14 @@ export async function GET(
     return new Response('Coordonnées invalides', { status: 400 });
   }
 
-  if (z < 8) return new Response(null, { status: 204 });
+  if (z < 1) return new Response(null, { status: 204 });
 
   const v   = _req.nextUrl.searchParams.get('v') ?? '1';
   const key = `${v}/${z}/${x}/${y}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     if (cached.buf.length === 0) return new Response(null, { status: 204 });
-    return new Response(cached.buf, {
+    return new Response(cached.buf as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.mapbox-vector-tile',
         'Cache-Control': 'public, max-age=3600',

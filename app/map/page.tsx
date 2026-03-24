@@ -16,7 +16,7 @@ import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
-import type { ZoneData }       from '@/types/spatial';
+import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
@@ -402,8 +402,7 @@ export default function MapPage() {
     setError(null);
     pendingBattleRef.current = null;
     mapLayers.clearBattlePartialRings();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let battleData: Record<string, any> | null = null;
+    let battleData: BattleResult | null = null;
     try {
       const res = await fetch('/api/isochrone-battle', {
         method: 'POST',
@@ -434,7 +433,7 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: { type: string; message?: string; data?: typeof battleData; rings?: unknown[]; total?: number; completed?: number; err?: number; status?: string } | null = null;
+          let evt: { type: string; message?: string; data?: BattleResult; rings?: unknown[]; total?: number; completed?: number; err?: number; status?: string } | null = null;
           try { evt = JSON.parse(line); } catch { continue; }
           if (!evt) continue;
           if (evt.type === 'error') {
@@ -442,19 +441,21 @@ export default function MapPage() {
             throw new Error(raw.startsWith('<') ? 'Service temporairement indisponible (503/521)' : raw.slice(0, 200));
           }
           if (evt.type === 'result') { battleData = evt.data ?? null; continue; }
-          if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
+          if (evt.type === 'partial_rings' && (evt.rings?.length ?? 0) > 0) {
             // Afficher les anneaux bruts dès qu'ils arrivent (avant ST_Difference)
-            mapLayers.addBattlePartialRings(evt.rings);
-            onProgress?.(`> ◆ +${evt.rings.length} isochrones sur la carte`);
+            mapLayers.addBattlePartialRings(evt.rings! as Parameters<typeof mapLayers.addBattlePartialRings>[0]);
+            onProgress?.(`> ◆ +${evt.rings!.length} isochrones sur la carte`);
           } else if (evt.type === 'pois_loaded') {
-            onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
+            onProgress?.(`> ${evt.total ?? '?'} POIs trouvés — démarrage ORS...`);
           } else if (evt.type === 'progress') {
             if (evt.status === 'bataille_postgis') {
               onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
             } else {
-              const pct = Math.round((evt.completed / evt.total) * 100);
-              const errInfo = evt.err > 0 ? ` (${evt.err} erreurs ORS)` : '';
-              onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%${errInfo}`);
+              const completed = evt.completed ?? 0;
+              const total = evt.total ?? 0;
+              const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+              const errInfo = (evt.err ?? 0) > 0 ? ` (${evt.err} erreurs ORS)` : '';
+              onProgress?.(`> ${completed}/${total} POIs traités — ${pct}%${errInfo}`);
             }
           }
         }
@@ -522,7 +523,7 @@ export default function MapPage() {
     const allPolygons: number[][][][] = [];
     // Grouper les géométries par cirfa_id pour le calcul couverture par POI
     const groupMap = new Map<string, { nom: string; geoms: string[] }>();
-    for (const f of data.battleGeoJSON?.features ?? []) {
+    for (const f of battleData!.battleGeoJSON?.features ?? []) {
       if (f.properties?.feature_type !== 'ring') continue;
       const geom = f.geometry;
       if (!geom) continue;

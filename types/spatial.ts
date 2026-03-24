@@ -42,6 +42,25 @@ export interface BattleData {
   };
 }
 
+/** Shape renvoyée par POST /api/isochrone-battle (stream SSE, événement type='result') */
+export interface BattleResult {
+  battleGeoJSON: { type: 'FeatureCollection'; features: GeoJSON.Feature[] };
+  battleBorders: null;
+  poisForMap: Array<{
+    id: string;
+    nom: string;
+    lat: number;
+    lng: number;
+    categorie?: string;
+    adresse?: string;
+    ville?: string;
+  }>;
+  nb_features: number;
+  nb_pois: number;
+  battleCacheKey: string;
+  error?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Copilote session
 // ---------------------------------------------------------------------------
