@@ -2,7 +2,7 @@
  * GENESIS — API Route — GET /api/admin/health
  * Diagnostic endpoint: vérifie toutes les clés et la connectivité Supabase
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import postgres from 'postgres';
 import type { Check, TableStats, DatabaseOverview } from '@/types/admin';
@@ -15,7 +15,12 @@ function formatBytes(bytes: number): string {
   return `${val < 10 ? val.toFixed(2) : val < 100 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const adminKey = req.headers.get('x-admin-key') ?? req.nextUrl.searchParams.get('key');
+  if (adminKey !== process.env.ADMIN_INIT_KEY) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+
   const checks: Check[] = [];
 
   // ============================================================

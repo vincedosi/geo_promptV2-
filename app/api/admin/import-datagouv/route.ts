@@ -13,6 +13,7 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const maxDuration = 300; // 5 minutes pour les gros datasets
 
@@ -84,6 +85,9 @@ function featureToRow(
 // ─── Handler principal ───────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   let geojsonUrl: string;
   let categorie: string;
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { loadBase } from '@/lib/iris-crawler/storage';
 import { IRIS_DB_COLUMN_NAMES } from '@/lib/iris-crawler/db-columns';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,8 @@ export const dynamic = 'force-dynamic';
 //   mapping: Record<string,string> // csvCol → irisTableCol
 // }
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

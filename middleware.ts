@@ -21,7 +21,7 @@ import { NextResponse }   from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // ── Routes protégées ───────────────────────────────────────────────────────────
-const PROTECTED_API_PREFIXES  = ['/api/chat', '/api/scoring', '/api/map'];
+const PROTECTED_API_PREFIXES  = ['/api/chat', '/api/scoring', '/api/map', '/api/admin', '/api/iris-crawler'];
 const PROTECTED_PAGE_PREFIXES = ['/map', '/copilote'];
 
 function isProtectedApi(pathname: string): boolean {
@@ -108,5 +108,7 @@ export const config = {
     '/api/chat/:path*',
     '/api/scoring/:path*',
     '/api/map/:path*',
+    '/api/admin/:path*',
+    '/api/iris-crawler/:path*',
   ],
 };

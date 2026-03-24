@@ -79,7 +79,9 @@ function extractLastUserText(messages: UIMessage[]): string {
 // =============================================================================
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'anon';
+  // Prendre la dernière IP du header (ajoutée par Vercel/CDN, non forgeable par le client)
+  const forwarded = request.headers.get('x-forwarded-for') ?? '';
+  const ip = forwarded.split(',').at(-1)?.trim() || 'anon';
   const rl  = await checkRateLimit(ip);
   if (!rl.ok) {
     return new Response(

@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/auth";
 export async function POST(request: Request) {
   try {
     const authKey = request.headers.get("x-admin-key");
-    if (authKey !== process.env.ADMIN_INIT_KEY && process.env.NODE_ENV === "production") {
+    if (authKey !== process.env.ADMIN_INIT_KEY) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

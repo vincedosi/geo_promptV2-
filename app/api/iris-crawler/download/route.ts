@@ -5,13 +5,26 @@ import { parseInseeValue, classifyColumns } from '@/lib/iris-crawler/parser';
 import { saveBase } from '@/lib/iris-crawler/storage';
 import { getCatalogEntry } from '@/lib/iris-crawler/catalog';
 import type { DownloadedBase, DownloadStreamEvent } from '@/lib/iris-crawler/types';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 // Pas de maxDuration en dev local — laisser tourner le temps nécessaire
 
+// Whitelist SSRF : seuls ces domaines sont autorisés pour le téléchargement
+const ALLOWED_CSV_DOMAINS = [
+  'www.insee.fr',
+  'static.data.gouv.fr',
+  'data.gouv.fr',
+  'insee.fr',
+  'files.data.gouv.fr',
+];
+
 // POST /api/iris-crawler/download
 // Body: { catalogId: string, csvUrl: string }
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -26,6 +39,31 @@ export async function POST(req: NextRequest) {
 
         if (!catalogId || !csvUrl) {
           send({ type: 'error', message: 'catalogId et csvUrl requis' });
+          controller.close();
+          return;
+        }
+
+        // ── Validation URL (anti-SSRF) ────────────────────────────────────────
+        let csvUrlObj: URL;
+        try {
+          csvUrlObj = new URL(csvUrl);
+        } catch {
+          send({ type: 'error', message: 'URL invalide' });
+          controller.close();
+          return;
+        }
+
+        if (csvUrlObj.protocol !== 'https:' || !ALLOWED_CSV_DOMAINS.includes(csvUrlObj.hostname)) {
+          send({ type: 'error', message: 'Domaine non autorisé. Seuls les domaines INSEE/data.gouv.fr sont acceptés.' });
+          controller.close();
+          return;
+        }
+
+        const h = csvUrlObj.hostname;
+        if (h === 'localhost' || h === '[::1]' ||
+            h.startsWith('127.') || h.startsWith('169.254.') ||
+            h.startsWith('10.') || h.startsWith('192.168.')) {
+          send({ type: 'error', message: 'Adresse non autorisée' });
           controller.close();
           return;
         }

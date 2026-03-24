@@ -7,6 +7,7 @@
 
 import { createAdminClient } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const maxDuration = 60;
 
@@ -15,6 +16,9 @@ const CHUNK_SIZE   = 5;
 const TOTAL_CHUNKS = Math.ceil(TOTAL_CITIES / CHUNK_SIZE);
 
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const sb = createAdminClient();
   const { searchParams } = new URL(req.url);
   const chunkParam = searchParams.get('chunk');
