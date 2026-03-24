@@ -104,7 +104,7 @@ export function useSignIn() {
       const { error: sbError } = await sb.auth.signInWithPassword({ email, password });
       if (sbError) throw new Error(sbError.message);
       const params = new URLSearchParams(window.location.search);
-      window.location.href = params.get('redirect') || "/dashboard";
+      window.location.href = params.get('redirect') || "/map";
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);
