@@ -1,21 +1,15 @@
 /**
  * GENESIS — Middleware Next.js
  *
- * Protège les routes métier : vérifie la présence d'un token de session
- * avant d'autoriser l'accès aux pages et aux API.
- *
- * Stratégie :
- * - Lecture du token depuis Authorization: Bearer ou cookie Supabase
- * - Sans token :
+ * Protège les routes métier via @supabase/ssr :
+ * - Valide le token JWT (appel getUser, pas juste présence du cookie)
+ * - Rafraîchit le token automatiquement si expiré
+ * - Sans token valide :
  *     API  → 401 JSON
  *     Page → redirect /login?redirect=<pathname>
- *
- * NOTE : Ce middleware effectue uniquement un contrôle de présence du token
- * (sans appel réseau Supabase, pour rester < 1 ms sur l'edge).
- * La validation réelle (getUser + profile) est faite dans chaque route
- * via getSessionOrg(request).
  */
-import { NextResponse }   from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // ── Routes protégées ───────────────────────────────────────────────────────────
@@ -61,82 +55,64 @@ function isProtectedPage(pathname: string): boolean {
   return PROTECTED_PAGE_PREFIXES.some(p => pathname.startsWith(p));
 }
 
-// ── Extraction légère du token ─────────────────────────────────────────────────
-// Pas de validation réseau ici — juste détecter la présence d'un token.
-function extractToken(request: NextRequest): string | null {
-  // 1. Authorization: Bearer <token>
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7);
-
-  // 2. Cookie Supabase sb-<projectRef>-auth-token
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const match       = supabaseUrl.match(/https?:\/\/([^.]+)\./);
-  const projectRef  = match?.[1] ?? '';
-
-  if (projectRef) {
-    const base = `sb-${projectRef}-auth-token`;
-
-    // Supabase JS v2 : cookie simple
-    const simple = request.cookies.get(base)?.value;
-    if (simple) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(simple)) as { access_token?: string };
-        if (parsed.access_token) return parsed.access_token;
-      } catch { /* malformé */ }
-    }
-
-    // Supabase JS v2 : cookie chunké (.0, .1, ...)
-    const chunks: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      const chunk = request.cookies.get(`${base}.${i}`)?.value;
-      if (!chunk) break;
-      chunks.push(chunk);
-    }
-    if (chunks.length > 0) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(chunks.join(''))) as { access_token?: string };
-        if (parsed.access_token) return parsed.access_token;
-      } catch { /* malformé */ }
-    }
-  }
-
-  return null;
-}
-
 // ── Middleware principal ───────────────────────────────────────────────────────
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token        = extractToken(request);
+  let response = NextResponse.next({ request });
+
+  // Création du client Supabase SSR avec gestion des cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // Validation réelle du token (+ refresh automatique si expiré)
+  const { data: { user } } = await supabase.auth.getUser();
 
   // ── Routes API protégées ──────────────────────────────────────────────────
   if (isProtectedApi(pathname)) {
-    if (!token) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Non authentifié — fournissez un token Bearer valide." },
+        { error: 'Non authentifié — fournissez un token Bearer valide.' },
         { status: 401 }
       );
     }
-    return NextResponse.next();
+    return response;
   }
 
   // ── Pages protégées ───────────────────────────────────────────────────────
   if (isProtectedPage(pathname)) {
-    if (!token) {
+    if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = '/login';
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return response;
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 // ── Matcher ───────────────────────────────────────────────────────────────────
 // Exclut /api/inngest (webhook propre) et /api/auth/* (flux OAuth Supabase).
-// Exclut les assets statiques, _next, favicon, etc.
 export const config = {
   matcher: [
     '/map/:path*',

@@ -1,33 +1,16 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 import { useState, useEffect, useCallback } from "react";
 
-// ---------- Cookie storage adapter (pour que le middleware edge puisse lire le token) ----------
-const cookieStorage = {
-  getItem: (key: string): string | null => {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(new RegExp('(?:^|; )' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
-  },
-  setItem: (key: string, value: string): void => {
-    if (typeof document === 'undefined') return;
-    document.cookie = `${key}=${encodeURIComponent(value)};path=/;max-age=31536000;SameSite=Lax`;
-  },
-  removeItem: (key: string): void => {
-    if (typeof document === 'undefined') return;
-    document.cookie = `${key}=;path=/;max-age=0`;
-  },
-};
-
 // ---------- Supabase browser client (singleton) ----------
-let _browser: ReturnType<typeof createClient> | null = null;
+// createBrowserClient gère les cookies automatiquement (HttpOnly via SSR)
+let _browser: ReturnType<typeof createBrowserClient> | null = null;
 function getBrowserClient() {
   if (!_browser) {
-    _browser = createClient(
+    _browser = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { storage: cookieStorage, persistSession: true } }
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
   }
   return _browser;
