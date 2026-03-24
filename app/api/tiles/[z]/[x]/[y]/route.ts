@@ -1,10 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Client créé à la demande pour éviter l'évaluation au build time (env vars absentes)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +30,7 @@ function pruneCacheIfNeeded() {
 }
 
 async function fetchTileBuffer(zoom: number, tileX: number, tileY: number): Promise<Buffer | null> {
-  const { data, error } = await supabase.rpc('get_tile', { z: zoom, x: tileX, y: tileY });
+  const { data, error } = await getSupabase().rpc('get_tile', { z: zoom, x: tileX, y: tileY });
 
   if (error) {
     console.error(`[tiles] ${zoom}/${tileX}/${tileY} error:`, error.message);
