@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createModel } from '@/lib/chat/providers';
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/analysis
 // Body: { ville, kpis, tiers, top_panneaux, radar, profile_nom, context? }
 export async function POST(req: NextRequest) {

@@ -10,6 +10,8 @@ import { geocodeSingle, scoreToStatus } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult, GeocodeReviewData } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 
 export async function POST(request: NextRequest) {

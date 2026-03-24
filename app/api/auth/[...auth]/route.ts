@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Catch-all auth route.
  * Auth is handled client-side via Supabase JS SDK.

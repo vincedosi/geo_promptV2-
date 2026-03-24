@@ -20,6 +20,8 @@ import { createAdminClient } from '@/lib/auth';
 import { spawn }             from 'child_process';
 import path                  from 'path';
 
+export const dynamic = 'force-dynamic';
+
 const SCRIPT_PATH = path.resolve(process.cwd(), 'scripts', 'clustering_poi_filosofi.py');
 const LOG_MAX     = 8000;
 

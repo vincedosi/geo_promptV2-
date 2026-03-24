@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/scoring/dashboard?ville=Brest
 export async function GET(req: NextRequest) {
   const ville = req.nextUrl.searchParams.get('ville');

@@ -15,6 +15,8 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 300;
 
 const BATCH_SIZE    = 500;

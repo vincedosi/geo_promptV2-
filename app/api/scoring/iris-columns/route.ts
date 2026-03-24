@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/scoring/iris-columns
 // Retourne les colonnes démographiques IRIS disponibles pour le scoring
 export async function GET() {

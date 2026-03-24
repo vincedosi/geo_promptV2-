@@ -7,6 +7,8 @@
 import { NextResponse } from 'next/server';
 import { orchestrate }  from '@/lib/smart-prompt/orchestrator';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 30;
 
 export async function POST(req: Request) {

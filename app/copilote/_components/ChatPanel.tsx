@@ -9,6 +9,7 @@ import { TypingDots }      from './TypingDots';
 import { PromptsPanel }    from './PromptsPanel';
 import { ChatMarkdown }    from './ChatMarkdown';
 import { DataGouvCard }    from './DataGouvCard';
+import { AnalyseCard }     from './AnalyseCard';
 import { useSmartPrompt }  from '../_hooks/useSmartPrompt';
 import type { Provider, ProviderStatus } from '../_hooks/useProviderSelector';
 import type { SmartPromptResponse, AgentName } from '@/lib/smart-prompt/types';
@@ -546,6 +547,12 @@ export function ChatPanel({
               ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).find(p =>
                   p.type === 'tool-analyze_poi_synergy' &&
                   p.state === 'output-available' && p.output?._synergy)
+              : null;
+
+            const analysePart = msg.role === 'assistant'
+              ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).find(p =>
+                  p.type === 'tool-analyse_complete' &&
+                  p.state === 'output-available' && p.output?.type === 'analyse_complete')
               : null;
 
             const datagouvParts = msg.role === 'assistant'

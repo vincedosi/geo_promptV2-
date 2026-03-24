@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/poi-clusters/poi/[poiId]
 // Retourne les profils d'un POI pour toutes les durées disponibles
 // Utilisé par le mode "comparer durées" du ClusterPanel (Phase 9)

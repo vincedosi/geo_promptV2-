@@ -14,6 +14,8 @@ import { geocodeBatchDetailed } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
 

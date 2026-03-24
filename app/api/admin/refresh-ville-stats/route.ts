@@ -9,6 +9,8 @@ import { createAdminClient } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 60;
 
 const TOTAL_CITIES = 300;

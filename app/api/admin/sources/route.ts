@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();

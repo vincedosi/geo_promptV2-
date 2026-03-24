@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/admin/init-admin
  *

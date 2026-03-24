@@ -13,6 +13,8 @@ import { parseShapefile } from '@/lib/import/shp-parser';
 import { detectColumns, suggestMapping } from '@/lib/import/column-detector';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-panneaux');
 
 function ensureTempDir() {

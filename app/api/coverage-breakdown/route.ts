@@ -6,6 +6,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 300;
 
 const RPC_TIMEOUT_MS = 120_000; // 120s — dépasse le timeout client Supabase JS par défaut (~8s)

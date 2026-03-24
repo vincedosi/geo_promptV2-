@@ -15,6 +15,8 @@ import { createAdminClient } from '@/lib/auth';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 300; // 5 minutes pour les gros datasets
 
 const CHUNK_SIZE = 500;

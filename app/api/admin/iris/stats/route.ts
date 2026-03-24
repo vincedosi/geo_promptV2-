@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 const STATIC_STATS = {
   nb_depts:    104,
   nb_communes: 34921,

@@ -22,6 +22,8 @@ import { requireAdmin } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import type { FieldMapping, GeoConfig } from '@/lib/import/types';
 
+export const dynamic = 'force-dynamic';
+
 // Extend timeout for large imports (Vercel Pro = 300s, Hobby = 60s)
 export const maxDuration = 300;
 

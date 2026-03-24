@@ -15,6 +15,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // Codes département des DROM-COM (exclus si metropolitaine=true)
 const DROM_COM_DEPTS = new Set(['971', '972', '973', '974', '975', '976']);
 

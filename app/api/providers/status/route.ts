@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 // Cache 5 minutes
 const CACHE_TTL = 5 * 60_000;
 

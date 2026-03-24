@@ -6,6 +6,8 @@ import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 // ── Filtre org : retourne les IDs de sources autorisées pour cette session ─────
 // null = pas de filtre (super_admin ou dev sans session)
 // []   = aucune source configurée → aucun POI accessible

@@ -12,6 +12,8 @@ import { parseFile, parseShapefile, type ShapefileBundle } from '@/lib/import/fi
 import { detectColumns, suggestMapping } from '@/lib/import/column-detector';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
+export const dynamic = 'force-dynamic';
+
 // Temp directory for uploaded files
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 

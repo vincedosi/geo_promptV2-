@@ -5,6 +5,8 @@
 import { NextResponse }    from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export const revalidate = 300;
 
 const CLUSTER_COLORS = [

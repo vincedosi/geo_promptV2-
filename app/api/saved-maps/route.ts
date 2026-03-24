@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET  /api/saved-maps → liste des cartes sauvegardées
 // POST /api/saved-maps → créer une sauvegarde
 // DELETE /api/saved-maps?id=xxx → supprimer

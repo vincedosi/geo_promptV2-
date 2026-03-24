@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 const VALID_INDICATORS = new Set([
   // population
   'population_totale', 'population_inconnue',

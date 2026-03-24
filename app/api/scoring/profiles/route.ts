@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/scoring/profiles — liste des profils filtrée par org
 export async function GET(req: NextRequest) {
   try {

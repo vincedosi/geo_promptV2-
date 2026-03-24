@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
+export const dynamic = 'force-dynamic';
+
 interface OohPoi {
   rank: number;
   id: string;

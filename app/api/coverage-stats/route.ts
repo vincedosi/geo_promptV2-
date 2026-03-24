@@ -22,6 +22,8 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient }  from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 120;
 
 // SQL statement_timeout = '25s' → JS abort à 28s pour lire le message d'erreur SQL

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/scoring/isochrones?ville=Brest
 // Retourne les GeoJSON des isochrones en cache pour une ville, prêts pour MapLibre.
 export async function GET(req: NextRequest) {

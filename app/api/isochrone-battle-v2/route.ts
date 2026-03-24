@@ -14,6 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient }         from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 300;
 
 const CACHE_CHUNK = 200;

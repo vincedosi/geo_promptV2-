@@ -19,6 +19,8 @@ export const maxDuration = 120;
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
+export const dynamic = 'force-dynamic';
+
 const RL_MAX    = 12;
 const RL_WINDOW = '60 s' as const;
 

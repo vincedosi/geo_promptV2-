@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient }         from '@/lib/auth';
 import { inngest }                   from '@/lib/inngest/client';
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 30;
 
 

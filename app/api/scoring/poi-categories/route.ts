@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/scoring/poi-categories
 // Retourne les catégories POI disponibles avec leurs comptages
 export async function GET() {
