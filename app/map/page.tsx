@@ -770,7 +770,7 @@ export default function MapPage() {
       <FilterPanel
         chatSlot={
           <ChatPanel
-            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none' }}
+            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', flexShrink: 0 }}
             hideHeader={true}
             messages={chat.messages}
             isLoading={chat.isLoading}

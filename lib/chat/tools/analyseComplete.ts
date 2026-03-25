@@ -58,6 +58,7 @@ export async function analyseComplete(args: Record<string, unknown>) {
     : getCoordsForVille(perimetre_value);
   const rayon_km = RAYON_PAR_TYPE[perimetre_type] ?? 5;
   const geoField = perimetre_type === 'region' ? 'region' : 'ville';
+  console.log('[analyse_complete] coords:', coords, 'rayon_km:', rayon_km);
 
   // ── 1. Requêtes démo multi-indicateurs ────────────────────────────────────
   const demoPromises = INDICATEURS_PROFIL.map(ind =>
@@ -97,8 +98,12 @@ export async function analyseComplete(args: Record<string, unknown>) {
   // ── Traitement démo ───────────────────────────────────────────────────────
   const demoMap: Record<string, DemoRow> = {};
   INDICATEURS_PROFIL.forEach((ind, i) => {
-    demoMap[ind] = (demoResults[i].data ?? {}) as DemoRow;
+    const r = demoResults[i];
+    if (r.error) console.error(`[analyse_complete] RPC error for ${ind}:`, r.error);
+    demoMap[ind] = (r.data ?? {}) as DemoRow;
   });
+  console.log('[analyse_complete] demo ind:', JSON.stringify(demoMap['ind']));
+  console.log('[analyse_complete] demo ind_18_24:', JSON.stringify(demoMap['ind_18_24']));
 
   const popTotale  = Math.round(demoMap['ind']?.total ?? 0);
   const cibleKey   = (INDICATEURS_PROFIL as readonly string[]).includes(cible) ? cible : 'ind_18_24';

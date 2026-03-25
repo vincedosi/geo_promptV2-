@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
@@ -284,6 +284,35 @@ export function FilterPanel({
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity,
   scoringMapRef, scoringMapReady, onScoreComputed,
 }: FilterPanelProps) {
+
+  // ── Panel resize ──────────────────────────────────────────────────────────
+  const [panelWidth, setPanelWidth] = useState(320);
+  const isResizingRef   = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWRef = useRef(0);
+
+  const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    isResizingRef.current   = true;
+    resizeStartXRef.current = e.clientX;
+    resizeStartWRef.current = panelWidth;
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newW = Math.max(260, Math.min(720, resizeStartWRef.current + ev.clientX - resizeStartXRef.current));
+      setPanelWidth(newW);
+    };
+    const onMouseUp = () => {
+      isResizingRef.current          = false;
+      document.body.style.cursor     = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup',   onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup',   onMouseUp);
+  }, [panelWidth]);
 
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
   const [poiTypes, setPoiTypes] = useState<{ id: string; label: string }[]>([]);
@@ -798,10 +827,21 @@ export function FilterPanel({
 
   return (
     <div style={{
-      width: 320, minWidth: 320, height: '100%',
+      width: panelWidth, minWidth: 260, height: '100%',
       background: C.bgPanel, borderRight: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      position: 'relative', flexShrink: 0,
     }}>
+      {/* ── Resize handle ── */}
+      <div
+        onMouseDown={onResizeMouseDown}
+        style={{
+          position: 'absolute', top: 0, right: 0, width: 4, height: '100%',
+          cursor: 'col-resize', zIndex: 50, background: 'transparent',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(168,85,247,0.35)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+      />
 
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}

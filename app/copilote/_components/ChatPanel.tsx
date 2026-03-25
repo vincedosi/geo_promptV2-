@@ -242,6 +242,10 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [showPromptsPanel, setShowPromptsPanel] = useState(false);
 
+  // ── Scroll-to-top ───────────────────────────────────────────────────────────
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
   // ── Smart Prompt state ─────────────────────────────────────────────────────
   const [smartMode, setSmartMode]         = useState<SmartModeState>('auto');
   const [smartMessages, setSmartMessages] = useState<SmartMessage[]>([]);
@@ -336,7 +340,7 @@ export function ChatPanel({
   const isDisabled = isLoading || smartPrompt.loading;
 
   return (
-    <div style={{ width: 400, minWidth: 360, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, ...containerStyle }}>
+    <div style={{ width: 400, minWidth: 300, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, position: 'relative', ...containerStyle }}>
 
       {/* ── Header ── */}
       {!hideHeader ? (
@@ -496,7 +500,11 @@ export function ChatPanel({
       )}
 
       {/* ── Messages (flux unifié chat + smart) ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div
+        ref={scrollContainerRef}
+        onScroll={e => setShowScrollTop((e.currentTarget as HTMLDivElement).scrollTop > 300)}
+        style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}
+      >
 
         {/* Empty state */}
         {messages.length === 0 && smartMessages.length === 0 && (
@@ -702,6 +710,23 @@ export function ChatPanel({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* ── Scroll-to-top button ── */}
+      {showScrollTop && (
+        <button
+          onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          title="Remonter en haut"
+          style={{
+            position: 'absolute', bottom: 72, right: 14,
+            width: 28, height: 28, borderRadius: 2,
+            background: C.bgElevated, border: `1px solid ${C.borderLight}`,
+            color: C.accent, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1, zIndex: 20,
+            boxShadow: `0 0 8px rgba(168,85,247,0.15)`,
+          }}
+        >↑</button>
+      )}
 
       {/* ── Input ── */}
       <div style={{ padding: '12px 16px', borderTop: `1px solid ${smartMode === 'smart' ? 'rgba(61,255,160,0.3)' : C.border}`, transition: 'border-color 0.2s' }}>
