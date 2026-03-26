@@ -1,0 +1,66 @@
+name: Generate IRIS PMTiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      zoom_min:
+        description: 'Zoom minimum (défaut 5 — France entière visible)'
+        default: '5'
+      zoom_max:
+        description: 'Zoom maximum (défaut 14 — détail IRIS)'
+        default: '14'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install tippecanoe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tippecanoe
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        working-directory: .
+
+      - name: Export IRIS NDJSON from Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node .github/scripts/export-iris-ndjson.mjs
+
+      - name: Run tippecanoe
+        run: |
+          tippecanoe \
+            -o iris.pmtiles \
+            -Z ${{ github.event.inputs.zoom_min }} \
+            -z ${{ github.event.inputs.zoom_max }} \
+            --no-feature-limit \
+            --no-tile-size-limit \
+            --coalesce-densest-as-needed \
+            --extend-zooms-if-still-dropping \
+            -l iris \
+            iris.ndjson
+          ls -lh iris.pmtiles
+
+      - name: Upload PMTiles to Supabase Storage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node .github/scripts/upload-iris-pmtiles.mjs
+
+      - name: Upload as artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iris-pmtiles
+          path: iris.pmtiles
+          retention-days: 7
