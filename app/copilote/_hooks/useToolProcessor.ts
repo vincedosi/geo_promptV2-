@@ -5,6 +5,13 @@ import type { UIMessage } from 'ai';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 import type { OohExportData } from '../_lib/ooh-export';
 
+export interface CorrelationActionParams {
+  poiCategory: string;
+  irisMetric:  string;
+  departement: string | null;
+  autoAnalyse: boolean;
+}
+
 interface UseToolProcessorOpts {
   messages: UIMessage[];
   setZoneData: React.Dispatch<React.SetStateAction<ZoneData | null>>;
@@ -19,6 +26,7 @@ interface UseToolProcessorOpts {
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
   triggerOohExport: (data: OohExportData) => Promise<void>;
+  setCorrelationParams?: (p: CorrelationActionParams) => void;
 }
 
 export function useToolProcessor({
@@ -33,6 +41,7 @@ export function useToolProcessor({
   carreauxConfigForSaveRef,
   flyToCoords,
   triggerOohExport,
+  setCorrelationParams,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
@@ -156,6 +165,17 @@ export function useToolProcessor({
             }
             if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
           }
+
+        } else if (toolName === 'analyse_correlation' && result?.action === 'analyse_correlation') {
+          setCorrelationParams?.({
+            poiCategory: result.poiCategory,
+            irisMetric:  result.irisMetric  ?? 'population',
+            departement: result.departement ?? null,
+            autoAnalyse: result.autoAnalyse !== false,
+          });
+
+        } else if (toolName === 'analyse_complete' && result?.coordonnees) {
+          flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
 
         } else if (toolName === 'isochrone_battle' && result) {
           if (result.error) {

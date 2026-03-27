@@ -6,7 +6,9 @@
 
 export const KNOWN_FILOSOFI_COLS = [
   'Ind', 'Ind_0_3', 'Ind_4_5', 'Ind_6_10', 'Ind_11_17', 'ind_18_24',
-  'Ind_25_39', 'Ind_40_54', 'Ind_55_64', 'Ind_65_79', 'Ind_80p', 'Men', 'rev_median',
+  'Ind_25_39', 'Ind_40_54', 'Ind_55_64', 'Ind_65_79', 'Ind_80p', 'Men', 'ind_snv',
+  // ind_snv = somme niveaux de vie (carreaux Filosofi). Revenu par personne = SUM(ind_snv)/SUM(ind)
+  // rev_median est dans la table IRIS, pas carreaux_filosofi — ne pas l'ajouter ici
 ] as const;
 
 const TO_RAD = Math.PI / 180;

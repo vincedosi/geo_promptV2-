@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
+import { Protocol } from 'pmtiles';
+import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
 import type { ZoneData } from '@/types/spatial';
 
 interface SelectedBillboard {
@@ -58,6 +60,10 @@ export function useMapInit(
 
     const DEFAULT_CENTER: [number, number] = [2.3, 46.6];
     const DEFAULT_ZOOM = 5.5;
+
+    // Protocole PMTiles — enregistré une fois avant toute création de map
+    const pmtilesProtocol = new Protocol();
+    maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -299,6 +305,27 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
+      // ── TMJA — Comptages routiers (LineStrings colorées par volume) ─────
+      map.addSource('tmja-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        paint: {
+          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 8, 2.5, 11, 4] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'line-color': [
+            'step', ['get', 'tmja'],
+            '#4292C6',   // < 5 000 : bleu
+            5000,  '#f6d543',  // 5 000–15 000 : jaune
+            15000, '#f97316',  // 15 000–40 000 : orange
+            40000, '#ef4444',  // > 40 000 : rouge
+          ] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'line-opacity': 0.85,
+        },
+        layout: { visibility: 'none' },
+      });
+
       // ── Zone circle ──────────────────────────────────────────────────────
       map.addSource('zone-circle', {
         type: 'geojson',
@@ -425,37 +452,56 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
-      // ── IRIS choroplèthe — Vector Tiles MVT ──────────────────────────────────
-      // z7+ : IRIS individuels (z6 trop grossier — grandes zones rurales visuellement = département)
+      // ── IRIS choroplèthe — PMTiles statique (tippecanoe) ─────────────────────
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
+      console.log('[MAP-INIT] Adding iris-source — url:', `pmtiles://${IRIS_PMTILES_URL}`);
       map.addSource('iris-source', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/iris-tiles/{z}/{x}/{y}?v=13`],
-        minzoom: 1,
-        maxzoom: 14,
+        url: `pmtiles://${IRIS_PMTILES_URL}`,
+        attribution: 'IGN — IRIS 2023',
       });
+      console.log('[MAP-INIT] Adding iris-fill layer — source: iris-source, source-layer: iris, minzoom: 5, visibility: none');
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 1,
+        minzoom: 5,
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
         },
         layout: { visibility: 'none' },
       });
+      console.log('[MAP-INIT] Adding iris-border layer — source: iris-source, source-layer: iris, minzoom: 5, visibility: none');
       map.addLayer({
         id: 'iris-border', type: 'line',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 1,
+        minzoom: 5,
         paint: {
           'line-color': 'rgba(66,146,198,0.7)',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 8, 0.4, 11, 0.8] as unknown as maplibregl.ExpressionSpecification,
-          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.3, 8, 0.5] as unknown as maplibregl.ExpressionSpecification,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 10, 0.4, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 10, 0.4, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
         },
         layout: { visibility: 'none' },
+      });
+      console.log('[MAP-INIT] iris-source + iris-fill + iris-border added OK');
+
+      // [TEMP-DIAG] Listener sourcedata pour vérifier le chargement des tuiles IRIS
+      map.on('sourcedata', (e) => {
+        if (e.sourceId?.includes('iris') && e.isSourceLoaded) {
+          console.log('[MAP-TILES] iris source loaded — sourceId:', e.sourceId);
+          try {
+            const features = map.querySourceFeatures(e.sourceId, { sourceLayer: 'iris' });
+            console.log('[MAP-TILES] iris source features (current viewport):', features.length);
+            if (features.length > 0) {
+              console.log('[MAP-TILES] sample feature properties keys:', Object.keys(features[0].properties ?? {}));
+              console.log('[MAP-TILES] first feature:', JSON.stringify(features[0].properties).slice(0, 300));
+            }
+          } catch (err) {
+            console.warn('[MAP-TILES] querySourceFeatures failed:', err);
+          }
+        }
       });
 
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
@@ -464,7 +510,7 @@ export function useMapInit(
       // z10+  → carreaux_filosofi 200m
       map.addSource('carreaux-mvt', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=11`],
+        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=${CARREAUX_TILE_VERSION}`],
         minzoom: 6,
         maxzoom: 14,
         attribution: 'INSEE, Filosofi 2019',
@@ -630,12 +676,35 @@ export function useMapInit(
       map.on('mousemove',  'clusters-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'clusters-layer', () => { map.getCanvas().style.cursor = ''; });
 
+      // [TEMP-DIAG] Vérifier les features rendues après chaque déplacement de carte
+      map.on('moveend', () => {
+        const residLayer = map.getLayer('iris-residuals-fill');
+        if (residLayer) {
+          try {
+            const features = map.queryRenderedFeatures(undefined, { layers: ['iris-residuals-fill'] });
+            console.log('[MAP-RENDER] iris-residuals-fill visible features:', features.length);
+            if (features.length === 0) {
+              const sourceFeatures = map.querySourceFeatures('iris-source', { sourceLayer: 'iris' });
+              console.log('[MAP-RENDER] iris-source has', sourceFeatures.length, 'source features (in tile cache)');
+            } else {
+              const sample = features.slice(0, 2).map(f => ({
+                id: f.id, code_iris: f.properties?.code_iris, fillColor: f.layer?.paint?.['fill-color'],
+              }));
+              console.log('[MAP-RENDER] sample rendered features:', JSON.stringify(sample));
+            }
+          } catch (err) {
+            console.warn('[MAP-RENDER] queryRenderedFeatures failed:', err);
+          }
+        }
+      });
+
       setMapReady(true);
     });
 
     mapRef.current = map;
     return () => {
       setMapReady(false);
+      maplibregl.removeProtocol('pmtiles');
       map.remove();
       mapRef.current = null;
       overlay.remove();

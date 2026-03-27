@@ -201,5 +201,25 @@ export function buildTools(
       execute: (args: Record<string, unknown>) =>
         executeToolCall('analyse_complete', args, categoriesList, {}),
     },
+
+    analyse_correlation: {
+      description: "Analyse la corrélation statistique (Pearson, Spearman, R²) entre une métrique socio-démographique IRIS et une catégorie de POI. Ouvre le tiroir CORRÉLATION dans EXPERT > ANALYSE avec les paramètres pré-remplis et lance le calcul automatiquement. Utiliser pour : 'corrélation', 'lien entre', 'relation entre', 'est-ce que X influence Y', 'impact de X sur Y', 'y a-t-il un rapport entre'. Les catégories POI et métriques IRIS disponibles sont décrites dans le contexte système.",
+      inputSchema: z.object({
+        poi_category: z.string().describe(
+          `Catégorie de POI. ${catsDesc}. Mapping : 'transports/bus/arrêts' → 'arret_transport', 'lycées/lycée/high school' → 'lycee', 'CIRFA/armée/recrutement' → 'cirfa'.`
+        ),
+        iris_metric: z.string().optional().describe(
+          "Métrique IRIS (colonne core de la table iris). Défaut : 'population'. Voir le contexte système pour la liste complète et le mapping langage naturel → colonne."
+        ),
+        departement: z.string().optional().describe(
+          "Code département (opt). Ex: '75'=Paris, '13'=Bouches-du-Rhône, '29'=Finistère. Si ville mentionnée, déduire le code."
+        ),
+        auto_analyse_ia: z.boolean().optional().describe(
+          "Lancer l'analyse IA automatiquement après calcul (déf: true si interprétation demandée)."
+        ),
+      }),
+      execute: (args: Record<string, unknown>) =>
+        executeToolCall('analyse_correlation', args, categoriesList, {}),
+    },
   };
 }

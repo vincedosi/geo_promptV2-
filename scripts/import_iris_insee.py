@@ -42,13 +42,14 @@ SUPABASE_KEY = (
 
 BATCH = 200
 
-# URLs des fichiers INSEE IRIS (millésime 2020, base géographique 2022)
-# Téléchargeables sur https://www.insee.fr/fr/statistiques/5650708
+# URLs des fichiers INSEE IRIS (millésime 2020)
+# Page IDs corrects (un par fichier) + suffixe _csv.zip
 INSEE_IRIS_URLS = {
-    "pop": "https://www.insee.fr/fr/statistiques/fichier/5650708/base-ic-evol-struct-pop-2020.zip",
-    "dip": "https://www.insee.fr/fr/statistiques/fichier/5650708/base-ic-diplomes-formation-2020.zip",
-    "log": "https://www.insee.fr/fr/statistiques/fichier/5650708/base-ic-logement-2020.zip",
-    "act": "https://www.insee.fr/fr/statistiques/fichier/5650708/base-ic-activite-residents-2020.zip",
+    "pop": "https://www.insee.fr/fr/statistiques/fichier/7704076/base-ic-evol-struct-pop-2020_csv.zip",
+    "men": "https://www.insee.fr/fr/statistiques/fichier/7704086/base-ic-couples-familles-menages-2020_csv.zip",
+    "dip": "https://www.insee.fr/fr/statistiques/fichier/7704080/base-ic-diplomes-formation-2020_csv.zip",
+    "log": "https://www.insee.fr/fr/statistiques/fichier/7704078/base-ic-logement-2020_csv.zip",
+    "act": "https://www.insee.fr/fr/statistiques/fichier/7704089/base-ic-activite-residents-2020_csv.zip",
 }
 
 
@@ -114,10 +115,24 @@ def build_pop_updates(rows: list[dict]) -> dict[str, dict]:
             "pop_45_59":    safe_int(row.get("P20_POP4559", "")),
             "pop_60_74":    safe_int(row.get("P20_POP6074", "")),
             "pop_75_plus":  safe_int(row.get("P20_POP75P", "")),
-            "nb_menages":   safe_int(row.get("P20_MEN", "")),
-            "nb_csp_cadre":   safe_int(row.get("P20_CS3", "")),
-            "nb_csp_employe": safe_int(row.get("P20_CS5", "")),
-            "nb_csp_ouvrier": safe_int(row.get("P20_CS6", "")),
+            # CSP : préfixe C20_POP15P_ dans le fichier 2020 (population 15 ans+)
+            "nb_csp_cadre":   safe_int(row.get("C20_POP15P_CS3", "")),
+            "nb_csp_employe": safe_int(row.get("C20_POP15P_CS5", "")),
+            "nb_csp_ouvrier": safe_int(row.get("C20_POP15P_CS6", "")),
+            # nb_menages est dans le fichier dédié "men" (base-ic-couples-familles-menages)
+        }
+    return updates
+
+
+def build_men_updates(rows: list[dict]) -> dict[str, dict]:
+    """Extrait depuis base-ic-couples-familles-menages : nombre de ménages."""
+    updates: dict[str, dict] = {}
+    for row in rows:
+        code = (row.get("IRIS") or row.get("iris") or "").strip()
+        if len(code) < 9:
+            continue
+        updates[code] = {
+            "nb_menages": safe_int(row.get("C20_MEN", "")),
         }
     return updates
 
@@ -129,10 +144,14 @@ def build_dip_updates(rows: list[dict]) -> dict[str, dict]:
         code = (row.get("IRIS") or row.get("iris") or "").strip()
         if len(code) < 9:
             continue
-        aucun = safe_int(row.get("P20_NSCOL15P_DIPL0", ""))
+        aucun = safe_int(row.get("P20_NSCOL15P_DIPLMIN", ""))  # DIPL0 renommé DIPLMIN en 2020
         bac   = safe_int(row.get("P20_NSCOL15P_BAC", ""))
-        sup   = safe_int(row.get("P20_NSCOL15P_SUP2", ""))
-        total = safe_int(row.get("P20_NSCOL15P", ""))
+        # Diplôme supérieur = tout le supérieur (bac+2 + bac+3/4 + bac+5+)
+        sup2   = safe_int(row.get("P20_NSCOL15P_SUP2",  "")) or 0
+        sup34  = safe_int(row.get("P20_NSCOL15P_SUP34", "")) or 0
+        sup5   = safe_int(row.get("P20_NSCOL15P_SUP5",  "")) or 0
+        sup    = sup2 + sup34 + sup5 if (sup2 + sup34 + sup5) > 0 else None
+        total  = safe_int(row.get("P20_NSCOL15P", ""))
 
         taux_sup = None
         if sup is not None and total and total > 0:
@@ -241,7 +260,7 @@ def main():
         help="Parse uniquement, sans écriture en base"
     )
     parser.add_argument(
-        "--source", choices=["pop", "dip", "log", "act", "all"], default="all",
+        "--source", choices=["pop", "men", "dip", "log", "act", "all"], default="all",
         help="Source(s) à importer (défaut: all)"
     )
     args = parser.parse_args()
@@ -251,7 +270,7 @@ def main():
     dept_filter = args.dept.zfill(2) if args.dept else None
     all_updates: dict[str, dict] = {}
 
-    sources = ["pop", "dip", "log", "act"] if args.source == "all" else [args.source]
+    sources = ["pop", "men", "dip", "log", "act"] if args.source == "all" else [args.source]
 
     for src in sources:
         url = INSEE_IRIS_URLS[src]
@@ -264,6 +283,8 @@ def main():
 
         if src == "pop":
             updates = build_pop_updates(rows)
+        elif src == "men":
+            updates = build_men_updates(rows)
         elif src == "dip":
             updates = build_dip_updates(rows)
         elif src == "log":

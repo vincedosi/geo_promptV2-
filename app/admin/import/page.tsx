@@ -8,7 +8,6 @@ import type {
   ImportProgress,
   ImportReport,
   GeoMode,
-  DataType,
   FieldMapping,
   GeoConfig,
   GeocodeDetailedResult,
@@ -61,16 +60,6 @@ const GENESIS_FIELDS_POI = [
   { key: 'region', label: 'Region', required: false },
 ];
 
-const GENESIS_FIELDS_PANNEAUX = [
-  { key: 'nom', label: 'Nom', required: false },
-  { key: 'reference_panneau', label: 'Reference panneau', required: false },
-  { key: 'type_panneau', label: 'Format / type', required: false },
-  { key: 'adresse', label: 'Adresse', required: false },
-  { key: 'ville', label: 'Ville', required: false },
-  { key: 'code_postal', label: 'Code postal', required: false },
-  { key: 'departement', label: 'Departement', required: false },
-  { key: 'region', label: 'Region', required: false },
-];
 
 // ============================================================
 // Spinner SVG
@@ -96,10 +85,8 @@ export default function ImportUniverselPage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // -- Step 2: Data Type
-  const [dataType, setDataType] = useState<DataType>('poi');
+  // -- Step 2: Categorie POI
   const [category, setCategory] = useState('lycee');
-  const [regie, setRegie] = useState('');
 
   // -- Step 3: Column Mapping
   const [mapping, setMapping] = useState<MappingState>({});
@@ -360,9 +347,8 @@ export default function ImportUniverselPage() {
     try {
       const body: Record<string, unknown> = {
         fileId: parseResult.fileId,
-        dataType,
-        category: dataType === 'poi' ? category : undefined,
-        regie: dataType === 'panneaux' ? regie : undefined,
+        dataType: 'poi',
+        category,
         mapping,
         geolocation: buildGeoConfig(),
         limit: 100,
@@ -404,9 +390,8 @@ export default function ImportUniverselPage() {
     try {
       const body: Record<string, unknown> = {
         fileId: parseResult.fileId,
-        dataType,
-        category: dataType === 'poi' ? category : undefined,
-        regie: dataType === 'panneaux' ? regie : undefined,
+        dataType: 'poi',
+        category,
         mapping,
         geolocation: buildGeoConfig(),
         sourceName: sourceName.trim() || undefined,
@@ -543,8 +528,8 @@ export default function ImportUniverselPage() {
   // Render
   // ============================================================
 
-  const genesisFields = dataType === 'panneaux' ? GENESIS_FIELDS_PANNEAUX : GENESIS_FIELDS_POI;
-  const isStep2Valid = dataType === 'panneaux' ? regie.trim().length > 0 : category.length > 0;
+  const genesisFields = GENESIS_FIELDS_POI;
+  const isStep2Valid = category.length > 0;
   const isStep3Valid = geoMode === 'gps'
     ? !!(geoMapping.colLat && geoMapping.colLng)
     : geoMode === 'address'
@@ -705,13 +690,13 @@ export default function ImportUniverselPage() {
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
           <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, color: C.text, margin: 0, letterSpacing: '0.06em' }}>
-            admin / import-universel
+            admin / import POI
           </h1>
           <span style={badgeWarn}>ADMIN</span>
           {parseResult?.success && <span style={badgeGreen}>PARSED</span>}
         </div>
         <p style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, margin: 0 }}>
-          Import universel — Panneaux d&apos;affichage ou Points d&apos;interet (POI)
+          Import Points d&apos;interet (POI)
         </p>
       </div>
 
@@ -863,125 +848,77 @@ export default function ImportUniverselPage() {
         </div>
 
         {/* ============================================================ */}
-        {/* STEP 02 — Type de donnees */}
+        {/* STEP 02 — Categorie POI */}
         {/* ============================================================ */}
         {parseResult?.success && (
           <div style={card}>
             <div style={cardHeader}>
               <span style={stepNum}>02</span>
-              <span style={cardTitle}>Type de donnees</span>
+              <span style={cardTitle}>Categorie POI</span>
             </div>
             <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Radio cards */}
-              {[
-                { val: 'poi' as DataType, title: 'Points d\'interet (POI)', desc: 'Lycees, colleges, gares, lieux de sport, etc.' },
-                { val: 'panneaux' as DataType, title: 'Panneaux d\'affichage', desc: 'Mobilier urbain publicitaire (JCDecaux, Clear Channel, etc.)' },
-                { val: 'carreaux' as DataType, title: 'Carreaux INSEE', desc: 'Donnees socio-demographiques par carreau 200m (Filosofi)' },
-              ].map((opt) => (
-                <label
-                  key={opt.val}
-                  onClick={() => setDataType(opt.val)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    padding: '10px 12px',
-                    borderRadius: 2,
-                    border: `1px solid ${dataType === opt.val ? C.borderLight : C.border}`,
-                    background: dataType === opt.val ? C.accentDim : C.bgSurface,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input type="radio" value={opt.val} checked={dataType === opt.val} onChange={() => setDataType(opt.val)} style={{ marginTop: 2, accentColor: C.accent }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: dataType === opt.val ? C.accent : C.text, marginBottom: 3 }}>{opt.title}</div>
-                    <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{opt.desc}</div>
-                  </div>
-                </label>
-              ))}
-
-              {/* POI: category select — loaded from DB */}
-              {dataType === 'poi' && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={sLabel}>Categorie POI</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      style={{ ...inputStyle, maxWidth: 300 }}
-                    >
-                      {poiCategories.map((c) => (
-                        <option key={c.val} value={c.val}>{c.label}</option>
-                      ))}
-                    </select>
-                    {poiCategories.length === 0 && (
-                      <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>Chargement...</span>
-                    )}
-                  </div>
-                  {/* Inline: create new category */}
-                  <details style={{ marginTop: 8 }}>
-                    <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer' }}>
-                      + Creer une nouvelle categorie
-                    </summary>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                      <input
-                        type="text"
-                        value={newCategoryName}
-                        onChange={(e) => setNewCategoryName(e.target.value)}
-                        placeholder="Ex: cirfa, commerce, sante..."
-                        style={{ ...inputStyle, maxWidth: 250, fontSize: 11, padding: '5px 8px' }}
-                      />
-                      <button
-                        style={{ ...btnSuccess, opacity: (!newCategoryName.trim() || isCreatingCategory) ? 0.5 : 1 }}
-                        disabled={!newCategoryName.trim() || isCreatingCategory}
-                        onClick={async () => {
-                          setIsCreatingCategory(true);
-                          try {
-                            const res = await adminFetch('/api/admin/poi-categories', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ categorie: newCategoryName.trim() }),
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              // Reload categories
-                              const res2 = await adminFetch('/api/admin/poi-categories');
-                              const data2 = await res2.json();
-                              if (data2.success) {
-                                const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
-                                  val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '',
-                                }));
-                                setPoiCategories(cats);
-                              }
-                              setCategory(data.categorie);
-                              setNewCategoryName('');
+              <div>
+                <label style={sLabel}>Categorie</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    style={{ ...inputStyle, maxWidth: 300 }}
+                  >
+                    {poiCategories.map((c) => (
+                      <option key={c.val} value={c.val}>{c.label}</option>
+                    ))}
+                  </select>
+                  {poiCategories.length === 0 && (
+                    <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>Chargement...</span>
+                  )}
+                </div>
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer' }}>
+                    + Creer une nouvelle categorie
+                  </summary>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Ex: cirfa, commerce, sante..."
+                      style={{ ...inputStyle, maxWidth: 250, fontSize: 11, padding: '5px 8px' }}
+                    />
+                    <button
+                      style={{ ...btnSuccess, opacity: (!newCategoryName.trim() || isCreatingCategory) ? 0.5 : 1 }}
+                      disabled={!newCategoryName.trim() || isCreatingCategory}
+                      onClick={async () => {
+                        setIsCreatingCategory(true);
+                        try {
+                          const res = await adminFetch('/api/admin/poi-categories', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ categorie: newCategoryName.trim() }),
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            const res2 = await adminFetch('/api/admin/poi-categories');
+                            const data2 = await res2.json();
+                            if (data2.success) {
+                              const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
+                                val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '',
+                              }));
+                              setPoiCategories(cats);
                             }
-                          } catch { /* ignore */ } finally {
-                            setIsCreatingCategory(false);
+                            setCategory(data.categorie);
+                            setNewCategoryName('');
                           }
-                        }}
-                      >
-                        {isCreatingCategory ? <Spinner size={10} /> : 'Creer'}
-                      </button>
-                    </div>
-                  </details>
-                </div>
-              )}
-
-              {/* Panneaux: regie input */}
-              {dataType === 'panneaux' && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={sLabel}>Nom de la regie</label>
-                  <input
-                    type="text"
-                    value={regie}
-                    onChange={(e) => setRegie(e.target.value)}
-                    placeholder='Ex: "JCDecaux", "Clear Channel", "MULTI"'
-                    style={{ ...inputStyle, maxWidth: 400 }}
-                  />
-                </div>
-              )}
-
+                        } catch { /* ignore */ } finally {
+                          setIsCreatingCategory(false);
+                        }
+                      }}
+                    >
+                      {isCreatingCategory ? <Spinner size={10} /> : 'Creer'}
+                    </button>
+                  </div>
+                </details>
+              </div>
             </div>
           </div>
         )}

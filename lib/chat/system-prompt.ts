@@ -1,3 +1,5 @@
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
+
 // Mapping : terme naturel → colonne Filosofi + label FR
 // Toutes les clés sont en minuscules (conformes à la DB carreaux_filosofi.metadata)
 export const CHORO_INDICATORS: Record<string, { col: string; label: string }> = {
@@ -36,8 +38,41 @@ export const CHORO_INDICATORS: Record<string, { col: string; label: string }> = 
   'log_inc':   { col: 'log_inc',   label: 'Logements inconnus' },
 };
 
+// ── Helpers pour générer les sections dynamiques du prompt ───────────────────
+
+function buildIrisCoreSection(): string {
+  // Grouper les colonnes par groupe
+  const groups = new Map<string, typeof IRIS_DB_COLUMNS>();
+  for (const col of IRIS_DB_COLUMNS) {
+    if (!groups.has(col.group)) groups.set(col.group, []);
+    groups.get(col.group)!.push(col);
+  }
+  const lines: string[] = [];
+  for (const [group, cols] of groups) {
+    lines.push(`  ${group} : ${cols.map(c => `${c.name}=${c.label}`).join(' | ')}`);
+  }
+  return lines.join('\n');
+}
+
+function buildIrisCorrelationSection(): string {
+  const groups = new Map<string, typeof IRIS_DB_COLUMNS>();
+  for (const col of IRIS_DB_COLUMNS) {
+    if (!groups.has(col.group)) groups.set(col.group, []);
+    groups.get(col.group)!.push(col);
+  }
+  const lines: string[] = [];
+  for (const [group, cols] of groups) {
+    const first = cols[0].name === 'population' ? `${cols[0].name} (déf)` : cols[0].name;
+    const rest  = cols.slice(1).map(c => c.name).join(' | ');
+    lines.push(`  ${group} : ${first}${rest ? ' | ' + rest : ''}`);
+  }
+  return lines.join('\n');
+}
+
 export function buildSystemPrompt(categoriesList: string[]): string {
   const catsFormatted = categoriesList.map(c => `"${c}"`).join(', ');
+  const irisCoreSection        = buildIrisCoreSection();
+  const irisCorrelationSection = buildIrisCorrelationSection();
 
   return `Tu es GEO.PROMPT, l'assistant d'analyse géomarketing de GENESIS.
 Tu aides les utilisateurs à analyser des territoires, des points d'intérêt et des panneaux d'affichage extérieur (OOH) en France.
@@ -60,9 +95,26 @@ ${catsFormatted}
 Utilise ces colonnes pour les paramètres \`indicateur\`, \`target_column\`, \`target_demo_col\` :
 ind=population totale | ind_18_24=jeunes 18-24 | ind_25_39=adultes 25-39 | ind_40_54=adultes 40-54 | ind_55_64=seniors 55-64 | ind_65_79=seniors 65-79 | ind_80p=80 ans et plus | men=ménages | men_pauv=ménages pauvres | men_prop=propriétaires | men_fmp=familles monoparentales | men_mais=maisons | men_coll=collectifs | men_surf=surface moyenne | ind_snv=revenu médian/CSP+ | log_av45=avant 1945 | log_soc=HLM | log_ap90=après 1990
 
+## Données IRIS disponibles (table \`iris\` — 49 448 zones)
+
+Colonnes SQL directes (core) — source RP 2022 + Filosofi 2021 — toutes les zones :
+${irisCoreSection}
+
+Indicateurs JSONB (colonne \`indicators\`, ~14 500 IRIS, source Filosofi déciles 2021 — secret statistique INSEE) :
+  DEC_MED21=revenu médian déclaré | DEC_D121 à DEC_D921=déciles D1→D9 | DEC_GI21=indice de Gini
+  DEC_PIMP21=% foyers imposables | DEC_TP6021=taux de pauvreté | DEC_RD21=rapport interdécile
+  DEC_S80S2021=rapport S80/S20 | DEC_PACT21=% revenus d'activité | DEC_PTSA21=% salaires
+  DEC_PCHO21=% chômage | DEC_PBEN21=% bénéfices | DEC_PPEN21=% pensions | DEC_PAUT21=% autres
+  Accès SQL : (indicators->>'DEC_MED21')::numeric
+
 ## Routing
 
-PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | combien/couverture→calculate_audience_coverage | panneaux/OOH/JCDecaux→analyser_panneaux | meilleurs panneaux/top→classer_panneaux_audience | score/multi-critères→scorer_panneaux_ooh | synergie/près POI→analyze_poi_synergy | export/rapport OOH→exporter_rapport_ooh
+PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | combien/couverture→calculate_audience_coverage | panneaux/OOH/JCDecaux→analyser_panneaux | meilleurs panneaux/top→classer_panneaux_audience | score/multi-critères→scorer_panneaux_ooh | synergie/près POI→analyze_poi_synergy | export/rapport OOH→exporter_rapport_ooh | corrélation/lien entre/relation entre/impact de X sur Y/y a-t-il un rapport→analyse_correlation
+
+OUTIL analyse_correlation — métriques IRIS disponibles :
+${irisCorrelationSection}
+Mapping langage naturel : 'jeunes/étudiants' → pop_15_29 | 'enfants' → pop_0_14 | 'seniors/retraités' → pop_60_74 | 'cadres/CSP+/aisés' → nb_csp_cadre | 'ouvriers' → nb_csp_ouvrier | 'revenus/richesse/niveau de vie' → rev_median | 'chômage/emploi' → taux_chomage | 'propriétaires/immobilier' → taux_proprio | 'diplômes/éducation/bac+' → taux_diplome_sup | 'population' → population.
+Exemples : "Corrélation revenu lycées" → poi_category:lycee, iris_metric:rev_median | "Lien transports et jeunes" → poi_category:arret_transport, iris_metric:pop_15_29 | "Chômage et présence CIRFA" → poi_category:cirfa, iris_metric:taux_chomage | "Impact lycées sur cadres Paris" → poi_category:lycee, iris_metric:nb_csp_cadre, departement:75.
 
 ## Multi-étapes
 
@@ -87,6 +139,10 @@ Quand tu appelles un outil :
 1. Phrase d'action : "Je cherche les lycées à Brest…"
 2. Appel outil
 3. Résumé : "12 lycées trouvés, affichés sur la carte."
+
+Quand tu résumes un résultat analyse_complete :
+- Si source_demo = "iris" : dis "données INSEE aux limites communales exactes". Ne mentionne PAS de rayon en km.
+- Si source_demo = "carreaux" : mentionne le rayon utilisé (ex : "dans un rayon de 5 km").
 
 Quand tu demandes une clarification :
 1. Reformuler ce qui a été compris

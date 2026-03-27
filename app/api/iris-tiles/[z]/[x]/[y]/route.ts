@@ -1,70 +1,47 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
 export const dynamic = 'force-dynamic';
 
-// Cache mémoire (1h, max 2000 tuiles)
-const cache = new Map<string, { buf: Buffer; ts: number }>();
-const CACHE_TTL = 3_600_000;
-const CACHE_MAX = 2000;
+const ALLOWED_COLS = new Set(IRIS_DB_COLUMNS.map(c => c.name));
+
+type Params = { z: string; x: string; y: string };
 
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: { z: string; x: string; y: string } }
+  req: NextRequest,
+  { params }: { params: Params },
 ) {
-  const z = parseInt(params.z, 10);
-  const x = parseInt(params.x, 10);
-  const y = parseInt(params.y, 10);
+  const z = parseInt(params.z);
+  const x = parseInt(params.x);
+  const y = parseInt(params.y);
+  const col = req.nextUrl.searchParams.get('col') ?? 'population';
 
-  if ([z, x, y].some(isNaN)) {
-    return new Response('Coordonnées invalides', { status: 400 });
+  if (!ALLOWED_COLS.has(col)) {
+    return NextResponse.json({ error: `Colonne invalide: ${col}` }, { status: 400 });
   }
-
-  if (z < 1) return new Response(null, { status: 204 });
-
-  const v   = _req.nextUrl.searchParams.get('v') ?? '1';
-  const key = `${v}/${z}/${x}/${y}`;
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    if (cached.buf.length === 0) return new Response(null, { status: 204 });
-    return new Response(cached.buf as unknown as BodyInit, {
-      headers: {
-        'Content-Type': 'application/vnd.mapbox-vector-tile',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    });
+  if ([z, x, y].some(n => isNaN(n) || n < 0)) {
+    return NextResponse.json({ error: 'Coordonnées invalides' }, { status: 400 });
   }
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('get_iris_tile', { z, x, y });
+  const { data, error } = await supabase.rpc('get_iris_tile', {
+    z, x, y, p_col: col,
+  });
 
   if (error) {
-    console.error('[iris-tiles] RPC error:', error.message);
-    return new Response('Erreur serveur', { status: 500 });
+    console.error('[iris-tiles]', error.message);
+    return new NextResponse(null, { status: 500 });
   }
 
-  // Supabase renvoie bytea sous forme hex avec préfixe \x (ex: \x1f8b...)
-  let buf = Buffer.alloc(0);
-  if (data) {
-    const rawStr = String(data);
-    buf = rawStr.startsWith('\\x')
-      ? Buffer.from(rawStr.slice(2), 'hex')
-      : Buffer.from(rawStr, 'base64');
-  }
+  const buffer = data
+    ? Buffer.from(data as string, 'base64')
+    : Buffer.alloc(0);
 
-  // LRU simple : supprimer la plus ancienne si cache plein
-  if (cache.size >= CACHE_MAX) {
-    const oldest = [...cache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
-    cache.delete(oldest[0]);
-  }
-  cache.set(key, { buf, ts: Date.now() });
-
-  if (buf.length === 0) return new Response(null, { status: 204 });
-
-  return new Response(buf, {
+  return new NextResponse(buffer, {
     headers: {
-      'Content-Type': 'application/vnd.mapbox-vector-tile',
-      'Cache-Control': 'public, max-age=3600',
+      'Content-Type':  'application/x-protobuf',
+      'Cache-Control': 'public, max-age=60',
     },
   });
 }

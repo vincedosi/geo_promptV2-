@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
@@ -9,11 +9,12 @@ import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
 import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
 import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
-import { useToolProcessor }    from '@/app/copilote/_hooks/useToolProcessor';
+import { useToolProcessor, type CorrelationActionParams } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
 import type { ZoneData, BattleResult } from '@/types/spatial';
@@ -26,6 +27,19 @@ interface SelectedBillboard {
   id: string; nom: string; lat: number; lng: number;
   format?: string; score?: number | null; audience?: number | null;
   rank?: number | null; regie?: string;
+}
+
+// ─── Helpers résidus ──────────────────────────────────────────────────────────
+
+function normToColor(norm: number, inverted = false): string {
+  const n = inverted ? -norm : norm;
+  if (n <= -0.5)  return '#ef4444';
+  if (n <= -0.15) return '#f97316';
+  if (n <= -0.05) return '#fbbf24';
+  if (n <   0.05) return '#e2e8f0';
+  if (n <   0.15) return '#86efac';
+  if (n <   0.5)  return '#22c55e';
+  return '#059669';
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -49,6 +63,18 @@ export default function MapPage() {
   const [clusterDuration,   setClusterDuration]   = useState(60);
   // Wizard highlight — POIs preview pendant la configuration du clustering
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // TMJA — flux routier (comptages_routiers)
+  const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Corrélation IRIS × POI — params depuis le chat
+  const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
+  // Résidus de corrélation — layer MVT (match expression sur iris-source)
+  const [residualsMeta,     setResidualsMeta]     = useState<ResidualsMeta | null>(null);
+  const [residualOpacity,   setResidualOpacity]   = useState(0.65);
+  const [residualInverted,  setResidualInverted]  = useState(false);
+  const residualsClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
+  const residualLookupRef    = useRef<Map<string, ResidualData>>(new Map());
+  const residualInvertedRef  = useRef(false);
+  useEffect(() => { residualInvertedRef.current = residualInverted; }, [residualInverted]);
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
@@ -101,6 +127,21 @@ export default function MapPage() {
     try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
   }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Sync TMJA GeoJSON → map source ─────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('tmja-source') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (tmjaGeoJSON) {
+      src.setData(tmjaGeoJSON);
+      try { map.setLayoutProperty('tmja-lines', 'visibility', 'visible'); } catch { /* */ }
+    } else {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
+    }
+  }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
     if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom, duration: 1000 });
@@ -111,6 +152,195 @@ export default function MapPage() {
         new maplibregl.LngLatBounds(bounds[0], bounds[1]),
         { padding: 60, duration: 1000 },
       );
+  };
+
+  // ── Résidus de corrélation — layer MVT (match expression sur iris-source) ──
+  const handleShowResiduals = useCallback((data: ResidualData[] | null, meta?: ResidualsMeta) => {
+    console.log('[RESID-MAP] === handleShowResiduals CALLED ===');
+    console.log('[RESID-MAP] 1. data:', data ? data.length + ' items' : 'null');
+    console.log('[RESID-MAP] 2. map exists:', !!mapRef.current);
+    console.log('[RESID-MAP] 3. map loaded:', mapRef.current?.loaded());
+
+    const map = mapRef.current;
+    if (!map) { console.warn('[RESID-MAP] map is null — aborting'); return; }
+
+    const LAYER = 'iris-residuals-fill';
+
+    // Cleanup ancien handler + layer
+    if (residualsClickHandlerRef.current) {
+      try { map.off('click', LAYER, residualsClickHandlerRef.current); } catch { /* ok */ }
+      residualsClickHandlerRef.current = null;
+    }
+    try {
+      const existed = !!map.getLayer(LAYER);
+      if (existed) map.removeLayer(LAYER);
+      console.log('[RESID-MAP] cleanup: existing layer removed:', existed);
+    } catch { /* ok */ }
+
+    if (!data) {
+      console.log('[RESID-MAP] 4. CLEARING — data is null, cleanup done');
+      setResidualsMeta(null);
+      residualLookupRef.current.clear();
+      return;
+    }
+
+    // Diagnostics avant addLayer
+    const style = map.getStyle();
+    const sourceNames = style?.sources ? Object.keys(style.sources) : [];
+    const layerNames  = style?.layers?.map(l => l.id) ?? [];
+    console.log('[RESID-MAP] 9. All sources:', sourceNames);
+    console.log('[RESID-MAP] 10. All layers:', layerNames);
+
+    const sourceExists = !!map.getSource('iris-source');
+    console.log('[RESID-MAP] 8. iris-source exists:', sourceExists);
+
+    const irisSourceName = sourceNames.find(s => s.toLowerCase().includes('iris'));
+    console.log('[RESID-MAP] 12. Found iris source:', irisSourceName);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const irisLayer = style?.layers?.find(l => l.id === 'iris-fill' || l.id?.includes('iris')) as any;
+    console.log('[RESID-MAP] 13. Found iris layer:', irisLayer?.id, 'source:', irisLayer?.source, 'source-layer:', irisLayer?.['source-layer']);
+
+    const existingResidLayer = !!map.getLayer(LAYER);
+    console.log('[RESID-MAP] 11. iris-residuals-fill already exists:', existingResidLayer);
+
+    // Lookup pour les popups (code_iris → données calculées)
+    residualLookupRef.current = new Map(data.map(d => [d.code_iris, d]));
+
+    const inverted = residualInvertedRef.current;
+
+    console.log('[RESID-MAP] 6. Building match expression — inverted:', inverted);
+    console.log('[RESID-MAP] 7. Total items for match:', data.length);
+
+    const significantCount = data.filter(r => Math.abs(r.norm) > 0.05).length;
+    console.log('[RESID-MAP] 14. Significant residuals (|norm|>0.05):', significantCount);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    for (const d of data) {
+      matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
+    }
+    matchExpr.push('transparent'); // fallback pour les IRIS hors résultats
+
+    console.log('[RESID-MAP] 15. Match expression length:', matchExpr.length, 'entries (including match + get + fallback)');
+
+    try {
+      // Inséré avant iris-border pour que les bordures restent visibles au-dessus
+      map.addLayer({
+        id: LAYER,
+        type: 'fill',
+        source: 'iris-source',
+        'source-layer': 'iris',
+        minzoom: 5,
+        paint: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          'fill-color':   matchExpr as any,
+          'fill-opacity': residualOpacity,
+        },
+      }, 'iris-border');
+      console.log('[RESID-MAP] 16. addLayer SUCCESS');
+      console.log('[RESID-MAP] 17. layer exists after add:', !!map.getLayer(LAYER));
+
+      const visibility = map.getLayoutProperty(LAYER, 'visibility');
+      console.log('[RESID-MAP] 18. layer visibility:', visibility, '(undefined = visible by default)');
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fillColor = map.getPaintProperty(LAYER, 'fill-color') as any;
+      console.log('[RESID-MAP] 19. fill-color type:', typeof fillColor, Array.isArray(fillColor) ? 'array len:' + fillColor.length : String(fillColor).slice(0, 80));
+
+      const opacity = map.getPaintProperty(LAYER, 'fill-opacity');
+      console.log('[RESID-MAP] 20. fill-opacity:', opacity);
+
+    } catch (e) {
+      console.error('[RESID-MAP] 16. addLayer FAILED:', e);
+      return;
+    }
+
+    // Popup au clic via le lookup (les données ne sont pas dans les tuiles MVT)
+    const clickHandler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (!e.features?.length) return;
+      const props = e.features[0].properties as Record<string, unknown>;
+      const codeIris = String(props.code_iris ?? '');
+      const d = residualLookupRef.current.get(codeIris);
+      console.log('[RESID-MAP] CLICK — code_iris from feature:', codeIris, '| found in lookup:', !!d);
+      if (!d) return;
+      const sign = d.residual > 0 ? '+' : '';
+      const inv  = residualInvertedRef.current;
+      const status = d.residual >  0.5 ? (inv ? 'Sur-équipé (rouge)'  : 'Sur-équipé')
+                   : d.residual < -0.5 ? (inv ? 'Sous-équipé (vert)'  : 'Sous-équipé')
+                   : 'Normal';
+      const statusColor = inv
+        ? (d.residual >  0.5 ? '#ef4444' : d.residual < -0.5 ? '#22c55e' : '#e2e8f0')
+        : (d.residual >  0.5 ? '#22c55e' : d.residual < -0.5 ? '#ef4444' : '#e2e8f0');
+      new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:#e2e8f0;padding:12px;">
+          <strong style="font-size:12px;color:#a855f7;">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
+          <div style="font-size:11px;color:#8888aa;margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
+          <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
+          <div style="font-size:11px;color:#94a3b8;">
+            POI réels : <strong>${d.poi_count}</strong><br/>
+            POI prédits : <strong>${d.predicted.toFixed(2)}</strong><br/>
+            Métrique : <strong>${d.metric_value.toLocaleString('fr')}</strong>
+          </div>
+        </div>`)
+        .addTo(map);
+    };
+    residualsClickHandlerRef.current = clickHandler;
+    map.on('click', LAYER, clickHandler);
+    map.on('mouseenter', LAYER, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', LAYER, () => { map.getCanvas().style.cursor = ''; });
+
+    setResidualsMeta(meta ?? null);
+    console.log('[RESID-MAP] === handleShowResiduals DONE ===');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
+
+  // ── Contrôles résidus — opacité + inversion ────────────────────────────────
+  const handleResidualOpacity = useCallback((value: number) => {
+    setResidualOpacity(value);
+    const map = mapRef.current;
+    if (map?.getLayer('iris-residuals-fill')) {
+      map.setPaintProperty('iris-residuals-fill', 'fill-opacity', value);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleResidualInvert = useCallback((inverted: boolean) => {
+    setResidualInverted(inverted);
+    residualInvertedRef.current = inverted;
+    const map = mapRef.current;
+    if (!map?.getLayer('iris-residuals-fill') || !residualLookupRef.current.size) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    residualLookupRef.current.forEach((r, code) => {
+      matchExpr.push(code, normToColor(r.norm, inverted));
+    });
+    matchExpr.push('transparent');
+    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Charger arrêts de transport pour la vue courante ───────────────────────
+  const handleLoadTransport = async (types: string[]) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const b = map.getBounds();
+    const url = `/api/map/transport?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}${types.length ? `&types=${types.join(',')}` : ''}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data?.pois) setZoneData(data);
+  };
+
+  // ── Charger TMJA pour la vue courante ───────────────────────────────────────
+  const handleLoadTMJA = async () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const b = map.getBounds();
+    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data: GeoJSON.FeatureCollection = await res.json();
+    setTmjaGeoJSON(data);
   };
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
@@ -216,6 +446,7 @@ export default function MapPage() {
         else setError(null);
       });
     },
+    setCorrelationParams,
   });
 
   savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
@@ -770,7 +1001,7 @@ export default function MapPage() {
       <FilterPanel
         chatSlot={
           <ChatPanel
-            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', flexShrink: 0 }}
+            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
             hideHeader={true}
             messages={chat.messages}
             isLoading={chat.isLoading}
@@ -804,6 +1035,44 @@ export default function MapPage() {
             statusLoading={providerSelector.statusLoading}
             refreshProviderStatus={providerSelector.refreshStatus}
             sessionTokens={chat.sessionTokens}
+            onFlyTo={handleFlyTo}
+            onHighlightIris={(codeIris: string | null) => {
+              const map = mapRef.current;
+              if (!map || !mapReady) return;
+              if (!codeIris) {
+                // Retirer le filtre de highlight
+                try { map.setFilter('iris-fill',   null); } catch { /* ok */ }
+                try { map.setFilter('iris-border', null); } catch { /* ok */ }
+                // Ne masquer les layers QUE si la choroplèthe IRIS n'est pas ouverte
+                if (!mapLayers.irisVisible) {
+                  try { map.setLayoutProperty('iris-fill',   'visibility', 'none'); } catch { /* ok */ }
+                  try { map.setLayoutProperty('iris-border', 'visibility', 'none'); } catch { /* ok */ }
+                }
+              } else {
+                const filter: maplibregl.FilterSpecification = ['==', ['get', 'code_iris'], codeIris];
+                try { map.setLayoutProperty('iris-fill',   'visibility', 'visible'); } catch { /* ok */ }
+                try { map.setLayoutProperty('iris-border', 'visibility', 'visible'); } catch { /* ok */ }
+                try { map.setFilter('iris-fill',   filter); } catch { /* ok */ }
+                try { map.setFilter('iris-border', filter); } catch { /* ok */ }
+                // Vérifier après stabilisation de la carte (tuiles chargées + caméra stable)
+                // map.once('idle') est plus fiable que 'render' : évite les faux négatifs pendant l'animation de vol
+                const idleTimeout = setTimeout(() => map.off('idle', onIdle), 5000);
+                const onIdle = () => {
+                  clearTimeout(idleTimeout);
+                  try {
+                    const features = map.queryRenderedFeatures(undefined, {
+                      layers: ['iris-fill'],
+                      filter: filter as maplibregl.FilterSpecification,
+                    });
+                    if (!features.length) {
+                      setError('Cet IRIS n\'est pas disponible à ce niveau de zoom');
+                      setTimeout(() => setError(null), 3000);
+                    }
+                  } catch { /* ok — layer peut ne pas exister encore */ }
+                };
+                map.once('idle', onIdle);
+              }
+            }}
           />
         }
         sendMessage={chat.sendMessage}
@@ -866,6 +1135,12 @@ export default function MapPage() {
         scoringMapRef={mapRef}
         scoringMapReady={mapReady}
         onScoreComputed={(v) => setStudyVille(v)}
+        onLoadTransport={handleLoadTransport}
+        onLoadTMJA={handleLoadTMJA}
+        tmjaVisible={!!tmjaGeoJSON}
+        onClearTMJA={() => setTmjaGeoJSON(null)}
+        correlationParams={correlationParams}
+        onShowResiduals={handleShowResiduals}
       />
       {/* ── Right panel: tabs Carte / Étude ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
@@ -941,6 +1216,121 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
+
+          {/* Résidus de corrélation — légende flottante */}
+          {residualsMeta && (
+            <div style={{
+              position: 'absolute', bottom: 44, left: 12, zIndex: 100,
+              background: 'rgba(5,5,5,0.92)',
+              border: '1px solid #261a35',
+              borderRadius: 2,
+              padding: '10px 12px',
+              minWidth: 200,
+              fontFamily: "'JetBrains Mono','Fira Mono',monospace",
+            }}>
+              {/* Titre */}
+              <div style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 7, letterSpacing: '0.14em', color: '#a855f7', marginBottom: 6 }}>
+                RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
+              </div>
+
+              {/* Labels légende — inversés si residualInverted */}
+              {(residualInverted
+                ? [
+                    { color: '#ef4444', label: 'Très sur-équipé' },
+                    { color: '#f97316', label: 'Sur-équipé' },
+                    { color: '#fbbf24', label: 'Léger excédent' },
+                    { color: '#e2e8f0', label: 'Dans la norme' },
+                    { color: '#86efac', label: 'Léger déficit' },
+                    { color: '#22c55e', label: 'Sous-équipé' },
+                    { color: '#059669', label: 'Très sous-équipé' },
+                  ]
+                : [
+                    { color: '#ef4444', label: 'Très sous-équipé' },
+                    { color: '#f97316', label: 'Sous-équipé' },
+                    { color: '#fbbf24', label: 'Léger déficit' },
+                    { color: '#e2e8f0', label: 'Dans la norme' },
+                    { color: '#86efac', label: 'Léger excédent' },
+                    { color: '#22c55e', label: 'Sur-équipé' },
+                    { color: '#059669', label: 'Très sur-équipé' },
+                  ]
+              ).map(({ color, label }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <span style={{ width: 10, height: 10, background: color, borderRadius: 1, flexShrink: 0, opacity: 0.85 }} />
+                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>{label}</span>
+                </div>
+              ))}
+
+              {/* Séparateur */}
+              <div style={{ borderTop: '1px solid #261a35', marginTop: 8, paddingTop: 8 }}>
+
+                {/* Slider opacité */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+                  <span style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 7, letterSpacing: '0.1em', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                    OPACITÉ
+                  </span>
+                  <input
+                    type="range" min={0.1} max={1} step={0.05}
+                    value={residualOpacity}
+                    onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: '#a855f7', cursor: 'pointer', height: 4 }}
+                  />
+                  <span style={{ fontSize: 8, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
+                    {Math.round(residualOpacity * 100)}%
+                  </span>
+                </div>
+
+                {/* Toggle inversion */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>Inverser couleurs</span>
+                  <button
+                    onClick={() => handleResidualInvert(!residualInverted)}
+                    style={{
+                      position: 'relative',
+                      width: 32, height: 16,
+                      background: residualInverted ? '#a855f7' : '#261a35',
+                      border: `1px solid ${residualInverted ? '#a855f7' : '#3d2a50'}`,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      transition: 'background 150ms, border-color 150ms',
+                      flexShrink: 0,
+                      padding: 0,
+                    }}
+                    title={residualInverted ? 'Rouge = excédent' : 'Rouge = déficit'}
+                  >
+                    <span style={{
+                      position: 'absolute',
+                      top: 2, left: residualInverted ? 16 : 2,
+                      width: 10, height: 10,
+                      background: '#fff',
+                      borderRadius: '50%',
+                      transition: 'left 150ms',
+                    }} />
+                  </button>
+                </div>
+                <div style={{ fontSize: 7.5, color: '#4a3a5c', marginBottom: 6 }}>
+                  Rouge = {residualInverted ? 'excédent' : 'déficit'}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{ borderTop: '1px solid #261a35', paddingTop: 6, fontSize: 8, color: '#4a3a5c' }}>
+                {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
+              </div>
+
+              {/* Masquer */}
+              <button
+                onClick={() => handleShowResiduals(null)}
+                style={{
+                  marginTop: 6, width: '100%', padding: '4px 0',
+                  background: 'transparent', border: '1px solid #261a35',
+                  borderRadius: 2, color: '#6b7280', fontFamily: "'Michroma','Orbitron',sans-serif",
+                  fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
+                }}
+              >
+                ✕ MASQUER
+              </button>
+            </div>
+          )}
 
           {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
 

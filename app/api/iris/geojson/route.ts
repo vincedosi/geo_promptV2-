@@ -3,15 +3,10 @@ import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// ── Whitelist des colonnes IRIS autorisées ─────────────────────────────────
-// Doit correspondre à /api/scoring/iris-columns
-const ALLOWED_IRIS_COLUMNS = new Set([
-  'population',
-  'pop_0_14', 'pop_15_29', 'pop_30_44', 'pop_45_59', 'pop_60_74', 'pop_75_plus',
-  'nb_csp_cadre', 'nb_csp_employe', 'nb_csp_ouvrier',
-  // Colonnes présentes dans le schéma mais non encore renseignées (réservées pour import futur)
-  // 'rev_median', 'taux_diplome_sup', 'nb_diplome_sup', 'taux_chomage', 'taux_proprio',
-]);
+import { IRIS_DB_COLUMN_NAMES } from '@/lib/iris-crawler/db-columns';
+
+// Whitelist dérivée de la source de vérité unique : lib/iris-crawler/db-columns.ts
+const ALLOWED_IRIS_COLUMNS = IRIS_DB_COLUMN_NAMES;
 
 // GET /api/iris/geojson?bbox=west,south,east,north&colonne=pop_15_29&simplify=0.0005
 export async function GET(req: NextRequest) {

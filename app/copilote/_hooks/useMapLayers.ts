@@ -396,7 +396,6 @@ export function useMapLayers({
     if (deduped.length < 2) return;
     const colors = pal.stops.slice(pal.stops.length - deduped.length);
     const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
-    // Choroplèthe à tous les zooms — z<7 : agrégats département, z>=7 : IRIS individuels
     const expr = [
       'interpolate', ['linear'],
       ['coalesce', ['to-number', ['get', col], 0], 0],
@@ -482,11 +481,10 @@ export function useMapLayers({
     }
 
     // Mode choroplèthe : charger les stats France entière pour calibrer la palette
-    // Zoom < 7 → agrégats département (AVG), zoom ≥ 7 → IRIS individuels
     const col = irisIndicateurRef.current;
     const zoom = map.getZoom();
     const level = zoom < 7 ? 'dept' : 'iris';
-    fetch(`/api/iris/stats?colonne=${col}&bbox=-5.5,41.0,10.0,51.5`, { cache: 'no-store' })
+    fetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then((stats: IrisStats | null) => {
         if (!stats) return;

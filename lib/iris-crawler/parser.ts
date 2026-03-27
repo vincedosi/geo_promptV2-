@@ -26,9 +26,10 @@ export function parseInseeValue(
     const v = value?.trim();
     return v === '' ? null : v;
   }
-  // Valeur vide ou secret statistique
+  // Valeur vide ou secret statistique INSEE (s=secret, ns=non significatif, nd=non disponible)
   const v = value?.trim();
-  if (!v || v === 's' || v === 'S' || v === 'nd' || v === 'ND') return null;
+  if (!v || v === 's' || v === 'S' || v === 'ns' || v === 'NS'
+    || v === 'nd' || v === 'ND' || v === 'n.d.' || v === 'n.s.') return null;
   // Convertir en nombre (INSEE utilise le point comme séparateur décimal)
   const num = parseFloat(v.replace(',', '.'));
   return isNaN(num) ? v : num;

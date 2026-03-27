@@ -62,6 +62,21 @@ export async function executeToolCall(
     case 'analyse_complete':
       return analyseComplete(args);
 
+    case 'analyse_correlation': {
+      const poi = (args.poi_category as string) ?? '';
+      const metric = (args.iris_metric as string) ?? 'population';
+      const dep = (args.departement as string) ?? null;
+      const autoIa = args.auto_analyse_ia !== false;
+      if (!poi) return { error: 'poi_category est requis.' };
+      return {
+        action:       'analyse_correlation',
+        poiCategory:  poi,
+        irisMetric:   metric,
+        departement:  dep,
+        autoAnalyse:  autoIa,
+      };
+    }
+
     default:
       console.error('[tools] Outil inconnu:', name);
       return { error: `Outil inconnu: ${name}` };

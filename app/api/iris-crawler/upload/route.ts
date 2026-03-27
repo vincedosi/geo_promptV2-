@@ -1,20 +1,17 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
-import { loadBase } from '@/lib/iris-crawler/storage';
-import { IRIS_DB_COLUMN_NAMES } from '@/lib/iris-crawler/db-columns';
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { loadBase, splitRow, computeDerived } from '@/lib/iris-crawler/storage';
+import { classifyTarget } from '@/lib/iris-crawler/db-columns';
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/iris-crawler/upload
 // Body: {
 //   catalogId: string,
-//   irisKeyCol: string,            // colonne CSV contenant le code IRIS (ex: "IRIS")
-//   mapping: Record<string,string> // csvCol → irisTableCol
+//   irisKeyCol: string,
+//   mapping: Record<csvCol, dbTarget>  // dbTarget = core col | JSONB key | 'ignore'
 // }
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin(req);
-  if (!profile) return adminUnauthorized();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -40,15 +37,7 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // Vérifier que les colonnes cibles sont valides
-        const invalidCols = Object.values(mapping).filter(c => !IRIS_DB_COLUMN_NAMES.has(c));
-        if (invalidCols.length > 0) {
-          send('error', `Colonnes DB inconnues : ${invalidCols.join(', ')}`);
-          controller.close();
-          return;
-        }
-
-        // ── Charger le JSON téléchargé ────────────────────────────────────────
+        // Charger le JSON téléchargé
         send('status', `Chargement de ${catalogId}…`);
         const base = await loadBase(catalogId);
         if (!base) {
@@ -58,44 +47,43 @@ export async function POST(req: NextRequest) {
         }
 
         const { rows } = base;
-        send('status', `${rows.length} lignes chargées. Préparation…`);
+        const coreColCount = Object.values(mapping).filter(v => classifyTarget(v) === 'core').length;
+        const jsonbColCount = Object.values(mapping).filter(v => classifyTarget(v) === 'jsonb').length;
+        send('status', `${rows.length} lignes · ${coreColCount} core · ${jsonbColCount} JSONB. Préparation…`);
 
-        // ── Préparer les lignes pour l'upsert ─────────────────────────────────
-        const csvCols = Object.keys(mapping);
-        const prepared: Array<Record<string, string | number | null>> = [];
+        // Découper les lignes en core + JSONB
+        const coreRows:      Array<Record<string, string | number | null>> = [];
+        const indicatorRows: Array<{ code_iris: string; indicators: Record<string, string | number | null> }> = [];
 
         for (const row of rows) {
-          const irisCode = row[irisKeyCol];
-          if (!irisCode || typeof irisCode !== 'string') continue;
+          const r = row as Record<string, string>;
+          const { coreData, jsonbData, valid } = splitRow(r, irisKeyCol, mapping);
+          if (!valid) continue;
+          computeDerived(coreData, jsonbData);
 
-          const record: Record<string, string | number | null> = {
-            code_iris: irisCode,
-          };
-
-          for (const csvCol of csvCols) {
-            const dbCol = mapping[csvCol];
-            const val = row[csvCol];
-            record[dbCol] = val ?? null;
+          coreRows.push(coreData);
+          if (Object.keys(jsonbData).length > 0) {
+            indicatorRows.push({ code_iris: coreData.code_iris as string, indicators: jsonbData });
           }
-
-          prepared.push(record);
         }
 
-        send('status', `${prepared.length} lignes à upserter. Envoi vers Supabase…`);
+        send('status', `${coreRows.length} lignes préparées. Envoi vers Supabase…`);
 
-        // ── Batch upsert (500 lignes à la fois) ───────────────────────────────
         const adminClient = createAdminClient();
         const BATCH = 500;
         let totalUpdated = 0;
-        const totalBatches = Math.ceil(prepared.length / BATCH);
+        const totalBatches = Math.ceil(coreRows.length / BATCH);
+        const hasIndicators = indicatorRows.length > 0;
 
-        for (let i = 0; i < prepared.length; i += BATCH) {
-          const batch = prepared.slice(i, i + BATCH);
-          const batchNum = Math.floor(i / BATCH) + 1;
+        for (let i = 0; i < coreRows.length; i += BATCH) {
+          const coreBatch = coreRows.slice(i, i + BATCH);
+          const batchNum  = Math.floor(i / BATCH) + 1;
 
-          const { error } = await adminClient
-            .from('iris')
-            .upsert(batch, { onConflict: 'code_iris', ignoreDuplicates: false });
+          // 1. Update colonnes core (UPDATE uniquement — pas d'INSERT, évite NOT NULL)
+          const { error } = await adminClient.rpc(
+            'update_iris_core_batch',
+            { p_rows: coreBatch },
+          );
 
           if (error) {
             send('error', `Erreur batch ${batchNum}/${totalBatches} : ${error.message}`);
@@ -103,17 +91,32 @@ export async function POST(req: NextRequest) {
             return;
           }
 
-          totalUpdated += batch.length;
-          const pct = Math.round((totalUpdated / prepared.length) * 100);
+          // 2. Merge JSONB indicators
+          if (hasIndicators) {
+            const indBatch = indicatorRows.slice(i, i + BATCH);
+            if (indBatch.length > 0) {
+              const { error: rpcErr } = await adminClient.rpc(
+                'merge_iris_indicators_batch',
+                { p_rows: indBatch },
+              );
+              if (rpcErr) {
+                send('status', `⚠ Batch ${batchNum} indicators : ${rpcErr.message}`);
+              }
+            }
+          }
+
+          totalUpdated += coreBatch.length;
+          const pct = Math.round((totalUpdated / coreRows.length) * 100);
           send('progress', `Batch ${batchNum}/${totalBatches} — ${pct}%`, {
             percent: pct,
             totalUpdated,
           });
         }
 
+        const mappedCols = Object.values(mapping).filter(v => v !== 'ignore');
         send('done',
-          `✓ ${totalUpdated} IRIS mis à jour — ${Object.values(mapping).join(', ')}`,
-          { totalUpdated, columns: Object.values(mapping) }
+          `✓ ${totalUpdated} IRIS mis à jour — ${mappedCols.join(', ')}`,
+          { totalUpdated, columns: mappedCols }
         );
 
       } catch (e) {
@@ -129,8 +132,8 @@ export async function POST(req: NextRequest) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'application/x-ndjson',
-      'Cache-Control': 'no-store',
+      'Content-Type':      'application/x-ndjson',
+      'Cache-Control':     'no-store',
       'X-Accel-Buffering': 'no',
     },
   });

@@ -29,13 +29,13 @@ const PROTECTED_API_PREFIXES = [
   '/api/export',
   '/api/integration-panneaux',
   '/api/iris',
-  '/api/iris-tiles',
   '/api/isochrone-battle',
   '/api/isochrone-battle-v2',
   '/api/isochrone-cache-check',
   '/api/providers',
   '/api/saved-maps',
   '/api/smart-prompt',
+  '/api/correlation',
 ];
 
 const PROTECTED_PAGE_PREFIXES = [
@@ -136,12 +136,12 @@ export const config = {
     '/api/export/:path*',
     '/api/integration-panneaux/:path*',
     '/api/iris/:path*',
-    '/api/iris-tiles/:path*',
     '/api/isochrone-battle/:path*',
     '/api/isochrone-battle-v2/:path*',
     '/api/isochrone-cache-check/:path*',
     '/api/providers/:path*',
     '/api/saved-maps/:path*',
     '/api/smart-prompt/:path*',
+    '/api/correlation/:path*',
   ],
 };

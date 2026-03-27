@@ -16,6 +16,20 @@ interface IrisSource {
   format: string; coverage: string; imported_at: string; schema: string[];
 }
 
+// ── Sources stats types ───────────────────────────────────────────────────────
+interface SourcesStats {
+  ooh: {
+    total: number; nb_villes: number; regies: string[]; sources: string[];
+    types: Array<{ type: string; nb: number }>;
+    top_villes: Array<{ ville: string; nb: number }>;
+  };
+  poi: { total: number; by_category: Array<{ categorie: string; nb: number }> };
+  transport: { total: number; bus: number; train: number; tram: number; metro: number };
+  flux: { total: number; cerema: number; osm: number };
+  carreaux: { total: number };
+  iris: { total: number; enrichis: number };
+}
+
 // Schema columns meaningful as map filters (no id/lat/lng/geom)
 const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'categorie', 'sous_categorie'];
 
@@ -111,13 +125,204 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport'>('all');
 
   // IRIS stats
   const [irisStats,   setIrisStats]   = useState<IrisStats | null>(null);
   const [irisDepts,   setIrisDepts]   = useState<IrisDept[]>([]);
   const [irisSource,  setIrisSource]  = useState<IrisSource | null>(null);
   const [irisLoading, setIrisLoading] = useState(false);
+
+  // IRIS metadata (année)
+  const [irisAnnee,        setIrisAnnee]        = useState('2025');
+  const [irisAnneeSaving,  setIrisAnneeSaving]  = useState(false);
+  const [irisAnneeSaved,   setIrisAnneeSaved]   = useState(false);
+
+  // IRIS PMTiles generation
+  const [irisPmtilesLoading, setIrisPmtilesLoading] = useState(false);
+  const [irisPmtilesMsg,     setIrisPmtilesMsg]     = useState<string | null>(null);
+
+  // IRIS delete
+  const [irisDeleteConfirm, setIrisDeleteConfirm] = useState(false);
+  const [irisDeleteLoading,  setIrisDeleteLoading]  = useState(false);
+  const [irisDeleteMsg,      setIrisDeleteMsg]      = useState<string | null>(null);
+
+  // IRIS sync report
+  interface IrisSyncReport {
+    synced:                boolean;
+    total_iris:            number;
+    db_columns:            string[];
+    code_columns:          string[];
+    missing_in_code:       string[];
+    missing_in_db:         string[];
+    fill_status:           Record<string, number>;
+    rpc_status:            Record<string, string>;
+    manual_actions_needed: string[];
+  }
+  const [irisSyncReport,   setIrisSyncReport]   = useState<IrisSyncReport | null>(null);
+  const [irisSyncLoading,  setIrisSyncLoading]  = useState(false);
+  const [irisSyncError,    setIrisSyncError]    = useState<string | null>(null);
+
+  const runIrisSync = useCallback(async () => {
+    setIrisSyncLoading(true);
+    setIrisSyncError(null);
+    try {
+      const res = await fetch('/api/admin/sync-iris-system', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erreur');
+      setIrisSyncReport(data as IrisSyncReport);
+    } catch (e) {
+      setIrisSyncError(e instanceof Error ? e.message : 'Erreur inconnue');
+    } finally {
+      setIrisSyncLoading(false);
+    }
+  }, []);
+
+  const saveIrisAnnee = useCallback(async (annee: string) => {
+    setIrisAnneeSaving(true);
+    await fetch('/api/admin/iris/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ annee }) });
+    setIrisAnneeSaving(false);
+    setIrisAnneeSaved(true);
+    setTimeout(() => setIrisAnneeSaved(false), 2000);
+  }, []);
+
+  const triggerIrisPmtiles = useCallback(async () => {
+    setIrisPmtilesLoading(true);
+    setIrisPmtilesMsg(null);
+    try {
+      const res = await fetch('/api/admin/trigger-pmtiles', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setIrisPmtilesMsg(`✓ Workflow lancé — durée estimée 5-8 min. Suivi : ${data.workflow_url}`);
+      } else {
+        setIrisPmtilesMsg(`! Erreur : ${data.error}`);
+      }
+    } catch (e) {
+      setIrisPmtilesMsg(`! Erreur réseau : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIrisPmtilesLoading(false);
+    }
+  }, []);
+
+  const deleteAllIris = useCallback(async () => {
+    setIrisDeleteLoading(true);
+    setIrisDeleteMsg(null);
+    try {
+      const res = await fetch('/api/admin/iris/delete', { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setIrisDeleteMsg(`✓ ${data.deleted ?? 0} IRIS supprimés`);
+        setIrisStats(null);
+      } else {
+        setIrisDeleteMsg(`! Erreur: ${data.error}`);
+      }
+    } catch (e) {
+      setIrisDeleteMsg(`! ${e instanceof Error ? e.message : 'Erreur'}`);
+    } finally {
+      setIrisDeleteLoading(false);
+      setIrisDeleteConfirm(false);
+    }
+  }, []);
+
+  // Sources stats globales
+  const [sourcesStats, setSourcesStats] = useState<SourcesStats | null>(null);
+  const [sourcesStatsLoading, setSourcesStatsLoading] = useState(false);
+
+  // POI detail
+  const [selectedPoiCat, setSelectedPoiCat] = useState<string | null>(null);
+  type PoiRow = { id: string; nom: string | null; categorie: string; sous_categorie: string | null; lat: number; lng: number; adresse: string | null; ville: string | null; departement: string | null; code_postal: string | null; source: string | null };
+  const [poiSamples, setPoiSamples] = useState<PoiRow[]>([]);
+  const [poiSamplesTotal, setPoiSamplesTotal] = useState(0);
+  const [poiSamplesOffset, setPoiSamplesOffset] = useState(0);
+  const [poiSamplesLoading, setPoiSamplesLoading] = useState(false);
+
+  // POI modal (add/edit)
+  const emptyForm = { nom: '', categorie: '', sous_categorie: '', lat: '', lng: '', adresse: '', ville: '', departement: '', code_postal: '', source: '' };
+  const [poiModal, setPoiModal] = useState<{ open: boolean; mode: 'create' | 'edit'; data: typeof emptyForm & { id?: string } }>({ open: false, mode: 'create', data: emptyForm });
+  const [poiModalSaving, setPoiModalSaving] = useState(false);
+  const [poiModalError, setPoiModalError] = useState('');
+
+  // Bulk delete confirmation
+  const [confirmDeleteCat, setConfirmDeleteCat] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const refreshPoiStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/sources-stats');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) setSourcesStats(data as SourcesStats);
+    } catch { /* ignore */ }
+  }, []);
+
+  const fetchPoiSamples = useCallback(async (cat: string, offset = 0) => {
+    setPoiSamplesLoading(true);
+    try {
+      const res = await adminFetch(`/api/admin/poi-samples?cat=${cat}&limit=50&offset=${offset}`);
+      const data = await res.json();
+      if (data.success) {
+        setPoiSamples(offset === 0 ? (data.samples ?? []) : (prev) => [...prev, ...(data.samples ?? [])]);
+        setPoiSamplesTotal(data.total ?? 0);
+        setPoiSamplesOffset(offset + (data.samples?.length ?? 0));
+      }
+    } catch { /* ignore */ }
+    setPoiSamplesLoading(false);
+  }, []);
+
+  const openCreatePoi = useCallback((cat: string) => {
+    setPoiModal({ open: true, mode: 'create', data: { ...emptyForm, categorie: cat === 'lycee' ? 'lycee' : cat === 'cirfa' ? 'cirfa' : '' } });
+    setPoiModalError('');
+  }, []);
+
+  const openEditPoi = useCallback((row: PoiRow) => {
+    setPoiModal({ open: true, mode: 'edit', data: { id: row.id, nom: row.nom ?? '', categorie: row.categorie, sous_categorie: row.sous_categorie ?? '', lat: String(row.lat), lng: String(row.lng), adresse: row.adresse ?? '', ville: row.ville ?? '', departement: row.departement ?? '', code_postal: row.code_postal ?? '', source: row.source ?? '' } });
+    setPoiModalError('');
+  }, []);
+
+  const savePoi = useCallback(async () => {
+    setPoiModalSaving(true);
+    setPoiModalError('');
+    try {
+      const isEdit = poiModal.mode === 'edit';
+      const res = await adminFetch('/api/admin/poi-manage', { method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(poiModal.data) });
+      const data = await res.json();
+      if (!data.success) { setPoiModalError(data.error ?? 'Erreur'); setPoiModalSaving(false); return; }
+      setPoiModal({ open: false, mode: 'create', data: emptyForm });
+      if (selectedPoiCat) { fetchPoiSamples(selectedPoiCat, 0); }
+      refreshPoiStats();
+    } catch (e) { setPoiModalError(String(e)); }
+    setPoiModalSaving(false);
+  }, [poiModal, selectedPoiCat, fetchPoiSamples, refreshPoiStats]);
+
+  const deletePoi = useCallback(async (id: string) => {
+    try {
+      await adminFetch(`/api/admin/poi-manage?id=${id}`, { method: 'DELETE' });
+      setPoiSamples((prev) => prev.filter((p) => p.id !== id));
+      setPoiSamplesTotal((t) => t - 1);
+      refreshPoiStats();
+    } catch { /* ignore */ }
+  }, [refreshPoiStats]);
+
+  const deletePoisBulk = useCallback(async (cat: string) => {
+    setBulkDeleting(true);
+    try {
+      await adminFetch(`/api/admin/poi-manage?cat=${cat}`, { method: 'DELETE' });
+      setConfirmDeleteCat(null);
+      if (selectedPoiCat === cat) { setPoiSamples([]); setPoiSamplesTotal(0); setSelectedPoiCat(null); }
+      refreshPoiStats();
+    } catch { /* ignore */ }
+    setBulkDeleting(false);
+  }, [selectedPoiCat, refreshPoiStats]);
+
+  // Transport stats
+  const [transportStats, setTransportStats] = useState<{
+    arrets:   { total: number; by_source: Record<string, number> };
+    flux:     { total: number; by_source: Record<string, number> };
+    panneaux: { total: number; avec_transport: number; avec_flux: number };
+    villes:   Array<{ ville: string; nb_panneaux: number; avec_transport: number; transport_moyen: number; avec_flux: number; flux_moyen: number; score_moyen: number }>;
+  } | null>(null);
+  const [transportLoading, setTransportLoading] = useState(false);
+  const [showTransportTable, setShowTransportTable] = useState(false);
 
   // ============================================================
   // Fetch data
@@ -129,7 +334,8 @@ export default function SourcesPage() {
       const res = await adminFetch('/api/admin/sources');
       const data = await res.json();
       if (data.success) setSources(data.sources || []);
-    } catch { /* ignore */ }
+      else console.error('[sources]', data.error);
+    } catch (e) { console.error('[sources] fetch error:', e); }
     setIsLoading(false);
   }, []);
 
@@ -138,31 +344,64 @@ export default function SourcesPage() {
       const res = await adminFetch('/api/admin/organizations');
       const data = await res.json();
       if (data.success) setOrganizations(data.organizations || []);
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[orgs] fetch error:', e); }
   }, []);
 
   const fetchIrisStats = useCallback(async () => {
     setIrisLoading(true);
     try {
-      const res = await adminFetch('/api/admin/iris/stats');
+      const [res, metaRes] = await Promise.all([
+        fetch('/api/admin/iris/stats'),
+        fetch('/api/admin/iris/metadata'),
+      ]);
       const data = await res.json();
+      const meta = await metaRes.json();
+      if (meta.annee) setIrisAnnee(meta.annee);
       if (data.success) {
         setIrisStats(data.stats);
         setIrisDepts(data.top_depts || []);
         setIrisSource(data.source || null);
-      }
-    } catch { /* ignore */ }
+      } else console.error('[iris/stats]', data.error);
+    } catch (e) { console.error('[iris/stats] fetch error:', e); }
     setIrisLoading(false);
+  }, []);
+
+  const fetchSourcesStats = useCallback(async () => {
+    setSourcesStatsLoading(true);
+    try {
+      const res = await fetch('/api/admin/sources-stats');
+      if (!res.ok) { console.error('[sources-stats] HTTP', res.status); setSourcesStatsLoading(false); return; }
+      const data = await res.json();
+      if (data.success) setSourcesStats(data as SourcesStats);
+      else console.error('[sources-stats]', data.error);
+    } catch (e) { console.error('[sources-stats] fetch error:', e); }
+    setSourcesStatsLoading(false);
   }, []);
 
   useEffect(() => {
     fetchSources();
     fetchOrgs();
-  }, [fetchSources, fetchOrgs]);
+    fetchSourcesStats();
+  }, [fetchSources, fetchOrgs, fetchSourcesStats]);
+
+  const fetchTransportStats = useCallback(async () => {
+    setTransportLoading(true);
+    try {
+      const res = await fetch('/api/admin/transport-stats');
+      const data = await res.json();
+      if (data.success) setTransportStats(data);
+      else console.error('[transport-stats]', data.error);
+    } catch (e) { console.error('[transport-stats] fetch error:', e); }
+    setTransportLoading(false);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'iris' && !irisStats && !irisLoading) fetchIrisStats();
   }, [activeTab, irisStats, irisLoading, fetchIrisStats]);
+
+  useEffect(() => {
+    if (activeTab === 'transport' && !transportStats && !transportLoading) fetchTransportStats();
+  }, [activeTab, transportStats, transportLoading, fetchTransportStats]);
 
   // ============================================================
   // Actions
@@ -414,12 +653,16 @@ export default function SourcesPage() {
 
       {/* ── Tabs ─────────────────────────────────────────────── */}
       {(() => {
-        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris'; label: string; color: string }[] = [
-          { key: 'all',      label: `Toutes (${sources.length})`,                                          color: C.accent },
-          { key: 'poi',      label: `POI (${sources.filter((s) => s.type === 'poi').length})`,             color: '#8b5cf6' },
-          { key: 'carreaux', label: `Carreaux (${sources.filter((s) => s.type === 'carreaux').length})`,  color: C.green },
-          { key: 'panneaux', label: `OOH (${sources.filter((s) => s.type === 'panneaux').length})`,       color: C.warn },
-          { key: 'iris',     label: 'IRIS IGN 2025',                                                       color: '#06b6d4' },
+        const ss = sourcesStats;
+        const fmtK = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n);
+        const allTotal = ss ? ss.ooh.total + ss.poi.total + ss.transport.total + ss.flux.total + ss.carreaux.total + ss.iris.total : sources.length;
+        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport'; label: string; color: string }[] = [
+          { key: 'all',       label: `Toutes (${sourcesStatsLoading ? '…' : fmtK(allTotal)})`,              color: C.accent },
+          { key: 'poi',       label: `POI (${ss ? fmtK(ss.poi.total) : '…'})`,                             color: '#8b5cf6' },
+          { key: 'carreaux',  label: `Carreaux (${ss ? fmtK(ss.carreaux.total) : '…'})`,                  color: C.green },
+          { key: 'panneaux',  label: `OOH (${ss ? fmtK(ss.ooh.total) : '…'})`,                            color: C.warn },
+          { key: 'iris',      label: `IRIS (${ss ? fmtK(ss.iris.total) : '…'})`,                           color: '#06b6d4' },
+          { key: 'transport', label: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, color: '#22c55e' },
         ];
         return (
           <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
@@ -447,6 +690,450 @@ export default function SourcesPage() {
                 {tab.label}
               </button>
             ))}
+          </div>
+        );
+      })()}
+
+      {/* ── All Tab — KPI Cards ──────────────────────────────────────────────── */}
+      {activeTab === 'all' && sourcesStats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 20 }}>
+          {[
+            { label: 'Panneaux OOH', value: sourcesStats.ooh.total.toLocaleString('fr-FR'), sub: `${sourcesStats.ooh.nb_villes} villes · ${(sourcesStats.ooh.regies ?? []).length} régies`, color: C.warn, tab: 'panneaux' as const },
+            { label: 'POI', value: sourcesStats.poi.total.toLocaleString('fr-FR'), sub: `lycées, CIRFA, autres`, color: '#8b5cf6', tab: 'poi' as const },
+            { label: 'Carreaux', value: (sourcesStats.carreaux.total / 1_000_000).toFixed(2) + 'M', sub: 'Filosofi 200m', color: C.green, tab: 'carreaux' as const },
+            { label: 'IRIS', value: sourcesStats.iris.total.toLocaleString('fr-FR'), sub: `${sourcesStats.iris.enrichis.toLocaleString('fr-FR')} enrichis`, color: '#06b6d4', tab: 'iris' as const },
+            { label: 'Transport & Flux', value: (sourcesStats.transport.total + sourcesStats.flux.total).toLocaleString('fr-FR'), sub: 'arrêts + routes', color: '#22c55e', tab: 'transport' as const },
+          ].map(({ label, value, sub, color, tab }) => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setSelectedSource(null); }}
+              style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = color)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+            >
+              <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>{label}</div>
+              <div style={{ fontFamily: fontMono, fontSize: 22, fontWeight: 700, color, lineHeight: 1, marginBottom: 4 }}>{value}</div>
+              <div style={{ fontFamily: fontInter, fontSize: 10, color: C.muted }}>{sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── OOH Panel ────────────────────────────────────────────────────────── */}
+      {activeTab === 'panneaux' && (() => {
+        const warn = C.warn;
+        const warnDim = C.warnDim;
+        const warnBorder = `${C.warn}44`;
+        const ss = sourcesStats;
+        if (!ss) return (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
+            {sourcesStatsLoading ? <><Spinner size={18} /> Chargement...</> : 'Aucune donnée.'}
+          </div>
+        );
+        const maxType = (ss.ooh.types ?? [])[0]?.nb ?? 1;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Header card */}
+            <div style={{ background: warnDim, border: `1px solid ${warnBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: warn, letterSpacing: 1, marginBottom: 6 }}>
+                  Data Lake OOH — global_ooh
+                </div>
+                <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
+                  <span style={{ color: C.textSec }}>Régies: </span><span style={{ color: C.text }}>{(ss.ooh.regies ?? []).slice(0, 5).join(', ')}{(ss.ooh.regies ?? []).length > 5 ? ` +${(ss.ooh.regies ?? []).length - 5}` : ''}</span><br />
+                  <span style={{ color: C.textSec }}>Sources: </span><span style={{ color: C.text }}>{(ss.ooh.sources ?? []).join(', ')}</span><br />
+                  <span style={{ color: C.textSec }}>Villes: </span>{ss.ooh.nb_villes} villes couvertes<br />
+                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>global_ooh</span> (statut = actif)
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: warn, lineHeight: 1 }}>
+                  {ss.ooh.total.toLocaleString('fr-FR')}
+                </div>
+                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                  panneaux actifs
+                </div>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {[
+                { label: 'Villes',   value: ss.ooh.nb_villes,              color: warn },
+                { label: 'Régies',   value: (ss.ooh.regies ?? []).length,   color: C.accent },
+                { label: 'Types',    value: (ss.ooh.types ?? []).length,    color: '#60a5fa' },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px' }}>
+                  <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                  <div style={{ fontFamily: fontMono, fontSize: 20, fontWeight: 700, color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {/* Types de panneaux */}
+              <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
+                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: warn, marginBottom: 12 }}>
+                  Types de panneaux (top 10)
+                </div>
+                {(ss.ooh.types ?? []).map(({ type, nb }) => {
+                  const pct = Math.round(nb / maxType * 100);
+                  return (
+                    <div key={type} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{type}</span>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: warn, fontWeight: 700, flexShrink: 0 }}>{nb.toLocaleString('fr-FR')}</span>
+                      </div>
+                      <div style={{ height: 3, background: C.bgSurface, borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: warn, borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Top 20 villes */}
+              <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: warn }}>
+                  Top 20 villes
+                </div>
+                <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fontMono, fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: C.bgSurface, position: 'sticky', top: 0 }}>
+                        {['#', 'Ville', 'Panneaux'].map((h) => (
+                          <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ss.ooh.top_villes.map((v, i) => (
+                        <tr key={v.ville} style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                          <td style={{ padding: '5px 12px', color: C.muted, width: 30 }}>{i + 1}</td>
+                          <td style={{ padding: '5px 12px', color: C.text, fontWeight: 600 }}>{v.ville}</td>
+                          <td style={{ padding: '5px 12px', color: warn, fontWeight: 700 }}>{v.nb}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── POI Panel ────────────────────────────────────────────────────────── */}
+      {activeTab === 'poi' && (() => {
+        const purple = '#8b5cf6';
+        const purpleDim = 'rgba(139,92,246,0.10)';
+        const purpleBorder = 'rgba(139,92,246,0.25)';
+        const ss = sourcesStats;
+        if (!ss) return (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
+            {sourcesStatsLoading ? <><Spinner size={18} /> Chargement...</> : 'Aucune donnée.'}
+          </div>
+        );
+        // ── Mapping couleur/label pour catégories connues ──────────────────
+        const POI_META: Record<string, { label: string; description: string; color: string; dim: string; border: string }> = {
+          lycee:      { label: 'Lycées',          description: 'Établissements scolaires du second degré',                    color: C.warn,  dim: C.warnDim,                    border: `${C.warn}44` },
+          cirfa:      { label: 'CIRFA',            description: 'Centres d\'information et de recrutement des forces armées',  color: C.red,   dim: C.redDim,                     border: `${C.red}44` },
+          bmw:        { label: 'BMW Concessions',  description: 'Points de vente BMW',                                        color: '#3b82f6', dim: 'rgba(59,130,246,0.10)',     border: 'rgba(59,130,246,0.35)' },
+          concession: { label: 'Concessions',      description: 'Points de vente automobiles',                                color: '#3b82f6', dim: 'rgba(59,130,246,0.10)',     border: 'rgba(59,130,246,0.35)' },
+          pharmacie:  { label: 'Pharmacies',       description: 'Pharmacies et parapharmacies',                               color: C.green, dim: C.greenDim,                   border: `${C.green}44` },
+          supermarche: { label: 'Supermarchés',    description: 'Grande distribution',                                        color: '#06b6d4', dim: 'rgba(6,182,212,0.10)',      border: 'rgba(6,182,212,0.35)' },
+        };
+        const PALETTE = [purple, '#06b6d4', C.green, '#f59e0b', '#ec4899', '#64748b', '#a78bfa', '#34d399'];
+        const getCatMeta = (cat: string, idx: number) => {
+          if (POI_META[cat]) return POI_META[cat];
+          const col = PALETTE[idx % PALETTE.length];
+          return { label: cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, ' '), description: `Catégorie : ${cat}`, color: col, dim: `${col}18`, border: `${col}44` };
+        };
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: purpleDim, border: `1px solid ${purpleBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 6 }}>Points d&apos;intérêt (hors transport)</div>
+                <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
+                  <span style={{ color: C.textSec }}>Catégories: </span>{ss.poi.by_category.map((c) => c.categorie).join(', ') || '—'}<br />
+                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>poi_france</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: purple, lineHeight: 1 }}>
+                  {ss.poi.total.toLocaleString('fr-FR')}
+                </div>
+                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>points d&apos;intérêt</div>
+              </div>
+            </div>
+            {/* ── Confirmation suppression bulk ─────────────────────────────── */}
+            {confirmDeleteCat && (
+              <div style={{ background: C.redDim, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontFamily: fontInter, fontSize: 12, color: C.text, flex: 1 }}>
+                  Supprimer <strong style={{ color: C.red }}>TOUS</strong> les POI de catégorie <span style={{ fontFamily: fontMono, color: C.red }}>{confirmDeleteCat}</span> ? Cette action est irréversible.
+                </span>
+                <button
+                  onClick={() => deletePoisBulk(confirmDeleteCat)}
+                  disabled={bulkDeleting}
+                  style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.red, color: '#fff', border: 'none', borderRadius: 2, padding: '6px 14px', cursor: 'pointer', opacity: bulkDeleting ? 0.5 : 1 }}
+                >
+                  {bulkDeleting ? 'Suppression...' : 'Confirmer'}
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteCat(null)}
+                  style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '6px 14px', cursor: 'pointer' }}
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {ss.poi.by_category.map(({ categorie: cat, nb }, idx) => {
+                const meta = getCatMeta(cat, idx);
+                const pct  = ss.poi.total > 0 ? Math.round(nb / ss.poi.total * 100) : 0;
+                const isSelected = selectedPoiCat === cat;
+                return (
+                  <div
+                    key={cat}
+                    style={{
+                      background: isSelected ? meta.dim : C.bgElevated,
+                      border: `1px solid ${isSelected ? meta.border : C.border}`,
+                      borderRadius: 2,
+                      padding: '16px',
+                      transition: 'all 0.15s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: meta.color, marginBottom: 4 }}>POI</div>
+                        <div style={{ fontFamily: fontOrbitron, fontSize: 11, fontWeight: 700, color: isSelected ? meta.color : C.text, letterSpacing: 0.5 }}>{meta.label}</div>
+                      </div>
+                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: meta.color, background: meta.dim, border: `1px solid ${meta.border}`, padding: '2px 6px', borderRadius: 2 }}>
+                        {pct}%
+                      </span>
+                    </div>
+
+                    {/* Count */}
+                    <div style={{ fontFamily: fontMono, fontSize: 32, fontWeight: 700, color: meta.color, lineHeight: 1 }}>
+                      {nb.toLocaleString('fr-FR')}
+                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, marginLeft: 8 }}>POI</span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div style={{ height: 3, background: C.bgSurface, borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: meta.color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                    </div>
+
+                    {/* Meta */}
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, lineHeight: 1.8, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                      <div style={{ color: C.textSec, marginBottom: 2 }}>{meta.description}</div>
+                      <div><span style={{ color: C.muted }}>cat: </span><span style={{ color: C.accent }}>{cat}</span></div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                      <button
+                        onClick={() => { const next = isSelected ? null : cat; setSelectedPoiCat(next); if (next) { setPoiSamplesOffset(0); fetchPoiSamples(next, 0); } else setPoiSamples([]); }}
+                        style={{ flex: 1, fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: isSelected ? meta.dim : 'transparent', color: isSelected ? meta.color : C.muted, border: `1px solid ${isSelected ? meta.border : C.border}`, borderRadius: 2, padding: '5px 8px', cursor: 'pointer' }}
+                      >
+                        {isSelected ? '✕ fermer' : '+ voir'}
+                      </button>
+                      <button
+                        onClick={() => openCreatePoi(cat)}
+                        style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'transparent', color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
+                      >
+                        + nouveau
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteCat(cat)}
+                        style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
+                      >
+                        ✕ purger
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Samples panel */}
+            {selectedPoiCat && (
+              <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: purple }}>
+                    {selectedPoiCat} — {poiSamples.length} / {poiSamplesTotal.toLocaleString('fr-FR')} POI
+                  </span>
+                  {poiSamplesLoading && <Spinner size={12} />}
+                  <button
+                    onClick={() => openCreatePoi(selectedPoiCat)}
+                    style={{ marginLeft: 'auto', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.greenDim, color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '4px 10px', cursor: 'pointer' }}
+                  >
+                    + nouveau POI
+                  </button>
+                  <button onClick={() => { setSelectedPoiCat(null); setPoiSamples([]); }} style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', fontSize: 13, lineHeight: 1, marginLeft: 4 }}>✕</button>
+                </div>
+
+                {/* Table */}
+                {poiSamples.length > 0 && (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fontMono, fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ background: C.bgSurface }}>
+                          {['Nom', 'Ville', 'Adresse', 'Sous-cat', 'Lat', 'Lng', 'Source', ''].map((h) => (
+                            <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400, whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {poiSamples.map((p, i) => (
+                          <tr key={p.id} style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                            <td style={{ padding: '5px 12px', color: C.text, fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nom ?? '—'}</td>
+                            <td style={{ padding: '5px 12px', color: C.textDim, whiteSpace: 'nowrap' }}>{p.ville ?? '—'}</td>
+                            <td style={{ padding: '5px 12px', color: C.textSec, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.adresse ?? '—'}</td>
+                            <td style={{ padding: '5px 12px', color: C.textDim }}>{p.sous_categorie ?? '—'}</td>
+                            <td style={{ padding: '5px 12px', color: C.muted }}>{p.lat?.toFixed(4)}</td>
+                            <td style={{ padding: '5px 12px', color: C.muted }}>{p.lng?.toFixed(4)}</td>
+                            <td style={{ padding: '5px 12px', color: C.muted, fontSize: 10 }}>{p.source ?? '—'}</td>
+                            <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
+                              <button
+                                onClick={() => openEditPoi(p)}
+                                style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', marginRight: 4 }}
+                              >
+                                éditer
+                              </button>
+                              <button
+                                onClick={() => deletePoi(p.id)}
+                                style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer' }}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Load more */}
+                {poiSamples.length < poiSamplesTotal && (
+                  <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      onClick={() => fetchPoiSamples(selectedPoiCat, poiSamplesOffset)}
+                      disabled={poiSamplesLoading}
+                      style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.accentDim, color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '5px 14px', cursor: 'pointer', opacity: poiSamplesLoading ? 0.5 : 1 }}
+                    >
+                      {poiSamplesLoading ? 'Chargement...' : `Charger + (${poiSamplesTotal - poiSamples.length} restants)`}
+                    </button>
+                  </div>
+                )}
+
+                {!poiSamplesLoading && poiSamples.length === 0 && (
+                  <div style={{ padding: '16px', color: C.textDim, fontFamily: fontInter, fontSize: 12 }}>Aucun résultat.</div>
+                )}
+              </div>
+            )}
+
+            {/* ── Modal ajouter / éditer POI ──────────────────────────────────── */}
+            {poiModal.open && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 24, width: 520, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto' }}>
+                  <div style={{ fontFamily: fontOrbitron, fontSize: 12, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 20 }}>
+                    {poiModal.mode === 'create' ? '+ Nouveau POI' : 'Éditer POI'}
+                  </div>
+
+                  {poiModalError && (
+                    <div style={{ background: C.redDim, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red, marginBottom: 14 }}>
+                      {poiModalError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {([
+                      { field: 'nom',           label: 'Nom',          span: 2 },
+                      { field: 'categorie',      label: 'Catégorie *',  span: 1 },
+                      { field: 'sous_categorie', label: 'Sous-catégorie', span: 1 },
+                      { field: 'lat',            label: 'Latitude *',   span: 1 },
+                      { field: 'lng',            label: 'Longitude *',  span: 1 },
+                      { field: 'adresse',        label: 'Adresse',      span: 2 },
+                      { field: 'ville',          label: 'Ville',        span: 1 },
+                      { field: 'departement',    label: 'Département',  span: 1 },
+                      { field: 'code_postal',    label: 'Code postal',  span: 1 },
+                      { field: 'source',         label: 'Source',       span: 1 },
+                    ] as { field: keyof typeof emptyForm; label: string; span: number }[]).map(({ field, label, span }) => (
+                      <div key={field} style={{ gridColumn: span === 2 ? '1 / -1' : 'auto' }}>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 4 }}>{label}</div>
+                        <input
+                          value={poiModal.data[field]}
+                          onChange={(e) => setPoiModal((m) => ({ ...m, data: { ...m.data, [field]: e.target.value } }))}
+                          style={{ width: '100%', background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '7px 10px', fontFamily: fontMono, fontSize: 11, color: C.text, outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+                    <button
+                      onClick={() => setPoiModal({ open: false, mode: 'create', data: emptyForm })}
+                      style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '7px 16px', cursor: 'pointer' }}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={savePoi}
+                      disabled={poiModalSaving}
+                      style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: purple, color: '#fff', border: 'none', borderRadius: 2, padding: '7px 20px', cursor: 'pointer', opacity: poiModalSaving ? 0.6 : 1 }}
+                    >
+                      {poiModalSaving ? 'Enregistrement...' : poiModal.mode === 'create' ? 'Créer' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Carreaux Panel ───────────────────────────────────────────────────── */}
+      {activeTab === 'carreaux' && (() => {
+        const ss = sourcesStats;
+        if (!ss) return (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
+            {sourcesStatsLoading ? <><Spinner size={18} /> Chargement...</> : 'Aucune donnée.'}
+          </div>
+        );
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: C.greenDim, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: C.green, letterSpacing: 1, marginBottom: 6 }}>Carreaux INSEE Filosofi 200m</div>
+                <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
+                  <span style={{ color: C.textSec }}>Source: </span>INSEE Filosofi<br />
+                  <span style={{ color: C.textSec }}>Résolution: </span>200m × 200m<br />
+                  <span style={{ color: C.textSec }}>Couverture: </span>France métropolitaine<br />
+                  <span style={{ color: C.textSec }}>Données: </span>population, revenus, âge, densité<br />
+                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>carreaux_filosofi</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: C.green, lineHeight: 1 }}>
+                  {(ss.carreaux.total / 1_000_000).toFixed(2)}M
+                </div>
+                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>carreaux</div>
+              </div>
+            </div>
+            <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px', fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
+              <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
+              Jointure spatiale avec <span style={{ color: C.green }}>public.iris</span> via <span style={{ color: '#06b6d4' }}>ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
+              Agrégation démographique par isochrone ou zone de chalandise.
+            </div>
           </div>
         );
       })()}
@@ -597,19 +1284,495 @@ export default function SourcesPage() {
                   Requête type: <span style={{ color: C.text }}>SELECT code_iris, SUM(ind) FROM iris JOIN carreaux_filosofi ON ST_Intersects(...)</span>
                 </div>
 
+                {/* ── Année du millésime ── */}
+                <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
+                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#06b6d4', marginBottom: 10 }}>
+                    Millésime / Année
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={2000}
+                      max={2099}
+                      value={irisAnnee}
+                      onChange={e => setIrisAnnee(e.target.value)}
+                      style={{
+                        width: 90, padding: '6px 10px', borderRadius: 2,
+                        background: C.bgSurface, border: `1px solid ${C.border}`,
+                        color: C.text, fontFamily: fontMono, fontSize: 14,
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={() => saveIrisAnnee(irisAnnee)}
+                      disabled={irisAnneeSaving}
+                      style={{
+                        padding: '6px 14px', borderRadius: 2,
+                        background: C.accentDim, border: `1px solid ${C.borderLight}`,
+                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
+                        letterSpacing: '0.12em', cursor: 'pointer',
+                      }}
+                    >
+                      {irisAnneeSaving ? 'ENREGISTREMENT…' : irisAnneeSaved ? '✓ SAUVEGARDÉ' : 'SAUVEGARDER'}
+                    </button>
+                    <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+                      Millésime CONTOURS-IRIS (ex: 2025 = édition IGN 2025)
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Régénérer PMTiles ── */}
+                <div style={{ background: C.bgElevated, border: `1px solid ${cyanBorder}`, borderRadius: 2, padding: '16px 18px' }}>
+                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cyan, marginBottom: 8 }}>
+                    Carte choroplèthe — PMTiles
+                  </div>
+                  <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 12, lineHeight: 1.7 }}>
+                    Déclenche le workflow GitHub Actions <span style={{ color: C.text }}>generate-iris-pmtiles</span> : export NDJSON → tippecanoe → upload Supabase Storage.<br />
+                    À faire après chaque import de nouvelles données démographiques (diplômes, revenus, CSP…).
+                  </div>
+                  {irisPmtilesMsg && (
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: irisPmtilesMsg.startsWith('✓') ? C.green : C.red, marginBottom: 10, lineHeight: 1.6, wordBreak: 'break-all' }}>
+                      {irisPmtilesMsg}
+                    </div>
+                  )}
+                  <button
+                    onClick={triggerIrisPmtiles}
+                    disabled={irisPmtilesLoading}
+                    style={{
+                      padding: '7px 18px', borderRadius: 2,
+                      background: cyanDim, border: `1px solid ${cyanBorder}`,
+                      color: cyan, fontFamily: fontMichroma, fontSize: 8,
+                      letterSpacing: '0.12em', cursor: irisPmtilesLoading ? 'not-allowed' : 'pointer',
+                      opacity: irisPmtilesLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {irisPmtilesLoading ? 'DÉCLENCHEMENT…' : 'RÉGÉNÉRER PMTILES IRIS'}
+                  </button>
+                </div>
+
+                {/* ── Zone danger : supprimer les IRIS ── */}
+                <div style={{ background: C.redDim, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '16px 18px' }}>
+                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.red, marginBottom: 8 }}>
+                    Zone Danger — Suppression
+                  </div>
+                  <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 12 }}>
+                    Supprime toutes les zones IRIS de la base (TRUNCATE). À utiliser avant un ré-import avec un nouveau millésime.
+                  </div>
+                  {irisDeleteMsg && (
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: irisDeleteMsg.startsWith('✓') ? C.green : C.red, marginBottom: 10 }}>
+                      {irisDeleteMsg}
+                    </div>
+                  )}
+                  {!irisDeleteConfirm ? (
+                    <button
+                      onClick={() => setIrisDeleteConfirm(true)}
+                      style={{
+                        padding: '7px 16px', borderRadius: 2,
+                        background: 'transparent', border: `1px solid ${C.red}66`,
+                        color: C.red, fontFamily: fontMichroma, fontSize: 8,
+                        letterSpacing: '0.12em', cursor: 'pointer',
+                      }}
+                    >
+                      SUPPRIMER TOUS LES IRIS
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontFamily: fontMono, fontSize: 10, color: C.warn }}>
+                        ! Confirmer la suppression de {irisStats?.total.toLocaleString('fr-FR')} IRIS ?
+                      </span>
+                      <button
+                        onClick={deleteAllIris}
+                        disabled={irisDeleteLoading}
+                        style={{
+                          padding: '6px 14px', borderRadius: 2,
+                          background: `${C.red}22`, border: `1px solid ${C.red}`,
+                          color: C.red, fontFamily: fontMichroma, fontSize: 8,
+                          letterSpacing: '0.12em', cursor: 'pointer',
+                        }}
+                      >
+                        {irisDeleteLoading ? 'SUPPRESSION…' : 'OUI, SUPPRIMER'}
+                      </button>
+                      <button
+                        onClick={() => setIrisDeleteConfirm(false)}
+                        style={{
+                          padding: '6px 14px', borderRadius: 2,
+                          background: 'transparent', border: `1px solid ${C.border}`,
+                          color: C.textDim, fontFamily: fontMichroma, fontSize: 8,
+                          letterSpacing: '0.12em', cursor: 'pointer',
+                        }}
+                      >
+                        ANNULER
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Synchronisation IRIS ── */}
+                <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cyan, marginBottom: 3 }}>
+                        Synchronisation IRIS
+                      </div>
+                      <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+                        Vérifie que les colonnes en base sont alignées avec{' '}
+                        <span style={{ color: C.accent }}>IRIS_DB_COLUMNS</span> (db-columns.ts)
+                      </div>
+                    </div>
+                    <button
+                      onClick={runIrisSync}
+                      disabled={irisSyncLoading}
+                      style={{
+                        flexShrink: 0, padding: '6px 16px', borderRadius: 2,
+                        background: irisSyncLoading ? C.accentDim : C.accentDim,
+                        border: `1px solid ${C.borderLight}`,
+                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
+                        letterSpacing: '0.12em', cursor: irisSyncLoading ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      {irisSyncLoading ? <><Spinner size={10} /> VÉRIFICATION…</> : 'VÉRIFIER'}
+                    </button>
+                  </div>
+
+                  {irisSyncError && (
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.red, padding: '6px 8px', background: C.redDim, borderRadius: 2, marginBottom: 10 }}>
+                      ! {irisSyncError}
+                    </div>
+                  )}
+
+                  {irisSyncReport && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                      {/* Status banner */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 14px', borderRadius: 2,
+                        background: irisSyncReport.synced ? 'rgba(61,255,160,0.06)' : C.warnDim,
+                        border: `1px solid ${irisSyncReport.synced ? `${C.green}44` : `${C.warn}44`}`,
+                      }}>
+                        <span style={{ fontFamily: fontMono, fontSize: 16, color: irisSyncReport.synced ? C.green : C.warn }}>
+                          {irisSyncReport.synced ? '✓' : '!'}
+                        </span>
+                        <div>
+                          <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', color: irisSyncReport.synced ? C.green : C.warn }}>
+                            {irisSyncReport.synced ? 'SYNCHRONISÉ' : 'DÉSYNCHRONISATION DÉTECTÉE'}
+                          </div>
+                          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.textDim, marginTop: 2 }}>
+                            {irisSyncReport.db_columns.length} colonnes en base ·{' '}
+                            {irisSyncReport.code_columns.length} dans IRIS_DB_COLUMNS
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions manuelles */}
+                      {irisSyncReport.manual_actions_needed.length > 0 && (
+                        <div style={{ background: C.warnDim, border: `1px solid ${C.warn}44`, borderRadius: 2, padding: '10px 12px' }}>
+                          <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.warn, marginBottom: 6 }}>
+                            ACTIONS REQUISES
+                          </div>
+                          {irisSyncReport.manual_actions_needed.map((action, i) => (
+                            <div key={i} style={{ fontFamily: fontMono, fontSize: 10, color: C.text, marginBottom: 3 }}>
+                              › {action}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* RPC status */}
+                      <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 12px' }}>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.textDim, marginBottom: 6 }}>
+                          STATUT RPCS
+                        </div>
+                        {Object.entries(irisSyncReport.rpc_status).map(([rpc, status]) => (
+                          <div key={rpc} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fontMono, fontSize: 9, marginBottom: 3 }}>
+                            <span style={{ color: C.accent }}>{rpc}</span>
+                            <span style={{ color: C.green }}>{status}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Fill status table */}
+                      <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 12px' }}>
+                        <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.textDim, marginBottom: 8 }}>
+                          REMPLISSAGE PAR COLONNE
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
+                          {Object.entries(irisSyncReport.fill_status)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([col, count]) => {
+                              const total = irisSyncReport.fill_status['population'] || 1;
+                              const pct   = Math.round((count / total) * 100);
+                              const color = pct >= 80 ? C.green : pct >= 30 ? C.warn : C.red;
+                              const inCode = irisSyncReport.code_columns.includes(col);
+                              return (
+                                <div key={col} style={{
+                                  display: 'flex', alignItems: 'center', gap: 6,
+                                  padding: '4px 6px',
+                                  background: C.bgElevated,
+                                  border: `1px solid ${inCode ? C.border : `${C.warn}44`}`,
+                                  borderRadius: 2,
+                                }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontFamily: fontMono, fontSize: 9, color: inCode ? C.text : C.warn, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {col}
+                                    </div>
+                                    <div style={{ height: 2, background: C.border, borderRadius: 1, marginTop: 3 }}>
+                                      <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: color, borderRadius: 1 }} />
+                                    </div>
+                                  </div>
+                                  <span style={{ fontFamily: fontMono, fontSize: 8, color, flexShrink: 0 }}>
+                                    {count.toLocaleString('fr')}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>
         );
       })()}
 
-      {/* ── Sources list (non-IRIS tabs) ──────────────────────────────────── */}
-      {activeTab !== 'iris' && (
+      {/* ── Transport Panel ─────────────────────────────────────────────────── */}
+      {activeTab === 'transport' && (() => {
+        const green2 = '#22c55e';
+        const green2Dim = 'rgba(34,197,94,0.10)';
+        const green2Border = 'rgba(34,197,94,0.25)';
+        const orange = '#f97316';
+        const orangeDim = 'rgba(249,115,22,0.10)';
+        const orangeBorder = 'rgba(249,115,22,0.25)';
+
+        const pctTransport = transportStats
+          ? Math.round(transportStats.panneaux.avec_transport / transportStats.panneaux.total * 100)
+          : 0;
+        const pctFlux = transportStats
+          ? Math.round(transportStats.panneaux.avec_flux / transportStats.panneaux.total * 100)
+          : 0;
+        const badgeColor = (pct: number) =>
+          pct >= 90 ? C.green : pct >= 70 ? C.warn : C.red;
+
+        return (
+          <div>
+            {transportLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '40px 0', color: C.textDim, fontFamily: fontMono, fontSize: 12 }}>
+                <Spinner size={18} /> Chargement des statistiques transport...
+              </div>
+            )}
+            {!transportLoading && !transportStats && (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
+                Aucune donnée. <button onClick={fetchTransportStats} style={{ ...btnGhostStyle, display: 'inline-flex' }}>Charger</button>
+              </div>
+            )}
+            {!transportLoading && transportStats && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Arrêts transport */}
+                <div style={{ background: green2Dim, border: `1px solid ${green2Border}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: green2, letterSpacing: 1, marginBottom: 6 }}>
+                      Arrêts de transport en commun
+                    </div>
+                    <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
+                      <span style={{ color: C.textSec }}>Source: </span>GTFS consolidé France — transport.data.gouv.fr<br />
+                      {Object.entries(transportStats.arrets.by_source).map(([src, nb]) => (
+                        <span key={src}>
+                          <span style={{ color: C.textSec }}>Dataset: </span>
+                          <span style={{ color: C.text }}>{src}</span>
+                          <span style={{ color: C.muted }}> — {nb.toLocaleString('fr-FR')} arrêts</span>
+                          <br />
+                        </span>
+                      ))}
+                    </div>
+                    {pctTransport > 0 ? (
+                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: badgeColor(pctTransport), background: `${badgeColor(pctTransport)}1a`, border: `1px solid ${badgeColor(pctTransport)}44`, padding: '2px 8px', borderRadius: 2 }}>
+                          {pctTransport}% panneaux couverts
+                        </span>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>
+                          ({transportStats.panneaux.avec_transport.toLocaleString('fr-FR')} / {transportStats.panneaux.total.toLocaleString('fr-FR')})
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
+                        Scoring OOH non calculé
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: green2, lineHeight: 1 }}>
+                      {transportStats.arrets.total.toLocaleString('fr-FR')}
+                    </div>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                      arrêts physiques
+                    </div>
+                    <button
+                      onClick={fetchTransportStats}
+                      style={{ ...btnGhostStyle, marginTop: 10, fontSize: 8 }}
+                    >
+                      Actualiser
+                    </button>
+                  </div>
+                </div>
+
+                {/* Flux routier */}
+                <div style={{ background: orangeDim, border: `1px solid ${orangeBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: orange, letterSpacing: 1, marginBottom: 6 }}>
+                      Flux routier (TMJA)
+                    </div>
+                    <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
+                      {Object.entries(transportStats.flux.by_source).map(([src, nb]) => (
+                        <span key={src}>
+                          <span style={{ color: C.textSec }}>{src === 'tmja_rrn_national' ? 'CEREMA (réel): ' : 'OSM proxy: '}</span>
+                          <span style={{ color: C.text }}>{nb.toLocaleString('fr-FR')} sections</span>
+                          <br />
+                        </span>
+                      ))}
+                    </div>
+                    {pctFlux > 0 ? (
+                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: badgeColor(pctFlux), background: `${badgeColor(pctFlux)}1a`, border: `1px solid ${badgeColor(pctFlux)}44`, padding: '2px 8px', borderRadius: 2 }}>
+                          {pctFlux}% panneaux couverts
+                        </span>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>
+                          ({transportStats.panneaux.avec_flux.toLocaleString('fr-FR')} / {transportStats.panneaux.total.toLocaleString('fr-FR')})
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
+                        Scoring OOH non calculé
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: orange, lineHeight: 1 }}>
+                      {transportStats.flux.total.toLocaleString('fr-FR')}
+                    </div>
+                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                      sections routières
+                    </div>
+                  </div>
+                </div>
+
+                {/* Toggle tableau — masqué si scoring non calculé */}
+                <div>
+                  {transportStats.panneaux.total > 0 && (pctTransport > 0 || pctFlux > 0) && (
+                  <button
+                    onClick={() => setShowTransportTable((v) => !v)}
+                    style={{ ...btnGhostStyle, marginBottom: showTransportTable ? 10 : 0 }}
+                  >
+                    {showTransportTable ? '▲ Masquer' : '▼ Détails par ville (top 30)'}
+                  </button>
+                  )}
+                  {showTransportTable && (
+                    <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fontMono, fontSize: 11 }}>
+                        <thead>
+                          <tr style={{ background: C.bgSurface }}>
+                            {['Ville', 'Panneaux', 'Transport %', 'Moy. transport', 'Flux %', 'Moy. flux', 'Score total'].map((h) => (
+                              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transportStats.villes.map((v, i) => {
+                            const pT = Math.round(v.avec_transport / v.nb_panneaux * 100);
+                            const pF = Math.round(v.avec_flux / v.nb_panneaux * 100);
+                            return (
+                              <tr key={v.ville} style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                                <td style={{ padding: '6px 12px', color: C.text, fontWeight: 600 }}>{v.ville}</td>
+                                <td style={{ padding: '6px 12px', color: C.textDim }}>{v.nb_panneaux}</td>
+                                <td style={{ padding: '6px 12px', color: badgeColor(pT) }}>{pT}%</td>
+                                <td style={{ padding: '6px 12px', color: C.textDim }}>{v.transport_moyen}</td>
+                                <td style={{ padding: '6px 12px', color: badgeColor(pF) }}>{pF}%</td>
+                                <td style={{ padding: '6px 12px', color: C.textDim }}>{v.flux_moyen}</td>
+                                <td style={{ padding: '6px 12px', color: C.accent, fontWeight: 700 }}>{v.score_moyen}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Sources list (onglet Toutes uniquement) ──────────────────────────── */}
+      {activeTab === 'all' && (
       <div style={{ display: 'flex', gap: 16 }}>
         {/* ============================================================ */}
         {/* LEFT: Sources List */}
         {/* ============================================================ */}
         <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* Données système (IRIS + Transport) — pas dans data_sources */}
+          {sourcesStats && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Données système</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* IRIS */}
+                <div
+                  onClick={() => setActiveTab('iris')}
+                  style={{ ...cardStyle, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#06b6d4')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+                >
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: C.text, flex: 1, fontFamily: fontInter }}>
+                        IRIS — Contours géographiques INSEE
+                      </span>
+                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 7px', borderRadius: 2 }}>IRIS</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim }}>
+                      <span style={{ color: '#06b6d4', fontWeight: 700 }}>{sourcesStats.iris.total.toLocaleString('fr-FR')} zones</span>
+                      <span>{sourcesStats.iris.enrichis.toLocaleString('fr-FR')} enrichies (population)</span>
+                      <span style={{ color: C.muted }}>table: iris</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Transport */}
+                <div
+                  onClick={() => setActiveTab('transport')}
+                  style={{ ...cardStyle, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#22c55e')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+                >
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: C.text, flex: 1, fontFamily: fontInter }}>
+                        Transport & Flux routier
+                      </span>
+                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: '2px 7px', borderRadius: 2 }}>TRANSPORT</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim, flexWrap: 'wrap' }}>
+                      <span style={{ color: '#22c55e', fontWeight: 700 }}>{(sourcesStats.transport.total + sourcesStats.flux.total).toLocaleString('fr-FR')} entrées</span>
+                      <span>{sourcesStats.transport.total.toLocaleString('fr-FR')} arrêts</span>
+                      <span style={{ color: '#22c55e' }}>bus {sourcesStats.transport.bus.toLocaleString('fr-FR')}</span>
+                      <span style={{ color: '#22c55e' }}>train {sourcesStats.transport.train.toLocaleString('fr-FR')}</span>
+                      <span style={{ color: '#22c55e' }}>tram {sourcesStats.transport.tram.toLocaleString('fr-FR')}</span>
+                      <span>{sourcesStats.flux.total.toLocaleString('fr-FR')} flux routiers</span>
+                      <span style={{ color: C.muted }}>tables: poi_france + comptages_routiers</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Sources importées</div>
           {(() => {
             const filtered = activeTab === 'all' ? sources : sources.filter((s) => s.type === activeTab);
             if (isLoading) return (

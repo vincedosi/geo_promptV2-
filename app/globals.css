@@ -80,6 +80,31 @@ body {
   background: var(--accent);
 }
 
+/* Chat panel — scrollbar toujours visible */
+.chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: #3d2255 transparent;
+  overflow-y: scroll !important;
+  min-height: 0;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.03);
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #3d2255;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
 ::selection {
   background: var(--accent-dim);
   color: var(--text-primary);

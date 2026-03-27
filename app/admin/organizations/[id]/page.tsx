@@ -35,6 +35,10 @@ interface Org {
   id: string; name: string; slug: string; description: string | null;
   config: Record<string, unknown>; created_at: string; active: boolean;
 }
+interface SystemStats {
+  iris:      { total: number; enrichis: number };
+  transport: { total: number; bus: number; train: number; tram: number; metro: number; flux: number };
+}
 
 const ROLES = ['client', 'admin', 'super_admin'];
 
@@ -104,6 +108,7 @@ export default function WorkspacePage() {
   const [members, setMembers]         = useState<Member[]>([]);
   const [sources, setSources]         = useState<Source[]>([]);
   const [availableSources, setAvailableSources] = useState<AvailableSource[]>([]);
+  const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [isLoading, setIsLoading]     = useState(true);
 
   // Config
@@ -135,6 +140,22 @@ export default function WorkspacePage() {
   const [sourceAction, setSourceAction]     = useState<string | null>(null);
   const [assignAction, setAssignAction]     = useState<string | null>(null);
 
+  const fetchSystemStats = useCallback(async () => {
+    try {
+      const res = await adminFetch('/api/admin/sources-stats');
+      if (!res.ok) { console.error('[fetchSystemStats] HTTP', res.status); return; }
+      const data = await res.json();
+      if (data.success) {
+        setSystemStats({
+          iris:      data.iris,
+          transport: { ...data.transport, flux: data.flux.total },
+        });
+      } else {
+        console.error('[fetchSystemStats] error:', data.error);
+      }
+    } catch (e) { console.error('[fetchSystemStats] exception:', e); }
+  }, []);
+
   const fetchOrg = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -157,7 +178,7 @@ export default function WorkspacePage() {
     setIsLoading(false);
   }, [id]);
 
-  useEffect(() => { fetchOrg(); }, [fetchOrg]);
+  useEffect(() => { fetchOrg(); fetchSystemStats(); }, [fetchOrg, fetchSystemStats]);
 
   // ── Sauvegarder config ──────────────────────────────────────────────────────
   const handleSaveConfig = async () => {
@@ -501,7 +522,51 @@ export default function WorkspacePage() {
       </Section>
 
       {/* ── Sources propres ── */}
-      <Section title={`Sources de données (${sources.length})`}>
+      <Section title={`Sources de données (${sources.length + (systemStats ? 2 : 0)})`}>
+
+        {/* Données Système */}
+        {systemStats && (
+          <>
+            <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Données Système</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
+              <thead>
+                <tr>
+                  {['Nom', 'Type', 'Lignes', 'Source'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: '10px 8px 10px 0' }}>
+                    <span style={{ fontSize: 12, color: C.text }}>IRIS — Contours géographiques INSEE</span>
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 2 }}>{systemStats.iris.enrichis.toLocaleString('fr-FR')} zones enrichies (population)</div>
+                  </td>
+                  <td style={{ padding: '10px 8px 10px 0' }}>
+                    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
+                  </td>
+                  <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 12, color: '#06b6d4' }}>{systemStats.iris.total.toLocaleString('fr-FR')}</td>
+                  <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 10, color: C.textSec }}>table: iris</td>
+                </tr>
+                <tr style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ padding: '10px 8px 10px 0' }}>
+                    <span style={{ fontSize: 12, color: C.text }}>Transport & Flux routier</span>
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 2 }}>
+                      {systemStats.transport.bus.toLocaleString('fr-FR')} bus · {systemStats.transport.train.toLocaleString('fr-FR')} train · {systemStats.transport.tram.toLocaleString('fr-FR')} tram · {systemStats.transport.flux.toLocaleString('fr-FR')} flux routiers
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 8px 10px 0' }}>
+                    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
+                  </td>
+                  <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 12, color: '#22c55e' }}>{(systemStats.transport.total + systemStats.transport.flux).toLocaleString('fr-FR')}</td>
+                  <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 10, color: C.textSec }}>tables: poi_france + comptages_routiers</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Sources Importées</div>
+          </>
+        )}
+
         {sources.length === 0 ? (
           <div style={{ fontFamily: fontMono, fontSize: 12, color: C.textDim }}>Aucune source importée pour ce workspace</div>
         ) : (

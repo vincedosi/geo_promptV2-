@@ -210,10 +210,24 @@ export async function runDemographieAgent(
     return { agent: 'demographie', success: false, error: stats.error };
   }
 
+  // La RPC ne retourne pas revenu_moyen_pers — on calcule SUM(ind_snv)/SUM(ind)
+  if (resolvedIndicateur === 'ind_snv' && stats.total > 0) {
+    const { data: popData } = await sb.rpc('smart_demographie_stats', {
+      p_lat:        lat,
+      p_lng:        lng,
+      p_indicateur: 'ind',
+      p_rayon_km:   rayon_km,
+    });
+    const popTotal = ((popData ?? {}) as { total?: number }).total ?? 0;
+    stats.revenu_moyen_pers = popTotal > 0 ? Math.round(stats.total / popTotal) : 0;
+  } else {
+    stats.revenu_moyen_pers = 0;
+  }
+
   const label    = INDICATEUR_LABELS[resolvedIndicateur] ?? resolvedIndicateur;
   const isTotal  = !NON_SUMMABLE.has(resolvedIndicateur);
   const headline = resolvedIndicateur === 'ind_snv'
-    ? `Revenu moyen à ${zoneName} : ${Math.round(stats.revenu_moyen_pers).toLocaleString('fr-FR')} €/an par habitant`
+    ? `Revenu moyen à ${zoneName} : ${stats.revenu_moyen_pers.toLocaleString('fr-FR')} €/an par habitant`
     : isTotal
       ? `${Math.round(stats.total).toLocaleString('fr-FR')} ${label.toLowerCase()} à ${zoneName}`
       : `Surface médiane à ${zoneName} : ${Math.round(stats.mediane)} m²`;

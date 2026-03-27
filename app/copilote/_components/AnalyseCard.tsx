@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -24,10 +25,12 @@ interface PoiItem {
 interface AnalyseOutput {
   type?:     string;
   perimetre?: {
-    type:     string;
-    value:    string;
-    rayon_km: number;
+    type:              string;
+    value:             string;
+    rayon_km:          number;
+    source_demo?:      string;
   };
+  display_perimetre?: string;
   demographie?: {
     population_totale: number;
     cible:             { indicateur: string; label: string; total: number; pourcentage: number };
@@ -111,6 +114,18 @@ function ChartTooltip({ active, payload, label }: {
   );
 }
 
+// ── Mapping Filosofi indicateur → colonne IRIS (pour highlight tranche d'âge) ──
+const CIBLE_TO_IRIS: Record<string, string> = {
+  'ind':       'population',
+  'ind_18_24': 'pop_15_29',
+  'ind_25_39': 'pop_30_44',
+  'ind_40_54': 'pop_45_59',
+  'ind_55_64': 'pop_60_74',
+  'ind_65_79': 'pop_60_74',
+  'ind_80p':   'pop_75_plus',
+  'men':       'nb_menages',
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmt(n: number): string {
   return Math.round(n).toLocaleString("fr-FR");
@@ -121,7 +136,13 @@ function truncateLabel(s: string, max = 14): string {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export function AnalyseCard({ output }: { output: Record<string, unknown> | undefined }) {
+interface AnalyseCardProps {
+  output:              Record<string, unknown> | undefined;
+  onFlyTo?:            (lat: number, lng: number, zoom: number) => void;
+  onHighlightIris?:    (codeIris: string | null) => void;
+}
+
+export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardProps) {
   if (!output || output.type !== "analyse_complete") return null;
   const data = output as unknown as AnalyseOutput;
 
@@ -159,6 +180,40 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
   // ── Nombre principal de POI (premier de la liste) ────────────────────────────
   const firstPoi = poiItems[0];
 
+  // ── Comparaison nationale cible ───────────────────────────────────────────────
+  const benchPct = (output as Record<string, unknown> & { benchmarks?: { france_pop_pct?: number } }).benchmarks?.france_pop_pct ?? null;
+  const diffPct  = benchPct !== null ? Math.round((cible.pourcentage - benchPct) * 10) / 10 : null;
+
+  // ── Revenu benchmark ─────────────────────────────────────────────────────────
+  const revLocal  = demographie.revenu_median;
+  const revFrance = ((output as Record<string, unknown> & { benchmarks?: { france_rev_median?: number } }).benchmarks?.france_rev_median) ?? 23_080;
+  const maxRev    = Math.max(revLocal, revFrance) * 1.3;
+  const localPct  = maxRev > 0 ? Math.round((revLocal  / maxRev) * 100) : 0;
+  const francePct = maxRev > 0 ? Math.round((revFrance / maxRev) * 100) : 0;
+
+  // ── IRIS distribution ─────────────────────────────────────────────────────────
+  const irisData = ((output as Record<string, unknown> & { iris_distribution?: Array<{ code_iris: string; nom: string; pop: number; cible: number; lat?: number | null; lng?: number | null }> }).iris_distribution ?? []);
+
+  // ── IRIS highlight state ──────────────────────────────────────────────────────
+  const [selectedIris, setSelectedIris] = useState<string | null>(null);
+
+  const cityCoords = (output as Record<string, unknown> & { coordonnees?: { lat: number; lng: number } }).coordonnees;
+
+  const handleIrisClick = (codeIris: string) => {
+    const next = codeIris === selectedIris ? null : codeIris;
+    setSelectedIris(next);
+    if (next) {
+      const entry = irisData.find(r => r.code_iris === next);
+      if (entry?.lat && entry?.lng) {
+        onFlyTo?.(entry.lat, entry.lng, 15);
+      } else {
+        if (!entry) console.warn('[IRIS] code_iris non trouvé dans irisData:', next);
+        if (cityCoords) onFlyTo?.(cityCoords.lat, cityCoords.lng, 13);
+      }
+    }
+    onHighlightIris?.(next);
+  };
+
   return (
     <div style={{
       marginTop: 10,
@@ -181,7 +236,7 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
           {perimetre.value.toUpperCase()}
         </div>
         <div style={{ fontSize: 11, color: P.dim, marginTop: 3 }}>
-          Rayon {perimetre.rayon_km} km
+          {(output.display_perimetre as string | undefined) ?? `Rayon ${perimetre.rayon_km} km`}
           {cible && <span> · Cible : {cible.label}</span>}
         </div>
       </div>
@@ -196,7 +251,7 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
         <Metric
           value={fmt(cible.total)}
           label={cible.label}
-          sub={`${cible.pourcentage}%`}
+          sub={`${cible.pourcentage}%${diffPct !== null ? ` (${diffPct > 0 ? "+" : ""}${diffPct} vs France)` : ""}`}
           color={P.green}
         />
         <Metric
@@ -215,18 +270,34 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
         )}
       </div>
 
-      {/* Revenu médian */}
+      {/* Revenu médian + barre benchmark */}
       {demographie.revenu_median > 0 && (
         <div style={{
           marginTop: 8, padding: '7px 10px',
           background: P.bg, border: `1px solid ${P.border}`,
           borderRadius: 6, fontSize: 11, color: P.dim,
-          display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>Revenu moyen / personne</span>
-          <span style={{ color: P.blue, fontFamily: fontMono, fontWeight: 600 }}>
-            {fmt(demographie.revenu_median)} €/an
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span>Revenu moyen / personne</span>
+            <span style={{ color: P.blue, fontFamily: fontMono, fontWeight: 600 }}>
+              {fmt(demographie.revenu_median)} €/an
+            </span>
+          </div>
+          <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 14 }}>
+            <div style={{
+              height: '100%', borderRadius: 3, width: `${localPct}%`,
+              background: revLocal >= revFrance ? P.green : '#f87171',
+              transition: 'width 0.5s',
+            }} />
+            <div style={{
+              position: 'absolute', top: -3, left: `${francePct}%`,
+              width: 2, height: 12, background: P.dim, borderRadius: 1,
+            }} />
+            <div style={{
+              position: 'absolute', top: -16, left: `${francePct}%`,
+              transform: 'translateX(-50%)', fontSize: 8, color: P.dimmer, fontFamily: fontMono,
+            }}>France</div>
+          </div>
         </div>
       )}
 
@@ -248,7 +319,7 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
                 {tranchesData.map((entry) => (
                   <Cell
                     key={entry.id}
-                    fill={entry.id === cible?.indicateur ? P.green : 'rgba(168,85,247,0.35)'}
+                    fill={entry.id === CIBLE_TO_IRIS[cible?.indicateur ?? ''] ? P.green : 'rgba(168,85,247,0.35)'}
                   />
                 ))}
               </Bar>
@@ -300,6 +371,61 @@ export function AnalyseCard({ output }: { output: Record<string, unknown> | unde
           </ResponsiveContainer>
         </>
       )}
+
+      {/* Top quartiers IRIS — interactif */}
+      {irisData.length > 3 && (
+        <>
+          <SectionTitle>
+            Top quartiers — {cible.label}
+            {selectedIris && (
+              <span
+                onClick={() => { setSelectedIris(null); onHighlightIris?.(null); }}
+                style={{ marginLeft: 8, color: P.violet, cursor: "pointer", fontWeight: 600 }}
+              >✕</span>
+            )}
+          </SectionTitle>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={irisData.slice(0, 10).map(r => ({ ...r, nom: truncateLabel(r.nom, 16) }))} barSize={14}
+              margin={{ top: 0, right: 8, left: 4, bottom: 40 }}>
+              <XAxis dataKey="nom"
+                tick={{ fontSize: 7, fill: P.dimmer, fontFamily: fontMono }}
+                axisLine={false} tickLine={false} interval={0} angle={-35} textAnchor="end" height={45} />
+              <YAxis tick={{ fontSize: 9, fill: P.dimmer, fontFamily: fontMono }}
+                axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(16,185,129,0.06)" }} />
+              <Bar
+                dataKey="cible"
+                radius={[2, 2, 0, 0]}
+                cursor="pointer"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onClick={(data: any) => {
+                  const code = data?.code_iris as string | undefined;
+                  if (code) handleIrisClick(code);
+                }}
+              >
+                {irisData.slice(0, 10).map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.code_iris === selectedIris ? P.green : "rgba(16,185,129,0.4)"}
+                    fillOpacity={entry.code_iris === selectedIris ? 1 : 0.75}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </>
+      )}
+
+      {/* Footer source */}
+      <div style={{
+        marginTop: 16, paddingTop: 10,
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        fontSize: 9, color: "#4b5563", fontFamily: fontMono,
+        display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4,
+      }}>
+        <span>{(output as Record<string, unknown> & { metadata?: { source?: string; date_source?: string } }).metadata?.source ?? "Carreaux Filosofi"} · Millésime {(output as Record<string, unknown> & { metadata?: { date_source?: string } }).metadata?.date_source ?? "2022"}</span>
+        <span>Rapport du {(output as Record<string, unknown> & { metadata?: { generated_at?: string } }).metadata?.generated_at ?? new Date().toISOString().split("T")[0]}</span>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,9 @@ import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
+import { CorrelationPanel, type CorrelationParams, type ResidualsMeta } from './CorrelationPanel';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -155,6 +157,15 @@ export interface FilterPanelProps {
   scoringMapRef?:       React.MutableRefObject<MaplibreMap | null>;
   scoringMapReady?:     boolean;
   onScoreComputed?:     (ville: string) => void;
+  // Transport & TMJA
+  onLoadTransport?:     (types: string[]) => Promise<void>;
+  onLoadTMJA?:          () => Promise<void>;
+  tmjaVisible?:         boolean;
+  onClearTMJA?:         () => void;
+  // Corrélation IRIS × POI
+  correlationParams?:   CorrelationParams | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onShowResiduals?:     (geojson: any, meta?: ResidualsMeta) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -283,6 +294,8 @@ export function FilterPanel({
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity,
   scoringMapRef, scoringMapReady, onScoreComputed,
+  onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
+  correlationParams, onShowResiduals,
 }: FilterPanelProps) {
 
   // ── Panel resize ──────────────────────────────────────────────────────────
@@ -369,6 +382,19 @@ export function FilterPanel({
     { id: 'RDPP',         label: 'RDPP' },
   ];
   const [selectedOOH, setSelectedOOH] = useState<string[]>([]);
+
+  // ── Transport en commun ───────────────────────────────────────────────────
+  const TRANSPORT_TYPES = [
+    { id: 'bus',   label: 'Bus' },
+    { id: 'train', label: 'Train' },
+    { id: 'tram',  label: 'Tramway' },
+    { id: 'metro', label: 'Métro' },
+  ];
+  const [selectedTransportTypes, setSelectedTransportTypes] = useState<string[]>([]);
+  const [transportLoading, setTransportLoading]             = useState(false);
+
+  // ── TMJA ──────────────────────────────────────────────────────────────────
+  const [tmjaLoading, setTmjaLoading] = useState(false);
 
   // ── Coverage summary (managed internally, fed by CoverageResultsPanel) ──
   const [coverageSummary, setCoverageSummary] = useState<CoverageSummaryEntry[]>([]);
@@ -494,6 +520,14 @@ export function FilterPanel({
       setAnalyseOpen(prev => ({ ...prev, couverture: true }));
     }
   }, [coverageSummary]);
+
+  // Auto-ouvrir l'accordéon CORRÉLATION + onglet ANALYSE quand des params arrivent depuis le chat
+  useEffect(() => {
+    if (!correlationParams) return;
+    setActiveTab('expert');
+    setActiveExpertTab('analyse');
+    setAnalyseOpen(prev => ({ ...prev, correlation: true }));
+  }, [correlationParams]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
@@ -1295,6 +1329,115 @@ export function FilterPanel({
               </button>
             </div>
 
+            {/* ── Divider ─────────────────────────────────────────────────── */}
+            <div style={{ height: 1, background: C.border }} />
+
+            {/* ── Section : Arrêts de transport en commun ─────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#38bdf8', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                ARRÊTS DE TRANSPORT EN COMMUN
+              </div>
+
+              {/* Sélection du type */}
+              <div>
+                <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>
+                    TYPE DE TRANSPORT
+                    {selectedTransportTypes.length > 0 && (
+                      <span style={{ color: '#38bdf8' }}> — {selectedTransportTypes.join(', ')}</span>
+                    )}
+                  </span>
+                  {selectedTransportTypes.length > 0 && (
+                    <button
+                      onClick={() => setSelectedTransportTypes([])}
+                      style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '0 2px', fontFamily: fMono }}
+                      title="Tout désélectionner"
+                    >✕</button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {TRANSPORT_TYPES.map(t => (
+                    <button
+                      key={t.id}
+                      style={pill(selectedTransportTypes.includes(t.id), '#38bdf8')}
+                      onClick={() => setSelectedTransportTypes(prev =>
+                        prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 5, fontStyle: 'italic' }}>
+                  {selectedTransportTypes.length === 0 ? 'Tous les types' : ''} · Chargé pour la zone visible
+                </div>
+              </div>
+
+              <button
+                style={primaryBtn('#38bdf8', transportLoading || !onLoadTransport)}
+                disabled={transportLoading || !onLoadTransport}
+                onClick={async () => {
+                  setTransportLoading(true);
+                  try { await onLoadTransport?.(selectedTransportTypes); }
+                  finally { setTransportLoading(false); }
+                }}
+              >
+                {transportLoading ? 'CHARGEMENT…' : 'AFFICHER ARRÊTS'}
+              </button>
+            </div>
+
+            {/* ── Divider ─────────────────────────────────────────────────── */}
+            <div style={{ height: 1, background: C.border }} />
+
+            {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#f97316', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
+                FLUX ROUTIER (TMJA)
+              </div>
+
+              {/* Légende couleurs */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 2 }}>
+                  LÉGENDE — TRAFIC MOYEN JOURNALIER
+                </div>
+                {[
+                  { color: '#4292C6', label: '< 5 000 véh/j' },
+                  { color: '#f6d543', label: '5 000 – 15 000 véh/j' },
+                  { color: '#f97316', label: '15 000 – 40 000 véh/j' },
+                  { color: '#ef4444', label: '> 40 000 véh/j' },
+                ].map(({ color, label }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0 }} />
+                    <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  style={{ ...primaryBtn('#f97316', tmjaLoading || !onLoadTMJA), flex: 1 }}
+                  disabled={tmjaLoading || !onLoadTMJA}
+                  onClick={async () => {
+                    setTmjaLoading(true);
+                    try { await onLoadTMJA?.(); }
+                    finally { setTmjaLoading(false); }
+                  }}
+                >
+                  {tmjaLoading ? 'CHARGEMENT…' : tmjaVisible ? '↻ ACTUALISER' : 'AFFICHER TMJA'}
+                </button>
+                {tmjaVisible && (
+                  <button
+                    style={pill(false, C.muted)}
+                    onClick={onClearTMJA}
+                    title="Masquer le flux routier"
+                  >MASQUER</button>
+                )}
+              </div>
+              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                Source : CEREMA — tronçons pour la zone visible
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -2020,28 +2163,25 @@ export function FilterPanel({
                 </span>
               </button>
 
-              {/* Indicateur */}
+              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
               <select
                 value={irisIndicateur ?? 'pop_15_29'}
                 onChange={e => setIrisIndicateur?.(e.target.value)}
                 style={{ width: '100%', background: '#0a0a12', border: `1px solid #4292C640`, borderRadius: 2, color: '#e2e8f0', fontSize: 10, fontFamily: fMono, padding: '3px 5px', cursor: 'pointer', outline: 'none' }}
               >
-                <optgroup label="Population totale" style={{ color: C.textDim }}>
-                  <option value="population">Population totale</option>
-                </optgroup>
-                <optgroup label="Âge" style={{ color: C.textDim }}>
-                  <option value="pop_0_14">0-14 ans</option>
-                  <option value="pop_15_29">15-29 ans</option>
-                  <option value="pop_30_44">30-44 ans</option>
-                  <option value="pop_45_59">45-59 ans</option>
-                  <option value="pop_60_74">60-74 ans</option>
-                  <option value="pop_75_plus">75+ ans</option>
-                </optgroup>
-                <optgroup label="CSP" style={{ color: C.textDim }}>
-                  <option value="nb_csp_cadre">Cadres &amp; prof. intel.</option>
-                  <option value="nb_csp_employe">Employés</option>
-                  <option value="nb_csp_ouvrier">Ouvriers</option>
-                </optgroup>
+                {Array.from(
+                  IRIS_DB_COLUMNS.reduce((acc, col) => {
+                    if (!acc.has(col.group)) acc.set(col.group, []);
+                    acc.get(col.group)!.push(col);
+                    return acc;
+                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
+                ).map(([group, cols]) => (
+                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
+                    {cols.map(col => (
+                      <option key={col.name} value={col.name}>{col.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
 
               {/* Palette */}
@@ -2134,6 +2274,32 @@ export function FilterPanel({
                 pois={battlePoisProp}
                 onResultsReady={setCoverageSummary}
                 battleCacheKey={battleCacheKey ?? undefined}
+              />
+            </div>
+            )}
+
+            {/* ── Accordéon : CORRÉLATION IRIS × POI ──────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('correlation')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 16px', background: analyseOpen.correlation ? C.accentDim : 'transparent',
+                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent }}>
+                CORRÉLATION IRIS × POI
+              </span>
+              <span style={{ color: C.accent, fontSize: 9 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.correlation && (
+            <div style={{ padding: '0 4px 4px' }}>
+              <CorrelationPanel
+                onFlyTo={onFlyTo}
+                params={correlationParams ?? null}
+                selectedDepts={selectedDepts}
+                territoireLabel={territoire || undefined}
+                onShowResiduals={onShowResiduals}
               />
             </div>
             )}

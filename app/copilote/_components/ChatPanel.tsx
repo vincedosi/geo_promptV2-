@@ -58,6 +58,8 @@ interface ChatPanelProps {
   statusLoading: boolean;
   refreshProviderStatus: () => void;
   sessionTokens?: { input: number; output: number; total: number };
+  onFlyTo?: (lat: number, lng: number, zoom: number) => void;
+  onHighlightIris?: (codeIris: string | null) => void;
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ const runningToolLabels: Record<string, string> = {
   'tool-isochrone_battle':            'Calcul Bataille d\'Isochrones (~1-2 min)…',
   'tool-calculate_audience_coverage': 'Calcul de couverture audience…',
   'tool-analyze_poi_synergy':         'Analyse synergies POI × démographie…',
+  'tool-analyse_correlation':         'Calcul corrélation IRIS × POI…',
   'tool-search_datasets':             'Recherche sur data.gouv.fr…',
   'tool-get_dataset_info':            'Récupération fiche dataset…',
   'tool-list_dataset_resources':      'Liste des ressources…',
@@ -239,12 +242,14 @@ export function ChatPanel({
   savedMaps, saveCurrentMap, loadSavedMaps, loadMap, deleteMap,
   provider, setProvider, providerStatus, statusLoading, refreshProviderStatus,
   sessionTokens,
+  onFlyTo,
+  onHighlightIris,
 }: ChatPanelProps) {
   const [showPromptsPanel, setShowPromptsPanel] = useState(false);
 
   // ── Scroll-to-top ───────────────────────────────────────────────────────────
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollToTop = () => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
 
   // ── Smart Prompt state ─────────────────────────────────────────────────────
   const [smartMode, setSmartMode]         = useState<SmartModeState>('auto');
@@ -340,7 +345,7 @@ export function ChatPanel({
   const isDisabled = isLoading || smartPrompt.loading;
 
   return (
-    <div style={{ width: 400, minWidth: 300, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, position: 'relative', ...containerStyle }}>
+    <div style={{ width: 400, minWidth: 300, minHeight: 0, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, position: 'relative', ...containerStyle }}>
 
       {/* ── Header ── */}
       {!hideHeader ? (
@@ -502,8 +507,8 @@ export function ChatPanel({
       {/* ── Messages (flux unifié chat + smart) ── */}
       <div
         ref={scrollContainerRef}
-        onScroll={e => setShowScrollTop((e.currentTarget as HTMLDivElement).scrollTop > 300)}
-        style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}
+        className="chat-messages"
+        style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}
       >
 
         {/* Empty state */}
@@ -596,7 +601,7 @@ export function ChatPanel({
                           {runningToolLabels[(runningTool as { type: string }).type] ?? 'Outil en cours…'}
                         </div>
                       )}
-                      {analysePart && <AnalyseCard output={analysePart.output} />}
+                      {analysePart && <AnalyseCard output={analysePart.output} onFlyTo={onFlyTo} onHighlightIris={onHighlightIris} />}
                       {zonePart    && <ZoneCard zone={zonePart.output as unknown as ZoneData} />}
                       {synergyPart && <SynergyResults zoneData={synergyPart.output as unknown as ZoneData} />}
                       {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as unknown as Parameters<typeof DataGouvCard>[0]['parts']} />}
@@ -711,21 +716,41 @@ export function ChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Scroll-to-top button ── */}
-      {showScrollTop && (
-        <button
-          onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-          title="Remonter en haut"
-          style={{
-            position: 'absolute', bottom: 72, right: 14,
-            width: 28, height: 28, borderRadius: 2,
-            background: C.bgElevated, border: `1px solid ${C.borderLight}`,
-            color: C.accent, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, lineHeight: 1, zIndex: 20,
-            boxShadow: `0 0 8px rgba(168,85,247,0.15)`,
-          }}
-        >↑</button>
+      {/* ── Barre scroll ── */}
+      {(messages.length > 0 || smartMessages.length > 0) && (
+        <div style={{
+          flexShrink: 0, height: 22,
+          borderTop: `1px solid ${C.border}`,
+          borderBottom: `1px solid ${C.border}`,
+          background: C.bgSurface,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 10px',
+        }}>
+          <button
+            onClick={scrollToTop}
+            title="Remonter en haut"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: C.accent, fontSize: 11, fontFamily: fontMono,
+              letterSpacing: '0.08em', padding: '0 4px', lineHeight: 1,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            ↑ <span style={{ color: C.textDim, fontSize: 9 }}>haut</span>
+          </button>
+          <button
+            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            title="Descendre en bas"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: C.textDim, fontSize: 11, fontFamily: fontMono,
+              letterSpacing: '0.08em', padding: '0 4px', lineHeight: 1,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <span style={{ fontSize: 9 }}>bas</span> ↓
+          </button>
+        </div>
       )}
 
       {/* ── Input ── */}
