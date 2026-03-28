@@ -454,13 +454,11 @@ export function useMapInit(
 
       // ── IRIS choroplèthe — PMTiles statique (tippecanoe) ─────────────────────
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
-      console.log('[MAP-INIT] Adding iris-source — url:', `pmtiles://${IRIS_PMTILES_URL}`);
       map.addSource('iris-source', {
         type: 'vector',
         url: `pmtiles://${IRIS_PMTILES_URL}`,
         attribution: 'IGN — IRIS 2023',
       });
-      console.log('[MAP-INIT] Adding iris-fill layer — source: iris-source, source-layer: iris, minzoom: 5, visibility: none');
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
@@ -472,7 +470,6 @@ export function useMapInit(
         },
         layout: { visibility: 'none' },
       });
-      console.log('[MAP-INIT] Adding iris-border layer — source: iris-source, source-layer: iris, minzoom: 5, visibility: none');
       map.addLayer({
         id: 'iris-border', type: 'line',
         source: 'iris-source',
@@ -484,24 +481,6 @@ export function useMapInit(
           'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 10, 0.4, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
         },
         layout: { visibility: 'none' },
-      });
-      console.log('[MAP-INIT] iris-source + iris-fill + iris-border added OK');
-
-      // [TEMP-DIAG] Listener sourcedata pour vérifier le chargement des tuiles IRIS
-      map.on('sourcedata', (e) => {
-        if (e.sourceId?.includes('iris') && e.isSourceLoaded) {
-          console.log('[MAP-TILES] iris source loaded — sourceId:', e.sourceId);
-          try {
-            const features = map.querySourceFeatures(e.sourceId, { sourceLayer: 'iris' });
-            console.log('[MAP-TILES] iris source features (current viewport):', features.length);
-            if (features.length > 0) {
-              console.log('[MAP-TILES] sample feature properties keys:', Object.keys(features[0].properties ?? {}));
-              console.log('[MAP-TILES] first feature:', JSON.stringify(features[0].properties).slice(0, 300));
-            }
-          } catch (err) {
-            console.warn('[MAP-TILES] querySourceFeatures failed:', err);
-          }
-        }
       });
 
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
@@ -676,27 +655,6 @@ export function useMapInit(
       map.on('mousemove',  'clusters-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'clusters-layer', () => { map.getCanvas().style.cursor = ''; });
 
-      // [TEMP-DIAG] Vérifier les features rendues après chaque déplacement de carte
-      map.on('moveend', () => {
-        const residLayer = map.getLayer('iris-residuals-fill');
-        if (residLayer) {
-          try {
-            const features = map.queryRenderedFeatures(undefined, { layers: ['iris-residuals-fill'] });
-            console.log('[MAP-RENDER] iris-residuals-fill visible features:', features.length);
-            if (features.length === 0) {
-              const sourceFeatures = map.querySourceFeatures('iris-source', { sourceLayer: 'iris' });
-              console.log('[MAP-RENDER] iris-source has', sourceFeatures.length, 'source features (in tile cache)');
-            } else {
-              const sample = features.slice(0, 2).map(f => ({
-                id: f.id, code_iris: f.properties?.code_iris, fillColor: f.layer?.paint?.['fill-color'],
-              }));
-              console.log('[MAP-RENDER] sample rendered features:', JSON.stringify(sample));
-            }
-          } catch (err) {
-            console.warn('[MAP-RENDER] queryRenderedFeatures failed:', err);
-          }
-        }
-      });
 
       setMapReady(true);
     });

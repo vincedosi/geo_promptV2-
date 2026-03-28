@@ -26,13 +26,17 @@ export default function LoginPage() {
         window.location.href = '/dashboard';
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erreur de connexion';
+      const message = err instanceof Error
+        ? err.message
+        : (typeof err === 'object' && err !== null && 'message' in err)
+          ? String((err as { message: unknown }).message)
+          : JSON.stringify(err) || 'Erreur de connexion';
       setLastError(message);
     }
   };
 
   const isLoading = isSigningIn || isSigningUp;
-  const error = lastError || signInError?.message || signUpError?.message || '';
+  const error = lastError || signInError?.message || String(signInError || '') || signUpError?.message || '';
 
   return (
     <div style={{

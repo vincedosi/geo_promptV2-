@@ -6,10 +6,14 @@ import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types
 import type { OohExportData } from '../_lib/ooh-export';
 
 export interface CorrelationActionParams {
-  poiCategory: string;
-  irisMetric:  string;
-  departement: string | null;
-  autoAnalyse: boolean;
+  mode?:        'iris_poi' | 'iris_iris';
+  poiCategory?: string;
+  irisMetric?:  string;
+  sigmaKm?:     number;
+  metricX?:     string;
+  metricY?:     string;
+  departement:  string | null;
+  autoAnalyse:  boolean;
 }
 
 interface UseToolProcessorOpts {
@@ -168,8 +172,12 @@ export function useToolProcessor({
 
         } else if (toolName === 'analyse_correlation' && result?.action === 'analyse_correlation') {
           setCorrelationParams?.({
+            mode:        result.mode        ?? 'iris_poi',
             poiCategory: result.poiCategory,
             irisMetric:  result.irisMetric  ?? 'population',
+            sigmaKm:     result.sigmaKm,
+            metricX:     result.metricX,
+            metricY:     result.metricY,
             departement: result.departement ?? null,
             autoAnalyse: result.autoAnalyse !== false,
           });

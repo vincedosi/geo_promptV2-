@@ -163,6 +163,11 @@ export default function SourcesPage() {
   const [irisSyncLoading,  setIrisSyncLoading]  = useState(false);
   const [irisSyncError,    setIrisSyncError]    = useState<string | null>(null);
 
+  // Sigma accessibility config
+  interface SigmaConfig { categorie: string; sigma_km: number; description?: string | null; }
+  const [sigmaConfig,        setSigmaConfig]        = useState<SigmaConfig[] | null>(null);
+  const [sigmaConfigLoading, setSigmaConfigLoading] = useState(false);
+
   const runIrisSync = useCallback(async () => {
     setIrisSyncLoading(true);
     setIrisSyncError(null);
@@ -395,9 +400,29 @@ export default function SourcesPage() {
     setTransportLoading(false);
   }, []);
 
+  const fetchSigmaConfig = useCallback(async () => {
+    setSigmaConfigLoading(true);
+    try {
+      const res = await fetch('/api/correlation/categories');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSigmaConfig(
+          data
+            .filter((c: any) => c.sigma_km != null)
+            .map((c: any) => ({ categorie: c.key, sigma_km: c.sigma_km, description: c.label ?? null }))
+        );
+      }
+    } catch (e) { console.error('[sigma-config] fetch error:', e); }
+    setSigmaConfigLoading(false);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'iris' && !irisStats && !irisLoading) fetchIrisStats();
   }, [activeTab, irisStats, irisLoading, fetchIrisStats]);
+
+  useEffect(() => {
+    if (activeTab === 'iris' && !sigmaConfig && !sigmaConfigLoading) fetchSigmaConfig();
+  }, [activeTab, sigmaConfig, sigmaConfigLoading, fetchSigmaConfig]);
 
   useEffect(() => {
     if (activeTab === 'transport' && !transportStats && !transportLoading) fetchTransportStats();
@@ -1530,6 +1555,75 @@ export default function SourcesPage() {
                         </div>
                       </div>
 
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Accessibilité Gaussienne σ ── */}
+                <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase' as const, color: C.accent, marginBottom: 3 }}>
+                        Accessibilité Gaussienne — Config σ
+                      </div>
+                      <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+                        Portée d'influence par catégorie POI · Score = Σ exp(−d²/2σ²) · Rayon 3σ
+                      </div>
+                    </div>
+                    <button
+                      onClick={fetchSigmaConfig}
+                      disabled={sigmaConfigLoading}
+                      style={{
+                        flexShrink: 0, padding: '6px 16px', borderRadius: 2,
+                        background: C.accentDim, border: `1px solid ${C.borderLight}`,
+                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
+                        letterSpacing: '0.12em', cursor: sigmaConfigLoading ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      {sigmaConfigLoading ? <><Spinner size={10} /> CHARGEMENT…</> : 'ACTUALISER'}
+                    </button>
+                  </div>
+
+                  {sigmaConfig && sigmaConfig.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                      {sigmaConfig.map(cfg => {
+                        const rayon3s = (cfg.sigma_km * 3).toFixed(1);
+                        const barPct  = Math.min((cfg.sigma_km / 20) * 100, 100);
+                        return (
+                          <div key={cfg.categorie} style={{
+                            background: C.bgSurface, border: `1px solid ${C.border}`,
+                            borderRadius: 2, padding: '10px 12px',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <span style={{ fontFamily: fontMono, fontSize: 10, color: C.accent, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                {cfg.categorie}
+                              </span>
+                              <span style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700, color: C.text, flexShrink: 0, marginLeft: 8 }}>
+                                σ {cfg.sigma_km < 1 ? `${(cfg.sigma_km * 1000).toFixed(0)}m` : `${cfg.sigma_km}km`}
+                              </span>
+                            </div>
+                            <div style={{ height: 3, background: C.border, borderRadius: 2, marginBottom: 5 }}>
+                              <div style={{ width: `${barPct}%`, height: '100%', background: C.accent, borderRadius: 2, opacity: 0.7 }} />
+                            </div>
+                            <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.textSec }}>
+                              RAYON 3σ · {rayon3s} km
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {sigmaConfig && sigmaConfig.length === 0 && (
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, padding: '8px 0' }}>
+                      Aucune configuration trouvée dans <span style={{ color: C.accent }}>poi_accessibility_config</span>.
+                    </div>
+                  )}
+
+                  {!sigmaConfig && !sigmaConfigLoading && (
+                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, padding: '8px 0' }}>
+                      Cliquez sur ACTUALISER pour charger la configuration.
                     </div>
                   )}
                 </div>

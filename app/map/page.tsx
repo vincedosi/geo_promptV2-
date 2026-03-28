@@ -156,13 +156,8 @@ export default function MapPage() {
 
   // ── Résidus de corrélation — layer MVT (match expression sur iris-source) ──
   const handleShowResiduals = useCallback((data: ResidualData[] | null, meta?: ResidualsMeta) => {
-    console.log('[RESID-MAP] === handleShowResiduals CALLED ===');
-    console.log('[RESID-MAP] 1. data:', data ? data.length + ' items' : 'null');
-    console.log('[RESID-MAP] 2. map exists:', !!mapRef.current);
-    console.log('[RESID-MAP] 3. map loaded:', mapRef.current?.loaded());
-
     const map = mapRef.current;
-    if (!map) { console.warn('[RESID-MAP] map is null — aborting'); return; }
+    if (!map) return;
 
     const LAYER = 'iris-residuals-fill';
 
@@ -172,48 +167,19 @@ export default function MapPage() {
       residualsClickHandlerRef.current = null;
     }
     try {
-      const existed = !!map.getLayer(LAYER);
-      if (existed) map.removeLayer(LAYER);
-      console.log('[RESID-MAP] cleanup: existing layer removed:', existed);
+      if (map.getLayer(LAYER)) map.removeLayer(LAYER);
     } catch { /* ok */ }
 
     if (!data) {
-      console.log('[RESID-MAP] 4. CLEARING — data is null, cleanup done');
       setResidualsMeta(null);
       residualLookupRef.current.clear();
       return;
     }
 
-    // Diagnostics avant addLayer
-    const style = map.getStyle();
-    const sourceNames = style?.sources ? Object.keys(style.sources) : [];
-    const layerNames  = style?.layers?.map(l => l.id) ?? [];
-    console.log('[RESID-MAP] 9. All sources:', sourceNames);
-    console.log('[RESID-MAP] 10. All layers:', layerNames);
-
-    const sourceExists = !!map.getSource('iris-source');
-    console.log('[RESID-MAP] 8. iris-source exists:', sourceExists);
-
-    const irisSourceName = sourceNames.find(s => s.toLowerCase().includes('iris'));
-    console.log('[RESID-MAP] 12. Found iris source:', irisSourceName);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const irisLayer = style?.layers?.find(l => l.id === 'iris-fill' || l.id?.includes('iris')) as any;
-    console.log('[RESID-MAP] 13. Found iris layer:', irisLayer?.id, 'source:', irisLayer?.source, 'source-layer:', irisLayer?.['source-layer']);
-
-    const existingResidLayer = !!map.getLayer(LAYER);
-    console.log('[RESID-MAP] 11. iris-residuals-fill already exists:', existingResidLayer);
-
     // Lookup pour les popups (code_iris → données calculées)
     residualLookupRef.current = new Map(data.map(d => [d.code_iris, d]));
 
     const inverted = residualInvertedRef.current;
-
-    console.log('[RESID-MAP] 6. Building match expression — inverted:', inverted);
-    console.log('[RESID-MAP] 7. Total items for match:', data.length);
-
-    const significantCount = data.filter(r => Math.abs(r.norm) > 0.05).length;
-    console.log('[RESID-MAP] 14. Significant residuals (|norm|>0.05):', significantCount);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const matchExpr: any[] = ['match', ['get', 'code_iris']];
@@ -221,8 +187,6 @@ export default function MapPage() {
       matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
     }
     matchExpr.push('transparent'); // fallback pour les IRIS hors résultats
-
-    console.log('[RESID-MAP] 15. Match expression length:', matchExpr.length, 'entries (including match + get + fallback)');
 
     try {
       // Inséré avant iris-border pour que les bordures restent visibles au-dessus
@@ -238,21 +202,7 @@ export default function MapPage() {
           'fill-opacity': residualOpacity,
         },
       }, 'iris-border');
-      console.log('[RESID-MAP] 16. addLayer SUCCESS');
-      console.log('[RESID-MAP] 17. layer exists after add:', !!map.getLayer(LAYER));
-
-      const visibility = map.getLayoutProperty(LAYER, 'visibility');
-      console.log('[RESID-MAP] 18. layer visibility:', visibility, '(undefined = visible by default)');
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fillColor = map.getPaintProperty(LAYER, 'fill-color') as any;
-      console.log('[RESID-MAP] 19. fill-color type:', typeof fillColor, Array.isArray(fillColor) ? 'array len:' + fillColor.length : String(fillColor).slice(0, 80));
-
-      const opacity = map.getPaintProperty(LAYER, 'fill-opacity');
-      console.log('[RESID-MAP] 20. fill-opacity:', opacity);
-
-    } catch (e) {
-      console.error('[RESID-MAP] 16. addLayer FAILED:', e);
+    } catch {
       return;
     }
 
@@ -262,7 +212,6 @@ export default function MapPage() {
       const props = e.features[0].properties as Record<string, unknown>;
       const codeIris = String(props.code_iris ?? '');
       const d = residualLookupRef.current.get(codeIris);
-      console.log('[RESID-MAP] CLICK — code_iris from feature:', codeIris, '| found in lookup:', !!d);
       if (!d) return;
       const sign = d.residual > 0 ? '+' : '';
       const inv  = residualInvertedRef.current;
@@ -292,7 +241,6 @@ export default function MapPage() {
     map.on('mouseleave', LAYER, () => { map.getCanvas().style.cursor = ''; });
 
     setResidualsMeta(meta ?? null);
-    console.log('[RESID-MAP] === handleShowResiduals DONE ===');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady]);
 

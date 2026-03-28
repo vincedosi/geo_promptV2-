@@ -46,6 +46,25 @@ const AGENT_LABEL: Record<string, string> = {
   unknown:          'INCONNU',
 };
 
+// ── Rendu inline markdown sécurisé (pas de dangerouslySetInnerHTML) ───────────
+function renderInlineMarkdown(text: string): React.ReactNode {
+  // Split on **bold** and *italic* tokens; render as React elements (no HTML injection)
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return (
+    <>
+      {tokens.map((token, i) => {
+        if (token.startsWith('**') && token.endsWith('**')) {
+          return <strong key={i} style={{ color: C.text }}>{token.slice(2, -2)}</strong>;
+        }
+        if (token.startsWith('*') && token.endsWith('*')) {
+          return <em key={i} style={{ color: C.textMid }}>{token.slice(1, -1)}</em>;
+        }
+        return <React.Fragment key={i}>{token}</React.Fragment>;
+      })}
+    </>
+  );
+}
+
 // ── Rendu markdown simplifié (pas de dépendance externe) ──────────────────────
 function renderMarkdown(md: string): React.ReactNode[] {
   const lines = md.split('\n');
@@ -111,7 +130,7 @@ function renderMarkdown(md: string): React.ReactNode[] {
       nodes.push(
         <div key={key} style={{ display: 'flex', gap: 6, marginBottom: 3, fontSize: 12, color: C.textMid }}>
           <span style={{ color: C.accent, flexShrink: 0 }}>•</span>
-          <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${C.text}">$1</strong>`).replace(/\*(.*?)\*/g, `<em style="color:${C.textMid}">$1</em>`) }} />
+          <span>{renderInlineMarkdown(content)}</span>
         </div>
       );
       return;
@@ -123,9 +142,9 @@ function renderMarkdown(md: string): React.ReactNode[] {
     }
     // Default text
     nodes.push(
-      <div key={key} style={{ fontSize: 12, color: C.textMid, marginBottom: 2, lineHeight: 1.6 }}
-        dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, `<strong style="color:${C.text}">$1</strong>`).replace(/\*(.*?)\*/g, `<em style="color:${C.textMid}">$1</em>`) }}
-      />
+      <div key={key} style={{ fontSize: 12, color: C.textMid, marginBottom: 2, lineHeight: 1.6 }}>
+        {renderInlineMarkdown(line)}
+      </div>
     );
   });
 

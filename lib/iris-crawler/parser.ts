@@ -23,11 +23,11 @@ export function parseInseeValue(
 ): string | number | null {
   // Colonnes géo : toujours string
   if (isGeoColumn(columnName)) {
-    const v = value?.trim();
+    const v = String(value ?? '').trim();
     return v === '' ? null : v;
   }
   // Valeur vide ou secret statistique INSEE (s=secret, ns=non significatif, nd=non disponible)
-  const v = value?.trim();
+  const v = String(value ?? '').trim();
   if (!v || v === 's' || v === 'S' || v === 'ns' || v === 'NS'
     || v === 'nd' || v === 'ND' || v === 'n.d.' || v === 'n.s.') return null;
   // Convertir en nombre (INSEE utilise le point comme séparateur décimal)

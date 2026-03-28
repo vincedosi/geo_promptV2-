@@ -14,7 +14,7 @@ export interface IrisDbColumn {
   label: string;
   type:  'integer' | 'float';
   /** Groupe d'affichage (dropdown choroplèthe, system prompt) */
-  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP';
+  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi';
 }
 
 /** Toutes les colonnes CORE (SQL fixes) de la table iris */
@@ -37,6 +37,14 @@ export const IRIS_DB_COLUMNS: IrisDbColumn[] = [
   { name: 'nb_csp_cadre',     label: 'CSP — Cadres',               type: 'integer', group: 'CSP'        },
   { name: 'nb_csp_employe',   label: 'CSP — Employés',             type: 'integer', group: 'CSP'        },
   { name: 'nb_csp_ouvrier',   label: 'CSP — Ouvriers',             type: 'integer', group: 'CSP'        },
+  // Revenus — indicateurs Filosofi complémentaires
+  { name: 'rev_d1',           label: '1er décile revenus (€)',     type: 'float',   group: 'Revenus'    },
+  { name: 'rev_d9',           label: '9e décile revenus (€)',      type: 'float',   group: 'Revenus'    },
+  { name: 'taux_pauvrete',    label: 'Taux de pauvreté (%)',       type: 'float',   group: 'Revenus'    },
+  { name: 'indice_gini',      label: 'Indice de Gini',             type: 'float',   group: 'Revenus'    },
+  // Emploi
+  { name: 'nb_emplois',       label: 'Emplois au lieu de travail', type: 'integer', group: 'Emploi'     },
+  { name: 'taux_emploi',      label: "Taux d'emploi (%)",          type: 'float',   group: 'Emploi'     },
 ];
 
 // ── Sets de noms (lookup O(1)) ────────────────────────────────────────────────

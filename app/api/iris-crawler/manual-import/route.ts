@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 import { createAdminClient } from '@/lib/auth';
-import { splitRow } from '@/lib/iris-crawler/storage';
+import { splitRow, computeDerived } from '@/lib/iris-crawler/storage';
 import { CORE_COLUMN_NAMES, classifyTarget } from '@/lib/iris-crawler/db-columns';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import type { UploadSessionData } from '@/app/api/iris-crawler/manual-upload/route';
@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
         for (const row of session.rows) {
           const { coreData, jsonbData, valid } = splitRow(row, irisKeyCol, mapping);
           if (!valid) continue;
+          computeDerived(coreData, jsonbData);
 
           coreRows.push(coreData);
 

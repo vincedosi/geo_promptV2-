@@ -105,7 +105,10 @@ export function useSignIn() {
       const { error: sbError } = await sb.auth.signInWithPassword({ email, password });
       if (sbError) throw new Error(sbError.message);
       const params = new URLSearchParams(window.location.search);
-      window.location.href = params.get('redirect') || "/map";
+      const redirect = params.get('redirect') ?? '';
+      // Prevent open redirect: only allow same-origin relative paths
+      const safeRedirect = /^\/[^/\\]/.test(redirect) ? redirect : '/map';
+      window.location.href = safeRedirect;
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);

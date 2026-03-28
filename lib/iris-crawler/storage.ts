@@ -83,7 +83,7 @@ export function splitRow(
   irisKeyCol: string,
   mapping: Record<string, string>,
 ): SplitRowResult {
-  const irisCode = row[irisKeyCol]?.trim();
+  const irisCode = String(row[irisKeyCol] ?? '').trim();
   if (!irisCode) return { coreData: {}, jsonbData: {}, valid: false };
 
   const coreData: Record<string, string | number | null> = { code_iris: irisCode };
@@ -95,7 +95,7 @@ export function splitRow(
 
     const rawVal = row[csvCol] ?? '';
     const parsed = isGeoColumn(csvCol)
-      ? (rawVal.trim() || null)
+      ? (String(rawVal).trim() || null)
       : parseInseeValue(rawVal, csvCol);
 
     if (target === 'core') {
@@ -117,13 +117,22 @@ export function computeDerived(
   coreData: Record<string, string | number | null>,
   jsonbData: Record<string, string | number | null>,
 ): void {
+  // __src_act est partagé par taux_chomage ET taux_emploi — lire avant toute suppression
+  const act = jsonbData['__src_act'];
+
   // taux_chomage = CHOM1564 / ACT1564 × 100
   const chom = jsonbData['__src_chom'];
-  const act  = jsonbData['__src_act'];
-  if (chom !== null && act !== null && typeof chom === 'number' && typeof act === 'number' && act > 0) {
+  if (typeof chom === 'number' && typeof act === 'number' && act > 0) {
     coreData['taux_chomage'] = Math.round(chom / act * 1000) / 10;
   }
   delete jsonbData['__src_chom'];
+
+  // taux_emploi = ACTOCC1564 / ACT1564 × 100
+  const actocc = jsonbData['__src_actocc'];
+  if (typeof actocc === 'number' && typeof act === 'number' && act > 0) {
+    coreData['taux_emploi'] = Math.round(actocc / act * 1000) / 10;
+  }
+  delete jsonbData['__src_actocc'];
   delete jsonbData['__src_act'];
 
   // taux_proprio = RP_PROP / RP × 100

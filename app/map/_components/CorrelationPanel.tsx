@@ -23,10 +23,11 @@ const fMichroma = "'Michroma','Orbitron',sans-serif";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface POICategory {
-  key:   string;
-  label: string;
-  count: number;
-  icon:  string;
+  key:      string;
+  label:    string;
+  count:    number;
+  icon:     string;
+  sigma_km?: number;
 }
 
 interface IRISMetric {
@@ -58,10 +59,14 @@ interface CorrelationStats {
 }
 
 export interface CorrelationParams {
-  poiCategory: string;
-  irisMetric:  string;
-  departement: string | null;
-  autoAnalyse: boolean;
+  mode?:        'iris_poi' | 'iris_iris';
+  poiCategory?: string;
+  irisMetric?:  string;
+  sigmaKm?:     number;
+  metricX?:     string;
+  metricY?:     string;
+  departement:  string | null;
+  autoAnalyse:  boolean;
 }
 
 export interface ResidualsMeta {
@@ -297,12 +302,25 @@ function ScatterPlot({ points, stats, width = 280, height = 160, interactive = f
             {tooltip.point.code_iris} — {tooltip.point.nom_iris}
           </div>
           <div style={{ fontFamily: fMono, fontSize: 8, color: C.muted }}>
-            Métrique : {fmt(Number(tooltip.point.metric_value))} · POI : {tooltip.point.poi_count}
+            Métrique : {fmt(Number(tooltip.point.metric_value))} · Score : {Number(tooltip.point.poi_count).toFixed(2)}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+// ── Helper : formatage texte Mistral (bold + paragraphes) ─────────────────
+function formatAiText(text: string): React.ReactNode[] {
+  return text.split('\n').map((line, i) => {
+    if (!line.trim()) return <br key={i} />;
+    const parts = line.split(/(\*\*.*?\*\*)/g).map((seg, j) =>
+      seg.startsWith('**') && seg.endsWith('**')
+        ? <strong key={j} style={{ color: '#f59e0b' }}>{seg.slice(2, -2)}</strong>
+        : seg
+    );
+    return <p key={i} style={{ margin: '2px 0' }}>{parts}</p>;
+  });
 }
 
 // ── Slide-over résultats ───────────────────────────────────────────────────
@@ -313,13 +331,13 @@ interface ResultsPanelProps {
   stats:              CorrelationStats | null;
   categories:         POICategory[];
   metrics:            IRISMetric[];
+  mode:               'iris_poi' | 'iris_iris';
   selectedPOI:        string;
   selectedMetric:     string;
+  selectedMetricX:    string;
+  selectedMetricY:    string;
   effectiveDepts:     string[] | null;
   territoireLabel:    string | undefined;
-  aiText:             string;
-  aiLoading:          boolean;
-  onAnalyseAI:        () => void;
   // Résidus — état géré par CorrelationPanel (parent)
   residualsActive:    boolean;
   residualsLoading:   boolean;
@@ -327,22 +345,80 @@ interface ResultsPanelProps {
   residualsError:     string | null;
   hasCachedResiduals: boolean;
   onToggleResiduals:  () => void;
+  sigmaKm?:           number;
 }
 
 function CorrelationResultsPanel({
   isOpen, onClose, points, stats, categories, metrics,
-  selectedPOI, selectedMetric, effectiveDepts, territoireLabel,
-  aiText, aiLoading, onAnalyseAI,
+  mode, selectedPOI, selectedMetric, selectedMetricX, selectedMetricY,
+  effectiveDepts, territoireLabel,
   residualsActive, residualsLoading, loadingMsg, residualsError,
-  hasCachedResiduals, onToggleResiduals,
+  hasCachedResiduals, onToggleResiduals, sigmaKm,
 }: ResultsPanelProps) {
   const corr = stats ? correlationLabel(stats.r) : null;
 
-  const catLabel = categories.find(c => c.key === selectedPOI)?.label ?? selectedPOI;
-  const metLabel = metrics.find(m => m.key === selectedMetric)?.label ?? selectedMetric;
+  const catLabel = mode === 'iris_iris'
+    ? (metrics.find(m => m.key === selectedMetricY)?.label ?? selectedMetricY)
+    : (categories.find(c => c.key === selectedPOI)?.label ?? selectedPOI);
+  const metLabel = mode === 'iris_iris'
+    ? (metrics.find(m => m.key === selectedMetricX)?.label ?? selectedMetricX)
+    : (metrics.find(m => m.key === selectedMetric)?.label ?? selectedMetric);
   const zoneLabel = effectiveDepts
     ? (territoireLabel ?? `Dept ${effectiveDepts.join(', ')}`)
     : 'France entière';
+
+  // ── État interne : accordéon méthodologie + analyse Mistral ──────────────
+  const [methodOpen,  setMethodOpen]  = useState(false);
+  const [aiAnalysis,  setAiAnalysis]  = useState<string | null>(null);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiError,     setAiError]     = useState<string | null>(null);
+  const [aiOpen,      setAiOpen]      = useState(true);
+
+  // Reset analyse quand les points changent (nouveau calcul lancé)
+  useEffect(() => {
+    setAiAnalysis(null);
+    setAiError(null);
+  }, [points]);
+
+  const handleAnalyseIA = async () => {
+    if (!stats) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch('/api/correlation/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stats: {
+            r:         stats.r,
+            rho:       stats.rho,
+            r2:        stats.r2,
+            p:         stats.p,
+            slope:     stats.slope,
+            intercept: stats.intercept,
+            avgQ1:     stats.avgQ1,
+            avgQ4:     stats.avgQ4,
+            n:         stats.n,
+          },
+          mode,
+          metricLabel:  metLabel,
+          poiLabel:     catLabel,
+          metricXLabel: mode === 'iris_iris' ? metLabel  : undefined,
+          metricYLabel: mode === 'iris_iris' ? catLabel  : undefined,
+          sigmaKm:      mode === 'iris_poi' ? sigmaKm : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json() as { analysis?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+      setAiAnalysis(data.analysis ?? 'Pas de réponse.');
+      setAiOpen(true);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Erreur Mistral');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   // Fermeture du slide-over — les résidus RESTENT sur la carte
   const handleClose = () => { onClose(); };
@@ -396,7 +472,7 @@ function CorrelationResultsPanel({
         }}>
           <div>
             <div style={{ fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.18em', color: C.accent }}>
-              CORRÉLATION IRIS × POI
+              CORRÉLATION IRIS × {mode === 'iris_iris' ? 'IRIS' : 'POI'}
             </div>
             <div style={{ fontFamily: fMono, fontSize: 10, color: C.muted, marginTop: 3 }}>
               {catLabel} × {metLabel}
@@ -474,8 +550,8 @@ function CorrelationResultsPanel({
               {/* ── Q1 / Q4 ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                 {[
-                  { label: 'Moy. POI · Q1 (faible métrique)', value: stats.avgQ1.toFixed(2), color: C.textDim },
-                  { label: 'Moy. POI · Q4 (forte métrique)',  value: stats.avgQ4.toFixed(2), color: corr.color },
+                  { label: mode === 'iris_poi' ? `Score Q1 (faible métrique)` : 'Moy. Y · Q1 (faible métrique)', value: stats.avgQ1.toFixed(2), color: C.textDim },
+                  { label: mode === 'iris_poi' ? `Score Q4 (forte métrique)`  : 'Moy. Y · Q4 (forte métrique)',  value: stats.avgQ4.toFixed(2), color: corr.color },
                 ].map(({ label, value, color }) => (
                   <div key={label} style={{
                     padding: '10px 12px',
@@ -503,11 +579,90 @@ function CorrelationResultsPanel({
                   fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em',
                   color: C.textDim, marginBottom: 8, paddingLeft: 8,
                 }}>
-                  NUAGE DE POINTS — {metLabel} × NB POI / IRIS
+                  NUAGE DE POINTS — {metLabel} × {mode === 'iris_iris' ? catLabel : 'NB POI / IRIS'}
                 </div>
                 <div style={{ width: '100%' }}>
                   <ScatterPlotResponsive points={points} stats={stats} interactive />
                 </div>
+              </div>
+
+              {/* ── Encart méthodologique (accordion) ── */}
+              <div style={{
+                marginBottom: 12,
+                background: 'rgba(255,255,255,0.02)',
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                overflow: 'hidden',
+              }}>
+                <div
+                  onClick={() => setMethodOpen(v => !v)}
+                  style={{
+                    padding: '9px 14px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{
+                    fontSize: 9, color: C.muted,
+                    display: 'inline-block',
+                    transform: methodOpen ? 'rotate(90deg)' : 'none',
+                    transition: 'transform .18s',
+                  }}>▶</span>
+                  <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em', color: C.muted }}>
+                    COMPRENDRE CES RÉSULTATS
+                  </span>
+                </div>
+
+                {methodOpen && (
+                  <div style={{
+                    padding: '0 14px 14px',
+                    fontFamily: fMono, fontSize: 10.5, lineHeight: 1.75,
+                    color: C.muted,
+                    borderTop: `1px solid ${C.border}`,
+                  }}>
+                    <div style={{ marginBottom: 10, marginTop: 10 }}>
+                      <span style={{ color: C.text, fontWeight: 600 }}>Qu'est-ce qu'une corrélation ?</span><br />
+                      Une corrélation mesure la force du lien linéaire entre deux variables. Un coefficient proche
+                      de +1 ou -1 indique un lien fort. Proche de 0 = pas de lien. Important : une corrélation
+                      ne prouve jamais qu'une variable cause l'autre.
+                    </div>
+
+                    <div style={{ marginBottom: 10 }}>
+                      <span style={{ color: C.text, fontWeight: 600 }}>Les indicateurs</span><br />
+                      <span style={{ color: C.textDim }}>Pearson (r)</span> — Force et direction du lien linéaire. De -1 à +1.<br />
+                      <span style={{ color: C.textDim }}>Spearman (ρ)</span> — Même principe sur les rangs. Plus robuste aux valeurs extrêmes.<br />
+                      <span style={{ color: C.textDim }}>R²</span> — Part de la variation de Y expliquée par X. Ex: R²=29% signifie que 71% vient d'autres facteurs.<br />
+                      <span style={{ color: C.textDim }}>p-value</span> — Probabilité que le résultat soit dû au hasard. Sous 0.05 = significatif.
+                    </div>
+
+                    <div style={{ marginBottom: 10 }}>
+                      <span style={{ color: C.text, fontWeight: 600 }}>Les résidus sur la carte</span><br />
+                      Chaque zone IRIS est colorée selon l'écart entre la valeur réelle et la valeur prédite par la régression.<br />
+                      <span style={{ display: 'inline-block', width: 9, height: 9, background: '#ef4444', borderRadius: 1, verticalAlign: 'middle', marginRight: 5 }} />Rouge = sous-équipé (moins que prévu)<br />
+                      <span style={{ display: 'inline-block', width: 9, height: 9, background: '#e2e8f0', borderRadius: 1, verticalAlign: 'middle', marginRight: 5 }} />Gris = dans la norme<br />
+                      <span style={{ display: 'inline-block', width: 9, height: 9, background: '#22c55e', borderRadius: 1, verticalAlign: 'middle', marginRight: 5 }} />Vert = sur-équipé (plus que prévu)
+                    </div>
+
+                    {mode === 'iris_poi' && (
+                      <div style={{ marginBottom: 10 }}>
+                        <span style={{ color: C.text, fontWeight: 600 }}>Score d'accessibilité Gaussien</span><br />
+                        L'axe Y n'est pas un simple comptage — c'est un score continu calculé pour chaque IRIS :<br />
+                        <span style={{ color: C.accent, fontFamily: fMono }}>Score = Σ exp(−d²ᵢⱼ / 2σ²)</span><br />
+                        où d est la distance entre le centroïde IRIS et chaque POI dans un rayon de 3σ km.
+                        Le paramètre σ = {sigmaKm ?? 5} km contrôle la portée d'influence : σ faible = accès de proximité,
+                        σ élevé = accès régional. Un score élevé = forte concentration de POI accessibles.
+                      </div>
+                    )}
+
+                    <div>
+                      <span style={{ color: C.text, fontWeight: 600 }}>Lire le scatter plot</span><br />
+                      Chaque point = une zone IRIS. Axe X = votre métrique,
+                      axe Y = {mode === 'iris_iris' ? '2e métrique (mode IRIS × IRIS)' : `score d'accessibilité σ=${sigmaKm ?? 5}km`}. La droite
+                      en pointillés = tendance moyenne. Les points éloignés de la droite = résidus forts (zones atypiques).
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ── Résidus sur la carte ── */}
@@ -540,31 +695,77 @@ function CorrelationResultsPanel({
                 </div>
               )}
 
-              {/* ── Analyse IA ── */}
+              {/* ── Analyse Mistral AI ── */}
               <button
-                onClick={onAnalyseAI}
-                disabled={aiLoading}
+                onClick={handleAnalyseIA}
+                disabled={aiLoading || !stats}
                 style={{
                   width: '100%', padding: '10px', borderRadius: 2,
-                  background: aiLoading ? C.accentDim : 'rgba(168,85,247,0.08)',
-                  border: `1px solid ${C.accent}`,
-                  color: C.accent, fontFamily: fMichroma, fontSize: 8,
-                  letterSpacing: '0.14em', cursor: aiLoading ? 'not-allowed' : 'pointer',
-                  marginBottom: aiText ? 12 : 0,
+                  background: aiLoading
+                    ? 'rgba(245,158,11,0.05)'
+                    : 'rgba(245,158,11,0.1)',
+                  border: `1px solid ${aiLoading ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.5)'}`,
+                  color: aiLoading ? C.textDim : '#f59e0b',
+                  fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.14em',
+                  cursor: aiLoading ? 'wait' : 'pointer',
+                  marginBottom: aiAnalysis || aiError ? 10 : 0,
                 }}
               >
-                {aiLoading ? 'ANALYSE EN COURS…' : 'ANALYSER AVEC L\'IA GEMINI'}
+                {aiLoading ? 'MISTRAL ANALYSE…' : 'ANALYSER AVEC MISTRAL AI'}
               </button>
 
-              {aiText && (
+              {/* Résultat IA en accordion */}
+              {aiAnalysis && (
                 <div style={{
-                  padding: '14px 16px', borderRadius: 2,
-                  background: 'rgba(168,85,247,0.04)',
-                  border: `1px solid ${C.border}`,
-                  fontFamily: fMono, fontSize: 10, lineHeight: 1.7, color: C.text,
-                  whiteSpace: 'pre-wrap',
+                  background: 'rgba(245,158,11,0.03)',
+                  border: `1px solid rgba(245,158,11,0.25)`,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  marginBottom: 10,
                 }}>
-                  {aiText}
+                  <div
+                    onClick={() => setAiOpen(v => !v)}
+                    style={{
+                      padding: '9px 14px',
+                      borderBottom: aiOpen ? `1px solid rgba(245,158,11,0.15)` : 'none',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      cursor: 'pointer', userSelect: 'none',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 9, color: '#f59e0b',
+                      display: 'inline-block',
+                      transform: aiOpen ? 'rotate(90deg)' : 'none',
+                      transition: 'transform .18s',
+                    }}>▶</span>
+                    <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em', color: '#f59e0b' }}>
+                      ANALYSE MISTRAL AI
+                    </span>
+                    <span style={{ fontFamily: fMono, fontSize: 8, color: C.textDim, marginLeft: 'auto' }}>
+                      {catLabel} × {metLabel}
+                    </span>
+                  </div>
+
+                  {aiOpen && (
+                    <div style={{
+                      padding: '14px 16px',
+                      fontFamily: fMono, fontSize: 11, lineHeight: 1.75,
+                      color: C.text,
+                    }}>
+                      {formatAiText(aiAnalysis)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {aiError && (
+                <div style={{
+                  padding: '9px 12px', borderRadius: 2, marginBottom: 10,
+                  border: `1px solid rgba(239,68,68,0.3)`,
+                  background: 'rgba(239,68,68,0.05)',
+                  fontFamily: fMono, fontSize: 9, color: C.red,
+                }}>
+                  ! {aiError}
                 </div>
               )}
             </>
@@ -623,11 +824,15 @@ export function CorrelationPanel({
   const [metrics,       setMetrics]       = useState<IRISMetric[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [computing,     setComputing]     = useState(false);
-  const [aiLoading,     setAiLoading]     = useState(false);
   const [showResults,   setShowResults]   = useState(false);
 
+  // Mode toggle
+  const [mode,           setMode]           = useState<'iris_poi' | 'iris_iris'>('iris_poi');
   const [selectedPOI,    setSelectedPOI]    = useState<string>('');
   const [selectedMetric, setSelectedMetric] = useState<string>('population');
+  const [selectedMetricX, setSelectedMetricX] = useState<string>('population');
+  const [selectedMetricY, setSelectedMetricY] = useState<string>('taux_chomage');
+  const [sigmaKm,        setSigmaKm]        = useState<number>(5.0);
 
   const effectiveDepts: string[] | null = params?.departement
     ? [params.departement]
@@ -635,7 +840,6 @@ export function CorrelationPanel({
 
   const [points, setPoints] = useState<CorrelationPoint[]>([]);
   const [stats,  setStats]  = useState<CorrelationStats | null>(null);
-  const [aiText, setAiText] = useState<string>('');
   const [error,  setError]  = useState<string | null>(null);
 
   const computedParamsRef = useRef<string>('');
@@ -651,7 +855,9 @@ export function CorrelationPanel({
   // Ref pour éviter le problème de stale closure dans compute (useCallback avec eslint-disable)
   const fetchResidualsRef = useRef<(
     scatterData: CorrelationPoint[], poi: string, metric: string,
-    depts: string[] | null, catLabel: string, metLabel: string
+    depts: string[] | null, catLabel: string, metLabel: string,
+    fetchMode?: 'iris_poi' | 'iris_iris',
+    sigma?: number,
   ) => Promise<void>>();
 
   // ── Chargement initial ────────────────────────────────────────────────
@@ -670,15 +876,35 @@ export function CorrelationPanel({
     }).finally(() => setLoading(false));
   }, []);
 
+  // ── Auto-update sigma when POI selection changes ─────────────────────
+  useEffect(() => {
+    if (!selectedPOI) return;
+    const cat = categories.find(c => c.key === selectedPOI);
+    if (cat?.sigma_km != null) setSigmaKm(cat.sigma_km);
+  }, [selectedPOI, categories]);
+
   // ── Params programmatiques (depuis le chat) ───────────────────────────
   useEffect(() => {
     if (!params) return;
-    const key = `${params.poiCategory}|${params.irisMetric}|${params.departement}`;
+    const key = `${params.mode ?? 'iris_poi'}|${params.poiCategory}|${params.irisMetric}|${params.sigmaKm ?? ''}|${params.metricX}|${params.metricY}|${params.departement}`;
     if (computedParamsRef.current === key) return;
     computedParamsRef.current = key;
-    setSelectedPOI(params.poiCategory);
-    setSelectedMetric(params.irisMetric);
+    if (params.mode) setMode(params.mode);
+    if (params.poiCategory) setSelectedPOI(params.poiCategory);
+    if (params.irisMetric) setSelectedMetric(params.irisMetric);
+    if (params.sigmaKm != null) setSigmaKm(params.sigmaKm);
+    if (params.metricX) setSelectedMetricX(params.metricX);
+    if (params.metricY) setSelectedMetricY(params.metricY);
   }, [params]);
+
+  // ── Reset sur changement de mode ─────────────────────────────────────
+  useEffect(() => {
+    setPoints([]);
+    setStats(null);
+    setShowResults(false);
+    onShowResiduals?.(null);
+    setResidualsActive(false);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // ── fetchAndShowResiduals ─────────────────────────────────────────────
@@ -686,15 +912,17 @@ export function CorrelationPanel({
     scatterData: CorrelationPoint[],
     poi: string, metric: string, depts: string[] | null,
     catLabel: string, metLabel: string,
+    fetchMode: 'iris_poi' | 'iris_iris' = 'iris_poi',
+    sigma?: number,
   ) => {
-    const key = `${poi}_${metric}_${depts?.join(',') ?? ''}`;
-
-    console.log('[RESID-CALC] 1. START — poi:', poi, 'metric:', metric, 'depts:', depts, 'key:', key);
+    console.log('[RESID-CALC] 1. START — poi:', poi, 'metric:', metric, 'mode:', fetchMode, 'sigma:', sigma, 'depts:', depts);
+    const sigmaKey = fetchMode === 'iris_poi' ? `_s${sigma ?? 5}` : '';
+    const key = `${fetchMode}_${poi}_${metric}${sigmaKey}_${depts?.join(',') ?? ''}`;
 
     // Cache hit → affichage instantané
     if (residualsCache.current.has(key)) {
+      console.log('[RESID-CALC] CACHE HIT — key:', key);
       const cached = residualsCache.current.get(key)!;
-      console.log('[RESID-CALC] 1b. CACHE HIT — skipping fetch, items:', cached.data.length);
       onShowResiduals?.(cached.data, cached.meta);
       setResidualsActive(true);
       setResidualsMeta(cached.meta);
@@ -706,21 +934,24 @@ export function CorrelationPanel({
     setLoadingMsg('Récupération de tous les IRIS…');
 
     try {
-      // Régression issue du scatter (2000 IRIS)
+      // Régression issue du scatter
       const reg = linearReg(
         scatterData.map(d => Number(d.metric_value)),
         scatterData.map(d => Number(d.poi_count)),
       );
-      console.log('[RESID-CALC] 5. regression — slope:', reg.slope, 'intercept:', reg.intercept, 'scatter size:', scatterData.length);
+      console.log('[RESID-CALC] 5. regression — slope:', reg.slope, 'intercept:', reg.intercept);
 
-      // Fetch tous les IRIS (sans limite)
-      console.log('[RESID-CALC] 2. Fetching compute no_limit — body:', JSON.stringify({ poi_category: poi, iris_metric: metric, departements: depts, no_limit: true }));
+      // Body selon le mode
+      const fetchBody = fetchMode === 'iris_iris'
+        ? { mode: 'iris_iris', metric_x: poi, metric_y: metric, departements: depts, no_limit: true }
+        : { poi_category: poi, iris_metric: metric, sigma_km: sigma ?? 5.0, departements: depts, no_limit: true };
+
+      console.log('[RESID-CALC] 2. Fetching compute no_limit... body:', JSON.stringify(fetchBody));
       const allRes = await fetch('/api/correlation/compute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poi_category: poi, iris_metric: metric, departements: depts, no_limit: true }),
+        body: JSON.stringify(fetchBody),
       });
-      console.log('[RESID-CALC] 2b. fetch response status:', allRes.status, allRes.ok ? 'OK' : 'FAIL');
       if (!allRes.ok) throw new Error(`Compute API ${allRes.status}`);
       const allData: CorrelationPoint[] = await allRes.json();
       if ((allData as unknown as { error: string })?.error) throw new Error((allData as unknown as { error: string }).error);
@@ -745,7 +976,7 @@ export function CorrelationPanel({
           };
         });
 
-      console.log('[RESID-CALC] 6. residuals computed:', residuals.length, '(filtered from', allData.length, ')');
+      console.log('[RESID-CALC] 6. residuals computed:', residuals.length);
 
       const maxAbs = Math.max(...residuals.map(r => Math.abs(r.residual)), 0.01);
       console.log('[RESID-CALC] 7. maxAbsResidual:', maxAbs);
@@ -755,7 +986,6 @@ export function CorrelationPanel({
       console.log('[RESID-CALC] 8. sample residuals:', JSON.stringify(normalized.slice(0, 5).map(r => ({
         code: r.code_iris, norm: r.norm?.toFixed(3), residual: r.residual?.toFixed(3),
       }))));
-
       const positives = normalized.filter(r => r.norm > 0.1).length;
       const negatives = normalized.filter(r => r.norm < -0.1).length;
       const neutral   = normalized.filter(r => Math.abs(r.norm) <= 0.1).length;
@@ -779,13 +1009,12 @@ export function CorrelationPanel({
       }
       residualsCache.current.set(key, { data: normalized, meta });
 
+      setLoadingMsg('Affichage sur la carte…');
       console.log('[RESID-CALC] 10. calling onShowResiduals with', normalized.length, 'items');
       console.log('[RESID-CALC] 11. onShowResiduals is:', typeof onShowResiduals);
-      setLoadingMsg('Affichage sur la carte…');
       onShowResiduals?.(normalized, meta);
       setResidualsActive(true);
       setResidualsMeta(meta);
-      console.log('[RESID-CALC] 12. DONE — residualsActive set to true');
 
     } catch (e: unknown) {
       console.error('[RESID-CALC] ERROR:', e);
@@ -807,7 +1036,10 @@ export function CorrelationPanel({
       return;
     }
 
-    const key = `${selectedPOI}_${selectedMetric}_${effectiveDepts?.join(',') ?? ''}`;
+    const poiOrX   = mode === 'iris_iris' ? selectedMetricX : selectedPOI;
+    const metOrY   = mode === 'iris_iris' ? selectedMetricY : selectedMetric;
+    const key = `${mode}_${poiOrX}_${metOrY}_${effectiveDepts?.join(',') ?? ''}`;
+
     if (residualsCache.current.has(key)) {
       const cached = residualsCache.current.get(key)!;
       onShowResiduals?.(cached.data, cached.meta);
@@ -817,34 +1049,42 @@ export function CorrelationPanel({
     }
 
     if (!residualsLoading) {
-      const catLabel = categories.find(c => c.key === selectedPOI)?.label ?? selectedPOI;
-      const metLabel = metrics.find(m => m.key === selectedMetric)?.label ?? selectedMetric;
-      fetchResidualsRef.current?.(points, selectedPOI, selectedMetric, effectiveDepts, catLabel, metLabel);
+      const catLabel = mode === 'iris_iris'
+        ? (metrics.find(m => m.key === selectedMetricY)?.label ?? selectedMetricY)
+        : (categories.find(c => c.key === selectedPOI)?.label ?? selectedPOI);
+      const metLabel = mode === 'iris_iris'
+        ? (metrics.find(m => m.key === selectedMetricX)?.label ?? selectedMetricX)
+        : (metrics.find(m => m.key === selectedMetric)?.label ?? selectedMetric);
+      fetchResidualsRef.current?.(points, poiOrX, metOrY, effectiveDepts, catLabel, metLabel, mode, sigmaKm);
     }
-  }, [residualsActive, residualsLoading, selectedPOI, selectedMetric, effectiveDepts, points, categories, metrics, onShowResiduals]);
+  }, [residualsActive, residualsLoading, mode, selectedPOI, selectedMetric, selectedMetricX, selectedMetricY, sigmaKm, effectiveDepts, points, categories, metrics, onShowResiduals]);
 
   // ── Calcul corrélation ────────────────────────────────────────────────
-  const compute = useCallback(async (poi: string, metric: string, depts: string[] | null) => {
-    if (!poi) return;
+  const compute = useCallback(async (
+    poi: string, metric: string, depts: string[] | null,
+    currentMode: 'iris_poi' | 'iris_iris' = 'iris_poi',
+    mx?: string, my?: string,
+    sigma?: number,
+  ) => {
+    const isIrisIris = currentMode === 'iris_iris';
+    if (isIrisIris ? (!mx || !my) : !poi) return;
+
     setComputing(true);
     setError(null);
-    setAiText('');
-    // Nettoyer les résidus précédents
     onShowResiduals?.(null);
     setResidualsActive(false);
     setResidualsError(null);
     setResidualsMeta(null);
 
     try {
+      const body = isIrisIris
+        ? { mode: 'iris_iris', metric_x: mx, metric_y: my, departements: depts, limit: 2000 }
+        : { poi_category: poi, iris_metric: metric, sigma_km: sigma ?? sigmaKm, departements: depts, limit: 2000 };
+
       const res = await fetch('/api/correlation/compute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          poi_category: poi,
-          iris_metric:  metric,
-          departements: depts,
-          limit:        2000,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -859,16 +1099,22 @@ export function CorrelationPanel({
       const computed = computeStats(data);
       setPoints(data);
       setStats(computed);
-      setShowResults(true);  // Ouvre le slide-over immédiatement
+      setShowResults(true);
+
+      // Labels pour le slide-over + résidus
+      const catLabel = isIrisIris
+        ? (metrics.find(m => m.key === my)?.label ?? (my ?? ''))
+        : (categories.find(c => c.key === poi)?.label ?? poi);
+      const metLabel = isIrisIris
+        ? (metrics.find(m => m.key === mx)?.label ?? (mx ?? ''))
+        : (metrics.find(m => m.key === metric)?.label ?? metric);
 
       // Lancer les résidus en parallèle (sans await) — slide-over déjà visible
-      const catLabel = categories.find(c => c.key === poi)?.label ?? poi;
-      const metLabel = metrics.find(m => m.key === metric)?.label ?? metric;
-      fetchResidualsRef.current?.(data, poi, metric, depts, catLabel, metLabel);
+      const poiOrX = isIrisIris ? (mx ?? '') : poi;
+      const metOrY = isIrisIris ? (my ?? '') : metric;
+      const effectiveSigma = isIrisIris ? undefined : (sigma ?? sigmaKm);
+      fetchResidualsRef.current?.(data, poiOrX, metOrY, depts, catLabel, metLabel, currentMode, effectiveSigma);
 
-      if (params?.autoAnalyse) {
-        analyseWithAI(poi, metric, computed);
-      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur inconnue');
     } finally {
@@ -880,77 +1126,11 @@ export function CorrelationPanel({
   useEffect(() => {
     if (!params || loading) return;
     const depts = params.departement ? [params.departement] : effectiveDepts;
-    compute(params.poiCategory, params.irisMetric, depts);
+    const m = params.mode ?? 'iris_poi';
+    compute(params.poiCategory ?? '', params.irisMetric ?? 'population', depts, m, params.metricX, params.metricY, params.sigmaKm);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, loading]);
 
-  // ── Analyse IA ────────────────────────────────────────────────────────
-  const analyseWithAI = useCallback(async (
-    poi: string, metric: string, s: CorrelationStats | null
-  ) => {
-    if (!s) return;
-    setAiLoading(true);
-    setAiText('');
-
-    const catLabel  = categories.find(c => c.key === poi)?.label ?? poi;
-    const metLabel  = metrics.find(m => m.key === metric)?.label ?? metric;
-    const direction = s.r >= 0 ? 'positive' : 'négative';
-    const strength  = correlationLabel(s.r).label.toLowerCase();
-
-    const prompt = `Tu es expert en géomarketing et analyse de données territoriales français.
-
-Contexte :
-- Corrélation ${direction} ${strength} (r=${s.r.toFixed(3)}, ρ=${s.rho.toFixed(3)}, R²=${s.r2.toFixed(3)}) entre :
-  - Métrique IRIS : ${metLabel}
-  - Catégorie POI : ${catLabel}
-- ${s.n} zones IRIS analysées
-- Zones à faibles ${metLabel} (Q1) : moyenne ${s.avgQ1.toFixed(2)} ${catLabel}/IRIS
-- Zones à forts ${metLabel} (Q4) : moyenne ${s.avgQ4.toFixed(2)} ${catLabel}/IRIS
-- p-value estimée : ${s.p < 0.001 ? '<0.001' : s.p.toFixed(3)}
-
-Rédige une analyse géomarketing en 3-4 phrases :
-1. Interprète la corrélation (cause/effet probable, mécanismes)
-2. Identifie les implications pour une stratégie d'implantation ou ciblage
-3. Mentionne les limites et ce qu'il faudrait approfondir
-
-Réponds directement, sans titre, en français professionnel.`;
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          provider: 'gemini',
-        }),
-      });
-
-      if (!res.ok || !res.body) throw new Error('Erreur IA');
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let text = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split('\n')) {
-          if (line.startsWith('0:')) {
-            try {
-              const s = JSON.parse(line.slice(2));
-              text += s;
-              setAiText(text);
-            } catch {}
-          }
-        }
-      }
-    } catch {
-      setAiText('Analyse IA indisponible.');
-    } finally {
-      setAiLoading(false);
-    }
-  }, [categories, metrics]);
 
   // ── Render ────────────────────────────────────────────────────────────
   if (loading) {
@@ -966,63 +1146,152 @@ Réponds directement, sans titre, en français professionnel.`;
     ? (territoireLabel ?? `Dept ${effectiveDepts.join(', ')}`)
     : 'France entière';
 
+  const canCompute = mode === 'iris_iris'
+    ? (!!selectedMetricX && !!selectedMetricY && selectedMetricX !== selectedMetricY)
+    : !!selectedPOI;
+
   return (
     <>
       <div style={{ padding: '4px 0' }}>
 
-        {/* ── Sélecteur POI ── */}
-        <div style={{ padding: '8px 12px 4px' }}>
-          <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
-            CATÉGORIE POI
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {categories.map(cat => (
+        {/* ── Segmented control mode ── */}
+        <div style={{ padding: '8px 12px 6px' }}>
+          <div style={{
+            display: 'inline-flex', borderRadius: 2,
+            border: `1px solid ${C.border}`, overflow: 'hidden',
+          }}>
+            {(['iris_poi', 'iris_iris'] as const).map(m => (
               <button
-                key={cat.key}
-                onClick={() => setSelectedPOI(cat.key)}
+                key={m}
+                onClick={() => setMode(m)}
                 style={{
-                  padding: '3px 8px', borderRadius: 2,
-                  border: `1px solid ${selectedPOI === cat.key ? C.accent : C.border}`,
-                  background: selectedPOI === cat.key ? C.accentDim : 'transparent',
-                  color: selectedPOI === cat.key ? C.accent : C.muted,
-                  fontFamily: fMono, fontSize: 9, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '4px 12px', border: 'none',
+                  background: mode === m ? C.accent : 'transparent',
+                  color: mode === m ? '#000' : C.muted,
+                  fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em',
+                  cursor: 'pointer',
+                  borderRight: m === 'iris_poi' ? `1px solid ${C.border}` : 'none',
                 }}
               >
-                <span>{cat.icon}</span>
-                <span>{cat.label}</span>
-                <span style={{ color: C.textDim, fontSize: 8 }}>({cat.count.toLocaleString('fr')})</span>
+                {m === 'iris_poi' ? 'IRIS × POI' : 'IRIS × IRIS'}
               </button>
             ))}
-            {categories.length === 0 && (
-              <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Aucune catégorie disponible</span>
-            )}
           </div>
         </div>
 
-        {/* ── Sélecteur Métrique IRIS ── */}
-        <div style={{ padding: '8px 12px 4px' }}>
+        {/* ── Mode IRIS × POI : sélecteur catégorie POI ── */}
+        {mode === 'iris_poi' && (
+          <div style={{ padding: '4px 12px 4px' }}>
+            <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
+              CATÉGORIE POI
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {categories.map(cat => (
+                <button
+                  key={cat.key}
+                  onClick={() => setSelectedPOI(cat.key)}
+                  style={{
+                    padding: '3px 8px', borderRadius: 2,
+                    border: `1px solid ${selectedPOI === cat.key ? C.accent : C.border}`,
+                    background: selectedPOI === cat.key ? C.accentDim : 'transparent',
+                    color: selectedPOI === cat.key ? C.accent : C.muted,
+                    fontFamily: fMono, fontSize: 9, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                  <span style={{ color: C.textDim, fontSize: 8 }}>({cat.count.toLocaleString('fr')})</span>
+                </button>
+              ))}
+              {categories.length === 0 && (
+                <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Aucune catégorie disponible</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Sigma slider (iris_poi only) ── */}
+        {mode === 'iris_poi' && (
+          <div style={{ padding: '4px 12px 4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted }}>
+                PORTÉE σ
+              </span>
+              <span style={{ fontFamily: fMono, fontSize: 9, color: C.accent }}>
+                {sigmaKm < 1 ? `${(sigmaKm * 1000).toFixed(0)} m` : `${sigmaKm} km`}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0.2} max={20} step={0.1}
+              value={sigmaKm}
+              onChange={e => setSigmaKm(Number(e.target.value))}
+              style={{ width: '100%', accentColor: C.accent, cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 7, color: C.textDim, marginTop: 1 }}>
+              <span>200m</span><span>20km</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Métrique IRIS (commune aux deux modes / axe X en iris_iris) ── */}
+        <div style={{ padding: '4px 12px 4px' }}>
           <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
-            MÉTRIQUE IRIS
+            {mode === 'iris_iris' ? 'MÉTRIQUE X (axe)' : 'MÉTRIQUE IRIS'}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {metrics.map(m => (
-              <button
-                key={m.key}
-                onClick={() => setSelectedMetric(m.key)}
-                style={{
-                  padding: '3px 8px', borderRadius: 2,
-                  border: `1px solid ${selectedMetric === m.key ? C.green : C.border}`,
-                  background: selectedMetric === m.key ? 'rgba(61,255,160,0.08)' : 'transparent',
-                  color: selectedMetric === m.key ? C.green : C.muted,
-                  fontFamily: fMono, fontSize: 9, cursor: 'pointer',
-                }}
-              >
-                {m.icon} {m.label}
-              </button>
-            ))}
+            {metrics.map(m => {
+              const isActive = mode === 'iris_iris' ? selectedMetricX === m.key : selectedMetric === m.key;
+              return (
+                <button
+                  key={m.key}
+                  onClick={() => mode === 'iris_iris' ? setSelectedMetricX(m.key) : setSelectedMetric(m.key)}
+                  style={{
+                    padding: '3px 8px', borderRadius: 2,
+                    border: `1px solid ${isActive ? C.green : C.border}`,
+                    background: isActive ? 'rgba(61,255,160,0.08)' : 'transparent',
+                    color: isActive ? C.green : C.muted,
+                    fontFamily: fMono, fontSize: 9, cursor: 'pointer',
+                  }}
+                >
+                  {m.icon} {m.label}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* ── Mode IRIS × IRIS : sélecteur métrique Y ── */}
+        {mode === 'iris_iris' && (
+          <div style={{ padding: '4px 12px 4px' }}>
+            <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
+              MÉTRIQUE Y (corrélée)
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {metrics.map(m => {
+                const isActive = selectedMetricY === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    onClick={() => setSelectedMetricY(m.key)}
+                    style={{
+                      padding: '3px 8px', borderRadius: 2,
+                      border: `1px solid ${isActive ? C.accent : C.border}`,
+                      background: isActive ? C.accentDim : 'transparent',
+                      color: isActive ? C.accent : C.muted,
+                      fontFamily: fMono, fontSize: 9, cursor: 'pointer',
+                      opacity: m.key === selectedMetricX ? 0.35 : 1,
+                    }}
+                    disabled={m.key === selectedMetricX}
+                  >
+                    {m.icon} {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Zone + CALCULER ── */}
         <div style={{ padding: '4px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1038,15 +1307,15 @@ Réponds directement, sans titre, en français professionnel.`;
             )}
           </div>
           <button
-            onClick={() => compute(selectedPOI, selectedMetric, effectiveDepts)}
-            disabled={computing || !selectedPOI}
+            onClick={() => compute(selectedPOI, selectedMetric, effectiveDepts, mode, selectedMetricX, selectedMetricY, sigmaKm)}
+            disabled={computing || !canCompute}
             style={{
               flexShrink: 0, padding: '4px 14px', borderRadius: 2,
               background: computing ? C.accentDim : C.accent,
               border: 'none', color: '#000', fontFamily: fMichroma,
               fontSize: 7, letterSpacing: '0.12em',
-              cursor: computing || !selectedPOI ? 'not-allowed' : 'pointer',
-              opacity: !selectedPOI ? 0.4 : 1,
+              cursor: computing || !canCompute ? 'not-allowed' : 'pointer',
+              opacity: !canCompute ? 0.4 : 1,
             }}
           >
             {computing ? '…' : 'CALCULER'}
@@ -1118,7 +1387,9 @@ Réponds directement, sans titre, en français professionnel.`;
         {/* État initial */}
         {!stats && !computing && !error && (
           <div style={{ padding: '10px 12px 6px', fontFamily: fMono, fontSize: 9, color: C.textDim }}>
-            Sélectionnez une catégorie POI et une métrique, puis cliquez sur CALCULER.
+            {mode === 'iris_iris'
+              ? 'Sélectionnez deux métriques IRIS différentes, puis cliquez sur CALCULER.'
+              : 'Sélectionnez une catégorie POI et une métrique, puis cliquez sur CALCULER.'}
           </div>
         )}
       </div>
@@ -1131,21 +1402,24 @@ Réponds directement, sans titre, en français professionnel.`;
         stats={stats}
         categories={categories}
         metrics={metrics}
+        mode={mode}
         selectedPOI={selectedPOI}
         selectedMetric={selectedMetric}
+        selectedMetricX={selectedMetricX}
+        selectedMetricY={selectedMetricY}
         effectiveDepts={effectiveDepts}
         territoireLabel={territoireLabel}
-        aiText={aiText}
-        aiLoading={aiLoading}
-        onAnalyseAI={() => analyseWithAI(selectedPOI, selectedMetric, stats)}
         residualsActive={residualsActive}
         residualsLoading={residualsLoading}
         loadingMsg={loadingMsg}
         residualsError={residualsError}
         hasCachedResiduals={residualsCache.current.has(
-          `${selectedPOI}_${selectedMetric}_${effectiveDepts?.join(',') ?? ''}`
+          mode === 'iris_iris'
+            ? `iris_iris_${selectedMetricX}_${selectedMetricY}_${effectiveDepts?.join(',') ?? ''}`
+            : `iris_poi_${selectedPOI}_${selectedMetric}_s${sigmaKm}_${effectiveDepts?.join(',') ?? ''}`
         )}
         onToggleResiduals={handleToggleResiduals}
+        sigmaKm={sigmaKm}
       />
     </>
   );

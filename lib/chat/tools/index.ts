@@ -63,15 +63,24 @@ export async function executeToolCall(
       return analyseComplete(args);
 
     case 'analyse_correlation': {
-      const poi = (args.poi_category as string) ?? '';
-      const metric = (args.iris_metric as string) ?? 'population';
-      const dep = (args.departement as string) ?? null;
-      const autoIa = args.auto_analyse_ia !== false;
-      if (!poi) return { error: 'poi_category est requis.' };
+      const mode    = (args.mode as string) ?? 'iris_poi';
+      const poi     = (args.poi_category as string) ?? '';
+      const metric  = (args.iris_metric as string) ?? 'population';
+      const sigmaKm = typeof args.sigma_km === 'number' ? args.sigma_km : undefined;
+      const mx      = (args.metric_x as string) ?? '';
+      const my      = (args.metric_y as string) ?? '';
+      const dep     = (args.departement as string) ?? null;
+      const autoIa  = args.auto_analyse_ia !== false;
+      if (mode === 'iris_iris' && (!mx || !my)) return { error: 'metric_x et metric_y sont requis en mode iris_iris.' };
+      if (mode === 'iris_poi' && !poi) return { error: 'poi_category est requis en mode iris_poi.' };
       return {
         action:       'analyse_correlation',
-        poiCategory:  poi,
-        irisMetric:   metric,
+        mode,
+        poiCategory:  poi || undefined,
+        irisMetric:   metric || undefined,
+        sigmaKm,
+        metricX:      mx || undefined,
+        metricY:      my || undefined,
         departement:  dep,
         autoAnalyse:  autoIa,
       };

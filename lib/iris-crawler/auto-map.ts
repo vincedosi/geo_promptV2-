@@ -60,6 +60,18 @@ const PATTERNS: Array<{ re: RegExp; irisCol: string }> = [
   { re: /^MED\d{2}$/,                irisCol: 'rev_median'       },
   { re: /^D\d{3}_MED$/,              irisCol: 'rev_median'       },
   { re: /^DEC_MED\d{2}$/,            irisCol: 'rev_median'       }, // BASE_TD_FILO_IRIS format
+  // Déciles de revenus (Filosofi)
+  { re: /^DEC_D1\d{2}$/,             irisCol: 'rev_d1'           }, // 1er décile
+  { re: /^DEC_D9\d{2}$/,             irisCol: 'rev_d9'           }, // 9e décile
+  // Taux de pauvreté (Filosofi)
+  { re: /^TP60\d{2}$/,               irisCol: 'taux_pauvrete'    },
+  { re: /^DEC_PTSA\d{2}$/,           irisCol: 'taux_pauvrete'    },
+  // Indice de Gini (Filosofi)
+  { re: /^DEC_GI\d{2}$/,             irisCol: 'indice_gini'      },
+  // Emplois au lieu de travail (RP)
+  { re: /^P\d{2}_EMPLT$/,            irisCol: 'nb_emplois'       },
+  // Sources pour calcul taux_emploi
+  { re: /^P\d{2}_ACTOCC1564$/,       irisCol: '__src_actocc'     }, // → taux_emploi
   // Propriétaires (valeur directe pré-calculée)
   { re: /^P\d{2}_PROP$/,             irisCol: 'taux_proprio'     },
   { re: /^TAUX_PROPRIO\d*$/i,        irisCol: 'taux_proprio'     },

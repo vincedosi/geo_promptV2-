@@ -48,7 +48,7 @@ const nextConfig = {
   // Allow large request bodies — needed for multi-GB carreaux imports
   experimental: {
     serverActions: {
-      bodySizeLimit: '10gb',
+      bodySizeLimit: '50mb',
     },
     instrumentationHook: true,
   },

@@ -114,7 +114,10 @@ PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS dem
 OUTIL analyse_correlation — métriques IRIS disponibles :
 ${irisCorrelationSection}
 Mapping langage naturel : 'jeunes/étudiants' → pop_15_29 | 'enfants' → pop_0_14 | 'seniors/retraités' → pop_60_74 | 'cadres/CSP+/aisés' → nb_csp_cadre | 'ouvriers' → nb_csp_ouvrier | 'revenus/richesse/niveau de vie' → rev_median | 'chômage/emploi' → taux_chomage | 'propriétaires/immobilier' → taux_proprio | 'diplômes/éducation/bac+' → taux_diplome_sup | 'population' → population.
-Exemples : "Corrélation revenu lycées" → poi_category:lycee, iris_metric:rev_median | "Lien transports et jeunes" → poi_category:arret_transport, iris_metric:pop_15_29 | "Chômage et présence CIRFA" → poi_category:cirfa, iris_metric:taux_chomage | "Impact lycées sur cadres Paris" → poi_category:lycee, iris_metric:nb_csp_cadre, departement:75.
+Exemples iris_poi : "Corrélation revenu lycées" → poi_category:lycee, iris_metric:rev_median | "Lien transports et jeunes" → poi_category:arret_transport, iris_metric:pop_15_29 | "Chômage et présence CIRFA" → poi_category:cirfa, iris_metric:taux_chomage | "Impact lycées sur cadres Paris" → poi_category:lycee, iris_metric:nb_csp_cadre, departement:75.
+sigma_km (iris_poi) — portée d'influence Gaussienne. Défaut : lycée=5, transport=0.5, pharmacie=1, médecin=1.5, supermarché=3, CIRFA=15. Convertir "dans Xkm" → sigma_km = X/3. Ex: "lycées dans 15km" → sigma_km:5.0 | "transports à 2km" → sigma_km:0.7 | "pharmacies de proximité" → sigma_km:1.0 (défaut).
+Exemples iris_iris (PAS de poi_category) : "Chômage vs revenus" → mode:iris_iris, metric_x:taux_chomage, metric_y:rev_median | "Jeunes vs pauvreté" → mode:iris_iris, metric_x:pop_15_29, metric_y:taux_pauvrete | "Lien entre diplôme et chômage" → mode:iris_iris, metric_x:taux_diplome_sup, metric_y:taux_chomage | "Cadres vs propriétaires" → mode:iris_iris, metric_x:nb_csp_cadre, metric_y:taux_proprio.
+RÈGLE : si la question compare deux caractéristiques socio-démographiques sans POI → mode iris_iris. Si un POI/équipement est mentionné → mode iris_poi.
 
 ## Multi-étapes
 
