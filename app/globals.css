@@ -1,8 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@200;300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Michroma&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@200;300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── shadcn/ui — GENESIS Dark Minimal theme ─── */
+@layer base {
+  :root {
+    --background: 0 0% 2%;
+    --foreground: 0 0% 94%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 94%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 94%;
+    --primary: 0 0% 94%;
+    --primary-foreground: 0 0% 2%;
+    --secondary: 0 0% 7%;
+    --secondary-foreground: 0 0% 63%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 63%;
+    --destructive: 0 100% 67%;
+    --destructive-foreground: 0 0% 94%;
+    --border: 0 0% 10%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 20%;
+    --radius: 0.5rem;
+    /* Semantic custom */
+    --success: 152 100% 62%;
+    --warning: 43 92% 57%;
+    --info: 213 47% 58%;
+  }
+
+  .dark {
+    --background: 0 0% 2%;
+    --foreground: 0 0% 94%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 94%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 94%;
+    --primary: 0 0% 94%;
+    --primary-foreground: 0 0% 2%;
+    --secondary: 0 0% 7%;
+    --secondary-foreground: 0 0% 63%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 63%;
+    --destructive: 0 100% 67%;
+    --destructive-foreground: 0 0% 94%;
+    --border: 0 0% 10%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 20%;
+    --radius: 0.5rem;
+    --success: 152 100% 62%;
+    --warning: 43 92% 57%;
+    --info: 213 47% 58%;
+  }
+}
 
 /* ─── Stitch design tokens ─── */
 .quantum-title {
@@ -57,7 +113,7 @@ body {
   height: 100%;
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

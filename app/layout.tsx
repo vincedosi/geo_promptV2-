@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr">
+    <html lang="fr" className="dark">
       <body>
         <div className="genesis-layout">
           {/* Ta barre de navigation latérale */}
