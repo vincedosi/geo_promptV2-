@@ -14,6 +14,8 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -51,10 +53,9 @@ jobs:
             iris.ndjson
           ls -lh iris.pmtiles
 
-      - name: Upload PMTiles to Supabase Storage
+      - name: Upload PMTiles to GitHub Releases
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/upload-iris-pmtiles.mjs
 
       - name: Upload as artifact (backup)

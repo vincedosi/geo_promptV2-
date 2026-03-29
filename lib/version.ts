@@ -11,10 +11,10 @@ export const APP_NAME    = 'GEO.Prompt';
 export const APP_VERSION = '7.4.0';
 export const BUILD_DATE  = '2026-03-20';
 
-// Fichier PMTiles IRIS servi depuis /public (Next.js static) — géométries uniquement
+// Fichier PMTiles IRIS hébergé sur GitHub Releases (196 MB > limite Supabase Storage 50 MB)
 // Les valeurs démographiques sont injectées dynamiquement depuis la DB via setFeatureState
-// Régénérer uniquement si les contours IGN changent (rare) — voir scripts/export-iris-local.mjs
-export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
+// Régénérer uniquement si les contours IGN changent (rare) — voir .github/workflows/generate-iris-pmtiles.yml
+export const IRIS_PMTILES_URL = 'https://github.com/vincedosi/geo_promptV2-/releases/download/iris-pmtiles-latest/iris.pmtiles';
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 export const CARREAUX_TILE_VERSION = 11;

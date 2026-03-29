@@ -1,50 +1,40 @@
 /**
- * Upload iris.pmtiles → Supabase Storage (bucket "tiles")
+ * Upload iris.pmtiles → GitHub Releases (tag: iris-pmtiles-latest)
+ * Utilise le CLI `gh` disponible dans les runners GitHub Actions.
+ * Pas de limite de taille (GitHub Releases supporte jusqu'à 2 GB par asset).
  */
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync, statSync } from 'fs';
+import { execSync } from 'child_process';
+import { statSync } from 'fs';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FILE = 'iris.pmtiles';
-const BUCKET = 'tiles';
+const TAG  = 'iris-pmtiles-latest';
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing env vars');
-  process.exit(1);
+const size = statSync(FILE).size;
+console.log(`[upload] ${FILE} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+
+// Supprimer l'asset existant s'il existe (évite "asset already exists")
+try {
+  execSync(`gh release delete-asset ${TAG} ${FILE} --yes`, { stdio: 'pipe' });
+  console.log(`[upload] Asset précédent supprimé`);
+} catch {
+  // Pas d'asset existant — normal lors du premier run
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: false },
-});
-
-async function main() {
-  const size = statSync(FILE).size;
-  console.log(`[upload] ${FILE} (${(size / 1024 / 1024).toFixed(1)} MB)`);
-
-  // Créer le bucket s'il n'existe pas
-  const { error: bucketErr } = await supabase.storage.createBucket(BUCKET, {
-    public: true,
-    fileSizeLimit: 500 * 1024 * 1024, // 500 MB
-  });
-  if (bucketErr && !bucketErr.message.includes('already exists')) {
-    throw bucketErr;
-  }
-
-  const fileBuffer = readFileSync(FILE);
-
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(FILE, fileBuffer, {
-      contentType: 'application/x-protobuf',
-      upsert: true,
-    });
-
-  if (error) throw error;
-
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(FILE);
-  console.log(`[upload] OK → ${data.publicUrl}`);
-  console.log(`\nMets cette URL dans lib/version.ts :\nexport const IRIS_PMTILES_URL = '${data.publicUrl}';`);
+// Créer la release si elle n'existe pas encore
+try {
+  execSync(`gh release view ${TAG}`, { stdio: 'pipe' });
+  console.log(`[upload] Release ${TAG} existante`);
+} catch {
+  execSync(
+    `gh release create ${TAG} --title "IRIS PMTiles (latest)" --notes "Géométries IRIS France — générées automatiquement" --prerelease`,
+    { stdio: 'inherit' },
+  );
+  console.log(`[upload] Release ${TAG} créée`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Upload de l'asset
+execSync(`gh release upload ${TAG} ${FILE} --clobber`, { stdio: 'inherit' });
+
+const repo = process.env.GITHUB_REPOSITORY ?? 'vincedosi/geo_promptV2-';
+const url  = `https://github.com/${repo}/releases/download/${TAG}/${FILE}`;
+console.log(`[upload] OK → ${url}`);
