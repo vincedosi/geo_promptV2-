@@ -21,6 +21,7 @@ import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
+import { SessionBadge }    from '@/components/SessionBadge';
 import type { POI } from '@/types/poi';
 
 interface SelectedBillboard {
@@ -1076,10 +1077,12 @@ export default function MapPage() {
         irisPalette={mapLayers.irisPalette}
         irisOpacity={mapLayers.irisOpacity}
         irisStats={mapLayers.irisStats}
+        irisTrueOnly={mapLayers.irisTrueOnly}
         setIrisVisible={mapLayers.setIrisVisible}
         setIrisIndicateur={mapLayers.setIrisIndicateur}
         setIrisPalette={mapLayers.setIrisPalette}
         setIrisOpacity={mapLayers.setIrisOpacity}
+        setIrisTrueOnly={mapLayers.setIrisTrueOnly}
         scoringMapRef={mapRef}
         scoringMapReady={mapReady}
         onScoreComputed={(v) => setStudyVille(v)}
@@ -1116,6 +1119,9 @@ export default function MapPage() {
               )}
             </button>
           ))}
+          <div style={{ marginLeft: 'auto' }}>
+            <SessionBadge />
+          </div>
         </div>
 
         {/* Map area — kept mounted, hidden when study tab active */}

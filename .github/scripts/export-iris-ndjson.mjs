@@ -93,6 +93,7 @@ async function main() {
           part_femmes_actives:       row.part_femmes_actives       ?? 0,
           part_sans_diplome:         row.part_sans_diplome         ?? 0,
           nb_emplois_commune:        row.nb_emplois_commune        ?? 0,
+          is_true_iris:              row.is_true_iris              ?? false,
         },
       };
       stream.write(JSON.stringify(feature) + '\n');

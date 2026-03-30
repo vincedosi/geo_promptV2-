@@ -12,16 +12,16 @@ import type { Check, HealthResponse } from '@/types/admin';
 
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#0a0a0a',
+  bgSurface:   '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#505050',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
@@ -30,8 +30,6 @@ const C = {
   warnDim:     'rgba(251,191,36,0.1)',
   blue:        '#3b82f6',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -102,16 +100,13 @@ function CheckCard({ check }: { check: Check }) {
             {check.name}
           </span>
           <span style={{
-            fontSize: 8,
-            fontWeight: 700,
-            fontFamily: fontMichroma,
+            fontSize: 10,
+            fontFamily: fontMono,
             color: color,
             background: `${color}22`,
             padding: '1px 6px',
             borderRadius: 2,
             border: `1px solid ${color}44`,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
           }}>
             {check.status}
           </span>
@@ -175,11 +170,10 @@ export default function HealthPage() {
     background: C.bgSurface,
   };
   const cardTitleStyle: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: C.accent,
+    fontFamily: fontInter,
+    fontWeight: 500,
+    fontSize: 12,
+    color: C.text,
   };
   const cardBodyStyle: React.CSSProperties = {
     padding: '16px',
@@ -195,17 +189,12 @@ export default function HealthPage() {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>
-            admin / health
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: 0 }}>
+            Santé système
           </h1>
-          <span style={{
-            fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
-            color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}44`,
-            padding: '2px 8px', borderRadius: 2,
-          }}>SYS</span>
           {!isLoading && health && (
             <span style={{
-              fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase',
+              fontFamily: fontMono, fontSize: 10,
               color: statusColor(globalStatus),
               background: statusBg(globalStatus),
               padding: '2px 10px',
@@ -267,10 +256,8 @@ export default function HealthPage() {
             border: `1px solid ${C.borderLight}`,
             borderRadius: 2,
             color: C.accent,
-            fontFamily: fontMichroma,
-            fontSize: 9,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontFamily: fontInter,
+            fontSize: 12,
             padding: '7px 14px',
             cursor: isLoading ? 'not-allowed' : 'pointer',
             opacity: isLoading ? 0.5 : 1,
@@ -391,7 +378,7 @@ export default function HealthPage() {
             <div style={{ padding: '16px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
                 <div style={{ padding: '12px 16px', background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}` }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>
                     Tables
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: fontMono, color: C.accent }}>
@@ -399,7 +386,7 @@ export default function HealthPage() {
                   </div>
                 </div>
                 <div style={{ padding: '12px 16px', background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}` }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>
                     Lignes totales
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: fontMono, color: C.green }}>
@@ -407,7 +394,7 @@ export default function HealthPage() {
                   </div>
                 </div>
                 <div style={{ padding: '12px 16px', background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}` }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>
                     Espace tables
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: fontMono, color: C.warn }}>
@@ -426,7 +413,7 @@ export default function HealthPage() {
                 return (
                   <div style={{ marginBottom: 16, padding: '12px 16px', background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textSec }}>
+                      <span style={{ fontFamily: fontInter, fontSize: 11, color: C.textSec }}>
                         Espace base de données
                       </span>
                       <span style={{ fontSize: 11, fontFamily: fontMono, color: barColor, fontWeight: 700 }}>
@@ -455,12 +442,10 @@ export default function HealthPage() {
                         <th key={i} style={{
                           textAlign: i === 0 ? 'left' : 'right',
                           padding: '8px 12px',
-                          fontFamily: fontMichroma,
-                          fontSize: 8,
-                          letterSpacing: '0.14em',
-                          textTransform: 'uppercase',
+                          fontFamily: fontInter,
+                          fontSize: 11,
                           color: C.textDim,
-                          fontWeight: 700,
+                          fontWeight: 400,
                         }}>{h}</th>
                       ))}
                     </tr>
@@ -535,7 +520,7 @@ export default function HealthPage() {
               gap: 4,
               lineHeight: 1.7,
             }}>
-              <div><span style={{ color: C.textDim }}>app:     </span><span style={{ color: C.accent }}>GEO.Prompt</span></div>
+              <div><span style={{ color: C.textDim }}>app:     </span><span style={{ color: C.accent }}>GEOMATIK</span></div>
               <div><span style={{ color: C.textDim }}>version: </span><span style={{ color: C.green }}>v{APP_VERSION}</span></div>
               <div><span style={{ color: C.textDim }}>build:   </span><span style={{ color: C.text }}>{BUILD_DATE}</span></div>
               <div><span style={{ color: C.textDim }}>stack:   </span><span style={{ color: C.text }}>Next.js 14 · Supabase · PostGIS · Mapbox</span></div>

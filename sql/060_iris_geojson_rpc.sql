@@ -110,11 +110,12 @@ COMMENT ON FUNCTION public.get_iris_geojson_by_bbox IS
 -- Retourne min/max/avg et percentiles p10..p90 pour calibrer l'échelle de couleurs.
 
 CREATE OR REPLACE FUNCTION public.get_iris_stats_by_bbox(
-  p_colonne  text,
-  p_west     float8  DEFAULT -10.0,
-  p_south    float8  DEFAULT 41.0,
-  p_east     float8  DEFAULT 10.0,
-  p_north    float8  DEFAULT 52.0
+  p_colonne        text,
+  p_west           float8   DEFAULT -10.0,
+  p_south          float8   DEFAULT 41.0,
+  p_east           float8   DEFAULT 10.0,
+  p_north          float8   DEFAULT 52.0,
+  p_true_iris_only boolean  DEFAULT true
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -157,11 +158,13 @@ BEGIN
       FROM public.iris
       WHERE geom && ST_MakeEnvelope(%L, %L, %L, %L, 4326)
         AND %I IS NOT NULL
+        AND (NOT %L OR is_true_iris = true)
     $sql$,
     p_colonne, p_colonne, p_colonne,
     p_colonne, p_colonne, p_colonne, p_colonne, p_colonne,
     p_west, p_south, p_east, p_north,
-    p_colonne
+    p_colonne,
+    p_true_iris_only
   ) INTO result;
 
   RETURN COALESCE(result, json_build_object(

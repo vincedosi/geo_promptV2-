@@ -7,16 +7,15 @@ const C = {
   bg:         '#050505',
   bgSurface:  '#0d0d14',
   bgCard:     '#0a0a12',
-  border:     '#261a35',
-  accent:     '#a855f7',
-  accentDim:  'rgba(168,85,247,0.1)',
-  text:       '#e2e8f0',
-  textDim:    '#94a3b8',
-  textSec:    '#6b7280',
+  border:     '#1a1a1a',
+  accent:     '#4ecdc4',
+  accentDim:  'rgba(78,205,196,0.1)',
+  text:       '#f0f0f0',
+  textDim:    '#a0a0a0',
+  textSec:    '#666666',
   green:      '#3dffa0',
   red:        '#f87171',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -290,18 +289,15 @@ export default function AdminProfilesPage() {
       {/* Header */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <div>
-          <div style={{ fontFamily: fontOrbitron, fontSize: 10, color: C.accent, letterSpacing: '.2em', textTransform: 'uppercase', marginBottom: 2 }}>
-            geo<span style={{ color: '#555' }}>.</span>prompt / admin
-          </div>
-          <div style={{ fontFamily: fontOrbitron, fontSize: 18, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase' }}>
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, margin: 0 }}>
             Profils de Scoring OOH
-          </div>
+          </h1>
         </div>
         <div style={{ flex: 1 }} />
         <button
           onClick={startNew}
-          style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: C.accent, padding: '8px 16px', borderRadius: 2, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: fontMono, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-          + NOUVEAU PROFIL
+          style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: '#050505', padding: '8px 16px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
+          + Nouveau profil
         </button>
       </div>
 
@@ -398,12 +394,12 @@ export default function AdminProfilesPage() {
                 </div>
                 <div style={{ flex: 1 }} />
                 <button onClick={cancelEdit}
-                  style={{ background: C.bgSurface, border: `1px solid ${C.border}`, color: C.textSec, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 11, fontFamily: fontMono }}>
-                  ANNULER
+                  style={{ background: C.bgSurface, border: `1px solid ${C.border}`, color: C.textSec, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontFamily: fontInter, fontWeight: 500 }}>
+                  Annuler
                 </button>
                 <button onClick={saveProfile} disabled={saving}
-                  style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: C.accent, padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: fontMono, letterSpacing: '.08em' }}>
-                  {saving ? 'SAUVEGARDE...' : isNew ? 'CRÉER' : 'METTRE À JOUR'}
+                  style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: '#050505', padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
+                  {saving ? 'Sauvegarde...' : isNew ? 'Créer' : 'Mettre à jour'}
                 </button>
               </div>
 

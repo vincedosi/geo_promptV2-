@@ -53,6 +53,7 @@ RETURNS TABLE (
   part_femmes_actives       numeric,
   part_sans_diplome         numeric,
   nb_emplois_commune        numeric,
+  is_true_iris              boolean,
   geom_json        text
 )
 LANGUAGE sql
@@ -104,6 +105,7 @@ AS $$
     i.part_femmes_actives,
     i.part_sans_diplome,
     i.nb_emplois_commune,
+    i.is_true_iris,
     ST_AsGeoJSON(i.geom) AS geom_json
   FROM public.iris i
   WHERE i.code_iris > p_last_code_iris

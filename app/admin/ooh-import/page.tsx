@@ -32,16 +32,16 @@ type StreamEvent =
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#0a0a0a',
+  bgSurface:   '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#505050',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
@@ -49,8 +49,6 @@ const C = {
   warn:        '#fbbf24',
   warnDim:     'rgba(251,191,36,0.1)',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -63,8 +61,8 @@ function StatutBadge({ statut }: { statut: string }) {
   };
   const s = cfg[statut] ?? { color: C.textDim, bg: 'transparent', border: C.border };
   return (
-    <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: s.color, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 2, padding: '2px 7px' }}>
-      {statut.toUpperCase()}
+    <span style={{ fontFamily: fontMono, fontSize: 9, color: s.color, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 2, padding: '2px 7px' }}>
+      {statut}
     </span>
   );
 }
@@ -139,23 +137,21 @@ export default function OohImportPage() {
 
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
-        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.18em', marginBottom: 8 }}>SYSTEM / IMPORT</div>
-        <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, color: C.text, letterSpacing: '0.08em', margin: 0 }}>
-          OOH_Import
+        <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: '0 0 4px' }}>
+          OOH Import
         </h1>
-        <p style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 6, letterSpacing: '0.04em' }}>
-          ArcGIS REST → <span style={{ color: C.accent }}>global_ooh</span>
+        <p style={{ fontFamily: fontInter, fontSize: 13, color: C.textSec, margin: 0 }}>
+          ArcGIS REST → <span style={{ fontFamily: fontMono, color: C.accent }}>global_ooh</span>
         </p>
-        <div style={{ width: 32, height: 2, background: C.accent, marginTop: 12, borderRadius: 1 }} />
       </div>
 
       {/* ── Formulaire ── */}
       <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em', marginBottom: 16 }}>NOUVELLE_IMPORTATION</div>
+        <div style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text, marginBottom: 16 }}>Nouvelle importation</div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
-            URL ARCGIS REST <span style={{ color: C.red }}>*</span>
+          <label style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, display: 'block', marginBottom: 6 }}>
+            URL ArcGIS REST <span style={{ color: C.red }}>*</span>
           </label>
           <input
             type="url"
@@ -198,11 +194,9 @@ export default function OohImportPage() {
           style={{
             background: running || !customUrl.trim() ? C.muted : C.accent,
             border: 'none', borderRadius: 2, padding: '9px 20px',
-            color: '#fff', cursor: running || !customUrl.trim() ? 'not-allowed' : 'pointer',
-            fontSize: 10, fontFamily: fontMichroma, letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            boxShadow: !running && customUrl.trim() ? `0 0 18px rgba(168,85,247,0.35)` : 'none',
-            display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
+            color: '#050505', cursor: running || !customUrl.trim() ? 'not-allowed' : 'pointer',
+            fontSize: 12, fontFamily: fontInter, fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.15s',
           }}
         >
           {running && (
@@ -210,14 +204,14 @@ export default function OohImportPage() {
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
           )}
-          {running ? 'IMPORT_EN_COURS...' : '▶ LANCER'}
+          {running ? 'Import en cours...' : 'Lancer'}
         </button>
       </div>
 
       {/* ── Terminal logs ── */}
       {logs.length > 0 && (
         <div style={{ background: '#020202', border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', marginBottom: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim, maxHeight: 220, overflowY: 'auto', lineHeight: 1.7 }}>
-          <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.accent, letterSpacing: '0.14em', marginBottom: 8 }}>OUTPUT</div>
+          <div style={{ fontFamily: fontInter, fontSize: 11, color: C.accent, marginBottom: 8 }}>Sortie</div>
           {logs.map((l, i) => (
             <div key={i} style={{ color: l.startsWith('!') ? C.red : l.startsWith('>') ? C.green : C.textDim }}>
               {l}
@@ -238,15 +232,15 @@ export default function OohImportPage() {
               { label: 'ERREURS',  value: fmt(stats.nb_erreurs),  color: C.red    },
             ].map(s => (
               <div key={s.label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontFamily: fontOrbitron, fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
-                <div style={{ fontFamily: fontMichroma, fontSize: 8, color: C.textDim, marginTop: 4, letterSpacing: '0.12em' }}>{s.label}</div>
+                <div style={{ fontFamily: fontMono, fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* Nommage dataset */}
           <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '14px 16px' }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em', marginBottom: 10 }}>NOMMER_CE_DATASET</div>
+            <div style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text, marginBottom: 10 }}>Nommer ce dataset</div>
             {nameSaved ? (
               <div style={{ fontFamily: fontMono, fontSize: 10, color: C.green }}>
                 ✓ Enregistré : <span style={{ color: C.text }}>{datasetName}</span>
@@ -271,9 +265,9 @@ export default function OohImportPage() {
                     setRuns(prev => prev.map(r => r.id === stats.run_id ? { ...r, source: datasetName.trim() } : r));
                   }}
                   disabled={!datasetName.trim()}
-                  style={{ background: datasetName.trim() ? C.accent : C.muted, border: 'none', borderRadius: 2, padding: '8px 16px', color: '#fff', cursor: datasetName.trim() ? 'pointer' : 'not-allowed', fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                  style={{ background: datasetName.trim() ? C.accent : C.muted, border: 'none', borderRadius: 2, padding: '8px 16px', color: '#050505', cursor: datasetName.trim() ? 'pointer' : 'not-allowed', fontSize: 12, fontFamily: fontInter, fontWeight: 500, whiteSpace: 'nowrap' }}
                 >
-                  SAVE
+                  Enregistrer
                 </button>
               </div>
             )}
@@ -283,8 +277,9 @@ export default function OohImportPage() {
 
       {/* ── Historique ── */}
       <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.14em' }}>
-          HISTORIQUE_IMPORTS ({runs.length})
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, flexShrink: 0 }} />
+          <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>Historique des imports ({runs.length})</span>
         </div>
         {runs.length === 0 ? (
           <div style={{ padding: '20px 16px', fontFamily: fontMono, fontSize: 10, color: C.muted }}>// Aucun import réalisé.</div>
@@ -292,8 +287,8 @@ export default function OohImportPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['SOURCE', 'DATE', 'STATUT', 'TOTAL', 'INSÉRÉS', 'ERR', ''].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 8, color: C.textDim, letterSpacing: '0.1em', fontWeight: 400 }}>{h}</th>
+                {['Source', 'Date', 'Statut', 'Total', 'Insérés', 'Err', ''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
             </thead>

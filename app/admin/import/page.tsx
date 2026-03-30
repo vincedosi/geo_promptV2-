@@ -18,16 +18,14 @@ import type {
 // ============================================================
 
 const C = {
-  bg: '#050505', bgElevated: '#0d0d0d', bgSurface: '#111118',
-  border: '#261a35', borderLight: 'rgba(168,85,247,0.2)',
-  accent: '#a855f7', accentDim: 'rgba(168,85,247,0.12)',
-  text: '#e2e8f0', textDim: '#94a3b8', textSec: '#6b7280', muted: '#4b5563',
+  bg: '#050505', bgElevated: '#0a0a0a', bgSurface: '#111111',
+  border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
+  accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.08)',
+  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666', muted: '#505050',
   green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
   warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
 };
-const fontOrbitron = "'Orbitron',sans-serif";
-const fontMichroma = "'Michroma','Orbitron',sans-serif";
 const fontMono = "'JetBrains Mono',monospace";
 const fontInter = "'Inter',system-ui,sans-serif";
 
@@ -86,7 +84,7 @@ export default function ImportUniverselPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // -- Step 2: Categorie POI
-  const [category, setCategory] = useState('lycee');
+  const [category, setCategory] = useState('');
 
   // -- Step 3: Column Mapping
   const [mapping, setMapping] = useState<MappingState>({});
@@ -157,8 +155,6 @@ export default function ImportUniverselPage() {
             icone: c.icone || '',
           }));
           setPoiCategories(cats);
-          // Auto-select first category if available
-          if (cats.length > 0 && !category) setCategory(cats[0].val);
         }
       })
       .catch(() => {
@@ -479,7 +475,7 @@ export default function ImportUniverselPage() {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <label style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.accent, minWidth: 130, margin: 0, flexShrink: 0 }}>{label}</label>
+        <label style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.text, minWidth: 130, margin: 0, flexShrink: 0 }}>{label}</label>
         <select
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
@@ -540,11 +536,10 @@ export default function ImportUniverselPage() {
   const isGeocodeReady = geoMode !== 'address' || geocodeValidated;
 
   const sLabel: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    textTransform: 'uppercase',
-    letterSpacing: '0.14em',
-    color: C.accent,
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
+    color: C.text,
     margin: 0,
     display: 'block',
     marginBottom: 6,
@@ -564,14 +559,13 @@ export default function ImportUniverselPage() {
   };
 
   const btnPrimary: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     background: C.accentDim,
     border: `1px solid ${C.borderLight}`,
     borderRadius: 2,
-    color: C.accent,
+    color: '#050505',
     padding: '7px 16px',
     cursor: 'pointer',
     display: 'inline-flex',
@@ -580,10 +574,9 @@ export default function ImportUniverselPage() {
   };
 
   const btnSuccess: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     background: C.greenDim,
     border: `1px solid rgba(61,255,160,0.3)`,
     borderRadius: 2,
@@ -596,10 +589,9 @@ export default function ImportUniverselPage() {
   };
 
   const btnDanger: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     background: C.redDim,
     border: `1px solid rgba(248,113,113,0.3)`,
     borderRadius: 2,
@@ -612,10 +604,9 @@ export default function ImportUniverselPage() {
   };
 
   const btnGhost: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     background: 'transparent',
     border: `1px solid ${C.border}`,
     borderRadius: 2,
@@ -653,18 +644,16 @@ export default function ImportUniverselPage() {
   };
 
   const cardTitle: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: '0.14em',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     color: C.text,
   };
 
   const badge = (color: string, bg: string, border: string): React.CSSProperties => ({
-    fontFamily: fontMichroma,
-    fontSize: 8,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
+    fontFamily: fontInter,
+    fontSize: 11,
+    fontWeight: 500,
     background: bg,
     border: `1px solid ${border}`,
     borderRadius: 2,
@@ -689,13 +678,13 @@ export default function ImportUniverselPage() {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, color: C.text, margin: 0, letterSpacing: '0.06em' }}>
-            admin / import POI
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: 0 }}>
+            Import POI
           </h1>
-          <span style={badgeWarn}>ADMIN</span>
-          {parseResult?.success && <span style={badgeGreen}>PARSED</span>}
+          <span style={badgeWarn}>Admin</span>
+          {parseResult?.success && <span style={badgeGreen}>Parsé</span>}
         </div>
-        <p style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, margin: 0 }}>
+        <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, margin: 0 }}>
           Import Points d&apos;interet (POI)
         </p>
       </div>
@@ -793,7 +782,7 @@ export default function ImportUniverselPage() {
                 {/* Preview table */}
                 {parseResult.preview.length > 0 && (
                   <details>
-                    <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textDim, cursor: 'pointer', marginBottom: 6 }}>
+                    <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, cursor: 'pointer', marginBottom: 6 }}>
                       Apercu — 5 premieres lignes
                     </summary>
                     <div style={{ overflow: 'auto', maxHeight: 200, marginTop: 6 }}>
@@ -801,7 +790,7 @@ export default function ImportUniverselPage() {
                         <thead>
                           <tr style={{ background: C.bgSurface }}>
                             {parseResult.columns.slice(0, 8).map((col) => (
-                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                                 {col.name}
                               </th>
                             ))}
@@ -830,7 +819,7 @@ export default function ImportUniverselPage() {
             {/* Shapefile tips */}
             {!file && (
               <div style={{ marginTop: 12, padding: 12, background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}`, fontFamily: fontInter, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>
-                <div style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.text, marginBottom: 8 }}>Formats supportes</div>
+                <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.text, marginBottom: 8 }}>Formats supportes</div>
                 <ul style={{ margin: 0, paddingLeft: 16 }}>
                   <li><strong style={{ color: C.textDim }}>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
                   <li><strong style={{ color: C.textDim }}>Shapefile :</strong> Selectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (meme nom de base).</li>
@@ -863,10 +852,11 @@ export default function ImportUniverselPage() {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    style={{ ...inputStyle, maxWidth: 300 }}
+                    style={{ ...inputStyle, maxWidth: 300, color: category ? undefined : C.muted }}
                   >
+                    <option value="" disabled>-- Choisir une categorie --</option>
                     {poiCategories.map((c) => (
-                      <option key={c.val} value={c.val}>{c.label}</option>
+                      <option key={c.val} value={c.val}>{c.icone ? `${c.icone} ${c.label}` : c.label}</option>
                     ))}
                   </select>
                   {poiCategories.length === 0 && (
@@ -874,7 +864,7 @@ export default function ImportUniverselPage() {
                   )}
                 </div>
                 <details style={{ marginTop: 8 }}>
-                  <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.accent, cursor: 'pointer' }}>
+                  <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.accent, cursor: 'pointer' }}>
                     + Creer une nouvelle categorie
                   </summary>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
@@ -975,7 +965,7 @@ export default function ImportUniverselPage() {
                     >
                       <input type="radio" value={mode.val} checked={geoMode === mode.val} onChange={() => setGeoMode(mode.val)} style={{ marginTop: 2, accentColor: C.accent }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
                         <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{mode.desc}</div>
                       </div>
                     </label>
@@ -1078,7 +1068,7 @@ export default function ImportUniverselPage() {
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
                   gap: 4, padding: '5px 8px',
-                  fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                  fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
                   color: C.muted, borderBottom: `1px solid ${C.border}`,
                   marginBottom: 4,
                 }}>
@@ -1261,8 +1251,8 @@ export default function ImportUniverselPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
-                          <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                          <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
+                          <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
                           <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginTop: 4 }}>{note}</div>
                         </div>
                       ))}
@@ -1275,7 +1265,7 @@ export default function ImportUniverselPage() {
                           key={f}
                           onClick={() => setGeocodeFilter(f)}
                           style={{
-                            fontFamily: fontMichroma,
+                            fontFamily: fontInter,
                             fontSize: 9,
                             textTransform: 'uppercase',
                             letterSpacing: '0.1em',
@@ -1307,7 +1297,7 @@ export default function ImportUniverselPage() {
                       <div style={{
                         display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
                         gap: 4, padding: '6px 8px',
-                        fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                        fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
                         color: C.muted, borderBottom: `1px solid ${C.border}`,
                         position: 'sticky', top: 0, background: C.bgElevated, zIndex: 1,
                       }}>
@@ -1344,7 +1334,7 @@ export default function ImportUniverselPage() {
                             <span style={{ fontFamily: fontMono, fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
                               {result.score.toFixed(2)}
                             </span>
-                            <span style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', color: statusColor(result.status), fontWeight: 600 }}>
+                            <span style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', color: statusColor(result.status), fontWeight: 600 }}>
                               {statusLabel(result.status)}
                             </span>
                             <div style={{ display: 'flex', gap: 4 }}>
@@ -1383,7 +1373,7 @@ export default function ImportUniverselPage() {
                             }}>
                               {/* Re-geocode with corrected address */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Adresse :</label>
+                                <label style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Adresse :</label>
                                 <input
                                   type="text"
                                   value={editAddress}
@@ -1401,7 +1391,7 @@ export default function ImportUniverselPage() {
                               </div>
                               {/* Manual lat/lng */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Manuel :</label>
+                                <label style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Manuel :</label>
                                 <input
                                   type="text"
                                   value={editLat}
@@ -1510,8 +1500,8 @@ export default function ImportUniverselPage() {
                       { label: 'Exclus', val: dryRunResult.stats.invalidRows, color: C.red },
                     ].map(({ label, val, color }) => (
                       <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
-                        <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
                       </div>
                     ))}
                   </div>
@@ -1525,8 +1515,8 @@ export default function ImportUniverselPage() {
                         { label: 'Total fichier', val: dryRunResult.stats.totalRows.toLocaleString(), color: C.textDim },
                       ].map(({ label, val, color }) => (
                         <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-                          <div style={{ fontFamily: fontMichroma, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.14em', color: C.textDim, marginBottom: 6 }}>{label}</div>
-                          <div style={{ fontFamily: fontOrbitron, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
+                          <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
+                          <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
                         </div>
                       ))}
                     </div>
@@ -1551,7 +1541,7 @@ export default function ImportUniverselPage() {
                   {/* Sample points list */}
                   {dryRunResult.samplePoints.length > 0 && (
                     <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textDim, cursor: 'pointer' }}>
+                      <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, cursor: 'pointer' }}>
                         Points d&apos;apercu ({dryRunResult.samplePoints.length})
                       </summary>
                       <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.textDim }}>
@@ -1563,7 +1553,7 @@ export default function ImportUniverselPage() {
                   {/* Errors */}
                   {dryRunResult.errors.length > 0 && (
                     <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.warn, cursor: 'pointer' }}>
+                      <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.warn, cursor: 'pointer' }}>
                         Erreurs ({dryRunResult.errors.length})
                       </summary>
                       <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.warn }}>
@@ -1703,7 +1693,7 @@ export default function ImportUniverselPage() {
                   {/* Afficher le message d erreur SQL si present */}
                   {importProgress?.firstError && (
                     <div style={{ marginTop: 10, padding: '10px 12px', background: C.redDim, border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 2, fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                      <div style={{ fontFamily: fontMichroma, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
+                      <div style={{ fontFamily: fontInter, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
                       <div style={{ wordBreak: 'break-all', lineHeight: 1.6 }}>{importProgress.firstError}</div>
                       <div style={{ marginTop: 8, color: C.muted, fontSize: 9 }}>
                         → Si &quot;column does not exist&quot;: executer le SQL ALTER TABLE dans Supabase Dashboard

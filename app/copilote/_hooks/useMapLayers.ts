@@ -97,6 +97,7 @@ export function useMapLayers({
   const [irisPalette,    _setIrisPalette]   = useState('bleu');
   const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
   const [irisStats,      setIrisStats]      = useState<IrisStats | null>(null);
+  const [irisTrueOnly,   setIrisTrueOnly]   = useState(true);
 
   const irisIndicateurRef = useRef('pop_15_29');
   const irisPaletteRef    = useRef('bleu');
@@ -451,6 +452,19 @@ export function useMapLayers({
       } catch { /* ok */ }
     }
   }, [irisVisible, mapReady, mapRef]);
+
+  // Filtre IRIS — vrais IRIS uniquement vs tous (toggle irisTrueOnly)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const filter = irisTrueOnly
+      ? ['==', ['get', 'is_true_iris'], true] as maplibregl.ExpressionSpecification
+      : null;
+    try {
+      map.setFilter('iris-fill',   filter);
+      map.setFilter('iris-border', filter);
+    } catch { /* ok — layer non disponible */ }
+  }, [irisTrueOnly, mapReady, mapRef]);
 
   // Chargement IRIS — les tiles MVT sont gérées automatiquement par MapLibre.
   // On charge les stats globales (France entière) une seule fois pour calibrer la palette.
@@ -935,6 +949,7 @@ export function useMapLayers({
     irisPalette,    setIrisPalette,
     irisOpacity,    setIrisOpacity,
     irisStats,
+    irisTrueOnly,   setIrisTrueOnly,
     // Visualization functions
     applyVoronoi,
     clearBattlePartialRings,

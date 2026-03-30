@@ -100,7 +100,8 @@ BEGIN
          AND ST_DWithin(p.geom::geography, i.centroid, %s::float8)
      ) acc ON true
      WHERE m.%I IS NOT NULL
-       AND i.centroid IS NOT NULL',
+       AND i.centroid IS NOT NULL
+       AND i.is_true_iris = true',
     p_iris_metric,
     sigma_m,
     p_poi_category,

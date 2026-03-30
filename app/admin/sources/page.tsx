@@ -35,16 +35,16 @@ const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'ca
 
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#0a0a0a',
+  bgSurface:   '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#505050',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
@@ -53,8 +53,6 @@ const C = {
   warnDim:     'rgba(251,191,36,0.1)',
   blue:        '#3b82f6',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -85,10 +83,9 @@ function typeBadge(type: string, category?: string, regie?: string) {
   const style = colors[type as BadgeKey] || { color: C.textDim, bg: 'transparent', border: C.border };
   return (
     <span style={{
-      fontFamily: fontMichroma,
-      fontSize: 8,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase' as const,
+      fontFamily: fontInter,
+      fontSize: 11,
+      fontWeight: 500,
       color: style.color,
       background: style.bg,
       border: `1px solid ${style.border}`,
@@ -573,11 +570,10 @@ export default function SourcesPage() {
     background: C.bgSurface,
   };
   const sectionLabelStyle: React.CSSProperties = {
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: C.accent,
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
+    color: C.text,
   };
 
   const btnGhostStyle: React.CSSProperties = {
@@ -585,10 +581,9 @@ export default function SourcesPage() {
     border: `1px solid ${C.border}`,
     borderRadius: 2,
     color: C.textDim,
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     padding: '4px 10px',
     cursor: 'pointer',
     display: 'inline-flex',
@@ -599,11 +594,10 @@ export default function SourcesPage() {
     background: C.accentDim,
     border: `1px solid ${C.borderLight}`,
     borderRadius: 2,
-    color: C.accent,
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    color: '#050505',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     padding: '6px 14px',
     cursor: 'pointer',
     display: 'inline-flex',
@@ -617,10 +611,9 @@ export default function SourcesPage() {
     border: `1px solid ${C.red}44`,
     borderRadius: 2,
     color: C.red,
-    fontFamily: fontMichroma,
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    fontFamily: fontInter,
+    fontSize: 12,
+    fontWeight: 500,
     padding: '6px 14px',
     cursor: 'pointer',
     display: 'inline-flex',
@@ -657,16 +650,16 @@ export default function SourcesPage() {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>
-            admin / sources
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: 0 }}>
+            Sources
           </h1>
           <span style={{
-            fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase',
+            fontFamily: fontInter, fontSize: 11, fontWeight: 500,
             color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}44`,
             padding: '2px 8px', borderRadius: 2,
-          }}>ADMIN</span>
+          }}>Admin</span>
           <span style={{
-            fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase',
+            fontFamily: fontInter, fontSize: 11, fontWeight: 500,
             color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`,
             padding: '2px 8px', borderRadius: 2,
           }}>{sources.length} sources</span>
@@ -700,10 +693,9 @@ export default function SourcesPage() {
                   border: 'none',
                   borderBottom: activeTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
                   color: activeTab === tab.key ? tab.color : C.textDim,
-                  fontFamily: fontMichroma,
+                  fontFamily: fontInter,
                   fontSize: 9,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
+                  fontWeight: 500,
                   fontWeight: activeTab === tab.key ? 700 : 400,
                   padding: '8px 14px',
                   cursor: 'pointer',
@@ -736,7 +728,7 @@ export default function SourcesPage() {
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = color)}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
             >
-              <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>{label}</div>
+              <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>{label}</div>
               <div style={{ fontFamily: fontMono, fontSize: 22, fontWeight: 700, color, lineHeight: 1, marginBottom: 4 }}>{value}</div>
               <div style={{ fontFamily: fontInter, fontSize: 10, color: C.muted }}>{sub}</div>
             </button>
@@ -761,7 +753,7 @@ export default function SourcesPage() {
             {/* Header card */}
             <div style={{ background: warnDim, border: `1px solid ${warnBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: warn, letterSpacing: 1, marginBottom: 6 }}>
+                <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: warn, letterSpacing: 1, marginBottom: 6 }}>
                   Data Lake OOH — global_ooh
                 </div>
                 <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
@@ -775,7 +767,7 @@ export default function SourcesPage() {
                 <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: warn, lineHeight: 1 }}>
                   {ss.ooh.total.toLocaleString('fr-FR')}
                 </div>
-                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>
                   panneaux actifs
                 </div>
               </div>
@@ -789,7 +781,7 @@ export default function SourcesPage() {
                 { label: 'Types',    value: (ss.ooh.types ?? []).length,    color: '#60a5fa' },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px' }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                  <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
                   <div style={{ fontFamily: fontMono, fontSize: 20, fontWeight: 700, color }}>{value}</div>
                 </div>
               ))}
@@ -798,7 +790,7 @@ export default function SourcesPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {/* Types de panneaux */}
               <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
-                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: warn, marginBottom: 12 }}>
+                <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: warn, marginBottom: 12 }}>
                   Types de panneaux (top 10)
                 </div>
                 {(ss.ooh.types ?? []).map(({ type, nb }) => {
@@ -819,7 +811,7 @@ export default function SourcesPage() {
 
               {/* Top 20 villes */}
               <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: warn }}>
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: warn }}>
                   Top 20 villes
                 </div>
                 <div style={{ maxHeight: 340, overflowY: 'auto' }}>
@@ -827,7 +819,7 @@ export default function SourcesPage() {
                     <thead>
                       <tr style={{ background: C.bgSurface, position: 'sticky', top: 0 }}>
                         {['#', 'Ville', 'Panneaux'].map((h) => (
-                          <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
+                          <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -879,7 +871,7 @@ export default function SourcesPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ background: purpleDim, border: `1px solid ${purpleBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 6 }}>Points d&apos;intérêt (hors transport)</div>
+                <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 6 }}>Points d&apos;intérêt (hors transport)</div>
                 <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
                   <span style={{ color: C.textSec }}>Catégories: </span>{ss.poi.by_category.map((c) => c.categorie).join(', ') || '—'}<br />
                   <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>poi_france</span>
@@ -889,7 +881,7 @@ export default function SourcesPage() {
                 <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: purple, lineHeight: 1 }}>
                   {ss.poi.total.toLocaleString('fr-FR')}
                 </div>
-                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>points d&apos;intérêt</div>
+                <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>points d&apos;intérêt</div>
               </div>
             </div>
             {/* ── Confirmation suppression bulk ─────────────────────────────── */}
@@ -901,13 +893,13 @@ export default function SourcesPage() {
                 <button
                   onClick={() => deletePoisBulk(confirmDeleteCat)}
                   disabled={bulkDeleting}
-                  style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.red, color: '#fff', border: 'none', borderRadius: 2, padding: '6px 14px', cursor: 'pointer', opacity: bulkDeleting ? 0.5 : 1 }}
+                  style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, background: C.red, color: '#fff', border: 'none', borderRadius: 2, padding: '6px 14px', cursor: 'pointer', opacity: bulkDeleting ? 0.5 : 1 }}
                 >
                   {bulkDeleting ? 'Suppression...' : 'Confirmer'}
                 </button>
                 <button
                   onClick={() => setConfirmDeleteCat(null)}
-                  style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '6px 14px', cursor: 'pointer' }}
+                  style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '6px 14px', cursor: 'pointer' }}
                 >
                   Annuler
                 </button>
@@ -936,10 +928,10 @@ export default function SourcesPage() {
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: meta.color, marginBottom: 4 }}>POI</div>
-                        <div style={{ fontFamily: fontOrbitron, fontSize: 11, fontWeight: 700, color: isSelected ? meta.color : C.text, letterSpacing: 0.5 }}>{meta.label}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: meta.color, marginBottom: 4 }}>POI</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 700, color: isSelected ? meta.color : C.text, letterSpacing: 0.5 }}>{meta.label}</div>
                       </div>
-                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: meta.color, background: meta.dim, border: `1px solid ${meta.border}`, padding: '2px 6px', borderRadius: 2 }}>
+                      <span style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: meta.color, background: meta.dim, border: `1px solid ${meta.border}`, padding: '2px 6px', borderRadius: 2 }}>
                         {pct}%
                       </span>
                     </div>
@@ -947,7 +939,7 @@ export default function SourcesPage() {
                     {/* Count */}
                     <div style={{ fontFamily: fontMono, fontSize: 32, fontWeight: 700, color: meta.color, lineHeight: 1 }}>
                       {nb.toLocaleString('fr-FR')}
-                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, marginLeft: 8 }}>POI</span>
+                      <span style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginLeft: 8 }}>POI</span>
                     </div>
 
                     {/* Progress bar */}
@@ -965,19 +957,19 @@ export default function SourcesPage() {
                     <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
                       <button
                         onClick={() => { const next = isSelected ? null : cat; setSelectedPoiCat(next); if (next) { setPoiSamplesOffset(0); fetchPoiSamples(next, 0); } else setPoiSamples([]); }}
-                        style={{ flex: 1, fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: isSelected ? meta.dim : 'transparent', color: isSelected ? meta.color : C.muted, border: `1px solid ${isSelected ? meta.border : C.border}`, borderRadius: 2, padding: '5px 8px', cursor: 'pointer' }}
+                        style={{ flex: 1, fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: isSelected ? meta.dim : 'transparent', color: isSelected ? meta.color : C.muted, border: `1px solid ${isSelected ? meta.border : C.border}`, borderRadius: 2, padding: '5px 8px', cursor: 'pointer' }}
                       >
                         {isSelected ? '✕ fermer' : '+ voir'}
                       </button>
                       <button
                         onClick={() => openCreatePoi(cat)}
-                        style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'transparent', color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
+                        style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: 'transparent', color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
                       >
                         + nouveau
                       </button>
                       <button
                         onClick={() => setConfirmDeleteCat(cat)}
-                        style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
+                        style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '5px 10px', cursor: 'pointer' }}
                       >
                         ✕ purger
                       </button>
@@ -992,13 +984,13 @@ export default function SourcesPage() {
               <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: purple }}>
+                  <span style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: purple }}>
                     {selectedPoiCat} — {poiSamples.length} / {poiSamplesTotal.toLocaleString('fr-FR')} POI
                   </span>
                   {poiSamplesLoading && <Spinner size={12} />}
                   <button
                     onClick={() => openCreatePoi(selectedPoiCat)}
-                    style={{ marginLeft: 'auto', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.greenDim, color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ marginLeft: 'auto', fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: C.greenDim, color: C.green, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     + nouveau POI
                   </button>
@@ -1012,7 +1004,7 @@ export default function SourcesPage() {
                       <thead>
                         <tr style={{ background: C.bgSurface }}>
                           {['Nom', 'Ville', 'Adresse', 'Sous-cat', 'Lat', 'Lng', 'Source', ''].map((h) => (
-                            <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400, whiteSpace: 'nowrap' }}>{h}</th>
+                            <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400, whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1029,13 +1021,13 @@ export default function SourcesPage() {
                             <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
                               <button
                                 onClick={() => openEditPoi(p)}
-                                style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', marginRight: 4 }}
+                                style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: 'transparent', color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer', marginRight: 4 }}
                               >
                                 éditer
                               </button>
                               <button
                                 onClick={() => deletePoi(p.id)}
-                                style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer' }}
+                                style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: 'transparent', color: C.red, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '3px 7px', cursor: 'pointer' }}
                               >
                                 ✕
                               </button>
@@ -1053,7 +1045,7 @@ export default function SourcesPage() {
                     <button
                       onClick={() => fetchPoiSamples(selectedPoiCat, poiSamplesOffset)}
                       disabled={poiSamplesLoading}
-                      style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', background: C.accentDim, color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '5px 14px', cursor: 'pointer', opacity: poiSamplesLoading ? 0.5 : 1 }}
+                      style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, background: C.accentDim, color: C.accent, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '5px 14px', cursor: 'pointer', opacity: poiSamplesLoading ? 0.5 : 1 }}
                     >
                       {poiSamplesLoading ? 'Chargement...' : `Charger + (${poiSamplesTotal - poiSamples.length} restants)`}
                     </button>
@@ -1070,7 +1062,7 @@ export default function SourcesPage() {
             {poiModal.open && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 24, width: 520, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto' }}>
-                  <div style={{ fontFamily: fontOrbitron, fontSize: 12, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 20 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 700, color: purple, letterSpacing: 1, marginBottom: 20 }}>
                     {poiModal.mode === 'create' ? '+ Nouveau POI' : 'Éditer POI'}
                   </div>
 
@@ -1094,7 +1086,7 @@ export default function SourcesPage() {
                       { field: 'source',         label: 'Source',       span: 1 },
                     ] as { field: keyof typeof emptyForm; label: string; span: number }[]).map(({ field, label, span }) => (
                       <div key={field} style={{ gridColumn: span === 2 ? '1 / -1' : 'auto' }}>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>{label}</div>
                         <input
                           value={poiModal.data[field]}
                           onChange={(e) => setPoiModal((m) => ({ ...m, data: { ...m.data, [field]: e.target.value } }))}
@@ -1107,14 +1099,14 @@ export default function SourcesPage() {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
                     <button
                       onClick={() => setPoiModal({ open: false, mode: 'create', data: emptyForm })}
-                      style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '7px 16px', cursor: 'pointer' }}
+                      style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, background: 'none', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, padding: '7px 16px', cursor: 'pointer' }}
                     >
                       Annuler
                     </button>
                     <button
                       onClick={savePoi}
                       disabled={poiModalSaving}
-                      style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: purple, color: '#fff', border: 'none', borderRadius: 2, padding: '7px 20px', cursor: 'pointer', opacity: poiModalSaving ? 0.6 : 1 }}
+                      style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, background: purple, color: '#fff', border: 'none', borderRadius: 2, padding: '7px 20px', cursor: 'pointer', opacity: poiModalSaving ? 0.6 : 1 }}
                     >
                       {poiModalSaving ? 'Enregistrement...' : poiModal.mode === 'create' ? 'Créer' : 'Enregistrer'}
                     </button>
@@ -1138,7 +1130,7 @@ export default function SourcesPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ background: C.greenDim, border: `1px solid ${C.green}44`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: C.green, letterSpacing: 1, marginBottom: 6 }}>Carreaux INSEE Filosofi 200m</div>
+                <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: C.green, letterSpacing: 1, marginBottom: 6 }}>Carreaux INSEE Filosofi 200m</div>
                 <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
                   <span style={{ color: C.textSec }}>Source: </span>INSEE Filosofi<br />
                   <span style={{ color: C.textSec }}>Résolution: </span>200m × 200m<br />
@@ -1151,11 +1143,11 @@ export default function SourcesPage() {
                 <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: C.green, lineHeight: 1 }}>
                   {(ss.carreaux.total / 1_000_000).toFixed(2)}M
                 </div>
-                <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>carreaux</div>
+                <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>carreaux</div>
               </div>
             </div>
             <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px', fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
-              <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
+              <span style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
               Jointure spatiale avec <span style={{ color: C.green }}>public.iris</span> via <span style={{ color: '#06b6d4' }}>ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
               Agrégation démographique par isochrone ou zone de chalandise.
             </div>
@@ -1181,7 +1173,7 @@ export default function SourcesPage() {
                 {/* Source info banner */}
                 <div style={{ background: cyanDim, border: `1px solid ${cyanBorder}`, borderRadius: 2, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: cyan, letterSpacing: 1, marginBottom: 4 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: cyan, letterSpacing: 1, marginBottom: 4 }}>
                       {irisSource?.name ?? 'CONTOURS-IRIS-PE — IGN 2025'}
                     </div>
                     <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
@@ -1197,7 +1189,7 @@ export default function SourcesPage() {
                     <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: cyan, lineHeight: 1 }}>
                       {irisStats.total.toLocaleString('fr-FR')}
                     </div>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>
                       zones IRIS
                     </div>
                   </div>
@@ -1212,7 +1204,7 @@ export default function SourcesPage() {
                     { label: 'Taille table',  value: irisStats.table_size,                          color: C.warn },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px' }}>
-                      <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{label}</div>
+                      <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
                       <div style={{ fontFamily: fontMono, fontSize: 20, fontWeight: 700, color }}>{value}</div>
                     </div>
                   ))}
@@ -1222,7 +1214,7 @@ export default function SourcesPage() {
 
                   {/* Types IRIS */}
                   <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 12 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: cyan, marginBottom: 12 }}>
                       Répartition par type
                     </div>
                     {[
@@ -1236,7 +1228,7 @@ export default function SourcesPage() {
                         <div key={code} style={{ marginBottom: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`, padding: '1px 5px', borderRadius: 1 }}>{code}</span>
+                              <span style={{ fontFamily: fontInter, fontSize: 8, color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`, padding: '1px 5px', borderRadius: 1 }}>{code}</span>
                               <span style={{ fontFamily: fontInter, fontSize: 11, color: C.textSec }}>{label}</span>
                             </div>
                             <span style={{ fontFamily: fontMono, fontSize: 11, color, fontWeight: 700 }}>{value.toLocaleString('fr-FR')} <span style={{ color: C.muted, fontSize: 9 }}>({pct}%)</span></span>
@@ -1251,7 +1243,7 @@ export default function SourcesPage() {
 
                   {/* Top départements */}
                   <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 12 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: cyan, marginBottom: 12 }}>
                       Top 15 départements
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1276,7 +1268,7 @@ export default function SourcesPage() {
 
                 {/* Schema */}
                 <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '14px 16px' }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: cyan, marginBottom: 10 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: cyan, marginBottom: 10 }}>
                     Schéma de la table <span style={{ color: C.accent }}>public.iris</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1291,7 +1283,7 @@ export default function SourcesPage() {
                     ].map(({ col, type, note }) => (
                       <div key={col} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontFamily: fontMono, fontSize: 11, color: C.text, fontWeight: 600 }}>{col}</span>
-                        <span style={{ fontFamily: fontMichroma, fontSize: 7, color: type === 'GEOMETRY' ? C.green : C.accent, background: type === 'GEOMETRY' ? C.greenDim : C.accentDim, border: `1px solid ${type === 'GEOMETRY' ? `${C.green}44` : C.borderLight}`, padding: '1px 5px', borderRadius: 1, letterSpacing: '0.06em' }}>{type}</span>
+                        <span style={{ fontFamily: fontInter, fontSize: 7, color: type === 'GEOMETRY' ? C.green : C.accent, background: type === 'GEOMETRY' ? C.greenDim : C.accentDim, border: `1px solid ${type === 'GEOMETRY' ? `${C.green}44` : C.borderLight}`, padding: '1px 5px', borderRadius: 1, fontWeight: 500 }}>{type}</span>
                         <span style={{ fontFamily: fontInter, fontSize: 10, color: C.muted }}>{note}</span>
                       </div>
                     ))}
@@ -1303,7 +1295,7 @@ export default function SourcesPage() {
 
                 {/* Usage note */}
                 <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
-                  <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
+                  <span style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
                   Utilisé pour les analyses de <span style={{ color: C.accent }}>bassins de population</span> Filosofi.<br />
                   Jointure spatiale avec <span style={{ color: C.green }}>public.carreaux_filosofi</span> via <span style={{ color: cyan }}>ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
                   Requête type: <span style={{ color: C.text }}>SELECT code_iris, SUM(ind) FROM iris JOIN carreaux_filosofi ON ST_Intersects(...)</span>
@@ -1311,7 +1303,7 @@ export default function SourcesPage() {
 
                 {/* ── Année du millésime ── */}
                 <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#06b6d4', marginBottom: 10 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: '#06b6d4', marginBottom: 10 }}>
                     Millésime / Année
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1334,8 +1326,8 @@ export default function SourcesPage() {
                       style={{
                         padding: '6px 14px', borderRadius: 2,
                         background: C.accentDim, border: `1px solid ${C.borderLight}`,
-                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
-                        letterSpacing: '0.12em', cursor: 'pointer',
+                        color: C.accent, fontFamily: fontInter, fontSize: 8,
+                        cursor: 'pointer',
                       }}
                     >
                       {irisAnneeSaving ? 'ENREGISTREMENT…' : irisAnneeSaved ? '✓ SAUVEGARDÉ' : 'SAUVEGARDER'}
@@ -1348,7 +1340,7 @@ export default function SourcesPage() {
 
                 {/* ── Régénérer PMTiles ── */}
                 <div style={{ background: C.bgElevated, border: `1px solid ${cyanBorder}`, borderRadius: 2, padding: '16px 18px' }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cyan, marginBottom: 8 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: cyan, marginBottom: 8 }}>
                     Carte choroplèthe — PMTiles
                   </div>
                   <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 12, lineHeight: 1.7 }}>
@@ -1366,8 +1358,8 @@ export default function SourcesPage() {
                     style={{
                       padding: '7px 18px', borderRadius: 2,
                       background: cyanDim, border: `1px solid ${cyanBorder}`,
-                      color: cyan, fontFamily: fontMichroma, fontSize: 8,
-                      letterSpacing: '0.12em', cursor: irisPmtilesLoading ? 'not-allowed' : 'pointer',
+                      color: cyan, fontFamily: fontInter, fontSize: 8,
+                      cursor: irisPmtilesLoading ? 'not-allowed' : 'pointer',
                       opacity: irisPmtilesLoading ? 0.6 : 1,
                     }}
                   >
@@ -1377,7 +1369,7 @@ export default function SourcesPage() {
 
                 {/* ── Zone danger : supprimer les IRIS ── */}
                 <div style={{ background: C.redDim, border: `1px solid ${C.red}44`, borderRadius: 2, padding: '16px 18px' }}>
-                  <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.red, marginBottom: 8 }}>
+                  <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.red, marginBottom: 8 }}>
                     Zone Danger — Suppression
                   </div>
                   <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 12 }}>
@@ -1394,8 +1386,8 @@ export default function SourcesPage() {
                       style={{
                         padding: '7px 16px', borderRadius: 2,
                         background: 'transparent', border: `1px solid ${C.red}66`,
-                        color: C.red, fontFamily: fontMichroma, fontSize: 8,
-                        letterSpacing: '0.12em', cursor: 'pointer',
+                        color: C.red, fontFamily: fontInter, fontSize: 8,
+                        cursor: 'pointer',
                       }}
                     >
                       SUPPRIMER TOUS LES IRIS
@@ -1411,8 +1403,8 @@ export default function SourcesPage() {
                         style={{
                           padding: '6px 14px', borderRadius: 2,
                           background: `${C.red}22`, border: `1px solid ${C.red}`,
-                          color: C.red, fontFamily: fontMichroma, fontSize: 8,
-                          letterSpacing: '0.12em', cursor: 'pointer',
+                          color: C.red, fontFamily: fontInter, fontSize: 8,
+                          cursor: 'pointer',
                         }}
                       >
                         {irisDeleteLoading ? 'SUPPRESSION…' : 'OUI, SUPPRIMER'}
@@ -1422,8 +1414,8 @@ export default function SourcesPage() {
                         style={{
                           padding: '6px 14px', borderRadius: 2,
                           background: 'transparent', border: `1px solid ${C.border}`,
-                          color: C.textDim, fontFamily: fontMichroma, fontSize: 8,
-                          letterSpacing: '0.12em', cursor: 'pointer',
+                          color: C.textDim, fontFamily: fontInter, fontSize: 8,
+                          cursor: 'pointer',
                         }}
                       >
                         ANNULER
@@ -1436,7 +1428,7 @@ export default function SourcesPage() {
                 <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cyan, marginBottom: 3 }}>
+                      <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: cyan, marginBottom: 3 }}>
                         Synchronisation IRIS
                       </div>
                       <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
@@ -1451,8 +1443,8 @@ export default function SourcesPage() {
                         flexShrink: 0, padding: '6px 16px', borderRadius: 2,
                         background: irisSyncLoading ? C.accentDim : C.accentDim,
                         border: `1px solid ${C.borderLight}`,
-                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
-                        letterSpacing: '0.12em', cursor: irisSyncLoading ? 'not-allowed' : 'pointer',
+                        color: C.accent, fontFamily: fontInter, fontSize: 8,
+                        cursor: irisSyncLoading ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', gap: 6,
                       }}
                     >
@@ -1480,7 +1472,7 @@ export default function SourcesPage() {
                           {irisSyncReport.synced ? '✓' : '!'}
                         </span>
                         <div>
-                          <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', color: irisSyncReport.synced ? C.green : C.warn }}>
+                          <div style={{ fontFamily: fontInter, fontSize: 9, color: irisSyncReport.synced ? C.green : C.warn }}>
                             {irisSyncReport.synced ? 'SYNCHRONISÉ' : 'DÉSYNCHRONISATION DÉTECTÉE'}
                           </div>
                           <div style={{ fontFamily: fontMono, fontSize: 9, color: C.textDim, marginTop: 2 }}>
@@ -1493,7 +1485,7 @@ export default function SourcesPage() {
                       {/* Actions manuelles */}
                       {irisSyncReport.manual_actions_needed.length > 0 && (
                         <div style={{ background: C.warnDim, border: `1px solid ${C.warn}44`, borderRadius: 2, padding: '10px 12px' }}>
-                          <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.warn, marginBottom: 6 }}>
+                          <div style={{ fontFamily: fontInter, fontSize: 7.5, color: C.warn, marginBottom: 6 }}>
                             ACTIONS REQUISES
                           </div>
                           {irisSyncReport.manual_actions_needed.map((action, i) => (
@@ -1506,7 +1498,7 @@ export default function SourcesPage() {
 
                       {/* RPC status */}
                       <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 12px' }}>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.textDim, marginBottom: 6 }}>
+                        <div style={{ fontFamily: fontInter, fontSize: 7.5, color: C.textDim, marginBottom: 6 }}>
                           STATUT RPCS
                         </div>
                         {Object.entries(irisSyncReport.rpc_status).map(([rpc, status]) => (
@@ -1519,7 +1511,7 @@ export default function SourcesPage() {
 
                       {/* Fill status table */}
                       <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 12px' }}>
-                        <div style={{ fontFamily: fontMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.textDim, marginBottom: 8 }}>
+                        <div style={{ fontFamily: fontInter, fontSize: 7.5, color: C.textDim, marginBottom: 8 }}>
                           REMPLISSAGE PAR COLONNE
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
@@ -1563,7 +1555,7 @@ export default function SourcesPage() {
                 <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '16px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase' as const, color: C.accent, marginBottom: 3 }}>
+                      <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500 as const, color: C.accent, marginBottom: 3 }}>
                         Accessibilité Gaussienne — Config σ
                       </div>
                       <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
@@ -1576,8 +1568,8 @@ export default function SourcesPage() {
                       style={{
                         flexShrink: 0, padding: '6px 16px', borderRadius: 2,
                         background: C.accentDim, border: `1px solid ${C.borderLight}`,
-                        color: C.accent, fontFamily: fontMichroma, fontSize: 8,
-                        letterSpacing: '0.12em', cursor: sigmaConfigLoading ? 'not-allowed' : 'pointer',
+                        color: C.accent, fontFamily: fontInter, fontSize: 8,
+                        cursor: sigmaConfigLoading ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', gap: 6,
                       }}
                     >
@@ -1606,7 +1598,7 @@ export default function SourcesPage() {
                             <div style={{ height: 3, background: C.border, borderRadius: 2, marginBottom: 5 }}>
                               <div style={{ width: `${barPct}%`, height: '100%', background: C.accent, borderRadius: 2, opacity: 0.7 }} />
                             </div>
-                            <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.textSec }}>
+                            <div style={{ fontFamily: fontInter, fontSize: 7, color: C.textSec }}>
                               RAYON 3σ · {rayon3s} km
                             </div>
                           </div>
@@ -1670,7 +1662,7 @@ export default function SourcesPage() {
                 {/* Arrêts transport */}
                 <div style={{ background: green2Dim, border: `1px solid ${green2Border}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: green2, letterSpacing: 1, marginBottom: 6 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: green2, letterSpacing: 1, marginBottom: 6 }}>
                       Arrêts de transport en commun
                     </div>
                     <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
@@ -1686,7 +1678,7 @@ export default function SourcesPage() {
                     </div>
                     {pctTransport > 0 ? (
                       <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: badgeColor(pctTransport), background: `${badgeColor(pctTransport)}1a`, border: `1px solid ${badgeColor(pctTransport)}44`, padding: '2px 8px', borderRadius: 2 }}>
+                        <span style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: badgeColor(pctTransport), background: `${badgeColor(pctTransport)}1a`, border: `1px solid ${badgeColor(pctTransport)}44`, padding: '2px 8px', borderRadius: 2 }}>
                           {pctTransport}% panneaux couverts
                         </span>
                         <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>
@@ -1694,7 +1686,7 @@ export default function SourcesPage() {
                         </span>
                       </div>
                     ) : (
-                      <div style={{ marginTop: 8, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
+                      <div style={{ marginTop: 8, fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
                         Scoring OOH non calculé
                       </div>
                     )}
@@ -1703,7 +1695,7 @@ export default function SourcesPage() {
                     <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: green2, lineHeight: 1 }}>
                       {transportStats.arrets.total.toLocaleString('fr-FR')}
                     </div>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>
                       arrêts physiques
                     </div>
                     <button
@@ -1718,7 +1710,7 @@ export default function SourcesPage() {
                 {/* Flux routier */}
                 <div style={{ background: orangeDim, border: `1px solid ${orangeBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, color: orange, letterSpacing: 1, marginBottom: 6 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: orange, letterSpacing: 1, marginBottom: 6 }}>
                       Flux routier (TMJA)
                     </div>
                     <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
@@ -1732,7 +1724,7 @@ export default function SourcesPage() {
                     </div>
                     {pctFlux > 0 ? (
                       <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: badgeColor(pctFlux), background: `${badgeColor(pctFlux)}1a`, border: `1px solid ${badgeColor(pctFlux)}44`, padding: '2px 8px', borderRadius: 2 }}>
+                        <span style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: badgeColor(pctFlux), background: `${badgeColor(pctFlux)}1a`, border: `1px solid ${badgeColor(pctFlux)}44`, padding: '2px 8px', borderRadius: 2 }}>
                           {pctFlux}% panneaux couverts
                         </span>
                         <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>
@@ -1740,7 +1732,7 @@ export default function SourcesPage() {
                         </span>
                       </div>
                     ) : (
-                      <div style={{ marginTop: 8, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
+                      <div style={{ marginTop: 8, fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.muted, border: `1px solid ${C.border}`, padding: '2px 8px', borderRadius: 2, display: 'inline-block' }}>
                         Scoring OOH non calculé
                       </div>
                     )}
@@ -1749,7 +1741,7 @@ export default function SourcesPage() {
                     <div style={{ fontFamily: fontMono, fontSize: 36, fontWeight: 700, color: orange, lineHeight: 1 }}>
                       {transportStats.flux.total.toLocaleString('fr-FR')}
                     </div>
-                    <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.textDim, textTransform: 'uppercase', marginTop: 4 }}>
+                    <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 4 }}>
                       sections routières
                     </div>
                   </div>
@@ -1771,7 +1763,7 @@ export default function SourcesPage() {
                         <thead>
                           <tr style={{ background: C.bgSurface }}>
                             {['Ville', 'Panneaux', 'Transport %', 'Moy. transport', 'Flux %', 'Moy. flux', 'Score total'].map((h) => (
-                              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
+                              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, borderBottom: `1px solid ${C.border}`, fontWeight: 400 }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -1814,7 +1806,7 @@ export default function SourcesPage() {
           {/* Données système (IRIS + Transport) — pas dans data_sources */}
           {sourcesStats && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Données système</div>
+              <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>Données système</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {/* IRIS */}
                 <div
@@ -1828,7 +1820,7 @@ export default function SourcesPage() {
                       <span style={{ fontWeight: 600, fontSize: 14, color: C.text, flex: 1, fontFamily: fontInter }}>
                         IRIS — Contours géographiques INSEE
                       </span>
-                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 7px', borderRadius: 2 }}>IRIS</span>
+                      <span style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 7px', borderRadius: 2 }}>IRIS</span>
                     </div>
                     <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim }}>
                       <span style={{ color: '#06b6d4', fontWeight: 700 }}>{sourcesStats.iris.total.toLocaleString('fr-FR')} zones</span>
@@ -1849,7 +1841,7 @@ export default function SourcesPage() {
                       <span style={{ fontWeight: 600, fontSize: 14, color: C.text, flex: 1, fontFamily: fontInter }}>
                         Transport & Flux routier
                       </span>
-                      <span style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: '2px 7px', borderRadius: 2 }}>TRANSPORT</span>
+                      <span style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: '2px 7px', borderRadius: 2 }}>TRANSPORT</span>
                     </div>
                     <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim, flexWrap: 'wrap' }}>
                       <span style={{ color: '#22c55e', fontWeight: 700 }}>{(sourcesStats.transport.total + sourcesStats.flux.total).toLocaleString('fr-FR')} entrées</span>
@@ -1866,7 +1858,7 @@ export default function SourcesPage() {
             </div>
           )}
 
-          <div style={{ fontFamily: fontMichroma, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Sources importées</div>
+          <div style={{ fontFamily: fontInter, fontSize: 7, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>Sources importées</div>
           {(() => {
             const filtered = activeTab === 'all' ? sources : sources.filter((s) => s.type === activeTab);
             if (isLoading) return (
@@ -1895,7 +1887,7 @@ export default function SourcesPage() {
                       cursor: 'pointer',
                       borderColor: selectedSource?.id === source.id ? C.accent : C.border,
                       transition: 'border-color 0.15s',
-                      background: selectedSource?.id === source.id ? 'rgba(168,85,247,0.05)' : C.bgElevated,
+                      background: selectedSource?.id === source.id ? 'rgba(78,205,196,0.05)' : C.bgElevated,
                     }}
                   >
                     <div style={{ padding: '12px 16px' }}>
@@ -1957,7 +1949,7 @@ export default function SourcesPage() {
                     { label: 'Erreurs', value: String(selectedSource.error_count),           color: C.red },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{ padding: '8px 10px', background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2 }}>
-                      <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>{label}</div>
                       <div style={{ fontSize: 16, fontWeight: 700, fontFamily: fontMono, color }}>{value}</div>
                     </div>
                   ))}
@@ -2025,7 +2017,7 @@ export default function SourcesPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
                       {selectedSource.filter_fields!.map((f) => (
                         <span key={f} style={{
-                          fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          fontFamily: fontInter, fontSize: 8, fontWeight: 500,
                           color: C.green, background: C.greenDim, border: `1px solid ${C.green}44`,
                           padding: '2px 7px', borderRadius: 2,
                         }}>{f}</span>
@@ -2056,7 +2048,7 @@ export default function SourcesPage() {
                       </div>
 
                       {/* Schema columns */}
-                      <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>
+                      <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>
                         colonnes schema
                       </div>
                       {SCHEMA_FILTER_COLS.map((field) => {
@@ -2070,13 +2062,13 @@ export default function SourcesPage() {
                               style={{ accentColor: C.accent }}
                             />
                             <span style={{ color: isChecked ? C.accent : C.textSec, flex: 1, fontFamily: fontMono, fontSize: 11 }}>{field}</span>
-                            <span style={{ fontSize: 9, color: C.muted, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>schema</span>
+                            <span style={{ fontSize: 9, color: C.muted, fontFamily: fontInter, fontWeight: 500 }}>schema</span>
                           </label>
                         );
                       })}
 
                       {/* Metadata keys */}
-                      <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginTop: 10, marginBottom: 6, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                      <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginTop: 10, marginBottom: 6, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
                         colonnes metadata {availableMetaKeys.length > 0 ? `(${availableMetaKeys.length})` : isLoadingMetaKeys ? '...' : '(aucune)'}
                       </div>
                       {isLoadingMetaKeys ? (
@@ -2097,7 +2089,7 @@ export default function SourcesPage() {
                                 style={{ accentColor: '#8b5cf6' }}
                               />
                               <span style={{ color: isChecked ? '#8b5cf6' : C.textSec, flex: 1, fontFamily: fontMono }}>{field}</span>
-                              <span style={{ fontSize: 9, color: C.muted, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>meta</span>
+                              <span style={{ fontSize: 9, color: C.muted, fontFamily: fontInter, fontWeight: 500 }}>meta</span>
                             </label>
                           );
                         })
@@ -2124,7 +2116,7 @@ export default function SourcesPage() {
                         return (
                           <span key={orgId} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 4,
-                            fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            fontFamily: fontInter, fontSize: 8, fontWeight: 500,
                             color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`,
                             padding: '2px 6px', borderRadius: 2,
                           }}>
@@ -2163,13 +2155,13 @@ export default function SourcesPage() {
                 {showEdit && (
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                     <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>// modifier</div>
-                    <label style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, display: 'block', marginBottom: 4 }}>Nom</label>
+                    <label style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, display: 'block', marginBottom: 4 }}>Nom</label>
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       style={{ ...inputStyle, marginBottom: 8 }}
                     />
-                    <label style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, display: 'block', marginBottom: 4 }}>Organisation</label>
+                    <label style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, display: 'block', marginBottom: 4 }}>Organisation</label>
                     <select
                       value={editOrg}
                       onChange={(e) => setEditOrg(e.target.value)}

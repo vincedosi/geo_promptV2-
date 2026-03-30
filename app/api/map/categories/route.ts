@@ -11,6 +11,28 @@ import { requireAdmin } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
+// Construit la map categorie → label_fr depuis poi_categories (1 requête légère)
+async function buildLabelMap(supabase: ReturnType<typeof createAdminClient>, cats: string[]): Promise<Record<string, string>> {
+  if (cats.length === 0) return {};
+  const { data } = await supabase
+    .from('poi_categories')
+    .select('categorie, label_fr')
+    .in('categorie', cats);
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) {
+    if (row.label_fr) map[row.categorie] = row.label_fr;
+  }
+  return map;
+}
+
+// Transforme string[] → {id, label}[] en utilisant label_fr si disponible
+function withLabels(cats: string[], labelMap: Record<string, string>) {
+  return cats.map(c => ({
+    id: c,
+    label: labelMap[c] ?? (c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ')),
+  }));
+}
+
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('refresh') === '1') {
     // Cache invalidation is a privileged operation — require admin
@@ -21,19 +43,18 @@ export async function GET(req: NextRequest) {
     invalidateCategoriesCache();
   }
 
-  // Catégories globales (cache 60s)
+  // Catégories globales (cache 5 min)
   const allCats = await getDistinctCategories();
+  const supabase = createAdminClient();
+  const session  = await getSessionOrg(req);
 
-  const session = await getSessionOrg(req);
-
-  // Super admin ou pas de session (dev) → tout retourner
+  // Super admin ou pas de session → tout retourner avec labels
   if (!session || session.role === 'super_admin' || !session.orgId) {
-    return NextResponse.json({ categories: allCats });
+    const labelMap = await buildLabelMap(supabase, allCats);
+    return NextResponse.json({ categories: withLabels(allCats, labelMap) });
   }
 
   // Org identifiée : filtrer par ses data_sources
-  const supabase = createAdminClient();
-
   const { data: sources } = await supabase
     .from('data_sources')
     .select('id')
@@ -64,7 +85,8 @@ export async function GET(req: NextRequest) {
     lastSeen = cat;
   }
 
-  // Conserver l'ordre et le tri des catégories globales, mais filtré
+  // Conserver l'ordre des catégories globales, filtré + labels
   const filteredCats = allCats.filter(c => orgCatSet.has(c));
-  return NextResponse.json({ categories: filteredCats });
+  const labelMap     = await buildLabelMap(supabase, filteredCats);
+  return NextResponse.json({ categories: withLabels(filteredCats, labelMap) });
 }

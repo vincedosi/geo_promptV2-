@@ -52,7 +52,8 @@ BEGIN
      FROM iris i
      JOIN iris_metrics_mv mx ON mx.code_iris = i.code_iris
      JOIN iris_metrics_mv my ON my.code_iris = i.code_iris
-     WHERE mx.%I IS NOT NULL AND my.%I IS NOT NULL',
+     WHERE mx.%I IS NOT NULL AND my.%I IS NOT NULL
+       AND i.is_true_iris = true',
     p_metric_x, p_metric_y,
     p_metric_x, p_metric_y
   );

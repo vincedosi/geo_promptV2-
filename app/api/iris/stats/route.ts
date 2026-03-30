@@ -12,9 +12,11 @@ const ALLOWED_IRIS_COLUMNS = IRIS_DB_COLUMN_NAMES;
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
 
-  const colonne = searchParams.get('colonne') ?? '';
-  const bbox    = searchParams.get('bbox');
-  const level   = searchParams.get('level') ?? 'iris'; // 'iris' ou 'dept'
+  const colonne           = searchParams.get('colonne') ?? '';
+  const bbox              = searchParams.get('bbox');
+  const level             = searchParams.get('level') ?? 'iris'; // 'iris' ou 'dept'
+  const include_communal  = searchParams.get('include_communal') === 'true';
+  const true_iris_only    = !include_communal;
 
   if (!ALLOWED_IRIS_COLUMNS.has(colonne)) {
     return NextResponse.json({ error: 'Colonne invalide' }, { status: 400 });
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase.rpc('get_iris_dept_stats', {
       p_colonne: colonne,
       p_west: west, p_south: south, p_east: east, p_north: north,
+      p_true_iris_only: true_iris_only,
     });
     if (error) {
       console.error('[iris/stats] dept RPC error:', error.message);
@@ -46,6 +49,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase.rpc('get_iris_stats_by_bbox', {
     p_colonne: colonne,
     p_west: west, p_south: south, p_east: east, p_north: north,
+    p_true_iris_only: true_iris_only,
   });
 
   if (error) {

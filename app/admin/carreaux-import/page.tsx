@@ -241,16 +241,16 @@ function fmtNum(n: number): string {
 
 const C = {
   bg: '#050505',
-  bgElevated: '#0d0d0d',
-  bgSurface: '#111118',
-  border: '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent: '#a855f7',
-  accentDim: 'rgba(168,85,247,0.12)',
-  text: '#e2e8f0',
-  textDim: '#94a3b8',
-  textSec: '#6b7280',
-  muted: '#4b5563',
+  bgElevated: '#0a0a0a',
+  bgSurface: '#111111',
+  border: '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent: '#4ecdc4',
+  accentDim: 'rgba(78,205,196,0.08)',
+  text: '#f0f0f0',
+  textDim: '#a0a0a0',
+  textSec: '#666666',
+  muted: '#505050',
   green: '#3dffa0',
   greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171',
@@ -259,8 +259,6 @@ const C = {
   warnDim: 'rgba(251,191,36,0.1)',
   blue: '#3b82f6',
 };
-const fontOrbitron = "'Orbitron',sans-serif";
-const fontMichroma = "'Michroma','Orbitron',sans-serif";
 const fontMono = "'JetBrains Mono',monospace";
 const fontInter = "'Inter',system-ui,sans-serif";
 
@@ -646,19 +644,17 @@ export default function ImportShapefilePage() {
         }
         .spin { animation: spin 1s linear infinite; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0d0d0d; }
-        ::-webkit-scrollbar-thumb { background: #261a35; border-radius: 2px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.4); }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(78,205,196,0.4); }
       `}</style>
 
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '0.04em', color: C.text }}>
-            <span style={{ color: C.green }}>admin</span>
-            <span style={{ color: C.muted }}> / </span>
-            import-shapefile
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, margin: 0, color: C.text }}>
+            Import shapefile
           </h1>
           <p style={{ fontFamily: fontMono, fontSize: 12, color: C.textSec, marginTop: 6 }}>
             Import de données géographiques — Shapefile &rarr; Supabase
@@ -689,11 +685,9 @@ export default function ImportShapefilePage() {
                   gap: 8,
                   padding: '8px 16px',
                   borderRadius: 2,
-                  fontFamily: fontMichroma,
-                  fontSize: 11,
-                  fontWeight: step === n ? 700 : 400,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: step === n ? 600 : 400,
                   cursor: n > step ? 'not-allowed' : n < step ? 'pointer' : 'default',
                   background: step === n ? C.greenDim : step > n ? C.bgElevated : C.bgElevated,
                   border: `1px solid ${step === n ? 'rgba(61,255,160,0.3)' : step > n ? C.border : C.border}`,
@@ -887,11 +881,10 @@ export default function ImportShapefilePage() {
                 {/* Column preview */}
                 <div>
                   <p style={{
-                    fontFamily: fontMichroma,
-                    fontSize: 9,
-                    color: C.accent,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.14em',
+                    fontFamily: fontInter,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: C.text,
                     marginBottom: 8,
                   }}>Colonnes détectées</p>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -920,11 +913,9 @@ export default function ImportShapefilePage() {
                     borderRadius: 2,
                     background: C.green,
                     color: '#000',
-                    fontFamily: fontMichroma,
-                    fontWeight: 700,
-                    fontSize: 11,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
+                    fontFamily: fontInter,
+                    fontWeight: 500,
+                    fontSize: 12,
                     border: 'none',
                     cursor: 'pointer',
                     transition: 'opacity 0.15s',
@@ -954,11 +945,10 @@ export default function ImportShapefilePage() {
               }}>
                 <label style={{
                   display: 'block',
-                  fontFamily: fontMichroma,
-                  fontSize: 9,
-                  color: C.accent,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: C.text,
                   marginBottom: 8,
                 }}>Résolution</label>
                 <select
@@ -990,11 +980,10 @@ export default function ImportShapefilePage() {
               }}>
                 <label style={{
                   display: 'block',
-                  fontFamily: fontMichroma,
-                  fontSize: 9,
-                  color: C.accent,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: C.text,
                   marginBottom: 8,
                 }}>Millésime</label>
                 <input
@@ -1025,11 +1014,10 @@ export default function ImportShapefilePage() {
               }}>
                 <label style={{
                   display: 'block',
-                  fontFamily: fontMichroma,
-                  fontSize: 9,
-                  color: C.accent,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.14em',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: C.text,
                   marginBottom: 8,
                 }}>Colonne ID (idcar)</label>
                 <select
@@ -1072,11 +1060,10 @@ export default function ImportShapefilePage() {
               }}>
                 <div>
                   <p style={{
-                    fontFamily: fontMichroma,
-                    fontSize: 9,
-                    color: C.accent,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.14em',
+                    fontFamily: fontInter,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: C.text,
                     margin: 0,
                   }}>Mapping des colonnes</p>
                   <p style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginTop: 4 }}>
@@ -1091,10 +1078,9 @@ export default function ImportShapefilePage() {
                       borderRadius: 2,
                       background: C.bgSurface,
                       border: `1px solid ${C.border}`,
-                      fontFamily: fontMichroma,
-                      fontSize: 9,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
+                      fontFamily: fontInter,
+                      fontSize: 12,
+                      fontWeight: 500,
                       color: C.textDim,
                       cursor: 'pointer',
                     }}
@@ -1108,10 +1094,9 @@ export default function ImportShapefilePage() {
                       borderRadius: 2,
                       background: C.bgSurface,
                       border: `1px solid ${C.border}`,
-                      fontFamily: fontMichroma,
-                      fontSize: 9,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
+                      fontFamily: fontInter,
+                      fontSize: 12,
+                      fontWeight: 500,
                       color: C.textDim,
                       cursor: 'pointer',
                     }}
@@ -1134,11 +1119,9 @@ export default function ImportShapefilePage() {
                 }}>
                   {['', 'Colonne source', 'Valeur exemple', 'Nom cible'].map((h, i) => (
                     <span key={i} style={{
-                      fontFamily: fontMichroma,
-                      fontSize: 8,
+                      fontFamily: fontInter,
+                      fontSize: 11,
                       color: C.textSec,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.14em',
                     }}>{h}</span>
                   ))}
                 </div>
@@ -1249,10 +1232,9 @@ export default function ImportShapefilePage() {
                     background: C.bgElevated,
                     border: `1px solid ${C.border}`,
                     color: C.textDim,
-                    fontFamily: fontMichroma,
-                    fontSize: 10,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: fontInter,
+                    fontSize: 12,
+                    fontWeight: 500,
                     cursor: 'pointer',
                   }}
                 >
@@ -1266,11 +1248,9 @@ export default function ImportShapefilePage() {
                     background: C.green,
                     border: 'none',
                     color: '#000',
-                    fontFamily: fontMichroma,
-                    fontWeight: 700,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
+                    fontFamily: fontInter,
+                    fontWeight: 500,
+                    fontSize: 12,
                     cursor: 'pointer',
                     transition: 'opacity 0.15s',
                   }}
@@ -1304,11 +1284,10 @@ export default function ImportShapefilePage() {
                 ].map(({ label, value, accent }) => (
                   <div key={label}>
                     <p style={{
-                      fontFamily: fontMichroma,
-                      fontSize: 9,
+                      fontFamily: fontInter,
+                      fontSize: 12,
+                      fontWeight: 500,
                       color: C.textSec,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.14em',
                       margin: 0,
                     }}>{label}</p>
                     <p style={{
@@ -1334,11 +1313,9 @@ export default function ImportShapefilePage() {
                   background: C.green,
                   border: 'none',
                   color: '#000',
-                  fontFamily: fontMichroma,
-                  fontWeight: 700,
+                  fontFamily: fontInter,
+                  fontWeight: 500,
                   fontSize: 13,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
                   cursor: 'pointer',
                   transition: 'opacity 0.15s',
                 }}
@@ -1452,8 +1429,8 @@ export default function ImportShapefilePage() {
                     <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
                   ))}
                 </div>
-                <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textSec, marginLeft: 6, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                  import-logs
+                <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.textSec, marginLeft: 6 }}>
+                  Import logs
                 </span>
                 <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginLeft: 'auto' }}>
                   {logs.length} lignes
@@ -1501,10 +1478,9 @@ export default function ImportShapefilePage() {
                   background: C.bgElevated,
                   border: `1px solid ${C.border}`,
                   color: C.textDim,
-                  fontFamily: fontMichroma,
-                  fontSize: 10,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: 500,
                   cursor: isImporting ? 'not-allowed' : 'pointer',
                   opacity: isImporting ? 0.3 : 1,
                 }}
@@ -1529,10 +1505,9 @@ export default function ImportShapefilePage() {
                     background: 'rgba(59,130,246,0.1)',
                     border: `1px solid rgba(59,130,246,0.3)`,
                     color: C.blue,
-                    fontFamily: fontMichroma,
-                    fontSize: 10,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: fontInter,
+                    fontSize: 12,
+                    fontWeight: 500,
                     cursor: 'pointer',
                     transition: 'background 0.15s',
                   }}

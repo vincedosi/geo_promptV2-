@@ -12,9 +12,9 @@
 export interface IrisDbColumn {
   name:  string;
   label: string;
-  type:  'integer' | 'float';
+  type:  'integer' | 'float' | 'boolean';
   /** Groupe d'affichage (dropdown choroplèthe, system prompt) */
-  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi' | 'Logement' | 'Mobilité' | 'Familles';
+  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi' | 'Logement' | 'Mobilité' | 'Familles' | 'Métadonnées';
 }
 
 /** Toutes les colonnes CORE (SQL fixes) de la table iris */
@@ -69,6 +69,8 @@ export const IRIS_DB_COLUMNS: IrisDbColumn[] = [
   { name: 'part_sans_diplome',         label: 'Sans diplôme (%)',                    type: 'float',   group: 'Diplômes'   },
   // Emploi communal (imputation)
   { name: 'nb_emplois_commune',        label: 'Emplois commune (imputés)',           type: 'float',   group: 'Emploi'     },
+  // Métadonnées — non choroplèthable
+  { name: 'is_true_iris',              label: 'Vrai IRIS (quartier)',                type: 'boolean', group: 'Métadonnées' },
 ];
 
 // ── Sets de noms (lookup O(1)) ────────────────────────────────────────────────
@@ -99,6 +101,6 @@ export function classifyTarget(
 }
 
 /** Retourne le type core d'une colonne, ou null si ce n'est pas une colonne core */
-export function getCoreColumnType(dbTarget: string): 'integer' | 'float' | null {
+export function getCoreColumnType(dbTarget: string): 'integer' | 'float' | 'boolean' | null {
   return IRIS_DB_COLUMNS.find(c => c.name === dbTarget)?.type ?? null;
 }

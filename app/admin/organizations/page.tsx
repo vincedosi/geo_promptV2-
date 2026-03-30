@@ -7,16 +7,16 @@ import type { Organization } from '@/types/admin';
 
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#0a0a0a',
+  bgSurface:   '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#505050',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
@@ -25,8 +25,6 @@ const C = {
   warnDim:     'rgba(251,191,36,0.1)',
   blue:        '#3b82f6',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -92,22 +90,15 @@ export default function OrganizationsPage() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, letterSpacing: '0.08em', color: C.text, margin: 0, fontWeight: 700 }}>
-            admin / organisations
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: 0 }}>
+            Organisations
           </h1>
           <span style={{
-            fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-            color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}`, borderRadius: 2,
+            fontFamily: fontInter, fontSize: 11,
+            color: C.textSec, background: '#181818', border: `1px solid #262626`, borderRadius: 2,
             padding: '2px 6px',
           }}>
-            ADMIN
-          </span>
-          <span style={{
-            fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
-            color: C.accent, background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2,
-            padding: '2px 6px',
-          }}>
-            {orgs.length} orgs
+            {orgs.length}
           </span>
         </div>
         <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, margin: 0, lineHeight: 1.5 }}>
@@ -119,10 +110,9 @@ export default function OrganizationsPage() {
 
         {/* Create new org */}
         <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
-            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
-              NOUVELLE ORGANISATION
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, flexShrink: 0 }} />
+            <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>Nouvelle organisation</span>
           </div>
           <div style={{ padding: '14px 16px' }}>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -156,13 +146,11 @@ export default function OrganizationsPage() {
                   background: isCreating || !newOrgName.trim() ? C.muted : C.accent,
                   border: 'none',
                   borderRadius: 2,
-                  color: '#000',
-                  fontFamily: fontMichroma,
-                  fontSize: 10,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
+                  color: '#050505',
+                  fontFamily: fontInter,
+                  fontSize: 12,
+                  fontWeight: 500,
                   cursor: isCreating || !newOrgName.trim() ? 'not-allowed' : 'pointer',
-                  fontWeight: 700,
                 }}
               >
                 {isCreating ? <Spinner /> : 'Creer'}
@@ -190,10 +178,9 @@ export default function OrganizationsPage() {
 
         {/* Orgs list */}
         <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
-            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
-              ORGANISATIONS
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, flexShrink: 0 }} />
+            <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>Organisations</span>
           </div>
           <div style={{ padding: 0 }}>
             {isLoading ? (
@@ -206,14 +193,12 @@ export default function OrganizationsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                    {['Organisation', 'Slug', 'Membres', 'Sources', 'Cree le'].map((h) => (
+                    {['Organisation', 'Slug', 'Membres', 'Sources', 'Créé le'].map((h) => (
                       <th key={h} style={{
                         padding: '10px 16px',
                         textAlign: 'left',
-                        fontFamily: fontMichroma,
-                        fontSize: 9,
-                        letterSpacing: '0.14em',
-                        textTransform: 'uppercase',
+                        fontFamily: fontInter,
+                        fontSize: 11,
                         color: C.textDim,
                         fontWeight: 400,
                       }}>
@@ -239,7 +224,7 @@ export default function OrganizationsPage() {
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <span style={{
-                          fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          fontFamily: fontMono, fontSize: 11,
                           color: C.textDim, background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2,
                           padding: '2px 6px',
                         }}>
@@ -248,7 +233,7 @@ export default function OrganizationsPage() {
                       </td>
                       <td style={{ padding: '10px 16px' }}>
                         <span style={{
-                          fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          fontFamily: fontMono, fontSize: 11,
                           color: C.accent, background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2,
                           padding: '2px 6px',
                         }}>
@@ -273,8 +258,8 @@ export default function OrganizationsPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>
-              ISOLATION DES DONNEES
+            <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>
+              Isolation des données
             </span>
           </div>
           <div style={{ padding: '14px 16px' }}>

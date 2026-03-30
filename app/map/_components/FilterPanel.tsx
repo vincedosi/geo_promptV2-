@@ -148,10 +148,12 @@ export interface FilterPanelProps {
   irisPalette?:         string;
   irisOpacity?:         number;
   irisStats?:           IrisStats | null;
+  irisTrueOnly?:        boolean;
   setIrisVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
   setIrisIndicateur?:   (v: string) => void;
   setIrisPalette?:      (v: string) => void;
   setIrisOpacity?:      (v: number) => void;
+  setIrisTrueOnly?:     (v: boolean) => void;
   // Scoring OOH
   scoringMapRef?:       React.MutableRefObject<MaplibreMap | null>;
   scoringMapReady?:     boolean;
@@ -290,8 +292,8 @@ export function FilterPanel({
   carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
   carreauxOpacity, carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
-  irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats,
-  setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity,
+  irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
+  setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
   scoringMapRef, scoringMapReady, onScoreComputed,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
   correlationParams, onShowResiduals,
@@ -329,6 +331,7 @@ export function FilterPanel({
   // ── POI types dynamiques (chargés depuis la DB) ───────────────────────────
   const [poiTypes, setPoiTypes] = useState<{ id: string; label: string }[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
+  const [catsError, setCatsError] = useState<string | null>(null);
 
   // ── POI natures (metadata->>'libelle_nature' par categorie) ───────────────
   const [poiNatures, setPoiNatures] = useState<Record<string, string[]>>({});
@@ -349,17 +352,24 @@ export function FilterPanel({
   };
   const fetchCategories = (forceRefresh = false) => {
     setCatsLoading(true);
+    setCatsError(null);
     fetch(forceRefresh ? '/api/map/categories?refresh=1' : '/api/map/categories')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         if (Array.isArray(data.categories)) {
-          setPoiTypes(data.categories.map((c: string) => ({
-            id: c,
-            label: c.charAt(0).toUpperCase() + c.slice(1),
-          })));
+          setPoiTypes(data.categories.map((c: { id: string; label: string } | string) =>
+            typeof c === 'string'
+              ? { id: c, label: c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ') }
+              : c
+          ));
+        } else {
+          setCatsError(data.error ?? 'Réponse inattendue');
         }
       })
-      .catch(() => {})
+      .catch((err: Error) => setCatsError(err.message))
       .finally(() => setCatsLoading(false));
   };
   useEffect(() => { fetchCategories(); }, []);
@@ -1122,6 +1132,7 @@ export function FilterPanel({
                 <span>
                   Types de POI
                   {selectedPOI.length > 0 && <span style={{ color: C.textSec }}> — {selectedPOI.length} sélectionné{selectedPOI.length > 1 ? 's' : ''}</span>}
+                  {!catsLoading && poiTypes.length > 0 && <span style={{ color: C.textDim }}> ({poiTypes.length})</span>}
                 </span>
                 <button
                   onClick={() => fetchCategories(true)}
@@ -1129,6 +1140,11 @@ export function FilterPanel({
                   style={{ background: 'none', border: 'none', color: catsLoading ? C.muted : C.textDim, cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
                 >{catsLoading ? '…' : '↻'}</button>
               </div>
+              {catsError && (
+                <div style={{ fontFamily: fMono, fontSize: 10, color: C.red, marginBottom: 4 }}>
+                  ! Erreur chargement catégories : {catsError} — <button onClick={() => fetchCategories(true)} style={{ background: 'none', border: 'none', color: C.amber, cursor: 'pointer', fontSize: 10, fontFamily: fMono, padding: 0 }}>réessayer</button>
+                </div>
+              )}
               <MultiDropdown
                 label="Aucun type selectionne"
                 items={poiTypes}
@@ -1421,7 +1437,7 @@ export function FilterPanel({
                     finally { setTmjaLoading(false); }
                   }}
                 >
-                  {tmjaLoading ? 'CHARGEMENT…' : tmjaVisible ? '↻ ACTUALISER' : 'AFFICHER TMJA'}
+                  {tmjaLoading ? 'CHARGEMENT…' : tmjaVisible ? '↻ Actualiser' : 'Afficher TMJA'}
                 </button>
                 {tmjaVisible && (
                   <button
@@ -1449,14 +1465,13 @@ export function FilterPanel({
             <button
               onClick={() => toggleAnalyse('spatiale')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.spatiale ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.spatiale) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.spatiale) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Analyse spatiale
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
@@ -1516,7 +1531,7 @@ export function FilterPanel({
 
                   {/* Mode de transport — visible globalement */}
                   <div>
-                    <div style={labelStyle}>MODE DE TRANSPORT</div>
+                    <div style={labelStyle}>Mode de transport</div>
                     <div style={{ display: 'flex', gap: 5 }}>
                       {ISO_MODES.map(m => (
                         <button key={m.id} style={{ ...pill(transportMode === m.id, '#f0f0f0'), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
@@ -1972,20 +1987,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : CLUSTERING ──────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('clustering')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.clustering ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.clustering) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.clustering) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Clustering
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.clustering ? '▲' : '▼'}</span>
@@ -2010,20 +2022,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('carreaux')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.carreaux ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.carreaux) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.carreaux) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Carreaux
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
@@ -2139,20 +2148,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('iris')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.iris ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.iris) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.iris) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 IRIS
                 {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
               </span>
@@ -2179,6 +2185,27 @@ export function FilterPanel({
                 </span>
               </button>
 
+              {/* Toggle vrais IRIS uniquement */}
+              <button
+                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: irisTrueOnly ? '#f0f0f0' : 'transparent', border: `0.5px solid ${irisTrueOnly ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisTrueOnly && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
+                  Vrais IRIS uniquement
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
+                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
+                </span>
+              </button>
+
               {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
               <select
                 value={irisIndicateur ?? 'pop_15_29'}
@@ -2186,7 +2213,7 @@ export function FilterPanel({
                 style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
               >
                 {Array.from(
-                  IRIS_DB_COLUMNS.reduce((acc, col) => {
+                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
                     if (!acc.has(col.group)) acc.set(col.group, []);
                     acc.get(col.group)!.push(col);
                     return acc;
@@ -2265,20 +2292,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : COUVERTURE ──────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('couverture')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.couverture ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.couverture) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.couverture) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Couverture
                 {coverageSummary && coverageSummary.length > 0 && (
                   <span style={{ color: C.green, marginLeft: 6 }}>● {coverageSummary.length}</span>
@@ -2298,20 +2322,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : CORRÉLATION IRIS × POI ──────────────────── */}
             <button
               onClick={() => toggleAnalyse('correlation')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.correlation ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.correlation) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.correlation) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Corrélation IRIS × POI
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
@@ -2328,20 +2349,17 @@ export function FilterPanel({
             </div>
             )}
 
-            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
-
             {/* ── Accordéon : SCORING OOH ─────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('scoring')}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.scoring ? '#111111' : 'transparent',
-                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
-              onMouseEnter={e => { if (!analyseOpen.scoring) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
-              onMouseLeave={e => { if (!analyseOpen.scoring) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
                 Scoring OOH
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>

@@ -14,21 +14,19 @@ proj4.defs('EPSG:3035', '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=321000
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgCard:      '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.25)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.10)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
+  bgElevated:  '#0a0a0a',
+  bgCard:      '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
   green:       '#3dffa0',
   red:         '#f87171',
   yellow:      '#f59e0b',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -164,12 +162,12 @@ function Btn({ onClick, disabled, children, variant = 'primary' }: {
       style={{
         padding: '9px 22px',
         background: variant === 'primary' ? C.accent : 'transparent',
-        color: variant === 'primary' ? '#fff' : C.textDim,
+        color: variant === 'primary' ? '#050505' : C.textDim,
         border: variant === 'ghost' ? `1px solid ${C.border}` : 'none',
         borderRadius: 2,
-        fontFamily: fontMichroma,
-        fontSize: 11,
-        letterSpacing: '0.08em',
+        fontFamily: fontInter,
+        fontSize: 12,
+        fontWeight: 500,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.4 : 1,
       }}
@@ -301,8 +299,8 @@ function StepUpload({ onLoaded, addLog }: {
   return (
     <div style={{ padding: 32, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
       <input ref={inputRef} type="file" accept=".dbf,.parquet,.shp" multiple style={{ display: 'none' }} onChange={handleFile} />
-      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 16 }}>
-        ÉTAPE 1 — SÉLECTION FICHIER
+      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 16 }}>
+        Étape 1 — Sélection fichier
       </div>
       <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec, marginBottom: 16, lineHeight: 1.9 }}>
         Mode A : <span style={{ color: C.accent }}>.shp + .dbf</span> — géométrie réelle + attributs (sélectionner les 2 fichiers)<br/>
@@ -365,8 +363,8 @@ function StepConfig({ info, onStart }: {
 
   return (
     <div style={{ padding: 24, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
-      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 20 }}>
-        ÉTAPE 2 — CONFIGURATION — {info.file.name} — {fmtNum(info.rowCount)} lignes
+      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 20 }}>
+        Étape 2 — Configuration — {info.file.name} — {fmtNum(info.rowCount)} lignes
         {isShp  && <span style={{ marginLeft: 12, color: C.green  }}>[ SHP ]</span>}
         {isDbf  && <span style={{ marginLeft: 12, color: C.accent }}>[ DBF ]</span>}
         {!isDbf && !isShp && <span style={{ marginLeft: 12, color: C.yellow }}>[ PARQUET ]</span>}
@@ -374,7 +372,7 @@ function StepConfig({ info, onStart }: {
 
       <div style={{ display: 'flex', gap: 24, marginBottom: 24, flexWrap: 'wrap' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>COLONNE IDCAR *</span>
+          <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>Colonne idcar *</span>
           <select
             value={idcarCol}
             onChange={e => setIdcarCol(e.target.value)}
@@ -385,7 +383,7 @@ function StepConfig({ info, onStart }: {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>RÉSOLUTION</span>
+          <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>Résolution</span>
           <select
             value={resolution}
             onChange={e => setResolution(e.target.value)}
@@ -397,7 +395,7 @@ function StepConfig({ info, onStart }: {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>MILLÉSIME</span>
+          <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>Millésime</span>
           <input
             type="text"
             value={millesime}
@@ -414,14 +412,14 @@ function StepConfig({ info, onStart }: {
         </div>
       )}
       {isDbf && (
-        <div style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(168,85,247,0.06)', border: `1px solid ${C.borderLight}`, borderRadius: 2, fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
+        <div style={{ marginBottom: 16, padding: '8px 12px', background: 'rgba(78,205,196,0.06)', border: `1px solid ${C.borderLight}`, borderRadius: 2, fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
           Geometrie reconstruite depuis idcar (Lambert 93 / ETRS89 → WGS84) — .shp non requis
         </div>
       )}
 
       <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em' }}>
-          COLONNES MÉTADONNÉES ({selected.size} / {metaCols.length})
+        <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>
+          Colonnes métadonnées ({selected.size} / {metaCols.length})
         </span>
         <button onClick={selectAll}  style={{ background: 'none', border: 'none', color: C.accent, fontFamily: fontMono, fontSize: 10, cursor: 'pointer', padding: 0 }}>tout</button>
         <button onClick={selectNone} style={{ background: 'none', border: 'none', color: C.textSec, fontFamily: fontMono, fontSize: 10, cursor: 'pointer', padding: 0 }}>aucun</button>
@@ -449,7 +447,7 @@ function StepConfig({ info, onStart }: {
       </div>
 
       <div style={{ marginBottom: 20, padding: '10px 12px', background: C.bgElevated, borderRadius: 2, border: `1px solid ${C.border}` }}>
-        <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.1em', marginBottom: 6 }}>APERÇU LIGNE 1</div>
+        <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 6 }}>Aperçu ligne 1</div>
         <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, wordBreak: 'break-all' }}>
           {JSON.stringify(info.sampleRow).slice(0, 400)}
         </div>
@@ -615,8 +613,8 @@ function StepImport({ info, idcarCol, selectedCols, resolution, millesime, addLo
 
   return (
     <div style={{ padding: 24, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 2 }}>
-      <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em', marginBottom: 16 }}>
-        ÉTAPE 3 — IMPORT EN COURS
+      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 16 }}>
+        Étape 3 — Import en cours
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fontMono, fontSize: 10, marginBottom: 6, color: C.textDim }}>
         <span>{done ? 'Terminé' : 'Avancement'}</span>
@@ -655,10 +653,7 @@ export default function FilosofiImportPage() {
       <header style={{ borderBottom: `1px solid ${C.border}`, padding: '12px 28px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <a href="/dashboard" style={{ color: C.textSec, fontFamily: fontMono, fontSize: 10, textDecoration: 'none' }}>←</a>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span style={{ fontFamily: fontOrbitron, fontSize: 13, fontWeight: 700, letterSpacing: '0.08em' }}>
-            <span style={{ color: C.textDim }}>geo</span><span style={{ color: C.accent }}>.</span><span>prompt</span>
-          </span>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, color: C.textDim, letterSpacing: '0.14em' }}>FILOSOFI_IMPORT</span>
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, margin: 0 }}>Import Filosofi</h1>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           {([1, 2, 3] as const).map(s => (
@@ -672,9 +667,6 @@ export default function FilosofiImportPage() {
       </header>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 style={{ fontFamily: fontOrbitron, fontSize: 16, fontWeight: 700, letterSpacing: '0.08em', margin: 0 }}>
-          Import Filosofi
-        </h1>
         <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec }}>
           Formats : <span style={{ color: C.accent }}>.dbf</span> (shapefile attributs, idcar → géométrie auto) · <span style={{ color: C.accent }}>.parquet</span>
         </div>
@@ -694,11 +686,11 @@ export default function FilosofiImportPage() {
 
         {logs.length > 0 && (
           <>
-            <div style={{ fontFamily: fontOrbitron, fontSize: 11, color: C.textDim }}>TERMINAL //</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>TERMINAL //</div>
             <div
               ref={logRef}
               style={{
-                background: '#0d0d0d', border: `1px solid ${C.border}`, borderRadius: 2,
+                background: '#0a0a0a', border: `1px solid ${C.border}`, borderRadius: 2,
                 height: 320, overflowY: 'auto', padding: '12px 14px',
                 fontFamily: fontMono, fontSize: 10, lineHeight: 1.7,
               }}
@@ -766,35 +758,35 @@ function RefreshVilleStats() {
   }
 
   return (
-    <div style={{ marginTop: 32, padding: '16px 20px', background: '#0d0d0d', border: '1px solid #261a35', borderRadius: 2 }}>
-      <div style={{ fontFamily: "'Michroma', sans-serif", fontSize: 9, color: '#94a3b8', letterSpacing: '0.1em', marginBottom: 10 }}>
-        CACHE SMART PROMPT — CLASSEMENT VILLES
+    <div style={{ marginTop: 32, padding: '16px 20px', background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 2 }}>
+      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: '#a0a0a0', marginBottom: 10 }}>
+        Cache smart prompt — classement villes
       </div>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: '#a0a0a0', marginBottom: 12 }}>
         Pré-calcule les totaux Filosofi par ville (contours IRIS). A lancer après chaque import de carreaux.
       </div>
       <button
         onClick={run}
         disabled={status === 'running'}
         style={{
-          fontFamily: "'Michroma', sans-serif", fontSize: 11, letterSpacing: '0.08em',
-          padding: '8px 16px', borderRadius: 2, border: '1px solid #a855f7',
-          background: status === 'running' ? 'rgba(168,85,247,0.05)' : 'rgba(168,85,247,0.12)',
-          color: status === 'running' ? '#6b7280' : '#a855f7',
+          fontFamily: fontInter, fontSize: 12, fontWeight: 500,
+          padding: '8px 16px', borderRadius: 2, border: '1px solid #4ecdc4',
+          background: status === 'running' ? 'rgba(78,205,196,0.05)' : 'rgba(78,205,196,0.08)',
+          color: status === 'running' ? '#666666' : '#050505',
           cursor: status === 'running' ? 'not-allowed' : 'pointer',
         }}
       >
-        {status === 'running' ? 'CALCUL EN COURS...' : 'RECALCULER CACHE VILLES'}
+        {status === 'running' ? 'Calcul en cours...' : 'Recalculer cache villes'}
       </button>
       {status === 'running' && total > 0 && (
-        <div style={{ marginTop: 10, height: 4, background: '#261a35', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: '#a855f7', width: `${(progress/total)*100}%`, transition: 'width 0.3s' }} />
+        <div style={{ marginTop: 10, height: 4, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#4ecdc4', width: `${(progress/total)*100}%`, transition: 'width 0.3s' }} />
         </div>
       )}
       {msg && (
         <div style={{
           marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-          color: status === 'error' ? '#f87171' : status === 'done' ? '#3dffa0' : '#94a3b8',
+          color: status === 'error' ? '#f87171' : status === 'done' ? '#3dffa0' : '#a0a0a0',
         }}>
           {msg}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -20,6 +21,43 @@ const C = {
 };
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
 const fMichroma = "'Michroma','Orbitron',sans-serif";
+const fInter    = "'Inter', system-ui, sans-serif";
+
+// ── Groupement des métriques IRIS ──────────────────────────────────────────
+// Construit depuis IRIS_DB_COLUMNS (source de vérité) — toute nouvelle colonne
+// ajoutée dans db-columns.ts apparaît automatiquement dans les dropdowns.
+const METRIC_GROUP_MAP = new Map<string, string>(
+  IRIS_DB_COLUMNS.map(col => [col.name, col.group])
+);
+
+// Ordre d'affichage des groupes (reflète l'ordre de db-columns.ts)
+const GROUP_ORDER = ['Population', 'Âge', 'Revenus', 'Diplômes', 'CSP', 'Emploi', 'Logement', 'Mobilité', 'Familles'];
+
+function buildGroupedOptions(metrics: { key: string; label: string }[]) {
+  const groups: Record<string, typeof metrics> = {};
+  for (const m of metrics) {
+    const g = METRIC_GROUP_MAP.get(m.key) ?? 'Autres';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(m);
+  }
+  // Known groups in order, then any unknown groups at the end
+  const allGroups = [...GROUP_ORDER, ...Object.keys(groups).filter(g => !GROUP_ORDER.includes(g))];
+  return allGroups.filter(g => groups[g]?.length > 0).map(g => ({ group: g, items: groups[g] }));
+}
+
+// Style commun pour les selects métriques (DESIGN_SYSTEM.md)
+const metricSelectStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#111111',
+  border: '0.5px solid #1a1a1a',
+  borderRadius: 2,
+  color: '#f0f0f0',
+  fontFamily: fInter,
+  fontSize: 13,
+  padding: '6px 8px',
+  cursor: 'pointer',
+  outline: 'none',
+};
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface POICategory {
@@ -1237,59 +1275,45 @@ export function CorrelationPanel({
 
         {/* ── Métrique IRIS (commune aux deux modes / axe X en iris_iris) ── */}
         <div style={{ padding: '4px 12px 4px' }}>
-          <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
-            {mode === 'iris_iris' ? 'MÉTRIQUE X (axe)' : 'MÉTRIQUE IRIS'}
+          <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#666666', marginBottom: 6 }}>
+            {mode === 'iris_iris' ? 'Métrique X' : 'Métrique IRIS'}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {metrics.map(m => {
-              const isActive = mode === 'iris_iris' ? selectedMetricX === m.key : selectedMetric === m.key;
-              return (
-                <button
-                  key={m.key}
-                  onClick={() => mode === 'iris_iris' ? setSelectedMetricX(m.key) : setSelectedMetric(m.key)}
-                  style={{
-                    padding: '3px 8px', borderRadius: 2,
-                    border: `1px solid ${isActive ? C.green : C.border}`,
-                    background: isActive ? 'rgba(61,255,160,0.08)' : 'transparent',
-                    color: isActive ? C.green : C.muted,
-                    fontFamily: fMono, fontSize: 9, cursor: 'pointer',
-                  }}
-                >
-                  {m.icon} {m.label}
-                </button>
-              );
-            })}
-          </div>
+          <select
+            value={mode === 'iris_iris' ? selectedMetricX : selectedMetric}
+            onChange={e => mode === 'iris_iris' ? setSelectedMetricX(e.target.value) : setSelectedMetric(e.target.value)}
+            style={metricSelectStyle}
+          >
+            {buildGroupedOptions(metrics).map(({ group, items }) => (
+              <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
+                {items.map(m => (
+                  <option key={m.key} value={m.key}>{m.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
 
         {/* ── Mode IRIS × IRIS : sélecteur métrique Y ── */}
         {mode === 'iris_iris' && (
           <div style={{ padding: '4px 12px 4px' }}>
-            <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
-              MÉTRIQUE Y (corrélée)
+            <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#666666', marginBottom: 6 }}>
+              Métrique Y
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {metrics.map(m => {
-                const isActive = selectedMetricY === m.key;
-                return (
-                  <button
-                    key={m.key}
-                    onClick={() => setSelectedMetricY(m.key)}
-                    style={{
-                      padding: '3px 8px', borderRadius: 2,
-                      border: `1px solid ${isActive ? C.accent : C.border}`,
-                      background: isActive ? C.accentDim : 'transparent',
-                      color: isActive ? C.accent : C.muted,
-                      fontFamily: fMono, fontSize: 9, cursor: 'pointer',
-                      opacity: m.key === selectedMetricX ? 0.35 : 1,
-                    }}
-                    disabled={m.key === selectedMetricX}
-                  >
-                    {m.icon} {m.label}
-                  </button>
-                );
-              })}
-            </div>
+            <select
+              value={selectedMetricY}
+              onChange={e => setSelectedMetricY(e.target.value)}
+              style={metricSelectStyle}
+            >
+              {buildGroupedOptions(metrics).map(({ group, items }) => (
+                <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
+                  {items.map(m => (
+                    <option key={m.key} value={m.key} disabled={m.key === selectedMetricX}>
+                      {m.key === selectedMetricX ? `${m.label} (déjà en X)` : m.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
         )}
 
