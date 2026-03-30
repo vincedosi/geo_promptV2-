@@ -13,8 +13,8 @@ import { useSmartPrompt }           from '../_hooks/useSmartPrompt';
 // ── Tokens design system ──────────────────────────────────────────────────────
 const C = {
   bg:       '#050505',
-  bgCard:   '#0c0c0f',
-  bgInput:  '#0f0f14',
+  bgCard:   '#0a0a0a',
+  bgInput:  '#111111',
   border:   '#1a1a1a',
   accent:   '#4ecdc4',
   accentDim:'#3dbdb5',
@@ -80,7 +80,7 @@ function renderMarkdown(md: string): React.ReactNode[] {
         <thead>
           <tr>
             {header.map((h, i) => (
-              <th key={i} style={{ border: `1px solid ${C.border}`, padding: '4px 8px', color: C.accent, fontSize: 11, textAlign: 'left', background: '#13091f' }}>
+              <th key={i} style={{ border: `0.5px solid ${C.border}`, padding: '4px 8px', color: C.accent, fontSize: 11, textAlign: 'left', background: '#111111' }}>
                 {h.trim()}
               </th>
             ))}
@@ -90,7 +90,7 @@ function renderMarkdown(md: string): React.ReactNode[] {
           {body.map((row, ri) => (
             <tr key={ri}>
               {row.map((cell, ci) => (
-                <td key={ci} style={{ border: `1px solid ${C.border}`, padding: '4px 8px', fontSize: 12, color: C.text }}>
+                <td key={ci} style={{ border: `0.5px solid ${C.border}`, padding: '4px 8px', fontSize: 12, color: C.text }}>
                   {cell.trim()}
                 </td>
               ))}
@@ -116,12 +116,12 @@ function renderMarkdown(md: string): React.ReactNode[] {
 
     // H2
     if (line.startsWith('## ')) {
-      nodes.push(<div key={key} style={{ color: C.accent, fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700, marginBottom: 6, marginTop: 12, letterSpacing: 1 }}>{line.slice(3)}</div>);
+      nodes.push(<div key={key} style={{ color: C.accent, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6, marginTop: 12, letterSpacing: 1 }}>{line.slice(3)}</div>);
       return;
     }
     // H3
     if (line.startsWith('### ')) {
-      nodes.push(<div key={key} style={{ color: C.textMid, fontFamily: 'Michroma, sans-serif', fontSize: 10, fontWeight: 600, marginBottom: 4, marginTop: 8, textTransform: 'uppercase', letterSpacing: 1 }}>{line.slice(4)}</div>);
+      nodes.push(<div key={key} style={{ color: C.textMid, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, marginBottom: 4, marginTop: 8, textTransform: 'uppercase', letterSpacing: 1 }}>{line.slice(4)}</div>);
       return;
     }
     // Bullet
@@ -158,11 +158,11 @@ function ResultCard({ response }: { response: SmartPromptResponse }) {
   const agentColor = AGENT_COLOR[decision.agent] ?? C.textDim;
 
   return (
-    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+    <div style={{ borderTop: `0.5px solid ${C.border}`, paddingTop: 12, animation: 'smartFadeIn 0.3s ease' }}>
       {/* Header agent */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{
-          fontFamily: 'Michroma, sans-serif', fontSize: 9, fontWeight: 600,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
           textTransform: 'uppercase', letterSpacing: 1.5,
           color: agentColor, border: `1px solid ${agentColor}`, borderRadius: 2,
           padding: '2px 6px',
@@ -203,6 +203,16 @@ function ResultCard({ response }: { response: SmartPromptResponse }) {
   );
 }
 
+const smartPromptStyles = `
+@keyframes smartFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; }
+}
+`;
+
 // ── Composant principal ───────────────────────────────────────────────────────
 export function SmartPromptResults() {
   const { loading, response, error, submit, reset } = useSmartPrompt();
@@ -221,7 +231,7 @@ export function SmartPromptResults() {
   return (
     <div style={{
       background: C.bg,
-      border: `1px solid ${C.border}`,
+      border: `0.5px solid ${C.border}`,
       borderRadius: 2,
       padding: 16,
       fontFamily: C.font,
@@ -229,9 +239,10 @@ export function SmartPromptResults() {
       flexDirection: 'column',
       gap: 12,
     }}>
+      <style>{smartPromptStyles}</style>
       {/* Titre */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: 'Michroma, sans-serif', fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: 2 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: 2 }}>
           smart.prompt / routeur multi-agents
         </div>
         {response && (
@@ -273,7 +284,7 @@ export function SmartPromptResults() {
             border: 'none',
             borderRadius: 2,
             color: '#fff',
-            fontFamily: 'Michroma, sans-serif',
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10,
             fontWeight: 600,
             letterSpacing: 1,
@@ -281,10 +292,10 @@ export function SmartPromptResults() {
             cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
             opacity: loading || !input.trim() ? 0.6 : 1,
             textTransform: 'uppercase',
-            transition: 'opacity 0.15s',
+            transition: 'opacity 0.2s ease',
           }}
         >
-          {loading ? '…' : '→ ANALYSER'}
+          {loading ? '...' : 'Analyser'}
         </button>
       </form>
 

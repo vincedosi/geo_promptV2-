@@ -46,15 +46,15 @@ interface AnalyseOutput {
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const P = {
-  bg:      'rgba(255,255,255,0.035)',
+  bg:      '#0a0a0a',
   border:  '#1a1a1a',
   violet:  '#4ecdc4',
   green:   '#10b981',
   orange:  '#f97316',
   blue:    '#38bdf8',
-  text:    '#f1f1f4',
-  dim:     '#9ca3af',
-  dimmer:  '#6b7280',
+  text:    '#f0f0f0',
+  dim:     '#a0a0a0',
+  dimmer:  '#666666',
   gridLn:  'rgba(255,255,255,0.06)',
 };
 
@@ -67,9 +67,10 @@ function Metric({
 }: { value: string; label: string; color: string; sub?: string }) {
   return (
     <div style={{
-      background: P.bg, border: `1px solid ${P.border}`,
+      background: P.bg, border: `0.5px solid ${P.border}`,
       borderRadius: 8, padding: '12px 14px',
       display: 'flex', flexDirection: 'column', gap: 4,
+      transition: 'border-color 0.2s ease',
     }}>
       <div style={{ color, fontWeight: 700, fontSize: 22, fontFamily: fontMono, lineHeight: 1 }}>
         {value}
@@ -89,6 +90,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       color: P.dimmer, fontSize: 9, fontFamily: fontMono,
       letterSpacing: '0.12em', textTransform: 'uppercase',
       marginBottom: 8, marginTop: 16,
+      paddingLeft: 10,
+      borderLeft: `2px solid ${P.violet}`,
     }}>
       {children}
     </div>
@@ -102,7 +105,7 @@ function ChartTooltip({ active, payload, label }: {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: '#131320', border: `1px solid ${P.border}`,
+      background: '#111111', border: `0.5px solid ${P.border}`,
       borderRadius: 4, padding: '6px 10px',
       fontSize: 11, fontFamily: fontMono, color: P.text,
     }}>
@@ -141,6 +144,16 @@ interface AnalyseCardProps {
   onFlyTo?:            (lat: number, lng: number, zoom: number) => void;
   onHighlightIris?:    (codeIris: string | null) => void;
 }
+
+const analyseCardStyles = `
+@keyframes analyseCardFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analyse-card-root { animation: none !important; }
+}
+`;
 
 export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardProps) {
   if (!output || output.type !== "analyse_complete") return null;
@@ -215,14 +228,17 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
   };
 
   return (
-    <div style={{
+    <>
+    <style>{analyseCardStyles}</style>
+    <div className="analyse-card-root" style={{
       marginTop: 10,
-      background: 'rgba(10,10,20,0.6)',
-      border: `1px solid ${P.border}`,
+      background: '#0a0a0a',
+      border: `0.5px solid ${P.border}`,
       borderLeft: `3px solid ${P.violet}`,
       borderRadius: '2px 12px 12px 12px',
       padding: '14px 16px',
       fontFamily: fontInter,
+      animation: 'analyseCardFadeIn 0.3s ease',
     }}>
       {/* Header */}
       <div style={{ marginBottom: 14 }}>
@@ -287,7 +303,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
             <div style={{
               height: '100%', borderRadius: 3, width: `${localPct}%`,
               background: revLocal >= revFrance ? P.green : '#f87171',
-              transition: 'width 0.5s',
+              transition: 'width 0.2s ease',
             }} />
             <div style={{
               position: 'absolute', top: -3, left: `${francePct}%`,
@@ -314,12 +330,12 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
               <YAxis type="category" dataKey="name"
                 tick={{ fontSize: 9, fill: P.dim, fontFamily: fontMono }}
                 axisLine={false} tickLine={false} width={52} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(168,85,247,0.06)" }} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(78,205,196,0.06)" }} />
               <Bar dataKey="total" radius={[0, 2, 2, 0]}>
                 {tranchesData.map((entry) => (
                   <Cell
                     key={entry.id}
-                    fill={entry.id === CIBLE_TO_IRIS[cible?.indicateur ?? ''] ? P.green : 'rgba(168,85,247,0.35)'}
+                    fill={entry.id === CIBLE_TO_IRIS[cible?.indicateur ?? ''] ? P.green : 'rgba(78,205,196,0.3)'}
                   />
                 ))}
               </Bar>
@@ -365,7 +381,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
                 axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: P.dimmer, fontFamily: fontMono }}
                 axisLine={false} tickLine={false} width={28} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(168,85,247,0.06)" }} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(78,205,196,0.06)" }} />
               <Bar dataKey="count" fill={P.violet} radius={[2, 2, 0, 0]} fillOpacity={0.8} />
             </BarChart>
           </ResponsiveContainer>
@@ -420,12 +436,13 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
       <div style={{
         marginTop: 16, paddingTop: 10,
         borderTop: "1px solid rgba(255,255,255,0.06)",
-        fontSize: 9, color: "#4b5563", fontFamily: fontMono,
+        fontSize: 9, color: "#666666", fontFamily: fontMono,
         display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4,
       }}>
         <span>{(output as Record<string, unknown> & { metadata?: { source?: string; date_source?: string } }).metadata?.source ?? "Carreaux Filosofi"} · Millésime {(output as Record<string, unknown> & { metadata?: { date_source?: string } }).metadata?.date_source ?? "2022"}</span>
         <span>Rapport du {(output as Record<string, unknown> & { metadata?: { generated_at?: string } }).metadata?.generated_at ?? new Date().toISOString().split("T")[0]}</span>
       </div>
     </div>
+    </>
   );
 }

@@ -223,7 +223,7 @@ function MultiDropdown({
           padding: '8px 11px', background: C.bgInput,
           border: `0.5px solid ${open ? '#333333' : C.border}`, borderRadius: 4,
           cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
-          transition: 'border-color 0.15s',
+          transition: 'all 0.2s ease',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
@@ -235,6 +235,7 @@ function MultiDropdown({
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
           background: '#111111', border: `0.5px solid #262626`, borderTop: 'none',
           borderRadius: '0 0 4px 4px', maxHeight: 200, display: 'flex', flexDirection: 'column',
+          animation: 'fpDropIn 0.15s ease-out',
         }}>
           {searchable && (
             <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
@@ -860,7 +861,7 @@ export function FilterPanel({
     fontFamily: fInter, fontSize: 11, padding: '5px 9px',
     background: active ? `rgba(${hexToRgb(color)},0.12)` : C.bgInput,
     border: `0.5px solid ${active ? color : C.border}`, borderRadius: 4,
-    color: active ? color : C.textDim, cursor: 'pointer', transition: 'all 0.12s', flexShrink: 0 as const,
+    color: active ? color : C.textDim, cursor: 'pointer', transition: 'all 0.2s ease', flexShrink: 0 as const,
   });
 
   const primaryBtn = (color: string, disabled = false) => ({
@@ -869,7 +870,7 @@ export function FilterPanel({
     background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.10)`,
     border: `0.5px solid ${disabled ? C.border : color}`, borderRadius: 4,
     color: disabled ? C.textDim : color, cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1, transition: 'all 0.15s',
+    opacity: disabled ? 0.55 : 1, transition: 'all 0.2s ease',
   });
 
   const labelStyle = {
@@ -877,10 +878,16 @@ export function FilterPanel({
     color: C.textSec, marginBottom: 6,
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     fontFamily: fInter, fontSize: 13, background: C.bgInput,
     border: `0.5px solid ${C.border}`, borderRadius: 4,
     color: C.text, padding: '7px 10px', outline: 'none', width: '100%',
+    transition: 'border-color 0.3s ease',
+  };
+
+  const inputFocusHandlers = {
+    onFocus: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; },
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = C.border; },
   };
 
   // ── Tab config ────────────────────────────────────────────────────────────
@@ -912,7 +919,7 @@ export function FilterPanel({
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}
       {error && (
-        <div style={{ padding: '6px 14px', background: 'rgba(248,113,113,0.07)', borderBottom: `1px solid rgba(248,113,113,0.2)`, fontFamily: fMono, fontSize: 10, color: C.red, flexShrink: 0 }}>
+        <div style={{ padding: '6px 14px', background: 'rgba(248,113,113,0.07)', borderBottom: `1px solid rgba(248,113,113,0.2)`, fontFamily: fMono, fontSize: 10, color: C.red, flexShrink: 0, animation: 'fpErrorIn 0.2s ease-out' }}>
           ! {error}
         </div>
       )}
@@ -1140,12 +1147,12 @@ export function FilterPanel({
                 <div style={{ flex: 1 }}>
                   <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
                   <input style={inputStyle} placeholder="ex: Brest" value={ville}
-                    onChange={e => { setVille(e.target.value); if (e.target.value) setScope(null); }} />
+                    onChange={e => { setVille(e.target.value); if (e.target.value) setScope(null); }} {...inputFocusHandlers} />
                 </div>
                 <div style={{ width: 80 }}>
                   <div style={{ ...labelStyle, marginBottom: 4 }}>Code postal</div>
                   <input style={inputStyle} placeholder="29200" value={codePostal}
-                    onChange={e => setCodePostal(e.target.value)} maxLength={5} />
+                    onChange={e => setCodePostal(e.target.value)} maxLength={5} {...inputFocusHandlers} />
                 </div>
               </div>
             </div>
@@ -1339,7 +1346,7 @@ export function FilterPanel({
                     borderRadius: 4, cursor: 'pointer',
                     fontFamily: fInter, fontSize: 12,
                     color: densityMode ? '#f0f0f0' : C.textDim,
-                    whiteSpace: 'nowrap', transition: 'all 0.15s',
+                    whiteSpace: 'nowrap', transition: 'all 0.2s ease',
                   }}
                 >
                   {densityMode ? '◉ Densité' : '◎ Densité'}
@@ -2011,7 +2018,7 @@ export function FilterPanel({
                               height: '100%',
                               width: `${battleApplyPct}%`,
                               background: battleApplyPct === 100 ? C.green : C.textSec,
-                              transition: 'width 0.4s ease, background 0.3s',
+                              transition: 'width 0.4s ease, background 0.2s ease',
                             }} />
                           </div>
                         )}
@@ -2066,7 +2073,7 @@ export function FilterPanel({
                               padding: '10px 12px',
                               marginBottom: 6,
                               cursor: 'pointer',
-                              transition: 'border-color 0.15s',
+                              transition: 'border-color 0.2s ease',
                             }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)')}
                             onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
@@ -2109,7 +2116,7 @@ export function FilterPanel({
                       fontSize: 12,
                       fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'background 0.15s',
+                      transition: 'background 0.2s ease',
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(78,205,196,0.1)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
@@ -2522,7 +2529,7 @@ export function FilterPanel({
           style={{
             flex: 1, padding: '8px', fontFamily: fInter, fontSize: 13,
             background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
-            color: C.textDim, cursor: 'pointer', transition: 'all 0.12s',
+            color: C.textDim, cursor: 'pointer', transition: 'all 0.2s ease',
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = C.text; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
@@ -2545,6 +2552,14 @@ export function FilterPanel({
         @keyframes fpScan {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(350%); }
+        }
+        @keyframes fpDropIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fpErrorIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         .fp-tab { overflow: visible !important; }
         @media (prefers-reduced-motion: reduce) {

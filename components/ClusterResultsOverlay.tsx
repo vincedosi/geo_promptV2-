@@ -30,6 +30,7 @@ export function ClusterResultsOverlay({ version, onClose }: Props) {
           position: 'fixed', inset: 0,
           background: 'rgba(5,5,5,0.4)',
           zIndex: 8000,
+          animation: 'croFadeIn 0.2s ease',
         }}
       />
       {/* Overlay panel */}
@@ -42,9 +43,24 @@ export function ClusterResultsOverlay({ version, onClose }: Props) {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        animation: 'croSlideIn 0.2s ease',
       }}>
         <ClusterDetails version={version} onClose={onClose} />
       </div>
+
+      <style>{`
+        @keyframes croFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes croSlideIn {
+          from { opacity: 0; transform: translateX(16px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0s !important; }
+        }
+      `}</style>
     </>
   );
 }

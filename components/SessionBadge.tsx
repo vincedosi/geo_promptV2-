@@ -39,6 +39,7 @@ export const SessionBadge = memo(function SessionBadge() {
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '6px 12px',
           background: 'transparent', border: 'none', cursor: 'pointer',
+          animation: 'sbEntrance 0.3s ease-out',
         }}
         onMouseEnter={e => {
           e.currentTarget.querySelectorAll<HTMLElement>('[data-hover]').forEach(el => {
@@ -75,7 +76,7 @@ export const SessionBadge = memo(function SessionBadge() {
             style={{
               fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#a0a0a0',
               maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              display: 'block', transition: 'color 0.15s',
+              display: 'block', transition: 'color 0.2s ease',
             }}
           >
             {isLoading ? '…' : displayEmail}
@@ -87,7 +88,7 @@ export const SessionBadge = memo(function SessionBadge() {
               style={{
                 fontFamily: fMono, fontWeight: 400, fontSize: 9, color: '#666666',
                 maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                display: 'block', transition: 'color 0.15s',
+                display: 'block', transition: 'color 0.2s ease',
               }}
             >
               {orgId.slice(0, 8)}…
@@ -107,7 +108,7 @@ export const SessionBadge = memo(function SessionBadge() {
           width: 240,
           zIndex: 20000,
           display: 'flex', flexDirection: 'column', gap: 8,
-          animation: 'sbFadeIn 0.15s ease-out',
+          animation: 'sbFadeIn 0.2s ease',
         }}>
           {/* Email */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -145,7 +146,7 @@ export const SessionBadge = memo(function SessionBadge() {
               background: 'none', border: 'none', cursor: 'pointer',
               fontFamily: fInter, fontSize: 12, color: '#666666',
               textAlign: 'left', padding: '4px 0',
-              transition: 'color 0.15s',
+              transition: 'color 0.2s ease',
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ff5757'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
@@ -163,6 +164,13 @@ export const SessionBadge = memo(function SessionBadge() {
         @keyframes sbFadeIn {
           from { opacity: 0; transform: translateY(-4px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes sbEntrance {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0s !important; transition-duration: 0s !important; }
         }
       `}</style>
     </div>

@@ -12,24 +12,23 @@ import {
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:        '#050505',
-  bgPanel:   '#08080f',
-  bgInput:   '#0a0a14',
-  border:    '#261a35',
-  accent:    '#a855f7',
-  accentDim: 'rgba(168,85,247,0.10)',
+  bgPanel:   '#0a0a0a',
+  bgInput:   '#111111',
+  border:    '#262626',
+  accent:    '#4ecdc4',
+  accentDim: 'rgba(78,205,196,0.10)',
   green:     '#3dffa0',
   greenDim:  'rgba(61,255,160,0.08)',
   amber:     '#f59e0b',
   amberDim:  'rgba(245,158,11,0.08)',
   red:       '#f87171',
   redDim:    'rgba(248,113,113,0.07)',
-  muted:     '#8888aa',
-  text:      '#e2e8f0',
-  textDim:   '#6b7280',
+  muted:     '#a0a0a0',
+  text:      '#f0f0f0',
+  textDim:   '#666666',
 };
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
-const fOrbitron = "'Orbitron',sans-serif";
+const fMono  = "'JetBrains Mono', monospace";
+const fLabel = "'Inter', sans-serif";
 
 // DROM-COM dept codes → excluded when metropolitaine = true
 const DROM_DEPTS = new Set(['971', '972', '973', '974', '975', '976']);
@@ -65,7 +64,7 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
       background: done ? C.greenDim : active ? C.accentDim : 'transparent',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: fMono, fontSize: 10, color: done ? C.green : active ? C.accent : C.muted,
-      flexShrink: 0,
+      flexShrink: 0, transition: 'all 0.2s ease',
     }}>
       {done ? '✓' : n}
     </div>
@@ -224,7 +223,6 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
     <div style={{
       position: 'absolute', inset: 0, zIndex: 600,
       background: 'rgba(5,5,5,0.96)',
-      backdropFilter: 'blur(4px)',
       display: 'flex', flexDirection: 'column',
       fontFamily: fMono,
     }}>
@@ -235,10 +233,10 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
         borderBottom: `1px solid ${C.border}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: fOrbitron, fontSize: 11, letterSpacing: 3, color: C.accent, textTransform: 'uppercase' }}>
-            CLUSTERING
+          <span style={{ fontFamily: fLabel, fontSize: 13, letterSpacing: 1, color: C.accent, fontWeight: 600 }}>
+            Clustering
           </span>
-          <span style={{ fontSize: 9, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 11, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel }}>
             wizard
           </span>
         </div>
@@ -247,7 +245,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
           {[1, 2, 3, 4].map(n => (
             <React.Fragment key={n}>
               <StepDot n={n} active={step === n} done={step > n} />
-              {n < 4 && <div style={{ width: 12, height: 1, background: step > n ? C.green : C.border }} />}
+              {n < 4 && <div style={{ width: 12, height: 1, background: step > n ? C.green : C.border, transition: 'background 0.2s ease' }} />}
             </React.Fragment>
           ))}
         </div>
@@ -263,7 +261,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
         {/* ─── STEP 1 : Types POI ─── */}
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               1 / 4 — Types de POI à clustériser
             </div>
             {typesLoading ? (
@@ -278,7 +276,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                       padding: '8px 11px', borderRadius: 2, cursor: 'pointer',
                       background: sel ? C.accentDim : C.bgInput,
                       border: `1px solid ${sel ? C.accent : C.border}`,
-                      transition: 'all 0.12s',
+                      transition: 'all 0.2s ease',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
@@ -294,7 +292,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <span style={{ fontSize: 10, color: C.textDim }}>{pt.total.toLocaleString('fr-FR')} POIs</span>
                         {pt.has_clusters && (
-                          <span style={{ fontSize: 9, color: C.green, fontFamily: fMichroma, letterSpacing: 1 }}>CLUSTÉRISÉ</span>
+                          <span style={{ fontSize: 9, color: C.green, fontFamily: fLabel, letterSpacing: 1 }}>Clust\u00e9ris\u00e9</span>
                         )}
                       </div>
                     </button>
@@ -313,7 +311,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
         {/* ─── STEP 2 : Géographie ─── */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               2 / 4 — Périmètre géographique
             </div>
 
@@ -329,13 +327,13 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                   style={{
                     width: 36, height: 18, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
                     background: metropolitaine ? C.accent : C.border,
-                    position: 'relative', transition: 'background 0.15s',
+                    position: 'relative', transition: 'background 0.2s ease',
                   }}
                 >
                   <div style={{
                     position: 'absolute', top: 2, left: metropolitaine ? 20 : 2,
                     width: 14, height: 14, borderRadius: 1,
-                    background: '#fff', transition: 'left 0.15s',
+                    background: '#fff', transition: 'left 0.2s ease',
                   }} />
                 </div>
                 <span style={{ fontSize: 11, color: C.text }}>France métropolitaine uniquement</span>
@@ -352,7 +350,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
             </div>
 
             {/* Régions */}
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase', marginBottom: 4 }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fLabel, marginBottom: 4 }}>
               Régions — laisser vide = toutes
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -364,7 +362,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     padding: '7px 11px', borderRadius: 2, cursor: 'pointer',
                     background: sel ? C.accentDim : C.bgInput,
                     border: `1px solid ${sel ? C.accent : C.border}`,
-                    transition: 'all 0.10s',
+                    transition: 'all 0.2s ease',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{
@@ -394,7 +392,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
         {/* ─── STEP 3 : Paramètres ─── */}
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               3 / 4 — Paramètres de calcul
             </div>
 
@@ -408,7 +406,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                 <span style={{ fontSize: 11, color: C.textDim }}>Comptage…</span>
               ) : poiCount !== null ? (
                 <>
-                  <span style={{ fontSize: 18, color: C.green, fontFamily: fOrbitron }}>{poiCount.toLocaleString('fr-FR')}</span>
+                  <span style={{ fontSize: 18, color: C.green, fontFamily: fLabel }}>{poiCount.toLocaleString('fr-FR')}</span>
                   <span style={{ fontSize: 10, color: C.muted }}>POIs dans le périmètre</span>
                 </>
               ) : (
@@ -418,7 +416,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
 
             {/* Variables d'analyse */}
             <div>
-              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase', marginBottom: 8 }}>
+              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
                 Variables d&apos;analyse
               </div>
 
@@ -431,7 +429,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                   return (
                     <button key={key} onClick={() => setSelectedFeatures(presetFeats)} style={{
                       padding: '4px 10px', borderRadius: 2, cursor: 'pointer', fontSize: 9,
-                      fontFamily: fMichroma, letterSpacing: '0.08em', textTransform: 'uppercase',
+                      fontFamily: fLabel, letterSpacing: '0.08em',
                       background: isActive ? C.accentDim : 'transparent',
                       border: `1px solid ${isActive ? C.accent : C.border}`,
                       color: isActive ? C.accent : C.muted,
@@ -493,7 +491,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                         <span onClick={toggleTheme} style={{ flex: 1, cursor: 'pointer', fontSize: 10, color: checkedCount > 0 ? C.text : C.muted }}>
                           {theme.label}
                         </span>
-                        <span style={{ fontSize: 9, fontFamily: fMichroma, color: C.textDim }}>
+                        <span style={{ fontSize: 9, fontFamily: fLabel, color: C.textDim }}>
                           {checkedCount}/{themeFeats.length}
                         </span>
                         {/* Chevron */}
@@ -553,7 +551,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
 
             {/* Durée isochrone */}
             <div>
-              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase', marginBottom: 6 }}>
+              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 6 }}>
                 Durée isochrone (minutes)
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -568,7 +566,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     width: 80, padding: '7px 10px', borderRadius: 2,
                     background: C.bgInput, border: `1px solid ${duration < 5 || duration > 120 ? C.red : C.border}`,
                     color: C.text, fontFamily: fMono, fontSize: 13,
-                    outline: 'none',
+                    outline: 'none', transition: 'border-color 0.2s ease',
                   }}
                 />
                 <span style={{ fontSize: 10, color: C.muted }}>min (5 – 120)</span>
@@ -586,7 +584,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
 
             {/* Transport */}
             <div>
-              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase', marginBottom: 6 }}>
+              <div style={{ fontSize: 9, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 6 }}>
                 Mode de transport
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -596,7 +594,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     background: transport === m ? C.accentDim : C.bgInput,
                     border: `1px solid ${transport === m ? C.accent : C.border}`,
                     color: transport === m ? C.accent : C.muted,
-                    fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+                    fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
                   }}>
                     {m === 'drive' ? 'Voiture' : m === 'walk' ? 'Marche' : 'Vélo'}
                   </button>
@@ -611,13 +609,13 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                 style={{
                   width: 30, height: 16, borderRadius: 2, flexShrink: 0,
                   background: dryRun ? C.amber : C.border,
-                  position: 'relative', transition: 'background 0.15s', cursor: 'pointer',
+                  position: 'relative', transition: 'background 0.2s ease', cursor: 'pointer',
                 }}
               >
                 <div style={{
                   position: 'absolute', top: 1, left: dryRun ? 15 : 1,
                   width: 14, height: 14, borderRadius: 1,
-                  background: '#fff', transition: 'left 0.15s',
+                  background: '#fff', transition: 'left 0.2s ease',
                 }} />
               </div>
               <span style={{ fontSize: 10, color: dryRun ? C.amber : C.muted }}>
@@ -640,7 +638,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
         {/* ─── STEP 4 : Exécution ─── */}
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontFamily: fMichroma, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontFamily: fLabel, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               4 / 4 — Exécution
             </div>
 
@@ -667,7 +665,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                   <span style={{ fontSize: 10, color: C.textDim }}>Job ID :</span>
                   <span style={{ fontSize: 10, color: C.muted, fontFamily: fMono }}>{jobId.slice(0, 8)}…</span>
                   <span style={{
-                    fontSize: 9, padding: '2px 7px', borderRadius: 1, fontFamily: fMichroma, letterSpacing: 1,
+                    fontSize: 9, padding: '2px 7px', borderRadius: 1, fontFamily: fLabel, letterSpacing: 1,
                     background: jobStatus === 'done' ? C.greenDim : jobStatus === 'failed' ? C.redDim : C.amberDim,
                     border: `1px solid ${jobStatus === 'done' ? C.green : jobStatus === 'failed' ? C.red : C.amber}44`,
                     color: jobStatus === 'done' ? C.green : jobStatus === 'failed' ? C.red : C.amber,
@@ -727,9 +725,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
           <button onClick={() => setStep((s => (s - 1) as 1 | 2 | 3 | 4)(step))} style={{
             padding: '8px 16px', borderRadius: 2, cursor: 'pointer',
             background: 'transparent', border: `1px solid ${C.border}`,
-            color: C.muted, fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+            color: C.muted, fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
           }}>
-            ← RETOUR
+            Retour
           </button>
         ) : <div />}
 
@@ -743,9 +741,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
               background: canGoTo2 ? C.accentDim : 'transparent',
               border: `1px solid ${canGoTo2 ? C.accent : C.border}`,
               color: canGoTo2 ? C.accent : C.muted,
-              fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+              fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
             }}>
-            SUIVANT →
+            Suivant
           </button>
         )}
         {step === 2 && (
@@ -757,9 +755,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
               background: canGoTo3 ? C.accentDim : 'transparent',
               border: `1px solid ${canGoTo3 ? C.accent : C.border}`,
               color: canGoTo3 ? C.accent : C.muted,
-              fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+              fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
             }}>
-            SUIVANT →
+            Suivant
           </button>
         )}
         {step === 3 && (
@@ -771,9 +769,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
               background: canLaunch ? C.greenDim : 'transparent',
               border: `1px solid ${canLaunch ? C.green : C.border}`,
               color: canLaunch ? C.green : C.muted,
-              fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+              fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
             }}>
-            {launching ? 'LANCEMENT…' : '▶ LANCER'}
+            {launching ? 'Lancement...' : 'Lancer'}
           </button>
         )}
         {step === 4 && jobDone && (
@@ -781,22 +779,26 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
             <button onClick={onClose} style={{
               padding: '8px 16px', borderRadius: 2, cursor: 'pointer',
               background: 'transparent', border: `1px solid ${C.border}`,
-              color: C.muted, fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+              color: C.muted, fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
             }}>
-              FERMER
+              Fermer
             </button>
             <Link href="/clusters" style={{ textDecoration: 'none' }}>
               <button style={{
                 padding: '8px 16px', borderRadius: 2, cursor: 'pointer',
                 background: C.greenDim, border: `1px solid ${C.green}44`,
-                color: C.green, fontFamily: fMichroma, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase',
+                color: C.green, fontFamily: fLabel, fontSize: 9, letterSpacing: 1,
               }}>
-                VOIR RÉSULTATS →
+                Voir r\u00e9sultats
               </button>
             </Link>
           </div>
         )}
       </div>
+      <style>{`
+        @keyframes wzFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+      `}</style>
     </div>
   );
 }

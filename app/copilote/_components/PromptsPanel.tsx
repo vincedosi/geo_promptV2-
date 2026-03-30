@@ -97,7 +97,7 @@ const CATEGORIES: PromptCategory[] = [
     id: 'coverage',
     icon: '·',
     label: 'Couverture population',
-    color: '#c4b5fd',
+    color: '#4ecdc4',
     description: "Calcule combien de personnes d'une tranche d'âge sont accessibles depuis un point en un temps donné.",
     prompts: [
       { text: 'Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?', desc: 'Résultat numérique + zone sur la carte' },
@@ -172,7 +172,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
             fontSize: 16,
             lineHeight: 1,
             padding: '0 2px',
-            transition: 'color 0.15s',
+            transition: 'color 0.2s ease',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
@@ -238,7 +238,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '7px 16px 7px 42px',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    transition: 'background 0.12s',
+                    transition: 'background 0.2s ease',
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}

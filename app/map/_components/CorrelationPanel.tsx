@@ -4,23 +4,41 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
+// ── Inject keyframes + reduced-motion ──────────────────────────────────────
+if (typeof document !== 'undefined') {
+  const styleId = 'corr-panel-keyframes';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes corrFadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   bg:        '#050505',
-  bgPanel:   '#08080f',
-  bgInput:   '#0a0a14',
-  border:    '#261a35',
-  accent:    '#a855f7',
-  accentDim: 'rgba(168,85,247,0.12)',
+  bgPanel:   '#0a0a0a',
+  bgInput:   '#111111',
+  border:    '#262626',
+  accent:    '#4ecdc4',
+  accentDim: 'rgba(78,205,196,0.12)',
   green:     '#3dffa0',
   amber:     '#f59e0b',
   red:       '#f87171',
-  muted:     '#8888aa',
-  text:      '#e2e8f0',
-  textDim:   '#6b7280',
+  muted:     '#a0a0a0',
+  text:      '#f0f0f0',
+  textDim:   '#666666',
 };
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
 const fInter    = "'Inter', system-ui, sans-serif";
 
 // ── Groupement des métriques IRIS ──────────────────────────────────────────
@@ -57,6 +75,14 @@ const metricSelectStyle: React.CSSProperties = {
   padding: '6px 8px',
   cursor: 'pointer',
   outline: 'none',
+  transition: 'border-color 0.3s ease',
+};
+
+const handleSelectFocus = (e: React.FocusEvent<HTMLSelectElement>) => {
+  e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)';
+};
+const handleSelectBlur = (e: React.FocusEvent<HTMLSelectElement>) => {
+  e.currentTarget.style.borderColor = '#1a1a1a';
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -328,7 +354,7 @@ function ScatterPlot({ points, stats, width = 280, height = 160, interactive = f
           position: 'absolute',
           left: tooltip.svgX + 10,
           top:  tooltip.svgY - 36,
-          background: '#111',
+          background: '#111111',
           border: `1px solid ${C.border}`,
           borderRadius: 2,
           padding: '4px 8px',
@@ -493,10 +519,10 @@ function CorrelationResultsPanel({
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: 'clamp(550px, 50vw, 680px)',
         background: C.bgPanel,
-        borderLeft: `1px solid ${C.border}`,
+        borderLeft: `0.5px solid #1a1a1a`,
         zIndex: 10000,
         transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 200ms cubic-bezier(0.16,1,0.3,1)',
+        transition: 'transform 0.2s ease',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
@@ -509,8 +535,8 @@ function CorrelationResultsPanel({
           flexShrink: 0,
         }}>
           <div>
-            <div style={{ fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.18em', color: C.accent }}>
-              CORRÉLATION IRIS × {mode === 'iris_iris' ? 'IRIS' : 'POI'}
+            <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.accent }}>
+              Correlation IRIS x {mode === 'iris_iris' ? 'IRIS' : 'POI'}
             </div>
             <div style={{ fontFamily: fMono, fontSize: 10, color: C.muted, marginTop: 3 }}>
               {catLabel} × {metLabel}
@@ -519,12 +545,14 @@ function CorrelationResultsPanel({
           </div>
           <button
             onClick={handleClose}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; }}
             style={{
               background: 'transparent', border: `1px solid ${C.border}`,
               color: C.muted, fontFamily: fMono, fontSize: 14,
               width: 28, height: 28, borderRadius: 2, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
+              flexShrink: 0, transition: 'all 0.2s ease',
             }}
           >
             ✕
@@ -535,7 +563,7 @@ function CorrelationResultsPanel({
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
 
           {stats && corr ? (
-            <>
+            <div style={{ animation: 'corrFadeIn 0.3s ease-out' }}>
               {/* ── Score + Stats grid ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
 
@@ -551,7 +579,7 @@ function CorrelationResultsPanel({
                   <div style={{ fontFamily: fMono, fontSize: 52, color: corr.color, fontWeight: 700, lineHeight: 1 }}>
                     {stats.r >= 0 ? '+' : ''}{stats.r.toFixed(2)}
                   </div>
-                  <div style={{ fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.14em', color: corr.color }}>
+                  <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: corr.color }}>
                     {corr.label}
                   </div>
                   <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textAlign: 'center' }}>
@@ -574,7 +602,7 @@ function CorrelationResultsPanel({
                       border: `1px solid ${C.border}`,
                       borderRadius: 2,
                     }}>
-                      <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: C.textDim }}>
+                      <span style={{ fontFamily: fInter, fontSize: 8, color: C.textDim }}>
                         {label}
                       </span>
                       <span style={{ fontFamily: fMono, fontSize: 12, color: C.text }}>
@@ -598,7 +626,7 @@ function CorrelationResultsPanel({
                     borderRadius: 2,
                   }}>
                     <div style={{ fontFamily: fMono, fontSize: 20, color, fontWeight: 600 }}>{value}</div>
-                    <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.textDim, marginTop: 3 }}>
+                    <div style={{ fontFamily: fInter, fontSize: 8, color: C.textDim, marginTop: 3 }}>
                       {label}
                     </div>
                   </div>
@@ -607,17 +635,18 @@ function CorrelationResultsPanel({
 
               {/* ── Scatter plot ── */}
               <div style={{
-                background: 'rgba(0,0,0,0.35)',
-                border: `1px solid ${C.border}`,
+                background: '#111111',
+                border: `0.5px solid #1a1a1a`,
                 borderRadius: 2,
                 padding: '12px 8px 8px',
                 marginBottom: 16,
+                borderLeft: '2px solid rgba(78,205,196,0.25)',
               }}>
                 <div style={{
-                  fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em',
+                  fontFamily: fInter, fontSize: 9, fontWeight: 500,
                   color: C.textDim, marginBottom: 8, paddingLeft: 8,
                 }}>
-                  NUAGE DE POINTS — {metLabel} × {mode === 'iris_iris' ? catLabel : 'NB POI / IRIS'}
+                  Nuage de points - {metLabel} x {mode === 'iris_iris' ? catLabel : 'Nb POI / IRIS'}
                 </div>
                 <div style={{ width: '100%' }}>
                   <ScatterPlotResponsive points={points} stats={stats} interactive />
@@ -645,10 +674,10 @@ function CorrelationResultsPanel({
                     fontSize: 9, color: C.muted,
                     display: 'inline-block',
                     transform: methodOpen ? 'rotate(90deg)' : 'none',
-                    transition: 'transform .18s',
+                    transition: 'transform 0.2s ease',
                   }}>▶</span>
-                  <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em', color: C.muted }}>
-                    COMPRENDRE CES RÉSULTATS
+                  <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted }}>
+                    Comprendre ces resultats
                   </span>
                 </div>
 
@@ -714,18 +743,18 @@ function CorrelationResultsPanel({
                     : 'rgba(255,255,255,0.02)',
                   border: `1px solid ${residualsActive ? C.green : C.border}`,
                   color: residualsActive ? C.green : C.text,
-                  fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.14em',
+                  fontFamily: fInter, fontSize: 10, fontWeight: 500,
                   cursor: residualsLoading ? 'not-allowed' : 'pointer',
-                  marginBottom: 8,
+                  marginBottom: 8, transition: 'all 0.2s ease',
                 }}
               >
                 {residualsLoading
-                  ? (loadingMsg?.toUpperCase() ?? 'CHARGEMENT…')
+                  ? (loadingMsg ?? 'Chargement...')
                   : residualsActive
-                    ? '✓ RÉSIDUS AFFICHÉS — CLIQUER POUR MASQUER'
+                    ? 'Residus affiches - cliquer pour masquer'
                     : hasCachedResiduals
-                      ? 'RÉAFFICHER LES RÉSIDUS'
-                      : 'VOIR LES RÉSIDUS SUR LA CARTE'}
+                      ? 'Reafficher les residus'
+                      : 'Voir les residus sur la carte'}
               </button>
               {residualsError && (
                 <div style={{ fontFamily: fMono, fontSize: 9, color: C.red, marginBottom: 8 }}>
@@ -744,12 +773,13 @@ function CorrelationResultsPanel({
                     : 'rgba(245,158,11,0.1)',
                   border: `1px solid ${aiLoading ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.5)'}`,
                   color: aiLoading ? C.textDim : '#f59e0b',
-                  fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.14em',
+                  fontFamily: fInter, fontSize: 10, fontWeight: 500,
                   cursor: aiLoading ? 'wait' : 'pointer',
                   marginBottom: aiAnalysis || aiError ? 10 : 0,
+                  transition: 'all 0.2s ease',
                 }}
               >
-                {aiLoading ? 'MISTRAL ANALYSE…' : 'ANALYSER AVEC MISTRAL AI'}
+                {aiLoading ? 'Mistral analyse...' : 'Analyser avec Mistral AI'}
               </button>
 
               {/* Résultat IA en accordion */}
@@ -774,10 +804,10 @@ function CorrelationResultsPanel({
                       fontSize: 9, color: '#f59e0b',
                       display: 'inline-block',
                       transform: aiOpen ? 'rotate(90deg)' : 'none',
-                      transition: 'transform .18s',
+                      transition: 'transform 0.2s ease',
                     }}>▶</span>
-                    <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.12em', color: '#f59e0b' }}>
-                      ANALYSE MISTRAL AI
+                    <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#f59e0b' }}>
+                      Analyse Mistral AI
                     </span>
                     <span style={{ fontFamily: fMono, fontSize: 8, color: C.textDim, marginLeft: 'auto' }}>
                       {catLabel} × {metLabel}
@@ -806,7 +836,7 @@ function CorrelationResultsPanel({
                   ! {aiError}
                 </div>
               )}
-            </>
+            </div>
           ) : (
             <div style={{ color: C.textDim, fontFamily: fMono, fontSize: 10, padding: '20px 0' }}>
               Aucun résultat disponible.
@@ -1206,12 +1236,12 @@ export function CorrelationPanel({
                   padding: '4px 12px', border: 'none',
                   background: mode === m ? C.accent : 'transparent',
                   color: mode === m ? '#000' : C.muted,
-                  fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em',
-                  cursor: 'pointer',
+                  fontFamily: fInter, fontSize: 9, fontWeight: 500,
+                  cursor: 'pointer', transition: 'all 0.2s ease',
                   borderRight: m === 'iris_poi' ? `1px solid ${C.border}` : 'none',
                 }}
               >
-                {m === 'iris_poi' ? 'IRIS × POI' : 'IRIS × IRIS'}
+                {m === 'iris_poi' ? 'IRIS x POI' : 'IRIS x IRIS'}
               </button>
             ))}
           </div>
@@ -1220,8 +1250,8 @@ export function CorrelationPanel({
         {/* ── Mode IRIS × POI : sélecteur catégorie POI ── */}
         {mode === 'iris_poi' && (
           <div style={{ padding: '4px 12px 4px' }}>
-            <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted, marginBottom: 6 }}>
-              CATÉGORIE POI
+            <div style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted, marginBottom: 6 }}>
+              Categorie POI
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {categories.map(cat => (
@@ -1235,6 +1265,7 @@ export function CorrelationPanel({
                     color: selectedPOI === cat.key ? C.accent : C.muted,
                     fontFamily: fMono, fontSize: 9, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 4,
+                    transition: 'all 0.2s ease',
                   }}
                 >
                   <span>{cat.icon}</span>
@@ -1253,8 +1284,8 @@ export function CorrelationPanel({
         {mode === 'iris_poi' && (
           <div style={{ padding: '4px 12px 4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em', color: C.muted }}>
-                PORTÉE σ
+              <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted }}>
+                Portee sigma
               </span>
               <span style={{ fontFamily: fMono, fontSize: 9, color: C.accent }}>
                 {sigmaKm < 1 ? `${(sigmaKm * 1000).toFixed(0)} m` : `${sigmaKm} km`}
@@ -1265,7 +1296,7 @@ export function CorrelationPanel({
               min={0.2} max={20} step={0.1}
               value={sigmaKm}
               onChange={e => setSigmaKm(Number(e.target.value))}
-              style={{ width: '100%', accentColor: C.accent, cursor: 'pointer' }}
+              style={{ width: '100%', accentColor: '#4ecdc4', cursor: 'pointer' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 7, color: C.textDim, marginTop: 1 }}>
               <span>200m</span><span>20km</span>
@@ -1282,6 +1313,8 @@ export function CorrelationPanel({
             value={mode === 'iris_iris' ? selectedMetricX : selectedMetric}
             onChange={e => mode === 'iris_iris' ? setSelectedMetricX(e.target.value) : setSelectedMetric(e.target.value)}
             style={metricSelectStyle}
+            onFocus={handleSelectFocus}
+            onBlur={handleSelectBlur}
           >
             {buildGroupedOptions(metrics).map(({ group, items }) => (
               <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
@@ -1303,6 +1336,8 @@ export function CorrelationPanel({
               value={selectedMetricY}
               onChange={e => setSelectedMetricY(e.target.value)}
               style={metricSelectStyle}
+              onFocus={handleSelectFocus}
+              onBlur={handleSelectBlur}
             >
               {buildGroupedOptions(metrics).map(({ group, items }) => (
                 <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
@@ -1320,7 +1355,7 @@ export function CorrelationPanel({
         {/* ── Zone + CALCULER ── */}
         <div style={{ padding: '4px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontFamily: fMichroma, fontSize: 6.5, letterSpacing: '0.12em', color: C.muted }}>ZONE </span>
+            <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted }}>Zone </span>
             <span style={{ fontFamily: fMono, fontSize: 9, color: effectiveDepts ? C.green : C.textDim }}>
               {zoneLabel}
             </span>
@@ -1336,13 +1371,13 @@ export function CorrelationPanel({
             style={{
               flexShrink: 0, padding: '4px 14px', borderRadius: 2,
               background: computing ? C.accentDim : C.accent,
-              border: 'none', color: '#000', fontFamily: fMichroma,
-              fontSize: 7, letterSpacing: '0.12em',
+              border: 'none', color: '#000', fontFamily: fInter,
+              fontSize: 10, fontWeight: 600,
               cursor: computing || !canCompute ? 'not-allowed' : 'pointer',
-              opacity: !canCompute ? 0.4 : 1,
+              opacity: !canCompute ? 0.4 : 1, transition: 'all 0.2s ease',
             }}
           >
-            {computing ? '…' : 'CALCULER'}
+            {computing ? '...' : 'Calculer'}
           </button>
         </div>
 
@@ -1375,15 +1410,15 @@ export function CorrelationPanel({
                 <span style={{ fontFamily: fMono, fontSize: 14, color: corr.color, fontWeight: 700 }}>
                   r = {stats.r >= 0 ? '+' : ''}{stats.r.toFixed(2)}
                 </span>
-                <span style={{ fontFamily: fMichroma, fontSize: 7.5, letterSpacing: '0.1em', color: corr.color }}>
+                <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: corr.color }}>
                   {corr.label}
                 </span>
                 <span style={{ fontFamily: fMono, fontSize: 8, color: C.textDim }}>
                   · {stats.n.toLocaleString('fr')} IRIS
                 </span>
               </div>
-              <span style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.1em' }}>
-                VOIR ›
+              <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted }}>
+                Voir &gt;
               </span>
             </button>
             {/* Indicateur de progression résidus */}

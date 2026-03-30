@@ -145,7 +145,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
           cursor: 'pointer',
           fontFamily: 'JetBrains Mono, monospace',
           letterSpacing: '0.02em',
-          transition: 'background 0.15s',
+          transition: 'background 0.2s ease',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(52,211,153,0.25)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(52,211,153,0.15)')}
@@ -180,10 +180,10 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             style={{
               width: '100%',
               padding: '5px 8px',
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid rgba(255,255,255,0.15)',
+              background: '#0a0a0a',
+              border: '0.5px solid #262626',
               borderRadius: 5,
-              color: '#fff',
+              color: '#f0f0f0',
               fontSize: 12,
               fontFamily: 'JetBrains Mono, monospace',
               outline: 'none',
@@ -211,6 +211,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
               fontWeight: 700,
               cursor: categorie.trim() ? 'pointer' : 'not-allowed',
               fontFamily: 'JetBrains Mono, monospace',
+              transition: 'background 0.2s ease, color 0.2s ease',
             }}
           >
             Lancer l'import
@@ -220,11 +221,12 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             style={{
               padding: '5px 10px',
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.15)',
+              border: '0.5px solid #262626',
               borderRadius: 5,
-              color: 'rgba(255,255,255,0.4)',
+              color: '#a0a0a0',
               fontSize: 11,
               cursor: 'pointer',
+              transition: 'border-color 0.2s ease, color 0.2s ease',
             }}
           >
             Annuler
@@ -267,9 +269,9 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
               <div style={{
                 height: '100%',
                 width: `${pct}%`,
-                background: 'linear-gradient(90deg, #60a5fa, #34d399)',
+                background: '#4ecdc4',
                 borderRadius: 2,
-                transition: 'width 0.3s ease',
+                transition: 'width 0.2s ease',
               }} />
             </div>
             <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -288,11 +290,12 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             marginTop: 8,
             padding: '3px 10px',
             background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.15)',
+            border: '0.5px solid #262626',
             borderRadius: 4,
-            color: 'rgba(255,255,255,0.35)',
+            color: '#a0a0a0',
             fontSize: 10,
             cursor: 'pointer',
+            transition: 'border-color 0.2s ease',
           }}
         >
           Annuler
@@ -328,11 +331,12 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             marginTop: 8,
             padding: '3px 10px',
             background: 'transparent',
-            border: '1px solid rgba(52,211,153,0.3)',
+            border: '0.5px solid rgba(52,211,153,0.3)',
             borderRadius: 4,
             color: '#34d399',
             fontSize: 10,
             cursor: 'pointer',
+            transition: 'background 0.2s ease',
           }}
         >
           Fermer
@@ -362,11 +366,12 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             marginTop: 8,
             padding: '3px 10px',
             background: 'transparent',
-            border: '1px solid rgba(239,68,68,0.3)',
+            border: '0.5px solid rgba(239,68,68,0.3)',
             borderRadius: 4,
             color: '#f87171',
             fontSize: 10,
             cursor: 'pointer',
+            transition: 'background 0.2s ease',
           }}
         >
           Réessayer

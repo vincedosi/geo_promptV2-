@@ -77,20 +77,20 @@ interface Props {
 
 function scoreColor(score: number): string {
   if (score >= 80) return '#3dffa0';
-  if (score >= 50) return '#a855f7';
+  if (score >= 50) return '#4ecdc4';
   return '#ef4444';
 }
 
 function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ flex: 1, height: 4, background: '#1a1a2e', borderRadius: 2 }}>
+      <div style={{ flex: 1, height: 4, background: '#1a1a1a', borderRadius: 2 }}>
         <div style={{
           width: `${Math.min(100, (value / max) * 100)}%`,
           height: '100%',
           background: scoreColor(value),
           borderRadius: 2,
-          transition: 'width 0.4s ease',
+          transition: 'width 0.2s ease',
         }} />
       </div>
       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: scoreColor(value), minWidth: 28, textAlign: 'right' }}>
@@ -179,12 +179,12 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
     return (
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column', gap: 16, color: '#4a3a5c',
+        flexDirection: 'column', gap: 16, color: '#666666',
       }}>
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
           ! aucune ville sélectionnée
         </div>
-        <div style={{ fontSize: 12, color: '#3a2a4a' }}>
+        <div style={{ fontSize: 12, color: '#666666' }}>
           Lancez un scoring depuis le panneau OOH pour afficher l'étude
         </div>
       </div>
@@ -195,7 +195,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
     return (
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a855f7',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#4ecdc4',
       }}>
         <span style={{ animation: 'pulse 1.5s infinite' }}>chargement données {ville}…</span>
       </div>
@@ -210,7 +210,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
       }}>
         <div>! {error}</div>
-        <div style={{ color: '#4a3a5c', fontSize: 11 }}>
+        <div style={{ color: '#666666', fontSize: 11 }}>
           Assurez-vous d'avoir calculé les scores pour {ville}
         </div>
       </div>
@@ -221,7 +221,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
 
   const tooltipStyle = {
     background: '#0a0a0a',
-    border: '1px solid #261a35',
+    border: '0.5px solid #1a1a1a',
     borderRadius: 2,
     fontSize: 11,
     fontFamily: 'JetBrains Mono, monospace',
@@ -234,19 +234,20 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       flex: 1, overflowY: 'auto', padding: '20px 24px 40px',
       display: 'flex', flexDirection: 'column', gap: 24,
       fontFamily: 'Inter, sans-serif',
+      animation: 'dashFadeIn 0.3s ease',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div style={{
-            fontFamily: 'Orbitron, sans-serif', fontSize: 18, fontWeight: 700,
-            color: '#e8e0f0', letterSpacing: 2, textTransform: 'uppercase',
+            fontFamily: "'Inter', sans-serif", fontSize: 18, fontWeight: 700,
+            color: '#f0f0f0', letterSpacing: 2,
           }}>
             Étude OOH — {data.ville}
           </div>
-          <div style={{ fontSize: 11, color: '#4a3a5c', marginTop: 4, fontFamily: 'Michroma, sans-serif', letterSpacing: 1 }}>
+          <div style={{ fontSize: 11, color: '#666666', marginTop: 4, fontFamily: "'Inter', sans-serif", letterSpacing: 1 }}>
             {data.total} panneaux scorés
-            {data.profile_nom && <> · profil <span style={{ color: '#a855f7' }}>{data.profile_nom}</span></>}
+            {data.profile_nom && <> · profil <span style={{ color: '#4ecdc4' }}>{data.profile_nom}</span></>}
             {data.scored_at && <> · {new Date(data.scored_at).toLocaleDateString('fr-FR')}</>}
           </div>
         </div>
@@ -254,11 +255,11 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           onClick={launchAnalysis}
           disabled={analysisLoading}
           style={{
-            padding: '7px 14px', background: analysisLoading ? '#1a1228' : '#0d0820',
-            border: '1px solid #a855f7', borderRadius: 2, color: '#a855f7',
-            fontFamily: 'Michroma, sans-serif', fontSize: 10, letterSpacing: 1,
+            padding: '7px 14px', background: analysisLoading ? '#1a1a1a' : '#111111',
+            border: '1px solid #4ecdc4', borderRadius: 2, color: '#4ecdc4',
+            fontFamily: "'Inter', sans-serif", fontSize: 10, letterSpacing: 1,
             cursor: analysisLoading ? 'not-allowed' : 'pointer',
-            textTransform: 'uppercase', whiteSpace: 'nowrap',
+            whiteSpace: 'nowrap',
           }}
         >
           {analysisLoading ? '▶ analyse en cours…' : '▶ analyse IA'}
@@ -271,20 +272,20 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           { label: 'Score moyen', value: data.kpis.score_moyen, suffix: '/100', color: scoreColor(data.kpis.score_moyen) },
           { label: 'Score max', value: data.kpis.score_max, suffix: '/100', color: scoreColor(data.kpis.score_max) },
           { label: 'Panneaux top', value: data.kpis.top_tier_count, suffix: ` (${data.kpis.top_tier_pct}%)`, color: '#3dffa0' },
-          { label: 'Total scorés', value: data.total, suffix: '', color: '#e8e0f0' },
+          { label: 'Total scorés', value: data.total, suffix: '', color: '#f0f0f0' },
         ].map(kpi => (
           <div key={kpi.label} style={{
-            background: '#080812', border: '1px solid #261a35', borderRadius: 2,
+            background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2,
             padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               {kpi.label}
             </div>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: kpi.color }}>
               {typeof kpi.value === 'number' && kpi.label.includes('Score')
                 ? kpi.value.toFixed(1)
                 : kpi.value}
-              <span style={{ fontSize: 11, color: '#4a3a5c', fontWeight: 400 }}>{kpi.suffix}</span>
+              <span style={{ fontSize: 11, color: '#666666', fontWeight: 400 }}>{kpi.suffix}</span>
             </div>
           </div>
         ))}
@@ -294,35 +295,35 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 16 }}>
 
         {/* Tiers bar */}
-        <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>
+        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
             Répartition tiers
           </div>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={data.tiers} layout="vertical" barSize={14} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#4a3a5c', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="tier" type="category" tick={{ fill: '#8a7a9c', fontSize: 10, fontFamily: 'Michroma' }} axisLine={false} tickLine={false} width={42} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1228' }} />
-              <Bar dataKey="count" name="Panneaux" fill="#a855f7" radius={[0, 2, 2, 0]}
-                label={{ fill: '#8a7a9c', fontSize: 9, position: 'right', fontFamily: 'JetBrains Mono' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <YAxis dataKey="tier" type="category" tick={{ fill: '#666666', fontSize: 10, fontFamily: "'Inter', sans-serif" }} axisLine={false} tickLine={false} width={42} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
+              <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[0, 2, 2, 0]}
+                label={{ fill: '#666666', fontSize: 9, position: 'right', fontFamily: 'JetBrains Mono' }}
               />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Histogram */}
-        <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16 }}>
+        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
             Distribution des scores
           </div>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={data.histogram} barSize={18} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" vertical={false} />
-              <XAxis dataKey="range" tick={{ fill: '#4a3a5c', fontSize: 8, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#4a3a5c', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1228' }} />
-              <Bar dataKey="count" name="Panneaux" fill="#a855f7" radius={[2, 2, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
+              <XAxis dataKey="range" tick={{ fill: '#666666', fontSize: 8, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
+              <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -333,18 +334,18 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
 
         {/* Radar — top20 vs moyenne */}
         {data.radar.length > 0 && (
-          <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
-            <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
               Top 20 vs Moyenne
             </div>
             <ResponsiveContainer width="100%" height={200}>
               <RadarChart data={data.radar} margin={{ top: 8, right: 30, bottom: 8, left: 30 }}>
-                <PolarGrid stroke="#261a35" />
-                <PolarAngleAxis dataKey="critere" tick={{ fill: '#8a7a9c', fontSize: 9, fontFamily: 'Michroma' }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#4a3a5c', fontSize: 8 }} tickCount={4} />
+                <PolarGrid stroke="#262626" />
+                <PolarAngleAxis dataKey="critere" tick={{ fill: '#666666', fontSize: 9, fontFamily: "'Inter', sans-serif" }} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#666666', fontSize: 8 }} tickCount={4} />
                 <Radar name="Top 20" dataKey="top20" stroke="#3dffa0" fill="#3dffa0" fillOpacity={0.15} dot={false} />
-                <Radar name="Moyenne" dataKey="moyenne" stroke="#a855f7" fill="#a855f7" fillOpacity={0.1} dot={false} />
-                <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'Michroma', color: '#8a7a9c', paddingTop: 8 }} />
+                <Radar name="Moyenne" dataKey="moyenne" stroke="#4ecdc4" fill="#4ecdc4" fillOpacity={0.1} dot={false} />
+                <Legend wrapperStyle={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', paddingTop: 8 }} />
                 <Tooltip contentStyle={tooltipStyle} />
               </RadarChart>
             </ResponsiveContainer>
@@ -352,42 +353,42 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         )}
 
         {/* Scatter — score vs distance lycée */}
-        <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
             Score vs Distance lycée
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 16, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
               <XAxis
                 dataKey="distance_lycee" name="Distance (m)" type="number"
-                tick={{ fill: '#4a3a5c', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
-                label={{ value: 'm', position: 'insideRight', fill: '#4a3a5c', fontSize: 9 }}
+                tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
+                label={{ value: 'm', position: 'insideRight', fill: '#666666', fontSize: 9 }}
               />
               <YAxis
                 dataKey="score" name="Score" type="number" domain={[0, 100]}
-                tick={{ fill: '#4a3a5c', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
+                tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
               />
               <ReferenceLine y={80} stroke="#3dffa0" strokeDasharray="4 2" strokeOpacity={0.4} />
-              <ReferenceLine y={50} stroke="#a855f7" strokeDasharray="4 2" strokeOpacity={0.4} />
+              <ReferenceLine y={50} stroke="#4ecdc4" strokeDasharray="4 2" strokeOpacity={0.4} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                cursor={{ stroke: '#261a35' }}
+                cursor={{ stroke: '#262626' }}
                 content={({ payload }) => {
                   if (!payload?.length) return null;
                   const d = payload[0].payload as ScatterPoint;
                   return (
                     <div style={{ ...tooltipStyle, padding: '6px 10px' }}>
-                      <div style={{ color: '#e8e0f0', marginBottom: 2, fontSize: 10 }}>{d.nom}</div>
+                      <div style={{ color: '#f0f0f0', marginBottom: 2, fontSize: 10 }}>{d.nom}</div>
                       <div style={{ color: scoreColor(d.score) }}>Score: {d.score}</div>
-                      {d.distance_lycee && <div style={{ color: '#8a7a9c' }}>Lycée: {Math.round(d.distance_lycee)}m</div>}
+                      {d.distance_lycee && <div style={{ color: '#a0a0a0' }}>Lycée: {Math.round(d.distance_lycee)}m</div>}
                     </div>
                   );
                 }}
               />
               <Scatter
                 data={data.scatter.filter(s => s.distance_lycee !== null)}
-                fill="#a855f7" fillOpacity={0.7} r={3}
+                fill="#4ecdc4" fillOpacity={0.7} r={3}
               />
             </ScatterChart>
           </ResponsiveContainer>
@@ -395,8 +396,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       </div>
 
       {/* Top 5 panneaux */}
-      <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
-        <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>
+      <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+        <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 14 }}>
           Top 5 panneaux
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -407,35 +408,35 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               style={{
                 display: 'grid', gridTemplateColumns: '24px 1fr auto',
                 alignItems: 'center', gap: 12,
-                background: 'transparent', border: '1px solid #1a1228',
+                background: 'transparent', border: '1px solid #1a1a1a',
                 borderRadius: 2, padding: '10px 12px',
                 cursor: 'pointer', textAlign: 'left',
-                transition: 'border-color 0.15s',
+                transition: 'border-color 0.2s ease',
               }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#a855f7')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1228')}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#4ecdc4')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
             >
               <span style={{
-                fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700,
-                color: i === 0 ? '#3dffa0' : '#4a3a5c',
+                fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700,
+                color: i === 0 ? '#3dffa0' : '#666666',
               }}>
                 {i + 1}
               </span>
               <div>
-                <div style={{ fontSize: 12, color: '#e8e0f0', fontWeight: 500 }}>{p.nom}</div>
-                <div style={{ fontSize: 10, color: '#4a3a5c', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
+                <div style={{ fontSize: 12, color: '#f0f0f0', fontWeight: 500 }}>{p.nom}</div>
+                <div style={{ fontSize: 10, color: '#666666', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
                   {p.type_panneau && <span>{p.type_panneau}</span>}
                   {p.regie && <span> · {p.regie}</span>}
                   {p.distance_lycee && <span> · lycée {Math.round(p.distance_lycee)}m</span>}
-                  {p.lycee_proche && <span style={{ color: '#6a5a7c' }}> ({p.lycee_proche})</span>}
+                  {p.lycee_proche && <span style={{ color: '#666666' }}> ({p.lycee_proche})</span>}
                 </div>
                 {p.scoring_results && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {Object.entries(p.scoring_results).slice(0, 4).map(([key, val]) => (
                       <span key={key} style={{
-                        fontSize: 9, fontFamily: 'Michroma, sans-serif',
-                        padding: '2px 6px', background: '#0d0820', border: '1px solid #261a35', borderRadius: 2,
-                        color: '#8a7a9c', letterSpacing: 0.5,
+                        fontSize: 9, fontFamily: "'Inter', sans-serif",
+                        padding: '2px 6px', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 2,
+                        color: '#a0a0a0', letterSpacing: 0.5,
                       }}>
                         {key}: <span style={{ color: scoreColor(val.score) }}>{Math.round(val.score)}</span>
                       </span>
@@ -459,24 +460,24 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
 
       {/* AI Analysis block */}
       {analysisStarted && (
-        <div style={{ background: '#080812', border: '1px solid #261a35', borderRadius: 2, padding: '16px 18px' }}>
+        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 14,
           }}>
-            <div style={{ fontSize: 9, fontFamily: 'Michroma, sans-serif', color: '#4a3a5c', letterSpacing: 1, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               Analyse IA — Mistral
               {analysisLoading && (
-                <span style={{ marginLeft: 8, color: '#a855f7', animation: 'pulse 1.5s infinite' }}>▶ en cours</span>
+                <span style={{ marginLeft: 8, color: '#4ecdc4', animation: 'pulse 1.5s infinite' }}>▶ en cours</span>
               )}
             </div>
             {!analysisLoading && analysisText && (
               <button
                 onClick={launchAnalysis}
                 style={{
-                  padding: '3px 8px', background: 'transparent', border: '1px solid #261a35',
-                  borderRadius: 2, color: '#4a3a5c', fontSize: 9,
-                  fontFamily: 'Michroma, sans-serif', cursor: 'pointer', letterSpacing: 1,
+                  padding: '3px 8px', background: 'transparent', border: '0.5px solid #1a1a1a',
+                  borderRadius: 2, color: '#666666', fontSize: 9,
+                  fontFamily: "'Inter', sans-serif", cursor: 'pointer', letterSpacing: 1,
                 }}
               >
                 ↺ relancer
@@ -485,14 +486,14 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           </div>
           {analysisText ? (
             <div style={{
-              fontSize: 12, color: '#c8b8e0', lineHeight: 1.7,
+              fontSize: 12, color: '#f0f0f0', lineHeight: 1.7,
               fontFamily: 'Inter, sans-serif',
               whiteSpace: 'pre-wrap',
             }}>
               {analysisText}
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: '#4a3a5c', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ fontSize: 11, color: '#666666', fontFamily: 'JetBrains Mono, monospace' }}>
               {analysisLoading ? 'Génération en cours…' : ''}
             </div>
           )}
@@ -503,6 +504,13 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes dashFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
       `}</style>
     </div>

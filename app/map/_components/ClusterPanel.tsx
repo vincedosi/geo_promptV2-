@@ -6,20 +6,19 @@ import { ClusteringWizard } from './ClusteringWizard';
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:      '#050505',
-  bgPanel: '#08080f',
-  bgInput: '#0a0a14',
-  border:  '#261a35',
-  accent:  '#a855f7',
+  bgPanel: '#0a0a0a',
+  bgInput: '#111111',
+  border:  '#262626',
+  accent:  '#4ecdc4',
   green:   '#3dffa0',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#e2e8f0',
-  textDim: '#6b7280',
-  muted:   '#8888aa',
+  text:    '#f0f0f0',
+  textDim: '#666666',
+  muted:   '#a0a0a0',
 };
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
-const fOrbitron = "'Orbitron',sans-serif";
+const fMono  = "'JetBrains Mono', monospace";
+const fLabel = "'Inter', sans-serif";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface ClusterPoi {
@@ -134,13 +133,13 @@ function RadarChart({
       {/* Grid */}
       {[0.25, 0.5, 0.75, 1].map(f => (
         <polygon key={f} points={gridPoly(f)}
-          fill="none" stroke={f === 1 ? '#3a2a50' : '#221530'} strokeWidth={f === 1 ? 0.8 : 0.4} />
+          fill="none" stroke={f === 1 ? '#262626' : '#1a1a1a'} strokeWidth={f === 1 ? 0.8 : 0.4} />
       ))}
       {/* Axes */}
       {keys.map((_, i) => {
         const { x, y } = toXY(angles[i], 1);
         return <line key={i} x1={cx.toFixed(1)} y1={cy.toFixed(1)} x2={x.toFixed(1)} y2={y.toFixed(1)}
-          stroke="#2a1a40" strokeWidth={0.5} />;
+          stroke="#1a1a1a" strokeWidth={0.5} />;
       })}
       {/* Profiles */}
       {profiles.map((prof, pi) => (
@@ -156,7 +155,7 @@ function RadarChart({
         return (
           <text key={i} x={x.toFixed(1)} y={y.toFixed(1)}
             textAnchor={anchor} dominantBaseline={baseline}
-            fontSize={7} fill="#8888aa" fontFamily={fMichroma} letterSpacing="0.05em">
+            fontSize={7} fill="#a0a0a0" fontFamily={fLabel} letterSpacing="0.05em">
             {short}
           </text>
         );
@@ -165,7 +164,7 @@ function RadarChart({
       {labels.map((lbl, li) => (
         <g key={li} transform={`translate(4, ${size - 10 - li * 12})`}>
           <rect width={7} height={7} fill={colors[li]} rx={1} />
-          <text x={10} y={6} fontSize={7} fill={C.muted} fontFamily={fMichroma}>{lbl}</text>
+          <text x={10} y={6} fontSize={7} fill={C.muted} fontFamily={fLabel}>{lbl}</text>
         </g>
       ))}
     </svg>
@@ -327,16 +326,17 @@ export function ClusterPanel({
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const lbl = {
-    fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em',
-    color: C.muted, textTransform: 'uppercase' as const, marginBottom: 6,
+    fontFamily: fLabel, fontSize: 9, letterSpacing: '0.04em',
+    color: C.muted, marginBottom: 6,
+    paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)',
   };
   const btn = (active = false, color = C.accent) => ({
-    fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const, padding: '5px 10px',
+    fontFamily: fLabel, fontSize: 9, letterSpacing: '0.02em',
+    padding: '5px 10px',
     background: active ? `rgba(${hexRgb(color)},0.12)` : 'none',
     border: `1px solid ${active ? color : C.border}`,
     color: active ? color : C.muted,
-    borderRadius: 2, cursor: 'pointer', transition: 'all 0.15s',
+    borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s ease',
   });
 
   // ── Empty / loading state ─────────────────────────────────────────────────
@@ -351,7 +351,7 @@ export function ClusterPanel({
           />
         )}
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ ...lbl, marginBottom: 0 }}>CLUSTERING POI — FILOSOFI</div>
+          <div style={{ ...lbl, marginBottom: 0 }}>Clustering POI</div>
           <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
             Visualise les POI regroupés par profil sociodémographique de leur bassin de chalandise.
           </div>
@@ -365,16 +365,20 @@ export function ClusterPanel({
               ...btn(false, C.green), padding: '8px 14px', fontSize: 8,
               borderColor: C.green, color: C.green,
             }}>
-              ◎ CHARGER LES CLUSTERS
+              Charger les clusters
             </button>
           )}
           <button onClick={() => setWizardOpen(true)} style={{
             ...btn(false, C.amber), padding: '8px 14px', fontSize: 8,
             borderColor: C.amber, color: C.amber,
           }}>
-            ◆ NOUVEAU CLUSTERING
+            Nouveau clustering
           </button>
-          <style>{`@keyframes clPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+          <style>{`
+            @keyframes clPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+            @keyframes clFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+            @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+          `}</style>
         </div>
       </div>
     );
@@ -385,11 +389,11 @@ export function ClusterPanel({
     return (
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={lbl}>MODE COMPARAISON</div>
-          <button onClick={exitCompare} style={{ ...btn(false, C.red), padding: '3px 7px' }}>✕ ANNULER</button>
+          <div style={lbl}>Mode comparaison</div>
+          <button onClick={exitCompare} style={{ ...btn(false, C.red), padding: '3px 7px' }}>Annuler</button>
         </div>
         <div style={{
-          padding: '10px 12px', background: 'rgba(168,85,247,0.07)',
+          padding: '10px 12px', background: 'rgba(78,205,196,0.07)',
           border: `1px solid ${C.accent}`, borderRadius: 2,
         }}>
           <div style={{ fontFamily: fMono, fontSize: 10, color: C.text, marginBottom: 4 }}>
@@ -421,11 +425,11 @@ export function ClusterPanel({
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontFamily: fOrbitron, fontSize: 9, color: C.accent, letterSpacing: '0.12em' }}>
-            CLUSTERS v{meta?.model_version}
+          <div style={{ fontFamily: fLabel, fontSize: 9, color: C.accent, letterSpacing: '0.12em' }}>
+            Clusters v{meta?.model_version}
           </div>
           <button onClick={onToggle} style={{ ...btn(visible, C.green), fontSize: 7, padding: '3px 8px' }}>
-            {visible ? '◉ VISIBLE' : '◎ CACHÉ'}
+            {visible ? 'Visible' : 'Masqu\u00e9'}
           </button>
         </div>
         <div style={{ display: 'flex', gap: 14, fontFamily: fMono, fontSize: 9, color: C.muted }}>
@@ -435,43 +439,43 @@ export function ClusterPanel({
         </div>
         {/* Phase 9 : sélecteur de durée */}
         <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-          <span style={{ fontFamily: fMichroma, fontSize: 6.5, color: C.muted, letterSpacing: '0.1em', alignSelf: 'center', marginRight: 2 }}>DURÉE</span>
+          <span style={{ fontFamily: fLabel, fontSize: 6.5, color: C.muted, letterSpacing: '0.1em', alignSelf: 'center', marginRight: 2 }}>Dur\u00e9e</span>
           {[30, 45, 60].map(d => (
             <button key={d} onClick={() => onDurationChange(d)} style={{
-              fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.08em',
+              fontFamily: fLabel, fontSize: 7, letterSpacing: '0.08em',
               padding: '3px 8px', borderRadius: 2, cursor: 'pointer',
-              background: duration === d ? 'rgba(168,85,247,0.14)' : 'none',
+              background: duration === d ? 'rgba(78,205,196,0.14)' : 'none',
               border: `1px solid ${duration === d ? C.accent : C.border}`,
               color: duration === d ? C.accent : C.muted,
-              transition: 'all 0.15s',
+              transition: 'all 0.2s ease',
             }}>{d} min</button>
           ))}
           {loading && <span style={{ fontFamily: fMono, fontSize: 8, color: C.accent, alignSelf: 'center', marginLeft: 4 }}>...</span>}
           <button onClick={() => setWizardOpen(true)} style={{
-            marginLeft: 'auto', fontFamily: fMichroma, fontSize: 6.5, letterSpacing: '0.08em',
+            marginLeft: 'auto', fontFamily: fLabel, fontSize: 6.5, letterSpacing: '0.08em',
             padding: '3px 8px', borderRadius: 2, cursor: 'pointer',
             background: 'rgba(245,158,11,0.08)', border: `1px solid rgba(245,158,11,0.35)`,
             color: '#f59e0b',
-          }}>◆ NOUVEAU</button>
+          }}>Nouveau</button>
         </div>
       </div>
 
       {/* ── Sub-tabs ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#060612' }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#0a0a0a' }}>
         {([
-          { id: 'legend',  label: 'LÉGENDE' },
+          { id: 'legend',  label: 'L\u00e9gende' },
           { id: 'table',   label: `POI (${poiRows.length})` },
-          { id: 'compare', label: 'COMPARER' },
+          { id: 'compare', label: 'Comparer' },
         ] as const).map(s => (
           <button key={s.id} onClick={() => setSection(s.id)} style={{
             flex: 1, padding: '7px 4px',
-            background: section === s.id ? 'rgba(168,85,247,0.07)' : 'none',
+            background: section === s.id ? 'rgba(78,205,196,0.07)' : 'none',
             border: 'none',
             borderBottom: `2px solid ${section === s.id ? C.accent : 'transparent'}`,
             cursor: 'pointer',
-            fontFamily: fMichroma, fontSize: 6.5, letterSpacing: '0.1em',
+            fontFamily: fLabel, fontSize: 6.5, letterSpacing: '0.1em',
             color: section === s.id ? C.accent : C.muted,
-            transition: 'all 0.15s',
+            transition: 'all 0.2s ease',
           }}>
             {s.label}
           </button>
@@ -520,23 +524,23 @@ export function ClusterPanel({
                   <button
                     onClick={() => { setCompareA(selectedPoi); setCompareMode('selecting'); }}
                     style={{ ...btn(false, C.accent), flex: 1, fontSize: 7 }}>
-                    ⇄ COMPARER
+                    Comparer
                   </button>
                   <button
                     onClick={() => loadDurCompare(selectedPoi.poi_id)}
                     style={{ ...btn(durComparePoi === selectedPoi.poi_id, C.amber), flex: 1, fontSize: 7 }}>
-                    ⧖ DURÉES
+                    Dur\u00e9es
                   </button>
                   <button
                     onClick={() => loadHistory(selectedPoi.poi_id)}
                     style={{ ...btn(showHistory && historyPoi === selectedPoi.poi_id, C.green), flex: 1, fontSize: 7 }}>
-                    ⟳ HIST.
+                    Historique
                   </button>
                 </div>
                 {/* History */}
                 {showHistory && historyPoi === selectedPoi.poi_id && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={lbl}>HISTORIQUE</div>
+                    <div style={lbl}>Historique</div>
                     {history.length === 0 ? (
                       <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Aucun historique</div>
                     ) : history.map(h => (
@@ -568,7 +572,7 @@ export function ClusterPanel({
             <div>
               <div style={lbl}>
                 {filterCluster !== null
-                  ? <><span style={{ color: C.amber, cursor: 'pointer' }} onClick={() => setFilterCluster(null)}>← TOUS</span> · CLUSTER {filterCluster}</>
+                  ? <><span style={{ color: C.amber, cursor: 'pointer' }} onClick={() => setFilterCluster(null)}>Tous</span> · Cluster {filterCluster}</>
                   : `${meta?.k} CLUSTERS · ${geojson.features.length} POI`
                 }
               </div>
@@ -579,12 +583,12 @@ export function ClusterPanel({
                     padding: '7px 10px', background: C.bgInput,
                     border: `1px solid ${filterCluster === Number(cid) ? cl.color : C.border}`,
                     borderRadius: 2, cursor: 'pointer', width: '100%', textAlign: 'left',
-                    transition: 'border-color 0.15s',
+                    transition: 'border-color 0.2s ease',
                   }}>
                     <span style={{ width: 9, height: 9, borderRadius: 1, background: cl.color, flexShrink: 0, display: 'inline-block' }} />
                     <span style={{ flex: 1, fontFamily: fMono, fontSize: 9, color: C.text, lineHeight: 1.3 }}>{cl.label}</span>
                     <span style={{
-                      fontFamily: fMichroma, fontSize: 7, color: cl.color,
+                      fontFamily: fLabel, fontSize: 7, color: cl.color,
                       background: cl.color + '22', padding: '1px 5px', borderRadius: 1,
                     }}>{cl.count}</span>
                   </button>
@@ -595,7 +599,7 @@ export function ClusterPanel({
             {/* Radar chart */}
             {sortedClusters.length > 0 && featKeys.length >= 3 && (
               <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-                <div style={{ ...lbl, marginBottom: 10 }}>PROFILS MOYENS PAR CLUSTER</div>
+                <div style={{ ...lbl, marginBottom: 10 }}>Profils moyens par cluster</div>
                 <RadarChart
                   profiles={sortedClusters.map(([, cl]) => cl.avg_profile)}
                   colors={sortedClusters.map(([, cl]) => cl.color)}
@@ -613,12 +617,12 @@ export function ClusterPanel({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={lbl}>
                 {filterCluster !== null
-                  ? <><span style={{ color: C.amber, cursor: 'pointer' }} onClick={() => setFilterCluster(null)}>← TOUS</span> · CLUSTER {filterCluster}</>
+                  ? <><span style={{ color: C.amber, cursor: 'pointer' }} onClick={() => setFilterCluster(null)}>Tous</span> · Cluster {filterCluster}</>
                   : `${poiRows.length} POI`}
               </div>
               {filterCluster !== null && (
                 <button onClick={() => setFilterCluster(null)}
-                  style={{ ...btn(false, C.amber), padding: '3px 7px', fontSize: 7 }}>✕ FILTRE</button>
+                  style={{ ...btn(false, C.amber), padding: '3px 7px', fontSize: 7 }}>Retirer filtre</button>
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -628,7 +632,7 @@ export function ClusterPanel({
                   padding: '6px 8px', background: C.bgInput,
                   border: `1px solid ${C.border}`, borderRadius: 2,
                   cursor: 'pointer', width: '100%', textAlign: 'left',
-                  transition: 'border-color 0.15s',
+                  transition: 'border-color 0.2s ease',
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 1, background: row.cluster_color, flexShrink: 0, display: 'inline-block' }} />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -638,7 +642,7 @@ export function ClusterPanel({
                     <div style={{ fontFamily: fMono, fontSize: 8, color: C.textDim }}>{row.ville}</div>
                   </div>
                   <span style={{
-                    fontFamily: fMichroma, fontSize: 6.5, color: row.cluster_color,
+                    fontFamily: fLabel, fontSize: 6.5, color: row.cluster_color,
                     background: row.cluster_color + '22', padding: '1px 5px', borderRadius: 1, flexShrink: 0,
                   }}>C{row.cluster_id}</span>
                 </button>
@@ -665,13 +669,13 @@ export function ClusterPanel({
             ) : compareMode !== 'comparing' || !compareA || !compareB ? (
               /* Idle compare — instructions */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={lbl}>COMPARER DEUX POI</div>
+                <div style={lbl}>Comparer deux POI</div>
                 <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, lineHeight: 1.7 }}>
                   1. Cliquez sur un POI sur la carte (onglet Légende)<br />
                   2. Cliquez &quot;⇄ COMPARER&quot; dans sa fiche<br />
                   3. Cliquez sur un second POI
                 </div>
-                <div style={{ ...lbl, marginTop: 4 }}>COMPARAISON DE DURÉES</div>
+                <div style={{ ...lbl, marginTop: 4 }}>Comparaison de dur\u00e9es</div>
                 <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, lineHeight: 1.7 }}>
                   Sélectionnez un POI (Légende), puis cliquez &quot;⧖ DURÉES&quot; pour voir comment son bassin évolue à 30/45/60 min.
                 </div>
@@ -688,12 +692,16 @@ export function ClusterPanel({
           </div>
         )}
       </div>
+      <style>{`
+        @keyframes clFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+      `}</style>
     </div>
   );
 }
 
 // ─── Compare durations panel (Phase 9) ────────────────────────────────────────
-const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: '#a855f7' };
+const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: '#4ecdc4' };
 
 function CompareDurationsView({
   poiName, currentDuration, featKeys, durData, loading, onClose,
@@ -715,8 +723,9 @@ function CompareDurationsView({
   }, [durData]);
 
   const lbl = {
-    fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.14em',
-    color: C.muted, textTransform: 'uppercase' as const, marginBottom: 6,
+    fontFamily: fLabel, fontSize: 9, letterSpacing: '0.04em',
+    color: C.muted, marginBottom: 6,
+    paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)',
   };
 
   function toggleDur(d: number) {
@@ -731,11 +740,11 @@ function CompareDurationsView({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={lbl}>COMPARAISON DURÉES</div>
+          <div style={lbl}>Comparaison dur\u00e9es</div>
           <button onClick={onClose} style={{
-            fontFamily: fMichroma, fontSize: 7, padding: '3px 7px',
+            fontFamily: fLabel, fontSize: 7, padding: '3px 7px',
             background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 2, cursor: 'pointer',
-          }}>✕ FERMER</button>
+          }}>Fermer</button>
         </div>
         <div style={{ fontFamily: fMono, fontSize: 10, color: C.accent }}>
           <span style={{ opacity: 0.7 }}>◈</span> Chargement des profils multi-durées...
@@ -748,11 +757,11 @@ function CompareDurationsView({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={lbl}>COMPARAISON DURÉES</div>
+          <div style={lbl}>Comparaison dur\u00e9es</div>
           <button onClick={onClose} style={{
-            fontFamily: fMichroma, fontSize: 7, padding: '3px 7px',
+            fontFamily: fLabel, fontSize: 7, padding: '3px 7px',
             background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 2, cursor: 'pointer',
-          }}>✕ FERMER</button>
+          }}>Fermer</button>
         </div>
         <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
           Aucune donnée multi-durée disponible pour ce POI.
@@ -783,15 +792,15 @@ function CompareDurationsView({
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={lbl}>COMPARAISON DURÉES</div>
+          <div style={lbl}>Comparaison dur\u00e9es</div>
           <div style={{ fontFamily: fMono, fontSize: 10, color: C.text, fontWeight: 700 }}>
             {poiName.length > 22 ? poiName.slice(0, 22) + '…' : poiName}
           </div>
         </div>
         <button onClick={onClose} style={{
-          fontFamily: fMichroma, fontSize: 7, padding: '3px 7px',
+          fontFamily: fLabel, fontSize: 7, padding: '3px 7px',
           background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 2, cursor: 'pointer',
-        }}>✕ FERMER</button>
+        }}>Fermer</button>
       </div>
 
       {/* Duration toggles */}
@@ -801,12 +810,12 @@ function CompareDurationsView({
           const col    = DUR_COLORS[d] ?? C.muted;
           return (
             <button key={d} onClick={() => toggleDur(d)} style={{
-              fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.08em',
+              fontFamily: fLabel, fontSize: 7, letterSpacing: '0.08em',
               padding: '4px 10px', borderRadius: 2, cursor: 'pointer',
               background: active ? `rgba(${hexRgb(col)},0.12)` : 'none',
               border: `1px solid ${active ? col : C.border}`,
               color: active ? col : C.muted,
-              transition: 'all 0.15s',
+              transition: 'all 0.2s ease',
             }}>
               {d} min {d === currentDuration ? '★' : ''}
             </button>
@@ -817,7 +826,7 @@ function CompareDurationsView({
       {/* Radar chart overlay */}
       {featKeys.length >= 3 && selectedDurs.length > 0 && (
         <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-          <div style={{ ...lbl, marginBottom: 10 }}>PROFILS SUPERPOSÉS</div>
+          <div style={{ ...lbl, marginBottom: 10 }}>Profils superpos\u00e9s</div>
           <RadarChart
             profiles={profiles}
             colors={colors}
@@ -831,7 +840,7 @@ function CompareDurationsView({
       {/* Delta table */}
       {deltaRows.length > 0 && (
         <div>
-          <div style={lbl}>VARIATION PAR FEATURE</div>
+          <div style={lbl}>Variation par feature</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {deltaRows.map(row => (
               <div key={row.key} style={{
@@ -839,7 +848,7 @@ function CompareDurationsView({
                 border: `1px solid ${C.border}`, borderRadius: 2,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span style={{ fontFamily: fMichroma, fontSize: 7, color: C.muted }}>{row.label}</span>
+                  <span style={{ fontFamily: fLabel, fontSize: 7, color: C.muted }}>{row.label}</span>
                   <div style={{ display: 'flex', gap: 6, fontFamily: fMono, fontSize: 8 }}>
                     {selectedDurs.map((d, i) => (
                       <span key={d} style={{ color: colors[i] }}>
@@ -849,7 +858,7 @@ function CompareDurationsView({
                   </div>
                 </div>
                 {/* Range bar */}
-                <div style={{ height: 2, background: '#261a35', borderRadius: 1, position: 'relative' }}>
+                <div style={{ height: 2, background: '#262626', borderRadius: 1, position: 'relative' }}>
                   {selectedDurs.map((d, i) => {
                     const maxAll = Math.max(...row.vals, 0.001);
                     const pct    = (row.vals[i] / maxAll) * 100;
@@ -871,8 +880,8 @@ function CompareDurationsView({
       {/* Summary */}
       {availDurs.length > 1 && (
         <div style={{
-          padding: '8px 12px', background: 'rgba(168,85,247,0.05)',
-          border: '1px solid rgba(168,85,247,0.15)', borderRadius: 2,
+          padding: '8px 12px', background: 'rgba(78,205,196,0.05)',
+          border: '1px solid rgba(78,205,196,0.15)', borderRadius: 2,
         }}>
           <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, lineHeight: 1.7 }}>
             {availDurs.length} paliers disponibles · durée actuelle :{' '}
@@ -903,8 +912,9 @@ function CompareView({
   onFlyTo: (lat: number, lng: number, zoom?: number) => void;
 }) {
   const lbl = {
-    fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 7, letterSpacing: '0.14em',
-    color: '#8888aa', textTransform: 'uppercase' as const, marginBottom: 6,
+    fontFamily: "'Inter', sans-serif", fontSize: 9, letterSpacing: '0.04em',
+    color: '#a0a0a0', marginBottom: 6,
+    paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)',
   };
 
   const clA = summary[String(poiA.cluster_id)];
@@ -927,28 +937,28 @@ function CompareView({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={lbl}>COMPARAISON</div>
+        <div style={lbl}>Comparaison</div>
         <button onClick={onExit} style={{
-          fontFamily: "'Michroma',sans-serif", fontSize: 7, padding: '3px 7px',
-          background: 'none', border: '1px solid #261a35', color: '#8888aa',
+          fontFamily: "'Inter', sans-serif", fontSize: 7, padding: '3px 7px',
+          background: 'none', border: '1px solid #261a35', color: '#a0a0a0',
           borderRadius: 2, cursor: 'pointer',
-        }}>✕ FERMER</button>
+        }}>Fermer</button>
       </div>
 
       {/* POI headers */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {([poiA, poiB] as const).map((poi, i) => (
           <button key={i} onClick={() => poi.lat && onFlyTo(poi.lat, poi.lng!, 12)} style={{
-            padding: '7px 8px', background: '#0a0a14',
+            padding: '7px 8px', background: '#111111',
             border: `1px solid ${[poiA, poiB][i].cluster_color}55`,
             borderRadius: 2, textAlign: 'left', cursor: 'pointer', width: '100%',
           }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#e2e8f0', fontWeight: 700 }}>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#f0f0f0', fontWeight: 700 }}>
               {poi.poi_name.slice(0, 18) || poi.poi_id.slice(0, 8)}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <span style={{ width: 6, height: 6, borderRadius: 1, background: [poiA, poiB][i].cluster_color, display: 'inline-block' }} />
-              <span style={{ fontFamily: "'Michroma',sans-serif", fontSize: 6.5, color: '#8888aa' }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 6.5, color: '#a0a0a0' }}>
                 {poi.cluster_label.split('/')[0].trim().slice(0, 14)}
               </span>
             </div>
@@ -958,15 +968,15 @@ function CompareView({
 
       {/* Radar */}
       {featKeys.length >= 3 && (
-        <div style={{ background: '#0a0a14', border: '1px solid #261a35', borderRadius: 2, padding: 10 }}>
-          <div style={lbl}>PROFILS COMPARÉS</div>
+        <div style={{ background: '#111111', border: '1px solid #261a35', borderRadius: 2, padding: 10 }}>
+          <div style={lbl}>Profils compar\u00e9s</div>
           <RadarChart
             profiles={[
               poiA.profile_features,
               poiB.profile_features,
               ...(clA ? [clA.avg_profile] : []),
             ]}
-            colors={[poiA.cluster_color, poiB.cluster_color, '#444466']}
+            colors={[poiA.cluster_color, poiB.cluster_color, '#666666']}
             labels={[
               poiA.poi_name.slice(0, 10),
               poiB.poi_name.slice(0, 10),
@@ -980,18 +990,18 @@ function CompareView({
 
       {/* Delta table */}
       <div>
-        <div style={lbl}>DELTA PAR FEATURE</div>
+        <div style={lbl}>Delta par feature</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {deltas.map(d => {
             const absDelta = Math.abs(d.delta);
             const barW     = Math.min(100, absDelta * 500);
             return (
               <div key={d.key} style={{
-                padding: '4px 8px', background: '#0a0a14',
+                padding: '4px 8px', background: '#111111',
                 border: '1px solid #261a35', borderRadius: 2,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span style={{ fontFamily: "'Michroma',sans-serif", fontSize: 7, color: '#8888aa' }}>{d.label}</span>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 7, color: '#a0a0a0' }}>{d.label}</span>
                   <div style={{ display: 'flex', gap: 10, fontFamily: "'JetBrains Mono',monospace", fontSize: 8 }}>
                     <span style={{ color: poiA.cluster_color }}>{(d.valA * 100).toFixed(1)}%</span>
                     <span style={{ color: poiB.cluster_color }}>{(d.valB * 100).toFixed(1)}%</span>
@@ -999,11 +1009,11 @@ function CompareView({
                   </div>
                 </div>
                 {/* Delta bar */}
-                <div style={{ height: 2, background: '#261a35', borderRadius: 1 }}>
+                <div style={{ height: 2, background: '#262626', borderRadius: 1 }}>
                   <div style={{
                     height: '100%', width: `${barW}%`,
                     background: d.delta > 0 ? '#3dffa0' : '#f87171',
-                    borderRadius: 1, transition: 'width 0.3s',
+                    borderRadius: 1, transition: 'width 0.2s ease',
                   }} />
                 </div>
               </div>
@@ -1014,11 +1024,11 @@ function CompareView({
 
       {/* Verdict */}
       <div style={{
-        padding: '10px 12px', background: 'rgba(168,85,247,0.06)',
-        border: '1px solid rgba(168,85,247,0.2)', borderRadius: 2,
+        padding: '10px 12px', background: 'rgba(78,205,196,0.06)',
+        border: '1px solid rgba(78,205,196,0.2)', borderRadius: 2,
       }}>
-        <div style={lbl}>VERDICT</div>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: '#e2e8f0', lineHeight: 1.7 }}>
+        <div style={lbl}>Verdict</div>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: '#f0f0f0', lineHeight: 1.7 }}>
           {poiA.cluster_id === poiB.cluster_id
             ? `Même cluster (${poiA.cluster_label.split('/')[0].trim()}). Profils similaires.`
             : `Clusters distincts. Différences principales :`}
@@ -1026,7 +1036,7 @@ function CompareView({
         {poiA.cluster_id !== poiB.cluster_id && (
           <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {top3.map((f, i) => (
-              <div key={f} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#8888aa' }}>
+              <div key={f} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#a0a0a0' }}>
                 {i + 1}. {f}
               </div>
             ))}

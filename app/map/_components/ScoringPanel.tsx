@@ -79,6 +79,25 @@ interface Props {
   inline?: boolean;
 }
 
+// ── Inject keyframes + reduced-motion ──────────────────────────────────────────
+if (typeof document !== 'undefined') {
+  const styleId = 'scoring-panel-keyframes';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes scoreFadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function scoreColor(score: number): string {
   if (score >= 100) return '#16a34a';
@@ -119,7 +138,7 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
   const maxScore = profile?.profil?.total_max ?? 100;
 
   const bar = (val: number, max: number) =>
-    `<div style="background:#1a1a2e;border-radius:2px;height:4px;width:100%;margin-top:2px">` +
+    `<div style="background:#1a1a1a;border-radius:2px;height:4px;width:100%;margin-top:2px">` +
     `<div style="background:${col};height:4px;width:${pct(val, max)}%;border-radius:2px"></div></div>`;
 
   let criteriaHtml = '';
@@ -159,12 +178,12 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
 
   return `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:10px 12px;color:#888;min-width:220px">` +
     `<div style="color:#fff;font-size:12px;font-weight:700;margin-bottom:4px">#${rank} ${nom}</div>` +
-    `<div style="color:#555;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">` +
+    `<div style="color:#666666;font-size:10px;margin-bottom:8px">` +
     `${p.regie ?? '—'} · ${p.type_panneau ?? '—'}</div>` +
     `<div style="color:${col};font-size:16px;font-weight:800;margin-bottom:8px">` +
     `${p.score_ooh_final}/${maxScore} <span style="font-size:10px;font-weight:400;color:#888">${scoreLabel(p.score_ooh_final)}</span></div>` +
     criteriaHtml +
-    `<div style="border-top:1px solid #1a1a2e;margin:6px 0;padding-top:4px;font-size:10px;color:#666">` +
+    `<div style="border-top:1px solid #1a1a1a;margin:6px 0;padding-top:4px;font-size:10px;color:#666">` +
     `Sous-total <span style="color:#ccc">${p.score_ooh_total}/${maxScore}</span>` +
     (p.bonus_isochrone > 0 ? ` · Bonus iso <span style="color:${col}">+${p.bonus_isochrone}</span>` : '') +
     `</div>` +
@@ -357,7 +376,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
       const cFc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [...iso5L.features, ...iso5C.features] };
       try {
         if (!map.getSource(cId)) map.addSource(cId, { type: 'geojson', data: cFc });
-        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.20 } });
+        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': '#4ecdc4', 'fill-opacity': 0.20 } });
       } catch { /* */ }
     }
   }, [isoVisible, isoData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -378,8 +397,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
         `width:18px;height:18px;background:${color}`,
         'border:2px solid rgba(255,255,255,0.85)',
         'border-radius:50%;cursor:pointer',
-        'box-shadow:0 2px 6px rgba(0,0,0,0.5)',
-        'display:flex;align-items:center;justify-content:center',
+                'display:flex;align-items:center;justify-content:center',
         'color:white;font-size:9px;font-weight:700;font-family:system-ui,sans-serif',
       ].join(';');
       el.textContent = rank <= 20 ? String(rank) : '';
@@ -407,57 +425,60 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
   // ── Rendu ──────────────────────────────────────────────────────────────────
   return (
     <div style={inline
-      ? { fontFamily: "'JetBrains Mono','Michroma',monospace" }
-      : { position: 'absolute', top: 8, right: 8, zIndex: 900, fontFamily: "'JetBrains Mono','Michroma',monospace" }
+      ? { fontFamily: "'JetBrains Mono',monospace" }
+      : { position: 'absolute', top: 8, right: 8, zIndex: 900, fontFamily: "'JetBrains Mono',monospace" }
     }>
       {/* Toggle — masqué en mode inline (l'accordéon joue ce rôle) */}
       {!inline && (
         <button
           onClick={() => setOpen(v => !v)}
           style={{
-            background: open ? '#a855f7' : '#0d0d14',
-            border: `1px solid ${open ? '#a855f7' : '#261a35'}`,
-            color: open ? '#fff' : '#a855f7',
+            background: open ? '#4ecdc4' : '#0a0a0a',
+            border: `1px solid ${open ? '#4ecdc4' : '#262626'}`,
+            color: open ? '#000' : '#4ecdc4',
             padding: '5px 10px', borderRadius: 2, cursor: 'pointer',
-            fontSize: 10, fontWeight: 700, letterSpacing: '.1em',
-            textTransform: 'uppercase', fontFamily: 'inherit',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-            display: 'block', marginLeft: 'auto',
+            fontSize: 10, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif",
+            display: 'block', marginLeft: 'auto', transition: 'all 0.2s ease',
           }}
         >
-          {open ? '✕ SCORING' : '★ SCORING OOH'}
+          {open ? 'Fermer scoring' : 'Scoring OOH'}
         </button>
       )}
 
       {(open || inline) && (
         <div style={inline
           ? {
-              background: '#090912', borderRadius: 2,
+              background: '#0a0a0a', borderRadius: 2,
               display: 'flex', flexDirection: 'column', maxHeight: '60vh', width: '100%',
+              animation: 'scoreFadeIn 0.3s ease-out',
             }
           : {
-              marginTop: 4, background: '#090912', border: '1px solid #261a35',
-              borderRadius: 2, width: 288, boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
-              display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)',
+              marginTop: 4, background: '#0a0a0a', border: '1px solid #262626',
+              borderRadius: 2, width: 288, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)',
+              animation: 'scoreFadeIn 0.3s ease-out',
             }
         }>
           {/* ─── Header ──────────────────────────────────────────────── */}
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid #1a1a2e' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid #1a1a1a', background: '#111111', borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ color: '#a855f7', fontSize: 9, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>GEO.PROMPT</span>
-              <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>SCORING OOH</span>
+              <span style={{ color: '#4ecdc4', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif" }}>GEO.PROMPT</span>
+              <span style={{ color: '#f0f0f0', fontSize: 10, fontWeight: 700 }}>Scoring OOH</span>
             </div>
 
             {/* Ville */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
               <input
                 value={ville} onChange={e => setVille(e.target.value)}
-                style={{ flex: 1, background: '#050505', border: '1px solid #261a35', color: '#ccc', padding: '3px 6px', fontSize: 10, borderRadius: 2, fontFamily: 'inherit' }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                style={{ flex: 1, background: '#050505', border: '1px solid #262626', color: '#ccc', padding: '3px 6px', fontSize: 10, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
                 placeholder="Ville"
               />
               <button onClick={() => loadPanneaux()} disabled={loading}
-                style={{ background: '#1a1a2e', border: '1px solid #261a35', color: '#a855f7', padding: '3px 7px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', fontFamily: 'inherit' }}>
-                {loading ? '...' : 'RELOAD'}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                style={{ background: '#1a1a1a', border: '1px solid #262626', color: '#4ecdc4', padding: '3px 7px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                {loading ? '...' : 'Reload'}
               </button>
             </div>
 
@@ -470,7 +491,9 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                     const p = profiles.find(x => x.id === e.target.value);
                     if (p) setSelectedProfile(p);
                   }}
-                  style={{ flex: 1, background: '#050505', border: '1px solid #261a35', color: '#ccc', padding: '3px 5px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                  style={{ flex: 1, background: '#050505', border: '1px solid #262626', color: '#ccc', padding: '3px 5px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
                 >
                   {profiles.map(p => (
                     <option key={p.id} value={p.id}>
@@ -479,17 +502,19 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                   ))}
                 </select>
                 <button onClick={startEdit}
-                  style={{ background: '#0d0d1f', border: '1px solid #261a35', color: '#888', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 700, letterSpacing: '.06em', fontFamily: 'inherit', flexShrink: 0 }}>
-                  EDIT
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                  style={{ background: '#111111', border: '1px solid #262626', color: '#a0a0a0', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0, transition: 'all 0.2s ease' }}>
+                  Edit
                 </button>
               </div>
             )}
 
             {/* Éditeur de profil inline */}
             {editMode && editProfile && (
-              <div style={{ background: '#0a0a16', border: '1px solid #261a35', borderRadius: 2, padding: 8, marginBottom: 6 }}>
+              <div style={{ background: '#0a0a0a', border: '1px solid #262626', borderRadius: 2, padding: 8, marginBottom: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ color: '#a855f7', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em' }}>EDIT PROFIL</span>
+                  <span style={{ color: '#4ecdc4', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif" }}>Edit profil</span>
                   <button onClick={cancelEdit}
                     style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 10, padding: 0 }}>✕</button>
                 </div>
@@ -497,20 +522,22 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                 <input
                   value={editProfile.nom}
                   onChange={e => setEditProfile({ ...editProfile, nom: e.target.value })}
-                  style={{ width: '100%', background: '#050505', border: '1px solid #261a35', color: '#ccc', padding: '3px 6px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', marginBottom: 6, boxSizing: 'border-box' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                  style={{ width: '100%', background: '#050505', border: '1px solid #262626', color: '#ccc', padding: '3px 6px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', marginBottom: 6, boxSizing: 'border-box', transition: 'border-color 0.3s ease', outline: 'none' }}
                   placeholder="Nom du profil"
                 />
                 {/* Critères */}
                 {editProfile.profil.criteres.map((crit, idx) => (
-                  <div key={crit.id} style={{ borderBottom: '1px solid #1a1a2e', paddingBottom: 6, marginBottom: 6 }}>
+                  <div key={crit.id} style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: 6, marginBottom: 6 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <input
                         type="checkbox" checked={crit.enabled}
                         onChange={e => updateCrit(idx, 'enabled', e.target.checked)}
-                        style={{ accentColor: '#a855f7', cursor: 'pointer' }}
+                        style={{ accentColor: '#4ecdc4', cursor: 'pointer' }}
                       />
-                      <span style={{ color: crit.enabled ? '#ccc' : '#444', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', flex: 1 }}>{crit.label}</span>
-                      <span style={{ color: '#a855f7', fontSize: 9, fontWeight: 700 }}>{crit.poids}pts</span>
+                      <span style={{ color: crit.enabled ? '#ccc' : '#444', fontSize: 9, fontWeight: 600, flex: 1 }}>{crit.label}</span>
+                      <span style={{ color: '#4ecdc4', fontSize: 9, fontWeight: 700 }}>{crit.poids}pts</span>
                     </div>
                     {crit.enabled && (
                       <div style={{ paddingLeft: 18 }}>
@@ -519,7 +546,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                           <span style={{ color: '#555', fontSize: 8, width: 50, flexShrink: 0 }}>Poids</span>
                           <input type="range" min={0} max={50} value={crit.poids}
                             onChange={e => updateCrit(idx, 'poids', Number(e.target.value))}
-                            style={{ flex: 1, accentColor: '#a855f7', cursor: 'pointer' }} />
+                            style={{ flex: 1, accentColor: '#4ecdc4', cursor: 'pointer' }} />
                           <span style={{ color: '#888', fontSize: 8, width: 20, textAlign: 'right' }}>{crit.poids}</span>
                         </div>
                         {/* Distance: rayon_max */}
@@ -528,7 +555,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                             <span style={{ color: '#555', fontSize: 8, width: 50, flexShrink: 0 }}>Rayon</span>
                             <input type="range" min={50} max={3000} step={50} value={crit.rayon_max}
                               onChange={e => updateCrit(idx, 'rayon_max', Number(e.target.value))}
-                              style={{ flex: 1, accentColor: '#a855f7', cursor: 'pointer' }} />
+                              style={{ flex: 1, accentColor: '#4ecdc4', cursor: 'pointer' }} />
                             <span style={{ color: '#888', fontSize: 8, width: 36, textAlign: 'right' }}>{crit.rayon_max}m</span>
                           </div>
                         )}
@@ -539,12 +566,12 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                 {/* Boutons save/cancel */}
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button onClick={cancelEdit}
-                    style={{ flex: 1, background: '#0d0d1f', border: '1px solid #261a35', color: '#555', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontFamily: 'inherit' }}>
-                    ANNULER
+                    style={{ flex: 1, background: '#111111', border: '1px solid #262626', color: '#666666', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                    Annuler
                   </button>
                   <button onClick={saveProfile} disabled={savingProfile}
-                    style={{ flex: 1, background: '#1a0d2e', border: '1px solid #a855f7', color: '#a855f7', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 700, fontFamily: 'inherit' }}>
-                    {savingProfile ? '...' : 'SAUVEGARDER'}
+                    style={{ flex: 1, background: '#111111', border: '1px solid #4ecdc4', color: '#4ecdc4', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                    {savingProfile ? '...' : 'Sauvegarder'}
                   </button>
                 </div>
               </div>
@@ -553,12 +580,16 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
             {/* Boutons compute */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
               <button onClick={() => computeScores(['proximity'])} disabled={computing}
-                style={{ flex: 1, background: '#0d0d1f', border: '1px solid #261a35', color: '#888', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, letterSpacing: '.06em', fontFamily: 'inherit' }}>
-                {computing ? '...' : 'CALC PROXIMITE'}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                style={{ flex: 1, background: '#111111', border: '1px solid #262626', color: '#a0a0a0', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                {computing ? '...' : 'Calc proximite'}
               </button>
               <button onClick={() => computeScores(['proximity', 'isochrone'])} disabled={computing}
-                style={{ flex: 1, background: '#0d0d1f', border: '1px solid #261a35', color: '#3dffa0', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, letterSpacing: '.06em', fontFamily: 'inherit' }}>
-                {computing ? '...' : 'CALC + ISO'}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                style={{ flex: 1, background: '#111111', border: '1px solid #262626', color: '#3dffa0', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                {computing ? '...' : 'Calc + ISO'}
               </button>
             </div>
             {computeMsg && (
@@ -567,31 +598,31 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
           </div>
 
           {/* ─── Contrôles filtre + iso ────────────────────────────── */}
-          <div style={{ padding: '6px 10px', borderBottom: '1px solid #1a1a2e', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, fontSize: 9, color: '#555' }}>
               MIN : <span style={{ color: '#ccc' }}>{minScore}</span>
             </div>
             <input type="range" min={0} max={80} value={minScore}
               onChange={e => setMinScore(Number(e.target.value))}
-              style={{ flex: 2, accentColor: '#a855f7', cursor: 'pointer' }} />
+              style={{ flex: 2, accentColor: '#4ecdc4', cursor: 'pointer' }} />
             <button
               onClick={() => { const next = !isoVisible; setIsoVisible(next); if (next && isoData.length === 0) loadIsochrones(); }}
-              style={{ background: isoVisible ? '#1a1035' : '#0d0d14', border: `1px solid ${isoVisible ? '#a855f7' : '#261a35'}`, color: isoVisible ? '#a855f7' : '#444', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 700, letterSpacing: '.06em', fontFamily: 'inherit' }}>
+              style={{ background: isoVisible ? '#111111' : '#0a0a0a', border: `1px solid ${isoVisible ? '#4ecdc4' : '#262626'}`, color: isoVisible ? '#4ecdc4' : '#666666', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
               ISO
             </button>
           </div>
 
           {/* ─── Stats + légende ──────────────────────────────────── */}
-          <div style={{ padding: '4px 10px', borderBottom: '1px solid #1a1a2e', fontSize: 9, color: '#444', display: 'flex', gap: 8 }}>
+          <div style={{ padding: '4px 10px', borderBottom: '1px solid #1a1a1a', fontSize: 9, color: '#444', display: 'flex', gap: 8 }}>
             <span><span style={{ color: '#ccc' }}>{filtered.length}</span> panneaux</span>
             {filtered.length > 0 && (
               <span>top : <span style={{ color: scoreColor(filtered[0].score_ooh_final) }}>{filtered[0].score_ooh_final}</span>/{maxScore}</span>
             )}
             {selectedProfile && !selectedProfile.is_template && (
-              <span style={{ color: '#a855f7' }}>◇ custom</span>
+              <span style={{ color: '#4ecdc4' }}>◇ custom</span>
             )}
           </div>
-          <div style={{ padding: '4px 10px', borderBottom: '1px solid #1a1a2e', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ padding: '4px 10px', borderBottom: '1px solid #1a1a1a', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {[['100+', '#16a34a'], ['70-99', '#22c55e'], ['50-69', '#eab308'], ['30-49', '#f97316'], ['1-29', '#ef4444']].map(([lbl, col]) => (
               <span key={lbl} style={{ fontSize: 8, color: col, fontWeight: 700, letterSpacing: '.04em' }}>{lbl}</span>
             ))}
@@ -625,9 +656,9 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                   ];
               return (
                 <div key={p.id} onClick={() => onFlyTo(p.lat, p.lng, 16)}
-                  style={{ padding: '5px 10px', cursor: 'pointer', borderBottom: '1px solid #0d0d18', display: 'flex', alignItems: 'center', gap: 8 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#0f0f1a')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  style={{ padding: '5px 10px', cursor: 'pointer', borderBottom: '1px solid #111111', display: 'flex', alignItems: 'center', gap: 8 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
                   <div style={{ width: 20, height: 20, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontSize: 9, fontWeight: 700 }}>
                     {rank <= 20 ? rank : ''}
@@ -637,7 +668,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                       {p.reference_panneau ?? 'Panneau'} {p.regie ? `· ${p.regie}` : ''}
                     </div>
                     <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-                      <div style={{ flex: 1, background: '#1a1a2e', borderRadius: 2, height: 3, position: 'relative', marginTop: 4 }}>
+                      <div style={{ flex: 1, background: '#1a1a1a', borderRadius: 2, height: 3, position: 'relative', marginTop: 4 }}>
                         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, background: color, borderRadius: 2, width: `${pct(p.score_ooh_final, maxScore)}%` }} />
                       </div>
                       <div style={{ color, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{p.score_ooh_final}</div>

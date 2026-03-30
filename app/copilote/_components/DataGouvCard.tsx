@@ -195,6 +195,16 @@ function deriveCategorie(title: string): string {
 
 // ─── Composant principal ─────────────────────────────────────────────────────
 
+const dgStyles = `
+@keyframes dgFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; }
+}
+`;
+
 function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
   const [showAll, setShowAll] = useState(false);
   const toolResults: { toolName: string; output: string }[] = [];
@@ -211,12 +221,13 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(0,85,164,0.12), rgba(0,85,164,0.06))',
-      border: '1px solid rgba(0,85,164,0.3)',
+      background: 'rgba(0,85,164,0.06)',
+      border: '0.5px solid rgba(0,85,164,0.3)',
       borderRadius: 10,
       padding: '12px 14px',
       marginBottom: 8,
     }}>
+      <style>{dgStyles}</style>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 16 }}>🇫🇷</span>
@@ -296,10 +307,11 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(showAll ? datasets : datasets.slice(0, 5)).map((ds, i) => (
                 <div key={i} style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: '#111111',
+                  border: '0.5px solid #1a1a1a',
                   borderRadius: 8,
                   padding: '10px 12px',
+                  animation: `dgFadeIn 0.3s ease ${i * 0.06}s both`,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                     <span style={{
@@ -336,8 +348,8 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
                         color: '#93c5fd', fontSize: 13, fontWeight: 600,
                         textDecoration: 'none', lineHeight: 1.3, flex: 1,
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                      onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
                     >
                       {ds.title}
                     </a>
@@ -386,6 +398,7 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
                   cursor: 'pointer',
                   fontFamily: 'JetBrains Mono, monospace',
                   letterSpacing: '0.02em',
+                  transition: 'background 0.2s ease',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.14)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.07)')}
@@ -402,8 +415,8 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
       {/* ── Autres résultats MCP (get_dataset_info, metrics, etc.) ── */}
       {!searchResult && !resourcesResult && toolResults.map((tr, i) => (
         <div key={i} style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: '#111111',
+          border: '0.5px solid #1a1a1a',
           borderRadius: 8,
           padding: '8px 10px',
           marginBottom: i < toolResults.length - 1 ? 6 : 0,

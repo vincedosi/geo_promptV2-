@@ -25,7 +25,7 @@ export function CoverageCard({
   return (
     <div style={{
       background:    'rgba(78,205,196,0.06)',
-      border:        '1px solid rgba(78,205,196,0.2)',
+      border:        '0.5px solid rgba(78,205,196,0.2)',
       borderRadius:  2,
       padding:       '14px 16px',
       marginTop:     6,
@@ -44,7 +44,7 @@ export function CoverageCard({
 
       <div style={{
         background:  'rgba(78,205,196,0.08)',
-        border:      '1px solid rgba(78,205,196,0.2)',
+        border:      '0.5px solid rgba(78,205,196,0.2)',
         borderRadius: 2,
         padding:     '10px 14px',
       }}>
@@ -57,7 +57,7 @@ export function CoverageCard({
         }}>
           {formatted}
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ fontSize: 10, color: '#a0a0a0', marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>
           personnes estimées (prorata spatial)
         </div>
       </div>
@@ -68,8 +68,8 @@ export function CoverageCard({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.35)', width: 44, flexShrink: 0, letterSpacing: '0.1em' }}>{label}</span>
-      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontFamily: "'Inter',system-ui,sans-serif" }}>{children}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: '#666666', width: 44, flexShrink: 0, letterSpacing: '0.1em' }}>{label}</span>
+      <span style={{ fontSize: 12, color: '#f0f0f0', fontFamily: "'Inter', sans-serif" }}>{children}</span>
     </div>
   );
 }
