@@ -305,15 +305,18 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      // ── TMJA — Comptages routiers (LineStrings colorées par volume) ─────
+      // ── TMJA — Comptages routiers (tuiles vectorielles MVT) ─────────────
       map.addSource('tmja-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tiles/tmja/{z}/{x}/{y}`],
+        minzoom: 8,
+        maxzoom: 16,
       });
       map.addLayer({
         id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        'source-layer': 'tmja',
         paint: {
-          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 8, 2.5, 11, 4] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 11, 2.5, 14, 4] as unknown as import('maplibre-gl').ExpressionSpecification,
           'line-color': [
             'step', ['get', 'tmja'],
             '#4292C6',   // < 5 000 : bleu

@@ -64,8 +64,8 @@ export default function MapPage() {
   const [clusterDuration,   setClusterDuration]   = useState(60);
   // Wizard highlight — POIs preview pendant la configuration du clustering
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
-  // TMJA — flux routier (comptages_routiers)
-  const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // TMJA — visibilité du layer vectoriel (les tiles se chargent automatiquement)
+  const [tmjaVisible, setTmjaVisible] = useState(false);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
   // Résidus de corrélation — layer MVT (match expression sur iris-source)
@@ -128,20 +128,14 @@ export default function MapPage() {
     try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
   }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync TMJA GeoJSON → map source ─────────────────────────────────────────
-  useEffect(() => {
+  // ── Toggle visibilité TMJA (source vector — tiles chargées automatiquement) ─
+  const handleToggleTMJA = () => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const src = map.getSource('tmja-source') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (tmjaGeoJSON) {
-      src.setData(tmjaGeoJSON);
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'visible'); } catch { /* */ }
-    } else {
-      src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
-    }
-  }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+    const next = !tmjaVisible;
+    try { map.setLayoutProperty('tmja-lines', 'visibility', next ? 'visible' : 'none'); } catch { /* */ }
+    setTmjaVisible(next);
+  };
 
   // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
@@ -280,22 +274,6 @@ export default function MapPage() {
     if (data?.pois) setZoneData(data);
   };
 
-  // ── Charger TMJA pour la vue courante ───────────────────────────────────────
-  const handleLoadTMJA = async () => {
-    const map = mapRef.current;
-    if (!map) return;
-    const zoom = map.getZoom();
-    if (zoom < 8) {
-      alert('Zoomez davantage (zoom ≥ 8) pour afficher les flux routiers TMJA.');
-      return;
-    }
-    const b = map.getBounds();
-    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}&zoom=${zoom.toFixed(1)}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data: GeoJSON.FeatureCollection = await res.json();
-    setTmjaGeoJSON(data);
-  };
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
   const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
@@ -1092,9 +1070,8 @@ export default function MapPage() {
         scoringMapReady={mapReady}
         onScoreComputed={(v) => setStudyVille(v)}
         onLoadTransport={handleLoadTransport}
-        onLoadTMJA={handleLoadTMJA}
-        tmjaVisible={!!tmjaGeoJSON}
-        onClearTMJA={() => setTmjaGeoJSON(null)}
+        onToggleTMJA={handleToggleTMJA}
+        tmjaVisible={tmjaVisible}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />

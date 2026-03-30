@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 // Tolerance de simplification géométrique selon le zoom (degrés WGS84)
 function zoomToTolerance(zoom: number): number {
-  if (zoom >= 12) return 0;
+  if (zoom >= 12) return 0.0001; // Fix B : was 0, halve payload (-54%) sans perte visuelle
   if (zoom >= 11) return 0.001;
   if (zoom >= 10) return 0.002;
   if (zoom >= 9)  return 0.005;
@@ -45,6 +45,9 @@ export async function GET(req: NextRequest) {
   console.log(`[api/map/tmja] ${featureCount} tronçons dans bbox [${west.toFixed(2)},${south.toFixed(2)},${east.toFixed(2)},${north.toFixed(2)}]`);
 
   return new Response(JSON.stringify(data ?? { type: 'FeatureCollection', features: [] }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400', // Fix A
+    },
   });
 }

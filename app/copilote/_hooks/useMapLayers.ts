@@ -400,9 +400,10 @@ export function useMapLayers({
     const colors = pal.stops.slice(pal.stops.length - deduped.length);
     const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
     const expr = [
-      'interpolate', ['linear'],
-      ['coalesce', ['to-number', ['get', col], 0], 0],
-      ...stopPairs,
+      'case',
+      ['all', ['has', col], ['!=', ['get', col], null]],
+      ['interpolate', ['linear'], ['to-number', ['get', col], 0], ...stopPairs],
+      '#9CA3AF',
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
   }, []);

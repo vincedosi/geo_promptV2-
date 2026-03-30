@@ -172,9 +172,8 @@ export interface FilterPanelProps {
   onScoreComputed?:     (ville: string) => void;
   // Transport & TMJA
   onLoadTransport?:     (types: string[]) => Promise<void>;
-  onLoadTMJA?:          () => Promise<void>;
+  onToggleTMJA?:        () => void;
   tmjaVisible?:         boolean;
-  onClearTMJA?:         () => void;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,7 +306,7 @@ export function FilterPanel({
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
   scoringMapRef, scoringMapReady, onScoreComputed,
-  onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
+  onLoadTransport, onToggleTMJA, tmjaVisible,
   correlationParams, onShowResiduals,
 }: FilterPanelProps) {
 
@@ -414,8 +413,7 @@ export function FilterPanel({
   const [selectedTransportTypes, setSelectedTransportTypes] = useState<string[]>([]);
   const [transportLoading, setTransportLoading]             = useState(false);
 
-  // ── TMJA ──────────────────────────────────────────────────────────────────
-  const [tmjaLoading, setTmjaLoading] = useState(false);
+  // ── TMJA — plus de loading state, tiles chargées automatiquement via MVT ──
 
   // ── Coverage summary (managed internally, fed by CoverageResultsPanel) ──
   const [coverageSummary, setCoverageSummary] = useState<CoverageSummaryEntry[]>([]);
@@ -1454,26 +1452,15 @@ export function FilterPanel({
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  style={{ ...primaryBtn('#f97316', tmjaLoading || !onLoadTMJA), flex: 1 }}
-                  disabled={tmjaLoading || !onLoadTMJA}
-                  onClick={async () => {
-                    setTmjaLoading(true);
-                    try { await onLoadTMJA?.(); }
-                    finally { setTmjaLoading(false); }
-                  }}
+                  style={{ ...primaryBtn(tmjaVisible ? C.muted : '#f97316', !onToggleTMJA), flex: 1 }}
+                  disabled={!onToggleTMJA}
+                  onClick={onToggleTMJA}
                 >
-                  {tmjaLoading ? 'CHARGEMENT…' : tmjaVisible ? '↻ Actualiser' : 'Afficher TMJA'}
+                  {tmjaVisible ? 'Masquer TMJA' : 'Afficher TMJA'}
                 </button>
-                {tmjaVisible && (
-                  <button
-                    style={pill(false, C.muted)}
-                    onClick={onClearTMJA}
-                    title="Masquer le flux routier"
-                  >MASQUER</button>
-                )}
               </div>
               <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                Source : CEREMA — tronçons pour la zone visible
+                Source : CEREMA — tuiles vectorielles, zoom ≥ 8
               </div>
             </div>
 
