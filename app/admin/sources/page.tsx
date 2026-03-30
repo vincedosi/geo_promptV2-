@@ -861,7 +861,7 @@ export default function SourcesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {ss.ooh.top_villes.map((v, i) => (
+                      {(ss.ooh.top_villes ?? []).map((v, i) => (
                         <tr
                           key={v.ville}
                           style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', transition: 'background 0.2s ease', animation: `srcFadeIn 0.3s ease-out ${Math.min(i, 20) * 0.02}s both` }}
