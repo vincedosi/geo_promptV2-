@@ -15,26 +15,25 @@ import { CorrelationPanel, type CorrelationParams, type ResidualsMeta } from './
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   bg:        '#050505',
-  bgPanel:   '#08080f',
-  bgInput:   '#0a0a14',
-  border:    '#261a35',
-  accent:    '#a855f7',
-  accentDim: 'rgba(168,85,247,0.12)',
+  bgPanel:   '#0a0a0a',
+  bgInput:   '#111111',
+  border:    '#1a1a1a',
+  text:      '#f0f0f0',
+  textSec:   '#a0a0a0',
+  textDim:   '#666666',
   green:     '#3dffa0',
   greenDim:  'rgba(61,255,160,0.10)',
-  amber:     '#f59e0b',
-  amberDim:  'rgba(245,158,11,0.10)',
-  red:       '#f87171',
-  redDim:    'rgba(248,113,113,0.08)',
-  redBorder: 'rgba(248,113,113,0.25)',
-  violet:    '#c4b5fd',
-  muted:     '#8888aa',
-  textDim:   '#6b7280',
-  text:      '#e2e8f0',
+  amber:     '#f7b731',
+  amberDim:  'rgba(247,183,49,0.10)',
+  red:       '#ff5757',
+  redDim:    'rgba(255,87,87,0.08)',
+  redBorder: 'rgba(255,87,87,0.25)',
+  muted:     '#666666',
 };
+const fInter    = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
-const fOrbitron = "'Orbitron',sans-serif";
+const fMichroma = fInter;
+const fOrbitron = fInter;
 
 // ─── Données géographiques ─────────────────────────────────────────────────────
 import {
@@ -209,30 +208,30 @@ function MultiDropdown({
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 11px', background: C.bgInput,
-          border: `1px solid ${open ? C.accent : C.border}`, borderRadius: 2,
-          cursor: 'pointer', fontFamily: fMono, fontSize: 11, color: selected.length > 0 ? C.text : C.textDim,
+          border: `0.5px solid ${open ? '#333333' : C.border}`, borderRadius: 4,
+          cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
           transition: 'border-color 0.15s',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <span style={{ color: C.accent, fontSize: 8, marginLeft: 8, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ color: C.textDim, fontSize: 9, marginLeft: 8, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
-          background: '#0d0d1f', border: `1px solid ${C.accent}44`, borderTop: 'none',
-          borderRadius: '0 0 2px 2px', maxHeight: 200, display: 'flex', flexDirection: 'column',
+          background: '#111111', border: `0.5px solid #262626`, borderTop: 'none',
+          borderRadius: '0 0 4px 4px', maxHeight: 200, display: 'flex', flexDirection: 'column',
         }}>
           {searchable && (
-            <div style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+            <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
               <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fMono, fontSize: 11, color: C.text }} />
+                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 13, color: C.text }} />
             </div>
           )}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '8px 11px', fontFamily: fMono, fontSize: 11, color: C.textDim }}>Aucun résultat</div>
+              <div style={{ padding: '8px 11px', fontFamily: fInter, fontSize: 13, color: C.textDim }}>Aucun résultat</div>
             )}
             {filtered.map(item => {
               const active = selected.includes(item.id);
@@ -240,29 +239,29 @@ function MultiDropdown({
                 <button key={item.id} onClick={() => toggle(item.id)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '7px 11px', background: active ? C.accentDim : 'none',
-                    border: 'none', borderBottom: `1px solid ${C.border}`,
+                    padding: '7px 11px', background: active ? 'rgba(255,255,255,0.06)' : 'none',
+                    border: 'none', borderBottom: `0.5px solid ${C.border}`,
                     cursor: 'pointer', textAlign: 'left',
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = active ? C.accentDim : 'none'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(255,255,255,0.06)' : 'none'; }}
                 >
                   <div style={{
-                    width: 11, height: 11, borderRadius: 1, border: `1px solid ${active ? C.accent : C.muted}`,
-                    background: active ? C.accent : 'transparent', flexShrink: 0,
+                    width: 11, height: 11, borderRadius: 2, border: `0.5px solid ${active ? '#f0f0f0' : '#262626'}`,
+                    background: active ? '#f0f0f0' : 'transparent', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {active && <span style={{ fontSize: 7, color: '#fff', fontWeight: 700 }}>✓</span>}
+                    {active && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
                   </div>
-                  <span style={{ fontFamily: fMono, fontSize: 11, color: active ? C.text : C.textDim }}>{item.label}</span>
+                  <span style={{ fontFamily: fInter, fontSize: 13, color: active ? C.text : C.textSec }}>{item.label}</span>
                 </button>
               );
             })}
           </div>
           {selected.length > 0 && (
             <button onClick={() => { onChange([]); setOpen(false); }}
-              style={{ padding: '5px', background: 'none', border: 'none', borderTop: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: fMichroma, fontSize: 7, color: C.red, letterSpacing: '0.1em' }}>
-              TOUT DESELECTIONNER
+              style={{ padding: '6px', background: 'none', border: 'none', borderTop: `0.5px solid ${C.border}`, cursor: 'pointer', fontFamily: fInter, fontSize: 11, color: C.red }}>
+              Tout désélectionner
             </button>
           )}
         </div>
@@ -437,7 +436,7 @@ export function FilterPanel({
     { label: 'Bleu',    hex: '#3b82f6' },
   ];
   const [poiStyles, setPoiStyles] = useState<Record<string, { size: string; color: string }>>({});
-  const getPOIStyle = (poi: string) => poiStyles[poi] ?? { size: 'Standard', color: '#a855f7' };
+  const getPOIStyle = (poi: string) => poiStyles[poi] ?? { size: 'Standard', color: '#a0a0a0' };
   const setPOIStyle = (poi: string, patch: Partial<{ size: string; color: string }>) =>
     setPoiStyles(prev => ({ ...prev, [poi]: { ...getPOIStyle(poi), ...patch } }));
   useEffect(() => { onPOIStylesChange?.(poiStyles); }, [poiStyles, onPOIStylesChange]);
@@ -820,49 +819,49 @@ export function FilterPanel({
 
   // ── Style helpers ─────────────────────────────────────────────────────────
   const hexToRgb = (hex: string): string => {
-    if (!hex.startsWith('#') || hex.length < 7) return '168,85,247';
+    if (!hex.startsWith('#') || hex.length < 7) return '240,240,240';
     return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
   };
 
   const pill = (active: boolean, color: string) => ({
-    fontFamily: fMono, fontSize: 10, padding: '5px 9px',
-    background: active ? `rgba(${hexToRgb(color)},0.15)` : C.bgInput,
-    border: `1px solid ${active ? color : C.border}`, borderRadius: 2,
+    fontFamily: fInter, fontSize: 11, padding: '5px 9px',
+    background: active ? `rgba(${hexToRgb(color)},0.12)` : C.bgInput,
+    border: `0.5px solid ${active ? color : C.border}`, borderRadius: 4,
     color: active ? color : C.textDim, cursor: 'pointer', transition: 'all 0.12s', flexShrink: 0 as const,
   });
 
   const primaryBtn = (color: string, disabled = false) => ({
-    fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.12em',
-    padding: '10px 14px', width: '100%',
-    background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.12)`,
-    border: `1px solid ${disabled ? C.border : color}`, borderRadius: 2,
-    color: disabled ? C.muted : color, cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: fInter, fontSize: 12,
+    padding: '9px 14px', width: '100%',
+    background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.10)`,
+    border: `0.5px solid ${disabled ? C.border : color}`, borderRadius: 4,
+    color: disabled ? C.textDim : color, cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.55 : 1, transition: 'all 0.15s',
   });
 
   const labelStyle = {
-    fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.16em',
-    color: '#9898b8', marginBottom: 6, textTransform: 'uppercase' as const,
+    fontFamily: fInter, fontSize: 11, fontWeight: 500 as const,
+    color: C.textSec, marginBottom: 6,
   };
 
   const inputStyle = {
-    fontFamily: fMono, fontSize: 11, background: C.bgInput,
-    border: `1px solid ${C.border}`, borderRadius: 2,
+    fontFamily: fInter, fontSize: 13, background: C.bgInput,
+    border: `0.5px solid ${C.border}`, borderRadius: 4,
     color: C.text, padding: '7px 10px', outline: 'none', width: '100%',
   };
 
   // ── Tab config ────────────────────────────────────────────────────────────
   const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0) + (clusterGeoJSON ? 1 : 0);
-  const EXPERT_SUBTABS: { id: ExpertSubTab; label: string; color: string; badge?: number }[] = [
-    { id: 'territoire', label: 'TERRITOIRE', color: C.green,   badge: hasTerritoire ? 1 : 0 },
-    { id: 'poi',        label: 'POI',        color: C.accent,  badge: selectedPOI.length + selectedOOH.length },
-    { id: 'analyse',    label: 'ANALYSE',    color: '#76b7b2', badge: clusterGeoJSON ? 1 : 0 },
+  const EXPERT_SUBTABS: { id: ExpertSubTab; label: string; badge?: number }[] = [
+    { id: 'territoire', label: 'Territoire', badge: hasTerritoire ? 1 : 0 },
+    { id: 'poi',        label: 'POI',        badge: selectedPOI.length + selectedOOH.length },
+    { id: 'analyse',    label: 'Analyse',    badge: clusterGeoJSON ? 1 : 0 },
   ];
 
   return (
     <div style={{
       width: panelWidth, minWidth: 260, height: '100%',
-      background: C.bgPanel, borderRight: `1px solid ${C.border}`,
+      background: C.bgPanel, borderRight: `0.5px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       position: 'relative', flexShrink: 0,
     }}>
@@ -873,7 +872,7 @@ export function FilterPanel({
           position: 'absolute', top: 0, right: 0, width: 4, height: '100%',
           cursor: 'col-resize', zIndex: 50, background: 'transparent',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(168,85,247,0.35)'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.08)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       />
 
@@ -888,7 +887,7 @@ export function FilterPanel({
         <div style={{ height: 2, flexShrink: 0, background: C.border, overflow: 'hidden' }}>
           <div style={{
             height: '100%', width: '40%',
-            background: battleLoading ? C.red : C.accent,
+            background: battleLoading ? C.red : C.green,
             animation: 'fpSlide 1.2s ease-in-out infinite',
           }} />
         </div>
@@ -898,13 +897,13 @@ export function FilterPanel({
       <a href="/dashboard" style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '9px 14px', flexShrink: 0,
-        background: 'none', borderBottom: `1px solid ${C.border}`,
-        color: '#6b7280', textDecoration: 'none',
-        fontFamily: "'Michroma', sans-serif", fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+        background: 'none', borderBottom: `0.5px solid ${C.border}`,
+        color: C.textDim, textDecoration: 'none',
+        fontFamily: fInter, fontSize: 12,
         transition: 'all 0.15s',
       }}
-        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#a855f7'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(168,85,247,0.06)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#6b7280'; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.text; (e.currentTarget as HTMLAnchorElement).style.background = '#111111'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.textDim; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
@@ -913,21 +912,19 @@ export function FilterPanel({
       </a>
 
       {/* ── Tab navigation (2 onglets maîtres) ──────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#060612' }}>
+      <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel }}>
         {/* GEO.PROMPT */}
         {(() => {
           const active = activeTab === 'geoprompt';
           return (
             <button onClick={() => setActiveTab('geoprompt')} style={{
               flex: 1, padding: '11px 6px 10px',
-              background: active ? `rgba(168,85,247,0.07)` : 'none',
-              border: 'none', borderBottom: active ? `2px solid ${C.accent}` : '2px solid transparent',
+              background: active ? '#151515' : 'none',
+              border: 'none', borderBottom: active ? `1.5px solid #f0f0f0` : '1.5px solid transparent',
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em' }}>
-                <span style={{ color: active ? '#3dffa0' : '#8888aa' }}>GEO</span>
-                <span style={{ color: active ? C.accent : '#8888aa' }}>.</span>
-                <span style={{ color: active ? C.text : '#8888aa' }}>PROMPT</span>
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim }}>
+                Geo.Prompt
               </div>
             </button>
           );
@@ -938,15 +935,15 @@ export function FilterPanel({
           return (
             <button onClick={() => setActiveTab('expert')} style={{
               flex: 1, padding: '11px 6px 10px', position: 'relative',
-              background: active ? 'rgba(61,255,160,0.05)' : 'none',
-              border: 'none', borderBottom: active ? `2px solid ${C.green}` : '2px solid transparent',
+              background: active ? '#151515' : 'none',
+              border: 'none', borderBottom: active ? `1.5px solid #f0f0f0` : '1.5px solid transparent',
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: active ? C.green : '#8888aa', transition: 'color 0.15s' }}>
-                EXPERT
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
+                Expert
               </div>
               {EXPERT_BADGE > 0 && (
-                <div style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
+                <div style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: '50%', background: C.green }} />
               )}
             </button>
           );
@@ -955,21 +952,21 @@ export function FilterPanel({
 
       {/* ── Sous-onglets EXPERT ───────────────────────────────────────────── */}
       {activeTab === 'expert' && (
-        <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#070710' }}>
+        <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel }}>
           {EXPERT_SUBTABS.map(sub => {
             const active = activeExpertTab === sub.id;
             return (
               <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} style={{
                 flex: 1, padding: '8px 4px 7px', position: 'relative',
-                background: active ? `rgba(${hexToRgb(sub.color)},0.07)` : 'none',
-                border: 'none', borderBottom: active ? `1px solid ${sub.color}` : '1px solid transparent',
+                background: active ? '#151515' : 'none',
+                border: 'none', borderBottom: active ? `1px solid #f0f0f0` : '1px solid transparent',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
-                <div style={{ fontFamily: fMichroma, fontSize: 6, letterSpacing: '0.1em', color: active ? sub.color : '#666688', transition: 'color 0.15s' }}>
+                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
                   {sub.label}
                 </div>
                 {(sub.badge ?? 0) > 0 && (
-                  <div style={{ position: 'absolute', top: 5, right: 6, width: 4, height: 4, borderRadius: '50%', background: sub.color, boxShadow: `0 0 4px ${sub.color}` }} />
+                  <div style={{ position: 'absolute', top: 5, right: 6, width: 4, height: 4, borderRadius: '50%', background: C.green }} />
                 )}
               </button>
             );
@@ -1029,9 +1026,9 @@ export function FilterPanel({
                     setSelectedRegions(allSelected ? [] : allIds);
                     setScope(null);
                   }}
-                  style={{ fontFamily: fMichroma, fontSize: 7, color: selectedRegions.length === REGIONS.length ? C.red : C.accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, letterSpacing: '0.08em' }}
+                  style={{ fontFamily: fInter, fontSize: 11, color: selectedRegions.length === REGIONS.length ? C.red : C.textSec, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
-                  {selectedRegions.length === REGIONS.length ? 'TOUT DÉSÉLECTIONNER' : 'TOUT SÉLECTIONNER'}
+                  {selectedRegions.length === REGIONS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
                 </button>
               </div>
               <MultiDropdown
@@ -1085,16 +1082,16 @@ export function FilterPanel({
 
             {/* Territoire summary */}
             {hasTerritoire && (
-              <div style={{ padding: '10px 12px', background: C.greenDim, border: `1px solid rgba(61,255,160,0.2)`, borderRadius: 2 }}>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.green, letterSpacing: '0.1em', marginBottom: 4 }}>
-                  TERRITOIRE SELECTIONNE
+              <div style={{ padding: '10px 12px', background: C.greenDim, border: `0.5px solid rgba(61,255,160,0.2)`, borderRadius: 4 }}>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.green, marginBottom: 4 }}>
+                  Territoire sélectionné
                 </div>
-                <div style={{ fontFamily: fMono, fontSize: 11, color: C.text, lineHeight: 1.4 }}>{territoire}</div>
+                <div style={{ fontFamily: fInter, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{territoire}</div>
                 <button
                   onClick={() => { setScope(null); setSelectedRegions([]); setSelectedDepts([]); setVille(''); setCodePostal(''); }}
-                  style={{ marginTop: 8, fontFamily: fMichroma, fontSize: 7, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, letterSpacing: '0.1em' }}
+                  style={{ marginTop: 8, fontFamily: fInter, fontSize: 11, color: C.textDim, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
-                  ✕ REINITIALISER
+                  ✕ Réinitialiser
                 </button>
               </div>
             )}
@@ -1110,14 +1107,14 @@ export function FilterPanel({
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
             <div style={{ paddingBottom: 4 }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent, marginBottom: 10, borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
-                POINTS D'INTÉRÊT (POI)
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, marginBottom: 10, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
+                Points d'intérêt (POI)
               </div>
             <div>
               <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>
-                  TYPES DE POI
-                  {selectedPOI.length > 0 && <span style={{ color: C.accent }}> — {selectedPOI.length} selectionne{selectedPOI.length > 1 ? 's' : ''}</span>}
+                  Types de POI
+                  {selectedPOI.length > 0 && <span style={{ color: C.textSec }}> — {selectedPOI.length} sélectionné{selectedPOI.length > 1 ? 's' : ''}</span>}
                 </span>
                 <button
                   onClick={() => fetchCategories(true)}
@@ -1138,10 +1135,10 @@ export function FilterPanel({
                     const style = getPOIStyle(poi);
                     // Style commun pour les selects : avec flèche ▾ custom
                     const selectBase: React.CSSProperties = {
-                      fontFamily: fMono, fontSize: 10,
-                      background: '#0a0a14',
-                      border: `1px solid ${C.border}`, borderRadius: 2,
-                      color: C.text, padding: '4px 22px 4px 6px',
+                      fontFamily: fInter, fontSize: 13,
+                      background: C.bgInput,
+                      border: `0.5px solid ${C.border}`, borderRadius: 4,
+                      color: C.text, padding: '4px 22px 4px 8px',
                       outline: 'none', cursor: 'pointer', flex: 1, width: '100%',
                       appearance: 'none' as const,
                     };
@@ -1150,19 +1147,19 @@ export function FilterPanel({
                     };
                     const selectArrow: React.CSSProperties = {
                       position: 'absolute', right: 7, pointerEvents: 'none',
-                      fontFamily: fMono, fontSize: 8, color: C.muted, lineHeight: 1,
+                      fontFamily: fInter, fontSize: 9, color: C.textDim, lineHeight: 1,
                     };
                     return (
                       <div key={poi} style={{
-                        background: 'rgba(168,85,247,0.06)',
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 2, padding: '8px 10px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: `0.5px solid ${C.border}`,
+                        borderRadius: 4, padding: '8px 10px',
                         display: 'flex', flexDirection: 'column', gap: 7,
                       }}>
                         {/* Header : nom + bouton X */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.14em', color: C.accent }}>
-                            {poi.toUpperCase()}
+                          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.text }}>
+                            {poi}
                           </span>
                           <button
                             onClick={() => {
@@ -1180,8 +1177,8 @@ export function FilterPanel({
 
                         {/* Épingle (taille) */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, whiteSpace: 'nowrap', width: 50 }}>
-                            EPINGLE
+                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
+                            Épingle
                           </span>
                           <div style={selectWrap}>
                             <select
@@ -1199,8 +1196,8 @@ export function FilterPanel({
 
                         {/* Couleur */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, whiteSpace: 'nowrap', width: 50 }}>
-                            COULEUR
+                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
+                            Couleur
                           </span>
                           <div style={{ ...selectWrap }}>
                             <div style={{
@@ -1226,11 +1223,11 @@ export function FilterPanel({
                         {/* Nature (metadata->>'libelle_nature') */}
                         {poiNatures[poi]?.length > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted }}>
-                              NATURE
+                            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
+                              Nature
                               {(selectedPoiNatures[poi]?.length ?? 0) > 0 && (
-                                <span style={{ color: C.accent }}>
-                                  {' '}— {selectedPoiNatures[poi].length} selectionnee{selectedPoiNatures[poi].length > 1 ? 's' : ''}
+                                <span style={{ color: C.textSec }}>
+                                  {' '}— {selectedPoiNatures[poi].length} sélectionnée{selectedPoiNatures[poi].length > 1 ? 's' : ''}
                                 </span>
                               )}
                             </span>
@@ -1260,15 +1257,15 @@ export function FilterPanel({
                   onClick={() => onDensityModeChange?.(!densityMode)}
                   style={{
                     flexShrink: 0, padding: '0 10px',
-                    background: densityMode ? 'rgba(168,85,247,0.18)' : C.bgInput,
-                    border: `1px solid ${densityMode ? C.accent : C.border}`,
-                    borderRadius: 2, cursor: 'pointer',
-                    fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.1em',
-                    color: densityMode ? C.accent : C.muted,
+                    background: densityMode ? 'rgba(255,255,255,0.08)' : C.bgInput,
+                    border: `0.5px solid ${densityMode ? '#f0f0f0' : C.border}`,
+                    borderRadius: 4, cursor: 'pointer',
+                    fontFamily: fInter, fontSize: 12,
+                    color: densityMode ? '#f0f0f0' : C.textDim,
                     whiteSpace: 'nowrap', transition: 'all 0.15s',
                   }}
                 >
-                  {densityMode ? '◉ DENSITÉ' : '◎ DENSITÉ'}
+                  {densityMode ? '◉ Densité' : '◎ Densité'}
                 </button>
               </div>
             )}
@@ -1280,33 +1277,33 @@ export function FilterPanel({
 
             {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#76b7b2', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
-                PANNEAUX OOH &amp; DOOH
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
+                Panneaux OOH &amp; DOOH
               </div>
 
               {/* Info stock */}
-              <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, lineHeight: 1.5 }}>
-                <span style={{ color: '#76b7b2' }}>1 434</span> panneaux · Brest Métropole
-                <span style={{ color: C.muted }}> · DECAUX, Clear Channel…</span>
+              <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
+                <span style={{ color: C.textSec }}>1 434</span> panneaux · Brest Métropole
+                <span style={{ color: C.textDim }}> · DECAUX, Clear Channel…</span>
               </div>
 
               {/* Filtre par régie (optionnel) */}
               <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>
-                    FILTRER PAR RÉGIE (optionnel)
-                    {selectedOOH.length > 0 && <span style={{ color: C.accent }}> — {selectedOOH.length} sélectionnée{selectedOOH.length > 1 ? 's' : ''}</span>}
+                    Filtrer par régie (optionnel)
+                    {selectedOOH.length > 0 && <span style={{ color: C.textSec }}> — {selectedOOH.length} sélectionnée{selectedOOH.length > 1 ? 's' : ''}</span>}
                   </span>
                   <span style={{ display: 'flex', gap: 4 }}>
                     <button
                       title="Tout sélectionner"
                       onClick={() => setSelectedOOH(OOH_REGIES.map(r => r.id))}
-                      style={{ background: 'none', border: `1px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 8, padding: '1px 5px', letterSpacing: '0.08em', fontFamily: fMichroma }}
-                    >ALL</button>
+                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 11, padding: '1px 6px', fontFamily: fInter }}
+                    >Tout</button>
                     <button
                       title="Tout désélectionner"
                       onClick={() => setSelectedOOH([])}
-                      style={{ background: 'none', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 5px', lineHeight: 1 }}
+                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '1px 5px', lineHeight: 1 }}
                     >✕</button>
                   </span>
                 </div>
@@ -1334,17 +1331,17 @@ export function FilterPanel({
 
             {/* ── Section : Arrêts de transport en commun ─────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#38bdf8', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
-                ARRÊTS DE TRANSPORT EN COMMUN
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
+                Arrêts de transport en commun
               </div>
 
               {/* Sélection du type */}
               <div>
                 <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>
-                    TYPE DE TRANSPORT
+                    Type de transport
                     {selectedTransportTypes.length > 0 && (
-                      <span style={{ color: '#38bdf8' }}> — {selectedTransportTypes.join(', ')}</span>
+                      <span style={{ color: C.textSec }}> — {selectedTransportTypes.join(', ')}</span>
                     )}
                   </span>
                   {selectedTransportTypes.length > 0 && (
@@ -1359,7 +1356,7 @@ export function FilterPanel({
                   {TRANSPORT_TYPES.map(t => (
                     <button
                       key={t.id}
-                      style={pill(selectedTransportTypes.includes(t.id), '#38bdf8')}
+                      style={pill(selectedTransportTypes.includes(t.id), C.textSec)}
                       onClick={() => setSelectedTransportTypes(prev =>
                         prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
                       )}
@@ -1391,14 +1388,14 @@ export function FilterPanel({
 
             {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#f97316', borderBottom: `1px solid ${C.border}`, paddingBottom: 8 }}>
-                FLUX ROUTIER (TMJA)
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
+                Flux routier (TMJA)
               </div>
 
               {/* Légende couleurs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em', color: C.muted, marginBottom: 2 }}>
-                  LÉGENDE — TRAFIC MOYEN JOURNALIER
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2 }}>
+                  Légende — trafic moyen journalier
                 </div>
                 {[
                   { color: '#4292C6', label: '< 5 000 véh/j' },
@@ -1452,48 +1449,50 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('spatiale')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.spatiale ? 'rgba(168,85,247,0.07)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.spatiale ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.spatiale) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.spatiale) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent }}>
-                ANALYSE SPATIALE
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Analyse spatiale
               </span>
-              <span style={{ color: C.accent, fontSize: 9 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.spatiale && (
-            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}` }}>
             <div style={{ paddingBottom: 4 }}>
 
               {/* Info encart — 0 POI sélectionné */}
               {!hasAnyPOI && (
                 <div style={{
-                  padding: '14px', borderRadius: 2,
+                  padding: '14px', borderRadius: 4,
                   background: 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${C.border}`,
+                  border: `0.5px solid ${C.border}`,
                 }}>
-                  <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: C.muted, marginBottom: 8 }}>
-                    ANALYSES SPATIALES DISPONIBLES
+                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>
+                    Analyses spatiales disponibles
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
-                      { icon: '⬡', label: 'Voronoi Geometrique', desc: 'Zones à vol d\'oiseau' },
-                      { icon: '◎', label: 'Isochrones Routiers',  desc: 'Temps de trajet réel ORS' },
+                      { icon: '⬡', label: 'Voronoï géométrique', desc: 'Zones à vol d\'oiseau' },
+                      { icon: '◎', label: 'Isochrones routiers',  desc: 'Temps de trajet réel ORS' },
                     ].map(tool => (
-                      <div key={tool.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 2, border: `1px solid ${C.border}` }}>
-                        <span style={{ fontSize: 14, color: C.muted, flexShrink: 0, fontFamily: fMono }}>{tool.icon}</span>
+                      <div key={tool.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
+                        <span style={{ fontSize: 14, color: C.textDim, flexShrink: 0, fontFamily: fMono }}>{tool.icon}</span>
                         <div>
-                          <div style={{ fontFamily: fMichroma, fontSize: 8, color: C.muted, letterSpacing: '0.1em' }}>{tool.label}</div>
-                          <div style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, marginTop: 1 }}>{tool.desc}</div>
+                          <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>{tool.label}</div>
+                          <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 1 }}>{tool.desc}</div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ marginTop: 12, padding: '9px 11px', background: C.accentDim, border: `1px solid rgba(168,85,247,0.25)`, borderRadius: 2 }}>
-                    <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.accent, letterSpacing: '0.12em', marginBottom: 4 }}>
-                      SELECTIONNEZ 1 SEUL TYPE DE POI
+                  <div style={{ marginTop: 12, padding: '9px 11px', background: 'rgba(255,255,255,0.03)', border: `0.5px solid #262626`, borderRadius: 4 }}>
+                    <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec, marginBottom: 4 }}>
+                      Sélectionnez 1 seul type de POI
                     </div>
-                    <div style={{ fontFamily: fMono, fontSize: 10, color: C.violet, lineHeight: 1.5 }}>
+                    <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
                       Isolez un réseau (ex: CIRFA) pour débloquer le calcul de zone de chalandise.
                     </div>
                   </div>
@@ -1502,9 +1501,9 @@ export function FilterPanel({
 
               {/* Info encart — plusieurs POI sélectionnés */}
               {selectedPOI.length > 1 && (
-                <div style={{ padding: '10px 12px', background: C.redDim, border: `1px solid ${C.redBorder}`, borderRadius: 2, marginTop: 4 }}>
-                  <div style={{ fontFamily: fMichroma, fontSize: 7, color: C.red, letterSpacing: '0.1em', marginBottom: 4 }}>! TROP DE TYPES SELECTIONNES</div>
-                  <div style={{ fontFamily: fMono, fontSize: 10, color: '#fca5a5', lineHeight: 1.5 }}>
+                <div style={{ padding: '10px 12px', background: C.redDim, border: `0.5px solid ${C.redBorder}`, borderRadius: 4, marginTop: 4 }}>
+                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.red, marginBottom: 4 }}>! Trop de types sélectionnés</div>
+                  <div style={{ fontFamily: fInter, fontSize: 12, color: '#fca5a5', lineHeight: 1.5 }}>
                     Les analyses spatiales nécessitent exactement 1 type de POI. Retirez {selectedPOI.length - 1} type{selectedPOI.length > 2 ? 's' : ''}.
                   </div>
                 </div>
@@ -1519,7 +1518,7 @@ export function FilterPanel({
                     <div style={labelStyle}>MODE DE TRANSPORT</div>
                     <div style={{ display: 'flex', gap: 5 }}>
                       {ISO_MODES.map(m => (
-                        <button key={m.id} style={{ ...pill(transportMode === m.id, C.accent), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
+                        <button key={m.id} style={{ ...pill(transportMode === m.id, '#f0f0f0'), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
                           {m.label}
                         </button>
                       ))}
@@ -1527,32 +1526,32 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Voronoï Géométrique ── */}
-                  <div style={{ border: `1px solid ${showVoronoi ? 'rgba(167,139,250,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showVoronoi ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={isLoading}
                       onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); setShowBattleV2(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showVoronoi ? 'rgba(167,139,250,0.1)' : 'rgba(167,139,250,0.04)',
+                        padding: '9px 12px', background: showVoronoi ? '#111111' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
-                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: voronoiVisible ? '#a78bfa' : '#c4b5fd' }}>
-                        {voronoiVisible ? '✓ ' : ''}VORONOI GEOMETRIQUE
+                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: voronoiVisible ? C.text : C.textSec }}>
+                        {voronoiVisible ? '✓ ' : ''}Voronoï géométrique
                       </span>
-                      <span style={{ color: '#a78bfa', fontSize: 9 }}>{showVoronoi ? '▲' : '▼'}</span>
+                      <span style={{ color: C.textDim, fontSize: 10 }}>{showVoronoi ? '▲' : '▼'}</span>
                     </button>
                     {showVoronoi && (
-                      <div style={{ padding: '12px', background: 'rgba(167,139,250,0.04)', borderTop: `1px solid rgba(167,139,250,0.15)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.violet, lineHeight: 1.5 }}>
+                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
                           Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
                         </div>
-                        <button style={primaryBtn('#a78bfa', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
-                          LANCER LE CALCUL
+                        <button style={primaryBtn('#f0f0f0', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
+                          Lancer le calcul
                         </button>
                         {voronoiVisible && (
-                          <button style={pill(false, '#a78bfa')} onClick={() => setVoronoiVisible(false)}>
-                            Masquer le Voronoi
+                          <button style={pill(false, C.textSec)} onClick={() => setVoronoiVisible(false)}>
+                            Masquer le Voronoï
                           </button>
                         )}
                       </div>
@@ -1560,38 +1559,38 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Bataille V2 — cache only ── */}
-                  <div style={{ border: `1px solid ${showBattleV2 ? 'rgba(34,211,238,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showBattleV2 ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={battleV2Loading}
                       onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattleV2 ? 'rgba(34,211,238,0.07)' : 'rgba(34,211,238,0.03)',
+                        padding: '9px 12px', background: showBattleV2 ? '#111111' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
-                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: battleVisible ? '#22d3ee' : '#67e8f9' }}>
-                        {battleVisible ? '✓ ' : ''}BATAILLE V2 (MULTI-PALIERS)
+                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
+                        {battleVisible ? '✓ ' : ''}Bataille V2 (multi-paliers)
                       </span>
-                      <span style={{ color: '#22d3ee', fontSize: 9 }}>{showBattleV2 ? '▲' : '▼'}</span>
+                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattleV2 ? '▲' : '▼'}</span>
                     </button>
                   {showBattleV2 && (
-                    <div style={{ padding: '13px', background: 'rgba(34,211,238,0.03)', borderTop: '1px solid rgba(34,211,238,0.15)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ fontFamily: fMono, fontSize: 10, color: '#67e8f9', lineHeight: 1.5 }}>
-                        Lit le cache existant — <span style={{ color: '#fff' }}>aucun appel ORS</span>. Paliers manquants skippés.
+                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                        Lit le cache existant — <span style={{ color: C.text }}>aucun appel ORS</span>. Paliers manquants skippés.
                         Lance d'abord les isochrones v1 pour remplir le cache.
                       </div>
 
                       {/* Sélection des paliers */}
                       <div>
-                        <div style={{ ...labelStyle, color: '#22d3ee' }}>
-                          PALIERS — {battleV2Paliers.join(', ')} min
+                        <div style={{ ...labelStyle }}>
+                          Paliers — {battleV2Paliers.join(', ')} min
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {[10, 20, 30, 40, 50, 60, 90].map(p => (
                             <button
                               key={p}
-                              style={pill(battleV2Paliers.includes(p), '#22d3ee')}
+                              style={pill(battleV2Paliers.includes(p), '#f0f0f0')}
                               onClick={() => {
                                 setV2CacheStatus(null);
                                 setBattleV2Paliers(prev =>
@@ -1611,7 +1610,7 @@ export function FilterPanel({
                         {v2CacheStatus && (
                           <div style={{
                             background: v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                            border: `1px solid ${v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(251,191,36,0.35)'}`,
+                            border: `0.5px solid ${v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
                             borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
                           }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1683,14 +1682,14 @@ export function FilterPanel({
                       {v2Filling && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {/* Header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
                             <span style={{ color: C.amber }}>
                               {v2FillTotal > 0 ? `ORS — ${v2FillCompleted}/${v2FillTotal} POIs` : 'ORS — initialisation...'}
                             </span>
-                            <span style={{ color: v2FillPct > 0 ? C.green : C.muted }}>{v2FillPct}%</span>
+                            <span style={{ color: v2FillPct > 0 ? C.green : C.textDim }}>{v2FillPct}%</span>
                           </div>
                           {/* Barre principale */}
-                          <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{
                               height: '100%', borderRadius: 2,
                               width: `${v2FillPct}%`,
@@ -1699,10 +1698,10 @@ export function FilterPanel({
                             }} />
                           </div>
                           {/* Sous-stats */}
-                          <div style={{ display: 'flex', gap: 10, fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                          <div style={{ display: 'flex', gap: 10, fontFamily: fInter, fontSize: 11, color: C.textDim }}>
                             {v2FillTotal > 0 && (
                               <>
-                                <span style={{ color: '#22d3ee' }}>↗ {v2FillRings} isochrones reçus</span>
+                                <span style={{ color: C.green }}>↗ {v2FillRings} isochrones reçus</span>
                                 <span>·</span>
                                 <span>{v2FillTotal - v2FillCompleted} POIs restants</span>
                               </>
@@ -1714,16 +1713,16 @@ export function FilterPanel({
                       {/* ── Barre de progression Bataille V2 ── */}
                       {battleV2Loading && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
-                            <span style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>
-                              BATAILLE V2 — PostGIS ST_Difference...
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
+                            <span style={{ color: C.textSec, animation: 'fpBlink 1s ease-in-out infinite' }}>
+                              Bataille V2 — PostGIS ST_Difference...
                             </span>
                           </div>
                           {/* Barre indéterminée */}
-                          <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                          <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
                             <div style={{
                               position: 'absolute', height: '100%', width: '40%',
-                              background: 'linear-gradient(90deg, transparent, #22d3ee, transparent)',
+                              background: 'linear-gradient(90deg, transparent, #a0a0a0, transparent)',
                               animation: 'fpScan 1.8s linear infinite',
                               borderRadius: 2,
                             }} />
@@ -1734,27 +1733,27 @@ export function FilterPanel({
                       {/* ── Log terminal ── */}
                       {battleV2Log.length > 0 && (
                         <div style={{
-                          background: '#020205', border: '1px solid rgba(34,211,238,0.2)',
-                          borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
-                          color: '#9ca3af', lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
+                          background: '#080808', border: `0.5px solid #262626`,
+                          borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
+                          color: C.textDim, lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
                           display: 'flex', flexDirection: 'column', gap: 1,
                         }}>
                           {battleV2Log.map((line, i) => (
                             <div key={i} style={{
-                              color: line.startsWith('> ✓') ? '#22d3ee'
+                              color: line.startsWith('> ✓') ? C.green
                                    : line.startsWith('> ✕') ? C.red
                                    : line.startsWith('> !') ? C.amber
-                                   : line.startsWith('> ◆') ? '#a78bfa'
+                                   : line.startsWith('> ◆') ? C.textSec
                                    : line.startsWith('> ORS') ? C.amber
-                                   : '#9ca3af',
+                                   : C.textDim,
                             }}>{line}</div>
                           ))}
-                          {(battleV2Loading || v2Filling) && <div style={{ color: '#22d3ee', animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
+                          {(battleV2Loading || v2Filling) && <div style={{ color: C.textSec, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
                         </div>
                       )}
 
                       {battleVisible && (
-                        <button style={pill(false, '#22d3ee')} onClick={() => { setBattleVisible(false); setBattleV2Log([]); }}>
+                        <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleV2Log([]); }}>
                           Masquer
                         </button>
                       )}
@@ -1763,38 +1762,38 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Isochrones Routiers (ORS) ── */}
-                  <div style={{ border: `1px solid ${showBattle ? 'rgba(248,113,113,0.4)' : C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showBattle ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={battleLoading}
                       onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattle ? 'rgba(248,113,113,0.08)' : 'rgba(248,113,113,0.03)',
+                        padding: '9px 12px', background: showBattle ? '#111111' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
-                      <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.12em', color: battleVisible ? C.red : '#fca5a5' }}>
-                        {battleVisible ? '✓ ' : ''}ISOCHRONES ROUTIERS (ORS)
+                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
+                        {battleVisible ? '✓ ' : ''}Isochrones routiers (ORS)
                       </span>
-                      <span style={{ color: C.red, fontSize: 9 }}>{showBattle ? '▲' : '▼'}</span>
+                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattle ? '▲' : '▼'}</span>
                     </button>
                     {showBattle && (
-                    <div style={{ padding: '13px', background: 'rgba(248,113,113,0.03)', borderTop: `1px solid rgba(248,113,113,0.15)`, display: 'flex', flexDirection: 'column', gap: 13 }}>
+                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 13 }}>
 
                       {/* Durées */}
                       <div>
                         <div style={labelStyle}>
-                          TEMPS DE TRAJET
-                          {isoDurations.length > 0 && <span style={{ color: C.red }}> — {isoDurations.join(', ')} min</span>}
+                          Temps de trajet
+                          {isoDurations.length > 0 && <span style={{ color: C.textSec }}> — {isoDurations.join(', ')} min</span>}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {ISO_DURATIONS.map(d => (
-                            <button key={d} style={pill(isoDurations.includes(d), C.red)} onClick={() => toggleDuration(d)}>
+                            <button key={d} style={pill(isoDurations.includes(d), '#f0f0f0')} onClick={() => toggleDuration(d)}>
                               {d} min
                             </button>
                           ))}
                         </div>
-                        <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 5, fontStyle: 'italic' }}>
+                        <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 5, fontStyle: 'italic' }}>
                           Anneaux concentriques — calculé via ORS directement, sans IA
                         </div>
                       </div>
@@ -1803,7 +1802,7 @@ export function FilterPanel({
                       {orsCacheStatus && (
                         <div style={{
                           background: orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                          border: `1px solid ${orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(251,191,36,0.35)'}`,
+                          border: `0.5px solid ${orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
                           borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1860,17 +1859,17 @@ export function FilterPanel({
                           {/* ── Barre de progression ── */}
                           {battleLoading && battleTotal > 0 && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
                                 <span style={{ color: battleProgress === 100 ? C.green : C.amber }}>
-                                  {battleProgress === 100 ? '✓ TERMINÉ' : `ORS — ${battleCompleted}/${battleTotal} POIs`}
+                                  {battleProgress === 100 ? '✓ Terminé' : `ORS — ${battleCompleted}/${battleTotal} POIs`}
                                 </span>
-                                <span style={{ color: battleProgress > 0 ? C.green : C.muted }}>{battleProgress}%</span>
+                                <span style={{ color: battleProgress > 0 ? C.green : C.textDim }}>{battleProgress}%</span>
                               </div>
-                              <div style={{ height: 4, background: '#1a1025', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{
                                   height: '100%',
                                   width: `${battleProgress}%`,
-                                  background: battleProgress === 100 ? C.green : C.accent,
+                                  background: battleProgress === 100 ? C.green : C.textSec,
                                   transition: 'width 0.4s ease',
                                   borderRadius: 2,
                                 }} />
@@ -1879,9 +1878,9 @@ export function FilterPanel({
                           )}
                           {/* ── Log terminal ── */}
                           <div style={{
-                            background: '#020205', border: `1px solid rgba(248,113,113,0.25)`,
-                            borderRadius: 2, padding: '8px 10px', fontFamily: fMono, fontSize: 9,
-                            color: '#9ca3af', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
+                            background: '#080808', border: `0.5px solid #262626`,
+                            borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
+                            color: C.textDim, lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
                             display: 'flex', flexDirection: 'column', gap: 1,
                           }}>
                             {battleLog.map((line, i) => (
@@ -1890,11 +1889,11 @@ export function FilterPanel({
                                      : line.startsWith('> ✕') ? C.red
                                      : line.startsWith('> !') ? C.amber
                                      : line.includes('[3/3]') ? C.green
-                                     : '#9ca3af',
+                                     : C.textDim,
                               }}>{line}</div>
                             ))}
                             {battleLoading && (
-                              <div style={{ color: C.red, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>
+                              <div style={{ color: C.textDim, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>
                             )}
                           </div>
                         </div>
@@ -1902,11 +1901,11 @@ export function FilterPanel({
 
                       {battleVisible && (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button style={pill(false, C.red)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
+                          <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
                             Masquer les isochrones
                           </button>
                           <button
-                            style={pill(battleOuterFillVisible, C.muted)}
+                            style={pill(battleOuterFillVisible, C.textSec)}
                             onClick={() => setBattleOuterFillVisible(!battleOuterFillVisible)}
                             title="Afficher/masquer le remplissage Voronoï résiduel (zones hors portée)"
                           >
@@ -1919,7 +1918,7 @@ export function FilterPanel({
                       {battleRings.length > 0 && !battleLoading && (
                         <>
                         <button
-                          style={{ ...pill(false, C.accent), opacity: battleApplyLoading ? 0.5 : 1 }}
+                          style={{ ...pill(false, C.textSec), opacity: battleApplyLoading ? 0.5 : 1 }}
                           disabled={battleApplyLoading}
                           onClick={async () => {
                             setBattleApplyLoading(true);
@@ -1948,11 +1947,11 @@ export function FilterPanel({
                         </button>
                         {/* Barre de progression BATAILLE */}
                         {battleApplyLoading && (
-                          <div style={{ height: 3, background: 'rgba(168,85,247,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: 3, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{
                               height: '100%',
                               width: `${battleApplyPct}%`,
-                              background: battleApplyPct === 100 ? C.green : C.accent,
+                              background: battleApplyPct === 100 ? C.green : C.textSec,
                               transition: 'width 0.4s ease, background 0.3s',
                             }} />
                           </div>
@@ -1977,17 +1976,19 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('clustering')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.clustering ? 'rgba(118,183,178,0.07)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.clustering ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.clustering) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.clustering) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#76b7b2' }}>
-                CLUSTERING
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Clustering
               </span>
-              <span style={{ color: '#76b7b2', fontSize: 9 }}>{analyseOpen.clustering ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.clustering ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.clustering && (
-            <div style={{ borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ borderBottom: `0.5px solid ${C.border}` }}>
               <div style={{ minHeight: 400 }}>
                 <ClusterPanel
                   geojson={clusterGeoJSON ?? null}
@@ -2011,30 +2012,34 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('carreaux')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.carreaux ? 'rgba(251,191,36,0.07)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.carreaux ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.carreaux) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.carreaux) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.amber }}>
-                CARREAUX
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Carreaux
               </span>
-              <span style={{ color: C.amber, fontSize: 9 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.carreaux && (
-            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
               {/* Toggle visible */}
               <button
                 onClick={() => setCarreauxVisible?.(v => !v)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: carreauxVisible ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${carreauxVisible ? '#60a5fa60' : C.border}`,
-                  borderRadius: 2, cursor: 'pointer', width: '100%',
+                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${carreauxVisible ? '#262626' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
                 }}
               >
-                <span style={{ width: 7, height: 7, background: carreauxVisible ? '#60a5fa' : 'transparent', border: `1.5px solid #60a5fa`, borderRadius: 1, flexShrink: 0 }} />
-                <span style={{ fontFamily: fMono, fontSize: 10, color: carreauxVisible ? '#60a5fa' : C.textDim }}>
+                <span style={{ width: 11, height: 11, background: carreauxVisible ? '#f0f0f0' : 'transparent', border: `0.5px solid ${carreauxVisible ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {carreauxVisible && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
                   Carreaux{carreauxLoaded ? ' ✓' : ''}
                 </span>
               </button>
@@ -2043,7 +2048,7 @@ export function FilterPanel({
               <select
                 value={carreauxIndicateur ?? 'population_totale'}
                 onChange={e => setCarreauxIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: '#0a0a12', border: `1px solid #60a5fa40`, borderRadius: 2, color: '#e2e8f0', fontSize: 10, fontFamily: fMono, padding: '3px 5px', cursor: 'pointer', outline: 'none' }}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
               >
                 {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
                   <optgroup key={g} label={g} style={{ color: C.textDim }}>
@@ -2056,11 +2061,11 @@ export function FilterPanel({
 
               {/* Palette */}
               <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 5 }}>PALETTE</div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {CARREAUX_PALETTES.map(p => (
                     <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? '#e2e8f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? '#f0f0f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
                     >
                       {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
                     </button>
@@ -2070,25 +2075,25 @@ export function FilterPanel({
 
               {/* Opacité */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, whiteSpace: 'nowrap' }}>OPACITÉ</span>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
                 <input type="range" min={0.1} max={1} step={0.05}
                   value={carreauxOpacity ?? 0.72}
                   onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: '#60a5fa', cursor: 'pointer', height: 4 }}
+                  style={{ flex: 1, accentColor: '#f0f0f0', cursor: 'pointer', height: 4 }}
                 />
-                <span style={{ color: C.textDim, fontSize: 9, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
                   {Math.round((carreauxOpacity ?? 0.72) * 100)}%
                 </span>
               </div>
 
               {/* Légende */}
               <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  LÉGENDE
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Légende
                   {carreauxSelectedBucket !== null && (
                     <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                      style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 8, fontFamily: fMichroma, letterSpacing: '0.08em', padding: 0 }}
-                    >✕ TOUT</button>
+                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
+                    >✕ Tout</button>
                   )}
                 </div>
                 {(() => {
@@ -2104,13 +2109,13 @@ export function FilterPanel({
                           const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
                           return (
                             <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `1px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
                             >
                               <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                              <span style={{ color: isSelected ? '#e2e8f0' : C.textDim, fontSize: 8, fontFamily: fMono, flex: 1 }}>
+                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
                                 {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
                               </span>
-                              {isSelected && <span style={{ color, fontSize: 7, fontFamily: fMichroma }}>●</span>}
+                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
                             </button>
                           );
                         })}
@@ -2120,7 +2125,7 @@ export function FilterPanel({
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
+                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
                     </div>
                   );
                 })()}
@@ -2134,31 +2139,35 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('iris')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.iris ? 'rgba(66,146,198,0.07)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.iris ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.iris) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.iris) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: '#4292C6' }}>
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
                 IRIS
-                {irisVisible && <span style={{ color: '#4292C6', marginLeft: 6 }}>●</span>}
+                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
               </span>
-              <span style={{ color: '#4292C6', fontSize: 9 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.iris && (
-            <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
               {/* Toggle visible */}
               <button
                 onClick={() => setIrisVisible?.(v => !v)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: irisVisible ? 'rgba(66,146,198,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${irisVisible ? '#4292C660' : C.border}`,
-                  borderRadius: 2, cursor: 'pointer', width: '100%',
+                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${irisVisible ? '#262626' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
                 }}
               >
-                <span style={{ width: 7, height: 7, background: irisVisible ? '#4292C6' : 'transparent', border: `1.5px solid #4292C6`, borderRadius: 1, flexShrink: 0 }} />
-                <span style={{ fontFamily: fMono, fontSize: 10, color: irisVisible ? '#9ECAE1' : C.textDim }}>
+                <span style={{ width: 11, height: 11, background: irisVisible ? '#f0f0f0' : 'transparent', border: `0.5px solid ${irisVisible ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisVisible && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
                   Couche IRIS
                 </span>
               </button>
@@ -2167,7 +2176,7 @@ export function FilterPanel({
               <select
                 value={irisIndicateur ?? 'pop_15_29'}
                 onChange={e => setIrisIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: '#0a0a12', border: `1px solid #4292C640`, borderRadius: 2, color: '#e2e8f0', fontSize: 10, fontFamily: fMono, padding: '3px 5px', cursor: 'pointer', outline: 'none' }}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
               >
                 {Array.from(
                   IRIS_DB_COLUMNS.reduce((acc, col) => {
@@ -2186,11 +2195,11 @@ export function FilterPanel({
 
               {/* Palette */}
               <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 5 }}>PALETTE</div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {IRIS_PALETTES.map(p => (
                     <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? '#e2e8f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                      style={{ border: `1.5px solid ${irisPalette === p.id ? '#f0f0f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
                     >
                       {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
                     </button>
@@ -2200,20 +2209,20 @@ export function FilterPanel({
 
               {/* Opacité */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, whiteSpace: 'nowrap' }}>OPACITÉ</span>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
                 <input type="range" min={0.1} max={1} step={0.05}
                   value={irisOpacity ?? 0.45}
                   onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: '#4292C6', cursor: 'pointer', height: 4 }}
+                  style={{ flex: 1, accentColor: '#f0f0f0', cursor: 'pointer', height: 4 }}
                 />
-                <span style={{ color: C.textDim, fontSize: 9, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
                   {Math.round((irisOpacity ?? 0.45) * 100)}%
                 </span>
               </div>
 
               {/* Légende */}
               <div>
-                <div style={{ fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.1em', color: C.muted, marginBottom: 4 }}>LÉGENDE</div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
                 {(() => {
                   const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
                   if (irisStats && irisStats.col_exists && irisStats.max > 0) {
@@ -2233,10 +2242,10 @@ export function FilterPanel({
                     );
                   }
                   if (irisVisible && !irisStats) {
-                    return <div style={{ color: C.muted, fontSize: 8, fontFamily: fMono }}>Chargement...</div>;
+                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
                   }
                   if (irisStats && !irisStats.col_exists) {
-                    return <div style={{ color: C.amber, fontSize: 8, fontFamily: fMono }}>! Colonne non disponible en base</div>;
+                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
                   }
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -2254,17 +2263,19 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('couverture')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.couverture ? 'rgba(61,255,160,0.05)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.couverture ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.couverture) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.couverture) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.green }}>
-                COUVERTURE
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Couverture
                 {coverageSummary && coverageSummary.length > 0 && (
-                  <span style={{ color: C.accent, marginLeft: 6 }}>● {coverageSummary.length}</span>
+                  <span style={{ color: C.green, marginLeft: 6 }}>● {coverageSummary.length}</span>
                 )}
               </span>
-              <span style={{ color: C.green, fontSize: 9 }}>{analyseOpen.couverture ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.couverture ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.couverture && (
             <div style={{ padding: '0 4px 4px' }}>
@@ -2283,14 +2294,16 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('correlation')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.correlation ? C.accentDim : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.correlation ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.correlation) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.correlation) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.accent }}>
-                CORRÉLATION IRIS × POI
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Corrélation IRIS × POI
               </span>
-              <span style={{ color: C.accent, fontSize: 9 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.correlation && (
             <div style={{ padding: '0 4px 4px' }}>
@@ -2309,14 +2322,16 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('scoring')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '11px 16px', background: analyseOpen.scoring ? 'rgba(61,255,160,0.05)' : 'transparent',
-                border: 'none', borderBottom: `1px solid ${C.border}`, cursor: 'pointer',
+                padding: '11px 16px', background: analyseOpen.scoring ? '#111111' : 'transparent',
+                border: 'none', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
               }}
+              onMouseEnter={e => { if (!analyseOpen.scoring) (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+              onMouseLeave={e => { if (!analyseOpen.scoring) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <span style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.16em', color: C.green }}>
-                SCORING OOH
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>
+                Scoring OOH
               </span>
-              <span style={{ color: C.green, fontSize: 9 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>
             </button>
             {analyseOpen.scoring && scoringMapRef && (
             <div style={{ padding: '0 4px 4px' }}>
@@ -2340,18 +2355,18 @@ export function FilterPanel({
 
       {/* ── Footer actions ────────────────────────────────────────────────── */}
       {activeTab !== 'geoprompt' && (
-      <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 14px', display: 'flex', gap: 6, flexShrink: 0 }}>
+      <div style={{ borderTop: `0.5px solid ${C.border}`, padding: '10px 14px', display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => setShowSavePanel(true)}
           style={{
-            flex: 1, padding: '8px', fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.12em',
-            background: 'none', border: `1px solid ${C.border}`, borderRadius: 2,
-            color: C.muted, cursor: 'pointer', transition: 'all 0.12s',
+            flex: 1, padding: '8px', fontFamily: fInter, fontSize: 13,
+            background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
+            color: C.textDim, cursor: 'pointer', transition: 'all 0.12s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = C.text; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
         >
-          SAUVEGARDER
+          Sauvegarder
         </button>
       </div>
       )}
