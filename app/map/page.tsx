@@ -284,8 +284,13 @@ export default function MapPage() {
   const handleLoadTMJA = async () => {
     const map = mapRef.current;
     if (!map) return;
+    const zoom = map.getZoom();
+    if (zoom < 8) {
+      alert('Zoomez davantage (zoom ≥ 8) pour afficher les flux routiers TMJA.');
+      return;
+    }
     const b = map.getBounds();
-    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}`;
+    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}&zoom=${zoom.toFixed(1)}`;
     const res = await fetch(url);
     if (!res.ok) return;
     const data: GeoJSON.FeatureCollection = await res.json();

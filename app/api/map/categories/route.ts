@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getDistinctCategories, invalidateCategoriesCache } from '@/lib/poi/categories';
-import { requireAdmin } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,11 +34,8 @@ function withLabels(cats: string[], labelMap: Record<string, string>) {
 
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('refresh') === '1') {
-    // Cache invalidation is a privileged operation — require admin
-    const profile = await requireAdmin(req);
-    if (!profile) {
-      return NextResponse.json({ error: "Accès réservé aux administrateurs." }, { status: 403 });
-    }
+    // Cache invalidation — tout utilisateur connecté peut rafraîchir
+    // (le middleware a déjà vérifié la session via getSession())
     invalidateCategoriesCache();
   }
 

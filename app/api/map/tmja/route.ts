@@ -3,24 +3,37 @@ import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// Tolerance de simplification géométrique selon le zoom (degrés WGS84)
+function zoomToTolerance(zoom: number): number {
+  if (zoom >= 12) return 0;
+  if (zoom >= 11) return 0.001;
+  if (zoom >= 10) return 0.002;
+  if (zoom >= 9)  return 0.005;
+  return 0.01; // zoom 8 et moins
+}
+
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const west  = parseFloat(p.get('west')  ?? '-5.2');
   const south = parseFloat(p.get('south') ?? '41.0');
   const east  = parseFloat(p.get('east')  ?? '9.7');
   const north = parseFloat(p.get('north') ?? '51.5');
+  const zoom  = parseFloat(p.get('zoom')  ?? '10');
 
   if ([west, south, east, north].some(isNaN)) {
     return NextResponse.json({ error: 'Paramètres bbox invalides' }, { status: 400 });
   }
 
+  const tolerance = zoomToTolerance(isNaN(zoom) ? 10 : zoom);
+
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('get_tmja_by_bbox', {
-    p_west:  west,
-    p_south: south,
-    p_east:  east,
-    p_north: north,
-    p_limit: 2000,
+    p_west:      west,
+    p_south:     south,
+    p_east:      east,
+    p_north:     north,
+    p_limit:     2000,
+    p_tolerance: tolerance,
   });
 
   if (error) {
