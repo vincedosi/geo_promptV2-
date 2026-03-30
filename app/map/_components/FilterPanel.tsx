@@ -6,6 +6,7 @@ import type { ZoneData } from '@/types/spatial';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
+import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
@@ -40,6 +41,17 @@ import {
   REGIONS_ADMIN as REGIONS, ALL_DEPTS,
   ISO_MODES, ISO_DURATIONS,
 } from '@/lib/geo/france-admin';
+
+interface ClusterModelSummary {
+  version: number;
+  k: number;
+  silhouette_score: number;
+  n_poi_trained: number;
+  duration_minutes: number;
+  mode: string;
+  created_at: string;
+  cluster_labels: Record<string, string>;
+}
 
 type Tab = 'geoprompt' | 'expert';
 type ExpertSubTab = 'territoire' | 'poi' | 'analyse';
@@ -414,6 +426,19 @@ export function FilterPanel({
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Cluster overlay state
+  const [clusterModels, setClusterModels] = useState<ClusterModelSummary[]>([]);
+  const [selectedClusterVersion, setSelectedClusterVersion] = useState<number | null>(null);
+  const [showNewClustering, setShowNewClustering] = useState(false);
+
+  useEffect(() => {
+    if (!analyseOpen.clustering) return;
+    fetch('/api/poi-clusters/models')
+      .then(r => r.json())
+      .then(d => { if (d.models) setClusterModels(d.models); })
+      .catch(() => {});
+  }, [analyseOpen.clustering]);
 
   // ── Territoire state ──────────────────────────────────────────────────────
   const [scope,           setScope]           = useState<'metro' | 'all' | null>(null);
@@ -2004,21 +2029,108 @@ export function FilterPanel({
             </button>
             {analyseOpen.clustering && (
             <div style={{ borderBottom: `0.5px solid ${C.border}` }}>
-              <div style={{ minHeight: 400 }}>
-                <ClusterPanel
-                  geojson={clusterGeoJSON ?? null}
-                  visible={clustersVisible ?? false}
-                  loading={clusterLoading ?? false}
-                  duration={clusterDuration ?? 60}
-                  onToggle={onToggleClusters ?? (() => {})}
-                  onLoad={onLoadClusters ?? (() => {})}
-                  onDurationChange={onClusterDurationChange ?? (() => {})}
-                  onFlyTo={onFlyTo ?? (() => {})}
-                  onFitBounds={onFitBounds ?? (() => {})}
-                  onWizardHighlight={onWizardHighlight}
-                  onWizardClose={onWizardClose}
-                />
-              </div>
+              {!showNewClustering ? (
+                <div style={{ padding: '10px 12px' }}>
+                  {/* Existing models list */}
+                  {clusterModels.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      {clusterModels.map((m) => {
+                        const silColor = m.silhouette_score >= 0.5 ? '#3dffa0' : m.silhouette_score >= 0.3 ? '#f7b731' : '#ff5757';
+                        const dateStr = new Date(m.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        return (
+                          <div
+                            key={m.version}
+                            onClick={() => setSelectedClusterVersion(m.version)}
+                            style={{
+                              background: '#111111',
+                              border: '0.5px solid #1a1a1a',
+                              borderRadius: 6,
+                              padding: '10px 12px',
+                              marginBottom: 6,
+                              cursor: 'pointer',
+                              transition: 'border-color 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span style={{ fontFamily: fMono, fontSize: 12, fontWeight: 500, color: '#f0f0f0' }}>
+                                v{m.version}
+                              </span>
+                              <span style={{ fontFamily: fMono, fontSize: 9, color: silColor, border: `1px solid ${silColor}40`, borderRadius: 2, padding: '1px 4px' }}>
+                                SIL {m.silhouette_score.toFixed(3)}
+                              </span>
+                              <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666', marginLeft: 'auto' }}>
+                                {dateStr}
+                              </span>
+                            </div>
+                            <div style={{ fontFamily: fMono, fontSize: 10, color: '#a0a0a0' }}>
+                              {m.k} clusters · {m.n_poi_trained} POI · {m.duration_minutes}min {m.mode}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {clusterModels.length === 0 && (
+                    <div style={{ fontFamily: fMono, fontSize: 11, color: '#666666', padding: '12px 0', textAlign: 'center' }}>
+                      Aucun modèle calculé
+                    </div>
+                  )}
+                  {/* New clustering button */}
+                  <button
+                    onClick={() => setShowNewClustering(true)}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: '0.5px solid #4ecdc4',
+                      color: '#4ecdc4',
+                      borderRadius: 6,
+                      padding: '8px 16px',
+                      fontFamily: fInter,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(78,205,196,0.1)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  >
+                    + Nouveau clustering
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={() => setShowNewClustering(false)}
+                    style={{
+                      display: 'block', width: '100%',
+                      background: 'none', border: 'none',
+                      borderBottom: '0.5px solid #1a1a1a',
+                      padding: '8px 12px', cursor: 'pointer',
+                      fontFamily: fMono, fontSize: 11, color: '#666666',
+                      textAlign: 'left',
+                    }}
+                  >
+                    ← Liste des modèles
+                  </button>
+                  <div style={{ minHeight: 400 }}>
+                    <ClusterPanel
+                      geojson={clusterGeoJSON ?? null}
+                      visible={clustersVisible ?? false}
+                      loading={clusterLoading ?? false}
+                      duration={clusterDuration ?? 60}
+                      onToggle={onToggleClusters ?? (() => {})}
+                      onLoad={onLoadClusters ?? (() => {})}
+                      onDurationChange={onClusterDurationChange ?? (() => {})}
+                      onFlyTo={onFlyTo ?? (() => {})}
+                      onFitBounds={onFitBounds ?? (() => {})}
+                      onWizardHighlight={onWizardHighlight}
+                      onWizardClose={onWizardClose}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             )}
 
@@ -2417,6 +2529,14 @@ export function FilterPanel({
           100% { transform: translateX(350%); }
         }
       `}</style>
+
+      {/* Cluster results overlay */}
+      {selectedClusterVersion !== null && (
+        <ClusterResultsOverlay
+          version={selectedClusterVersion}
+          onClose={() => setSelectedClusterVersion(null)}
+        />
+      )}
     </div>
   );
 }
