@@ -790,7 +790,7 @@ export default function ImportUniverselPage() {
                         <thead>
                           <tr style={{ background: C.bgSurface }}>
                             {parseResult.columns.slice(0, 8).map((col) => (
-                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontInter, fontSize: 11, fontWeight: 500 }}>
                                 {col.name}
                               </th>
                             ))}
@@ -965,7 +965,7 @@ export default function ImportUniverselPage() {
                     >
                       <input type="radio" value={mode.val} checked={geoMode === mode.val} onChange={() => setGeoMode(mode.val)} style={{ marginTop: 2, accentColor: C.accent }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: fontInter, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
+                        <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
                         <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{mode.desc}</div>
                       </div>
                     </label>
@@ -1068,7 +1068,7 @@ export default function ImportUniverselPage() {
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
                   gap: 4, padding: '5px 8px',
-                  fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                  fontFamily: fontInter, fontSize: 11, fontWeight: 500,
                   color: C.muted, borderBottom: `1px solid ${C.border}`,
                   marginBottom: 4,
                 }}>
@@ -1090,7 +1090,7 @@ export default function ImportUniverselPage() {
                       <div key={col.name} style={{
                         display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
                         gap: 4, padding: '5px 8px', borderRadius: 2,
-                        background: isMapped ? 'rgba(168,85,247,0.04)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
+                        background: isMapped ? 'rgba(78,205,196,0.04)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
                         opacity: isMapped ? 0.75 : 1,
                         borderBottom: `1px solid ${C.border}`,
                         alignItems: 'center',
@@ -1266,9 +1266,8 @@ export default function ImportUniverselPage() {
                           onClick={() => setGeocodeFilter(f)}
                           style={{
                             fontFamily: fontInter,
-                            fontSize: 9,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em',
+                            fontSize: 12,
+                            fontWeight: 500,
                             padding: '4px 10px',
                             borderRadius: 2,
                             cursor: 'pointer',
@@ -1297,7 +1296,7 @@ export default function ImportUniverselPage() {
                       <div style={{
                         display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
                         gap: 4, padding: '6px 8px',
-                        fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em',
+                        fontFamily: fontInter, fontSize: 11, fontWeight: 500,
                         color: C.muted, borderBottom: `1px solid ${C.border}`,
                         position: 'sticky', top: 0, background: C.bgElevated, zIndex: 1,
                       }}>
@@ -1334,7 +1333,7 @@ export default function ImportUniverselPage() {
                             <span style={{ fontFamily: fontMono, fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
                               {result.score.toFixed(2)}
                             </span>
-                            <span style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', color: statusColor(result.status), fontWeight: 600 }}>
+                            <span style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 600, color: statusColor(result.status) }}>
                               {statusLabel(result.status)}
                             </span>
                             <div style={{ display: 'flex', gap: 4 }}>
@@ -1373,7 +1372,7 @@ export default function ImportUniverselPage() {
                             }}>
                               {/* Re-geocode with corrected address */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Adresse :</label>
+                                <label style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 500, color: C.muted, minWidth: 80 }}>Adresse :</label>
                                 <input
                                   type="text"
                                   value={editAddress}
@@ -1391,7 +1390,7 @@ export default function ImportUniverselPage() {
                               </div>
                               {/* Manual lat/lng */}
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontInter, fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.muted, minWidth: 80 }}>Manuel :</label>
+                                <label style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 500, color: C.muted, minWidth: 80 }}>Manuel :</label>
                                 <input
                                   type="text"
                                   value={editLat}
@@ -1693,7 +1692,7 @@ export default function ImportUniverselPage() {
                   {/* Afficher le message d erreur SQL si present */}
                   {importProgress?.firstError && (
                     <div style={{ marginTop: 10, padding: '10px 12px', background: C.redDim, border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 2, fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                      <div style={{ fontFamily: fontInter, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
+                      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
                       <div style={{ wordBreak: 'break-all', lineHeight: 1.6 }}>{importProgress.firstError}</div>
                       <div style={{ marginTop: 8, color: C.muted, fontSize: 9 }}>
                         → Si &quot;column does not exist&quot;: executer le SQL ALTER TABLE dans Supabase Dashboard

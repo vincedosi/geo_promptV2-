@@ -4,17 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 
 const C = {
-  bg: '#050505', bgElevated: '#0d0d0d', bgSurface: '#111118',
-  border: '#261a35', borderLight: 'rgba(168,85,247,0.2)',
-  accent: '#a855f7', accentDim: 'rgba(168,85,247,0.12)',
-  text: '#e2e8f0', textDim: '#94a3b8', textSec: '#6b7280',
+  bg: '#050505', bgElevated: '#0a0a0a', bgSurface: '#111111',
+  border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
+  accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.08)',
+  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666',
   green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
   warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)',
   blue: '#3b82f6', blueDim: 'rgba(59,130,246,0.12)',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono = "'JetBrains Mono', monospace";
 const fontInter = "'Inter', system-ui, sans-serif";
 
@@ -45,7 +43,7 @@ function StatusBadge({ status }: { status: string }) {
     : s === 'running' || s === 'pending' ? C.warnDim
     : C.bgSurface;
   return (
-    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color, background: bg, border: `1px solid ${color}`, borderRadius: 2, padding: '2px 6px' }}>
+    <span style={{ fontFamily: fontMono, fontSize: 10, color, background: bg, border: `1px solid ${color}`, borderRadius: 2, padding: '2px 6px' }}>
       {status ?? '—'}
     </span>
   );
@@ -57,7 +55,7 @@ function KindBadge({ kind, type }: { kind: string; type?: string }) {
   const bg = kind === 'ooh' ? C.accentDim : C.blueDim;
   const bd = kind === 'ooh' ? C.borderLight : 'rgba(59,130,246,0.3)';
   return (
-    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
+    <span style={{ fontFamily: fontMono, fontSize: 10, color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
       {label}
     </span>
   );
@@ -101,10 +99,9 @@ export default function ImportsPage() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, letterSpacing: '0.08em', color: C.text, margin: 0, fontWeight: 700 }}>
-            admin / imports
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: C.text, margin: 0 }}>
+            Historique des imports
           </h1>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}`, borderRadius: 2, padding: '2px 6px' }}>ADMIN</span>
         </div>
         <p style={{ fontFamily: fontInter, fontSize: 12, color: C.textDim, margin: 0 }}>
           Historique global de tous les imports — OOH ArcGIS + sources CSV/Shapefile
@@ -119,7 +116,7 @@ export default function ImportsPage() {
           { label: 'Erreurs', value: fmt(totalErrors), color: totalErrors > 0 ? C.red : C.textDim },
         ].map(s => (
           <div key={s.label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 20px', flex: 1 }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>{s.label}</div>
             <div style={{ fontFamily: fontMono, fontSize: 20, color: s.color, fontWeight: 700 }}>{s.value}</div>
           </div>
         ))}
@@ -131,14 +128,14 @@ export default function ImportsPage() {
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '6px 14px', borderRadius: 2, border: `1px solid ${filter === f ? C.accent : C.border}`,
             background: filter === f ? C.accentDim : 'none', color: filter === f ? C.accent : C.textDim,
-            fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer',
+            fontFamily: fontInter, fontSize: 12, cursor: 'pointer',
           }}>
             {f === 'all' ? 'Tous' : f.toUpperCase()}
           </button>
         ))}
         <button onClick={fetchImports} style={{
           marginLeft: 'auto', padding: '6px 14px', borderRadius: 2, border: `1px solid ${C.border}`,
-          background: 'none', color: C.textDim, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer',
+          background: 'none', color: C.textDim, fontFamily: fontInter, fontSize: 12, cursor: 'pointer',
         }}>
           Rafraîchir
         </button>
@@ -160,7 +157,7 @@ export default function ImportsPage() {
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                 {['Type', 'Source', 'Workspace', 'Démarré le', 'Statut', 'Total', 'Insérés', 'MAJ', 'Erreurs'].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400 }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
             </thead>

@@ -6,16 +6,16 @@ import { adminFetch } from '@/lib/admin-fetch';
 
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#0a0a0a',
+  bgSurface:   '#111111',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.08)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#505050',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
@@ -23,8 +23,6 @@ const C = {
   warn:        '#fbbf24',
   warnDim:     'rgba(251,191,36,0.1)',
 };
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
 
@@ -51,7 +49,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, marginBottom: 16 }}>
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
-        <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.accent }}>{title}</span>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, flexShrink: 0 }} />
+        <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>{title}</span>
       </div>
       <div style={{ padding: 16 }}>{children}</div>
     </div>
@@ -61,7 +60,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>{label}</div>
       {children}
     </div>
   );
@@ -72,7 +71,7 @@ function RoleBadge({ role }: { role: string }) {
   const bg    = role === 'super_admin' ? C.warnDim : role === 'admin' ? C.greenDim : C.bgSurface;
   const bd    = role === 'super_admin' ? C.warn : role === 'admin' ? C.green : C.border;
   return (
-    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
+    <span style={{ fontFamily: fontMono, fontSize: 10, color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
       {role}
     </span>
   );
@@ -83,7 +82,7 @@ function TypeBadge({ type }: { type: string }) {
   const bg    = type === 'panneaux' ? C.accentDim : type === 'poi' ? C.greenDim : C.warnDim;
   const bd    = type === 'panneaux' ? C.borderLight : type === 'poi' ? C.green : C.warn;
   return (
-    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
+    <span style={{ fontFamily: fontMono, fontSize: 10, color, background: bg, border: `1px solid ${bd}`, borderRadius: 2, padding: '2px 6px' }}>
       {type}
     </span>
   );
@@ -92,8 +91,8 @@ function TypeBadge({ type }: { type: string }) {
 function BtnSmall({ onClick, color = C.accent, children, disabled }: { onClick: () => void; color?: string; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      background: 'none', border: `1px solid ${color}`, borderRadius: 2, color, fontFamily: fontMichroma,
-      fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 8px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
+      background: 'none', border: `1px solid ${color}`, borderRadius: 2, color, fontFamily: fontInter,
+      fontSize: 11, padding: '3px 8px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
     }}>
       {children}
     </button>
@@ -363,14 +362,13 @@ export default function WorkspacePage() {
           ← organisations
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <h1 style={{ fontFamily: fontOrbitron, fontSize: 20, letterSpacing: '0.08em', color: active ? C.text : C.textSec, margin: 0, fontWeight: 700 }}>{org.name}</h1>
+          <h1 style={{ fontFamily: fontInter, fontSize: 18, fontWeight: 500, color: active ? C.text : C.textSec, margin: 0 }}>{org.name}</h1>
           <span style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>{org.slug}</span>
-          <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.warn, background: C.warnDim, border: `1px solid ${C.warn}`, borderRadius: 2, padding: '2px 6px' }}>WORKSPACE</span>
-          {!active && <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.red, background: C.redDim, border: `1px solid ${C.red}`, borderRadius: 2, padding: '2px 6px' }}>DÉSACTIVÉ</span>}
+          {!active && <span style={{ fontFamily: fontMono, fontSize: 10, color: C.red, background: C.redDim, border: `1px solid ${C.red}`, borderRadius: 2, padding: '2px 6px' }}>désactivé</span>}
           <button onClick={handleToggleActive} disabled={isTogglingActive} style={{
             marginLeft: 'auto', padding: '5px 14px', borderRadius: 2, border: `1px solid ${active ? C.red : C.green}`,
-            background: 'none', color: active ? C.red : C.green, fontFamily: fontMichroma, fontSize: 9,
-            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: isTogglingActive ? 0.5 : 1,
+            background: 'none', color: active ? C.red : C.green, fontFamily: fontInter, fontSize: 12,
+            cursor: 'pointer', opacity: isTogglingActive ? 0.5 : 1,
           }}>
             {active ? 'Désactiver workspace' : 'Réactiver workspace'}
           </button>
@@ -413,7 +411,7 @@ export default function WorkspacePage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button onClick={handleSaveConfig} disabled={isSaving} style={{
           padding: '8px 20px', background: saved ? C.green : C.accent, border: 'none', borderRadius: 2,
-          color: '#000', fontFamily: fontMichroma, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: '#000', fontFamily: fontInter, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
           cursor: isSaving ? 'not-allowed' : 'pointer', fontWeight: 700,
         }}>
           {isSaving ? 'Sauvegarde...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
@@ -427,7 +425,7 @@ export default function WorkspacePage() {
         {/* Inviter */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>Email</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>Email</div>
             <input
               style={inputStyle}
               value={inviteEmail}
@@ -437,7 +435,7 @@ export default function WorkspacePage() {
             />
           </div>
           <div style={{ width: 130 }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, marginBottom: 6 }}>Rôle</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>Rôle</div>
             <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
               <option value="client">client</option>
               <option value="admin">admin</option>
@@ -445,7 +443,7 @@ export default function WorkspacePage() {
           </div>
           <button onClick={handleInvite} disabled={isInviting || !inviteEmail.trim()} style={{
             padding: '8px 16px', background: C.accent, border: 'none', borderRadius: 2, color: '#000',
-            fontFamily: fontMichroma, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+            fontFamily: fontInter, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
             cursor: isInviting || !inviteEmail.trim() ? 'not-allowed' : 'pointer', fontWeight: 700, flexShrink: 0,
             opacity: isInviting || !inviteEmail.trim() ? 0.5 : 1,
           }}>
@@ -458,7 +456,7 @@ export default function WorkspacePage() {
 
         {resetLink && (
           <div style={{ marginBottom: 12, padding: '10px 14px', background: C.greenDim, border: `1px solid ${C.green}`, borderRadius: 2 }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, marginBottom: 6 }}>
+            <div style={{ fontFamily: fontInter, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, marginBottom: 6 }}>
               Lien reset password — {resetLink.email}
             </div>
             {resetLink.link ? (
@@ -479,7 +477,7 @@ export default function WorkspacePage() {
             <thead>
               <tr>
                 {['Email / Nom', 'Rôle', 'Modifier', 'Depuis', ''].map(h => (
-                  <th key={h} style={{ textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
+                  <th key={h} style={{ textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -527,12 +525,12 @@ export default function WorkspacePage() {
         {/* Données Système */}
         {systemStats && (
           <>
-            <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Données Système</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 8 }}>Données Système</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
               <thead>
                 <tr>
                   {['Nom', 'Type', 'Lignes', 'Source'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
+                    <th key={h} style={{ textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -543,7 +541,7 @@ export default function WorkspacePage() {
                     <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 2 }}>{systemStats.iris.enrichis.toLocaleString('fr-FR')} zones enrichies (population)</div>
                   </td>
                   <td style={{ padding: '10px 8px 10px 0' }}>
-                    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
+                    <span style={{ fontFamily: fontInter, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#06b6d4', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
                   </td>
                   <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 12, color: '#06b6d4' }}>{systemStats.iris.total.toLocaleString('fr-FR')}</td>
                   <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 10, color: C.textSec }}>table: iris</td>
@@ -556,14 +554,14 @@ export default function WorkspacePage() {
                     </div>
                   </td>
                   <td style={{ padding: '10px 8px 10px 0' }}>
-                    <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
+                    <span style={{ fontFamily: fontInter, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 2, padding: '2px 6px' }}>SYSTÈME</span>
                   </td>
                   <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 12, color: '#22c55e' }}>{(systemStats.transport.total + systemStats.transport.flux).toLocaleString('fr-FR')}</td>
                   <td style={{ padding: '10px 8px 10px 0', fontFamily: fontMono, fontSize: 10, color: C.textSec }}>tables: poi_france + comptages_routiers</td>
                 </tr>
               </tbody>
             </table>
-            <div style={{ fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDim, marginBottom: 8 }}>Sources Importées</div>
+            <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 8 }}>Sources Importées</div>
           </>
         )}
 
@@ -574,7 +572,7 @@ export default function WorkspacePage() {
             <thead>
               <tr>
                 {['Nom', 'Type', 'Lignes', 'Importé le', ''].map(h => (
-                  <th key={h} style={{ textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
+                  <th key={h} style={{ textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -637,7 +635,7 @@ export default function WorkspacePage() {
             <thead>
               <tr>
                 {['Nom', 'Type', 'Lignes', 'Workspace source', 'Accès', ''].map(h => (
-                  <th key={h} style={{ textAlign: 'left', fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
+                  <th key={h} style={{ textAlign: 'left', fontFamily: fontInter, fontSize: 11, color: C.textDim, fontWeight: 400, padding: '0 8px 10px 0' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -656,11 +654,11 @@ export default function WorkspacePage() {
                     </td>
                     <td style={{ padding: '10px 8px 10px 0' }}>
                       {isShared ? (
-                        <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: C.greenDim, border: `1px solid ${C.green}`, borderRadius: 2, padding: '2px 6px' }}>
+                        <span style={{ fontFamily: fontInter, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.green, background: C.greenDim, border: `1px solid ${C.green}`, borderRadius: 2, padding: '2px 6px' }}>
                           Assigné
                         </span>
                       ) : (
-                        <span style={{ fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textSec, background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '2px 6px' }}>
+                        <span style={{ fontFamily: fontInter, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textSec, background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: '2px 6px' }}>
                           Non assigné
                         </span>
                       )}
