@@ -23,15 +23,7 @@
       "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' show 'HEAD:app/admin/sources/page.tsx'\" 2>&1)",
       "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' checkout HEAD -- 'app/admin/sources/page.tsx' 'app/login/page.tsx' 'app/layout.tsx' 'app/globals.css'\" 2>&1)",
       "Bash(powershell.exe -Command \"Remove-Item 'C:\\\\GENESIS\\\\genesis_app\\\\components\\\\LayoutShell.tsx' -Force\" 2>&1)",
-      "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' status\" 2>&1)",
-      "mcp__claude_ai_Supabase__list_projects",
-      "mcp__claude_ai_Supabase__execute_sql",
-      "Bash(npx tsc:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(find app/copilote app/map -type f -name *.tsx -o -name *.ts)",
-      "Bash(grep -v \"^$\")",
-      "Bash(git checkout:*)"
+      "Bash(powershell.exe -Command \"& 'C:\\\\msys64\\\\usr\\\\bin\\\\git.exe' -C 'C:\\\\GENESIS\\\\genesis_app' status\" 2>&1)"
     ]
   }
 }
