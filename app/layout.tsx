@@ -3,8 +3,9 @@ import './globals.css'
 import AppSidebar from '@/components/AppSidebar'
 
 export const metadata: Metadata = {
-  title: 'GENESIS — AI Media Planning',
-  description: 'Parse French prompts into structured outdoor advertising filters using Mistral AI',
+  title: 'GEOMATIK — Geospatial intelligence',
+  description: 'Plateforme de géomarketing OOH — ciblage, scoring et mesure de campagnes d\'affichage extérieur.',
+  icons: [{ rel: 'icon', url: '/geomatik-icon.svg', type: 'image/svg+xml' }],
 }
 
 export default function RootLayout({

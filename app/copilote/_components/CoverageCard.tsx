@@ -24,8 +24,8 @@ export function CoverageCard({
 
   return (
     <div style={{
-      background:    'rgba(168,85,247,0.07)',
-      border:        '1px solid rgba(168,85,247,0.2)',
+      background:    'rgba(78,205,196,0.06)',
+      border:        '1px solid rgba(78,205,196,0.2)',
       borderRadius:  2,
       padding:       '14px 16px',
       marginTop:     6,
@@ -33,7 +33,7 @@ export function CoverageCard({
       flexDirection: 'column',
       gap:           10,
     }}>
-      <div style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 9, color: '#a855f7', letterSpacing: '0.14em' }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#4ecdc4', letterSpacing: '0.14em' }}>
         COUVERTURE_AUDIENCE
       </div>
 
@@ -43,15 +43,15 @@ export function CoverageCard({
       </div>
 
       <div style={{
-        background:  'rgba(168,85,247,0.1)',
-        border:      '1px solid rgba(168,85,247,0.2)',
+        background:  'rgba(78,205,196,0.08)',
+        border:      '1px solid rgba(78,205,196,0.2)',
         borderRadius: 2,
         padding:     '10px 14px',
       }}>
         <div style={{
           fontSize:   24,
           fontWeight: 800,
-          color:      '#c4b5fd',
+          color:      '#4ecdc4',
           fontFamily: "'JetBrains Mono', monospace",
           lineHeight: 1,
         }}>
@@ -68,7 +68,7 @@ export function CoverageCard({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-      <span style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 8, color: 'rgba(255,255,255,0.35)', width: 44, flexShrink: 0, letterSpacing: '0.1em' }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.35)', width: 44, flexShrink: 0, letterSpacing: '0.1em' }}>{label}</span>
       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontFamily: "'Inter',system-ui,sans-serif" }}>{children}</span>
     </div>
   );

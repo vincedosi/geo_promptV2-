@@ -72,6 +72,27 @@ const PATTERNS: Array<{ re: RegExp; irisCol: string }> = [
   { re: /^P\d{2}_EMPLT$/,            irisCol: 'nb_emplois'       },
   // Sources pour calcul taux_emploi
   { re: /^P\d{2}_ACTOCC1564$/,       irisCol: '__src_actocc'     }, // → taux_emploi
+  // Sources pour indicateurs démographiques
+  { re: /^P\d{2}_POP_ETR$/,          irisCol: '__src_pop_etr'    }, // → part_pop_etrangere
+  // Sources pour indicateurs logement
+  { re: /^P\d{2}_LOG$/,              irisCol: '__src_log'        }, // → part_residences_principales, part_appartements
+  { re: /^P\d{2}_APPART$/,           irisCol: '__src_appart'     }, // → part_appartements
+  { re: /^P\d{2}_RP_LOCHLMV$/,       irisCol: '__src_hlm'        }, // → part_logements_sociaux
+  { re: /^P\d{2}_RP_ANEM0002$/,      irisCol: '__src_anem'       }, // → part_menages_emmenages_2ans
+  // Sources pour indicateurs familles
+  { re: /^C\d{2}_FAM$/,              irisCol: '__src_fam'        }, // → part_familles_monoparentales, part_couples_avec_enfants
+  { re: /^C\d{2}_FAMMONO$/,          irisCol: '__src_fam_mono'   }, // → part_familles_monoparentales
+  { re: /^C\d{2}_COUPENFANT$/,       irisCol: '__src_coup_enf'   }, // → part_couples_avec_enfants
+  // Sources pour mobilité (activité)
+  { re: /^C\d{2}_ACTOCC15P_PAS$/,    irisCol: '__src_act_pas'    }, // → part_actifs_marche_velo
+  { re: /^C\d{2}_ACTOCC15P_VELO$/,   irisCol: '__src_act_velo'   }, // → part_actifs_marche_velo
+  { re: /^C\d{2}_ACTOCC15P_TCOM$/,   irisCol: '__src_act_tcom'   }, // → part_actifs_transport_commun
+  { re: /^C\d{2}_ACTOCC15P$/,        irisCol: '__src_act_occ15p' }, // → part_actifs_marche_velo, part_actifs_transport_commun
+  // Sources pour activité par sexe
+  { re: /^P\d{2}_HACT1564$/,         irisCol: '__src_h_act'      }, // → part_hommes_actifs
+  { re: /^P\d{2}_H1564$/,            irisCol: '__src_h_tot'      }, // → part_hommes_actifs
+  { re: /^P\d{2}_FACT1564$/,         irisCol: '__src_f_act'      }, // → part_femmes_actives
+  { re: /^P\d{2}_F1564$/,            irisCol: '__src_f_tot'      }, // → part_femmes_actives
   // Propriétaires (valeur directe pré-calculée)
   { re: /^P\d{2}_PROP$/,             irisCol: 'taux_proprio'     },
   { re: /^TAUX_PROPRIO\d*$/i,        irisCol: 'taux_proprio'     },

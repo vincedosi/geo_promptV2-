@@ -8,9 +8,6 @@ const SUGGESTIONS = [
   "Zone accessible en 15 min en voiture depuis le CIRFA de Lyon",
 ];
 
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontInter    = "'Inter', sans-serif";
-
 interface WelcomeOverlayProps {
   sendMessage: (text: string) => void;
 }
@@ -66,33 +63,66 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
       }}
     >
       <div style={{
+        position: 'relative',
         maxWidth: 520,
         width: 'calc(100% - 32px)',
-        background: 'rgba(12, 12, 20, 0.85)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        border: '0.5px solid rgba(255, 255, 255, 0.12)',
+        background: '#0a0a0a',
+        border: '0.5px solid #1a1a1a',
         borderRadius: 12,
-        padding: '16px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+        padding: '20px 20px 16px',
       }}>
 
+        {/* Close button */}
+        <button
+          onClick={() => dismiss()}
+          aria-label="Fermer"
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#666666',
+            fontSize: 18,
+            lineHeight: 1,
+            transition: 'background 0.15s, color 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = '#181818';
+            (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.color = '#666666';
+          }}
+        >
+          ✕
+        </button>
+
         {/* Title */}
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, paddingRight: 32 }}>
           <div style={{
-            fontSize: 16,
-            fontWeight: 700,
-            fontFamily: fontOrbitron,
-            color: '#f1f1f4',
-            letterSpacing: '0.08em',
+            fontSize: 20,
+            fontWeight: 500,
+            fontFamily: "'Inter', system-ui, sans-serif",
+            color: '#f0f0f0',
             marginBottom: 6,
+            lineHeight: 1.25,
           }}>
             Que voulez-vous analyser ?
           </div>
           <div style={{
-            fontSize: 12,
-            color: 'rgba(255, 255, 255, 0.45)',
-            fontFamily: fontInter,
+            fontSize: 14,
+            color: '#666666',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontWeight: 400,
             lineHeight: 1.5,
           }}>
             Posez votre question, je m'occupe du reste
@@ -110,35 +140,38 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             rows={2}
             style={{
               flex: 1,
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '0.5px solid rgba(255, 255, 255, 0.15)',
+              background: '#111111',
+              border: '0.5px solid #1a1a1a',
               borderRadius: 8,
               padding: '10px 12px',
-              color: '#f1f1f4',
+              color: '#f0f0f0',
               fontSize: 13,
-              fontFamily: fontInter,
+              fontFamily: "'Inter', system-ui, sans-serif",
               resize: 'none',
               outline: 'none',
               lineHeight: 1.5,
+              transition: 'border-color 0.15s',
             }}
+            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
           />
           <button
             onClick={handleSubmit}
             disabled={!input.trim()}
             style={{
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
-              background: input.trim() ? '#7F77DD' : 'rgba(127, 119, 221, 0.3)',
+              background: input.trim() ? '#4ecdc4' : '#1a1a1a',
               border: 'none',
               cursor: input.trim() ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              color: '#fff',
+              color: input.trim() ? '#050505' : '#444444',
               fontSize: 16,
-              transition: 'background 0.15s',
+              transition: 'background 0.15s, color 0.15s',
             }}
           >
             ↑
@@ -151,20 +184,26 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             <button
               key={s}
               onClick={() => dismiss(s)}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(127, 119, 221, 0.22)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(127, 119, 221, 0.12)'; }}
               style={{
-                background: 'rgba(127, 119, 221, 0.12)',
-                border: '0.5px solid rgba(127, 119, 221, 0.25)',
+                background: '#111111',
+                border: '0.5px solid #1a1a1a',
                 borderRadius: 6,
                 padding: '9px 14px',
-                color: '#AFA9EC',
-                fontSize: 12,
-                fontFamily: fontInter,
+                color: '#a0a0a0',
+                fontSize: 13,
+                fontFamily: "'Inter', system-ui, sans-serif",
                 cursor: 'pointer',
                 textAlign: 'left',
-                transition: 'background 0.15s',
+                transition: 'border-color 0.15s, background 0.15s',
                 lineHeight: 1.4,
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(78,205,196,0.3)';
+                (e.currentTarget as HTMLButtonElement).style.background = '#151515';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1a1a';
+                (e.currentTarget as HTMLButtonElement).style.background = '#111111';
               }}
             >
               {s}

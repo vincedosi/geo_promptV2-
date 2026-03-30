@@ -101,6 +101,8 @@ export function useMapLayers({
   const irisIndicateurRef = useRef('pop_15_29');
   const irisPaletteRef    = useRef('bleu');
   const irisOpacityRef    = useRef(0.45);
+  // Cache stats par colonne — chargées une à la fois (lazy, on-demand)
+  const irisStatsCacheRef = useRef<Record<string, IrisStats>>({});
   const irisChoroRef      = useRef(true);
 
   useEffect(() => { irisIndicateurRef.current = irisIndicateur; }, [irisIndicateur]);
@@ -480,14 +482,23 @@ export function useMapLayers({
       return;
     }
 
-    // Mode choroplèthe : charger les stats France entière pour calibrer la palette
+    // Mode choroplèthe : charger les stats France entière pour calibrer la palette.
+    // Stratégie lazy : une colonne à la fois, on vérifie le cache avant de fetcher.
     const col = irisIndicateurRef.current;
-    const zoom = map.getZoom();
-    const level = zoom < 7 ? 'dept' : 'iris';
-    fetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+
+    const cachedStats = irisStatsCacheRef.current[col];
+    if (cachedStats) {
+      setIrisStats(cachedStats);
+      if (cachedStats.col_exists) applyIrisColor(map, irisPaletteRef.current, cachedStats, col);
+      return;
+    }
+
+    // Lazy fetch : une seule colonne à la fois, mise en cache pour éviter re-fetch
+    fetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`)
+      .then(r => r.ok ? r.json() as Promise<IrisStats> : null)
       .then((stats: IrisStats | null) => {
         if (!stats) return;
+        irisStatsCacheRef.current[col] = stats;
         setIrisStats(stats);
         if (stats.col_exists) applyIrisColor(map, irisPaletteRef.current, stats, col);
       })

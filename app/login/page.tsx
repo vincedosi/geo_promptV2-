@@ -83,15 +83,12 @@ export default function LoginPage() {
 
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
-            <div style={{
-              fontSize: 20, fontWeight: 500, color: '#f0f0f0',
-              letterSpacing: '-0.02em', marginBottom: 4,
-            }}>
-              GEOMATIK
-            </div>
-            <div style={{ fontSize: 12, color: '#666666', fontWeight: 400 }}>
-              Geospatial intelligence
-            </div>
+            <img
+              src="/geomatik-logo.svg"
+              alt="GEOMATIK"
+              width={240}
+              style={{ display: 'block' }}
+            />
           </div>
 
           {/* Section title */}
@@ -310,29 +307,29 @@ export default function LoginPage() {
         <div style={{ marginBottom: 24 }}>
           <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
             {/* Concentric circles */}
-            <circle cx="100" cy="100" r="40" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.08" />
-            <circle cx="100" cy="100" r="60" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.08" />
-            <circle cx="100" cy="100" r="80" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.08" />
+            <circle cx="100" cy="100" r="40" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
+            <circle cx="100" cy="100" r="60" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
+            <circle cx="100" cy="100" r="80" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
             {/* Meridian lines */}
-            <line x1="100" y1="20" x2="100" y2="180" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.08" />
-            <line x1="20" y1="100" x2="180" y2="100" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.08" />
+            <line x1="100" y1="20" x2="100" y2="180" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
+            <line x1="20" y1="100" x2="180" y2="100" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
             {/* Diagonal meridians */}
-            <line x1="44" y1="44" x2="156" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.05" />
-            <line x1="156" y1="44" x2="44" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.05" />
+            <line x1="44" y1="44" x2="156" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.10" />
+            <line x1="156" y1="44" x2="44" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.10" />
             {/* Outer ring */}
-            <circle cx="100" cy="100" r="90" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.06" />
+            <circle cx="100" cy="100" r="90" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.12" />
           </svg>
         </div>
 
         {/* Copy */}
         <div style={{ textAlign: 'center', maxWidth: 280 }}>
           <div style={{
-            fontSize: 14, fontWeight: 500, color: '#333333', marginBottom: 10, fontFamily: fInter,
+            fontSize: 14, fontWeight: 500, color: '#a0a0a0', marginBottom: 10, fontFamily: fInter,
           }}>
             Planification OOH intelligente
           </div>
           <div style={{
-            fontSize: 12, color: '#262626', lineHeight: 1.6,
+            fontSize: 12, color: '#666666', lineHeight: 1.6,
             fontFamily: fInter, fontWeight: 400, maxWidth: 240, margin: '0 auto',
           }}>
             Ciblez, scorez et mesurez vos campagnes d'affichage avec l'IA et la donnée géospatiale.
@@ -351,13 +348,13 @@ export default function LoginPage() {
           ].map(stat => (
             <div key={stat.label} style={{ textAlign: 'center' }}>
               <div style={{
-                fontSize: 16, fontWeight: 500, color: '#333333',
+                fontSize: 16, fontWeight: 500, color: '#a0a0a0',
                 fontFamily: fMono, letterSpacing: '-0.01em',
               }}>
                 {stat.value}
               </div>
               <div style={{
-                fontSize: 10, color: '#262626', fontFamily: fInter, marginTop: 2,
+                fontSize: 10, color: '#666666', fontFamily: fInter, marginTop: 2,
               }}>
                 {stat.label}
               </div>

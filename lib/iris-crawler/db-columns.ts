@@ -14,7 +14,7 @@ export interface IrisDbColumn {
   label: string;
   type:  'integer' | 'float';
   /** Groupe d'affichage (dropdown choroplèthe, system prompt) */
-  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi';
+  group: 'Population' | 'Âge' | 'Revenus' | 'Diplômes' | 'CSP' | 'Emploi' | 'Logement' | 'Mobilité' | 'Familles';
 }
 
 /** Toutes les colonnes CORE (SQL fixes) de la table iris */
@@ -45,6 +45,30 @@ export const IRIS_DB_COLUMNS: IrisDbColumn[] = [
   // Emploi
   { name: 'nb_emplois',       label: 'Emplois au lieu de travail', type: 'integer', group: 'Emploi'     },
   { name: 'taux_emploi',      label: "Taux d'emploi (%)",          type: 'float',   group: 'Emploi'     },
+  // Démographie dérivée
+  { name: 'densite_pop',               label: 'Densité (hab/km²)',                   type: 'float',   group: 'Population' },
+  { name: 'indice_jeunesse',           label: 'Indice de jeunesse',                  type: 'float',   group: 'Âge'        },
+  { name: 'part_pop_etrangere',        label: 'Pop. étrangère (%)',                  type: 'float',   group: 'Population' },
+  { name: 'part_pop_moins_18',         label: 'Pop. moins de 18 ans (%)',            type: 'float',   group: 'Âge'        },
+  { name: 'part_pop_65_plus',          label: 'Pop. 65 ans et plus (%)',             type: 'float',   group: 'Âge'        },
+  // Logement
+  { name: 'part_residences_principales', label: 'Résidences principales (%)',        type: 'float',   group: 'Logement'   },
+  { name: 'part_appartements',         label: 'Appartements (%)',                    type: 'float',   group: 'Logement'   },
+  { name: 'part_logements_sociaux',    label: 'Logements sociaux HLM (%)',           type: 'float',   group: 'Logement'   },
+  { name: 'part_menages_emmenages_2ans', label: 'Ménagés emménagés < 2 ans (%)',     type: 'float',   group: 'Logement'   },
+  // Familles
+  { name: 'part_familles_monoparentales', label: 'Familles monoparentales (%)',      type: 'float',   group: 'Familles'   },
+  { name: 'part_couples_avec_enfants', label: 'Couples avec enfants (%)',            type: 'float',   group: 'Familles'   },
+  // Mobilité
+  { name: 'part_actifs_marche_velo',   label: 'Actifs marche/vélo (%)',              type: 'float',   group: 'Mobilité'   },
+  { name: 'part_actifs_transport_commun', label: 'Actifs transports en commun (%)', type: 'float',   group: 'Mobilité'   },
+  // Emploi par sexe
+  { name: 'part_hommes_actifs',        label: 'Hommes actifs 15-64 (%)',             type: 'float',   group: 'Emploi'     },
+  { name: 'part_femmes_actives',       label: 'Femmes actives 15-64 (%)',            type: 'float',   group: 'Emploi'     },
+  // Diplômes dérivé
+  { name: 'part_sans_diplome',         label: 'Sans diplôme (%)',                    type: 'float',   group: 'Diplômes'   },
+  // Emploi communal (imputation)
+  { name: 'nb_emplois_commune',        label: 'Emplois commune (imputés)',           type: 'float',   group: 'Emploi'     },
 ];
 
 // ── Sets de noms (lookup O(1)) ────────────────────────────────────────────────

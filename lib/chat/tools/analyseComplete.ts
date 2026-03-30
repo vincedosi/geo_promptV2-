@@ -99,6 +99,24 @@ type IrisRow = {
   nb_csp_cadre:      number | null;
   nb_csp_employe:    number | null;
   nb_csp_ouvrier:    number | null;
+  // Indicateurs dérivés v2
+  densite_pop:               number | null;
+  indice_jeunesse:           number | null;
+  part_pop_etrangere:        number | null;
+  part_pop_moins_18:         number | null;
+  part_pop_65_plus:          number | null;
+  part_residences_principales: number | null;
+  part_appartements:         number | null;
+  part_logements_sociaux:    number | null;
+  part_menages_emmenages_2ans: number | null;
+  part_familles_monoparentales: number | null;
+  part_couples_avec_enfants: number | null;
+  part_actifs_marche_velo:   number | null;
+  part_actifs_transport_commun: number | null;
+  part_hommes_actifs:        number | null;
+  part_femmes_actives:       number | null;
+  part_sans_diplome:         number | null;
+  nb_emplois_commune:        number | null;
   // Géo
   centroid_lat:      number | null;
   centroid_lng:      number | null;
@@ -169,7 +187,7 @@ export async function analyseComplete(args: Record<string, unknown>) {
     const [irisResult, panneauxResult, poiResults] = await Promise.all([
       supabase
         .from('iris')
-        .select('code_iris, nom_iris, population, nb_menages, pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus, rev_median, taux_chomage, taux_proprio, nb_diplome_aucun, nb_diplome_bac, nb_diplome_sup, taux_diplome_sup, nb_csp_cadre, nb_csp_employe, nb_csp_ouvrier, centroid_lat, centroid_lng')
+        .select('code_iris, nom_iris, population, nb_menages, pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus, rev_median, taux_chomage, taux_proprio, nb_diplome_aucun, nb_diplome_bac, nb_diplome_sup, taux_diplome_sup, nb_csp_cadre, nb_csp_employe, nb_csp_ouvrier, densite_pop, indice_jeunesse, part_pop_etrangere, part_pop_moins_18, part_pop_65_plus, part_residences_principales, part_appartements, part_logements_sociaux, part_menages_emmenages_2ans, part_familles_monoparentales, part_couples_avec_enfants, part_actifs_marche_velo, part_actifs_transport_commun, part_hommes_actifs, part_femmes_actives, part_sans_diplome, nb_emplois_commune, centroid_lat, centroid_lng')
         .eq('code_commune', code_commune)
         .in('type_iris', ['H', 'Z']),  // H = habitat (urbain), Z = commune non découpée (rural)
       panneauxQ,

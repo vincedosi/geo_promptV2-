@@ -32,6 +32,8 @@ const securityHeaders = [
         "https://data.gouv.fr",
         "https://files.data.gouv.fr",
         "https://www.insee.fr",
+        "https://github.com",
+        "https://objects.githubusercontent.com",
       ].join(' '),
       // Web Workers MapLibre (blob: URL générée dynamiquement)
       "worker-src 'self' blob:",

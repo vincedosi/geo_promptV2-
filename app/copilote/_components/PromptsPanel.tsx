@@ -59,7 +59,7 @@ const CATEGORIES: PromptCategory[] = [
     id: 'voronoi',
     icon: '⬡',
     label: 'Découpage territorial',
-    color: '#a78bfa',
+    color: '#4ecdc4',
     description: "Divise le territoire entre établissements — chaque zone appartient à l'établissement le plus proche. Instantané.",
     prompts: [
       { text: 'Découpe le territoire entre les CIRFA de France', desc: "Zones d'influence (France entière)" },
@@ -136,23 +136,54 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
 
   return (
     <div style={{
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(0,0,0,0.25)',
+      borderBottom: '0.5px solid #1a1a1a',
+      background: '#0a0a0a',
       maxHeight: 420,
       overflowY: 'auto',
     }}>
       {/* Panel header */}
-      <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: '#0f0f23', zIndex: 1 }}>
-        <div style={{ fontSize: 9, fontFamily: "'Michroma','Orbitron',sans-serif", color: '#a855f7', letterSpacing: '0.14em' }}>PROMPTS</div>
+      <div style={{
+        padding: '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: '0.5px solid #1a1a1a',
+        position: 'sticky',
+        top: 0,
+        background: '#0a0a0a',
+        zIndex: 1,
+      }}>
+        <span style={{
+          fontSize: 11,
+          fontFamily: "'Inter', system-ui, sans-serif",
+          fontWeight: 500,
+          color: '#a0a0a0',
+          letterSpacing: '0.04em',
+        }}>
+          Prompts
+        </span>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
-        >✕</button>
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#666666',
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+            padding: '0 2px',
+            transition: 'color 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+        >
+          ✕
+        </button>
       </div>
 
       {/* Categories */}
       {CATEGORIES.map(cat => (
-        <div key={cat.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div key={cat.id} style={{ borderBottom: '0.5px solid #111111' }}>
           {/* Category header */}
           <button
             onClick={() => toggle(cat.id)}
@@ -164,17 +195,38 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
           >
             <span style={{ fontSize: 10, color: cat.color, flexShrink: 0 }}>{cat.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: cat.color }}>{cat.label}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.description}</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: cat.color, fontFamily: "'Inter', system-ui, sans-serif" }}>
+                {cat.label}
+              </div>
+              <div style={{
+                fontSize: 10,
+                color: '#666666',
+                marginTop: 2,
+                lineHeight: 1.4,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontFamily: "'Inter', system-ui, sans-serif",
+              }}>
+                {cat.description}
+              </div>
             </div>
-            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, flexShrink: 0 }}>{openId === cat.id ? '▲' : '▼'}</span>
+            <span style={{ color: '#444444', fontSize: 12, flexShrink: 0 }}>
+              {openId === cat.id ? '▲' : '▼'}
+            </span>
           </button>
 
           {/* Prompts list */}
           {openId === cat.id && (
             <div style={{ paddingBottom: 8 }}>
               {/* Full description on expand */}
-              <div style={{ padding: '0 16px 8px 42px', fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+              <div style={{
+                padding: '0 16px 8px 42px',
+                fontSize: 11,
+                color: '#666666',
+                lineHeight: 1.5,
+                fontFamily: "'Inter', system-ui, sans-serif",
+              }}>
                 {cat.description}
               </div>
               {cat.prompts.map(p => (
@@ -188,14 +240,24 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
                     background: 'none', border: 'none', cursor: 'pointer',
                     transition: 'background 0.12s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                 >
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.4 }}>
+                  <div style={{
+                    fontSize: 12,
+                    color: '#e0e0e0',
+                    lineHeight: 1.4,
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                  }}>
                     <span style={{ color: cat.color, marginRight: 6, fontSize: 10 }}>▶</span>
                     {p.text}
                   </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                  <div style={{
+                    fontSize: 10,
+                    color: '#444444',
+                    marginTop: 2,
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                  }}>
                     → {p.desc}
                   </div>
                 </button>

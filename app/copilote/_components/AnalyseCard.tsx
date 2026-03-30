@@ -47,8 +47,8 @@ interface AnalyseOutput {
 // ── Palette ────────────────────────────────────────────────────────────────────
 const P = {
   bg:      'rgba(255,255,255,0.035)',
-  border:  '#261a35',
-  violet:  '#a855f7',
+  border:  '#1a1a1a',
+  violet:  '#4ecdc4',
   green:   '#10b981',
   orange:  '#f97316',
   blue:    '#38bdf8',

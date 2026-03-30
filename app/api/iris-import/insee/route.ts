@@ -117,18 +117,37 @@ function buildPop(rows: Record<string, string>[], y: string): Record<string, Rec
   for (const row of rows) {
     const code = irisCode(row);
     if (code.length < 9) continue;
-    out[code] = {
-      population:      safeInt(row[`${p}POP`]    ?? ''),
-      pop_0_14:        safeInt(row[`${p}POP0014`] ?? ''),
-      pop_15_29:       safeInt(row[`${p}POP1529`] ?? ''),
-      pop_30_44:       safeInt(row[`${p}POP3044`] ?? ''),
-      pop_45_59:       safeInt(row[`${p}POP4559`] ?? ''),
-      pop_60_74:       safeInt(row[`${p}POP6074`] ?? ''),
-      pop_75_plus:     safeInt(row[`${p}POP75P`]  ?? ''),
-      nb_csp_cadre:    safeInt(row[`${c}POP15P_CS3`] ?? ''),
-      nb_csp_employe:  safeInt(row[`${c}POP15P_CS5`] ?? ''),
-      nb_csp_ouvrier:  safeInt(row[`${c}POP15P_CS6`] ?? ''),
+    const pop       = safeInt(row[`${p}POP`]      ?? '');
+    const pop_0_14  = safeInt(row[`${p}POP0014`]  ?? '');
+    const pop_60_74 = safeInt(row[`${p}POP6074`]  ?? '');
+    const pop_75p   = safeInt(row[`${p}POP75P`]   ?? '');
+    const pop_etr   = safeInt(row[`${p}POP_ETR`]  ?? '');
+    const entry: Record<string, number | null> = {
+      population:    pop,
+      pop_0_14,
+      pop_15_29:     safeInt(row[`${p}POP1529`]  ?? ''),
+      pop_30_44:     safeInt(row[`${p}POP3044`]  ?? ''),
+      pop_45_59:     safeInt(row[`${p}POP4559`]  ?? ''),
+      pop_60_74,
+      pop_75_plus:   pop_75p,
+      nb_csp_cadre:  safeInt(row[`${c}POP15P_CS3`] ?? ''),
+      nb_csp_employe: safeInt(row[`${c}POP15P_CS5`] ?? ''),
+      nb_csp_ouvrier: safeInt(row[`${c}POP15P_CS6`] ?? ''),
     };
+    // Indicateurs dérivés démographiques
+    if (pop !== null && pop > 0) {
+      if (pop_0_14 !== null)
+        entry.part_pop_moins_18 = Math.round(pop_0_14 / pop * 1000) / 10;
+      if (pop_60_74 !== null && pop_75p !== null)
+        entry.part_pop_65_plus = Math.round((pop_60_74 + pop_75p) / pop * 1000) / 10;
+      if (pop_etr !== null)
+        entry.part_pop_etrangere = Math.round(pop_etr / pop * 1000) / 10;
+    }
+    if (pop_0_14 !== null && pop_60_74 !== null && pop_75p !== null) {
+      const agee = pop_60_74 + pop_75p;
+      if (agee > 0) entry.indice_jeunesse = Math.round(pop_0_14 / agee * 100) / 100;
+    }
+    out[code] = entry;
   }
   return out;
 }
@@ -139,8 +158,18 @@ function buildMen(rows: Record<string, string>[], y: string): Record<string, Rec
   for (const row of rows) {
     const code = irisCode(row);
     if (code.length < 9) continue;
-    const nb = safeInt(row[`${c}MEN`] ?? '');
-    if (nb !== null) out[code] = { nb_menages: nb };
+    const nb_men   = safeInt(row[`${c}MEN`]        ?? '');
+    const fam      = safeInt(row[`${c}FAM`]        ?? '');
+    const fam_mono = safeInt(row[`${c}FAMMONO`]    ?? '');
+    const coup_enf = safeInt(row[`${c}COUPENFANT`] ?? '');
+    const entry: Record<string, number | null> = { nb_menages: nb_men };
+    if (fam !== null && fam > 0) {
+      if (fam_mono !== null)
+        entry.part_familles_monoparentales = Math.round(fam_mono / fam * 1000) / 10;
+      if (coup_enf !== null)
+        entry.part_couples_avec_enfants = Math.round(coup_enf / fam * 1000) / 10;
+    }
+    if (Object.keys(entry).some(k => entry[k] !== null)) out[code] = entry;
   }
   return out;
 }
@@ -161,7 +190,10 @@ function buildDip(rows: Record<string, string>[], y: string): Record<string, Rec
     const taux  = sup !== null && total && total > 0
       ? Math.round(sup / total * 1000) / 10
       : null;
-    out[code] = { nb_diplome_aucun: aucun, nb_diplome_bac: bac, nb_diplome_sup: sup, taux_diplome_sup: taux };
+    const part_sans = aucun !== null && total && total > 0
+      ? Math.round(aucun / total * 1000) / 10
+      : null;
+    out[code] = { nb_diplome_aucun: aucun, nb_diplome_bac: bac, nb_diplome_sup: sup, taux_diplome_sup: taux, part_sans_diplome: part_sans };
   }
   return out;
 }
@@ -170,26 +202,67 @@ function buildLog(rows: Record<string, string>[], y: string): Record<string, Rec
   const p = `P${y}_`;
   const out: Record<string, Record<string, number | null>> = {};
   for (const row of rows) {
-    const code  = irisCode(row);
+    const code      = irisCode(row);
     if (code.length < 9) continue;
-    const prop  = safeInt(row[`${p}RP_PROP`] ?? '');
-    const total = safeInt(row[`${p}RP`]      ?? '');
-    if (prop !== null && total && total > 0)
-      out[code] = { taux_proprio: Math.round(prop / total * 1000) / 10 };
+    const prop      = safeInt(row[`${p}RP_PROP`]     ?? '');
+    const rp        = safeInt(row[`${p}RP`]          ?? '');
+    const log_total = safeInt(row[`${p}LOG`]         ?? '');
+    const appart    = safeInt(row[`${p}APPART`]      ?? '');
+    const hlm       = safeInt(row[`${p}RP_LOCHLMV`]  ?? '');
+    const anem      = safeInt(row[`${p}RP_ANEM0002`] ?? '');
+    const entry: Record<string, number | null> = {};
+    if (prop !== null && rp !== null && rp > 0)
+      entry.taux_proprio = Math.round(prop / rp * 1000) / 10;
+    if (rp !== null && log_total !== null && log_total > 0)
+      entry.part_residences_principales = Math.round(rp / log_total * 1000) / 10;
+    if (appart !== null && log_total !== null && log_total > 0)
+      entry.part_appartements = Math.round(appart / log_total * 1000) / 10;
+    if (hlm !== null && rp !== null && rp > 0)
+      entry.part_logements_sociaux = Math.round(hlm / rp * 1000) / 10;
+    if (anem !== null && rp !== null && rp > 0)
+      entry.part_menages_emmenages_2ans = Math.round(anem / rp * 1000) / 10;
+    if (Object.keys(entry).length > 0) out[code] = entry;
   }
   return out;
 }
 
 function buildAct(rows: Record<string, string>[], y: string): Record<string, Record<string, number | null>> {
   const p = `P${y}_`;
+  const c = `C${y}_`;
   const out: Record<string, Record<string, number | null>> = {};
   for (const row of rows) {
-    const code = irisCode(row);
+    const code       = irisCode(row);
     if (code.length < 9) continue;
-    const chom = safeInt(row[`${p}CHOM1564`] ?? '');
-    const act  = safeInt(row[`${p}ACT1564`]  ?? '');
+    const chom       = safeInt(row[`${p}CHOM1564`]       ?? '');
+    const act        = safeInt(row[`${p}ACT1564`]        ?? '');
+    const actocc     = safeInt(row[`${p}ACTOCC1564`]     ?? '');
+    // nb_emplois (P_EMPLT) n'est pas dans ce dataset — fichier "Emploi - Population active" (EMP)
+    const act_pas    = safeInt(row[`${c}ACTOCC15P_PAS`]  ?? '');
+    const act_velo   = safeInt(row[`${c}ACTOCC15P_VELO`] ?? '');
+    const act_tcom   = safeInt(row[`${c}ACTOCC15P_TCOM`] ?? '');
+    const act_occ15p = safeInt(row[`${c}ACTOCC15P`]      ?? '');
+    const h_act      = safeInt(row[`${p}HACT1564`]       ?? '');
+    const h_tot      = safeInt(row[`${p}H1564`]          ?? '');
+    const f_act      = safeInt(row[`${p}FACT1564`]       ?? '');
+    const f_tot      = safeInt(row[`${p}F1564`]          ?? '');
+    const entry: Record<string, number | null> = {};
     if (chom !== null && act && act > 0)
-      out[code] = { taux_chomage: Math.round(chom / act * 1000) / 10 };
+      entry.taux_chomage = Math.round(chom / act * 1000) / 10;
+    if (actocc !== null && act && act > 0)
+      entry.taux_emploi = Math.round(actocc / act * 1000) / 10;
+    if (act_occ15p !== null && act_occ15p > 0) {
+      const marche = (act_pas ?? 0) + (act_velo ?? 0);
+      if (act_pas !== null || act_velo !== null)
+        entry.part_actifs_marche_velo = Math.round(marche / act_occ15p * 1000) / 10;
+      if (act_tcom !== null)
+        entry.part_actifs_transport_commun = Math.round(act_tcom / act_occ15p * 1000) / 10;
+    }
+    if (h_act !== null && h_tot !== null && h_tot > 0)
+      entry.part_hommes_actifs = Math.round(h_act / h_tot * 1000) / 10;
+    if (f_act !== null && f_tot !== null && f_tot > 0)
+      entry.part_femmes_actives = Math.round(f_act / f_tot * 1000) / 10;
+    if (Object.keys(entry).length > 0)
+      out[code] = entry;
   }
   return out;
 }

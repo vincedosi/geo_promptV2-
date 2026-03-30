@@ -920,7 +920,7 @@ export function FilterPanel({
             <button onClick={() => setActiveTab('geoprompt')} style={{
               flex: 1, padding: '11px 6px 10px',
               background: active ? '#151515' : 'none',
-              border: 'none', borderBottom: active ? `1.5px solid #f0f0f0` : '1.5px solid transparent',
+              border: 'none', borderBottom: active ? `1.5px solid #4ecdc4` : '1.5px solid transparent',
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
               <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim }}>
@@ -936,7 +936,7 @@ export function FilterPanel({
             <button onClick={() => setActiveTab('expert')} style={{
               flex: 1, padding: '11px 6px 10px', position: 'relative',
               background: active ? '#151515' : 'none',
-              border: 'none', borderBottom: active ? `1.5px solid #f0f0f0` : '1.5px solid transparent',
+              border: 'none', borderBottom: active ? `1.5px solid #4ecdc4` : '1.5px solid transparent',
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
               <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
@@ -959,7 +959,7 @@ export function FilterPanel({
               <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} style={{
                 flex: 1, padding: '8px 4px 7px', position: 'relative',
                 background: active ? '#151515' : 'none',
-                border: 'none', borderBottom: active ? `1px solid #f0f0f0` : '1px solid transparent',
+                border: 'none', borderBottom: active ? `1px solid #4ecdc4` : '1px solid transparent',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
                 <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
@@ -1001,7 +1001,10 @@ export function FilterPanel({
 
             {/* Scope global */}
             <div>
-              <div style={labelStyle}>PERIMETRE GLOBAL</div>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Périmètre global</span>
+              </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button style={{ ...pill(scope === 'metro', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('metro')}>
                   France Metro
@@ -1012,13 +1015,13 @@ export function FilterPanel({
               </div>
             </div>
 
-            {/* Divider */}
-            <div style={{ height: 1, background: C.border }} />
-
             {/* Régions */}
             <div>
-              <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>REGION {selectedRegions.length > 0 && <span style={{ color: C.green }}>({selectedRegions.length})</span>}</span>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
+                  Région {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.green }}>({selectedRegions.length})</span>}
+                </span>
                 <button
                   onClick={() => {
                     const allIds = REGIONS.map(r => r.id);
@@ -1041,10 +1044,13 @@ export function FilterPanel({
 
             {/* Départements */}
             <div>
-              <div style={labelStyle}>
-                DEPARTEMENT
-                {selectedRegions.length > 0 && <span style={{ color: C.textDim }}> — {availableDepts.length} dispo</span>}
-                {selectedDepts.length > 0 && <span style={{ color: C.green }}> ({selectedDepts.length})</span>}
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>
+                  Département
+                  {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.textDim }}> — {availableDepts.length} dispo</span>}
+                  {selectedDepts.length > 0 && <span style={{ fontWeight: 400, color: C.green }}> ({selectedDepts.length})</span>}
+                </span>
               </div>
               <MultiDropdown
                 label="Tous les départements"
@@ -1060,20 +1066,20 @@ export function FilterPanel({
               )}
             </div>
 
-            {/* Divider */}
-            <div style={{ height: 1, background: C.border }} />
-
             {/* Recherche locale */}
             <div>
-              <div style={labelStyle}>RECHERCHE LOCALE</div>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Recherche locale</span>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>VILLE</div>
+                  <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
                   <input style={inputStyle} placeholder="ex: Brest" value={ville}
                     onChange={e => { setVille(e.target.value); if (e.target.value) setScope(null); }} />
                 </div>
                 <div style={{ width: 80 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>CODE POSTAL</div>
+                  <div style={{ ...labelStyle, marginBottom: 4 }}>Code postal</div>
                   <input style={inputStyle} placeholder="29200" value={codePostal}
                     onChange={e => setCodePostal(e.target.value)} maxLength={5} />
                 </div>
@@ -1107,8 +1113,9 @@ export function FilterPanel({
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
             <div style={{ paddingBottom: 4 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, marginBottom: 10, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
-                Points d'intérêt (POI)
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Points d&apos;intérêt (POI)</span>
               </div>
             <div>
               <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1272,13 +1279,11 @@ export function FilterPanel({
 
             </div>{/* fin section POI */}
 
-            {/* ── Divider ─────────────────────────────────────────────────── */}
-            <div style={{ height: 1, background: C.border }} />
-
             {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
-                Panneaux OOH &amp; DOOH
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Panneaux OOH &amp; DOOH</span>
               </div>
 
               {/* Info stock */}
@@ -1322,17 +1327,15 @@ export function FilterPanel({
               >
                 {selectedOOH.length > 0
                   ? `AFFICHER — ${selectedOOH.length} RÉGIE${selectedOOH.length > 1 ? 'S' : ''}`
-                  : 'AFFICHER TOUS LES PANNEAUX'}
+                  : 'Afficher tous les panneaux'}
               </button>
             </div>
 
-            {/* ── Divider ─────────────────────────────────────────────────── */}
-            <div style={{ height: 1, background: C.border }} />
-
             {/* ── Section : Arrêts de transport en commun ─────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
-                Arrêts de transport en commun
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Arrêts de transport en commun</span>
               </div>
 
               {/* Sélection du type */}
@@ -1379,17 +1382,15 @@ export function FilterPanel({
                   finally { setTransportLoading(false); }
                 }}
               >
-                {transportLoading ? 'CHARGEMENT…' : 'AFFICHER ARRÊTS'}
+                {transportLoading ? 'CHARGEMENT…' : 'Afficher arrêts'}
               </button>
             </div>
 
-            {/* ── Divider ─────────────────────────────────────────────────── */}
-            <div style={{ height: 1, background: C.border }} />
-
             {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8 }}>
-                Flux routier (TMJA)
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Flux routier (TMJA)</span>
               </div>
 
               {/* Légende couleurs */}
@@ -1971,6 +1972,8 @@ export function FilterPanel({
             </div>
             )}
 
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
+
             {/* ── Accordéon : CLUSTERING ──────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('clustering')}
@@ -2006,6 +2009,8 @@ export function FilterPanel({
               </div>
             </div>
             )}
+
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
 
             {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
             <button
@@ -2134,6 +2139,8 @@ export function FilterPanel({
             </div>
             )}
 
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
+
             {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('iris')}
@@ -2258,6 +2265,8 @@ export function FilterPanel({
             </div>
             )}
 
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
+
             {/* ── Accordéon : COUVERTURE ──────────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('couverture')}
@@ -2289,6 +2298,8 @@ export function FilterPanel({
             </div>
             )}
 
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
+
             {/* ── Accordéon : CORRÉLATION IRIS × POI ──────────────────── */}
             <button
               onClick={() => toggleAnalyse('correlation')}
@@ -2316,6 +2327,8 @@ export function FilterPanel({
               />
             </div>
             )}
+
+            <div style={{ height: 1, background: '#1a1a1a', margin: '8px 0' }} />
 
             {/* ── Accordéon : SCORING OOH ─────────────────────────────── */}
             <button

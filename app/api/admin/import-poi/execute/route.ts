@@ -12,6 +12,7 @@ import { insertRows, closeConnection } from '@/lib/import/inserter';
 import { createAdminClient } from '@/lib/auth';
 import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { invalidateCategoriesCache } from '@/lib/poi/categories';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,6 +203,9 @@ export async function POST(request: NextRequest) {
           errors: insertResult.errors,
           firstError: sqlError,
         });
+
+        // Invalider le cache des catégories pour que /map voit immédiatement la nouvelle catégorie
+        if (insertResult.inserted > 0) invalidateCategoriesCache();
 
         send({
           type: 'complete',

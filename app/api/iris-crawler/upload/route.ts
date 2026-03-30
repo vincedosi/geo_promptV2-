@@ -51,6 +51,18 @@ export async function POST(req: NextRequest) {
         const jsonbColCount = Object.values(mapping).filter(v => classifyTarget(v) === 'jsonb').length;
         send('status', `${rows.length} lignes · ${coreColCount} core · ${jsonbColCount} JSONB. Préparation…`);
 
+        // ── [DIAG] Traces temporaires ─────────────────────────────────────────
+        console.log('[DIAG] COLONNES CSV:', Object.keys(rows[0] ?? {}));
+        console.log('[DIAG] LIGNE 1:', JSON.stringify(rows[0]));
+        const empltCols = Object.keys(rows[0] ?? {}).filter(k => /EMPLT|ACTOCC|ACT1564/i.test(k));
+        console.log('[DIAG] Colonnes emploi détectées:', empltCols);
+        const mappingEmploi: Record<string, string> = {};
+        for (const col of empltCols) { if (mapping[col]) mappingEmploi[col] = mapping[col]; }
+        console.log('[DIAG] MAPPING colonnes emploi:', JSON.stringify(mappingEmploi));
+        const mappingCore = Object.entries(mapping).filter(([, v]) => classifyTarget(v) === 'core');
+        console.log('[DIAG] MAPPING core complet:', JSON.stringify(Object.fromEntries(mappingCore)));
+        // ─────────────────────────────────────────────────────────────────────
+
         // Découper les lignes en core + JSONB
         const coreRows:      Array<Record<string, string | number | null>> = [];
         const indicatorRows: Array<{ code_iris: string; indicators: Record<string, string | number | null> }> = [];
@@ -66,6 +78,15 @@ export async function POST(req: NextRequest) {
             indicatorRows.push({ code_iris: coreData.code_iris as string, indicators: jsonbData });
           }
         }
+
+        // ── [DIAG] Inspecter la première ligne après splitRow + computeDerived ─
+        if (coreRows.length > 0) {
+          console.log('[DIAG] UPSERT KEYS (coreRows[0]):', Object.keys(coreRows[0]));
+          console.log('[DIAG] SAMPLE coreRows[0]:', JSON.stringify(coreRows[0]));
+          console.log('[DIAG] nb_emplois:', coreRows[0]['nb_emplois'], '| taux_emploi:', coreRows[0]['taux_emploi']);
+          console.log('[DIAG] taux_chomage:', coreRows[0]['taux_chomage']);
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         send('status', `${coreRows.length} lignes préparées. Envoi vers Supabase…`);
 

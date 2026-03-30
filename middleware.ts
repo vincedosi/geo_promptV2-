@@ -83,12 +83,13 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Validation réelle du token (+ refresh automatique si expiré)
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // ── Routes API protégées ──────────────────────────────────────────────────
+  // ── Routes API protégées ─────────────────────────────────────────────────
+  // getSession() valide le JWT localement (cookie) sans appel réseau Supabase.
+  // Évite les 409 "Too many concurrent token refresh requests" quand le front
+  // envoie plusieurs requêtes API en parallèle.
   if (isProtectedApi(pathname)) {
-    if (!user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
       return NextResponse.json(
         { error: 'Non authentifié — fournissez un token Bearer valide.' },
         { status: 401 }
@@ -98,7 +99,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Pages protégées ───────────────────────────────────────────────────────
+  // getUser() valide le token côté Supabase et rafraîchit si nécessaire.
+  // Un seul appel par navigation → pas de problème de concurrence.
   if (isProtectedPage(pathname)) {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = '/login';

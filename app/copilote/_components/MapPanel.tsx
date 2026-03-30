@@ -66,38 +66,37 @@ interface MapPanelProps {
 // Design tokens
 const C = {
   bg:        '#050505',
-  bgElevated:'#0d0d0d',
-  bgOverlay: 'rgba(5,5,5,0.88)',
-  border:    '#261a35',
-  accent:    '#a855f7',
-  accentDim: 'rgba(168,85,247,0.15)',
-  accentBorder: 'rgba(168,85,247,0.35)',
-  muted:     '#6b7280',
-  text:      '#e2e8f0',
-  textDim:   '#94a3b8',
+  bgElevated:'#111111',
+  bgOverlay: 'rgba(10,10,10,0.9)',
+  border:    '#1a1a1a',
+  text:      '#f0f0f0',
+  textSec:   '#a0a0a0',
+  textDim:   '#666666',
+  green:     '#3dffa0',
+  warning:   '#f7b731',
+  red:       '#ff5757',
   danger:    '#ef4444',
-  dangerBg:  'rgba(239,68,68,0.12)',
-  dangerBorder: 'rgba(239,68,68,0.35)',
-  success:   '#22c55e',
-  warn:      '#f59e0b',
-  blue:      '#3b82f6',
+  dangerBg:  'rgba(239,68,68,0.1)',
+  dangerBorder: 'rgba(239,68,68,0.3)',
+  success:   '#3dffa0',
+  warn:      '#f7b731',
+  blue:      '#38bdf8',
 };
 
 const fontMono = "'JetBrains Mono', 'Fira Code', monospace";
-const fontMichroma = "'Michroma', 'Orbitron', sans-serif";
+const fontInter = "'Inter', system-ui, sans-serif";
 
 const badgeBase: React.CSSProperties = {
   position: 'absolute',
   zIndex: 10,
-  background: C.bgOverlay,
-  backdropFilter: 'blur(8px)',
-  border: `1px solid ${C.border}`,
-  borderRadius: 2,
+  background: 'rgba(10,10,10,0.92)',
+  border: '0.5px solid #1a1a1a',
+  borderRadius: 4,
   padding: '6px 10px',
   fontSize: 10,
   fontFamily: fontMono,
   color: C.text,
-  letterSpacing: '0.05em',
+  letterSpacing: '0.04em',
 };
 
 const toggleBtnBase = (active: boolean, activeColor: string): React.CSSProperties => ({
@@ -106,17 +105,16 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  background: active ? `${activeColor}20` : C.bgOverlay,
-  border: `1px solid ${active ? activeColor : C.border}`,
-  borderRadius: 2,
+  background: active ? `${activeColor}18` : 'rgba(10,10,10,0.88)',
+  border: `0.5px solid ${active ? activeColor + '80' : '#1a1a1a'}`,
+  borderRadius: 4,
   padding: '6px 10px',
   cursor: 'pointer',
   fontSize: 10,
-  fontFamily: fontMono,
+  fontFamily: fontInter,
   color: active ? activeColor : C.textDim,
-  backdropFilter: 'blur(8px)',
   transition: 'all 0.15s',
-  letterSpacing: '0.05em',
+  letterSpacing: '0.04em',
   textTransform: 'uppercase' as const,
 });
 
@@ -161,7 +159,7 @@ export function MapPanel({
 
   return (
     <div style={{ flex: 1, position: 'relative', background: C.bg }}>
-      <div ref={mapContainerRef} style={{ width: '100%', height: '100%', position: 'relative' }} />
+      <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
       {/* carreaux-mvt-fill/line init dans useMapInit, visibilité gérée par useMapLayers */}
 
       {/* ── Colonne contrôles top-left ───────────────────────────────────── */}
@@ -174,7 +172,7 @@ export function MapPanel({
       {/* ZONE_ACTIVE */}
       {zoneData && (
         <div style={{ ...badgeBase, position: 'relative' }}>
-          <div style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 3 }}>
+          <div style={{ color: C.textSec, fontFamily: fontMono, fontSize: 9, letterSpacing: '0.08em', marginBottom: 3 }}>
             ZONE_ACTIVE
           </div>
           <div style={{ color: C.text, fontWeight: 600 }}>{zoneData.ville}</div>
@@ -192,27 +190,27 @@ export function MapPanel({
           borderColor: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line + '80',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em' }}>
+            <span style={{ color: (ISOCHRONE_COLORS[isochroneMode] ?? ISOCHRONE_COLORS.walk).line, fontFamily: fontMono, fontSize: 9, letterSpacing: '0.08em' }}>
               ISO_{isochroneMinutes}min
             </span>
             <span style={{ color: C.textDim }}>
               {ISOCHRONE_MODE_LABELS[isochroneMode] ?? isochroneMode}
             </span>
-            {isochroneFromCache && <span style={{ color: C.muted, fontSize: 9 }}>CACHE</span>}
+            {isochroneFromCache && <span style={{ color: C.textDim, fontSize: 9 }}>CACHE</span>}
             <button
               onClick={() => setIsochroneVisible(false)}
-              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
             >✕</button>
           </div>
           {isochroneFromCache && isochroneCachedAt && (
             <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: C.muted, fontSize: 9 }}>
+              <span style={{ color: C.textDim, fontSize: 9 }}>
                 {new Date(isochroneCachedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </span>
               <button
                 onClick={recalculerIsochrone}
                 disabled={isLoading}
-                style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, borderRadius: 2, padding: '2px 6px', color: C.accent, cursor: 'pointer', fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}
+                style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '2px 8px', color: C.textSec, cursor: 'pointer', fontSize: 9, fontFamily: fontInter }}
               >RECALC</button>
             </div>
           )}
@@ -227,13 +225,13 @@ export function MapPanel({
           borderColor: C.warn + '60',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: C.warn, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em' }}>
+            <span style={{ color: C.warn, fontFamily: fontInter, fontSize: 9, letterSpacing: '0.12em' }}>
               VORONOI
             </span>
             <span style={{ color: C.textDim }}>{voronoiCategory}</span>
             <button
               onClick={() => setVoronoiVisible(false)}
-              style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
             >✕</button>
           </div>
         </div>
@@ -264,7 +262,7 @@ export function MapPanel({
         const pal = CARREAUX_PALETTES.find(p => p.id === carreauxPalette) ?? CARREAUX_PALETTES[0];
         return (
           <div style={{ ...badgeBase, position: 'relative', borderColor: C.blue + '60' }}>
-            <div style={{ color: C.blue, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.12em', marginBottom: 5 }}>
+            <div style={{ color: C.blue, fontFamily: fontInter, fontSize: 9, letterSpacing: '0.12em', marginBottom: 5 }}>
               CARREAUX_INSEE
             </div>
 
@@ -284,7 +282,7 @@ export function MapPanel({
             </select>
 
             {/* Palettes */}
-            <div style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>PALETTE</div>
+            <div style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>PALETTE</div>
             <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
               {CARREAUX_PALETTES.map(p => (
                 <button
@@ -312,7 +310,7 @@ export function MapPanel({
 
             {/* Opacité */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <span style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>OPACITÉ</span>
+              <span style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>OPACITÉ</span>
               <input
                 type="range" min={0.1} max={1} step={0.05}
                 value={carreauxOpacity}
@@ -325,11 +323,11 @@ export function MapPanel({
             </div>
 
             {/* Légende cliquable par tranche */}
-            <div style={{ color: C.muted, fontFamily: fontMichroma, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>
+            <div style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>
               LÉGENDE {carreauxSelectedBucket !== null && (
                 <button
                   onClick={() => setCarreauxSelectedBucket(null)}
-                  style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 8, fontFamily: fontMichroma, letterSpacing: '0.08em', padding: '0 0 0 6px' }}
+                  style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 8, fontFamily: fontInter, padding: '0 0 0 6px' }}
                 >✕ TOUT</button>
               )}
             </div>
@@ -359,7 +357,7 @@ export function MapPanel({
                       <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 8, fontFamily: fontMono, flex: 1 }}>
                         {i === 5 ? `≥ ${fmtVal(min)}` : `${fmtVal(min)} – ${fmtVal(max)}`}
                       </span>
-                      {isSelected && <span style={{ color: color, fontSize: 7, fontFamily: fontMichroma }}>●</span>}
+                      {isSelected && <span style={{ color: color, fontSize: 7, fontFamily: fontInter }}>●</span>}
                     </button>
                   );
                 })}
@@ -369,7 +367,7 @@ export function MapPanel({
                 {pal.stops.map((c, i) => (
                   <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />
                 ))}
-                <span style={{ color: C.muted, fontSize: 8, marginLeft: 4, fontFamily: fontMono }}>z≥10</span>
+                <span style={{ color: C.textDim, fontSize: 8, marginLeft: 4, fontFamily: fontMono }}>z≥10</span>
               </div>
             )}
           </div>
@@ -386,18 +384,18 @@ export function MapPanel({
           flexDirection: 'column',
           gap: 5,
         }}>
-          <div style={{ fontFamily: fontMichroma, fontSize: 9, color: C.accent, letterSpacing: '0.12em', marginBottom: 2 }}>
+          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.textSec, letterSpacing: '0.08em', marginBottom: 2 }}>
             LEGENDE
           </div>
           {activeCats.map((cat) => (
             <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: zoneData!.couleur_overrides?.[cat] ?? getCatColor(cat), flexShrink: 0 }} />
-              <span style={{ color: C.textDim }}>{cat} <span style={{ color: C.muted }}>({zoneData!.categories[cat]})</span></span>
+              <span style={{ color: C.textDim }}>{cat} <span style={{ color: C.textDim }}>({zoneData!.categories[cat]})</span></span>
             </div>
           ))}
           {zoneData!.rayon_metres && (
             <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ display: 'inline-block', width: 9, height: 9, background: C.accentDim, borderRadius: 1, border: `1.5px dashed ${C.accent}`, flexShrink: 0 }} />
+              <span style={{ display: 'inline-block', width: 9, height: 9, background: 'rgba(240,240,240,0.05)', borderRadius: 1, border: '1.5px dashed #444444', flexShrink: 0 }} />
               <span style={{ color: C.textDim }}>Zone {(zoneData!.rayon_metres / 1000).toFixed(1)} km</span>
             </div>
           )}
@@ -423,14 +421,14 @@ export function MapPanel({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ display: 'inline-block', width: 9, height: 9, background: (voronoiPois[0]?.color ?? C.warn) + '40', borderRadius: 1, border: `1.5px solid ${voronoiPois[0]?.color ?? C.warn}`, flexShrink: 0 }} />
-                    <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>
+                    <span style={{ color: C.text, fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em' }}>
                       VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
                     </span>
                   </div>
                   <button
                     onClick={() => { setShowSavePanel(true); setSaveError(null); }}
                     title="Sauvegarder ce Voronoï"
-                    style={{ background: C.accentDim, border: `1px solid ${C.accentBorder}`, borderRadius: 2, padding: '2px 7px', fontSize: 9, color: C.accent, cursor: 'pointer', fontFamily: fontMichroma, letterSpacing: '0.08em' }}
+                    style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: C.textSec, cursor: 'pointer', fontFamily: fontInter }}
                   >SAVE</button>
                 </div>
                 {voronoiPois.map(c => (
@@ -449,13 +447,13 @@ export function MapPanel({
               <div style={{ marginTop: 3, paddingTop: 5, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ display: 'inline-block', width: 9, height: 9, background: C.dangerBg, borderRadius: 1, border: `1.5px solid ${C.danger}`, flexShrink: 0 }} />
-                  <span style={{ color: C.text, fontSize: 9, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
+                  <span style={{ color: C.text, fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em' }}>BATAILLE · {battleCategory}</span>
                 </div>
 
                 {/* Slider palier max */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 8, color: C.muted, fontFamily: fontMichroma, letterSpacing: '0.08em' }}>PALIER_MAX</span>
+                    <span style={{ fontSize: 8, color: C.textDim, fontFamily: fontInter, letterSpacing: '0.08em' }}>PALIER_MAX</span>
                     <span style={{ fontSize: 9, color: C.danger, fontFamily: fontMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
                   </div>
                   <input
@@ -481,7 +479,7 @@ export function MapPanel({
                             border: active ? 'none' : `1px solid ${C.border}`,
                             transition: 'background 0.2s',
                           }} />
-                          <span style={{ fontSize: 7, color: active ? C.textDim : C.muted }}>{p}</span>
+                          <span style={{ fontSize: 7, color: active ? C.textDim : C.textDim }}>{p}</span>
                         </div>
                       );
                     })}
@@ -496,7 +494,7 @@ export function MapPanel({
                   </div>
                 ))}
                 {battlePois.length > 8 && (
-                  <span style={{ fontSize: 9, color: C.muted }}>+{battlePois.length - 8} autres</span>
+                  <span style={{ fontSize: 9, color: C.textDim }}>+{battlePois.length - 8} autres</span>
                 )}
               </div>
             );
@@ -512,7 +510,7 @@ export function MapPanel({
           position: 'absolute', bottom: 28, right: 12, zIndex: 10,
           display: 'flex', flexDirection: 'row', gap: 2, alignItems: 'center',
         }}>
-          <span style={{ fontFamily: fontMichroma, fontSize: 7, color: C.muted, letterSpacing: '0.1em', marginRight: 4 }}>FOND</span>
+          <span style={{ fontFamily: fontMono, fontSize: 8, color: C.textDim, letterSpacing: '0.06em', marginRight: 4 }}>FOND</span>
           {mapStyles.map(s => {
             const active = mapStyleUrl === s.url;
             return (
@@ -521,17 +519,15 @@ export function MapPanel({
                 onClick={() => onMapStyleChange(s.url)}
                 title={s.label}
                 style={{
-                  background: active ? C.accentDim : C.bgOverlay,
-                  border: `1px solid ${active ? C.accent : C.border}`,
-                  borderRadius: 2,
-                  padding: '3px 7px',
+                  background: active ? '#4ecdc4' : 'transparent',
+                  border: `0.5px solid ${active ? '#4ecdc4' : '#262626'}`,
+                  borderRadius: 4,
+                  padding: '3px 8px',
                   cursor: 'pointer',
-                  fontSize: 8,
-                  fontFamily: fontMichroma,
-                  color: active ? C.accent : C.textDim,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  backdropFilter: 'blur(8px)',
+                  fontSize: 9,
+                  fontFamily: fontInter,
+                  color: active ? '#050505' : C.textDim,
+                  transition: 'all 0.15s',
                 }}
               >
                 {s.label.slice(0, 3)}
@@ -553,25 +549,25 @@ export function MapPanel({
           display: 'flex', flexDirection: 'column',
         }}>
           {/* Header drawer */}
-          <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ fontFamily: fontMichroma, fontSize: 10, color: C.accent, letterSpacing: '0.12em' }}>
+          <div style={{ padding: '10px 14px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec, letterSpacing: '0.06em' }}>
               STREET_VIEW
             </div>
             <button
               onClick={closeBillboardDrawer}
               aria-label="Fermer"
-              style={{ background: 'rgba(255,255,255,0.04)', color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 2, width: 26, height: 26, cursor: 'pointer', fontSize: 13, lineHeight: 1, transition: 'all 0.15s' }}
+              style={{ background: 'transparent', color: C.textDim, border: `0.5px solid ${C.border}`, borderRadius: 4, width: 28, height: 28, cursor: 'pointer', fontSize: 13, lineHeight: 1, transition: 'all 0.15s' }}
             >✕</button>
           </div>
 
           {/* Infos panneau */}
           <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-            <div style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 11, color: C.text, lineHeight: 1.6 }}>
-              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>ID</span>{'  '}{selectedBillboard.id}</div>
-              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>NOM</span>{'  '}{selectedBillboard.nom}</div>
-              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>FMT</span>{'  '}{selectedBillboard.format || '—'}</div>
-              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>SCR</span>{'  '}{selectedBillboard.score != null ? selectedBillboard.score : '—'}</div>
-              <div><span style={{ color: C.accent, fontFamily: fontMichroma, fontSize: 9, letterSpacing: '0.1em' }}>AUD</span>{'  '}{selectedBillboard.audience != null ? Number(selectedBillboard.audience).toLocaleString('fr-FR') : '—'}</div>
+            <div style={{ background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: 10, fontFamily: fontMono, fontSize: 11, color: C.text, lineHeight: 1.6 }}>
+              <div><span style={{ color: C.textDim, fontSize: 9 }}>ID </span>{selectedBillboard.id}</div>
+              <div><span style={{ color: C.textDim, fontSize: 9 }}>NOM </span>{selectedBillboard.nom}</div>
+              <div><span style={{ color: C.textDim, fontSize: 9 }}>FMT </span>{selectedBillboard.format || '—'}</div>
+              <div><span style={{ color: C.textDim, fontSize: 9 }}>SCR </span>{selectedBillboard.score != null ? selectedBillboard.score : '—'}</div>
+              <div><span style={{ color: C.textDim, fontSize: 9 }}>AUD </span>{selectedBillboard.audience != null ? Number(selectedBillboard.audience).toLocaleString('fr-FR') : '—'}</div>
             </div>
 
             {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (

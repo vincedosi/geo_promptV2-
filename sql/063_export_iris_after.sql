@@ -35,6 +35,24 @@ RETURNS TABLE (
   nb_csp_cadre     numeric,
   nb_csp_employe   numeric,
   nb_csp_ouvrier   numeric,
+  -- Indicateurs dérivés v2
+  densite_pop               numeric,
+  indice_jeunesse           numeric,
+  part_pop_etrangere        numeric,
+  part_pop_moins_18         numeric,
+  part_pop_65_plus          numeric,
+  part_residences_principales numeric,
+  part_appartements         numeric,
+  part_logements_sociaux    numeric,
+  part_menages_emmenages_2ans numeric,
+  part_familles_monoparentales numeric,
+  part_couples_avec_enfants numeric,
+  part_actifs_marche_velo   numeric,
+  part_actifs_transport_commun numeric,
+  part_hommes_actifs        numeric,
+  part_femmes_actives       numeric,
+  part_sans_diplome         numeric,
+  nb_emplois_commune        numeric,
   geom_json        text
 )
 LANGUAGE sql
@@ -69,6 +87,23 @@ AS $$
     i.nb_csp_cadre,
     i.nb_csp_employe,
     i.nb_csp_ouvrier,
+    i.densite_pop,
+    i.indice_jeunesse,
+    i.part_pop_etrangere,
+    i.part_pop_moins_18,
+    i.part_pop_65_plus,
+    i.part_residences_principales,
+    i.part_appartements,
+    i.part_logements_sociaux,
+    i.part_menages_emmenages_2ans,
+    i.part_familles_monoparentales,
+    i.part_couples_avec_enfants,
+    i.part_actifs_marche_velo,
+    i.part_actifs_transport_commun,
+    i.part_hommes_actifs,
+    i.part_femmes_actives,
+    i.part_sans_diplome,
+    i.nb_emplois_commune,
     ST_AsGeoJSON(i.geom) AS geom_json
   FROM public.iris i
   WHERE i.code_iris > p_last_code_iris

@@ -1352,7 +1352,7 @@ export default function SourcesPage() {
                     Carte choroplèthe — PMTiles
                   </div>
                   <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 12, lineHeight: 1.7 }}>
-                    Déclenche le workflow GitHub Actions <span style={{ color: C.text }}>generate-iris-pmtiles</span> : export NDJSON → tippecanoe → upload Supabase Storage.<br />
+                    Déclenche le workflow GitHub Actions <span style={{ color: C.text }}>generate-iris-pmtiles</span> : export NDJSON → tippecanoe → upload GitHub Releases.<br />
                     À faire après chaque import de nouvelles données démographiques (diplômes, revenus, CSP…).
                   </div>
                   {irisPmtilesMsg && (

@@ -28,7 +28,7 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
             {zoneData.nb_pois} panneau{zoneData.nb_pois > 1 ? 'x' : ''} stratégique{zoneData.nb_pois > 1 ? 's' : ''}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 1 }}>
-            à moins de {s.max_distance_m}m d'un <span style={{ color: '#a78bfa', fontWeight: 600 }}>{s.poi_category}</span>
+            à moins de {s.max_distance_m}m d'un <span style={{ color: '#4ecdc4', fontWeight: 600 }}>{s.poi_category}</span>
             {' '}· cible{' '}
             <span style={{ color: '#34d399', fontWeight: 600 }}>{s.target_demo_label}</span>
           </div>

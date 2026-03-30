@@ -136,15 +136,15 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       {/* Header */}
       <div className="px-4 py-4">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/geomatik-icon.svg" width={28} height={28} alt="" style={{ flexShrink: 0 }} />
+          <span style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>
+            <span style={{ color: '#f0f0f0' }}>GEOM</span><span style={{ color: '#4ecdc4' }}>ATIK</span>
+          </span>
+        </div>
         <p
-          className="text-[15px] leading-tight"
-          style={{ color: '#f0f0f0', fontWeight: 500, fontFamily: 'Inter, system-ui, sans-serif' }}
-        >
-          GENESIS
-        </p>
-        <p
-          className="mt-0.5 text-[11px]"
-          style={{ color: '#666666', fontWeight: 400 }}
+          className="mt-1 text-[11px]"
+          style={{ color: '#666666', fontWeight: 400, paddingLeft: 36 }}
         >
           Geospatial intelligence
         </p>

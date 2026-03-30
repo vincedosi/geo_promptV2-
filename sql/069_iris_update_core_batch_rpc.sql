@@ -34,7 +34,25 @@ BEGIN
     taux_diplome_sup = CASE WHEN r ? 'taux_diplome_sup' THEN (r->>'taux_diplome_sup')::FLOAT   ELSE t.taux_diplome_sup END,
     nb_csp_cadre     = CASE WHEN r ? 'nb_csp_cadre'     THEN (r->>'nb_csp_cadre')::INTEGER     ELSE t.nb_csp_cadre     END,
     nb_csp_employe   = CASE WHEN r ? 'nb_csp_employe'   THEN (r->>'nb_csp_employe')::INTEGER   ELSE t.nb_csp_employe   END,
-    nb_csp_ouvrier   = CASE WHEN r ? 'nb_csp_ouvrier'   THEN (r->>'nb_csp_ouvrier')::INTEGER   ELSE t.nb_csp_ouvrier   END
+    nb_csp_ouvrier   = CASE WHEN r ? 'nb_csp_ouvrier'   THEN (r->>'nb_csp_ouvrier')::INTEGER   ELSE t.nb_csp_ouvrier   END,
+    -- Indicateurs dérivés v2
+    densite_pop               = CASE WHEN r ? 'densite_pop'               THEN (r->>'densite_pop')::FLOAT               ELSE t.densite_pop               END,
+    indice_jeunesse           = CASE WHEN r ? 'indice_jeunesse'           THEN (r->>'indice_jeunesse')::FLOAT           ELSE t.indice_jeunesse           END,
+    part_pop_etrangere        = CASE WHEN r ? 'part_pop_etrangere'        THEN (r->>'part_pop_etrangere')::FLOAT        ELSE t.part_pop_etrangere        END,
+    part_pop_moins_18         = CASE WHEN r ? 'part_pop_moins_18'         THEN (r->>'part_pop_moins_18')::FLOAT         ELSE t.part_pop_moins_18         END,
+    part_pop_65_plus          = CASE WHEN r ? 'part_pop_65_plus'          THEN (r->>'part_pop_65_plus')::FLOAT          ELSE t.part_pop_65_plus          END,
+    part_residences_principales = CASE WHEN r ? 'part_residences_principales' THEN (r->>'part_residences_principales')::FLOAT ELSE t.part_residences_principales END,
+    part_appartements         = CASE WHEN r ? 'part_appartements'         THEN (r->>'part_appartements')::FLOAT         ELSE t.part_appartements         END,
+    part_logements_sociaux    = CASE WHEN r ? 'part_logements_sociaux'    THEN (r->>'part_logements_sociaux')::FLOAT    ELSE t.part_logements_sociaux    END,
+    part_menages_emmenages_2ans = CASE WHEN r ? 'part_menages_emmenages_2ans' THEN (r->>'part_menages_emmenages_2ans')::FLOAT ELSE t.part_menages_emmenages_2ans END,
+    part_familles_monoparentales = CASE WHEN r ? 'part_familles_monoparentales' THEN (r->>'part_familles_monoparentales')::FLOAT ELSE t.part_familles_monoparentales END,
+    part_couples_avec_enfants = CASE WHEN r ? 'part_couples_avec_enfants' THEN (r->>'part_couples_avec_enfants')::FLOAT ELSE t.part_couples_avec_enfants END,
+    part_actifs_marche_velo   = CASE WHEN r ? 'part_actifs_marche_velo'   THEN (r->>'part_actifs_marche_velo')::FLOAT   ELSE t.part_actifs_marche_velo   END,
+    part_actifs_transport_commun = CASE WHEN r ? 'part_actifs_transport_commun' THEN (r->>'part_actifs_transport_commun')::FLOAT ELSE t.part_actifs_transport_commun END,
+    part_hommes_actifs        = CASE WHEN r ? 'part_hommes_actifs'        THEN (r->>'part_hommes_actifs')::FLOAT        ELSE t.part_hommes_actifs        END,
+    part_femmes_actives       = CASE WHEN r ? 'part_femmes_actives'       THEN (r->>'part_femmes_actives')::FLOAT       ELSE t.part_femmes_actives       END,
+    part_sans_diplome         = CASE WHEN r ? 'part_sans_diplome'         THEN (r->>'part_sans_diplome')::FLOAT         ELSE t.part_sans_diplome         END,
+    nb_emplois_commune        = CASE WHEN r ? 'nb_emplois_commune'        THEN (r->>'nb_emplois_commune')::FLOAT        ELSE t.nb_emplois_commune        END
   FROM jsonb_array_elements(p_rows) AS r
   WHERE t.code_iris = (r->>'code_iris')::TEXT
     AND (r->>'code_iris') IS NOT NULL;

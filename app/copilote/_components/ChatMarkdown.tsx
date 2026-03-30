@@ -79,7 +79,7 @@ export function ChatMarkdown({ text }: { text: string }) {
       const indent = line.match(/^\s*/)?.[0].length ?? 0;
       elements.push(
         <div key={key++} style={{ display: 'flex', gap: 6, marginBottom: 2, paddingLeft: indent > 2 ? 20 : 4 }}>
-          <span style={{ color: indent > 2 ? '#818cf8' : '#a78bfa', fontSize: 8, marginTop: 5 }}>●</span>
+          <span style={{ color: indent > 2 ? '#3dbdb5' : '#4ecdc4', fontSize: 8, marginTop: 5 }}>●</span>
           <span style={{ flex: 1 }}>{parseInline(bulletMatch[1])}</span>
         </div>
       );

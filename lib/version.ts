@@ -14,7 +14,9 @@ export const BUILD_DATE  = '2026-03-20';
 // Fichier PMTiles IRIS hébergé sur GitHub Releases (196 MB > limite Supabase Storage 50 MB)
 // Les valeurs démographiques sont injectées dynamiquement depuis la DB via setFeatureState
 // Régénérer uniquement si les contours IGN changent (rare) — voir .github/workflows/generate-iris-pmtiles.yml
-export const IRIS_PMTILES_URL = 'https://github.com/vincedosi/geo_promptV2-/releases/download/iris-pmtiles-latest/iris.pmtiles';
+// Fichier servi depuis /public en attendant la première exécution du workflow generate-iris-pmtiles.
+// Après upload sur GitHub Releases, basculer vers '/api/iris-tiles-proxy'.
+export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 export const CARREAUX_TILE_VERSION = 11;

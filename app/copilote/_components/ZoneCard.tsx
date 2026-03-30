@@ -8,12 +8,12 @@ export function ZoneCard({ zone }: { zone: ZoneData }) {
 
   return (
     <div style={{
-      background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)',
+      background: 'rgba(78,205,196,0.05)', border: '1px solid rgba(78,205,196,0.2)',
       borderRadius: 10, padding: '12px 14px', marginTop: 8,
       fontSize: 12, fontFamily: 'JetBrains Mono, monospace',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ color: '#a78bfa', fontWeight: 700, fontSize: 13 }}>{zone.ville}</span>
+        <span style={{ color: '#4ecdc4', fontWeight: 700, fontSize: 13 }}>{zone.ville}</span>
         {zone.rayon_metres && (
           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>
             zone {(zone.rayon_metres / 1000).toFixed(1)} km

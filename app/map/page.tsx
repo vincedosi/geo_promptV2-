@@ -1096,7 +1096,7 @@ export default function MapPage() {
         {/* Tab bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 0,
-          background: '#060608', borderBottom: '1px solid #261a35',
+          background: '#050505', borderBottom: '0.5px solid #1a1a1a',
           padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
           position: 'relative',
         }}>
@@ -1104,15 +1104,15 @@ export default function MapPage() {
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '0 16px', height: '100%',
               background: 'transparent',
-              border: 'none', borderBottom: activeTab === tab ? '2px solid #a855f7' : '2px solid transparent',
-              color: activeTab === tab ? '#e8e0f0' : '#4a3a5c',
-              fontFamily: 'Michroma, sans-serif', fontSize: 10, letterSpacing: 1,
+              border: 'none', borderBottom: activeTab === tab ? '2px solid #4ecdc4' : '2px solid transparent',
+              color: activeTab === tab ? '#f0f0f0' : '#666666',
+              fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, letterSpacing: 0,
               textTransform: 'uppercase', cursor: 'pointer',
               transition: 'color 0.15s, border-color 0.15s',
             }}>
               {tab === 'map' ? 'Carte' : 'Étude'}
               {tab === 'study' && studyVille && (
-                <span style={{ marginLeft: 6, fontSize: 9, color: '#a855f7', opacity: 0.7 }}>{studyVille}</span>
+                <span style={{ marginLeft: 6, fontSize: 9, color: '#4ecdc4', opacity: 0.7 }}>{studyVille}</span>
               )}
             </button>
           ))}
@@ -1170,14 +1170,14 @@ export default function MapPage() {
             <div style={{
               position: 'absolute', bottom: 44, left: 12, zIndex: 100,
               background: 'rgba(5,5,5,0.92)',
-              border: '1px solid #261a35',
+              border: '1px solid #1a1a1a',
               borderRadius: 2,
               padding: '10px 12px',
               minWidth: 200,
               fontFamily: "'JetBrains Mono','Fira Mono',monospace",
             }}>
               {/* Titre */}
-              <div style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 7, letterSpacing: '0.14em', color: '#a855f7', marginBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: '#4ecdc4', marginBottom: 6 }}>
                 RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
               </div>
 
@@ -1209,7 +1209,7 @@ export default function MapPage() {
               ))}
 
               {/* Séparateur */}
-              <div style={{ borderTop: '1px solid #261a35', marginTop: 8, paddingTop: 8 }}>
+              <div style={{ borderTop: '1px solid #1a1a1a', marginTop: 8, paddingTop: 8 }}>
 
                 {/* Slider opacité */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
@@ -1220,7 +1220,7 @@ export default function MapPage() {
                     type="range" min={0.1} max={1} step={0.05}
                     value={residualOpacity}
                     onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
-                    style={{ flex: 1, accentColor: '#a855f7', cursor: 'pointer', height: 4 }}
+                    style={{ flex: 1, accentColor: '#4ecdc4', cursor: 'pointer', height: 4 }}
                   />
                   <span style={{ fontSize: 8, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
                     {Math.round(residualOpacity * 100)}%
@@ -1235,8 +1235,8 @@ export default function MapPage() {
                     style={{
                       position: 'relative',
                       width: 32, height: 16,
-                      background: residualInverted ? '#a855f7' : '#261a35',
-                      border: `1px solid ${residualInverted ? '#a855f7' : '#3d2a50'}`,
+                      background: residualInverted ? '#4ecdc4' : '#1a1a1a',
+                      border: `1px solid ${residualInverted ? '#4ecdc4' : '#262626'}`,
                       borderRadius: 8,
                       cursor: 'pointer',
                       transition: 'background 150ms, border-color 150ms',
@@ -1255,13 +1255,13 @@ export default function MapPage() {
                     }} />
                   </button>
                 </div>
-                <div style={{ fontSize: 7.5, color: '#4a3a5c', marginBottom: 6 }}>
+                <div style={{ fontSize: 7.5, color: '#666666', marginBottom: 6 }}>
                   Rouge = {residualInverted ? 'excédent' : 'déficit'}
                 </div>
               </div>
 
               {/* Stats */}
-              <div style={{ borderTop: '1px solid #261a35', paddingTop: 6, fontSize: 8, color: '#4a3a5c' }}>
+              <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 6, fontSize: 8, color: '#666666' }}>
                 {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
               </div>
 
@@ -1270,8 +1270,8 @@ export default function MapPage() {
                 onClick={() => handleShowResiduals(null)}
                 style={{
                   marginTop: 6, width: '100%', padding: '4px 0',
-                  background: 'transparent', border: '1px solid #261a35',
-                  borderRadius: 2, color: '#6b7280', fontFamily: "'Michroma','Orbitron',sans-serif",
+                  background: 'transparent', border: '1px solid #262626',
+                  borderRadius: 2, color: '#666666', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
                   fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
                 }}
               >
@@ -1307,7 +1307,7 @@ export default function MapPage() {
           100% { transform: translateX(250%); }
         }
         .maplibregl-popup-content {
-          background:#0a0a0a!important;border:1px solid #261a35!important;padding:0!important;
+          background:#0a0a0a!important;border:1px solid #1a1a1a!important;padding:0!important;
           box-shadow:0 2px 12px rgba(0,0,0,0.6)!important;border-radius:2px!important;
         }
         .maplibregl-popup-tip {

@@ -64,27 +64,23 @@ interface ChatPanelProps {
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:           '#060608',
-  bgSurface:    '#0a0a0e',
-  bgElevated:   '#0f0f15',
-  border:       '#261a35',
-  borderLight:  'rgba(168,85,247,0.15)',
-  accent:       '#a855f7',
-  accentDim:    'rgba(168,85,247,0.12)',
-  accentGlow:   'rgba(168,85,247,0.35)',
-  green:        '#3dffa0',
-  greenDim:     'rgba(61,255,160,0.12)',
-  orange:       '#fbbf24',
-  red:          '#f87171',
-  text:         '#f1f1f4',
-  textSec:      '#9090b8',
-  textDim:      '#6b6b9a',
+  bg:        '#0a0a0a',
+  bgSurface: '#0a0a0a',
+  bgElevated:'#111111',
+  border:    '#1a1a1a',
+  text:      '#f0f0f0',
+  textSec:   '#a0a0a0',
+  textDim:   '#666666',
+  green:     '#3dffa0',
+  teal:      '#4ecdc4',
+  warning:   '#f7b731',
+  red:       '#ff5757',
 };
 
-const fontOrbitron = "'Orbitron', sans-serif";
-const fontMichroma = "'Michroma', sans-serif";
+const fontOrbitron = "'Inter', system-ui, sans-serif";
+const fontMichroma = "'Inter', system-ui, sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
-const fontInter    = "'Inter', sans-serif";
+const fontInter    = "'Inter', system-ui, sans-serif";
 
 // ─── Tool labels ──────────────────────────────────────────────────────────────
 const runningToolLabels: Record<string, string> = {
@@ -107,7 +103,7 @@ const runningToolLabels: Record<string, string> = {
 // ─── Agent badges ─────────────────────────────────────────────────────────────
 const AGENT_COLOR: Record<AgentName, string> = {
   demographie:      '#3dffa0',
-  poi_clustering:   '#a855f7',
+  poi_clustering:   '#4ecdc4',
   panneaux:         '#fbbf24',
   isochrone_battle: '#38bdf8',
   benchmark:        '#f472b6',
@@ -127,17 +123,22 @@ const AGENT_LABEL: Record<AgentName, string> = {
 function ProviderBadge({ status, provider }: { status: ProviderStatus; provider: Provider }) {
   if (provider === 'mistral') {
     const m = status.mistral;
-    if (!m) return <span style={{ fontSize: 9, color: C.textDim }}>…</span>;
+    if (!m) return <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono }}>…</span>;
     const pct = m.limit > 0 ? m.remaining / m.limit : 0;
-    const color = pct > 0.1 ? C.green : pct > 0.02 ? C.orange : C.red;
+    const color = pct > 0.1 ? C.green : pct > 0.02 ? C.warning : C.red;
     const label = m.remaining <= 0 ? 'Quota épuisé' : `${m.remaining.toLocaleString('fr-FR')} tok`;
-    return <span style={{ fontSize: 9, color, fontFamily: fontMono, letterSpacing: '0.04em' }}>{label}</span>;
+    return <span style={{ fontSize: 11, color, fontFamily: fontMono }}>{label}</span>;
   }
   const g = status.gemini;
-  if (!g) return <span style={{ fontSize: 9, color: C.textDim }}>…</span>;
-  const geminiLabel = !g.keyPresent ? 'Clé manquante' : 'Clé OK · billing requis';
-  const geminiColor = !g.keyPresent ? C.red : C.orange;
-  return <span style={{ fontSize: 9, color: geminiColor, fontFamily: fontMono }}>{geminiLabel}</span>;
+  if (!g) return <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono }}>…</span>;
+  if (!g.keyPresent) return <span style={{ fontSize: 11, color: C.red, fontFamily: fontMono }}>Clé manquante</span>;
+  return (
+    <span style={{ fontSize: 11, fontFamily: fontMono }}>
+      <span style={{ color: C.green }}>Clé OK</span>
+      <span style={{ color: C.textDim }}> · </span>
+      <span style={{ color: C.warning }}>billing requis</span>
+    </span>
+  );
 }
 
 // ─── SmartResultCard : rendu inline d'un résultat Smart ──────────────────────
@@ -330,14 +331,15 @@ export function ChatPanel({
   const providerModel = provider === 'mistral' ? 'mistral-small' : 'gemini-2.5-flash';
 
   const iconBtn = (active = false) => ({
-    background: active ? C.accentDim : 'rgba(255,255,255,0.04)',
-    border: `1px solid ${active ? C.borderLight : C.border}`,
-    borderRadius: 2,
-    padding: '5px 9px',
-    color: active ? C.accent : C.textSec,
+    background: active ? '#f0f0f0' : 'transparent',
+    border: '0.5px solid #262626',
+    borderRadius: 4,
+    padding: '4px 9px',
+    color: active ? '#050505' : C.textSec,
     cursor: 'pointer' as const,
     fontSize: 12,
     lineHeight: 1,
+    height: 28,
     transition: 'all 0.15s',
     fontFamily: fontInter,
   });
@@ -345,36 +347,35 @@ export function ChatPanel({
   const isDisabled = isLoading || smartPrompt.loading;
 
   return (
-    <div style={{ width: 400, minWidth: 300, minHeight: 0, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `1px solid ${C.border}`, position: 'relative', ...containerStyle }}>
+    <div style={{ width: 400, minWidth: 300, minHeight: 0, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `0.5px solid ${C.border}`, position: 'relative', ...containerStyle }}>
 
       {/* ── Header ── */}
       {!hideHeader ? (
-        <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${C.border}`, position: 'relative' }}>
-          <div style={{ position: 'absolute', bottom: 0, left: 16, width: 40, height: 1, background: C.accent, boxShadow: `0 0 8px ${C.accentGlow}` }} />
+        <div style={{ padding: '14px 16px 12px', borderBottom: `0.5px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.15s' }}>←</Link>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 14, fontFamily: fontOrbitron, fontWeight: 700, color: C.text, letterSpacing: '0.14em' }}>
-                  <span style={{ color: C.textDim }}>geo</span><span style={{ color: C.accent }}>.</span><span style={{ color: C.text }}>prompt</span>
+                <span style={{ fontSize: 14, fontFamily: fontInter, fontWeight: 500, color: C.text }}>
+                  geo.prompt
                 </span>
-                <span style={{ fontSize: 8, fontFamily: fontMono, background: C.accentDim, color: C.accent, padding: '2px 5px', border: `1px solid ${C.borderLight}`, borderRadius: 2, letterSpacing: '0.1em' }}>BETA</span>
+                <span style={{ fontSize: 10, fontFamily: fontMono, background: '#181818', color: C.textSec, padding: '2px 5px', border: '0.5px solid #262626', borderRadius: 3 }}>BETA</span>
                 {(isLoading || smartPrompt.loading) && (
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
                 )}
               </div>
-              <div style={{ fontSize: 9, color: C.textDim, fontFamily: fontMono, letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>{providerModel} · function calling</span>
                 {sessionTokens && (
-                  <span style={{ display: 'flex', gap: 4 }}>
-                    <span style={{ color: 'rgba(168,85,247,0.7)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
-                    <span style={{ color: 'rgba(61,255,160,0.6)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
-                    <span style={{ color: C.textDim }}>tok</span>
+                  <span style={{ display: 'flex', gap: 4, color: C.textDim }}>
+                    <span>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
+                    <span>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
+                    <span>tok</span>
                   </span>
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 5 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}>?</button>
               <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
               <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
@@ -382,40 +383,38 @@ export function ChatPanel({
           </div>
         </div>
       ) : (
-        <div style={{ padding: '6px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div style={{ padding: '6px 12px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {(isLoading || smartPrompt.loading) && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />}
           <div style={{ flex: 1 }} />
           <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}>?</button>
           <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
           <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
           {sessionTokens && sessionTokens.total > 0 && (
-            <span style={{ fontSize: 8, fontFamily: fontMono, color: C.textSec, marginLeft: 4 }}>
-              <span style={{ color: 'rgba(168,85,247,0.8)' }}>↑{sessionTokens.input.toLocaleString('fr-FR')}</span>
-              {' '}<span style={{ color: 'rgba(61,255,160,0.7)' }}>↓{sessionTokens.output.toLocaleString('fr-FR')}</span>
+            <span style={{ fontSize: 10, fontFamily: fontMono, color: C.textDim, marginLeft: 4 }}>
+              ↑{sessionTokens.input.toLocaleString('fr-FR')} ↓{sessionTokens.output.toLocaleString('fr-FR')} tok
             </span>
           )}
         </div>
       )}
 
       {/* ── Provider selector + Smart toggle ── */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, background: C.bgSurface }}>
+      <div style={{ borderBottom: `0.5px solid ${C.border}`, background: C.bgSurface }}>
         {/* Ligne 1 : boutons IA + smart */}
         <div style={{ padding: '8px 16px 6px', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 9, color: C.textDim, fontFamily: fontMichroma, letterSpacing: '0.14em', textTransform: 'uppercase', flexShrink: 0 }}>IA :</span>
+          <span style={{ fontSize: 9, color: C.textDim, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' as const, flexShrink: 0 }}>IA :</span>
           {([
-            { id: 'mistral', label: 'Mistral', color: C.orange, bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.35)' },
-            { id: 'gemini',  label: 'Gemini',  color: C.green,  bg: 'rgba(61,255,160,0.1)',  border: 'rgba(61,255,160,0.3)' },
-          ] as Array<{ id: Provider; label: string; color: string; bg: string; border: string }>).map(p => {
+            { id: 'mistral', label: 'Mistral' },
+            { id: 'gemini',  label: 'Gemini'  },
+          ] as Array<{ id: Provider; label: string }>).map(p => {
             const active = provider === p.id;
             return (
               <button key={p.id} onClick={() => setProvider(p.id)} style={{
-                background: active ? p.bg : 'transparent',
-                border: `1px solid ${active ? p.border : C.border}`,
-                borderRadius: 2, padding: '4px 10px',
-                color: active ? p.color : C.textSec,
-                cursor: 'pointer', fontSize: 9, fontFamily: fontInter,
-                fontWeight: active ? 600 : 300, letterSpacing: '0.08em',
-                textTransform: 'uppercase' as const, transition: 'all 0.15s',
+                background: active ? 'rgba(78,205,196,0.08)' : 'transparent',
+                border: `0.5px solid ${active ? C.teal : '#262626'}`,
+                borderRadius: 4, padding: '4px 10px',
+                color: active ? C.teal : C.textSec,
+                cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
+                fontWeight: active ? 500 : 400, transition: 'all 0.15s',
               }}>{p.label}</button>
             );
           })}
@@ -432,19 +431,12 @@ export function ChatPanel({
                                      'AUTO — détection par mots-clés — clic → SMART'
             }
             style={{
-              background:
-                smartMode === 'smart' ? 'rgba(61,255,160,0.12)' :
-                smartMode === 'auto'  ? 'rgba(168,85,247,0.08)' : 'transparent',
-              border: `1px solid ${
-                smartMode === 'smart' ? 'rgba(61,255,160,0.4)' :
-                smartMode === 'auto'  ? 'rgba(168,85,247,0.3)' : C.border}`,
-              borderRadius: 2, padding: '4px 8px',
-              color:
-                smartMode === 'smart' ? C.green :
-                smartMode === 'auto'  ? C.accent : C.textSec,
-              cursor: 'pointer', fontSize: 9, fontFamily: fontMichroma,
-              fontWeight: smartMode !== 'chat' ? 600 : 300, letterSpacing: '0.12em',
-              textTransform: 'uppercase' as const, transition: 'all 0.15s',
+              background: smartMode === 'smart' ? 'rgba(78,205,196,0.08)' : 'transparent',
+              border: `0.5px solid ${smartMode === 'smart' ? 'rgba(78,205,196,0.35)' : '#262626'}`,
+              borderRadius: 4, padding: '4px 8px',
+              color: smartMode === 'smart' ? C.teal : C.textSec,
+              cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
+              fontWeight: smartMode === 'smart' ? 500 : 400, transition: 'all 0.15s',
             }}
           >
             {smartMode === 'smart' ? '⚡ SMART' : smartMode === 'auto' ? '⚡ AUTO' : '⚡'}
@@ -462,17 +454,17 @@ export function ChatPanel({
 
       {/* ── Panel Sauvegarder ── */}
       {showSavePanel && (
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: C.accentDim }}>
-          <div style={{ fontSize: 9, fontFamily: fontMichroma, color: C.accent, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Sauvegarder cette carte</div>
+        <div style={{ padding: '12px 16px', borderBottom: `0.5px solid ${C.border}`, background: C.bg }}>
+          <div style={{ fontSize: 10, fontFamily: fontInter, color: C.textSec, letterSpacing: '0.04em', marginBottom: 10 }}>Sauvegarder cette carte</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={saveName}
               onChange={e => setSaveName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && saveCurrentMap()}
               placeholder="Nom de la carte…"
-              style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 2, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', fontFamily: fontInter }}
+              style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', fontFamily: fontInter }}
             />
-            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? C.accent : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 2, padding: '8px 14px', color: '#fff', cursor: 'pointer', fontSize: 10, fontWeight: 600, fontFamily: fontInter, letterSpacing: '0.1em', textTransform: 'uppercase', boxShadow: saveName.trim() ? `0 0 16px ${C.accentGlow}` : 'none' }}>
+            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? '#f0f0f0' : '#1a1a1a', border: 'none', borderRadius: 4, padding: '8px 14px', color: saveName.trim() && !saveLoading ? '#050505' : C.textDim, cursor: saveName.trim() && !saveLoading ? 'pointer' : 'default', fontSize: 11, fontWeight: 500, fontFamily: fontInter, transition: 'all 0.15s' }}>
               {saveLoading ? '…' : 'Sauver'}
             </button>
           </div>
@@ -482,14 +474,14 @@ export function ChatPanel({
 
       {/* ── Panel Charger ── */}
       {showLoadPanel && (
-        <div style={{ borderBottom: `1px solid ${C.border}`, background: C.bgSurface, maxHeight: 240, overflowY: 'auto' }}>
-          <div style={{ padding: '10px 16px', fontSize: 9, fontFamily: fontMichroma, color: C.accent, letterSpacing: '0.14em', textTransform: 'uppercase', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ borderBottom: `0.5px solid ${C.border}`, background: C.bgSurface, maxHeight: 240, overflowY: 'auto' }}>
+          <div style={{ padding: '10px 16px', fontSize: 10, fontFamily: fontInter, color: C.textSec, borderBottom: `0.5px solid ${C.border}` }}>
             Cartes sauvegardées ({savedMaps.length})
           </div>
           {savedMaps.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 11, color: C.textSec, textAlign: 'center', fontFamily: fontMono }}>// Aucune carte sauvegardée</div>
+            <div style={{ padding: 16, fontSize: 11, color: C.textDim, textAlign: 'center', fontFamily: fontMono }}>// Aucune carte sauvegardée</div>
           ) : savedMaps.map(m => (
-            <div key={m.id} style={{ padding: '8px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div key={m.id} style={{ padding: '8px 16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, color: C.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: fontInter }}>{m.name}</div>
                 <div style={{ fontSize: 9, color: C.textSec, marginTop: 2, fontFamily: fontMono }}>
@@ -497,8 +489,8 @@ export function ChatPanel({
                   {new Date(m.created_at).toLocaleDateString('fr-FR')}
                 </div>
               </div>
-              <button onClick={() => loadMap(m.id)} style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '4px 10px', color: C.accent, cursor: 'pointer', fontSize: 9, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Charger</button>
-              <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 2, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>✕</button>
+              <button onClick={() => loadMap(m.id)} style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '4px 10px', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fontInter, transition: 'all 0.15s' }}>Charger</button>
+              <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.2)', borderRadius: 4, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>✕</button>
             </div>
           ))}
         </div>
@@ -522,13 +514,13 @@ export function ChatPanel({
                 { text: 'Zone 15 min voiture autour des CIRFA de Lyon' },
               ].map(({ text }) => (
                 <button key={text} onClick={() => sendMessage(text)} style={{
-                  background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 2,
-                  padding: '9px 14px', color: '#c4c4d4', cursor: 'pointer', fontSize: 11,
+                  background: 'transparent', border: `0.5px solid ${C.border}`, borderRadius: 4,
+                  padding: '9px 14px', color: C.textSec, cursor: 'pointer', fontSize: 11,
                   textAlign: 'left', transition: 'border-color 0.15s, color 0.15s',
                   fontFamily: fontInter, fontWeight: 300, letterSpacing: '0.03em',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.4)'; e.currentTarget.style.color = '#e2e2f0'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = '#c4c4d4'; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)'; e.currentTarget.style.color = C.text; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSec; }}
                 >{text}</button>
               ))}
             </div>
@@ -584,20 +576,20 @@ export function ChatPanel({
               <div key={item.key}>
                 {msg.role === 'user' && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ maxWidth: '82%', background: C.accent, color: '#fff', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 300, boxShadow: `0 2px 12px ${C.accentGlow}` }}>
+                    <div style={{ maxWidth: '82%', background: '#f0f0f0', color: '#050505', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
                       {textContent}
                     </div>
                   </div>
                 )}
                 {msg.role === 'assistant' && (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 2, background: C.accentDim, border: `1px solid ${C.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <div style={{ width: 26, height: 26, borderRadius: 4, background: '#181818', border: '0.5px solid #262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {runningTool && (
-                        <div style={{ background: C.accentDim, border: `1px solid ${C.borderLight}`, borderRadius: 2, padding: '8px 12px', fontSize: 10, color: C.accent, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.accent }} />
+                        <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 4, padding: '8px 12px', fontSize: 10, color: C.textDim, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.green }} />
                           {runningToolLabels[(runningTool as { type: string }).type] ?? 'Outil en cours…'}
                         </div>
                       )}
@@ -621,7 +613,7 @@ export function ChatPanel({
                         );
                         if (isRawMcpOutput) return null;
                         return (
-                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: '2px 12px 12px 12px', padding: '10px 14px', fontSize: 13, color: 'rgba(241,241,244,0.88)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 300 }}>
+                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px', fontSize: 13, color: '#e0e0e0', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 300 }}>
                             <ChatMarkdown text={textContent} />
                           </div>
                         );
@@ -639,8 +631,8 @@ export function ChatPanel({
           if (sm.type === 'smart_prompt') {
             return (
               <div key={item.key} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <div style={{ maxWidth: '82%', background: 'rgba(61,255,160,0.12)', color: C.text, border: '1px solid rgba(61,255,160,0.25)', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 300 }}>
-                  <span style={{ fontSize: 8, fontFamily: fontMichroma, color: C.green, letterSpacing: 1.5, marginRight: 6 }}>⚡ SMART</span>
+                <div style={{ maxWidth: '82%', background: '#f0f0f0', color: '#050505', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
+                  <span style={{ fontSize: 8, fontFamily: fontMichroma, color: C.teal, letterSpacing: 1.5, marginRight: 6 }}>⚡ SMART</span>
                   {sm.content}
                 </div>
               </div>
@@ -651,7 +643,7 @@ export function ChatPanel({
             return (
               <div key={item.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 {/* Avatar Smart */}
-                <div style={{ width: 26, height: 26, borderRadius: 2, background: 'rgba(61,255,160,0.1)', border: '1px solid rgba(61,255,160,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10 }}>
+                <div style={{ width: 26, height: 26, borderRadius: 2, background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10 }}>
                   ⚡
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -670,8 +662,8 @@ export function ChatPanel({
         {/* Loader chat classique */}
         {isLoading && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ width: 26, height: 26, borderRadius: 2, background: C.accentDim, border: `1px solid ${C.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <div style={{ width: 26, height: 26, borderRadius: 4, background: '#181818', border: '0.5px solid #262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             </div>
             <TypingDots />
           </div>
@@ -680,11 +672,11 @@ export function ChatPanel({
         {/* Loader Smart Prompt */}
         {smartPrompt.loading && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ width: 26, height: 26, borderRadius: 2, background: 'rgba(61,255,160,0.1)', border: '1px solid rgba(61,255,160,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 2, background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10 }}>
               ⚡
             </div>
-            <div style={{ background: 'rgba(61,255,160,0.06)', border: '1px solid rgba(61,255,160,0.2)', borderRadius: '2px 12px 12px 12px', padding: '10px 14px', fontSize: 12, color: C.green, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.green }} />
+            <div style={{ background: 'rgba(78,205,196,0.06)', border: '1px solid rgba(78,205,196,0.2)', borderRadius: '2px 12px 12px 12px', padding: '10px 14px', fontSize: 12, color: C.teal, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.teal }} />
               Routage intelligent en cours…
             </div>
           </div>
@@ -692,10 +684,10 @@ export function ChatPanel({
 
         {/* Rate limit */}
         {rateLimitCooldown > 0 && (
-          <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 2, padding: '10px 14px', fontSize: 10, color: C.orange, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.04em' }}>
-            <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.orange }} />
+          <div style={{ background: 'rgba(247,183,49,0.08)', border: '0.5px solid rgba(247,183,49,0.25)', borderRadius: 4, padding: '10px 14px', fontSize: 10, color: C.warning, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.04em' }}>
+            <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.warning }} />
             Limite {providerName} — réessaie dans {rateLimitCooldown}s
-            <button onClick={cancelCooldown} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.orange, cursor: 'pointer', fontSize: 9, opacity: 0.6, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Ignorer</button>
+            <button onClick={cancelCooldown} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.warning, cursor: 'pointer', fontSize: 9, opacity: 0.6, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Ignorer</button>
           </div>
         )}
 
@@ -731,7 +723,7 @@ export function ChatPanel({
             title="Remonter en haut"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: C.accent, fontSize: 11, fontFamily: fontMono,
+              color: C.textSec, fontSize: 11, fontFamily: fontMono,
               letterSpacing: '0.08em', padding: '0 4px', lineHeight: 1,
               display: 'flex', alignItems: 'center', gap: 5,
             }}
@@ -754,7 +746,7 @@ export function ChatPanel({
       )}
 
       {/* ── Input ── */}
-      <div style={{ padding: '12px 16px', borderTop: `1px solid ${smartMode === 'smart' ? 'rgba(61,255,160,0.3)' : C.border}`, transition: 'border-color 0.2s' }}>
+      <div style={{ padding: '12px 16px', borderTop: `0.5px solid ${C.border}` }}>
         <form onSubmit={onFormSubmit} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <textarea
             value={input}
@@ -776,47 +768,33 @@ export function ChatPanel({
             }
             rows={2}
             className="gp-input"
-            style={{ flex: 1, background: C.bgSurface, border: `1px solid ${smartMode === 'smart' ? 'rgba(61,255,160,0.2)' : C.border}`, borderRadius: 2, padding: '10px 14px', color: C.text, fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: fontInter, fontWeight: 300, transition: 'border-color 0.2s, box-shadow 0.2s' }}
-            onFocus={e => {
-              const focusColor = smartMode === 'smart' ? 'rgba(61,255,160,0.5)' : 'rgba(168,85,247,0.5)';
-              const focusShadow = smartMode === 'smart'
-                ? '0 0 0 2px rgba(61,255,160,0.08), 0 0 16px rgba(61,255,160,0.1)'
-                : '0 0 0 2px rgba(168,85,247,0.08), 0 0 16px rgba(168,85,247,0.1)';
-              e.currentTarget.style.borderColor = focusColor;
-              e.currentTarget.style.boxShadow   = focusShadow;
-            }}
-            onBlur={e => { e.currentTarget.style.borderColor = smartMode === 'smart' ? 'rgba(61,255,160,0.2)' : C.border; e.currentTarget.style.boxShadow = 'none'; }}
+            style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', color: C.text, fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: fontInter, fontWeight: 300, transition: 'border-color 0.15s' }}
+            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
           />
           <button
             type="submit"
             disabled={isDisabled || !input.trim()}
             style={{
-              background: input.trim() && !isDisabled
-                ? (smartMode === 'smart' ? C.green : C.accent)
-                : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${input.trim() && !isDisabled
-                ? (smartMode === 'smart' ? 'rgba(61,255,160,0.5)' : 'rgba(168,85,247,0.5)')
-                : C.border}`,
-              borderRadius: 2, padding: '10px 14px',
-              color: input.trim() && !isDisabled ? (smartMode === 'smart' ? '#000' : '#fff') : C.textDim,
-              cursor: input.trim() && !isDisabled ? 'pointer' : 'not-allowed',
-              fontSize: 16, lineHeight: 1, transition: 'all 0.2s', flexShrink: 0,
-              boxShadow: input.trim() && !isDisabled
-                ? `0 0 20px ${smartMode === 'smart' ? 'rgba(61,255,160,0.35)' : C.accentGlow}`
-                : 'none',
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              background: input.trim() && !isDisabled ? C.teal : '#1a1a1a',
+              border: 'none',
+              color: input.trim() && !isDisabled ? '#050505' : C.textDim,
+              cursor: input.trim() && !isDisabled ? 'pointer' : 'default',
+              fontSize: 16, lineHeight: 1, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >↑</button>
         </form>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-          <span style={{ fontSize: 9, color: smartMode === 'smart' ? C.green : smartMode === 'auto' ? C.accent : C.textDim, fontFamily: fontInter, fontWeight: 200, letterSpacing: '0.06em', transition: 'color 0.2s' }}>
-            {smartMode === 'smart' ? '⚡ SMART — routeur multi-agents Mistral' :
+          <span style={{ fontSize: 9, color: smartMode === 'smart' ? C.teal : C.textDim, fontFamily: fontInter, fontWeight: 400, letterSpacing: '0.04em', transition: 'color 0.2s' }}>
+            {smartMode === 'smart' ? '⚡ SMART — routeur multi-agents' :
              smartMode === 'auto'  ? '⚡ AUTO — détection par mots-clés' :
                                     'Entrée pour envoyer · Shift+Entrée pour saut de ligne'}
           </span>
           <span style={{ fontSize: 9, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: C.textDim }}>session</span>
-            <span style={{ color: 'rgba(168,85,247,0.7)' }}>↑{(sessionTokens?.input ?? 0).toLocaleString('fr-FR')}</span>
-            <span style={{ color: 'rgba(61,255,160,0.6)' }}>↓{(sessionTokens?.output ?? 0).toLocaleString('fr-FR')}</span>
+            <span style={{ color: C.textDim }}>↑{(sessionTokens?.input ?? 0).toLocaleString('fr-FR')}</span>
+            <span style={{ color: C.textDim }}>↓{(sessionTokens?.output ?? 0).toLocaleString('fr-FR')}</span>
             <span style={{ color: C.textDim }}>tok</span>
           </span>
         </div>
@@ -825,7 +803,7 @@ export function ChatPanel({
       <style>{`
         @keyframes pulseDot { 0%,100%{opacity:1;box-shadow:0 0 8px currentColor} 50%{opacity:0.4;box-shadow:none} }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-        .gp-input::placeholder { color: #6b6b9a !important; }
+        .gp-input::placeholder { color: #666666 !important; }
       `}</style>
     </div>
   );

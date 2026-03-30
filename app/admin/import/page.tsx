@@ -1606,7 +1606,7 @@ export default function ImportUniverselPage() {
                     type="text"
                     value={sourceName}
                     onChange={(e) => setSourceName(e.target.value)}
-                    placeholder={`Import ${dataType} — ${new Date().toLocaleDateString('fr-FR')}`}
+                    placeholder={`Import POI — ${new Date().toLocaleDateString('fr-FR')}`}
                     style={inputStyle}
                   />
                 </div>
