@@ -15,30 +15,29 @@ import type { GeminiAnalysis } from '@/components/ClusteringPDFReport';
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:      '#050505',
-  bgPanel: '#08080f',
-  bgCard:  '#0c0c18',
-  bgRow:   '#0a0a14',
-  border:  '#261a35',
-  accent:  '#a855f7',
+  bgPanel: '#0a0a0a',
+  bgCard:  '#0a0a0a',
+  bgRow:   '#0a0a0a',
+  border:  '#1a1a1a',
+  accent:  '#4ecdc4',
   green:   '#3dffa0',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#e2e8f0',
-  muted:   '#8888aa',
-  dim:     '#6b7280',
+  text:    '#f0f0f0',
+  muted:   '#a0a0a0',
+  dim:     '#666666',
 };
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
-const fOrbitron = "'Orbitron',sans-serif";
+const fMono  = "'JetBrains Mono','Fira Mono',monospace";
+const fInter = "'Inter', system-ui, sans-serif";
 
 const CLUSTER_COLORS = [
-  '#4e79a7','#f28e2b','#59a14f','#e15759',
-  '#76b7b2','#edc948','#b07aa1','#ff9da7',
+  '#4ecdc4','#a0a0a0','#5b9bd5','#f7b731',
+  '#3dffa0','#ff9da7','#b07aa1','#edc948',
   '#9c755f','#bab0ac',
 ];
 
 // ─── Recharts shared axis props ───────────────────────────────────────────────
-const axisStyle = { fontSize: 10, fontFamily: fMono, fill: C.muted };
+const axisStyle = { fontSize: 11, fontFamily: fInter, fill: C.muted };
 const gridStyle = { stroke: C.border, strokeDasharray: '3 3' };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -105,13 +104,13 @@ function fmtVal(feat: string, v: number) {
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'resume',       label: 'RÉSUMÉ' },
-  { id: 'carte',        label: 'CARTE' },
-  { id: 'profils',      label: 'PROFILS' },
-  { id: 'comparaison',  label: 'COMPARAISON' },
-  { id: 'qualite',      label: 'QUALITÉ' },
-  { id: 'methodologie', label: 'MÉTHODOLOGIE' },
-  { id: 'historique',   label: 'HISTORIQUE' },
+  { id: 'resume',       label: 'Résumé' },
+  { id: 'carte',        label: 'Carte' },
+  { id: 'profils',      label: 'Profils' },
+  { id: 'comparaison',  label: 'Comparaison' },
+  { id: 'qualite',      label: 'Qualité' },
+  { id: 'methodologie', label: 'Méthodologie' },
+  { id: 'historique',   label: 'Historique' },
 ] as const;
 type TabId = typeof TABS[number]['id'];
 
@@ -124,7 +123,7 @@ function TabBar({ active, onChange }: { active: TabId; onChange: (t: TabId) => v
           <button key={t.id} onClick={() => onChange(t.id)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
             padding: '10px 18px',
-            fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.1em',
+            fontFamily: fInter, fontSize: 12,
             color:        isActive ? C.accent : C.dim,
             borderBottom: isActive ? `2px solid ${C.accent}` : '2px solid transparent',
             transition: 'color 0.15s', whiteSpace: 'nowrap',
@@ -147,7 +146,7 @@ function Panel({ title, children, fullWidth }: {
       gridColumn: fullWidth ? '1 / -1' : undefined,
     }}>
       {title && (
-        <div style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.1em', color: C.dim, marginBottom: 14 }}>
+        <div style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: C.text, marginBottom: 14 }}>
           {title}
         </div>
       )}
@@ -189,7 +188,7 @@ function FeatureRow({ feat, values, franceAvg, refRevenusAvg }: {
 
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}20` }}>
-      <td style={{ padding: '6px 8px', fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.05em', color: C.muted, whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '6px 8px', fontFamily: fInter, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
         {label}
       </td>
       {values.map((v) => {
@@ -217,7 +216,7 @@ function FeatureRow({ feat, values, franceAvg, refRevenusAvg }: {
               </span>
               {idx !== null && (
                 <span style={{
-                  fontSize: 8, fontFamily: fMichroma,
+                  fontSize: 8, fontFamily: fMono,
                   color: idx >= 110 ? C.green : idx <= 90 ? C.red : C.amber,
                   background: (idx >= 110 ? C.green : idx <= 90 ? C.red : C.amber) + '15',
                   border: `1px solid ${(idx >= 110 ? C.green : idx <= 90 ? C.red : C.amber)}30`,
@@ -269,7 +268,7 @@ function TabResume({ model, summary, franceAvg }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
       {/* Model stats */}
-      <Panel title={`MODÈLE v${model.version}`}>
+      <Panel title={`Modèle v${model.version}`}>
         {[
           ['Clusters (K)',       model.k],
           ['Silhouette',         model.silhouette_score.toFixed(4)],
@@ -281,14 +280,14 @@ function TabResume({ model, summary, franceAvg }: {
           ['Créé le',            createdAt],
         ].map(([k, v]) => (
           <div key={String(k)} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid ${C.border}20` }}>
-            <span style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.05em', color: C.muted }}>{k}</span>
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.muted }}>{k}</span>
             <span style={{ fontFamily: fMono, fontSize: 11, color: C.text }}>{v}</span>
           </div>
         ))}
       </Panel>
 
       {/* Donut chart */}
-      <Panel title="RÉPARTITION DES CLUSTERS">
+      <Panel title="Répartition des clusters">
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
             <Pie
@@ -320,7 +319,7 @@ function TabResume({ model, summary, franceAvg }: {
       </Panel>
 
       {/* Bar chart horizontal */}
-      <Panel title="DISTRIBUTION — NB POI PAR CLUSTER">
+      <Panel title="Distribution — nb POI par cluster">
         <ResponsiveContainer width="100%" height={Math.max(120, cids.length * 36 + 20)}>
           <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 40, bottom: 0, left: 4 }}>
             <XAxis type="number" tick={axisStyle} axisLine={{ stroke: C.border }} tickLine={false} />
@@ -336,7 +335,7 @@ function TabResume({ model, summary, franceAvg }: {
       </Panel>
 
       {/* Radar overview */}
-      <Panel title="PROFILS MOYENS — VUE D'ENSEMBLE" fullWidth>
+      <Panel title="Profils moyens — vue d'ensemble" fullWidth>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <ClusterRadar
             profiles={cids.map(c => summary[c]?.avg_profile ?? {})}
@@ -381,7 +380,7 @@ function TabCarte({ model, poiList }: { model: ModelDetail; poiList: PoiRecord[]
               background: color + '10',
             }}>
               <div style={{ width: 10, height: 10, borderRadius: 1, background: color, flexShrink: 0 }} />
-              <span style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.08em', color: C.text }}>{label}</span>
+              <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>{label}</span>
               <span style={{ fontFamily: fMono, fontSize: 10, color: C.dim, marginLeft: 4 }}>— {pois.length} POI</span>
             </div>
             <div style={{ maxHeight: 200, overflow: 'auto' }}>
@@ -397,7 +396,7 @@ function TabCarte({ model, poiList }: { model: ModelDetail; poiList: PoiRecord[]
                   <div style={{ display: 'flex', gap: 8 }}>
                     {p.imputed_features.length > 0 && (
                       <span style={{
-                        fontSize: 8, fontFamily: fMichroma, color: C.amber,
+                        fontSize: 10, fontFamily: fInter, color: C.amber,
                         background: C.amber + '15', border: `1px solid ${C.amber}30`,
                         borderRadius: 2, padding: '1px 4px',
                       }}>
@@ -452,7 +451,7 @@ function TabProfils({ model, summary, franceAvg }: {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 1, background: color }} />
-                <span style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.08em', color: C.text }}>{s.label}</span>
+                <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>{s.label}</span>
                 <span style={{ fontFamily: fMono, fontSize: 9, color: C.dim, marginLeft: 'auto' }}>{s.count} POI</span>
               </div>
 
@@ -473,9 +472,9 @@ function TabProfils({ model, summary, franceAvg }: {
                 const clr = idx! >= 110 ? C.green : idx! <= 90 ? C.red : C.amber;
                 return (
                   <div style={{ textAlign: 'center', margin: '10px 0 8px' }}>
-                    <span style={{ fontSize: 8, fontFamily: fMichroma, color: C.dim }}>REVENU INDEX </span>
+                    <span style={{ fontSize: 11, fontFamily: fInter, color: C.dim }}>Revenu index </span>
                     <span style={{ fontFamily: fMono, fontSize: 16, color: clr, fontWeight: 700 }}>{idx}</span>
-                    <span style={{ fontSize: 8, fontFamily: fMichroma, color: C.dim }}> / 100 = moy. France</span>
+                    <span style={{ fontSize: 11, fontFamily: fInter, color: C.dim }}> / 100 = moy. France</span>
                   </div>
                 );
               })()}
@@ -483,8 +482,8 @@ function TabProfils({ model, summary, franceAvg }: {
               {/* Delta bar chart vs France */}
               {deltaData.length > 0 && (
                 <>
-                  <div style={{ fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.dim, marginTop: 10, marginBottom: 6 }}>
-                    ÉCART VS FRANCE
+                  <div style={{ fontFamily: fInter, fontSize: 11, color: C.dim, marginTop: 10, marginBottom: 6 }}>
+                    Écart vs France
                   </div>
                   <ResponsiveContainer width="100%" height={feats.length * 18 + 20}>
                     <BarChart
@@ -501,7 +500,7 @@ function TabProfils({ model, summary, franceAvg }: {
                       <YAxis
                         type="category" dataKey="feature"
                         width={72}
-                        tick={{ fontSize: 8, fontFamily: fMichroma, fill: C.muted }}
+                        tick={{ fontSize: 10, fontFamily: fInter, fill: C.muted }}
                         axisLine={false} tickLine={false}
                       />
                       <ReferenceLine x={0} stroke={C.border} strokeWidth={1.5} />
@@ -527,14 +526,14 @@ function TabProfils({ model, summary, franceAvg }: {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-              <th style={{ padding: '8px', textAlign: 'left', fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.dim }}>FEATURE</th>
+              <th style={{ padding: '8px', textAlign: 'left', fontFamily: fInter, fontSize: 11, color: C.dim }}>Feature</th>
               {cids.map(cid => (
-                <th key={cid} style={{ padding: '8px', textAlign: 'left', fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: CLUSTER_COLORS[Number(cid) % CLUSTER_COLORS.length] }}>
+                <th key={cid} style={{ padding: '8px', textAlign: 'left', fontFamily: fInter, fontSize: 11, color: CLUSTER_COLORS[Number(cid) % CLUSTER_COLORS.length] }}>
                   {summary[cid]?.label ?? `C${cid}`}
                 </th>
               ))}
               {franceAvg && (
-                <th style={{ padding: '8px', textAlign: 'left', fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.dim }}>MOY. FRANCE</th>
+                <th style={{ padding: '8px', textAlign: 'left', fontFamily: fInter, fontSize: 11, color: C.dim }}>Moy. France</th>
               )}
             </tr>
           </thead>
@@ -585,7 +584,7 @@ function TabComparaison({ model, summary, franceAvg }: {
   return (
     <div>
       {/* Radar superposé */}
-      <Panel title={`RADAR SUPERPOSÉ — ${cids.length} CLUSTERS vs FRANCE`} fullWidth>
+      <Panel title={`Radar superposé — ${cids.length} clusters vs France`} fullWidth>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <ClusterRadar
             profiles={cids.map(c => summary[c]?.avg_profile ?? {})}
@@ -600,7 +599,7 @@ function TabComparaison({ model, summary, franceAvg }: {
 
       {/* Grouped bar chart */}
       {franceAvg && (
-        <Panel title="COMPARAISON PAR FEATURE — CLUSTERS vs FRANCE" fullWidth>
+        <Panel title="Comparaison par feature — clusters vs France" fullWidth>
           <ResponsiveContainer width="100%" height={Math.max(400, feats.length * 28 + 60)}>
             <BarChart
               layout="vertical"
@@ -617,7 +616,7 @@ function TabComparaison({ model, summary, franceAvg }: {
               <YAxis
                 type="category" dataKey="feature"
                 width={88}
-                tick={{ fontSize: 8, fontFamily: fMichroma, fill: C.muted }}
+                tick={{ fontSize: 10, fontFamily: fInter, fill: C.muted }}
                 axisLine={false} tickLine={false}
               />
               <CartesianGrid {...gridStyle} horizontal={false} />
@@ -643,15 +642,15 @@ function TabComparaison({ model, summary, franceAvg }: {
 
       {/* Delta table */}
       {franceAvg && (
-        <Panel title="DELTA vs MOYENNE FRANCE (en points de %)" fullWidth>
+        <Panel title="Delta vs moyenne France (en points de %)" fullWidth>
           <div style={{ overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <th style={{ padding: '7px 10px', textAlign: 'left', fontFamily: fMichroma, fontSize: 8, color: C.dim }}>FEATURE</th>
-                  <th style={{ padding: '7px 10px', textAlign: 'right', fontFamily: fMichroma, fontSize: 8, color: C.dim }}>MOY. FR</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontFamily: fInter, fontSize: 11, color: C.dim }}>Feature</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'right', fontFamily: fInter, fontSize: 11, color: C.dim }}>Moy. Fr</th>
                   {cids.map(cid => (
-                    <th key={cid} style={{ padding: '7px 10px', textAlign: 'right', fontFamily: fMichroma, fontSize: 8, color: CLUSTER_COLORS[Number(cid) % CLUSTER_COLORS.length] }}>
+                    <th key={cid} style={{ padding: '7px 10px', textAlign: 'right', fontFamily: fInter, fontSize: 11, color: CLUSTER_COLORS[Number(cid) % CLUSTER_COLORS.length] }}>
                       {summary[cid]?.label ?? `C${cid}`}
                     </th>
                   ))}
@@ -662,7 +661,7 @@ function TabComparaison({ model, summary, franceAvg }: {
                   const ref = franceAvg[feat]?.avg ?? 0;
                   return (
                     <tr key={feat} style={{ borderBottom: `1px solid ${C.border}15` }}>
-                      <td style={{ padding: '5px 10px', fontFamily: fMichroma, fontSize: 8, color: C.muted }}>{FEAT_SHORT[feat] ?? feat}</td>
+                      <td style={{ padding: '5px 10px', fontFamily: fInter, fontSize: 11, color: C.muted }}>{FEAT_SHORT[feat] ?? feat}</td>
                       <td style={{ padding: '5px 10px', fontFamily: fMono, fontSize: 9, color: C.dim, textAlign: 'right' }}>
                         {fmtVal(feat, ref)}
                       </td>
@@ -698,7 +697,7 @@ function TabQualite({ model, poiList, summary }: {
   const total = poiList.length;
   const silScore = model.silhouette_score;
   const silColor = silScore >= 0.5 ? C.green : silScore >= 0.3 ? C.amber : C.red;
-  const silLabel = silScore >= 0.5 ? 'EXCELLENT' : silScore >= 0.3 ? 'BON' : 'FAIBLE';
+  const silLabel = silScore >= 0.5 ? 'Excellent' : silScore >= 0.3 ? 'Bon' : 'Faible';
 
   const imputedByCluster: Record<string, number> = {};
   for (const p of poiList) {
@@ -736,10 +735,10 @@ function TabQualite({ model, poiList, summary }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
       {/* Silhouette KPI */}
-      <Panel title="SCORE DE SILHOUETTE">
+      <Panel title="Score de silhouette">
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-          <span style={{ fontFamily: fOrbitron, fontSize: 36, color: silColor }}>{silScore.toFixed(3)}</span>
-          <span style={{ fontFamily: fMichroma, fontSize: 10, color: silColor }}>{silLabel}</span>
+          <span style={{ fontFamily: fMono, fontSize: 36, color: silColor }}>{silScore.toFixed(3)}</span>
+          <span style={{ fontFamily: fInter, fontSize: 10, color: silColor }}>{silLabel}</span>
         </div>
         <div style={{ background: C.border, borderRadius: 1, height: 6, marginBottom: 10 }}>
           <div style={{ width: `${Math.min(100, silScore * 100)}%`, height: '100%', background: silColor, borderRadius: 1 }} />
@@ -752,10 +751,10 @@ function TabQualite({ model, poiList, summary }: {
       </Panel>
 
       {/* PCA KPI */}
-      <Panel title="RÉDUCTION DIMENSIONNELLE (PCA)">
+      <Panel title="Réduction dimensionnelle (PCA)">
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-          <span style={{ fontFamily: fOrbitron, fontSize: 28, color: C.accent }}>{model.n_pca_components}</span>
-          <span style={{ fontFamily: fMichroma, fontSize: 10, color: C.muted }}>composantes</span>
+          <span style={{ fontFamily: fMono, fontSize: 28, color: C.accent }}>{model.n_pca_components}</span>
+          <span style={{ fontFamily: fInter, fontSize: 10, color: C.muted }}>composantes</span>
         </div>
         <div style={{ background: C.border, borderRadius: 1, height: 6, marginBottom: 10 }}>
           <div style={{ width: `${(model.variance_explained * 100).toFixed(0)}%`, height: '100%', background: C.accent, borderRadius: 1 }} />
@@ -767,7 +766,7 @@ function TabQualite({ model, poiList, summary }: {
       </Panel>
 
       {/* Cluster sizes bar chart */}
-      <Panel title="TAILLE DES CLUSTERS">
+      <Panel title="Taille des clusters">
         <ResponsiveContainer width="100%" height={Math.max(120, cids.length * 36 + 30)}>
           <BarChart layout="vertical" data={clusterSizeData} margin={{ top: 0, right: 48, bottom: 0, left: 4 }}>
             <XAxis type="number" tick={axisStyle} axisLine={{ stroke: C.border }} tickLine={false} />
@@ -788,7 +787,7 @@ function TabQualite({ model, poiList, summary }: {
       </Panel>
 
       {/* Imputation */}
-      <Panel title="SECRET STATISTIQUE INSEE">
+      <Panel title="Secret statistique INSEE">
         <div style={{ fontFamily: fMono, fontSize: 11, color: C.text, marginBottom: 10 }}>
           {poiList.filter(p => p.imputed_features.length > 0).length} / {total} POI avec features imputées
         </div>
@@ -807,18 +806,18 @@ function TabQualite({ model, poiList, summary }: {
 
       {/* PCA Scatter */}
       {hasPCA && (
-        <Panel title={`SCATTER PCA — PC1 vs PC2 (${poiList.length} POI)`} fullWidth>
+        <Panel title={`Scatter PCA — PC1 vs PC2 (${poiList.length} POI)`} fullWidth>
           <ResponsiveContainer width="100%" height={480}>
             <ScatterChart margin={{ top: 16, right: 20, bottom: 32, left: 12 }}>
               <XAxis
                 type="number" dataKey="x" name="PCA 1"
                 tick={axisStyle} axisLine={{ stroke: C.border }} tickLine={false}
-                label={{ value: 'Composante PCA 1', position: 'insideBottom', offset: -16, fill: C.dim, fontSize: 9, fontFamily: fMichroma }}
+                label={{ value: 'Composante PCA 1', position: 'insideBottom', offset: -16, fill: C.dim, fontSize: 9, fontFamily: fInter }}
               />
               <YAxis
                 type="number" dataKey="y" name="PCA 2"
                 tick={axisStyle} axisLine={{ stroke: C.border }} tickLine={false}
-                label={{ value: 'PCA 2', angle: -90, position: 'insideLeft', fill: C.dim, fontSize: 9, fontFamily: fMichroma }}
+                label={{ value: 'PCA 2', angle: -90, position: 'insideLeft', fill: C.dim, fontSize: 9, fontFamily: fInter }}
               />
               <ZAxis range={[28, 28]} />
               <ReferenceLine x={0} stroke={C.border} strokeDasharray="4 3" />
@@ -873,12 +872,12 @@ function TabMethodologie({ model }: { model: ModelDetail }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {steps.map(s => (
         <div key={s.title} style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, padding: 16 }}>
-          <div style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.08em', color: C.accent, marginBottom: 6 }}>{s.title}</div>
+          <div style={{ fontFamily: fInter, fontSize: 12, color: C.accent, marginBottom: 6 }}>{s.title}</div>
           <div style={{ fontFamily: fMono, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>{s.detail}</div>
         </div>
       ))}
       <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, padding: 16 }}>
-        <div style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.08em', color: C.accent, marginBottom: 10 }}>GLOSSAIRE DES FEATURES</div>
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.accent, marginBottom: 10 }}>Glossaire des features</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
           {Object.entries(FEAT_LABEL).map(([k, v]) => (
             <div key={k} style={{ display: 'flex', gap: 6, padding: '3px 0', borderBottom: `1px solid ${C.border}15` }}>
@@ -898,7 +897,7 @@ function TabHistorique({ model, poiList }: { model: ModelDetail; poiList: PoiRec
   return (
     <div>
       <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, padding: 20, marginBottom: 16 }}>
-        <div style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.1em', color: C.dim, marginBottom: 12 }}>VERSION {model.version}</div>
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.dim, marginBottom: 12 }}>Version {model.version}</div>
         {mapping ? (
           <div>
             <div style={{ fontFamily: fMono, fontSize: 11, color: C.muted, marginBottom: 10 }}>Mapping des clusters depuis la version précédente :</div>
@@ -918,13 +917,13 @@ function TabHistorique({ model, poiList }: { model: ModelDetail; poiList: PoiRec
         )}
       </div>
       <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, padding: 20 }}>
-        <div style={{ fontFamily: fMichroma, fontSize: 9, letterSpacing: '0.1em', color: C.dim, marginBottom: 12 }}>COUVERTURE DE DONNÉES PAR POI</div>
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.dim, marginBottom: 12 }}>Couverture de données par POI</div>
         <div style={{ fontFamily: fMono, fontSize: 11, color: C.muted, marginBottom: 12 }}>
           Entraîné sur {model.n_poi_trained} POI. Durée isochrone : {model.duration_minutes} min {model.mode}.
         </div>
         {poiList.filter(p => p.imputed_features.length > 0).length > 0 && (
           <div>
-            <div style={{ fontFamily: fMichroma, fontSize: 9, color: C.amber, marginBottom: 8 }}>POI AVEC IMPUTATION</div>
+            <div style={{ fontFamily: fInter, fontSize: 11, color: C.amber, marginBottom: 8 }}>POI avec imputation</div>
             <div style={{ maxHeight: 240, overflow: 'auto' }}>
               {poiList.filter(p => p.imputed_features.length > 0).map(p => (
                 <div key={p.poi_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid ${C.border}15` }}>
@@ -1135,14 +1134,14 @@ export default function ClusterVersionPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <Link href="/clusters" style={{ fontFamily: fMono, fontSize: 10, color: C.dim, textDecoration: 'none' }}>
-            ← MODÈLES
+            ← Modèles
           </Link>
           <span style={{ color: C.border }}>|</span>
-          <span style={{ fontFamily: fOrbitron, fontSize: 16, color: C.text, letterSpacing: '0.04em' }}>
-            CLUSTERING v{model.version}
+          <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 18, color: C.text }}>
+            Clustering v{model.version}
           </span>
           <span style={{
-            fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.1em',
+            fontFamily: fMono, fontSize: 10,
             color:   model.silhouette_score >= 0.5 ? C.green : model.silhouette_score >= 0.3 ? C.amber : C.red,
             border:  '1px solid currentColor', borderRadius: 2, padding: '2px 6px', opacity: 0.8,
           }}>
@@ -1151,7 +1150,7 @@ export default function ClusterVersionPage() {
           {/* Feature themes badge */}
           {model.feature_themes && model.feature_themes.length > 0 && model.feature_themes.length < 4 && (
             <span style={{
-              fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em',
+              fontFamily: fInter, fontSize: 10,
               color: '#10b981', border: '1px solid #10b98140', borderRadius: 2, padding: '2px 6px', opacity: 0.9,
             }}>
               {model.feature_themes.map(t => FEATURE_THEMES[t as keyof typeof FEATURE_THEMES]?.label ?? t).join(' + ')}
@@ -1173,20 +1172,20 @@ export default function ClusterVersionPage() {
                 style={{
                   background: 'none', border: `1px solid ${C.accent}50`, borderRadius: 2,
                   padding: '4px 10px', cursor: 'pointer',
-                  fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.accent,
+                  fontFamily: fInter, fontSize: 11, color: C.accent,
                 }}
                 title="Générer l'analyse Gemini (rapport PDF enrichi)"
               >
-                + ANALYSER
+                + Analyser
               </button>
             )}
             {generatingAnalysis && (
               <span style={{
-                fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em',
+                fontFamily: fInter, fontSize: 11,
                 color: C.accent, border: `1px solid ${C.accent}40`, borderRadius: 2,
                 padding: '4px 10px', opacity: 0.7,
               }}>
-                … GEMINI
+                … Gemini
               </span>
             )}
             {analysis && !generatingAnalysis && (
@@ -1196,7 +1195,7 @@ export default function ClusterVersionPage() {
                 style={{
                   background: 'none', border: `1px solid ${C.border}`, borderRadius: 2,
                   padding: '4px 8px', cursor: 'pointer',
-                  fontFamily: fMichroma, fontSize: 7, letterSpacing: '0.06em', color: C.dim,
+                  fontFamily: fInter, fontSize: 11, color: C.dim,
                 }}
               >
                 ↺ IA
@@ -1208,7 +1207,7 @@ export default function ClusterVersionPage() {
               style={{
                 background: 'none', border: `1px solid ${C.border}`, borderRadius: 2,
                 padding: '4px 10px', cursor: 'pointer',
-                fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em', color: C.muted,
+                fontFamily: fInter, fontSize: 11, color: C.muted,
               }}
             >
               ↓ XLSX
@@ -1221,12 +1220,12 @@ export default function ClusterVersionPage() {
                 border: `1px solid ${exporting || analysis ? C.accent : C.border}`,
                 borderRadius: 2, padding: '4px 10px',
                 cursor: exporting ? 'wait' : 'pointer',
-                fontFamily: fMichroma, fontSize: 8, letterSpacing: '0.08em',
+                fontFamily: fInter, fontSize: 11,
                 color: exporting || analysis ? C.accent : C.muted,
               }}
               title={analysis ? 'Exporter le rapport PDF enrichi (analyse Gemini incluse)' : 'Exporter le rapport PDF'}
             >
-              {exporting ? '… PDF' : analysis ? '↓ PDF RAPPORT' : '↓ PDF'}
+              {exporting ? '… PDF' : analysis ? '↓ PDF rapport' : '↓ PDF'}
             </button>
           </div>
         </div>

@@ -7,20 +7,19 @@ import { FEATURE_THEMES } from '@/lib/clustering/feature-themes';
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:      '#050505',
-  bgPanel: '#08080f',
-  bgCard:  '#0c0c18',
-  border:  '#261a35',
-  accent:  '#a855f7',
+  bgPanel: '#0a0a0a',
+  bgCard:  '#0a0a0a',
+  border:  '#1a1a1a',
+  accent:  '#4ecdc4',
   green:   '#3dffa0',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#e2e8f0',
-  muted:   '#8888aa',
-  dim:     '#6b7280',
+  text:    '#f0f0f0',
+  muted:   '#a0a0a0',
+  dim:     '#666666',
 };
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = "'Michroma','Orbitron',sans-serif";
-const fOrbitron = "'Orbitron',sans-serif";
+const fMono  = "'JetBrains Mono','Fira Mono',monospace";
+const fInter = "'Inter', system-ui, sans-serif";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ModelSummary {
@@ -42,10 +41,10 @@ interface ModelSummary {
 // ─── Silhouette badge ────────────────────────────────────────────────────────
 function SilhouetteBadge({ score }: { score: number }) {
   const color = score >= 0.5 ? C.green : score >= 0.3 ? C.amber : C.red;
-  const label = score >= 0.5 ? 'EXCELLENT' : score >= 0.3 ? 'BON' : 'FAIBLE';
+  const label = score >= 0.5 ? 'Excellent' : score >= 0.3 ? 'Bon' : 'Faible';
   return (
     <span style={{
-      fontSize: 9, fontFamily: fMichroma, letterSpacing: '0.08em',
+      fontSize: 9, fontFamily: fMono,
       color, border: `1px solid ${color}40`, borderRadius: 2,
       padding: '2px 5px', marginLeft: 6,
     }}>
@@ -65,7 +64,7 @@ function ClusterMiniBar({
   const cids = Object.keys(labels).sort((a, b) => Number(a) - Number(b));
   if (!cids.length) return null;
 
-  const COLORS = ['#4e79a7','#f28e2b','#59a14f','#e15759','#76b7b2','#edc948','#b07aa1','#ff9da7'];
+  const COLORS = ['#4ecdc4','#a0a0a0','#5b9bd5','#f7b731','#3dffa0','#ff9da7','#b07aa1','#edc948'];
 
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
@@ -114,7 +113,7 @@ function ModelCard({
           {isLatest && (
             <div style={{
               position: 'absolute', top: 12, right: 44,
-              fontSize: 9, fontFamily: fMichroma, letterSpacing: '0.1em',
+              fontSize: 9, fontFamily: fMono,
               color: C.accent, background: C.accent + '15',
               border: `1px solid ${C.accent}40`, borderRadius: 2,
               padding: '2px 6px',
@@ -126,13 +125,13 @@ function ModelCard({
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, paddingRight: 28 }}>
             <span style={{ fontFamily: fMono, fontSize: 11, color: C.dim }}>v</span>
-            <span style={{ fontFamily: fOrbitron, fontSize: 22, color: C.text, letterSpacing: '-0.02em' }}>
+            <span style={{ fontFamily: fMono, fontSize: 22, color: C.text }}>
               {model.version}
             </span>
             <SilhouetteBadge score={model.silhouette_score} />
             {model.feature_themes && model.feature_themes.length > 0 && model.feature_themes.length < 4 && (
               <span style={{
-                fontSize: 9, fontFamily: fMichroma, letterSpacing: '0.07em',
+                fontSize: 10, fontFamily: fInter,
                 color: '#10b981', border: '1px solid #10b98130', borderRadius: 2,
                 padding: '2px 5px', marginLeft: 2,
               }}>
@@ -151,7 +150,7 @@ function ModelCard({
               { lbl: 'ISOCHRONE', val: `${model.duration_minutes}min ${model.mode}` },
             ].map(({ lbl, val }) => (
               <div key={lbl} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 8, fontFamily: fMichroma, letterSpacing: '0.08em', color: C.dim }}>
+                <span style={{ fontSize: 10, fontFamily: fInter, color: C.dim }}>
                   {lbl}
                 </span>
                 <span style={{ fontSize: 12, fontFamily: fMono, color: C.text }}>
@@ -171,7 +170,7 @@ function ModelCard({
           {/* Footer */}
           <div style={{ marginTop: 10, fontSize: 10, fontFamily: fMono, color: C.dim }}>
             {dateStr} à {timeStr}
-            <span style={{ marginLeft: 8, color: C.accent + '80' }}>→ Voir l'analyse</span>
+            <span style={{ marginLeft: 8, color: C.accent }}>→ Voir l'analyse</span>
           </div>
         </div>
       </Link>
@@ -250,8 +249,8 @@ function DeleteModal({
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span style={{ fontFamily: fMichroma, fontSize: 13, letterSpacing: '0.08em', color: C.red }}>
-            SUPPRIMER LE MODÈLE
+          <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: C.red }}>
+            Supprimer le modèle
           </span>
         </div>
 
@@ -265,7 +264,7 @@ function DeleteModal({
         }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
             <span style={{ fontFamily: fMono, fontSize: 10, color: C.dim }}>version</span>
-            <span style={{ fontFamily: fOrbitron, fontSize: 20, color: C.text }}>{model.version}</span>
+            <span style={{ fontFamily: fMono, fontSize: 20, color: C.text }}>{model.version}</span>
           </div>
           <div style={{ display: 'flex', gap: 20 }}>
             {[
@@ -274,7 +273,7 @@ function DeleteModal({
               { lbl: 'DATE',     val: dateStr },
             ].map(({ lbl, val }) => (
               <div key={lbl} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 8, fontFamily: fMichroma, letterSpacing: '0.08em', color: C.dim }}>{lbl}</span>
+                <span style={{ fontSize: 10, fontFamily: fInter, color: C.dim }}>{lbl}</span>
                 <span style={{ fontSize: 11, fontFamily: fMono, color: C.muted }}>{val}</span>
               </div>
             ))}
@@ -285,8 +284,8 @@ function DeleteModal({
         <div style={{ fontFamily: fMono, fontSize: 11, color: C.muted, marginBottom: 8, lineHeight: 1.6 }}>
           Cette action supprimera définitivement le modèle, tous ses clusters POI et l'historique associé.
         </div>
-        <div style={{ fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.06em', color: C.red + 'cc', marginBottom: 24 }}>
-          ! CETTE ACTION EST IRRÉVERSIBLE
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.red, marginBottom: 24 }}>
+          ! Cette action est irréversible
         </div>
 
         {/* Error */}
@@ -306,27 +305,27 @@ function DeleteModal({
             onClick={onCancel}
             disabled={deleting}
             style={{
-              fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.08em',
+              fontFamily: fInter, fontSize: 12,
               color: C.muted, background: 'transparent',
               border: `1px solid ${C.border}`, borderRadius: 2,
               padding: '8px 16px', cursor: 'pointer',
               opacity: deleting ? 0.5 : 1,
             }}
           >
-            ANNULER
+            Annuler
           </button>
           <button
             onClick={onConfirm}
             disabled={deleting}
             style={{
-              fontFamily: fMichroma, fontSize: 10, letterSpacing: '0.08em',
+              fontFamily: fInter, fontSize: 12,
               color: '#050505', background: deleting ? C.red + '60' : C.red,
               border: `1px solid ${C.red}`, borderRadius: 2,
               padding: '8px 16px', cursor: deleting ? 'default' : 'pointer',
               transition: 'background 0.15s',
             }}
           >
-            {deleting ? 'SUPPRESSION...' : 'SUPPRIMER ✕'}
+            {deleting ? 'Suppression...' : 'Supprimer ✕'}
           </button>
         </div>
       </div>
@@ -392,19 +391,14 @@ export default function ClustersIndexPage() {
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.5">
-            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
           <h1 style={{
-            fontFamily: fOrbitron, fontSize: 20, fontWeight: 700,
-            color: C.text, letterSpacing: '0.04em', margin: 0,
+            fontFamily: fInter, fontSize: 18, fontWeight: 500,
+            color: C.text, margin: 0,
           }}>
-            CLUSTERING RÉSULTATS
+            Clustering
           </h1>
         </div>
-        <p style={{ fontFamily: fMono, fontSize: 11, color: C.muted, margin: 0 }}>
+        <p style={{ fontFamily: fInter, fontSize: 13, color: C.muted, margin: 0 }}>
           Modèles socio-démographiques Filosofi — {models.length} version{models.length > 1 ? 's' : ''} disponible{models.length > 1 ? 's' : ''}
         </p>
       </div>

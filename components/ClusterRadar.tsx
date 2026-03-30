@@ -6,8 +6,8 @@
  * Uses the 16 canonical feature names from clustering_poi_filosofi.py.
  */
 
-const fMichroma = "'Michroma','Orbitron',sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
+const fInter    = "'Inter', system-ui, sans-serif";
 
 export const FEAT_SHORT: Record<string, string> = {
   pct_0_17:           '0-17',
@@ -123,7 +123,7 @@ export function ClusterRadar({
     ? labels.map((lbl, i) => ({ label: lbl, color: colors[i] }))
     : [];
   if (reference && (showRefLegend ?? true)) {
-    legendEntries.push({ label: 'Moy. France', color: '#6b7280', dashed: true });
+    legendEntries.push({ label: 'Moy. France', color: '#666666', dashed: true });
   }
 
   return (
@@ -132,7 +132,7 @@ export function ClusterRadar({
       {[0.25, 0.5, 0.75, 1].map(f => (
         <polygon key={f} points={gridPoly(f)}
           fill="none"
-          stroke={f === 1 ? '#3a2a50' : '#221530'}
+          stroke={f === 1 ? '#1a1a1a' : '#111111'}
           strokeWidth={f === 1 ? 0.8 : 0.4}
         />
       ))}
@@ -143,7 +143,7 @@ export function ClusterRadar({
           <line key={i}
             x1={cx.toFixed(1)} y1={cy.toFixed(1)}
             x2={x.toFixed(1)}  y2={y.toFixed(1)}
-            stroke="#2a1a40" strokeWidth={0.5}
+            stroke="#1a1a1a" strokeWidth={0.5}
           />
         );
       })}
@@ -151,8 +151,8 @@ export function ClusterRadar({
       {reference && (
         <path
           d={profilePath(reference)}
-          fill="rgba(107,114,128,0.08)"
-          stroke="#6b7280"
+          fill="rgba(160,160,160,0.08)"
+          stroke="#666666"
           strokeWidth={1}
           strokeDasharray="3 2"
         />
@@ -175,8 +175,8 @@ export function ClusterRadar({
           <text key={i}
             x={x.toFixed(1)} y={y.toFixed(1)}
             textAnchor={anchor} dominantBaseline={baseline}
-            fontSize={7} fill="#8888aa"
-            fontFamily={fMichroma} letterSpacing="0.05em"
+            fontSize={7} fill="#a0a0a0"
+            fontFamily={fInter} letterSpacing="0.05em"
           >
             {short}
           </text>
@@ -190,7 +190,7 @@ export function ClusterRadar({
                 stroke={e.color} strokeWidth={1.5} strokeDasharray="3 2" />
             : <rect width={7} height={7} fill={e.color} rx={1} />
           }
-          <text x={10} y={6} fontSize={7} fill="#8888aa" fontFamily={fMichroma}>
+          <text x={10} y={6} fontSize={7} fill="#a0a0a0" fontFamily={fInter}>
             {e.label}
           </text>
         </g>
