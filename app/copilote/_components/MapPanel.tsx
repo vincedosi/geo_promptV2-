@@ -97,6 +97,7 @@ const badgeBase: React.CSSProperties = {
   fontFamily: fontMono,
   color: C.text,
   letterSpacing: '0.04em',
+  transition: 'all 0.2s ease',
 };
 
 const toggleBtnBase = (active: boolean, activeColor: string): React.CSSProperties => ({
@@ -113,7 +114,7 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   fontSize: 10,
   fontFamily: fontInter,
   color: active ? activeColor : C.textDim,
-  transition: 'all 0.15s',
+  transition: 'all 0.2s ease',
   letterSpacing: '0.04em',
   textTransform: 'uppercase' as const,
 });
@@ -143,6 +144,7 @@ export function MapPanel({
   mapStyleUrl, mapStyles, onMapStyleChange,
 }: MapPanelProps) {
   const [currentZoom, setCurrentZoom] = useState<number | null>(null);
+  const [hoveredToggle, setHoveredToggle] = useState<string | null>(null);
 
   // Écoute le zoom de la carte
   React.useEffect(() => {
@@ -161,6 +163,22 @@ export function MapPanel({
     <div style={{ flex: 1, position: 'relative', background: C.bg }}>
       <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
       {/* carreaux-mvt-fill/line init dans useMapInit, visibilité gérée par useMapLayers */}
+
+      {/* Zoom badge */}
+      {currentZoom !== null && (
+        <div style={{
+          ...badgeBase,
+          top: 12,
+          right: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          animation: 'mapBadgeFade 0.3s ease-out',
+        }}>
+          <span style={{ color: C.textDim, fontFamily: fontMono, fontSize: 9, letterSpacing: '0.08em' }}>Z</span>
+          <span style={{ color: '#4ecdc4', fontFamily: fontMono, fontSize: 11, fontWeight: 600 }}>{currentZoom}</span>
+        </div>
+      )}
 
       {/* ── Colonne contrôles top-left ───────────────────────────────────── */}
       <div style={{
@@ -242,14 +260,18 @@ export function MapPanel({
         {/* Carreaux : contrôles déplacés dans FilterPanel > ANALYSE > CARREAUX */}
         {voronoiCategory && (
           <button onClick={() => setVoronoiVisible(v => !v)}
-            style={{ ...toggleBtnBase(voronoiVisible, C.warn), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}>
+            onMouseEnter={() => setHoveredToggle('voronoi')}
+            onMouseLeave={() => setHoveredToggle(null)}
+            style={{ ...toggleBtnBase(voronoiVisible, C.warn), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px', transform: hoveredToggle === 'voronoi' ? 'scale(1.02)' : 'scale(1)' }}>
             <span style={{ width: 7, height: 7, background: voronoiVisible ? C.warn : 'transparent', border: `1.5px solid ${C.warn}`, borderRadius: 1, flexShrink: 0 }} />
             Voronoï
           </button>
         )}
         {battleCategory && (
           <button onClick={() => setBattleVisible(v => !v)}
-            style={{ ...toggleBtnBase(battleVisible, C.danger), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px' }}>
+            onMouseEnter={() => setHoveredToggle('battle')}
+            onMouseLeave={() => setHoveredToggle(null)}
+            style={{ ...toggleBtnBase(battleVisible, C.danger), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px', transform: hoveredToggle === 'battle' ? 'scale(1.02)' : 'scale(1)' }}>
             <span style={{ width: 7, height: 7, background: battleVisible ? C.danger : 'transparent', border: `1.5px solid ${C.danger}`, borderRadius: 1, flexShrink: 0 }} />
             Bataille
           </button>
@@ -510,13 +532,15 @@ export function MapPanel({
           position: 'absolute', bottom: 28, right: 12, zIndex: 10,
           display: 'flex', flexDirection: 'row', gap: 2, alignItems: 'center',
         }}>
-          <span style={{ fontFamily: fontMono, fontSize: 8, color: C.textDim, letterSpacing: '0.06em', marginRight: 4 }}>FOND</span>
+          <span style={{ fontFamily: fontMono, fontSize: 9, color: C.textDim, letterSpacing: '0.06em', marginRight: 4 }}>FOND</span>
           {mapStyles.map(s => {
             const active = mapStyleUrl === s.url;
             return (
               <button
                 key={s.id}
                 onClick={() => onMapStyleChange(s.url)}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                 title={s.label}
                 style={{
                   background: active ? '#4ecdc4' : 'transparent',
@@ -527,7 +551,7 @@ export function MapPanel({
                   fontSize: 9,
                   fontFamily: fontInter,
                   color: active ? '#050505' : C.textDim,
-                  transition: 'all 0.15s',
+                  transition: 'all 0.2s ease',
                 }}
               >
                 {s.label.slice(0, 3)}
@@ -542,10 +566,8 @@ export function MapPanel({
         <div style={{
           position: 'absolute', top: 0, right: 0, bottom: 0,
           width: 'min(420px, 92vw)', zIndex: 30,
-          background: 'rgba(5,5,5,0.96)',
+          background: C.bg,
           borderLeft: `1px solid ${C.border}`,
-          backdropFilter: 'blur(12px)',
-          boxShadow: `-8px 0 32px rgba(0,0,0,0.5)`,
           display: 'flex', flexDirection: 'column',
         }}>
           {/* Header drawer */}
@@ -588,6 +610,16 @@ export function MapPanel({
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes mapBadgeFade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -219,8 +219,8 @@ export default function MapPage() {
       new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
         .setLngLat(e.lngLat)
         .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:#e2e8f0;padding:12px;">
-          <strong style="font-size:12px;color:#a855f7;">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
-          <div style="font-size:11px;color:#8888aa;margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
+          <strong style="font-size:12px;color:#4ecdc4;">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
+          <div style="font-size:11px;color:#666666;margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
           <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
           <div style="font-size:11px;color:#94a3b8;">
             POI réels : <strong>${d.poi_count}</strong><br/>
@@ -421,7 +421,7 @@ export default function MapPage() {
     if (useDensity) {
       // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
       const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? '#a855f7';
+      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? '#4ecdc4';
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
@@ -485,7 +485,7 @@ export default function MapPage() {
 
     // Marqueur ville
     const cityEl = document.createElement('div');
-    cityEl.style.cssText = 'width:10px;height:10px;background:#a855f7;border:2px solid #fff;border-radius:2px;box-shadow:0 0 8px rgba(168,85,247,0.8)';
+    cityEl.style.cssText = 'width:10px;height:10px;background:#4ecdc4;border:2px solid #fff;border-radius:2px';
     markersRef.current.push(new maplibregl.Marker({ element: cityEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
 
     if (zoneData.pois.length > 1) {
@@ -1085,22 +1085,36 @@ export default function MapPage() {
           padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
           position: 'relative',
         }}>
-          {(['map', 'study'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: '0 16px', height: '100%',
-              background: 'transparent',
-              border: 'none', borderBottom: activeTab === tab ? '2px solid #4ecdc4' : '2px solid transparent',
-              color: activeTab === tab ? '#f0f0f0' : '#666666',
-              fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, letterSpacing: 0,
-              textTransform: 'uppercase', cursor: 'pointer',
-              transition: 'color 0.15s, border-color 0.15s',
-            }}>
-              {tab === 'map' ? 'Carte' : 'Étude'}
-              {tab === 'study' && studyVille && (
-                <span style={{ marginLeft: 6, fontSize: 9, color: '#4ecdc4', opacity: 0.7 }}>{studyVille}</span>
-              )}
-            </button>
-          ))}
+          {(['map', 'study'] as const).map(tab => {
+            const active = activeTab === tab;
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)} className="topbar-tab" style={{
+                padding: '0 18px', height: '100%', position: 'relative',
+                background: 'transparent',
+                border: 'none',
+                color: active ? '#f0f0f0' : '#666666',
+                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
+                letterSpacing: '0.01em', cursor: 'pointer',
+                transition: 'color 0.2s ease',
+              }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+              >
+                {tab === 'map' ? 'Carte' : 'Étude'}
+                {tab === 'study' && studyVille && (
+                  <span style={{ marginLeft: 6, fontSize: 9, color: '#4ecdc4', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
+                )}
+                {/* Underline that grows from center */}
+                <span style={{
+                  position: 'absolute', bottom: 0, left: '50%',
+                  width: active ? '100%' : '0%',
+                  height: 2, background: '#4ecdc4',
+                  transform: 'translateX(-50%)',
+                  transition: 'width 0.25s ease',
+                }} />
+              </button>
+            );
+          })}
           <div style={{ marginLeft: 'auto' }}>
             <SessionBadge />
           </div>
@@ -1201,7 +1215,7 @@ export default function MapPage() {
 
                 {/* Slider opacité */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                  <span style={{ fontFamily: "'Michroma','Orbitron',sans-serif", fontSize: 7, letterSpacing: '0.1em', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: '#6b7280', whiteSpace: 'nowrap' }}>
                     OPACITÉ
                   </span>
                   <input
@@ -1294,12 +1308,20 @@ export default function MapPage() {
           50% { transform: translateX(250%); }
           100% { transform: translateX(250%); }
         }
+        @keyframes mapFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
         .maplibregl-popup-content {
-          background:#0a0a0a!important;border:1px solid #1a1a1a!important;padding:0!important;
-          box-shadow:0 2px 12px rgba(0,0,0,0.6)!important;border-radius:2px!important;
+          background:#0a0a0a!important;border:0.5px solid #1a1a1a!important;padding:0!important;
+          border-radius:6px!important;animation:mapFadeIn 0.15s ease-out!important;
         }
         .maplibregl-popup-tip {
           border-top-color:#0a0a0a!important;border-bottom-color:#0a0a0a!important;
+        }
+        .topbar-tab { overflow: visible !important; }
+        @media (prefers-reduced-motion: reduce) {
+          *, .topbar-tab span { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
       `}</style>
     </div>

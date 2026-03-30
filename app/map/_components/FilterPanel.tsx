@@ -933,7 +933,7 @@ export function FilterPanel({
         background: 'none', borderBottom: `0.5px solid ${C.border}`,
         color: C.textDim, textDecoration: 'none',
         fontFamily: fInter, fontSize: 12,
-        transition: 'all 0.15s',
+        transition: 'all 0.2s ease',
       }}
         onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.text; (e.currentTarget as HTMLAnchorElement).style.background = '#111111'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.textDim; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
@@ -945,20 +945,31 @@ export function FilterPanel({
       </a>
 
       {/* ── Tab navigation (2 onglets maîtres) ──────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel }}>
+      <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel, position: 'relative' }}>
         {/* GEO.PROMPT */}
         {(() => {
           const active = activeTab === 'geoprompt';
           return (
-            <button onClick={() => setActiveTab('geoprompt')} style={{
-              flex: 1, padding: '11px 6px 10px',
-              background: active ? '#151515' : 'none',
-              border: 'none', borderBottom: active ? `1.5px solid #4ecdc4` : '1.5px solid transparent',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim }}>
+            <button onClick={() => setActiveTab('geoprompt')} className="fp-tab" style={{
+              flex: 1, padding: '12px 6px 10px', position: 'relative',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer', transition: 'color 0.2s ease',
+            }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
                 Geo.Prompt
               </div>
+              {/* Sliding underline */}
+              <span style={{
+                position: 'absolute', bottom: 0, left: '50%',
+                width: active ? '100%' : '0%',
+                height: 2, background: '#4ecdc4',
+                transform: 'translateX(-50%)',
+                transition: 'width 0.25s ease',
+              }} />
             </button>
           );
         })()}
@@ -966,18 +977,28 @@ export function FilterPanel({
         {(() => {
           const active = activeTab === 'expert';
           return (
-            <button onClick={() => setActiveTab('expert')} style={{
-              flex: 1, padding: '11px 6px 10px', position: 'relative',
-              background: active ? '#151515' : 'none',
-              border: 'none', borderBottom: active ? `1.5px solid #4ecdc4` : '1.5px solid transparent',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
+            <button onClick={() => setActiveTab('expert')} className="fp-tab" style={{
+              flex: 1, padding: '12px 6px 10px', position: 'relative',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer', transition: 'color 0.2s ease',
+            }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+            >
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
                 Expert
               </div>
               {EXPERT_BADGE > 0 && (
-                <div style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: '50%', background: C.green }} />
+                <div style={{ position: 'absolute', top: 7, right: 10, width: 5, height: 5, borderRadius: '50%', background: '#4ecdc4', transition: 'opacity 0.2s ease' }} />
               )}
+              <span style={{
+                position: 'absolute', bottom: 0, left: '50%',
+                width: active ? '100%' : '0%',
+                height: 2, background: '#4ecdc4',
+                transform: 'translateX(-50%)',
+                transition: 'width 0.25s ease',
+              }} />
             </button>
           );
         })()}
@@ -989,18 +1010,28 @@ export function FilterPanel({
           {EXPERT_SUBTABS.map(sub => {
             const active = activeExpertTab === sub.id;
             return (
-              <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} style={{
-                flex: 1, padding: '8px 4px 7px', position: 'relative',
-                background: active ? '#151515' : 'none',
-                border: 'none', borderBottom: active ? `1px solid #4ecdc4` : '1px solid transparent',
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}>
-                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.15s' }}>
+              <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} className="fp-tab" style={{
+                flex: 1, padding: '9px 4px 7px', position: 'relative',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer', transition: 'color 0.2s ease',
+              }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >
+                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
                   {sub.label}
                 </div>
                 {(sub.badge ?? 0) > 0 && (
-                  <div style={{ position: 'absolute', top: 5, right: 6, width: 4, height: 4, borderRadius: '50%', background: C.green }} />
+                  <div style={{ position: 'absolute', top: 5, right: 8, width: 4, height: 4, borderRadius: '50%', background: '#4ecdc4' }} />
                 )}
+                <span style={{
+                  position: 'absolute', bottom: 0, left: '50%',
+                  width: active ? '100%' : '0%',
+                  height: 1.5, background: '#4ecdc4',
+                  transform: 'translateX(-50%)',
+                  transition: 'width 0.25s ease',
+                }} />
               </button>
             );
           })}
@@ -1034,7 +1065,7 @@ export function FilterPanel({
 
             {/* Scope global */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Périmètre global</span>
               </div>
@@ -1050,7 +1081,7 @@ export function FilterPanel({
 
             {/* Régions */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
                   Région {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.green }}>({selectedRegions.length})</span>}
@@ -1077,7 +1108,7 @@ export function FilterPanel({
 
             {/* Départements */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>
                   Département
@@ -1101,7 +1132,7 @@ export function FilterPanel({
 
             {/* Recherche locale */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Recherche locale</span>
               </div>
@@ -1146,7 +1177,7 @@ export function FilterPanel({
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
             <div style={{ paddingBottom: 4 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Points d&apos;intérêt (POI)</span>
               </div>
@@ -1320,7 +1351,7 @@ export function FilterPanel({
 
             {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Panneaux OOH &amp; DOOH</span>
               </div>
@@ -1372,7 +1403,7 @@ export function FilterPanel({
 
             {/* ── Section : Arrêts de transport en commun ─────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Arrêts de transport en commun</span>
               </div>
@@ -1427,7 +1458,7 @@ export function FilterPanel({
 
             {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Flux routier (TMJA)</span>
               </div>
@@ -1479,7 +1510,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2005,7 +2036,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2127,7 +2158,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2253,7 +2284,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2397,7 +2428,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2427,7 +2458,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2454,7 +2485,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
@@ -2514,6 +2545,10 @@ export function FilterPanel({
         @keyframes fpScan {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(350%); }
+        }
+        .fp-tab { overflow: visible !important; }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
       `}</style>
 

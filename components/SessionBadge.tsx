@@ -58,7 +58,7 @@ export const SessionBadge = memo(function SessionBadge() {
         </span>
 
         {/* Séparateur vertical */}
-        <div style={{ width: '0.5px', height: 16, background: '#262626', flexShrink: 0, margin: '0 4px' }} />
+        <div style={{ width: '0.5px', height: 18, background: '#262626', flexShrink: 0, margin: '0 6px' }} />
 
         {/* Status dot */}
         <div style={{
@@ -107,6 +107,7 @@ export const SessionBadge = memo(function SessionBadge() {
           width: 240,
           zIndex: 20000,
           display: 'flex', flexDirection: 'column', gap: 8,
+          animation: 'sbFadeIn 0.15s ease-out',
         }}>
           {/* Email */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -158,6 +159,10 @@ export const SessionBadge = memo(function SessionBadge() {
         @keyframes sbPulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
+        }
+        @keyframes sbFadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

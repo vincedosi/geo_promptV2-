@@ -28,7 +28,10 @@
       "mcp__claude_ai_Supabase__execute_sql",
       "Bash(npx tsc:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find app/copilote app/map -type f -name *.tsx -o -name *.ts)",
+      "Bash(grep -v \"^$\")",
+      "Bash(git checkout:*)"
     ]
   }
 }

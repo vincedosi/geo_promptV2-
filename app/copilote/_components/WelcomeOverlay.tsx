@@ -41,9 +41,37 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
     }
   };
 
+  const [sendHover, setSendHover] = useState(false);
+
   if (!visible) return null;
 
   return (
+    <>
+    <style>{`
+      @keyframes welcomeCardIn {
+        from { opacity: 0; transform: scale(0.96) translateY(12px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes welcomeTitleReveal {
+        from { clip-path: inset(0 100% 0 0); opacity: 0; }
+        to { clip-path: inset(0 0% 0 0); opacity: 1; }
+      }
+      @keyframes welcomeFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes welcomePillIn {
+        from { opacity: 0; transform: translateX(-8px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes welcomeSendPulse {
+        0%, 100% { outline: 2px solid transparent; outline-offset: 0px; }
+        50% { outline: 2px solid rgba(78,205,196,0.15); outline-offset: 3px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
+      }
+    `}</style>
     <div
       onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
       style={{
@@ -60,6 +88,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
         pointerEvents: fading ? 'none' : 'auto',
         opacity: fading ? 0 : 1,
         transition: 'opacity 0.2s ease',
+        background: 'rgba(5,5,5,0.92)',
       }}
     >
       <div style={{
@@ -68,8 +97,10 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
         width: 'calc(100% - 32px)',
         background: '#0a0a0a',
         border: '0.5px solid #1a1a1a',
+        borderLeft: '2px solid rgba(78,205,196,0.2)',
         borderRadius: 12,
         padding: '20px 20px 16px',
+        animation: 'welcomeCardIn 0.3s ease-out',
       }}>
 
         {/* Close button */}
@@ -92,7 +123,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             color: '#666666',
             fontSize: 18,
             lineHeight: 1,
-            transition: 'background 0.15s, color 0.15s',
+            transition: 'all 0.2s ease',
           }}
           onMouseEnter={e => {
             (e.currentTarget as HTMLButtonElement).style.background = '#181818';
@@ -115,6 +146,8 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             color: '#f0f0f0',
             marginBottom: 6,
             lineHeight: 1.25,
+            letterSpacing: '-0.02em',
+            animation: 'welcomeTitleReveal 0.5s ease-out 0.15s both',
           }}>
             Que voulez-vous analyser ?
           </div>
@@ -124,6 +157,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             fontFamily: "'Inter', system-ui, sans-serif",
             fontWeight: 400,
             lineHeight: 1.5,
+            animation: 'welcomeFadeIn 0.4s ease-out 0.3s both',
           }}>
             Posez votre question, je m'occupe du reste
           </div>
@@ -150,7 +184,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
               resize: 'none',
               outline: 'none',
               lineHeight: 1.5,
-              transition: 'border-color 0.15s',
+              transition: 'border-color 0.3s ease',
             }}
             onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
@@ -158,11 +192,13 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
           <button
             onClick={handleSubmit}
             disabled={!input.trim()}
+            onMouseEnter={() => setSendHover(true)}
+            onMouseLeave={() => setSendHover(false)}
             style={{
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: input.trim() ? '#4ecdc4' : '#1a1a1a',
+              background: input.trim() ? (sendHover ? '#3dbdb5' : '#4ecdc4') : '#1a1a1a',
               border: 'none',
               cursor: input.trim() ? 'pointer' : 'default',
               display: 'flex',
@@ -172,6 +208,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
               color: input.trim() ? '#050505' : '#444444',
               fontSize: 16,
               transition: 'background 0.15s, color 0.15s',
+              animation: !input.trim() ? 'welcomeSendPulse 3s ease-in-out infinite' : 'none',
             }}
           >
             ↑
@@ -180,11 +217,12 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
 
         {/* Suggestion pills */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {SUGGESTIONS.map(s => (
+          {SUGGESTIONS.map((s, index) => (
             <button
               key={s}
               onClick={() => dismiss(s)}
               style={{
+                animation: `welcomePillIn 0.35s ease-out ${0.35 + index * 0.08}s both`,
                 background: '#111111',
                 border: '0.5px solid #1a1a1a',
                 borderRadius: 6,
@@ -212,5 +250,6 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }

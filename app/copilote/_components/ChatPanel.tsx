@@ -340,7 +340,7 @@ export function ChatPanel({
     fontSize: 12,
     lineHeight: 1,
     height: 28,
-    transition: 'all 0.15s',
+    transition: 'all 0.2s ease',
     fontFamily: fontInter,
   });
 
@@ -353,7 +353,7 @@ export function ChatPanel({
       {!hideHeader ? (
         <div style={{ padding: '14px 16px 12px', borderBottom: `0.5px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.15s' }}>←</Link>
+            <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.2s ease' }}>←</Link>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 14, fontFamily: fontInter, fontWeight: 500, color: C.text }}>
@@ -361,7 +361,7 @@ export function ChatPanel({
                 </span>
                 <span style={{ fontSize: 10, fontFamily: fontMono, background: '#181818', color: C.textSec, padding: '2px 5px', border: '0.5px solid #262626', borderRadius: 3 }}>BETA</span>
                 {(isLoading || smartPrompt.loading) && (
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
                 )}
               </div>
               <div style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -376,19 +376,37 @@ export function ChatPanel({
               </div>
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}>?</button>
-              <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
-              <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
+              <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}
+                onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+                onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+              >?</button>
+              <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}
+                onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+                onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+              >sv</button>
+              <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}
+                onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+                onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+              >ld</button>
             </div>
           </div>
         </div>
       ) : (
         <div style={{ padding: '6px 12px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {(isLoading || smartPrompt.loading) && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}`, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />}
+          {(isLoading || smartPrompt.loading) && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />}
           <div style={{ flex: 1 }} />
-          <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}>?</button>
-          <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}>sv</button>
-          <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}>ld</button>
+          <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}
+            onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+            onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+          >?</button>
+          <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}
+            onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+            onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+          >sv</button>
+          <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}
+            onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
+            onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+          >ld</button>
           {sessionTokens && sessionTokens.total > 0 && (
             <span style={{ fontSize: 10, fontFamily: fontMono, color: C.textDim, marginLeft: 4 }}>
               ↑{sessionTokens.input.toLocaleString('fr-FR')} ↓{sessionTokens.output.toLocaleString('fr-FR')} tok
@@ -414,7 +432,7 @@ export function ChatPanel({
                 borderRadius: 4, padding: '4px 10px',
                 color: active ? C.teal : C.textSec,
                 cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
-                fontWeight: active ? 500 : 400, transition: 'all 0.15s',
+                fontWeight: active ? 500 : 400, transition: 'all 0.2s ease',
               }}>{p.label}</button>
             );
           })}
@@ -436,7 +454,7 @@ export function ChatPanel({
               borderRadius: 4, padding: '4px 8px',
               color: smartMode === 'smart' ? C.teal : C.textSec,
               cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
-              fontWeight: smartMode === 'smart' ? 500 : 400, transition: 'all 0.15s',
+              fontWeight: smartMode === 'smart' ? 500 : 400, transition: 'all 0.2s ease',
             }}
           >
             {smartMode === 'smart' ? '⚡ SMART' : smartMode === 'auto' ? '⚡ AUTO' : '⚡'}
@@ -464,7 +482,7 @@ export function ChatPanel({
               placeholder="Nom de la carte…"
               style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', fontFamily: fontInter }}
             />
-            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? '#f0f0f0' : '#1a1a1a', border: 'none', borderRadius: 4, padding: '8px 14px', color: saveName.trim() && !saveLoading ? '#050505' : C.textDim, cursor: saveName.trim() && !saveLoading ? 'pointer' : 'default', fontSize: 11, fontWeight: 500, fontFamily: fontInter, transition: 'all 0.15s' }}>
+            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? '#f0f0f0' : '#1a1a1a', border: 'none', borderRadius: 4, padding: '8px 14px', color: saveName.trim() && !saveLoading ? '#050505' : C.textDim, cursor: saveName.trim() && !saveLoading ? 'pointer' : 'default', fontSize: 11, fontWeight: 500, fontFamily: fontInter, transition: 'all 0.2s ease' }}>
               {saveLoading ? '…' : 'Sauver'}
             </button>
           </div>
@@ -489,7 +507,7 @@ export function ChatPanel({
                   {new Date(m.created_at).toLocaleDateString('fr-FR')}
                 </div>
               </div>
-              <button onClick={() => loadMap(m.id)} style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '4px 10px', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fontInter, transition: 'all 0.15s' }}>Charger</button>
+              <button onClick={() => loadMap(m.id)} style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '4px 10px', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fontInter, transition: 'all 0.2s ease' }}>Charger</button>
               <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.2)', borderRadius: 4, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>✕</button>
             </div>
           ))}
@@ -512,15 +530,16 @@ export function ChatPanel({
                 { text: 'Lycées à Brest + où vivent les 18-24 ans' },
                 { text: "Zone piétonne 5 min autour des lycées à Brest" },
                 { text: 'Zone 15 min voiture autour des CIRFA de Lyon' },
-              ].map(({ text }) => (
+              ].map(({ text }, index) => (
                 <button key={text} onClick={() => sendMessage(text)} style={{
                   background: 'transparent', border: `0.5px solid ${C.border}`, borderRadius: 4,
                   padding: '9px 14px', color: C.textSec, cursor: 'pointer', fontSize: 11,
-                  textAlign: 'left', transition: 'border-color 0.15s, color 0.15s',
+                  textAlign: 'left', transition: 'border-color 0.2s ease, color 0.2s ease',
+                  animation: `cardStagger 0.4s ease-out ${0.1 + index * 0.06}s both`,
                   fontFamily: fontInter, fontWeight: 300, letterSpacing: '0.03em',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)'; e.currentTarget.style.color = C.text; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSec; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)'; e.currentTarget.style.background = '#151515'; e.currentTarget.style.color = C.text; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textSec; }}
                 >{text}</button>
               ))}
             </div>
@@ -768,21 +787,34 @@ export function ChatPanel({
             }
             rows={2}
             className="gp-input"
-            style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', color: C.text, fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: fontInter, fontWeight: 300, transition: 'border-color 0.15s' }}
+            style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', color: C.text, fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none', fontFamily: fontInter, fontWeight: 300, transition: 'border-color 0.3s ease' }}
             onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
           />
           <button
             type="submit"
             disabled={isDisabled || !input.trim()}
+            onMouseEnter={e => {
+              if (input.trim() && !isDisabled) {
+                e.currentTarget.style.background = '#3dbdb5';
+                e.currentTarget.style.transform = 'scale(1.08)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (input.trim() && !isDisabled) {
+                e.currentTarget.style.background = C.teal;
+                e.currentTarget.style.transform = 'scale(1)';
+              }
+            }}
             style={{
               width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
               background: input.trim() && !isDisabled ? C.teal : '#1a1a1a',
               border: 'none',
               color: input.trim() && !isDisabled ? '#050505' : C.textDim,
               cursor: input.trim() && !isDisabled ? 'pointer' : 'default',
-              fontSize: 16, lineHeight: 1, transition: 'all 0.15s',
+              fontSize: 16, lineHeight: 1, transition: 'all 0.2s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              ...(!(input.trim() && !isDisabled) ? { animation: 'sendPulseRing 3s ease-in-out infinite' } : {}),
             }}
           >↑</button>
         </form>
@@ -801,9 +833,20 @@ export function ChatPanel({
       </div>
 
       <style>{`
-        @keyframes pulseDot { 0%,100%{opacity:1;box-shadow:0 0 8px currentColor} 50%{opacity:0.4;box-shadow:none} }
+        @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
         .gp-input::placeholder { color: #666666 !important; }
+        @keyframes sendPulseRing {
+          0%, 100% { outline: 2px solid transparent; outline-offset: 0; }
+          50% { outline: 2px solid rgba(78,205,196,0.12); outline-offset: 3px; }
+        }
+        @keyframes cardStagger {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .chat-messages *, .gp-input { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
       `}</style>
     </div>
   );
