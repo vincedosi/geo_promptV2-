@@ -39,6 +39,54 @@ function patchLabelFr(expr: unknown): unknown {
   return expr;
 }
 
+/** Draw POI radius circles on the canvas overlay — called on move/zoom, not every frame */
+function drawPOICirclesOnCanvas(
+  map: maplibregl.Map,
+  zoneDataRef: React.RefObject<ZoneData | null>,
+  canvasOverlayRef: React.RefObject<HTMLCanvasElement | null>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
+) {
+  const data = zoneDataRef.current;
+  const c = canvasOverlayRef.current;
+  const container = containerRef.current;
+  if (!c || !container) return;
+
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) c.height = h;
+
+  const ctx = c.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!data?.rayon_poi_metres || !data.pois.length) return;
+
+  const rM = data.rayon_poi_metres;
+
+  for (const p of data.pois) {
+    if (p.lat == null || p.lng == null) continue;
+    try {
+      const pt = map.project([p.lng, p.lat]);
+      const zoom = map.getZoom();
+      const metersPerPx = (156543.03 * Math.cos(p.lat * Math.PI / 180)) / Math.pow(2, zoom);
+      const rPx = rM / metersPerPx;
+      if (rPx < 1) continue;
+
+      const color = data.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, rPx, 0, 2 * Math.PI);
+      ctx.fillStyle = color + '1e';
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } catch {
+      // projection hors vue — skip
+    }
+  }
+}
+
 export function useMapInit(
   zoneData: ZoneData | null,
   onBillboardSelect?: (billboard: SelectedBillboard) => void,
@@ -51,8 +99,15 @@ export function useMapInit(
   const canvasOverlayRef = useRef<HTMLCanvasElement | null>(null);
   const zoneDataRef      = useRef<ZoneData | null>(null);
 
-  // Sync zoneDataRef so the map.on('render') closure always reads the latest value
-  useEffect(() => { zoneDataRef.current = zoneData; }, [zoneData]);
+  // Sync zoneDataRef so the draw closure always reads the latest value
+  // Also trigger a canvas redraw when zoneData changes
+  useEffect(() => {
+    zoneDataRef.current = zoneData;
+    // Trigger redraw of POI circles when data changes
+    if (mapRef.current && canvasOverlayRef.current) {
+      drawPOICirclesOnCanvas(mapRef.current, zoneDataRef, canvasOverlayRef, mapContainerRef);
+    }
+  }, [zoneData]);
 
   // ── Init MapLibre (recreate when style changes) ──────────────────────────
   useEffect(() => {
@@ -106,50 +161,16 @@ export function useMapInit(
     map.on('zoom', updateZoomBadge);
     mapContainerRef.current.appendChild(zoomBadge);
 
-    // Draw POI radius circles on every frame
-    map.on('render', () => {
-      const data = zoneDataRef.current;
-      const c = canvasOverlayRef.current;
-      const container = mapContainerRef.current;
-      if (!c || !container) return;
-
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (c.width !== w) c.width = w;
-      if (c.height !== h) c.height = h;
-
-      const ctx = c.getContext('2d');
-      if (!ctx) return;
-      ctx.clearRect(0, 0, w, h);
-
-      if (!data?.rayon_poi_metres || !data.pois.length) return;
-
-      const rM = data.rayon_poi_metres;
-
-      for (const p of data.pois) {
-        if (p.lat == null || p.lng == null) continue;
-        try {
-          const pt = map.project([p.lng, p.lat]);
-          const zoom = map.getZoom();
-          const metersPerPx = (156543.03 * Math.cos(p.lat * Math.PI / 180)) / Math.pow(2, zoom);
-          const rPx = rM / metersPerPx;
-          if (rPx < 1) continue;
-
-          const color = zoneDataRef.current?.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, rPx, 0, 2 * Math.PI);
-          ctx.fillStyle = color + '1e';
-          ctx.fill();
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        } catch {
-          // projection hors vue — skip
-        }
-      }
-    });
+    // Draw POI radius circles on move/zoom (not every frame — saves CPU)
+    const drawCircles = () => drawPOICirclesOnCanvas(map, zoneDataRef, canvasOverlayRef, mapContainerRef);
+    map.on('moveend', drawCircles);
+    map.on('zoomend', drawCircles);
+    map.once('idle', drawCircles);
 
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+    // Collect cleanup callbacks from load-time listener registrations
+    const cleanupFns: (() => void)[] = [];
 
     map.on('load', () => {
       // ── Patch labels → langue locale (français) ───────────────────────────
@@ -242,7 +263,7 @@ export function useMapInit(
       });
 
       // Click popup pour les cercles GPU
-      map.on('click', 'pois-circles', (e) => {
+      const onPoisCirclesClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, string>;
         const categorie = String(p.categorie ?? '').toLowerCase();
@@ -279,14 +300,22 @@ export function useMapInit(
           `</div>`;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat).setHTML(html).addTo(map);
-      });
-      map.on('mousemove', 'pois-circles', (e) => {
+      };
+      const onPoisCirclesMousemove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         const p = e.features?.[0]?.properties as Record<string, unknown> | undefined;
         const categorie = String(p?.categorie ?? '').toLowerCase();
         const isBillboard = categorie === 'panneaux' || categorie === 'top_ooh';
         map.getCanvas().style.cursor = isBillboard ? 'pointer' : '';
+      };
+      const onPoisCirclesMouseleave = () => { map.getCanvas().style.cursor = ''; };
+      map.on('click', 'pois-circles', onPoisCirclesClick);
+      map.on('mousemove', 'pois-circles', onPoisCirclesMousemove);
+      map.on('mouseleave', 'pois-circles', onPoisCirclesMouseleave);
+      cleanupFns.push(() => {
+        map.off('click', 'pois-circles', onPoisCirclesClick);
+        map.off('mousemove', 'pois-circles', onPoisCirclesMousemove);
+        map.off('mouseleave', 'pois-circles', onPoisCirclesMouseleave);
       });
-      map.on('mouseleave', 'pois-circles', () => { map.getCanvas().style.cursor = ''; });
 
       // ── Wizard highlight (clustering wizard — POI preview) ───────────────
       map.addSource('wizard-highlight', {
@@ -358,17 +387,17 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      map.on('click', 'voronoi-fill', (e) => {
+      const onVoronoiFillClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features || e.features.length === 0) return;
         const props = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '250px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${props.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${props.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${props.ville ?? ''}</div></div>`)
           .addTo(map);
-      });
+      };
 
       let voronoiHoveredId: number | null = null;
-      map.on('mousemove', 'voronoi-fill', (e) => {
+      const onVoronoiFillMousemove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         map.getCanvas().style.cursor = 'pointer';
         if (!e.features?.length) return;
         const fid = e.features[0].id as number;
@@ -377,13 +406,21 @@ export function useMapInit(
           voronoiHoveredId = fid;
           map.setFeatureState({ source: 'voronoi', id: fid }, { hover: true });
         }
-      });
-      map.on('mouseleave', 'voronoi-fill', () => {
+      };
+      const onVoronoiFillMouseleave = () => {
         map.getCanvas().style.cursor = '';
         if (voronoiHoveredId !== null) {
           map.setFeatureState({ source: 'voronoi', id: voronoiHoveredId }, { hover: false });
           voronoiHoveredId = null;
         }
+      };
+      map.on('click', 'voronoi-fill', onVoronoiFillClick);
+      map.on('mousemove', 'voronoi-fill', onVoronoiFillMousemove);
+      map.on('mouseleave', 'voronoi-fill', onVoronoiFillMouseleave);
+      cleanupFns.push(() => {
+        map.off('click', 'voronoi-fill', onVoronoiFillClick);
+        map.off('mousemove', 'voronoi-fill', onVoronoiFillMousemove);
+        map.off('mouseleave', 'voronoi-fill', onVoronoiFillMouseleave);
       });
 
       // ── Voronoï POIs ─────────────────────────────────────────────────────
@@ -416,17 +453,17 @@ export function useMapInit(
         layout: { visibility: 'none' },
       }, 'voronoi-pois-circle');
 
-      map.on('click', 'voronoi-pois-circle', (e) => {
+      const onVoronoiPoisClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${p.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${p.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${p.ville ?? ''}</div></div>`)
           .addTo(map);
-      });
+      };
 
       let voronoiPoiHoveredId: number | null = null;
-      map.on('mousemove', 'voronoi-pois-circle', (e) => {
+      const onVoronoiPoisMousemove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         map.getCanvas().style.cursor = 'pointer';
         if (!e.features?.length) return;
         const fid = e.features[0].id as number;
@@ -435,13 +472,21 @@ export function useMapInit(
           voronoiPoiHoveredId = fid;
           map.setFeatureState({ source: 'voronoi-pois', id: fid }, { hover: true });
         }
-      });
-      map.on('mouseleave', 'voronoi-pois-circle', () => {
+      };
+      const onVoronoiPoisMouseleave = () => {
         map.getCanvas().style.cursor = '';
         if (voronoiPoiHoveredId !== null) {
           map.setFeatureState({ source: 'voronoi-pois', id: voronoiPoiHoveredId }, { hover: false });
           voronoiPoiHoveredId = null;
         }
+      };
+      map.on('click', 'voronoi-pois-circle', onVoronoiPoisClick);
+      map.on('mousemove', 'voronoi-pois-circle', onVoronoiPoisMousemove);
+      map.on('mouseleave', 'voronoi-pois-circle', onVoronoiPoisMouseleave);
+      cleanupFns.push(() => {
+        map.off('click', 'voronoi-pois-circle', onVoronoiPoisClick);
+        map.off('mousemove', 'voronoi-pois-circle', onVoronoiPoisMousemove);
+        map.off('mouseleave', 'voronoi-pois-circle', onVoronoiPoisMouseleave);
       });
 
       // ── Isochrones ────────────────────────────────────────────────────────
@@ -521,14 +566,16 @@ export function useMapInit(
       map.addLayer({ id: 'test-iso-fill', type: 'fill', source: 'test-iso', paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.5 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'test-iso-line', type: 'line', source: 'test-iso', paint: { 'line-color': '#1d4ed8', 'line-width': 2, 'line-opacity': 0.9 }, layout: { visibility: 'none' } });
 
-      map.on('click', 'test-iso-fill', (e) => {
+      const onTestIsoClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '240px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6"><b style="color:#1e293b">${p.cirfa_nom ?? '—'}</b><br/><span style="color:#2563eb;font-weight:600">⏱ ${p.minutes_req ?? '?'} min (${p.mode ?? '?'})</span><br/><span style="color:#94a3b8;font-size:10px">id: ${p.cirfa_id ?? '?'}</span></div>`)
           .addTo(map);
-      });
+      };
+      map.on('click', 'test-iso-fill', onTestIsoClick);
+      cleanupFns.push(() => { map.off('click', 'test-iso-fill', onTestIsoClick); });
 
       // ── Bataille d'Isochrones ─────────────────────────────────────────────
       map.addSource('battle-rings', {
@@ -563,7 +610,7 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      map.on('click', 'battle-fill', (e) => {
+      const onBattleFillClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features || e.features.length === 0) return;
         const props = e.features[0].properties as Record<string, unknown>;
         const palier = Number(props.palier ?? 0);
@@ -571,7 +618,9 @@ export function useMapInit(
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${props.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${props.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${props.ville ?? ''}</div><div style="margin-top:4px;font-weight:600;color:#059669">⏱ Anneau ${palier} min</div></div>`)
           .addTo(map);
-      });
+      };
+      map.on('click', 'battle-fill', onBattleFillClick);
+      cleanupFns.push(() => { map.off('click', 'battle-fill', onBattleFillClick); });
 
       map.addSource('battle-pois', {
         type: 'geojson',
@@ -589,14 +638,16 @@ export function useMapInit(
         layout: { visibility: 'none' },
       }, 'battle-pois-circle');
 
-      map.on('click', 'battle-pois-circle', (e) => {
+      const onBattlePoisClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${p.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${p.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${p.ville ?? ''}</div></div>`)
           .addTo(map);
-      });
+      };
+      map.on('click', 'battle-pois-circle', onBattlePoisClick);
+      cleanupFns.push(() => { map.off('click', 'battle-pois-circle', onBattlePoisClick); });
 
       // ── Clustering POI Filosofi ───────────────────────────────────────────
       map.addSource('clusters-source', {
@@ -618,7 +669,7 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      map.on('click', 'clusters-layer', (e) => {
+      const onClustersClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, string>;
         let profileFeatures: Record<string, number> = {};
@@ -651,9 +702,17 @@ export function useMapInit(
             `</div>`
           )
           .addTo(map);
+      };
+      const onClustersMousemove  = () => { map.getCanvas().style.cursor = 'pointer'; };
+      const onClustersMouseleave = () => { map.getCanvas().style.cursor = ''; };
+      map.on('click', 'clusters-layer', onClustersClick);
+      map.on('mousemove',  'clusters-layer', onClustersMousemove);
+      map.on('mouseleave', 'clusters-layer', onClustersMouseleave);
+      cleanupFns.push(() => {
+        map.off('click', 'clusters-layer', onClustersClick);
+        map.off('mousemove', 'clusters-layer', onClustersMousemove);
+        map.off('mouseleave', 'clusters-layer', onClustersMouseleave);
       });
-      map.on('mousemove',  'clusters-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', 'clusters-layer', () => { map.getCanvas().style.cursor = ''; });
 
 
       setMapReady(true);
@@ -662,6 +721,12 @@ export function useMapInit(
     mapRef.current = map;
     return () => {
       setMapReady(false);
+      // Remove pre-load listeners
+      map.off('zoom', updateZoomBadge);
+      map.off('moveend', drawCircles);
+      map.off('zoomend', drawCircles);
+      // Remove load-time layer listeners
+      for (const fn of cleanupFns) { try { fn(); } catch { /* ok */ } }
       maplibregl.removeProtocol('pmtiles');
       map.remove();
       mapRef.current = null;
