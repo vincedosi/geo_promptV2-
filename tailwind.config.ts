@@ -43,10 +43,29 @@ const config: Config = {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
-        // Legacy GENESIS tokens (kept for compatibility)
-        'background-dark': '#050505',
-        'terminal-gray': '#121212',
-        'border-accent': '#261a35',
+
+        // ── GEOMATIK design tokens ──────────────────────────────────────────
+        // Surfaces
+        'geo-bg':       '#050505',
+        'geo-card':     '#0a0a0a',
+        'geo-elevated': '#111111',
+        'geo-overlay':  '#181818',
+        // Borders
+        'geo-border':       '#1a1a1a',
+        'geo-border-default': '#262626',
+        'geo-border-hover': '#333333',
+        // Text
+        'geo-text':     '#f0f0f0',
+        'geo-text-sec': '#a0a0a0',
+        'geo-text-dim': '#666666',
+        // Brand
+        'geo-teal':     '#4ecdc4',
+        'geo-teal-hover': '#3dbdb5',
+        // Status
+        'geo-success':  '#3dffa0',
+        'geo-danger':   '#ff5757',
+        'geo-warning':  '#f7b731',
+        'geo-info':     '#5b9bd5',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -54,10 +73,14 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        display: ["'Orbitron'", 'sans-serif'],
-        geometric: ["'Michroma'", 'sans-serif'],
         sans: ["'Inter'", 'system-ui', 'sans-serif'],
         mono: ["'JetBrains Mono'", 'monospace'],
+      },
+      transitionDuration: {
+        DEFAULT: '150ms',
+      },
+      transitionTimingFunction: {
+        DEFAULT: 'ease',
       },
     },
   },
