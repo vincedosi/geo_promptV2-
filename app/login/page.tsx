@@ -24,6 +24,14 @@ function formatAuthError(message: string, status?: number): string {
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono  = "'JetBrains Mono','Fira Mono',monospace";
 
+/** Generate SVG polygon points for a flat-top hexagon */
+function hexPoints(cx: number, cy: number, r: number): string {
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+  }).join(' ');
+}
+
 export default function LoginPage() {
   // ── Auth state — preserved exactly ──────────────────────────────────────────
   const [email,    setEmail]    = useState('');
@@ -121,13 +129,13 @@ export default function LoginPage() {
                 required
                 autoFocus
                 style={{
-                  width: '100%', background: '#0a0a0a',
+                  width: '100%', background: '#111111',
                   border: '0.5px solid #1a1a1a', borderRadius: 6,
                   padding: '9px 12px', fontSize: 13, fontFamily: fInter,
                   color: '#f0f0f0', outline: 'none', boxSizing: 'border-box',
                   transition: 'border-color 0.15s',
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                 onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
               />
             </div>
@@ -161,13 +169,13 @@ export default function LoginPage() {
                   required
                   minLength={6}
                   style={{
-                    width: '100%', background: '#0a0a0a',
+                    width: '100%', background: '#111111',
                     border: '0.5px solid #1a1a1a', borderRadius: 6,
                     padding: '9px 36px 9px 12px', fontSize: 13, fontFamily: fInter,
                     color: '#f0f0f0', outline: 'none', boxSizing: 'border-box',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={e => { e.currentTarget.style.borderColor = '#333333'; }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
                 />
                 <button
@@ -231,7 +239,7 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                    style={{ animation: 'loginSpin 1s linear infinite', flexShrink: 0 }}>
+                    style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                   </svg>
                   Connexion...
@@ -303,58 +311,77 @@ export default function LoginPage() {
           padding: '40px 24px',
         }}
       >
-        {/* Globe SVG — decorative */}
-        <div style={{ marginBottom: 24 }}>
-          <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
-            {/* Concentric circles */}
-            <circle cx="100" cy="100" r="40" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
-            <circle cx="100" cy="100" r="60" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
-            <circle cx="100" cy="100" r="80" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
-            {/* Meridian lines */}
-            <line x1="100" y1="20" x2="100" y2="180" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
-            <line x1="20" y1="100" x2="180" y2="100" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.15" />
-            {/* Diagonal meridians */}
-            <line x1="44" y1="44" x2="156" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.10" />
-            <line x1="156" y1="44" x2="44" y2="156" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.10" />
-            {/* Outer ring */}
-            <circle cx="100" cy="100" r="90" stroke="#f0f0f0" strokeWidth="0.5" opacity="0.12" />
+        {/* Hexagonal grid — GEOMATIK signature */}
+        <div style={{ marginBottom: 32, position: 'relative' }}>
+          <svg width="260" height="260" viewBox="0 0 260 260" fill="none" style={{ opacity: 0.9 }}>
+            {/* Hexagonal grid pattern */}
+            {[
+              { x: 130, y: 80 },
+              { x: 100, y: 98 }, { x: 160, y: 98 },
+              { x: 70, y: 116 }, { x: 130, y: 116 }, { x: 190, y: 116 },
+              { x: 100, y: 134 }, { x: 160, y: 134 },
+              { x: 70, y: 152 }, { x: 130, y: 152 }, { x: 190, y: 152 },
+              { x: 100, y: 170 }, { x: 160, y: 170 },
+              { x: 130, y: 188 },
+            ].map((pos, i) => {
+              const isAccent = [0, 4, 9, 13].includes(i);
+              const isMid = [2, 5, 7, 11].includes(i);
+              return (
+                <g key={i} style={{ animation: `fadeIn 0.4s ease ${i * 0.06}s both` }}>
+                  <polygon
+                    points={hexPoints(pos.x, pos.y, 14)}
+                    fill={isAccent ? 'rgba(78,205,196,0.12)' : 'transparent'}
+                    stroke={isAccent ? '#4ecdc4' : isMid ? '#262626' : '#1a1a1a'}
+                    strokeWidth="0.5"
+                  />
+                  {isAccent && (
+                    <circle cx={pos.x} cy={pos.y} r="2" fill="#4ecdc4" opacity="0.6" />
+                  )}
+                </g>
+              );
+            })}
+            {/* Connection lines between accent hexagons */}
+            <line x1="130" y1="80" x2="130" y2="116" stroke="#4ecdc4" strokeWidth="0.5" opacity="0.2" />
+            <line x1="130" y1="116" x2="130" y2="152" stroke="#4ecdc4" strokeWidth="0.5" opacity="0.2" />
+            <line x1="130" y1="152" x2="130" y2="188" stroke="#4ecdc4" strokeWidth="0.5" opacity="0.2" />
           </svg>
         </div>
 
         {/* Copy */}
-        <div style={{ textAlign: 'center', maxWidth: 280 }}>
+        <div style={{ textAlign: 'center', maxWidth: 300 }}>
           <div style={{
-            fontSize: 14, fontWeight: 500, color: '#a0a0a0', marginBottom: 10, fontFamily: fInter,
+            fontSize: 15, fontWeight: 500, color: '#f0f0f0', marginBottom: 8, fontFamily: fInter,
           }}>
-            Planification OOH intelligente
+            Intelligence OOH en temps réel
           </div>
           <div style={{
-            fontSize: 12, color: '#666666', lineHeight: 1.6,
-            fontFamily: fInter, fontWeight: 400, maxWidth: 240, margin: '0 auto',
+            fontSize: 13, color: '#666666', lineHeight: 1.6,
+            fontFamily: fInter, fontWeight: 400, maxWidth: 260, margin: '0 auto',
           }}>
-            Ciblez, scorez et mesurez vos campagnes d'affichage avec l'IA et la donnée géospatiale.
+            49 000 zones IRIS, 2.3M carreaux INSEE, isochrones multi-modaux — le tout piloté par IA.
           </div>
         </div>
 
-        {/* Stats — absolute bottom */}
+        {/* Stats row — absolute bottom */}
         <div style={{
-          position: 'absolute', bottom: 24, left: 0, right: 0,
-          display: 'flex', justifyContent: 'center', gap: 24, padding: '0 24px',
+          position: 'absolute', bottom: 32, left: 0, right: 0,
+          display: 'flex', justifyContent: 'center', gap: 32, padding: '0 32px',
         }}>
           {[
             { value: '49K',  label: 'zones IRIS' },
+            { value: '2.3M', label: 'carreaux' },
+            { value: '285K', label: 'arrêts' },
             { value: '3.9K', label: 'panneaux' },
-            { value: '285K', label: 'arrêts transport' },
-          ].map(stat => (
-            <div key={stat.label} style={{ textAlign: 'center' }}>
+          ].map((stat, i) => (
+            <div key={stat.label} style={{ textAlign: 'center', animation: `fadeIn 0.5s ease ${0.3 + i * 0.1}s both` }}>
               <div style={{
-                fontSize: 16, fontWeight: 500, color: '#a0a0a0',
-                fontFamily: fMono, letterSpacing: '-0.01em',
+                fontSize: 18, fontWeight: 500, color: '#f0f0f0',
+                fontFamily: fMono, letterSpacing: '-0.02em',
               }}>
                 {stat.value}
               </div>
               <div style={{
-                fontSize: 10, color: '#666666', fontFamily: fInter, marginTop: 2,
+                fontSize: 10, color: '#666666', fontFamily: fInter, marginTop: 4,
               }}>
                 {stat.label}
               </div>
@@ -363,12 +390,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <style>{`
-        @keyframes loginSpin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
+      {/* loginSpin uses the global 'spin' keyframes from globals.css */}
     </div>
   );
 }
