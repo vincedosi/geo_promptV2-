@@ -9,9 +9,6 @@ const PMTILES_URL =
   'https://github.com/vincedosi/geo_promptV2-/releases/download/iris-pmtiles-latest/iris.pmtiles';
 
 export async function GET(request: Request) {
-  console.log('[PROXY] GITHUB_TOKEN exists:', !!process.env.GITHUB_TOKEN);
-  console.log('[PROXY] GITHUB_TOKEN starts with:', process.env.GITHUB_TOKEN?.slice(0, 10));
-
   const headers: HeadersInit = {
     'Authorization': `token ${process.env.GITHUB_TOKEN}`,
     'Accept': 'application/octet-stream',
