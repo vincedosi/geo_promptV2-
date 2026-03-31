@@ -18,7 +18,11 @@ import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
-import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
+import dynamic from 'next/dynamic';
+const StudyDashboard = dynamic(
+  () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
+  { ssr: false },
+);
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';

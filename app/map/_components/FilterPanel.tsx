@@ -11,7 +11,12 @@ import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPM
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
-import { CorrelationPanel, type CorrelationParams, type ResidualsMeta } from './CorrelationPanel';
+import dynamic from 'next/dynamic';
+import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
+const CorrelationPanel = dynamic(
+  () => import('./CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
+  { ssr: false },
+);
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {

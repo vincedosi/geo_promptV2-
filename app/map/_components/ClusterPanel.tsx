@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClusteringWizard } from './ClusteringWizard';
+import dynamic from 'next/dynamic';
+const ClusteringWizard = dynamic(
+  () => import('./ClusteringWizard').then(m => ({ default: m.ClusteringWizard })),
+  { ssr: false },
+);
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
