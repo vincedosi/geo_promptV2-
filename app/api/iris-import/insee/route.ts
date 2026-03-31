@@ -13,6 +13,7 @@
 import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 min — fichiers INSEE volumineux
@@ -271,6 +272,9 @@ const BUILDERS = { pop: buildPop, men: buildMen, dip: buildDip, log: buildLog, a
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const body = await req.json() as {
     sources: string[];
     year:    string;
