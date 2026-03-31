@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import AppSidebar from '@/components/AppSidebar'
 import { SessionBadge } from '@/components/SessionBadge'
+import { ToastProvider } from '@/components/ui/geo-toast'
 
 export const metadata: Metadata = {
   title: 'GEOMATIK — Geospatial intelligence',
@@ -17,20 +18,20 @@ export default function RootLayout({
   return (
     <html lang="fr" className="dark">
       <body style={{ background: '#050505', color: '#f0f0f0' }}>
-        <AppSidebar />
-        {/* Session badge — fixed top-right for admin/dashboard pages.
-            Hidden on map page (which uses position:fixed inset:0 zIndex:9999). */}
-        <div style={{ position: 'fixed', top: 0, right: 0, zIndex: 200 }}>
-          <SessionBadge />
-        </div>
-        <main
-          className="md:pl-[240px] min-h-screen"
-          style={{ background: '#050505' }}
-        >
-          <div className="p-8">
-            {children}
+        <ToastProvider>
+          <AppSidebar />
+          <div style={{ position: 'fixed', top: 0, right: 0, zIndex: 200 }}>
+            <SessionBadge />
           </div>
-        </main>
+          <main
+            className="md:pl-[240px] min-h-screen"
+            style={{ background: '#050505' }}
+          >
+            <div className="p-8">
+              {children}
+            </div>
+          </main>
+        </ToastProvider>
       </body>
     </html>
   )
