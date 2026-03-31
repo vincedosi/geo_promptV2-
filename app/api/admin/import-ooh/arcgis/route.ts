@@ -14,6 +14,7 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { checkImportRateLimit } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,6 +119,14 @@ function normalizeFeature(f: ArcGISFeature, source: string) {
 export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
+
+  const rl = checkImportRateLimit('import-ooh-arcgis');
+  if (!rl.ok) {
+    return Response.json(
+      { error: `Trop d'imports simultanés. Réessayez dans ${rl.retryAfterSec}s.` },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    );
+  }
 
   let sourceKey: string;
   let customUrl: string | undefined;

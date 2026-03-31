@@ -14,6 +14,7 @@ import { NextRequest } from 'next/server';
 import JSZip from 'jszip';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { checkImportRateLimit } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 min — fichiers INSEE volumineux
@@ -274,6 +275,14 @@ const BUILDERS = { pop: buildPop, men: buildMen, dip: buildDip, log: buildLog, a
 export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
+
+  const rl = checkImportRateLimit('iris-import-insee');
+  if (!rl.ok) {
+    return new Response(
+      JSON.stringify({ error: `Trop d'imports simultanés. Réessayez dans ${rl.retryAfterSec}s.` }),
+      { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSec) } },
+    );
+  }
 
   const body = await req.json() as {
     sources: string[];
