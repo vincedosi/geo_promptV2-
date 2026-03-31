@@ -23,6 +23,36 @@ const BATCH_SIZE    = 500;
 const PAGE_SIZE     = 1000;
 const FETCH_TIMEOUT = 60_000;
 
+// ─── SSRF protection : domaines ArcGIS autorisés ─────────────────────────────
+const ALLOWED_ARCGIS_DOMAINS = [
+  'services.arcgis.com', 'services1.arcgis.com', 'services2.arcgis.com',
+  'services3.arcgis.com', 'services5.arcgis.com', 'services6.arcgis.com',
+  'services7.arcgis.com', 'services8.arcgis.com', 'services9.arcgis.com',
+  'geo.brest-metropole.fr',
+];
+
+function isPrivateHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '[::1]') return true;
+  if (hostname.startsWith('127.') || hostname.startsWith('10.')) return true;
+  if (hostname.startsWith('192.168.')) return true;
+  if (hostname.startsWith('169.254.')) return true;
+  // 172.16.0.0 - 172.31.255.255
+  const m = hostname.match(/^172\.(\d+)\./);
+  if (m && +m[1] >= 16 && +m[1] <= 31) return true;
+  return false;
+}
+
+function validateArcgisUrl(raw: string): { ok: true; url: URL } | { ok: false; error: string } {
+  let url: URL;
+  try { url = new URL(raw); } catch { return { ok: false, error: 'URL invalide' }; }
+  if (url.protocol !== 'https:') return { ok: false, error: 'Seul HTTPS est autorisé' };
+  if (isPrivateHost(url.hostname)) return { ok: false, error: 'Adresse privée non autorisée' };
+  if (!ALLOWED_ARCGIS_DOMAINS.some(d => url.hostname === d || url.hostname.endsWith('.' + d))) {
+    return { ok: false, error: `Domaine non autorisé : ${url.hostname}. Domaines acceptés : ${ALLOWED_ARCGIS_DOMAINS.join(', ')}` };
+  }
+  return { ok: true, url };
+}
+
 // ─── Source connues ───────────────────────────────────────────────────────────
 const SOURCES: Record<string, { label: string; arcgisUrl: string }> = {
   arcgis_brest_metropole: {
@@ -102,6 +132,12 @@ export async function POST(req: NextRequest) {
     replace     = body.replace === true;
   } catch {
     return Response.json({ error: 'Corps JSON invalide' }, { status: 400 });
+  }
+
+  // ── Validation SSRF sur les URLs personnalisées ─────────────────────────────
+  if (customUrl) {
+    const check = validateArcgisUrl(customUrl);
+    if (!check.ok) return Response.json({ error: check.error }, { status: 400 });
   }
 
   // Source prédéfinie ou URL personnalisée
