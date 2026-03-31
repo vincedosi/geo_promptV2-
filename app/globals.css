@@ -615,6 +615,21 @@ details > summary::-webkit-details-marker {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Chat input placeholder */
+.gp-input::placeholder {
+  color: #666666 !important;
+}
+
 /* ─── MapLibre popup overrides ──────────────────────────────────────────────── */
 
 .maplibregl-popup-content {

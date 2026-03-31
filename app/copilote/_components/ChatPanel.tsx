@@ -1,5 +1,6 @@
 import { FormEvent, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { Send } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
 import { ZoneCard }        from './ZoneCard';
@@ -356,7 +357,7 @@ export function ChatPanel({
             <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.2s ease' }}>←</Link>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 14, fontFamily: fontInter, fontWeight: 500, color: C.text }}>
+                <span style={{ fontSize: 14, fontFamily: fontMono, fontWeight: 500, color: C.teal }}>
                   geo.prompt
                 </span>
                 <span style={{ fontSize: 10, fontFamily: fontMono, background: '#181818', color: C.textSec, padding: '2px 5px', border: '0.5px solid #262626', borderRadius: 3 }}>BETA</span>
@@ -632,7 +633,7 @@ export function ChatPanel({
                         );
                         if (isRawMcpOutput) return null;
                         return (
-                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px', fontSize: 13, color: '#e0e0e0', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 300 }}>
+                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, borderLeft: '2px solid #4ecdc4', paddingLeft: 12, padding: '8px 14px 8px 12px', fontSize: 13, color: '#f0f0f0', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 400 }}>
                             <ChatMarkdown text={textContent} />
                           </div>
                         );
@@ -807,16 +808,15 @@ export function ChatPanel({
               }
             }}
             style={{
-              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
               background: input.trim() && !isDisabled ? C.teal : '#1a1a1a',
               border: 'none',
               color: input.trim() && !isDisabled ? '#050505' : C.textDim,
               cursor: input.trim() && !isDisabled ? 'pointer' : 'default',
-              fontSize: 16, lineHeight: 1, transition: 'all 0.2s ease',
+              transition: 'all 0.15s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              ...(!(input.trim() && !isDisabled) ? { animation: 'sendPulseRing 3s ease-in-out infinite' } : {}),
             }}
-          >↑</button>
+          ><Send size={16} strokeWidth={2} /></button>
         </form>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
           <span style={{ fontSize: 9, color: smartMode === 'smart' ? C.teal : C.textDim, fontFamily: fontInter, fontWeight: 400, letterSpacing: '0.04em', transition: 'color 0.2s' }}>
@@ -832,22 +832,7 @@ export function ChatPanel({
         </div>
       </div>
 
-      <style>{`
-        @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-        .gp-input::placeholder { color: #666666 !important; }
-        @keyframes sendPulseRing {
-          0%, 100% { outline: 2px solid transparent; outline-offset: 0; }
-          50% { outline: 2px solid rgba(78,205,196,0.12); outline-offset: 3px; }
-        }
-        @keyframes cardStagger {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .chat-messages *, .gp-input { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-        }
-      `}</style>
+      {/* Chat animations defined in globals.css (pulseDot, bounce, slideUp) */}
     </div>
   );
 }
