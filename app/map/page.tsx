@@ -28,6 +28,7 @@ import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-exp
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
@@ -56,6 +57,7 @@ export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [activeTab,   setActiveTab]   = useState<'map' | 'study'>('map');
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
@@ -90,6 +92,15 @@ export default function MapPage() {
   const [selectedIrisData,   setSelectedIrisData]   = useState<IrisDetailData | null>(null);
   const [irisDetailLoading,  setIrisDetailLoading]  = useState(false);
   const irisClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
+
+  // ── Fullscreen keyboard shortcut (Escape to exit) ──────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mapFullscreen) { setMapFullscreen(false); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [mapFullscreen]);
 
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
@@ -1021,6 +1032,14 @@ export default function MapPage() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#060608' }}>
+      <div style={{
+        transition: 'margin-left 0.3s ease, opacity 0.3s ease',
+        marginLeft: mapFullscreen ? '-100%' : 0,
+        opacity: mapFullscreen ? 0 : 1,
+        flexShrink: 0,
+        pointerEvents: mapFullscreen ? 'none' : 'auto',
+        overflow: 'hidden',
+      }}>
       <FilterPanel
         chatSlot={
           <ChatPanel
@@ -1167,6 +1186,7 @@ export default function MapPage() {
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />
+      </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
@@ -1214,6 +1234,24 @@ export default function MapPage() {
 
         {/* Map area — kept mounted, hidden when study tab active */}
         <div style={{ flex: 1, position: 'relative', display: activeTab === 'map' ? 'flex' : 'none' }}>
+
+          {/* Fullscreen toggle button */}
+          <button
+            onClick={() => setMapFullscreen(f => !f)}
+            title={mapFullscreen ? 'Quitter le plein écran (Escape)' : 'Carte plein écran'}
+            style={{
+              position: 'absolute', top: 10, right: 10, zIndex: 20,
+              background: '#0a0a0a', border: '0.5px solid #262626',
+              borderRadius: 6, padding: 8,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#a0a0a0', transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#111111'; e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.color = '#f0f0f0'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#0a0a0a'; e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = '#a0a0a0'; }}
+          >
+            {mapFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
+          </button>
+
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
