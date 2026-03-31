@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const resHeaders: Record<string, string> = {
     'Content-Type':                'application/octet-stream',
     'Accept-Ranges':               'bytes',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || '*',
     'Cache-Control':               'public, max-age=86400',
   };
 

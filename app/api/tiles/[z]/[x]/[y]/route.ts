@@ -75,7 +75,7 @@ export async function GET(
         'Content-Type': 'application/vnd.mapbox-vector-tile',
         'Cache-Control': 'public, max-age=3600',
         'X-Tile-Cache': 'HIT',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || '*',
       },
     });
   }
@@ -104,7 +104,7 @@ export async function GET(
       'Content-Type': 'application/vnd.mapbox-vector-tile',
       'Cache-Control': 'public, max-age=3600',
       'X-Tile-Cache': 'MISS',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || '*',
     },
   });
 }
