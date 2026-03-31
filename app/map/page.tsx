@@ -14,6 +14,8 @@ import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel }         from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
+import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
+import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { StudyDashboard }      from '@/app/map/_components/StudyDashboard';
@@ -73,9 +75,17 @@ export default function MapPage() {
   const [residualOpacity,   setResidualOpacity]   = useState(0.65);
   const [residualInverted,  setResidualInverted]  = useState(false);
   const residualsClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
+  const residualsMouseHandlersRef = useRef<{ enter: () => void; leave: () => void } | null>(null);
   const residualLookupRef    = useRef<Map<string, ResidualData>>(new Map());
   const residualInvertedRef  = useRef(false);
   useEffect(() => { residualInvertedRef.current = residualInverted; }, [residualInverted]);
+
+  // ── IRIS detail panel ──────────────────────────────────────────────────────
+  const [selectedIrisCode,   setSelectedIrisCode]   = useState<string | null>(null);
+  const [selectedIrisData,   setSelectedIrisData]   = useState<IrisDetailData | null>(null);
+  const [irisDetailLoading,  setIrisDetailLoading]  = useState(false);
+  const irisClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
+
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
     if (stored) setMapStyleUrl(stored);
@@ -143,6 +153,52 @@ export default function MapPage() {
     }
   }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── IRIS detail — click handler ────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const LAYER = 'iris-fill';
+
+    // Remove previous handler if any
+    if (irisClickHandlerRef.current) {
+      try { map.off('click', LAYER, irisClickHandlerRef.current); } catch { /* ok */ }
+    }
+
+    const handler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      const feat = e.features?.[0];
+      if (!feat) return;
+      const code = feat.properties?.code_iris as string | undefined;
+      if (!code) return;
+      e.preventDefault?.();
+      setSelectedIrisCode(code);
+    };
+
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
+
+    irisClickHandlerRef.current = handler;
+    map.on('click', LAYER, handler);
+    map.on('mouseenter', LAYER, onEnter);
+    map.on('mouseleave', LAYER, onLeave);
+
+    return () => {
+      try { map.off('click', LAYER, handler); } catch { /* ok */ }
+      try { map.off('mouseenter', LAYER, onEnter); } catch { /* ok */ }
+      try { map.off('mouseleave', LAYER, onLeave); } catch { /* ok */ }
+    };
+  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── IRIS detail — fetch on code change ─────────────────────────────────────
+  useEffect(() => {
+    if (!selectedIrisCode) return;
+    setIrisDetailLoading(true);
+    setSelectedIrisData(prev => prev?.code_iris === selectedIrisCode ? prev : null);
+    fetch(`/api/iris/detail?code_iris=${encodeURIComponent(selectedIrisCode)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then((d: IrisDetailData) => { setSelectedIrisData(d); setIrisDetailLoading(false); })
+      .catch(() => { setIrisDetailLoading(false); });
+  }, [selectedIrisCode]);
+
   // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
     if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom, duration: 1000 });
@@ -166,6 +222,11 @@ export default function MapPage() {
     if (residualsClickHandlerRef.current) {
       try { map.off('click', LAYER, residualsClickHandlerRef.current); } catch { /* ok */ }
       residualsClickHandlerRef.current = null;
+    }
+    if (residualsMouseHandlersRef.current) {
+      try { map.off('mouseenter', LAYER, residualsMouseHandlersRef.current.enter); } catch { /* ok */ }
+      try { map.off('mouseleave', LAYER, residualsMouseHandlersRef.current.leave); } catch { /* ok */ }
+      residualsMouseHandlersRef.current = null;
     }
     try {
       if (map.getLayer(LAYER)) map.removeLayer(LAYER);
@@ -236,10 +297,13 @@ export default function MapPage() {
         </div>`)
         .addTo(map);
     };
+    const onResidualEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onResidualLeave = () => { map.getCanvas().style.cursor = ''; };
     residualsClickHandlerRef.current = clickHandler;
+    residualsMouseHandlersRef.current = { enter: onResidualEnter, leave: onResidualLeave };
     map.on('click', LAYER, clickHandler);
-    map.on('mouseenter', LAYER, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', LAYER, () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', LAYER, onResidualEnter);
+    map.on('mouseleave', LAYER, onResidualLeave);
 
     setResidualsMeta(meta ?? null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1309,6 +1373,21 @@ export default function MapPage() {
 
           {/* Welcome overlay — affiché au premier chargement, par-dessus la carte */}
           <WelcomeOverlay sendMessage={chat.sendMessage} />
+
+          {/* IRIS detail panel — overlay à droite sur la carte */}
+          {(selectedIrisData || irisDetailLoading) && (
+            <div style={{
+              position: 'absolute', top: 0, right: 0, bottom: 0,
+              width: 320, zIndex: 50,
+              boxShadow: '-4px 0 24px rgba(0,0,0,0.5)',
+            }}>
+              <IrisDetailPanel
+                data={selectedIrisData ?? { code_iris: selectedIrisCode ?? '', nom_iris: null, code_commune: null, code_dept: null, is_true_iris: null }}
+                loading={irisDetailLoading}
+                onClose={() => { setSelectedIrisCode(null); setSelectedIrisData(null); }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Study dashboard — lazy, affiché quand onglet Étude */}
