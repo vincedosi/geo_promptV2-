@@ -1619,7 +1619,7 @@ function btnStyle(color: string, bg: string, border: string): React.CSSPropertie
   return {
     background: bg, border: `1px solid ${border}`, borderRadius: 2,
     color, padding: '5px 12px', cursor: 'pointer',
-    fontFamily: "'Michroma', sans-serif", fontSize: 8, letterSpacing: '0.1em',
+    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 8, letterSpacing: '0.1em',
     textTransform: 'uppercase', whiteSpace: 'nowrap',
   };
 }
@@ -1640,7 +1640,7 @@ function ColHead({ w, flex, children }: { w?: number; flex?: boolean; children: 
   return (
     <div style={{
       width: w, flex: flex ? 1 : undefined, flexShrink: 0,
-      padding: '7px 12px', fontFamily: "'Michroma', sans-serif",
+      padding: '7px 12px', fontFamily: "'Inter', system-ui, sans-serif",
       fontSize: 7, letterSpacing: '0.12em', color: '#6b7280',
       borderRight: '1px solid #261a35', textTransform: 'uppercase',
     }}>

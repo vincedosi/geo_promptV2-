@@ -17,8 +17,8 @@ const C = {
   red: '#ff5757', redDim: 'rgba(255,87,87,0.1)',
   warn: '#f7b731', warnDim: 'rgba(247,183,49,0.1)', blue: '#5b9bd5',
 };
-const fontOrbitron = "'Orbitron',sans-serif";
-const fontMichroma = "'Michroma','Orbitron',sans-serif";
+const fontOrbitron = "'Inter',system-ui,sans-serif";
+const fontMichroma = "'Inter',system-ui,sans-serif";
 const fontMono = "'JetBrains Mono',monospace";
 const fontInter = "'Inter',system-ui,sans-serif";
 
