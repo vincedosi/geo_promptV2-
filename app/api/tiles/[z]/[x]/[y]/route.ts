@@ -1,12 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/auth';
 
-// Client créé à la demande pour éviter l'évaluation au build time (env vars absentes)
+// service_role requis pour les RPCs de tiles (bypass RLS intentionnel)
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createAdminClient();
 }
 
 export const dynamic = 'force-dynamic';
