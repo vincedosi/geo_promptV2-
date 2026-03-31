@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const resHeaders: Record<string, string> = {
     'Content-Type':                'application/octet-stream',
     'Accept-Ranges':               'bytes',
-    'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || '*',
+    'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://genesis.vercel.app',
     'Cache-Control':               'public, max-age=86400',
   };
 
