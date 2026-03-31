@@ -132,8 +132,8 @@ export function useMapInit(
       'z-index:10',
       'pointer-events:none',
       'background:rgba(5,5,5,0.82)',
-      'border:1px solid #a855f7',
-      'color:#a855f7',
+      'border:0.5px solid #262626',
+      'color:#a0a0a0',
       'font-family:JetBrains Mono,monospace',
       'font-size:11px',
       'letter-spacing:0.05em',
@@ -349,8 +349,8 @@ export function useMapInit(
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
       });
-      map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zone-circle', paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.12 } });
-      map.addLayer({ id: 'zone-outline', type: 'line', source: 'zone-circle', paint: { 'line-color': '#a78bfa', 'line-width': 2, 'line-dasharray': [4, 3] } });
+      map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zone-circle', paint: { 'fill-color': '#4ecdc4', 'fill-opacity': 0.08 } });
+      map.addLayer({ id: 'zone-outline', type: 'line', source: 'zone-circle', paint: { 'line-color': '#4ecdc4', 'line-width': 1.5, 'line-dasharray': [4, 3] } });
 
       // ── Voronoï ──────────────────────────────────────────────────────────
       map.addSource('voronoi', {
