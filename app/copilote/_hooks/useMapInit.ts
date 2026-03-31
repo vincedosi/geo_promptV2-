@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import { Protocol } from 'pmtiles';
 import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
+import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 
@@ -168,6 +169,11 @@ export function useMapInit(
         const tf = (layer.layout as Record<string, unknown>)?.['text-field'];
         if (!tf) continue;
         try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
+      }
+
+      // ── Apply GEOMATIK dark style overrides if selected ─────────────────
+      if (mapStyleUrl?.includes('geomatik') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'))) {
+        applyGeomatikStyle(map);
       }
 
       // ── Heatmap densité POI (large zoom) ─────────────────────────────────

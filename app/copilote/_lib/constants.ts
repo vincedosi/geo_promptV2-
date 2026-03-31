@@ -138,6 +138,7 @@ export const MAP_STYLES = [
   { id: 'liberty',  label: 'Liberty',  url: 'https://tiles.openfreemap.org/styles/liberty'  },
   { id: 'bright',   label: 'Bright',   url: 'https://tiles.openfreemap.org/styles/bright'   },
   { id: 'positron', label: 'Positron', url: 'https://tiles.openfreemap.org/styles/positron' },
+  { id: 'geomatik', label: 'GEOMATIK', url: 'https://tiles.openfreemap.org/styles/positron' },
 ] as const;
 
 export const MAP_STYLE = MAP_STYLES[0].url;
