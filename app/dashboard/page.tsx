@@ -2,183 +2,206 @@
 
 import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
-
-const fInter = "'Inter', system-ui, sans-serif";
-const fMono  = "'JetBrains Mono', monospace";
-
-// ── Design tokens (Dark Minimal) ──────────────────────────────────────────────
-const C = {
-  bg:      '#050505',
-  bgCard:  '#0a0a0a',
-  bgBand:  '#111111',
-  border:  '#1a1a1a',
-  teal:    '#4ecdc4',
-  green:   '#3dffa0',
-  text:    '#f0f0f0',
-  textSec: '#a0a0a0',
-  textDim: '#666666',
-};
-
-// ── Card header bandeau (DESIGN_SYSTEM section header pattern) ────────────────
-function CardHeader({ label }: { label: string }) {
-  return (
-    <div style={{
-      background: C.bgBand, borderBottom: `0.5px solid ${C.border}`,
-      padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
-    }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.teal, flexShrink: 0 }} />
-      <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: C.text }}>{label}</span>
-    </div>
-  );
-}
+import {
+  MapPin, Layers, FileUp, Monitor, Database, Users,
+  Hexagon, Clock, Mail, Shield,
+} from 'lucide-react';
 
 export default function DashboardPage() {
   const { session, isLoading } = useSession();
 
+  // ── Loading state — skeleton shimmer ────────────────────────────────────────
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
-        <span style={{ fontFamily: fMono, fontSize: 11, color: C.textDim }}>Chargement…</span>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
+        <div className="geo-skeleton" style={{ width: 180, height: 22, marginBottom: 8 }} />
+        <div className="geo-skeleton" style={{ width: 120, height: 14, marginBottom: 32 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="geo-skeleton" style={{ height: 88, borderRadius: 6 }} />
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="geo-skeleton" style={{ height: 72, borderRadius: 6 }} />
+          ))}
+        </div>
       </div>
     );
   }
 
+  // ── Not authenticated ───────────────────────────────────────────────────────
   if (!session) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
-        <Link href="/login" style={{ fontFamily: fInter, fontSize: 13, color: C.teal, textDecoration: 'none' }}>
-          → Connexion
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '50vh', gap: 16,
+      }}>
+        <Hexagon size={48} strokeWidth={1} style={{ color: '#333333' }} />
+        <p style={{ fontSize: 13, color: '#666666' }}>Session expirée</p>
+        <Link
+          href="/login"
+          style={{
+            fontSize: 13, color: '#050505', background: '#f0f0f0',
+            padding: '10px 24px', borderRadius: 6, textDecoration: 'none',
+            fontWeight: 500, transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#d4d4d4'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#f0f0f0'; }}
+        >
+          Se connecter
         </Link>
       </div>
     );
   }
 
-  const navLinks = [
-    { href: '/admin/ooh-import',      label: 'OOH Import',       sub: 'Data lake'         },
-    { href: '/admin/import',          label: 'Import POI',        sub: 'Établissements'    },
-    { href: '/admin/filosofi-import', label: 'Filosofi Import',   sub: 'Carreaux .parquet' },
-    { href: '/admin/carreaux-import', label: 'Carreaux Import',   sub: 'GeoJSON/Shapefile' },
-    { href: '/admin/profiles',        label: 'Scoring Profiles',  sub: 'Profils OOH'       },
-    { href: '/admin/sources',         label: 'Sources Data.gouv', sub: 'Crawl & import'    },
-  ];
-
   const displayName = session.user.name || session.user.email?.split('@')[0] || '—';
 
-  return (
-    <div style={{ fontFamily: fInter, color: C.text, maxWidth: 960, margin: '0 auto' }}>
+  // ── Stat cards data ─────────────────────────────────────────────────────────
+  const stats = [
+    {
+      icon: MapPin,
+      value: 'geo.prompt',
+      label: 'Copilote IA',
+      href: '/map',
+    },
+    {
+      icon: Mail,
+      value: displayName,
+      label: session.user.email ?? '',
+      href: null,
+    },
+    {
+      icon: Shield,
+      value: session.user.role ?? 'user',
+      label: session.user.emailVerified ? 'Compte vérifié' : 'Non vérifié',
+      href: null,
+    },
+    {
+      icon: Clock,
+      value: new Date(session.expiresAt).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit',
+      }),
+      label: 'Expiration session',
+      href: null,
+    },
+  ];
 
-      {/* ── Header ────────────────────────────────────────────────────── */}
+  // ── Navigation cards ────────────────────────────────────────────────────────
+  const navCards = [
+    { href: '/map',                    icon: MapPin,   label: 'geo.prompt',       sub: 'Carte + IA' },
+    { href: '/admin/ooh-import',       icon: Monitor,  label: 'Import OOH',       sub: 'Panneaux ArcGIS' },
+    { href: '/admin/import',           icon: FileUp,   label: 'Import POI',       sub: 'CSV / XLSX' },
+    { href: '/admin/sources',          icon: Database,  label: 'Sources',          sub: 'Data lake' },
+    { href: '/admin/organizations',    icon: Users,    label: 'Organisations',    sub: 'Multi-tenant' },
+    { href: '/dashboard/iris-crawler', icon: Layers,   label: 'IRIS Crawler',     sub: 'Données INSEE' },
+  ];
+
+  return (
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+
+      {/* ── Page header ────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontFamily: fInter, fontWeight: 500, fontSize: 18, color: C.text, margin: '0 0 4px' }}>
+        <h1 style={{
+          fontWeight: 500, fontSize: 18, color: '#f0f0f0',
+          letterSpacing: '-0.02em', margin: '0 0 4px',
+        }}>
           Dashboard
         </h1>
-        <p style={{ fontFamily: fInter, fontWeight: 400, fontSize: 13, color: C.textDim, margin: 0 }}>
-          {displayName}
+        <p style={{ fontSize: 13, color: '#666666', margin: 0 }}>
+          Bienvenue, {displayName}
         </p>
       </div>
 
-      {/* ── Info cards ────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
-
-        {/* Profil */}
-        <div style={{ background: C.bgCard, border: `0.5px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-          <CardHeader label="Profil" />
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: 'Email',        value: session.user.email       },
-              { label: 'Nom',          value: session.user.name || '—' },
-              { label: 'Rôle',         value: session.user.role || 'user' },
-              { label: 'Vérifié',      value: session.user.emailVerified ? 'Oui' : 'Non' },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 12, color: C.textDim, marginBottom: 2 }}>
-                  {label}
-                </div>
-                <div style={{
-                  fontFamily: fInter, fontWeight: 400, fontSize: 13, color: C.text,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {value}
-                </div>
+      {/* ── Stat cards row ─────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
+        {stats.map((s, i) => {
+          const inner = (
+            <div
+              key={i}
+              style={{
+                background: '#0a0a0a',
+                border: '0.5px solid #1a1a1a',
+                borderRadius: 6,
+                padding: '16px 18px',
+                transition: 'border-color 0.15s, transform 0.2s',
+                cursor: s.href ? 'pointer' : 'default',
+                animation: `slideUp 0.3s ease ${i * 60}ms both`,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = '#262626';
+                if (s.href) e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = '#1a1a1a';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <s.icon size={20} strokeWidth={1.5} style={{ color: '#4ecdc4', marginBottom: 12 }} />
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 500, fontSize: 15, color: '#f0f0f0',
+                marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {s.value}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Organisation */}
-        <div style={{ background: C.bgCard, border: `0.5px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-          <CardHeader label="Organisation" />
-          <div style={{ padding: '12px 14px' }}>
-            {session.user.organizationId ? (
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, marginBottom: 2 }}>ID</div>
-                <div style={{ fontFamily: fMono, fontSize: 11, color: C.textSec, wordBreak: 'break-all' }}>
-                  {session.user.organizationId}
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim }}>Aucune organisation</div>
-            )}
-          </div>
-        </div>
-
-        {/* Session */}
-        <div style={{ background: C.bgCard, border: `0.5px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-          <CardHeader label="Session" />
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, marginBottom: 2 }}>Identifiant</div>
-              <div style={{ fontFamily: fMono, fontSize: 11, color: C.textSec, wordBreak: 'break-all' }}>
-                {session.id?.slice(0, 24)}…
+              <div style={{
+                fontSize: 12, color: '#666666',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {s.label}
               </div>
             </div>
-            <div>
-              <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, marginBottom: 2 }}>Expire</div>
-              <div style={{ fontFamily: fInter, fontSize: 13, color: C.text }}>
-                {new Date(session.expiresAt).toLocaleDateString('fr-FR', {
-                  day: '2-digit', month: '2-digit', year: '2-digit',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+          );
 
+          return s.href ? (
+            <Link key={i} href={s.href} style={{ textDecoration: 'none' }}>{inner}</Link>
+          ) : (
+            <div key={i}>{inner}</div>
+          );
+        })}
       </div>
 
-      {/* ── Navigation cards ──────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {navLinks.map(({ href, label, sub }) => (
+      {/* ── Section header ─────────────────────────────────────────────────── */}
+      <div className="geo-section-header" style={{ borderRadius: '6px 6px 0 0', marginBottom: 0 }}>
+        <span>Navigation rapide</span>
+      </div>
+
+      {/* ── Navigation cards grid ──────────────────────────────────────────── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0,
+        border: '0.5px solid #1a1a1a', borderTop: 'none', borderRadius: '0 0 6px 6px',
+        overflow: 'hidden',
+      }}>
+        {navCards.map(({ href, icon: Icon, label, sub }, i) => (
           <Link key={href} href={href} style={{ textDecoration: 'none' }}>
             <div
               style={{
-                background: C.bgCard,
-                border: `0.5px solid ${C.border}`,
-                borderRadius: 2,
-                padding: '14px 16px',
-                transition: 'border-color 0.15s, background 0.15s',
+                background: '#0a0a0a',
+                padding: '16px 18px',
+                borderRight: (i % 3 !== 2) ? '0.5px solid #1a1a1a' : 'none',
+                borderBottom: i < 3 ? '0.5px solid #1a1a1a' : 'none',
+                transition: 'background 0.15s',
                 cursor: 'pointer',
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                animation: `slideUp 0.3s ease ${200 + i * 50}ms both`,
               }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(78,205,196,0.3)';
-                (e.currentTarget as HTMLDivElement).style.background = '#111111';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = C.border;
-                (e.currentTarget as HTMLDivElement).style.background = C.bgCard;
-              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#0a0a0a'; }}
             >
-              <div style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: C.text, marginBottom: 4 }}>
-                {label}
-              </div>
-              <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 12, color: C.textDim }}>
-                {sub}
+              <Icon size={16} strokeWidth={1.5} style={{ color: '#666666', marginTop: 2, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 500, fontSize: 13, color: '#f0f0f0', marginBottom: 2 }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 12, color: '#666666' }}>
+                  {sub}
+                </div>
               </div>
             </div>
           </Link>
         ))}
       </div>
-
     </div>
   );
 }
