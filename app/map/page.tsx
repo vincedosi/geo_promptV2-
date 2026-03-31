@@ -1409,28 +1409,7 @@ export default function MapPage() {
         )}
       </div>{/* end right panel */}
 
-      <style>{`
-        @keyframes mapSlide {
-          0% { transform: translateX(-100%); }
-          50% { transform: translateX(250%); }
-          100% { transform: translateX(250%); }
-        }
-        @keyframes mapFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .maplibregl-popup-content {
-          background:#0a0a0a!important;border:0.5px solid #1a1a1a!important;padding:0!important;
-          border-radius:6px!important;animation:mapFadeIn 0.15s ease-out!important;
-        }
-        .maplibregl-popup-tip {
-          border-top-color:#0a0a0a!important;border-bottom-color:#0a0a0a!important;
-        }
-        .topbar-tab { overflow: visible !important; }
-        @media (prefers-reduced-motion: reduce) {
-          *, .topbar-tab span { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-        }
-      `}</style>
+      {/* Map popup styles moved to globals.css */}
     </div>
   );
 }
