@@ -110,7 +110,7 @@ function formatDate(dateStr: string) {
 // ============================================================
 
 export default function SourcesPage() {
-  const { toast } = useToast();
+  const { toast: toastApi } = useToast();
   const [sources, setSources] = useState<DataSource[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -460,12 +460,12 @@ export default function SourcesPage() {
       if (data.success) {
         setSources((prev) => prev.filter((s) => s.id !== sourceId));
         setSelectedSource(null);
-        toast('Source supprimée avec succès', 'success');
+        toastApi.success('Source supprimée');
       } else {
-        toast(data.error ?? 'Erreur lors de la suppression', 'error');
+        toastApi.error('Suppression échouée', data.error ?? 'Erreur inconnue');
       }
     } catch {
-      toast('Erreur réseau lors de la suppression', 'error');
+      toastApi.error('Erreur réseau', 'Connexion au serveur impossible');
     }
     setIsDeleting(false);
     setDeleteConfirm(null);
