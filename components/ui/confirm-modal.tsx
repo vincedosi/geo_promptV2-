@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 
 interface ConfirmModalProps {
@@ -26,36 +26,53 @@ export function ConfirmModal({
   variant = 'default',
   loading = false,
 }: ConfirmModalProps) {
+  // Escape key to close
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, loading, onClose])
+
   if (!open) return null
 
   const isDanger = variant === 'danger'
 
   return (
     <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onClick={e => { if (e.target === e.currentTarget && !loading) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'rgba(5,5,5,0.8)',
+        background: 'rgba(5,5,5,0.85)',
         backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        animation: 'fadeIn 0.15s ease-out',
+        animation: 'confirm-overlay-in 0.15s ease-out',
       }}
     >
       <div
         style={{
           background: '#0a0a0a',
           border: '0.5px solid #262626',
-          borderRadius: 8,
-          maxWidth: 400,
+          borderRadius: 12,
+          maxWidth: 420,
           width: 'calc(100% - 32px)',
           padding: '24px',
-          animation: 'slideUp 0.2s ease-out',
+          animation: 'confirm-card-in 0.2s ease-out',
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
           {isDanger && (
-            <AlertTriangle size={20} strokeWidth={1.5} style={{ color: '#ff5757', flexShrink: 0, marginTop: 2 }} />
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: 'rgba(255,87,87,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <AlertTriangle size={18} strokeWidth={1.5} style={{ color: '#ff5757' }} />
+            </div>
           )}
           <div>
             <div style={{
@@ -83,8 +100,8 @@ export function ConfirmModal({
               background: 'transparent',
               border: '0.5px solid #262626',
               borderRadius: 6,
-              padding: '8px 16px',
-              fontSize: 12,
+              padding: '9px 18px',
+              fontSize: 13,
               fontWeight: 500,
               color: '#a0a0a0',
               cursor: 'pointer',
@@ -111,10 +128,10 @@ export function ConfirmModal({
               background: isDanger ? '#ff5757' : '#f0f0f0',
               border: 'none',
               borderRadius: 6,
-              padding: '8px 16px',
-              fontSize: 12,
+              padding: '9px 18px',
+              fontSize: 13,
               fontWeight: 500,
-              color: isDanger ? '#ffffff' : '#050505',
+              color: isDanger ? '#f0f0f0' : '#050505',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.5 : 1,
               fontFamily: "'Inter', system-ui, sans-serif",
@@ -131,6 +148,17 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes confirm-overlay-in {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes confirm-card-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   )
 }
