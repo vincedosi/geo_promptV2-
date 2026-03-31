@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,10 @@ const DEPT_NOMS: Record<string, string> = {
 // Top depts hardcodés avec noms — les nb seront remplacés par les valeurs live
 const TOP_DEPT_CODES = ['59','62','76','75','57','02','31','80','13','33','21','60','77','69','51'];
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const sb = createAdminClient();
 
   const [totalRes, typeHRes, typeARes, typeDRes, typeZRes, deptRes] = await Promise.all([

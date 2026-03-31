@@ -3,13 +3,16 @@
  * Compare les colonnes IRIS en base avec IRIS_DB_COLUMNS (source de vérité code).
  * Retourne un rapport de synchronisation.
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
   try {
     const supabase = createAdminClient();
 

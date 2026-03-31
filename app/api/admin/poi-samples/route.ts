@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
   const cat    = req.nextUrl.searchParams.get('cat') ?? '';
   const limit  = Math.min(parseInt(req.nextUrl.searchParams.get('limit')  ?? '50'), 200);
   const offset = parseInt(req.nextUrl.searchParams.get('offset') ?? '0');

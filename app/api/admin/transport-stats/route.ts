@@ -1,9 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
   const supabase = createAdminClient();
 
   const [arretTotal, ceremaCount, osmCount, panneaux] = await Promise.all([

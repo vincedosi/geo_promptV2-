@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -6,7 +7,9 @@ const GITHUB_TOKEN = process.env.GITHUB_ACTIONS_TOKEN;
 const GITHUB_REPO  = process.env.GITHUB_REPO; // format: "owner/repo"
 const WORKFLOW     = 'generate-iris-pmtiles.yml';
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
     return NextResponse.json(
       { error: 'Variables manquantes : GITHUB_ACTIONS_TOKEN et GITHUB_REPO requis dans .env.local' },

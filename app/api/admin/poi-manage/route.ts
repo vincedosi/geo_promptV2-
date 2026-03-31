@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 // ── POST — créer un nouveau POI ───────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
 
@@ -39,6 +43,9 @@ export async function POST(req: NextRequest) {
 
 // ── PUT — modifier un POI existant ───────────────────────────────────────────
 export async function PUT(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const supabase = createAdminClient();
   const body = await req.json();
 
@@ -70,6 +77,9 @@ export async function PUT(req: NextRequest) {
 
 // ── DELETE — supprimer 1 POI (id) ou tous d'une catégorie (cat) ──────────────
 export async function DELETE(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const supabase = createAdminClient();
   const id  = req.nextUrl.searchParams.get('id');
   const cat = req.nextUrl.searchParams.get('cat');
