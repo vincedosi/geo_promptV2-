@@ -14,28 +14,28 @@ import type {
 // ── Design tokens (GEO.PROMPT terminal dark) ─────────────────────────────────
 const C = {
   bg:          '#050505',
-  bgElevated:  '#0d0d0d',
-  bgSurface:   '#111118',
-  bgRow:       '#0a0a10',
-  border:      '#261a35',
-  borderLight: 'rgba(168,85,247,0.2)',
-  accent:      '#a855f7',
-  accentDim:   'rgba(168,85,247,0.12)',
-  text:        '#e2e8f0',
-  textDim:     '#94a3b8',
-  textSec:     '#6b7280',
-  muted:       '#4b5563',
+  bgElevated:  '#111111',
+  bgSurface:   '#111111',
+  bgRow:       '#0a0a0a',
+  border:      '#1a1a1a',
+  borderLight: 'rgba(78,205,196,0.2)',
+  accent:      '#4ecdc4',
+  accentDim:   'rgba(78,205,196,0.1)',
+  text:        '#f0f0f0',
+  textDim:     '#a0a0a0',
+  textSec:     '#666666',
+  muted:       '#666666',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.10)',
-  red:         '#f87171',
-  redDim:      'rgba(248,113,113,0.10)',
-  warn:        '#fbbf24',
-  warnDim:     'rgba(251,191,36,0.10)',
-  blue:        '#60a5fa',
-  blueDim:     'rgba(96,165,250,0.10)',
+  red:         '#ff5757',
+  redDim:      'rgba(255,87,87,0.10)',
+  warn:        '#f7b731',
+  warnDim:     'rgba(247,183,49,0.10)',
+  blue:        '#5b9bd5',
+  blueDim:     'rgba(91,155,213,0.10)',
 } as const;
-const fOrbitron = "'Orbitron', sans-serif";
-const fMichroma = "'Michroma', 'Orbitron', sans-serif";
+const fOrbitron = "'Inter', system-ui, sans-serif";
+const fMichroma = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono', monospace";
 const fInter    = "'Inter', system-ui, sans-serif";
 
@@ -677,7 +677,7 @@ export default function IrisCrawlerPage() {
                       <button
                         onClick={() => handleUpload(entry.id)}
                         disabled={es.uploading}
-                        style={btnSmall('#a855f7', 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)')}>
+                        style={btnSmall('#4ecdc4', 'rgba(78,205,196,0.1)', 'rgba(78,205,196,0.3)')}>
                         {es.uploading ? `⏳ ${es.uploadProgress}%` : `↑ Importer ${Object.keys(es.mapping).length} col.`}
                       </button>
                     )}

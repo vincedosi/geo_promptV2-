@@ -9,13 +9,13 @@ import type { ColumnInfo, ParseResult } from '@/lib/import/types';
 // ============================================================
 
 const C = {
-  bg: '#050505', bgElevated: '#0d0d0d', bgSurface: '#111118',
-  border: '#261a35', borderLight: 'rgba(168,85,247,0.2)',
-  accent: '#a855f7', accentDim: 'rgba(168,85,247,0.12)',
-  text: '#e2e8f0', textDim: '#94a3b8', textSec: '#6b7280', muted: '#4b5563',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
-  warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
+  bg: '#050505', bgElevated: '#111111', bgSurface: '#111111',
+  border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
+  accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.1)',
+  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666', muted: '#666666',
+  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.10)',
+  red: '#ff5757', redDim: 'rgba(255,87,87,0.1)',
+  warn: '#f7b731', warnDim: 'rgba(247,183,49,0.1)', blue: '#5b9bd5',
 };
 const fontOrbitron = "'Orbitron',sans-serif";
 const fontMichroma = "'Michroma','Orbitron',sans-serif";
