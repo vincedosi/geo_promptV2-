@@ -29,12 +29,7 @@ import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
 import type { POI } from '@/types/poi';
-
-interface SelectedBillboard {
-  id: string; nom: string; lat: number; lng: number;
-  format?: string; score?: number | null; audience?: number | null;
-  rank?: number | null; regie?: string;
-}
+import type { SelectedBillboard } from '@/types/map';
 
 // ─── HTML escape for popup content (prevents XSS from imported data) ─────────
 function esc(s: string | undefined | null): string {

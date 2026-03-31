@@ -2,19 +2,8 @@ import React, { useState } from 'react';
 import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
 import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
+import type { SelectedBillboard } from '@/types/map';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
-
-interface SelectedBillboard {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  format?: string;
-  score?: number | null;
-  audience?: number | null;
-  rank?: number | null;
-  regie?: string;
-}
 
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;

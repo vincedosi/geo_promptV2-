@@ -6,18 +6,7 @@ import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import { Protocol } from 'pmtiles';
 import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
 import type { ZoneData } from '@/types/spatial';
-
-interface SelectedBillboard {
-  id: string;
-  nom: string;
-  lat: number;
-  lng: number;
-  format?: string;
-  score?: number | null;
-  audience?: number | null;
-  rank?: number | null;
-  regie?: string;
-}
+import type { SelectedBillboard } from '@/types/map';
 
 /** Remplace récursivement name_en/name:en par le nom local (name) dans une expression MapLibre */
 function patchLabelFr(expr: unknown): unknown {
