@@ -91,9 +91,14 @@ export async function middleware(request: NextRequest) {
   );
 
   // ── Routes API protégées ─────────────────────────────────────────────────
-  // getSession() valide le JWT localement (cookie) sans appel réseau Supabase.
-  // Évite les 409 "Too many concurrent token refresh requests" quand le front
-  // envoie plusieurs requêtes API en parallèle.
+  // NOTE SÉCURITÉ : getSession() valide le JWT localement (cookie) sans appel
+  // réseau vers Supabase Auth. Cela signifie qu'un token volé reste valide
+  // jusqu'à expiration même après déconnexion côté serveur. C'est un choix
+  // délibéré pour éviter les 409 "Too many concurrent token refresh requests"
+  // quand le front envoie plusieurs requêtes API en parallèle (cf. incident
+  // 2026-03-28 dans CLAUDE.md). Les sessions ont un TTL court (1h par défaut).
+  // Pour les opérations sensibles (admin, delete), une vérification de rôle
+  // additionnelle via requireAdmin() est effectuée dans la route elle-même.
   if (isProtectedApi(pathname)) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
