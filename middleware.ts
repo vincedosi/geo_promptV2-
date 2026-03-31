@@ -24,6 +24,7 @@ const PROTECTED_API_PREFIXES = [
   // Note: /api/map/categories est public intentionnellement (données non sensibles)
   '/api/admin',
   '/api/iris-crawler',
+  '/api/iris-tiles-proxy',
   '/api/tiles',
   '/api/poi-clusters',
   '/api/analysis',
@@ -136,6 +137,7 @@ export const config = {
     '/api/map/:path*',
     '/api/admin/:path*',
     '/api/iris-crawler/:path*',
+    '/api/iris-tiles-proxy/:path*',
     '/api/tiles/:path*',
     '/api/poi-clusters/:path*',
     '/api/analysis/:path*',
