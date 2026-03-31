@@ -630,6 +630,29 @@ details > summary::-webkit-details-marker {
   color: #666666 !important;
 }
 
+/* FilterPanel scrollbar — thin and dark */
+.filter-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #262626 transparent;
+}
+
+.filter-panel-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.filter-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filter-panel-scroll::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 2px;
+}
+
+.filter-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
 /* ─── MapLibre popup overrides ──────────────────────────────────────────────── */
 
 .maplibregl-popup-content {

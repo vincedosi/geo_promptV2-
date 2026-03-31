@@ -912,16 +912,25 @@ export function FilterPanel({
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       position: 'relative', flexShrink: 0,
     }}>
-      {/* ── Resize handle ── */}
+      {/* ── Resize handle with dots indicator ── */}
       <div
         onMouseDown={onResizeMouseDown}
+        onDoubleClick={() => setPanelWidth(prev => prev > 400 ? 320 : 560)}
         style={{
-          position: 'absolute', top: 0, right: 0, width: 4, height: '100%',
+          position: 'absolute', top: 0, right: 0, width: 8, height: '100%',
           cursor: 'col-resize', zIndex: 50, background: 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.15s',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.08)'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
-      />
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, opacity: 0.3 }}>
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
+        </div>
+      </div>
 
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}
@@ -1069,7 +1078,7 @@ export function FilterPanel({
         ════════════════════════════════════════ */}
         {/* ── Scrollable wrapper pour territoire + poi + analyse ── */}
         {activeTab === 'expert' && (
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div className="filter-panel-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
             ONGLET 2 — TERRITOIRE
@@ -1079,7 +1088,7 @@ export function FilterPanel({
 
             {/* Scope global */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Périmètre global</span>
               </div>
@@ -1095,7 +1104,7 @@ export function FilterPanel({
 
             {/* Régions */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
                   Région {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.green }}>({selectedRegions.length})</span>}
@@ -1122,7 +1131,7 @@ export function FilterPanel({
 
             {/* Départements */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>
                   Département
@@ -1146,7 +1155,7 @@ export function FilterPanel({
 
             {/* Recherche locale */}
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Recherche locale</span>
               </div>
@@ -1191,7 +1200,7 @@ export function FilterPanel({
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
             <div style={{ paddingBottom: 4 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Points d&apos;intérêt (POI)</span>
               </div>
@@ -1365,7 +1374,7 @@ export function FilterPanel({
 
             {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Panneaux OOH &amp; DOOH</span>
               </div>
@@ -1417,7 +1426,7 @@ export function FilterPanel({
 
             {/* ── Section : Arrêts de transport en commun ─────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Arrêts de transport en commun</span>
               </div>
@@ -1472,7 +1481,7 @@ export function FilterPanel({
 
             {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Flux routier (TMJA)</span>
               </div>
