@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { DataSource, Organization } from '@/types/admin';
+import { useToast } from '@/components/ui/geo-toast';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 // ── IRIS stats types ──────────────────────────────────────────────────────────
 interface IrisStats {
@@ -44,14 +46,14 @@ const C = {
   text:        '#f0f0f0',
   textDim:     '#a0a0a0',
   textSec:     '#666666',
-  muted:       '#505050',
+  muted:       '#666666',
   green:       '#3dffa0',
-  greenDim:    'rgba(61,255,160,0.12)',
-  red:         '#f87171',
-  redDim:      'rgba(248,113,113,0.1)',
-  warn:        '#fbbf24',
-  warnDim:     'rgba(251,191,36,0.1)',
-  blue:        '#3b82f6',
+  greenDim:    'rgba(61,255,160,0.10)',
+  red:         '#ff5757',
+  redDim:      'rgba(255,87,87,0.1)',
+  warn:        '#f7b731',
+  warnDim:     'rgba(247,183,49,0.1)',
+  blue:        '#5b9bd5',
 };
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
@@ -108,12 +110,14 @@ function formatDate(dateStr: string) {
 // ============================================================
 
 export default function SourcesPage() {
+  const { toast } = useToast();
   const [sources, setSources] = useState<DataSource[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [shareOrgId, setShareOrgId] = useState('');
   const [editName, setEditName] = useState('');
   const [editOrg, setEditOrg] = useState('');
@@ -449,7 +453,6 @@ export default function SourcesPage() {
   };
 
   const handleDelete = async (sourceId: string) => {
-    if (!confirm('Supprimer cette source et TOUTES ses donnees ? Cette action est irreversible.')) return;
     setIsDeleting(true);
     try {
       const res = await adminFetch(`/api/admin/sources/${sourceId}`, { method: 'DELETE' });
@@ -457,9 +460,15 @@ export default function SourcesPage() {
       if (data.success) {
         setSources((prev) => prev.filter((s) => s.id !== sourceId));
         setSelectedSource(null);
+        toast('Source supprimée avec succès', 'success');
+      } else {
+        toast(data.error ?? 'Erreur lors de la suppression', 'error');
       }
-    } catch { /* ignore */ }
+    } catch {
+      toast('Erreur réseau lors de la suppression', 'error');
+    }
     setIsDeleting(false);
+    setDeleteConfirm(null);
   };
 
   const handleExport = (sourceId: string) => {
@@ -2262,7 +2271,7 @@ export default function SourcesPage() {
                     Re-importer (meme config)
                   </button>
                   <button
-                    onClick={() => handleDelete(selectedSource.id)}
+                    onClick={() => setDeleteConfirm(selectedSource.id)}
                     disabled={isDeleting}
                     style={{ ...btnDangerStyle, opacity: isDeleting ? 0.6 : 1 }}
                   >
@@ -2276,6 +2285,17 @@ export default function SourcesPage() {
         )}
       </div>
       )}
+      {/* ── Delete confirmation modal ── */}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => { if (deleteConfirm) handleDelete(deleteConfirm); }}
+        title="Supprimer cette source"
+        message="Cette action supprimera la source et TOUTES ses données associées. Cette action est irréversible."
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }
