@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Send } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
+import GeoBot, { type GeoBotStatus } from '@/components/ui/GeoBot';
 import { ZoneCard }        from './ZoneCard';
 import { CoverageCard }    from './CoverageCard';
 import { SynergyResults }  from './SynergyResults';
@@ -347,6 +348,30 @@ export function ChatPanel({
 
   const isDisabled = isLoading || smartPrompt.loading;
 
+  // ── GeoBot status derived from chat state ─────────────────────────────────
+  const [geoBotDone, setGeoBotDone] = useState(false);
+  const prevLoadingRef = useRef(false);
+
+  useEffect(() => {
+    // Detect transition from loading → not loading (response complete)
+    if (prevLoadingRef.current && !isLoading && !smartPrompt.loading) {
+      setGeoBotDone(true);
+      const timer = setTimeout(() => setGeoBotDone(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    prevLoadingRef.current = isLoading || smartPrompt.loading;
+  }, [isLoading, smartPrompt.loading]);
+
+  const geoBotStatus: GeoBotStatus = geoBotDone ? 'done'
+    : (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant') ? 'speaking'
+    : isLoading || smartPrompt.loading ? 'thinking'
+    : 'idle';
+
+  const geoBotStatusLabel = geoBotStatus === 'thinking' ? 'Analyse...'
+    : geoBotStatus === 'speaking' ? 'Réponse en cours'
+    : geoBotStatus === 'done' ? 'Terminé'
+    : null;
+
   return (
     <div style={{ width: 400, minWidth: 300, minHeight: 0, display: 'flex', flexDirection: 'column', background: C.bg, borderRight: `0.5px solid ${C.border}`, position: 'relative', ...containerStyle }}>
 
@@ -357,12 +382,15 @@ export function ChatPanel({
             <Link href="/map" style={{ color: C.textDim, textDecoration: 'none', fontSize: 16, lineHeight: 1, marginTop: 2, fontWeight: 300, transition: 'color 0.2s ease' }}>←</Link>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <GeoBot status={geoBotStatus} size={24} />
                 <span style={{ fontSize: 14, fontFamily: fontMono, fontWeight: 500, color: C.teal }}>
                   geo.prompt
                 </span>
                 <span style={{ fontSize: 10, fontFamily: fontMono, background: '#181818', color: C.textSec, padding: '2px 5px', border: '0.5px solid #262626', borderRadius: 3 }}>BETA</span>
-                {(isLoading || smartPrompt.loading) && (
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block' }} />
+                {geoBotStatusLabel && (
+                  <span style={{ fontSize: 10, fontFamily: fontMono, color: geoBotStatus === 'done' ? '#3dffa0' : C.teal }}>
+                    {geoBotStatusLabel}
+                  </span>
                 )}
               </div>
               <div style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -394,7 +422,12 @@ export function ChatPanel({
         </div>
       ) : (
         <div style={{ padding: '6px 12px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {(isLoading || smartPrompt.loading) && <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.green, animation: 'pulseDot 1.2s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />}
+          <GeoBot status={geoBotStatus} size={20} />
+          {geoBotStatusLabel && (
+            <span style={{ fontSize: 9, fontFamily: fontMono, color: geoBotStatus === 'done' ? '#3dffa0' : C.teal }}>
+              {geoBotStatusLabel}
+            </span>
+          )}
           <div style={{ flex: 1 }} />
           <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}
             onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
@@ -603,8 +636,8 @@ export function ChatPanel({
                 )}
                 {msg.role === 'assistant' && (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 4, background: '#181818', border: '0.5px solid #262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <div style={{ flexShrink: 0, marginTop: 2 }}>
+                      <GeoBot size={28} status={msg.id === messages[messages.length - 1]?.id ? geoBotStatus : 'idle'} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {runningTool && (
@@ -682,8 +715,8 @@ export function ChatPanel({
         {/* Loader chat classique */}
         {isLoading && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ width: 26, height: 26, borderRadius: 4, background: '#181818', border: '0.5px solid #262626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0a0a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <div style={{ flexShrink: 0 }}>
+              <GeoBot size={28} status="thinking" />
             </div>
             <TypingDots />
           </div>
