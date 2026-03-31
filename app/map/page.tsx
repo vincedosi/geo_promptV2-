@@ -36,6 +36,12 @@ interface SelectedBillboard {
   rank?: number | null; regie?: string;
 }
 
+// ─── HTML escape for popup content (prevents XSS from imported data) ─────────
+function esc(s: string | undefined | null): string {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // ─── Helpers résidus ──────────────────────────────────────────────────────────
 
 function normToColor(norm: number, inverted = false): string {
@@ -547,16 +553,16 @@ export default function MapPage() {
         } else {
           el.style.cssText = `width:${sizePx}px;height:${sizePx}px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
         }
-        const nom = (p.nom || 'POI').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const nom = esc(p.nom || 'POI');
         const audienceVal = p.audience;
         const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
           `<div style="font-size:12px;padding:6px 8px;color:#888">` +
           (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
           `<strong style="color:#fff;font-size:13px">${nom}</strong><br/>` +
-          `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie}</span>` +
-          (p.sous_categorie ? ` <span style="color:#555;font-size:11px">· ${p.sous_categorie}</span>` : '') +
+          `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
+          (p.sous_categorie ? ` <span style="color:#555;font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
           (audienceVal != null ? `<br/><span style="color:#3dffa0;font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:#555;font-size:11px">${p.adresse}</span>` : '') +
+          (p.adresse ? `<br/><span style="color:#555;font-size:11px">${esc(p.adresse)}</span>` : '') +
           `</div>`
         );
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
