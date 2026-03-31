@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Search, X, ChevronDown, HelpCircle } from 'lucide-react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
@@ -40,6 +41,81 @@ const fInter    = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
 const fMichroma = fInter;
 const fOrbitron = fInter;
+
+// ─── Tooltip data for complex labels ──────────────────────────────────────────
+const TOOLTIPS: Record<string, string> = {
+  tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
+  iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
+  carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',
+  scoring:    'Score de performance d\'un panneau basé sur visibilité, trafic et affinité cible',
+  isochrone:  'Zone accessible en X minutes depuis un point donné',
+  poi:        'Point d\'Intérêt — commerce, service, lieu public',
+  couverture: 'Population unique touchée par l\'ensemble des panneaux (dédupliquée)',
+};
+
+// ─── Collapsible section header ───────────────────────────────────────────────
+function FilterSectionHeader({
+  label, sectionKey, open, onToggle, count, tooltipKey, searchTerm,
+}: {
+  label: string; sectionKey: string; open: boolean; onToggle: () => void;
+  count?: number; tooltipKey?: string; searchTerm?: string;
+}) {
+  // Highlight search match in label
+  const renderLabel = () => {
+    if (!searchTerm) return label;
+    const idx = label.toLowerCase().indexOf(searchTerm.toLowerCase());
+    if (idx < 0) return label;
+    return (
+      <>
+        {label.slice(0, idx)}
+        <mark style={{ background: 'rgba(78,205,196,0.2)', color: '#f0f0f0', borderRadius: 2, padding: '0 1px' }}>
+          {label.slice(idx, idx + searchTerm.length)}
+        </mark>
+        {label.slice(idx + searchTerm.length)}
+      </>
+    );
+  };
+
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        background: '#111111', borderTop: '1px solid #1a1a1a',
+        padding: '10px 14px', margin: '0 -16px',
+        display: 'flex', alignItems: 'center', gap: 8,
+        cursor: 'pointer', userSelect: 'none',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}
+    >
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+      <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
+        {renderLabel()}
+      </span>
+      {tooltipKey && TOOLTIPS[tooltipKey] && (
+        <span
+          title={TOOLTIPS[tooltipKey]}
+          style={{ display: 'inline-flex', cursor: 'help', flexShrink: 0 }}
+          onClick={e => e.stopPropagation()}
+        >
+          <HelpCircle size={12} style={{ color: '#666666' }} />
+        </span>
+      )}
+      {count !== undefined && count > 0 && (
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#4ecdc4',
+          background: 'rgba(78,205,196,0.15)', borderRadius: 4, padding: '1px 6px', lineHeight: 1.4,
+        }}>
+          {count}
+        </span>
+      )}
+      <ChevronDown size={14} style={{
+        color: '#666666', flexShrink: 0,
+        transition: 'transform 0.2s ease',
+        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+      }} />
+    </div>
+  );
+}
 
 // ─── Données géographiques ─────────────────────────────────────────────────────
 import {
@@ -316,6 +392,37 @@ export function FilterPanel({
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
   correlationParams, onShowResiduals,
 }: FilterPanelProps) {
+
+  // ── UX: Search filter ──────────────────────────────────────────────────────
+  const [filterSearch, setFilterSearch] = useState('');
+
+  // ── UX: Collapsible sections with localStorage memory ─────────────────────
+  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja'] as const;
+  const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    try {
+      const saved = localStorage.getItem('geomatik-filter-sections');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+  });
+  const toggleSection = (key: string) => {
+    setSectionsOpen(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const collapseAll = () => {
+    const next = Object.fromEntries(SECTION_KEYS.map(k => [k, false]));
+    setSectionsOpen(next);
+    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const expandAll = () => {
+    const next = Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    setSectionsOpen(next);
+    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+  };
 
   // ── Panel resize ──────────────────────────────────────────────────────────
   const [panelWidth, setPanelWidth] = useState(320);
@@ -1076,6 +1183,64 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             ONGLET MAÎTRE 2 — EXPERT (sous-onglets)
         ════════════════════════════════════════ */}
+        {/* ── Search + Quick actions (Expert tab only) ── */}
+        {activeTab === 'expert' && (
+          <div style={{ padding: '8px 12px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Search input */}
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#666666', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                placeholder="Rechercher un filtre..."
+                style={{
+                  width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6,
+                  padding: '6px 28px 6px 30px', fontSize: 12, color: '#f0f0f0',
+                  fontFamily: fInter, outline: 'none', transition: 'border-color 0.15s',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
+              />
+              {filterSearch && (
+                <button
+                  onClick={() => setFilterSearch('')}
+                  style={{
+                    position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', color: '#666666',
+                    padding: 2, display: 'flex', alignItems: 'center',
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            {/* Quick actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={collapseAll} style={{
+                background: 'none', border: '0.5px solid #262626', borderRadius: 4, padding: '3px 8px',
+                fontSize: 10, color: '#a0a0a0', cursor: 'pointer', fontFamily: fInter,
+                transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'none'; }}
+              >
+                Tout réduire
+              </button>
+              <button onClick={expandAll} style={{
+                background: 'none', border: '0.5px solid #262626', borderRadius: 4, padding: '3px 8px',
+                fontSize: 10, color: '#a0a0a0', cursor: 'pointer', fontFamily: fInter,
+                transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'none'; }}
+              >
+                Tout déployer
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Scrollable wrapper pour territoire + poi + analyse ── */}
         {activeTab === 'expert' && (
         <div className="filter-panel-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -1087,11 +1252,11 @@ export function FilterPanel({
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
+            {(!filterSearch || 'périmètre global'.includes(filterSearch.toLowerCase())) && (
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Périmètre global</span>
-              </div>
+              <FilterSectionHeader label="Périmètre global" sectionKey="perimetre" open={sectionsOpen.perimetre !== false} onToggle={() => toggleSection('perimetre')} count={scope ? 1 : 0} searchTerm={filterSearch} />
+              {sectionsOpen.perimetre !== false && (
+              <div style={{ marginBottom: 12, transition: 'opacity 0.15s', animation: 'fadeIn 0.15s ease-out' }}>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button style={{ ...pill(scope === 'metro', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('metro')}>
                   France Metro
@@ -1100,15 +1265,18 @@ export function FilterPanel({
                   France + DROM
                 </button>
               </div>
+              </div>
+              )}
             </div>
+            )}
 
             {/* Régions */}
+            {(!filterSearch || 'région régions'.includes(filterSearch.toLowerCase())) && (
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
-                  Région {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.green }}>({selectedRegions.length})</span>}
-                </span>
+              <FilterSectionHeader label="Régions" sectionKey="regions" open={sectionsOpen.regions !== false} onToggle={() => toggleSection('regions')} count={selectedRegions.length} searchTerm={filterSearch} />
+              {sectionsOpen.regions !== false && (
+              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                 <button
                   onClick={() => {
                     const allIds = REGIONS.map(r => r.id);
@@ -1127,18 +1295,17 @@ export function FilterPanel({
                 selected={selectedRegions}
                 onChange={ids => { setSelectedRegions(ids); if (ids.length > 0) setScope(null); }}
               />
+              </div>
+              )}
             </div>
+            )}
 
             {/* Départements */}
+            {(!filterSearch || 'département départements'.includes(filterSearch.toLowerCase())) && (
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>
-                  Département
-                  {selectedRegions.length > 0 && <span style={{ fontWeight: 400, color: C.textDim }}> — {availableDepts.length} dispo</span>}
-                  {selectedDepts.length > 0 && <span style={{ fontWeight: 400, color: C.green }}> ({selectedDepts.length})</span>}
-                </span>
-              </div>
+              <FilterSectionHeader label="Départements" sectionKey="departements" open={sectionsOpen.departements !== false} onToggle={() => toggleSection('departements')} count={selectedDepts.length} searchTerm={filterSearch} />
+              {sectionsOpen.departements !== false && (
+              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
               <MultiDropdown
                 label="Tous les départements"
                 items={availableDepts.map(d => ({ id: d.code, label: `${d.code} — ${d.nom}` }))}
@@ -1148,17 +1315,20 @@ export function FilterPanel({
               />
               {selectedRegions.length === 0 && (
                 <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                  Filtrer d'abord par région
+                  Filtrer d&apos;abord par région
                 </div>
               )}
+              </div>
+              )}
             </div>
+            )}
 
             {/* Recherche locale */}
+            {(!filterSearch || 'recherche locale ville'.includes(filterSearch.toLowerCase())) && (
             <div>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Recherche locale</span>
-              </div>
+              <FilterSectionHeader label="Recherche locale" sectionKey="recherche" open={sectionsOpen.recherche !== false} onToggle={() => toggleSection('recherche')} count={(ville ? 1 : 0) + (codePostal ? 1 : 0)} searchTerm={filterSearch} />
+              {sectionsOpen.recherche !== false && (
+              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
@@ -1171,7 +1341,10 @@ export function FilterPanel({
                     onChange={e => setCodePostal(e.target.value)} maxLength={5} {...inputFocusHandlers} />
                 </div>
               </div>
+              </div>
+              )}
             </div>
+            )}
 
             {/* Territoire summary */}
             {hasTerritoire && (
@@ -1200,10 +1373,9 @@ export function FilterPanel({
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
             <div style={{ paddingBottom: 4 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Points d&apos;intérêt (POI)</span>
-              </div>
+              <FilterSectionHeader label="Points d'intérêt (POI)" sectionKey="poi" open={sectionsOpen.poi !== false} onToggle={() => toggleSection('poi')} count={selectedPOI.length} tooltipKey="poi" searchTerm={filterSearch} />
+              {sectionsOpen.poi !== false && (
+              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
             <div>
               <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>
@@ -1370,14 +1542,15 @@ export function FilterPanel({
               </div>
             )}
 
+            </div>
+            )}{/* fin collapsible POI content */}
             </div>{/* fin section POI */}
 
             {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Panneaux OOH &amp; DOOH</span>
-              </div>
+              <FilterSectionHeader label="Panneaux OOH et DOOH" sectionKey="ooh" open={sectionsOpen.ooh !== false} onToggle={() => toggleSection('ooh')} count={selectedOOH.length} searchTerm={filterSearch} />
+              {sectionsOpen.ooh !== false && (
+              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
 
               {/* Info stock */}
               <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
@@ -1422,14 +1595,15 @@ export function FilterPanel({
                   ? `AFFICHER — ${selectedOOH.length} RÉGIE${selectedOOH.length > 1 ? 'S' : ''}`
                   : 'Afficher tous les panneaux'}
               </button>
+              </div>
+              )}{/* fin collapsible OOH */}
             </div>
 
             {/* ── Section : Arrêts de transport en commun ─────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Arrêts de transport en commun</span>
-              </div>
+              <FilterSectionHeader label="Arrêts de transport en commun" sectionKey="transport" open={sectionsOpen.transport !== false} onToggle={() => toggleSection('transport')} count={selectedTransportTypes.length} searchTerm={filterSearch} />
+              {sectionsOpen.transport !== false && (
+              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
 
               {/* Sélection du type */}
               <div>
@@ -1475,16 +1649,17 @@ export function FilterPanel({
                   finally { setTransportLoading(false); }
                 }}
               >
-                {transportLoading ? 'CHARGEMENT…' : 'Afficher arrêts'}
+                {transportLoading ? 'Chargement...' : 'Afficher arrêts'}
               </button>
+              </div>
+              )}{/* fin collapsible transport */}
             </div>
 
             {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0' }}>Flux routier (TMJA)</span>
-              </div>
+              <FilterSectionHeader label="Flux routier (TMJA)" sectionKey="tmja" open={sectionsOpen.tmja !== false} onToggle={() => toggleSection('tmja')} count={tmjaVisible ? 1 : 0} tooltipKey="tmja" searchTerm={filterSearch} />
+              {sectionsOpen.tmja !== false && (
+              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
 
               {/* Légende couleurs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1527,6 +1702,8 @@ export function FilterPanel({
               <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
                 Source : CEREMA — tronçons pour la zone visible
               </div>
+              </div>
+              )}{/* fin collapsible TMJA */}
             </div>
 
           </div>
