@@ -13,12 +13,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient }         from '@/lib/auth';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300;
 
 const CACHE_CHUNK = 200;
+
+const battleV2Schema = z.object({
+  category:       z.string().min(1, 'category requis'),
+  mode:           z.string().default('drive'),
+  metropolitaine: z.boolean().default(true),
+  filtre_regions: z.array(z.string()).nullable().default(null),
+  filtre_ville:   z.string().nullable().default(null),
+  paliers:        z.array(z.number().int().min(1).max(180)).default([10, 20, 30, 40, 50, 60, 90]),
+  force_battle:   z.boolean().default(false),
+});
 
 const REGION_ID_TO_NAME: Record<string, string> = {
   ara: 'Auvergne-Rhone-Alpes',
@@ -51,19 +62,24 @@ function perPoiCacheKey(category: string, poiId: string, level: number, mode: st
 }
 
 export async function POST(req: NextRequest) {
-  let body: any;
-  try { body = await req.json(); }
+  let rawBody: unknown;
+  try { rawBody = await req.json(); }
   catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }); }
 
+  const parsed = battleV2Schema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
+  }
+
   const {
-    category          = '',
-    mode              = 'drive',
-    metropolitaine    = true,
-    filtre_regions    = null,
-    filtre_ville      = null,
-    paliers           = [10, 20, 30, 40, 50, 60, 90],
-    force_battle      = false,
-  } = body as Record<string, unknown>;
+    category,
+    mode,
+    metropolitaine,
+    filtre_regions,
+    filtre_ville,
+    paliers,
+    force_battle,
+  } = parsed.data;
 
   const MODE_NORMALIZE: Record<string, string> = {
     drive: 'drive', 'driving-car': 'drive',
@@ -71,14 +87,7 @@ export async function POST(req: NextRequest) {
     bike:  'bike',  'cycling-regular': 'bike',
   };
   const normalizedMode  = MODE_NORMALIZE[String(mode)] ?? 'drive';
-  const PALIERS: number[] = Array.isArray(paliers)
-    ? (paliers as number[]).map(Number).filter(n => n > 0 && n <= 180).sort((a, b) => a - b)
-    : [10, 20, 30, 40, 50, 60, 90];
-
-  if (!category || typeof category !== 'string')
-    return NextResponse.json({ error: 'category requis' }, { status: 400 });
-  if (PALIERS.length === 0)
-    return NextResponse.json({ error: 'Aucun palier valide (1–180 min)' }, { status: 400 });
+  const PALIERS: number[] = [...paliers].sort((a, b) => a - b);
 
   const encoder = new TextEncoder();
   const stream  = new ReadableStream({

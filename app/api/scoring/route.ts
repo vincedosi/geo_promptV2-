@@ -3,8 +3,15 @@ import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { fetchIsochrones, buildIsochCacheKey } from '@/lib/isochrones/fetcher';
 import type { PoiRow } from '@/lib/isochrones/fetcher';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+const scoringPostSchema = z.object({
+  ville:      z.string().min(1).max(200).default('Brest'),
+  layers:     z.array(z.enum(['proximity', 'isochrone'])).default(['proximity']),
+  profile_id: z.string().uuid().nullable().optional().default(null),
+});
 
 // ── GET — Panneaux scorés ──────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -62,10 +69,12 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   try {
     const session    = await getSessionOrg(req);
-    const body       = await req.json() as { ville?: string; layers?: string[]; profile_id?: string };
-    const ville      = body.ville ?? 'Brest';
-    const layers: string[] = body.layers ?? ['proximity'];
-    const profileId  = body.profile_id ?? null;
+    const rawBody    = await req.json();
+    const parsed     = scoringPostSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
+    }
+    const { ville, layers, profile_id: profileId } = parsed.data;
 
     const supabase = createAdminClient();
 

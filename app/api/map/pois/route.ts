@@ -5,8 +5,19 @@ import { resolveCategory, normVille } from '@/lib/geo/locations';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+const poisPostSchema = z.object({
+  poi_types:    z.array(z.string().min(1).max(100)).min(1, 'Aucun type de POI sélectionné'),
+  scope:        z.enum(['metro', 'all']).nullable().default(null),
+  regions:      z.array(z.string()).default([]),
+  depts:        z.array(z.string()).default([]),
+  ville:        z.string().max(200).default(''),
+  rayon_poi:    z.string().max(20).nullable().default(null),
+  poi_natures:  z.record(z.string(), z.array(z.string())).optional(),
+});
 
 // ── Filtre org : retourne les IDs de sources autorisées pour cette session ─────
 // null = pas de filtre (super_admin ou dev sans session)
@@ -59,28 +70,12 @@ interface PoiRow {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const {
-      poi_types,          // string[]  — labels FilterPanel (ex: ['CIRFA','Lycées'])
-      scope,              // 'metro' | 'all' | null
-      regions,            // string[]  — region IDs (ex: ['bre','nor'])
-      depts,              // string[]  — dept codes (ex: ['29','35'])
-      ville,              // string
-      rayon_poi,          // string | null  (ex: '2km')
-      poi_natures,        // Record<string, string[]> — filtres nature par type (ex: { lycee: ['LYCEE PROFESSIONNEL'] })
-    } = body as {
-      poi_types: string[];
-      scope: 'metro' | 'all' | null;
-      regions: string[];
-      depts: string[];
-      ville: string;
-      rayon_poi: string | null;
-      poi_natures?: Record<string, string[]>;
-    };
-
-    if (!poi_types?.length) {
-      return NextResponse.json({ error: 'Aucun type de POI sélectionné' }, { status: 400 });
+    const rawBody = await req.json();
+    const parsed = poisPostSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
     }
+    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures } = parsed.data;
 
     const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();

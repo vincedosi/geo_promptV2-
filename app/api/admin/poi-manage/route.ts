@@ -2,8 +2,22 @@ import { NextResponse } from 'next/server';
 import { type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+const poiCreateSchema = z.object({
+  nom:             z.string().max(500).nullable().optional(),
+  categorie:       z.string().min(1).max(100),
+  sous_categorie:  z.string().max(200).nullable().optional(),
+  lat:             z.coerce.number().min(-90).max(90),
+  lng:             z.coerce.number().min(-180).max(180),
+  adresse:         z.string().max(500).nullable().optional(),
+  ville:           z.string().max(200).nullable().optional(),
+  departement:     z.string().max(100).nullable().optional(),
+  code_postal:     z.string().max(10).nullable().optional(),
+  source:          z.string().max(100).nullable().optional(),
+});
 
 // ── POST — créer un nouveau POI ───────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -11,13 +25,13 @@ export async function POST(req: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   const supabase = createAdminClient();
-  const body = await req.json();
-
-  const { nom, categorie, sous_categorie, lat, lng, adresse, ville, departement, code_postal, source } = body;
-
-  if (!categorie || lat == null || lng == null) {
-    return NextResponse.json({ error: 'categorie, lat et lng sont requis' }, { status: 400 });
+  const rawBody = await req.json();
+  const parsed = poiCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map(i => `${i.path}: ${i.message}`).join(', ') }, { status: 400 });
   }
+
+  const { nom, categorie, sous_categorie, lat, lng, adresse, ville, departement, code_postal, source } = parsed.data;
 
   const { data, error } = await supabase
     .from('poi_france')
@@ -25,8 +39,8 @@ export async function POST(req: NextRequest) {
       nom: nom || null,
       categorie,
       sous_categorie: sous_categorie || null,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
+      lat,
+      lng,
       adresse: adresse || null,
       ville: ville || null,
       departement: departement || null,
@@ -47,11 +61,13 @@ export async function PUT(req: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   const supabase = createAdminClient();
-  const body = await req.json();
+  const rawBody = await req.json();
+  const parsed = poiCreateSchema.extend({ id: z.string().uuid() }).safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map(i => `${i.path}: ${i.message}`).join(', ') }, { status: 400 });
+  }
 
-  const { id, nom, categorie, sous_categorie, lat, lng, adresse, ville, departement, code_postal, source } = body;
-
-  if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 });
+  const { id, nom, categorie, sous_categorie, lat, lng, adresse, ville, departement, code_postal, source } = parsed.data;
 
   const { data, error } = await supabase
     .from('poi_france')
@@ -59,8 +75,8 @@ export async function PUT(req: NextRequest) {
       nom: nom || null,
       categorie,
       sous_categorie: sous_categorie || null,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
+      lat,
+      lng,
       adresse: adresse || null,
       ville: ville || null,
       departement: departement || null,
