@@ -125,7 +125,7 @@ export async function DELETE(
     if (sourceData.type === 'carreaux') {
       // ── Carreaux : DROP la table dynamique via RPC ──────────────────────
       const tableName = sourceData.geo_config?.table_name;
-      if (tableName) {
+      if (tableName && /^[a-z_][a-z0-9_]*$/.test(tableName)) {
         try {
           await supabase.rpc('drop_carreaux_table', { table_name: tableName });
           deletedCarreaux = true;
