@@ -1,6 +1,7 @@
 'use client';
 
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
+import { SkeletonText } from '@/components/ui/GeoSkeleton';
 
 // ─── Tokens design system (GEOMATIK) ──────────────────────────────────────────
 const C = {
@@ -196,10 +197,14 @@ export function IrisDetailPanel({ data, loading, onClose }: Props) {
 
       {/* ── Body ── */}
       {loading ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontFamily: fLabel, fontSize: 9, color: C.dim, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            Chargement...
-          </div>
+        <div style={{ flex: 1, padding: '14px 14px 24px' }}>
+          {/* Skeleton loading */}
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} style={{ marginBottom: 20 }}>
+              <div className="geo-skeleton" style={{ width: 80, height: 10, borderRadius: 3, marginBottom: 12 }} />
+              <SkeletonText lines={3} />
+            </div>
+          ))}
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 24px' }}>
