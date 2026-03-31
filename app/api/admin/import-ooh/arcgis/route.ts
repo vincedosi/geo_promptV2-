@@ -292,7 +292,10 @@ export async function POST(req: NextRequest) {
 }
 
 // ─── GET : liste des imports récents ─────────────────────────────────────────
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('import_runs_ooh')
@@ -306,6 +309,9 @@ export async function GET() {
 
 // ─── PATCH : renommer un run + data_sources ───────────────────────────────────
 export async function PATCH(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const { id, label } = await req.json().catch(() => ({}));
   if (!id || !label?.trim()) return Response.json({ error: 'id et label requis' }, { status: 400 });
 
@@ -325,6 +331,9 @@ export async function PATCH(req: NextRequest) {
 
 // ─── DELETE : supprimer un run de l'historique ────────────────────────────────
 export async function DELETE(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const { id } = await req.json().catch(() => ({}));
   if (!id) return Response.json({ error: 'id requis' }, { status: 400 });
 
