@@ -36,6 +36,7 @@ export async function getDistinctCategories(): Promise<string[]> {
         .from('poi_france')
         .select('categorie')
         .gt('categorie', lastSeen)
+        .neq('categorie', 'arret_transport')
         .order('categorie', { ascending: true })
         .limit(1));
       if (!error || !String(error.message).includes('schema cache')) break;

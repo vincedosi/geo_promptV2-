@@ -669,7 +669,6 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     background: jobStatus === 'done' ? C.greenDim : jobStatus === 'failed' ? C.redDim : C.amberDim,
                     border: `1px solid ${jobStatus === 'done' ? C.green : jobStatus === 'failed' ? C.red : C.amber}44`,
                     color: jobStatus === 'done' ? C.green : jobStatus === 'failed' ? C.red : C.amber,
-                    textTransform: 'uppercase',
                   }}>
                     {jobStatus || 'pending'}
                   </span>

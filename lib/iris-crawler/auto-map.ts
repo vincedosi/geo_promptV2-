@@ -63,9 +63,10 @@ const PATTERNS: Array<{ re: RegExp; irisCol: string }> = [
   // Déciles de revenus (Filosofi)
   { re: /^DEC_D1\d{2}$/,             irisCol: 'rev_d1'           }, // 1er décile
   { re: /^DEC_D9\d{2}$/,             irisCol: 'rev_d9'           }, // 9e décile
-  // Taux de pauvreté (Filosofi)
+  // Taux de pauvreté (Filosofi) — TP60xx ou DISP_TP60xx (seuil 60% médiane)
+  { re: /^DISP_TP60\d{2}$/,          irisCol: 'taux_pauvrete'    }, // revenu disponible (prioritaire)
   { re: /^TP60\d{2}$/,               irisCol: 'taux_pauvrete'    },
-  { re: /^DEC_PTSA\d{2}$/,           irisCol: 'taux_pauvrete'    },
+  // DEC_PTSAxx = part traitements/salaires → JSONB uniquement (pas core)
   // Indice de Gini (Filosofi)
   { re: /^DEC_GI\d{2}$/,             irisCol: 'indice_gini'      },
   // Emplois au lieu de travail (RP)
