@@ -260,6 +260,14 @@ export interface FilterPanelProps {
   correlationParams?:   CorrelationParams | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onShowResiduals?:     (geojson: any, meta?: ResidualsMeta) => void;
+  // Radio
+  radioVisible?:          boolean;
+  onToggleRadio?:         () => void;
+  radioHeatmapMode?:      boolean;
+  onToggleRadioHeatmap?:  () => void;
+  radioCoverageMode?:     boolean;
+  onToggleRadioCoverage?: () => void;
+  radioLoading?:          boolean;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -391,6 +399,8 @@ export function FilterPanel({
   scoringMapRef, scoringMapReady, onScoreComputed,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
   correlationParams, onShowResiduals,
+  radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
+  radioCoverageMode, onToggleRadioCoverage, radioLoading,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -1704,6 +1714,54 @@ export function FilterPanel({
               </div>
               </div>
               )}{/* fin collapsible TMJA */}
+            </div>
+
+            {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>Radio FM/DAB+</span>
+                {radioLoading && <span style={{ fontSize: 9, color: C.textDim, fontFamily: fMono }}>chargement...</span>}
+              </div>
+
+              {/* Main toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={onToggleRadio}
+                  style={{
+                    flex: 1, padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                    fontFamily: fInter, cursor: 'pointer', transition: 'all 0.15s',
+                    background: radioVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
+                    border: `0.5px solid ${radioVisible ? '#4ecdc4' : '#262626'}`,
+                    color: radioVisible ? '#4ecdc4' : C.textSec,
+                  }}
+                >
+                  {radioVisible ? '📻 Émetteurs visibles' : '📻 Afficher les émetteurs'}
+                </button>
+              </div>
+
+              {/* Sub-layer toggles (visible only when radio is on) */}
+              {radioVisible && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
+                    Zones de couverture
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
+                    Densité (heatmap)
+                  </label>
+                  {radioCoverageMode && (
+                    <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', paddingLeft: 20 }}>
+                      Couverture estimée (approximation)
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                Source : ANFR data.gouv.fr
+              </div>
             </div>
 
           </div>

@@ -75,6 +75,13 @@ export default function MapPage() {
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Radio FM/DAB+ — émetteurs
+  const [radioVisible,       setRadioVisible]       = useState(false);
+  const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
+  const [radioCoverageMode,  setRadioCoverageMode]  = useState(false);
+  const [radioGeoJSON,       setRadioGeoJSON]       = useState<GeoJSON.FeatureCollection | null>(null);
+  const [radioLoading,       setRadioLoading]       = useState(false);
+  const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
   // Résidus de corrélation — layer MVT (match expression sur iris-source)
@@ -376,6 +383,98 @@ export default function MapPage() {
     const data: GeoJSON.FeatureCollection = await res.json();
     setTmjaGeoJSON(data);
   };
+
+  // ── Radio émetteurs — fetch + sync ─────────────────────────────────────────
+  const handleLoadRadio = useCallback(async () => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    setRadioLoading(true);
+    radioFetchRef.current?.abort();
+    const ctrl = new AbortController();
+    radioFetchRef.current = ctrl;
+    try {
+      const b = map.getBounds();
+      const url = `/api/radio/emetteurs?bbox=${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return;
+      const data: GeoJSON.FeatureCollection = await res.json();
+      setRadioGeoJSON(data);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') console.error('[radio]', e);
+    } finally {
+      setRadioLoading(false);
+    }
+  }, [mapReady]);
+
+  // Sync radio GeoJSON → map source + layer visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const showClusters = radioVisible && !radioHeatmapMode;
+    const showHeatmap  = radioVisible && radioHeatmapMode;
+    const showPoints   = radioVisible && !radioHeatmapMode;
+
+    // Update source data
+    if (radioGeoJSON) {
+      const src = map.getSource('radio-emetteurs') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(radioGeoJSON);
+    }
+
+    // Toggle layer visibility
+    try { map.setLayoutProperty('radio-clusters', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-cluster-count', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-points', 'visibility', showPoints ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-heatmap', 'visibility', showHeatmap ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-coverage-fill', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-coverage-line', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
+  }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load radio data when visible, reload on map move
+  useEffect(() => {
+    if (!radioVisible || !mapReady) return;
+    handleLoadRadio();
+    const map = mapRef.current;
+    if (!map) return;
+    const onMove = () => handleLoadRadio();
+    // Debounce moveend
+    let timer: ReturnType<typeof setTimeout>;
+    const debouncedMove = () => { clearTimeout(timer); timer = setTimeout(onMove, 500); };
+    map.on('moveend', debouncedMove);
+    return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
+  }, [radioVisible, mapReady, handleLoadRadio]);
+
+  // Generate coverage circles client-side when coverage mode is active
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !radioCoverageMode || !radioGeoJSON) return;
+    const src = map.getSource('radio-coverage') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    // Generate circles (limit to 500)
+    const features = radioGeoJSON.features.slice(0, 500);
+    const circles: GeoJSON.Feature[] = [];
+    for (const f of features) {
+      if (f.geometry.type !== 'Point') continue;
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+      const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+      if (!radius || radius < 100) continue;
+      // Simple circle approximation (64 segments)
+      const coords: [number, number][] = [];
+      for (let i = 0; i <= 64; i++) {
+        const angle = (i / 64) * 2 * Math.PI;
+        const dlat = (radius / 111320) * Math.cos(angle);
+        const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+        coords.push([lng + dlng, lat + dlat]);
+      }
+      circles.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { color: '#4ecdc4' },
+      });
+    }
+    src.setData({ type: 'FeatureCollection', features: circles });
+  }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
   const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
@@ -1183,6 +1282,13 @@ export default function MapPage() {
         onLoadTMJA={handleLoadTMJA}
         tmjaVisible={!!tmjaGeoJSON}
         onClearTMJA={() => setTmjaGeoJSON(null)}
+        radioVisible={radioVisible}
+        onToggleRadio={() => setRadioVisible(v => !v)}
+        radioHeatmapMode={radioHeatmapMode}
+        onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+        radioCoverageMode={radioCoverageMode}
+        onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+        radioLoading={radioLoading}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />

@@ -350,6 +350,171 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
+      // ── Radio émetteurs — clusters + heatmap + couverture ──────────────
+      map.addSource('radio-emetteurs', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50,
+      });
+
+      // Cluster circles
+      map.addLayer({
+        id: 'radio-clusters', type: 'circle', source: 'radio-emetteurs',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#4ecdc4',
+          'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 24, 200, 32] as unknown as maplibregl.ExpressionSpecification,
+          'circle-opacity': 0.85,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#050505',
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // Cluster labels
+      map.addLayer({
+        id: 'radio-cluster-count', type: 'symbol', source: 'radio-emetteurs',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Bold'],
+          'text-size': 11,
+          visibility: 'none',
+        },
+        paint: { 'text-color': '#050505' },
+      });
+
+      // Individual points (unclustered)
+      map.addLayer({
+        id: 'radio-points', type: 'circle', source: 'radio-emetteurs',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'match', ['get', 'portee'],
+            'nationale', '#3b82f6',
+            'locale', '#22c55e',
+            'autoroute', '#eab308',
+            '#6b7280', // default: unmatched
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'circle-radius': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'puissance_w'], 100],
+            1, 3,
+            100, 5,
+            10000, 7,
+            100000, 10,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'circle-stroke-width': [
+            'match', ['get', 'systeme'], 'DAB+', 1.5, 0.5,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'circle-stroke-color': '#050505',
+          'circle-opacity': 0.9,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // Heatmap layer (mutually exclusive with clusters)
+      map.addLayer({
+        id: 'radio-heatmap', type: 'heatmap', source: 'radio-emetteurs',
+        maxzoom: 14,
+        paint: {
+          'heatmap-weight': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'puissance_w'], 100],
+            0, 0.1, 1000, 0.5, 100000, 1,
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 9, 2] as unknown as maplibregl.ExpressionSpecification,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 4, 6, 15, 10, 25] as unknown as maplibregl.ExpressionSpecification,
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(78,205,196,0)',
+            0.15, 'rgba(78,205,196,0.15)',
+            0.35, 'rgba(78,205,196,0.35)',
+            0.6, 'rgba(78,205,196,0.6)',
+            0.85, 'rgba(78,205,196,0.85)',
+            1, '#f0f0f0',
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 11, 1, 14, 0] as unknown as maplibregl.ExpressionSpecification,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // Coverage circles source (separate, non-clustered)
+      map.addSource('radio-coverage', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'radio-coverage-fill', type: 'fill', source: 'radio-coverage',
+        paint: {
+          'fill-color': ['coalesce', ['get', 'color'], '#4ecdc4'] as unknown as maplibregl.ExpressionSpecification,
+          'fill-opacity': 0.06,
+        },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'radio-coverage-line', type: 'line', source: 'radio-coverage',
+        paint: {
+          'line-color': ['coalesce', ['get', 'color'], '#4ecdc4'] as unknown as maplibregl.ExpressionSpecification,
+          'line-width': 0.5,
+          'line-opacity': 0.25,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // Click on individual radio point → popup
+      const onRadioPointClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        if (!e.features?.length) return;
+        const p = e.features[0].properties as Record<string, unknown>;
+        const nom = p.radio_nom ?? 'Radio non identifiée';
+        const freq = p.frequence_mhz ? `${Number(p.frequence_mhz).toFixed(1)} MHz` : '';
+        const sys = p.systeme ?? '';
+        const pw = p.puissance_w ? `${Number(p.puissance_w) >= 1000 ? `${(Number(p.puissance_w)/1000).toFixed(1)} kW` : `${p.puissance_w} W`}` : '';
+        const cov = p.rayon_couverture_m ? `~${Math.round(Number(p.rayon_couverture_m)/1000)} km` : '';
+        new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="padding:10px 12px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
+            <b style="color:#f0f0f0;font-size:13px">${nom}</b>
+            <div style="color:#a0a0a0;font-size:11px">${[freq, sys].filter(Boolean).join(' · ')}</div>
+            ${pw ? `<div style="color:#666666;font-size:11px">Puissance : ${pw}</div>` : ''}
+            ${cov ? `<div style="color:#666666;font-size:11px">Couverture : ${cov}</div>` : ''}
+            <div style="color:#666666;font-size:11px">${[p.commune, p.departement].filter(Boolean).join(' · ')}</div>
+          </div>`)
+          .addTo(map);
+      };
+      map.on('click', 'radio-points', onRadioPointClick);
+
+      // Click on cluster → zoom in
+      const onRadioClusterClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        if (!e.features?.length) return;
+        const clusterId = e.features[0].properties?.cluster_id;
+        const src = map.getSource('radio-emetteurs') as maplibregl.GeoJSONSource;
+        if (src && clusterId !== undefined) {
+          (src as unknown as { getClusterExpansionZoom: (id: number, cb: (err: unknown, zoom: number) => void) => void })
+            .getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (!err) map.easeTo({ center: e.lngLat, zoom: zoom + 1 });
+            });
+        }
+      };
+      map.on('click', 'radio-clusters', onRadioClusterClick);
+
+      // Cursor
+      const onRadioEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+      const onRadioLeave = () => { map.getCanvas().style.cursor = ''; };
+      map.on('mouseenter', 'radio-points', onRadioEnter);
+      map.on('mouseleave', 'radio-points', onRadioLeave);
+      map.on('mouseenter', 'radio-clusters', onRadioEnter);
+      map.on('mouseleave', 'radio-clusters', onRadioLeave);
+
+      cleanupFns.push(() => {
+        map.off('click', 'radio-points', onRadioPointClick);
+        map.off('click', 'radio-clusters', onRadioClusterClick);
+        map.off('mouseenter', 'radio-points', onRadioEnter);
+        map.off('mouseleave', 'radio-points', onRadioLeave);
+        map.off('mouseenter', 'radio-clusters', onRadioEnter);
+        map.off('mouseleave', 'radio-clusters', onRadioLeave);
+      });
+
       // ── Zone circle ──────────────────────────────────────────────────────
       map.addSource('zone-circle', {
         type: 'geojson',
