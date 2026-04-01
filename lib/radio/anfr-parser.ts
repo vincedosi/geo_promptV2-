@@ -1,47 +1,51 @@
 /**
  * ANFR data parser — download ZIP from data.gouv.fr, parse CSV, filter radio emitters
  *
- * Source: https://www.data.gouv.fr/datasets/donnees-sur-les-installations-radioelectriques-de-plus-de-5-watts-1/
- * Files inside ZIP: SUP_EMETTEUR.txt + SUP_SUPPORT.txt (CSV, separator ';')
- * Filter: EMR_LB_SYSTEME IN ('RDF FM', 'RDF T-DAB')
+ * Data model:
+ * - SUP_EMETTEUR.txt: EMR_ID, EMR_LB_SYSTEME (filter 'FM' + 'RDF T-DAB'), STA_NM_ANFR
+ * - SUP_BANDE.txt: EMR_ID → BAN_NB_F_DEB (frequency in MHz)
+ * - SUP_STATION.txt: STA_NM_ANFR → ADM_ID (exploitant link)
+ * - SUP_SUPPORT.txt: STA_NM_ANFR → coordinates, height, address
+ * - SUP_EXPLOITANT.txt (ref ZIP): ADM_ID → ADM_LB_NOM (exploitant name)
  */
 
 import JSZip from 'jszip';
 import Papa from 'papaparse';
 import type { EmetteurRadioInsert } from './types';
 
-// ── ANFR dataset URL via data.gouv.fr API ─────────────────────────────────────
 const DATASET_API = 'https://www.data.gouv.fr/api/1/datasets/donnees-sur-les-installations-radioelectriques-de-plus-de-5-watts-1/';
-
 const ALLOWED_HOSTS = ['www.data.gouv.fr', 'static.data.gouv.fr', 'files.data.gouv.fr', 'data.gouv.fr'];
 
 type ProgressCallback = (phase: string, current: number, total: number) => void;
 
-// ── Coordinate conversion (DMS or decimal) ────────────────────────────────────
-
 function parseCoord(degStr: string | undefined, minStr: string | undefined, secStr: string | undefined, dirStr: string | undefined): number | null {
   const deg = parseFloat(degStr ?? '');
   if (isNaN(deg)) return null;
-
   const min = parseFloat(minStr ?? '0') || 0;
   const sec = parseFloat(secStr ?? '0') || 0;
-
   let decimal = deg + min / 60 + sec / 3600;
-
   const dir = (dirStr ?? '').trim().toUpperCase();
   if (dir === 'S' || dir === 'W' || dir === 'O') decimal = -decimal;
-
   return decimal;
 }
 
-// ── Main parser ───────────────────────────────────────────────────────────────
+function parseCsvFromZip(zip: JSZip, pattern: string): Record<string, string>[] {
+  let found: JSZip.JSZipObject | null = null;
+  zip.forEach((path, file) => {
+    if (!file.dir && path.toUpperCase().includes(pattern.toUpperCase())) found = file;
+  });
+  if (!found) throw new Error(`${pattern} introuvable dans le ZIP`);
+  // JSZip async not available here, we need to use the sync approach
+  // Actually we return a promise — caller must await
+  return []; // placeholder, real implementation below
+}
 
 export async function downloadAndParseAnfr(
   onProgress?: ProgressCallback,
 ): Promise<{ emetteurs: EmetteurRadioInsert[]; snapshotDate: string }> {
-  // 1. Find latest ZIP URL from data.gouv.fr API
-  onProgress?.('Recherche du fichier ANFR...', 0, 1);
 
+  // 1. Find latest ZIP URLs
+  onProgress?.('Recherche des fichiers ANFR...', 0, 1);
   const datasetRes = await fetch(DATASET_API, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
@@ -52,139 +56,190 @@ export async function downloadAndParseAnfr(
     resources: Array<{ url: string; title: string; format: string; last_modified: string }>;
   };
 
-  // Find the main ZIP resource (the largest one, or the one with "emet" in the title)
-  const zipResource = dataset.resources.find(r =>
-    r.format?.toLowerCase() === 'zip' &&
-    (r.title?.toLowerCase().includes('emet') || r.title?.toLowerCase().includes('sup_'))
-  ) ?? dataset.resources.find(r => r.format?.toLowerCase() === 'zip');
+  // Find data ZIP (larger one ~65MB) and reference ZIP (~5KB)
+  const zipResources = dataset.resources.filter(r => r.format?.toLowerCase() === 'zip');
+  const dataZip = zipResources.find(r => r.title?.toLowerCase().includes('supports antennes') || (r.url?.includes('data.zip')));
+  const refZip = zipResources.find(r => r.title?.toLowerCase().includes('référence') || r.title?.toLowerCase().includes('reference') || (r.url?.includes('ref.zip')));
 
-  if (!zipResource?.url) throw new Error('Aucun fichier ZIP trouvé dans le dataset ANFR');
+  if (!dataZip?.url) throw new Error('Aucun fichier ZIP data trouvé dans le dataset ANFR');
 
-  // Validate URL against allowed hosts
-  const zipUrl = new URL(zipResource.url);
-  if (!ALLOWED_HOSTS.some(h => zipUrl.hostname === h || zipUrl.hostname.endsWith('.' + h))) {
-    throw new Error(`Domaine non autorisé: ${zipUrl.hostname}`);
+  // Validate URLs
+  for (const res of [dataZip, refZip].filter(Boolean)) {
+    const u = new URL(res!.url);
+    if (!ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) {
+      throw new Error(`Domaine non autorisé: ${u.hostname}`);
+    }
   }
 
-  const snapshotDate = zipResource.last_modified
-    ? zipResource.last_modified.slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+  const snapshotDate = dataZip.last_modified?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 
-  // 2. Download the ZIP
-  onProgress?.('Téléchargement du ZIP ANFR...', 0, 1);
-
-  const zipRes = await fetch(zipResource.url, {
+  // 2. Download both ZIPs
+  onProgress?.('Téléchargement du ZIP principal (~65 Mo)...', 0, 2);
+  const fetchOpts = {
     headers: { 'User-Agent': 'GEOMATIK/1.0 (Dentsu France; geospatial research)' },
-    signal: AbortSignal.timeout(300_000), // 5 min timeout for ~64MB
-  });
-  if (!zipRes.ok) throw new Error(`Téléchargement ZIP: HTTP ${zipRes.status}`);
+    signal: AbortSignal.timeout(300_000),
+  };
 
-  const zipBuffer = await zipRes.arrayBuffer();
-  onProgress?.(`ZIP téléchargé (${(zipBuffer.byteLength / 1024 / 1024).toFixed(1)} Mo)`, 1, 1);
+  const dataRes = await fetch(dataZip.url, fetchOpts);
+  if (!dataRes.ok) throw new Error(`Téléchargement data ZIP: HTTP ${dataRes.status}`);
+  const dataBuf = await dataRes.arrayBuffer();
+  onProgress?.(`ZIP principal téléchargé (${(dataBuf.byteLength / 1024 / 1024).toFixed(1)} Mo)`, 1, 2);
 
-  // 3. Extract CSV files from ZIP
-  onProgress?.('Extraction du ZIP...', 0, 1);
-  const zip = await JSZip.loadAsync(zipBuffer);
+  // Download reference ZIP for exploitant names
+  let exploitantMap = new Map<string, string>(); // ADM_ID → ADM_LB_NOM
+  if (refZip?.url) {
+    onProgress?.('Téléchargement du ZIP de référence...', 1, 2);
+    const refRes = await fetch(refZip.url, fetchOpts);
+    if (refRes.ok) {
+      const refBuf = await refRes.arrayBuffer();
+      const refZipObj = await JSZip.loadAsync(refBuf);
+      let exploitantFile: JSZip.JSZipObject | null = null;
+      refZipObj.forEach((path, file) => {
+        if (!file.dir && path.toUpperCase().includes('SUP_EXPLOITANT')) exploitantFile = file;
+      });
+      if (exploitantFile) {
+        const csv = await (exploitantFile as JSZip.JSZipObject).async('string');
+        const parsed = Papa.parse<Record<string, string>>(csv, { header: true, delimiter: ';', skipEmptyLines: true });
+        for (const row of parsed.data) {
+          const id = (row.ADM_ID ?? '').trim();
+          const nom = (row.ADM_LB_NOM ?? '').trim();
+          if (id && nom) exploitantMap.set(id, nom);
+        }
+        onProgress?.(`${exploitantMap.size} exploitants chargés`, 2, 2);
+      }
+    }
+  }
 
-  // Find SUP_EMETTEUR and SUP_SUPPORT files
-  const findFile = (pattern: string) => {
+  // 3. Parse data ZIP
+  onProgress?.('Extraction et parsing...', 0, 5);
+  const zip = await JSZip.loadAsync(dataBuf);
+
+  const findFile = (pattern: string): JSZip.JSZipObject => {
     let found: JSZip.JSZipObject | null = null;
     zip.forEach((path, file) => {
       if (!file.dir && path.toUpperCase().includes(pattern)) found = file;
     });
+    if (!found) throw new Error(`${pattern} introuvable dans le ZIP`);
     return found;
   };
 
-  const emetteurFile = findFile('SUP_EMETTEUR');
-  const supportFile = findFile('SUP_SUPPORT');
+  // Parse SUP_EMETTEUR — filter FM + DAB+
+  onProgress?.('Parsing SUP_EMETTEUR (filtre FM + DAB+)...', 1, 5);
+  const emetteurCsv = await findFile('SUP_EMETTEUR').async('string');
+  const emetteurRows = Papa.parse<Record<string, string>>(emetteurCsv, { header: true, delimiter: ';', skipEmptyLines: true });
 
-  if (!emetteurFile) throw new Error('SUP_EMETTEUR.txt introuvable dans le ZIP');
-  if (!supportFile) throw new Error('SUP_SUPPORT.txt introuvable dans le ZIP');
-
-  // 4. Parse CSVs
-  onProgress?.('Parsing SUP_SUPPORT...', 0, 2);
-  const supportCsv = await (supportFile as JSZip.JSZipObject).async('string');
-  const supports = Papa.parse<Record<string, string>>(supportCsv, {
-    header: true, delimiter: ';', skipEmptyLines: true,
-  });
-
-  // Build support lookup by STA_NM_ANFR
-  const supportMap = new Map<string, Record<string, string>>();
-  for (const row of supports.data) {
-    const key = (row.STA_NM_ANFR ?? row.sta_nm_anfr ?? '').trim();
-    if (key) supportMap.set(key, row);
-  }
-  onProgress?.(`${supportMap.size} supports parsés`, 1, 2);
-
-  onProgress?.('Parsing SUP_EMETTEUR (filtrage radio)...', 1, 2);
-  const emetteurCsv = await (emetteurFile as JSZip.JSZipObject).async('string');
-  const emetteurs = Papa.parse<Record<string, string>>(emetteurCsv, {
-    header: true, delimiter: ';', skipEmptyLines: true,
-  });
-
-  // 5. Filter radio emitters and join with supports
   const SYSTEME_MAP: Record<string, 'FM' | 'DAB+'> = {
-    'RDF FM': 'FM',
+    'FM': 'FM',
     'RDF T-DAB': 'DAB+',
   };
 
+  // Build emitter map: EMR_ID → { systeme, sta_nm_anfr }
+  const emitterMap = new Map<string, { systeme: 'FM' | 'DAB+'; sta_nm_anfr: string }>();
+  for (const row of emetteurRows.data) {
+    const sys = SYSTEME_MAP[(row.EMR_LB_SYSTEME ?? '').trim()];
+    if (!sys) continue;
+    const emrId = (row.EMR_ID ?? '').trim();
+    const staNm = (row.STA_NM_ANFR ?? '').trim();
+    if (emrId && staNm) emitterMap.set(emrId, { systeme: sys, sta_nm_anfr: staNm });
+  }
+  onProgress?.(`${emitterMap.size} émetteurs radio trouvés (FM + DAB+)`, 1, 5);
+
+  // Parse SUP_BANDE — get frequencies
+  onProgress?.('Parsing SUP_BANDE (fréquences)...', 2, 5);
+  const bandeCsv = await findFile('SUP_BANDE').async('string');
+  const bandeRows = Papa.parse<Record<string, string>>(bandeCsv, { header: true, delimiter: ';', skipEmptyLines: true });
+
+  const freqMap = new Map<string, number>(); // EMR_ID → frequency MHz
+  for (const row of bandeRows.data) {
+    const emrId = (row.EMR_ID ?? '').trim();
+    if (!emitterMap.has(emrId)) continue;
+    const freqStr = (row.BAN_NB_F_DEB ?? '').replace(',', '.').trim();
+    const freq = parseFloat(freqStr);
+    if (!isNaN(freq) && freq > 0) {
+      freqMap.set(emrId, freq);
+    }
+  }
+  onProgress?.(`${freqMap.size} fréquences associées`, 2, 5);
+
+  // Parse SUP_STATION — get ADM_ID for exploitant
+  onProgress?.('Parsing SUP_STATION (exploitants)...', 3, 5);
+  const stationCsv = await findFile('SUP_STATION').async('string');
+  const stationRows = Papa.parse<Record<string, string>>(stationCsv, { header: true, delimiter: ';', skipEmptyLines: true });
+
+  const stationAdmMap = new Map<string, string>(); // STA_NM_ANFR → ADM_ID
+  for (const row of stationRows.data) {
+    const staNm = (row.STA_NM_ANFR ?? '').trim();
+    const admId = (row.ADM_ID ?? '').trim();
+    if (staNm && admId) stationAdmMap.set(staNm, admId);
+  }
+
+  // Parse SUP_SUPPORT — coordinates, height, address
+  onProgress?.('Parsing SUP_SUPPORT (coordonnées GPS)...', 4, 5);
+  const supportCsv = await findFile('SUP_SUPPORT').async('string');
+  const supportRows = Papa.parse<Record<string, string>>(supportCsv, { header: true, delimiter: ';', skipEmptyLines: true });
+
+  const supportMap = new Map<string, Record<string, string>>();
+  for (const row of supportRows.data) {
+    const key = (row.STA_NM_ANFR ?? '').trim();
+    if (key) supportMap.set(key, row);
+  }
+
+  // 4. Build final emitter list
+  onProgress?.('Construction de la liste finale...', 5, 5);
   const results: EmetteurRadioInsert[] = [];
-  let skipped = 0;
+  let noCoords = 0;
 
-  for (const row of emetteurs.data) {
-    const rawSysteme = (row.EMR_LB_SYSTEME ?? row.emr_lb_systeme ?? '').trim();
-    const systeme = SYSTEME_MAP[rawSysteme];
-    if (!systeme) { skipped++; continue; } // Not a radio emitter
+  for (const [emrId, em] of emitterMap) {
+    const support = supportMap.get(em.sta_nm_anfr);
 
-    const staNm = (row.STA_NM_ANFR ?? row.sta_nm_anfr ?? '').trim();
-    if (!staNm) { skipped++; continue; }
-
-    const support = supportMap.get(staNm);
-
-    // Parse coordinates from support
     let lat: number | null = null;
     let lon: number | null = null;
 
     if (support) {
-      // Try DMS fields first (SUP_NM_LAT, SUP_NM_LONG with degrees/minutes/seconds)
-      lat = parseCoord(
-        support.COR_NB_DG_LAT ?? support.cor_nb_dg_lat,
-        support.COR_NB_MN_LAT ?? support.cor_nb_mn_lat,
-        support.COR_NB_SC_LAT ?? support.cor_nb_sc_lat,
-        support.COR_CD_NS_LAT ?? support.cor_cd_ns_lat,
-      );
-      lon = parseCoord(
-        support.COR_NB_DG_LON ?? support.cor_nb_dg_lon,
-        support.COR_NB_MN_LON ?? support.cor_nb_mn_lon,
-        support.COR_NB_SC_LON ?? support.cor_nb_sc_lon,
-        support.COR_CD_EW_LON ?? support.cor_cd_ew_lon,
-      );
+      lat = parseCoord(support.COR_NB_DG_LAT, support.COR_NB_MN_LAT, support.COR_NB_SC_LAT, support.COR_CD_NS_LAT);
+      lon = parseCoord(support.COR_NB_DG_LON, support.COR_NB_MN_LON, support.COR_NB_SC_LON, support.COR_CD_EW_LON);
     }
 
-    if (lat === null || lon === null || !isFinite(lat) || !isFinite(lon)) continue;
-    // Basic sanity check for France
-    if (lat < -22 || lat > 52 || lon < -64 || lon > 56) continue;
+    if (lat === null || lon === null || !isFinite(lat) || !isFinite(lon)) { noCoords++; continue; }
+    if (lat < -22 || lat > 52 || lon < -64 || lon > 56) { noCoords++; continue; }
 
-    const freq = parseFloat(row.EMR_DT_SERVICE ?? row.emr_dt_service ?? '');
-    const puissance = parseFloat(row.EMR_NB_PUISSANCE ?? row.emr_nb_puissance ?? '');
+    // Get exploitant name via station → ADM_ID → exploitant table
+    const admId = stationAdmMap.get(em.sta_nm_anfr);
+    const exploitant = admId ? exploitantMap.get(admId) ?? null : null;
+
+    // Get frequency
+    const freq = freqMap.get(emrId) ?? null;
+
+    // Get department from COM_CD_INSEE (first 2 chars, or 3 for DOM)
+    const insee = (support?.COM_CD_INSEE ?? '').trim();
+    let dept: string | null = null;
+    if (insee.length >= 2) {
+      dept = insee.startsWith('97') ? insee.slice(0, 3) : insee.slice(0, 2);
+    }
 
     results.push({
-      sta_nm_anfr: staNm,
-      systeme,
-      frequence_mhz: isNaN(freq) ? null : freq,
-      puissance_w: isNaN(puissance) ? null : puissance,
-      hauteur_m: support ? parseFloat(support.SUP_NM_HAUT ?? support.sup_nm_haut ?? '') || null : null,
-      exploitant: (row.ADM_LB_NOM ?? row.adm_lb_nom ?? '').trim() || null,
-      adresse: support ? (support.STA_NM_ADRESSE1 ?? support.sta_nm_adresse1 ?? '').trim() || null : null,
-      commune: support ? (support.COM_LB_NOM ?? support.com_lb_nom ?? '').trim() || null : null,
-      departement: support ? (support.DPT_NB ?? support.dpt_nb ?? '').trim().padStart(2, '0') || null : null,
+      sta_nm_anfr: em.sta_nm_anfr,
+      systeme: em.systeme,
+      frequence_mhz: freq,
+      puissance_w: null, // puissance is in SUP_ANTENNE, not critical for now
+      hauteur_m: support ? parseFloat(support.SUP_NM_HAUT ?? '') || null : null,
+      exploitant,
+      adresse: support ? (support.ADR_LB_LIEU ?? support.ADR_LB_ADD1 ?? '').trim() || null : null,
+      commune: support ? (support.ADR_LB_ADD1 ?? support.ADR_LB_LIEU ?? '').trim() || null : null,
+      departement: dept,
       lat,
       lon,
       snapshot_date: snapshotDate,
     });
   }
 
-  onProgress?.(`${results.length} émetteurs radio extraits (${skipped} non-radio ignorés)`, 2, 2);
+  if (noCoords > 0) {
+    onProgress?.(`${noCoords} émetteurs sans coordonnées GPS (ignorés)`, 5, 5);
+  }
+
+  const totalFm = results.filter(e => e.systeme === 'FM').length;
+  const totalDab = results.filter(e => e.systeme === 'DAB+').length;
+  onProgress?.(`${results.length} émetteurs extraits (FM: ${totalFm}, DAB+: ${totalDab})`, 5, 5);
 
   return { emetteurs: results, snapshotDate };
 }
