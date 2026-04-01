@@ -159,7 +159,7 @@ export async function importAnfrData(
       .update({ status: 'success', completed_at: new Date().toISOString(), stats })
       .eq('id', logId);
 
-    await logger.success('FINALIZE', `Import ANFR terminé : ${emetteurCount} émetteurs (${totalFm} FM, ${totalDab} DAB+), ${inserted} nouveaux, ${updated} modifiés, ${deleted} supprimés`, stats, Date.now() - t0);
+    await logger.success('FINALIZE', `Import ANFR terminé : ${emetteurCount} émetteurs (${totalFm} FM, ${totalDab} DAB+), ${inserted} nouveaux, ${updated} modifiés, ${deleted} supprimés`, stats as unknown as Record<string, unknown>, Date.now() - t0);
 
     return stats;
 

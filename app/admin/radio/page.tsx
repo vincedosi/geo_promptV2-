@@ -126,22 +126,58 @@ export default function RadioAdminPage() {
     setRadiosLoading(false);
   }, [radiosPage, radiosSearch]);
 
-  // ── Import streaming ──────────────────────────────────────────────────────
+  // ── Import streaming + structured logs ──────────────────────────────────────
+  interface LogLine { message: string; level?: string; phase?: string; timestamp?: string }
   const [importing, setImporting] = useState(false);
-  const [importLogs, setImportLogs] = useState<string[]>([]);
+  const [importLogs, setImportLogs] = useState<LogLine[]>([]);
   const [importPct, setImportPct] = useState(0);
+  const [logFilter, setLogFilter] = useState<Set<string>>(new Set(['info', 'warn', 'error', 'success']));
+  const [viewingLogId, setViewingLogId] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const userScrolledRef = useRef(false);
+
+  const logLevelColor: Record<string, string> = {
+    debug: '#6b7280', info: '#d1d5db', warn: '#f59e0b', error: '#ef4444', success: '#22c55e',
+  };
+
+  const logCounts = importLogs.reduce<Record<string, number>>((acc, l) => {
+    const lv = l.level ?? 'info';
+    acc[lv] = (acc[lv] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const filteredLogs = importLogs.filter(l => logFilter.has(l.level ?? 'info'));
+
+  const copyLogs = () => {
+    const text = importLogs.map(l => l.message).join('\n');
+    navigator.clipboard.writeText(text).then(() => toastApi.success('Logs copiés'));
+  };
+
+  const loadHistoryLogs = async (logId: string) => {
+    try {
+      const res = await adminFetch(`/api/radio/import-logs/${logId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setImportLogs((data.entries ?? []).map((e: { message: string; level: string; phase: string; timestamp: string }) => ({
+        message: `[${(e.timestamp ?? '').slice(11, 19)}] [${(e.level ?? 'info').toUpperCase().padEnd(7)}] [${(e.phase ?? '').padEnd(12)}] ${e.message}`,
+        level: e.level, phase: e.phase, timestamp: e.timestamp,
+      })));
+      setViewingLogId(logId);
+    } catch { /* ignore */ }
+  };
 
   const launchImport = async (endpoint: string, label: string) => {
     setImporting(true);
-    setImportLogs([`▶ ${label} lancé...`]);
+    setImportLogs([{ message: `▶ ${label} lancé...`, level: 'info', phase: 'INIT' }]);
     setImportPct(0);
+    setViewingLogId(null);
+    userScrolledRef.current = false;
 
     try {
       const res = await adminFetch(endpoint, { method: 'POST' });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setImportLogs(prev => [...prev, `✗ Erreur : ${err.error ?? res.status}`]);
+        setImportLogs(prev => [...prev, { message: `✗ Erreur : ${err.error ?? res.status}`, level: 'error' }]);
         toastApi.error('Import échoué', err.error);
         setImporting(false);
         return;
@@ -159,17 +195,17 @@ export default function RadioAdminPage() {
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
-            const evt = JSON.parse(line) as { type: string; message: string; percent?: number };
-            setImportLogs(prev => [...prev, evt.message]);
+            const evt = JSON.parse(line) as { type: string; message: string; percent?: number; level?: string; phase?: string; timestamp?: string };
+            setImportLogs(prev => [...prev, { message: evt.message, level: evt.level ?? (evt.type === 'error' ? 'error' : 'info'), phase: evt.phase, timestamp: evt.timestamp }]);
             if (evt.percent) setImportPct(evt.percent);
-            if (evt.type === 'done') { toastApi.success('Import terminé', evt.message); setImportPct(100); }
-            if (evt.type === 'error') toastApi.error('Erreur', evt.message);
+            if (evt.type === 'done') { toastApi.success('Import terminé'); setImportPct(100); }
+            if (evt.type === 'error' && !evt.level) toastApi.error('Erreur', evt.message);
           } catch { /* skip malformed */ }
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setImportLogs(prev => [...prev, `✗ ${msg}`]);
+      setImportLogs(prev => [...prev, { message: `✗ ${msg}`, level: 'error' }]);
       toastApi.error('Import échoué', msg);
     }
     setImporting(false);
@@ -215,7 +251,7 @@ export default function RadioAdminPage() {
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => { fetchStats(); fetchImports(); }, [fetchStats, fetchImports]);
   useEffect(() => { if (tab === 'radios') fetchRadios(); }, [tab, fetchRadios]);
-  useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [importLogs]);
+  useEffect(() => { if (!userScrolledRef.current) logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [importLogs]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   const days = daysAgo(stats?.derniere_maj_anfr ?? null);
@@ -292,20 +328,62 @@ export default function RadioAdminPage() {
             </div>
           </div>
 
-          {/* Progress */}
+          {/* Log viewer — terminal style */}
           {importLogs.length > 0 && (
             <div>
-              <SH label="Progression" />
+              <SH label={viewingLogId ? `Logs de l'import ${viewingLogId.slice(0, 8)}` : 'Progression'} />
               {importPct > 0 && (
                 <div style={{ height: 4, background: C.border, borderRadius: 2, marginBottom: 8, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${importPct}%`, background: C.teal, transition: 'width 0.3s' }} />
                 </div>
               )}
-              <div style={{
-                background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6,
-                padding: 12, maxHeight: 200, overflowY: 'auto', fontFamily: fMono, fontSize: 11, color: C.textSec, lineHeight: 1.6,
-              }}>
-                {importLogs.map((log, i) => <div key={i}>{log}</div>)}
+              {/* Level filter + stats + copy */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                {['info', 'warn', 'error', 'success', 'debug'].map(lv => (
+                  <button key={lv} onClick={() => setLogFilter(prev => { const n = new Set(prev); n.has(lv) ? n.delete(lv) : n.add(lv); return n; })} style={{
+                    padding: '2px 8px', borderRadius: 3, fontSize: 10, fontFamily: fMono,
+                    background: logFilter.has(lv) ? `${logLevelColor[lv]}20` : 'transparent',
+                    border: `0.5px solid ${logFilter.has(lv) ? logLevelColor[lv] : '#262626'}`,
+                    color: logFilter.has(lv) ? logLevelColor[lv] : C.textDim,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                    {lv.toUpperCase()} {logCounts[lv] ? `(${logCounts[lv]})` : ''}
+                  </button>
+                ))}
+                <div style={{ flex: 1 }} />
+                <button onClick={copyLogs} style={{
+                  padding: '2px 8px', borderRadius: 3, fontSize: 10, fontFamily: fInter,
+                  background: 'transparent', border: `0.5px solid ${C.borderDefault}`,
+                  color: C.textDim, cursor: 'pointer',
+                }}>
+                  Copier
+                </button>
+                {viewingLogId && (
+                  <button onClick={() => { setImportLogs([]); setViewingLogId(null); }} style={{
+                    padding: '2px 8px', borderRadius: 3, fontSize: 10, fontFamily: fInter,
+                    background: 'transparent', border: `0.5px solid ${C.borderDefault}`,
+                    color: C.textDim, cursor: 'pointer',
+                  }}>
+                    Fermer
+                  </button>
+                )}
+              </div>
+              {/* Terminal */}
+              <div
+                style={{
+                  background: '#080808', border: `0.5px solid ${C.border}`, borderRadius: 6,
+                  padding: 12, height: 360, overflowY: 'auto', fontFamily: fMono, fontSize: 11, lineHeight: 1.7,
+                }}
+                onScroll={e => {
+                  const el = e.currentTarget;
+                  userScrolledRef.current = el.scrollTop + el.clientHeight < el.scrollHeight - 30;
+                }}
+              >
+                {filteredLogs.map((log, i) => (
+                  <div key={i} style={{ color: logLevelColor[log.level ?? 'info'] ?? '#d1d5db', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {log.message}
+                  </div>
+                ))}
                 <div ref={logsEndRef} />
               </div>
             </div>
@@ -321,7 +399,7 @@ export default function RadioAdminPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: C.elevated }}>
-                      {['Date', 'Type', 'Statut', 'Durée', 'Détails'].map(h => (
+                      {['Date', 'Type', 'Statut', 'Durée', 'Détails', 'Logs'].map(h => (
                         <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: C.textDim, fontWeight: 500, borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
                     </tr>
@@ -350,6 +428,18 @@ export default function RadioAdminPage() {
                               : imp.stats
                                 ? `${(imp.stats as Record<string, number>).inserted ?? 0} insérés, ${(imp.stats as Record<string, number>).updated ?? 0} màj`
                                 : '—'}
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <button onClick={() => loadHistoryLogs(imp.id)} style={{
+                              background: 'none', border: `0.5px solid ${C.borderDefault}`, borderRadius: 4,
+                              padding: '3px 8px', fontSize: 10, color: C.textSec, cursor: 'pointer',
+                              fontFamily: fInter, transition: 'all 0.15s',
+                            }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#4ecdc4'; e.currentTarget.style.color = '#4ecdc4'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSec; }}
+                            >
+                              Voir
+                            </button>
                           </td>
                         </tr>
                       );

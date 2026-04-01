@@ -47,8 +47,7 @@ export class ImportLogger {
         details: details ?? {},
         duration_ms: duration_ms ?? null,
       })
-      .then(() => {})
-      .catch(() => {}); // Never fail the import because of logging
+      .then(() => {}); // Never fail the import because of logging
 
     // 2. Stream to UI
     const levelIcon = { debug: '·', info: '▸', warn: '⚠', error: '✗', success: '✓' }[level];
