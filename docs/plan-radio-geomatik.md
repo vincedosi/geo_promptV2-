@@ -295,7 +295,11 @@ Ajouter dans la section "Admin" :
 ### Phase 2 — Matching radios (noms + classification) ✅
 - ✅ `lib/radio/arcom-crawler.ts` — base de 28 radios nationales connues, matching ANFR exploitant → radio, création FK radio_id
 - ✅ `POST /api/radio/crawl-arcom` — route API streaming, super-admin
-- Note : le crawl Arcom HTML est remplacé par un matching par exploitant ANFR + base de radios connues (plus fiable et sans risque de blocage)
+- Note : le crawl Arcom HTML est remplacé par un catalogue exhaustif de 70+ radios + mapping exploitant + matching 4 passes
+- ✅ Catalogue radio complet : 70+ radios (E/D/C/A/B) avec catégorie Arcom, portée, genre, groupe média
+- ✅ Mapping exploitant→radio : 65+ correspondances (NRJ Group, RTL, Lagardère, Radio France, etc.)
+- ✅ Matcher 4 passes : exploitant exact → substring → fuzzy words → auto-create
+- ✅ POST /api/radio/match-manual pour le matching manuel des orphelins
 
 ### Phase 3 — API backend ✅
 - ✅ 9 routes API dans `app/api/radio/` (voir section 5.5)
