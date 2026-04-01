@@ -1,5 +1,7 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin-fetch';
+
 /**
  * ImportPoiButton — Bouton d'import data.gouv GeoJSON → Supabase (table poi)
  *
@@ -55,7 +57,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
     abortRef.current = new AbortController();
 
     try {
-      const response = await fetch('/api/admin/import-datagouv', {
+      const response = await adminFetch('/api/admin/import-datagouv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ geojsonUrl, categorie: categorie.trim() }),

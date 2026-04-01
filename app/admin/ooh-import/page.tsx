@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ImportRun {
@@ -85,7 +86,7 @@ export default function OohImportPage() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch('/api/admin/import-ooh/arcgis')
+    adminFetch('/api/admin/import-ooh/arcgis')
       .then(r => r.json())
       .then(d => { setSources(d.sources ?? {}); setRuns(d.runs ?? []); });
   }, []);
@@ -99,7 +100,7 @@ export default function OohImportPage() {
       if (customUrl.trim())  body.arcgisUrl = customUrl.trim();
       if (selected === 'custom' && customUrl.trim()) body.source = 'custom';
 
-      const resp = await fetch('/api/admin/import-ooh/arcgis', {
+      const resp = await adminFetch('/api/admin/import-ooh/arcgis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       if (!resp.body) throw new Error('Pas de stream');
@@ -122,7 +123,7 @@ export default function OohImportPage() {
             if (evt.type === 'done') {
               setStats(evt);
               setLogs(p => [...p, `> import terminé — ${fmt(evt.nb_total)} panneaux / ${fmt(evt.nb_inseres)} insérés`]);
-              fetch('/api/admin/import-ooh/arcgis').then(r => r.json()).then(d => setRuns(d.runs ?? []));
+              adminFetch('/api/admin/import-ooh/arcgis').then(r => r.json()).then(d => setRuns(d.runs ?? []));
             }
           } catch { /* JSON invalide */ }
         }
@@ -257,7 +258,7 @@ export default function OohImportPage() {
                 <button
                   onClick={async () => {
                     if (!datasetName.trim()) return;
-                    await fetch('/api/admin/import-ooh/arcgis', {
+                    await adminFetch('/api/admin/import-ooh/arcgis', {
                       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ id: stats.run_id, label: datasetName.trim() }),
                     });
@@ -304,7 +305,7 @@ export default function OohImportPage() {
                   <td style={{ padding: '9px 12px' }}>
                     <button
                       onClick={async () => {
-                        await fetch('/api/admin/import-ooh/arcgis', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.id }) });
+                        await adminFetch('/api/admin/import-ooh/arcgis', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.id }) });
                         setRuns(prev => prev.filter(x => x.id !== r.id));
                       }}
                       style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: 4, transition: 'color 0.15s' }}

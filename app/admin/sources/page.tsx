@@ -174,7 +174,7 @@ export default function SourcesPage() {
     setIrisSyncLoading(true);
     setIrisSyncError(null);
     try {
-      const res = await fetch('/api/admin/sync-iris-system', { method: 'POST' });
+      const res = await adminFetch('/api/admin/sync-iris-system', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erreur');
       setIrisSyncReport(data as IrisSyncReport);
@@ -187,7 +187,7 @@ export default function SourcesPage() {
 
   const saveIrisAnnee = useCallback(async (annee: string) => {
     setIrisAnneeSaving(true);
-    await fetch('/api/admin/iris/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ annee }) });
+    await adminFetch('/api/admin/iris/metadata', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ annee }) });
     setIrisAnneeSaving(false);
     setIrisAnneeSaved(true);
     setTimeout(() => setIrisAnneeSaved(false), 2000);
@@ -197,7 +197,7 @@ export default function SourcesPage() {
     setIrisPmtilesLoading(true);
     setIrisPmtilesMsg(null);
     try {
-      const res = await fetch('/api/admin/trigger-pmtiles', { method: 'POST' });
+      const res = await adminFetch('/api/admin/trigger-pmtiles', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setIrisPmtilesMsg(`✓ Workflow lancé — durée estimée 5-8 min. Suivi : ${data.workflow_url}`);
@@ -215,7 +215,7 @@ export default function SourcesPage() {
     setIrisDeleteLoading(true);
     setIrisDeleteMsg(null);
     try {
-      const res = await fetch('/api/admin/iris/delete', { method: 'DELETE' });
+      const res = await adminFetch('/api/admin/iris/delete', { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         setIrisDeleteMsg(`✓ ${data.deleted ?? 0} IRIS supprimés`);
@@ -255,7 +255,7 @@ export default function SourcesPage() {
 
   const refreshPoiStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/sources-stats');
+      const res = await adminFetch('/api/admin/sources-stats');
       if (!res.ok) return;
       const data = await res.json();
       if (data.success) setSourcesStats(data as SourcesStats);
@@ -358,8 +358,8 @@ export default function SourcesPage() {
     setIrisLoading(true);
     try {
       const [res, metaRes] = await Promise.all([
-        fetch('/api/admin/iris/stats'),
-        fetch('/api/admin/iris/metadata'),
+        adminFetch('/api/admin/iris/stats'),
+        adminFetch('/api/admin/iris/metadata'),
       ]);
       const data = await res.json();
       const meta = await metaRes.json();
@@ -376,7 +376,7 @@ export default function SourcesPage() {
   const fetchSourcesStats = useCallback(async () => {
     setSourcesStatsLoading(true);
     try {
-      const res = await fetch('/api/admin/sources-stats');
+      const res = await adminFetch('/api/admin/sources-stats');
       if (!res.ok) { console.error('[sources-stats] HTTP', res.status); setSourcesStatsLoading(false); return; }
       const data = await res.json();
       if (data.success) setSourcesStats(data as SourcesStats);
@@ -394,7 +394,7 @@ export default function SourcesPage() {
   const fetchTransportStats = useCallback(async () => {
     setTransportLoading(true);
     try {
-      const res = await fetch('/api/admin/transport-stats');
+      const res = await adminFetch('/api/admin/transport-stats');
       const data = await res.json();
       if (data.success) setTransportStats(data);
       else console.error('[transport-stats]', data.error);

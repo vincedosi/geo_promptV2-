@@ -733,7 +733,7 @@ function RefreshVilleStats() {
     setProgress(0);
 
     // Étape 1 : vider le cache + récupérer nb chunks
-    const initRes  = await fetch('/api/admin/refresh-ville-stats', { method: 'POST' });
+    const initRes  = await adminFetch('/api/admin/refresh-ville-stats', { method: 'POST' });
     const initJson = await initRes.json() as { total_chunks: number };
     const nChunks  = initJson.total_chunks;
     setTotal(nChunks);
@@ -741,7 +741,7 @@ function RefreshVilleStats() {
 
     let inserted = 0;
     for (let i = 0; i < nChunks; i++) {
-      const res  = await fetch(`/api/admin/refresh-ville-stats?chunk=${i}`, { method: 'POST' });
+      const res  = await adminFetch(`/api/admin/refresh-ville-stats?chunk=${i}`, { method: 'POST' });
       const json = await res.json() as { ok: boolean; inserted?: number; error?: string };
       if (!res.ok || !json.ok) {
         setStatus('error');
