@@ -610,6 +610,16 @@ details > summary::-webkit-details-marker {
   to { opacity: 1; }
 }
 
+/* Page transition — used by app/template.tsx */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-transition-enter {
+  animation: page-enter 0.3s ease-out;
+}
+
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
