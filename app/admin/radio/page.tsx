@@ -126,6 +126,59 @@ export default function RadioAdminPage() {
     setRadiosLoading(false);
   }, [radiosPage, radiosSearch]);
 
+  // ── ODS file upload ────────────────────────────────────────────────────────
+  const odsFileRef = useRef<HTMLInputElement>(null);
+
+  const handleODSUpload = async () => {
+    const file = odsFileRef.current?.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportLogs([{ message: `▶ Import ODS : ${file.name}`, level: 'info', phase: 'INIT' }]);
+    setImportPct(0);
+    setViewingLogId(null);
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+      const res = await adminFetch('/api/radio/import-arcom-ods', { method: 'POST', body: form });
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setImportLogs(prev => [...prev, { message: `✗ ${err.error ?? res.status}`, level: 'error' }]);
+        toastApi.error('Import ODS échoué', err.error);
+        setImporting(false);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line);
+            setImportLogs(prev => [...prev, { message: evt.message, level: evt.level ?? 'info', phase: evt.phase }]);
+            if (evt.type === 'done') toastApi.success('Import ODS terminé');
+            if (evt.type === 'error' && !evt.level) toastApi.error('Erreur', evt.message);
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setImportLogs(prev => [...prev, { message: `✗ ${msg}`, level: 'error' }]);
+      toastApi.error('Import échoué', msg);
+    }
+    setImporting(false);
+    fetchStats();
+    fetchImports();
+    if (odsFileRef.current) odsFileRef.current.value = '';
+  };
+
   // ── Import streaming + structured logs ──────────────────────────────────────
   interface LogLine { message: string; level?: string; phase?: string; timestamp?: string }
   const [importing, setImporting] = useState(false);
@@ -285,7 +338,7 @@ export default function RadioAdminPage() {
       {tab === 'import' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Action cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '16px 18px' }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 4 }}>Import ANFR</div>
               <div style={{ fontSize: 12, color: C.textDim, marginBottom: 12, lineHeight: 1.5 }}>
@@ -325,6 +378,50 @@ export default function RadioAdminPage() {
               }}>
                 {importing ? 'En cours...' : 'Lancer l\'enrichissement'}
               </button>
+            </div>
+
+            <div style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '16px 18px' }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 4 }}>Référentiel Arcom (ODS)</div>
+              <div style={{ fontSize: 12, color: C.textDim, marginBottom: 12, lineHeight: 1.5 }}>
+                Importer le fichier officiel Arcom avec les 1 174 radios et leurs fréquences
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontFamily: fMono, color: C.textSec }}>
+                  {stats ? `${stats.total_radios} radios en base` : '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  ref={odsFileRef}
+                  type="file"
+                  accept=".ods,.xlsx,.xls"
+                  style={{ display: 'none' }}
+                  onChange={() => { /* trigger handled by button */ }}
+                />
+                <button
+                  disabled={importing}
+                  onClick={() => odsFileRef.current?.click()}
+                  style={{
+                    background: 'transparent', border: `0.5px solid ${C.borderDefault}`, borderRadius: 6,
+                    padding: '8px 12px', fontSize: 11, color: C.textSec,
+                    cursor: importing ? 'not-allowed' : 'pointer', fontFamily: fInter,
+                  }}
+                >
+                  Choisir .ods
+                </button>
+                <button
+                  disabled={importing || !odsFileRef.current?.files?.length}
+                  onClick={handleODSUpload}
+                  style={{
+                    background: 'transparent', border: `0.5px solid ${C.teal}`, borderRadius: 6,
+                    padding: '8px 12px', fontSize: 11, fontWeight: 500, color: C.teal,
+                    cursor: importing ? 'not-allowed' : 'pointer', opacity: importing ? 0.5 : 1,
+                    fontFamily: fInter,
+                  }}
+                >
+                  Importer
+                </button>
+              </div>
             </div>
           </div>
 

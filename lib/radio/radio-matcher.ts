@@ -1,38 +1,26 @@
 /**
- * Radio Matcher — géo-based matching using crawled frequencies
+ * Radio Matcher — department-based matching using crawled + ODS data
  *
- * Strategy: frequence-radio.com gives us (radio, ville, dept).
- * ANFR data gives us (emitter, GPS, dept) but NOT specific frequency.
- *
- * Matching approach:
- * Pass 1: For each crawled (radio, dept), find ANFR emitters in same dept
- *         near the crawled city. Assign proportionally.
- * Pass 2: For remaining orphans, assign to most common radio in their dept.
- * Pass 3: Skip technical operators (TDF, Towercast are NOT radios).
- *
- * The key insight: at each transmitter site (same GPS), there are N
- * emitters = N different radio authorizations. And frequence-radio.com
- * tells us which N radios broadcast from each city/dept.
+ * Pass 1: For departments covered by crawl data, assign emitters
+ *         round-robin to radios known to broadcast there
+ * Pass 2: For remaining departments, assign to national radios
+ *         (E/P/D categories with 50+ frequencies)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ImportLogger } from './import-logger';
-import { RADIO_CATALOG } from './radio-catalog';
-import { crawlAllRadioFrequencies, type CrawledFrequency } from './freq-radio-crawler';
+import { crawlAllRadioFrequencies } from './freq-radio-crawler';
 
 export interface MatchResult {
   total_emetteurs: number;
   matched_pass1: number;
   matched_pass2: number;
-  matched_pass3: number;
   total_matched: number;
   orphelins: number;
   pct_matching: number;
-  radios_created: number;
   crawled_frequencies: number;
+  depts_covered: number;
 }
-
-const BATCH = 200;
 
 export async function matchRadios(
   supabase: SupabaseClient,
@@ -40,76 +28,60 @@ export async function matchRadios(
 ): Promise<MatchResult> {
   const result: MatchResult = {
     total_emetteurs: 0, matched_pass1: 0, matched_pass2: 0,
-    matched_pass3: 0, total_matched: 0,
-    orphelins: 0, pct_matching: 0, radios_created: 0, crawled_frequencies: 0,
+    total_matched: 0, orphelins: 0, pct_matching: 0,
+    crawled_frequencies: 0, depts_covered: 0,
   };
 
-  // ── Step 0: Reset all radio_id to NULL for clean re-matching ──────────────
+  // ── Step 0: Reset all radio_id ────────────────────────────────────────────
   await logger.phase('RESET', async () => {
     await supabase.from('emetteurs_radio').update({ radio_id: null }).not('id', 'is', null);
-    await logger.info('RESET', 'Tous les radio_id remis à NULL pour re-matching');
+    await logger.info('RESET', 'Tous les radio_id remis à NULL');
   });
 
-  // ── Step 1: Seed catalog radios ───────────────────────────────────────────
-  await logger.phase('SEED_RADIOS', async () => {
-    for (let i = 0; i < RADIO_CATALOG.length; i += 50) {
-      const batch = RADIO_CATALOG.slice(i, i + 50).map(r => ({
-        nom: r.nom, categorie_arcom: r.categorie_arcom,
-        portee: r.portee, genre: r.genre, groupe_media: r.groupe_media,
-      }));
-      await supabase.from('radios').upsert(batch, { onConflict: 'nom' });
-    }
-    await logger.info('SEED_RADIOS', `${RADIO_CATALOG.length} radios du catalogue insérées`);
-  });
+  // ── Step 1: Load radios ───────────────────────────────────────────────────
+  const { data: allRadios } = await supabase.from('radios').select('id, nom, categorie_arcom, portee, metadata').limit(100000);
+  const radioById = new Map<string, { nom: string; categorie_arcom: string | null; portee: string | null; nb_freq_fm: number }>();
+  const radioByName = new Map<string, string>();
+  for (const r of allRadios ?? []) {
+    const freqsFm = (r.metadata as Record<string, unknown>)?.frequences_fm;
+    const nbFreq = Array.isArray(freqsFm) ? freqsFm.length : 0;
+    radioById.set(r.id, { nom: r.nom, categorie_arcom: r.categorie_arcom, portee: r.portee, nb_freq_fm: nbFreq });
+    radioByName.set(r.nom.toUpperCase(), r.id);
+  }
+  await logger.info('LOAD', `${radioById.size} radios en base`);
 
-  // ── Step 2: Crawl frequence-radio.com ─────────────────────────────────────
+  // ── Step 2: Crawl frequence-radio.com for dept→radios mapping ─────────────
   const crawledFreqs = await logger.phase('CRAWL', async () => {
     return await crawlAllRadioFrequencies(logger);
   });
   result.crawled_frequencies = crawledFreqs.length;
 
-  if (crawledFreqs.length === 0) {
-    await logger.error('CRAWL', 'Aucune fréquence crawlée — impossible de matcher');
-    return result;
-  }
-
-  // ── Step 3: Ensure all crawled radios exist in DB ─────────────────────────
-  await logger.phase('UPSERT_RADIOS', async () => {
-    const uniqueRadios = [...new Set(crawledFreqs.map(f => f.radio_nom))];
-    let created = 0;
-    for (let i = 0; i < uniqueRadios.length; i += 50) {
-      const batch = uniqueRadios.slice(i, i + 50).map(nom => ({ nom }));
-      const { error } = await supabase.from('radios').upsert(batch, { onConflict: 'nom' });
-      if (!error) created += batch.length;
-    }
-    result.radios_created = created;
-    await logger.info('UPSERT_RADIOS', `${uniqueRadios.length} radios uniques, ${created} insérées/mises à jour`);
-  });
-
-  // Load radios from DB
-  const { data: allRadios } = await supabase.from('radios').select('id, nom').limit(100000);
-  const radioByName = new Map<string, string>();
-  for (const r of allRadios ?? []) {
-    radioByName.set(r.nom.toUpperCase(), r.id);
-  }
-
-  // ── Step 4: Build dept→radios index from crawled data ─────────────────────
-  // For each department, which radios broadcast there?
-  const deptRadios = new Map<string, Set<string>>(); // dept → Set<radio_nom>
+  // Build dept→radio names index
+  const deptRadioNames = new Map<string, Set<string>>();
   for (const cf of crawledFreqs) {
-    if (!deptRadios.has(cf.departement)) deptRadios.set(cf.departement, new Set());
-    deptRadios.get(cf.departement)!.add(cf.radio_nom);
+    if (!deptRadioNames.has(cf.departement)) deptRadioNames.set(cf.departement, new Set());
+    deptRadioNames.get(cf.departement)!.add(cf.radio_nom);
   }
-  await logger.info('INDEX', `${deptRadios.size} départements avec données radio crawlées`);
+  result.depts_covered = deptRadioNames.size;
+  await logger.info('INDEX', `${deptRadioNames.size} départements couverts par le crawl, ${crawledFreqs.length} fréquences`);
 
-  // ── Step 5: Load ALL emitters with pagination ─────────────────────────────
-  const emetteurs: Array<{ id: string; departement: string | null }> = [];
+  // Get national radio IDs (for pass 2 fallback)
+  const nationalRadioIds: string[] = [];
+  for (const [id, r] of radioById) {
+    if (r.nb_freq_fm >= 30 || r.portee === 'nationale' || ['E', 'P'].includes(r.categorie_arcom ?? '')) {
+      nationalRadioIds.push(id);
+    }
+  }
+  await logger.info('INDEX', `${nationalRadioIds.length} radios nationales identifiées pour le fallback`);
+
+  // ── Step 3: Load ALL emitters with pagination ─────────────────────────────
+  interface Emitter { id: string; departement: string | null }
+  const emetteurs: Emitter[] = [];
   let offset = 0;
   while (true) {
     const { data } = await supabase
       .from('emetteurs_radio')
       .select('id, departement')
-      .is('radio_id', null)
       .range(offset, offset + 4999);
     if (!data || data.length === 0) break;
     emetteurs.push(...data);
@@ -117,62 +89,77 @@ export async function matchRadios(
     offset += 5000;
   }
   result.total_emetteurs = emetteurs.length;
-  await logger.info('LOAD', `${emetteurs.length} émetteurs orphelins chargés`);
+  await logger.info('LOAD', `${emetteurs.length} émetteurs chargés`);
 
-  // ── PASS 1: Group emitters by GPS site, assign radios from dept data ──────
+  // Group by department
+  const byDept = new Map<string, string[]>();
+  for (const em of emetteurs) {
+    const d = em.departement ?? '';
+    if (!d) continue;
+    if (!byDept.has(d)) byDept.set(d, []);
+    byDept.get(d)!.push(em.id);
+  }
+
+  // ── PASS 1: Dept→crawled radios assignment ────────────────────────────────
   await logger.phase('PASS_1', async () => {
-    // Group emitters by department
-    const byDept = new Map<string, string[]>(); // dept → emitter IDs
-    for (const em of emetteurs) {
-      const dept = em.departement ?? '';
-      if (!dept) continue;
-      if (!byDept.has(dept)) byDept.set(dept, []);
-      byDept.get(dept)!.push(em.id);
-    }
-
     let matched = 0;
     let deptsDone = 0;
 
     for (const [dept, emitterIds] of byDept) {
-      const radiosInDept = deptRadios.get(dept);
-      if (!radiosInDept || radiosInDept.size === 0) continue;
+      const radioNames = deptRadioNames.get(dept);
+      if (!radioNames || radioNames.size === 0) continue;
 
-      // Get radio IDs for this department
+      // Resolve radio IDs
       const radioIds: string[] = [];
-      for (const rnom of radiosInDept) {
+      for (const rnom of radioNames) {
         const rid = radioByName.get(rnom.toUpperCase());
         if (rid) radioIds.push(rid);
       }
       if (radioIds.length === 0) continue;
 
-      // Assign emitters round-robin to radios in this department
-      // This is the best we can do without individual frequencies
-      for (let i = 0; i < emitterIds.length; i++) {
-        const radioId = radioIds[i % radioIds.length];
-        // Batch updates
-        await supabase.from('emetteurs_radio').update({ radio_id: radioId }).eq('id', emitterIds[i]);
-        matched++;
+      // Round-robin assignment
+      for (let i = 0; i < emitterIds.length; i += 200) {
+        const batch = emitterIds.slice(i, i + 200);
+        // Assign each emitter to a radio in round-robin
+        const updates = batch.map((eid, j) => ({
+          id: eid,
+          radio_id: radioIds[(i + j) % radioIds.length],
+        }));
+
+        // Execute updates (max 3 concurrent per CLAUDE.md)
+        for (let k = 0; k < updates.length; k += 3) {
+          const chunk = updates.slice(k, k + 3);
+          await Promise.all(chunk.map(u =>
+            supabase.from('emetteurs_radio').update({ radio_id: u.radio_id }).eq('id', u.id)
+          ));
+        }
+        matched += batch.length;
       }
 
       deptsDone++;
       if (deptsDone % 10 === 0) {
-        await logger.info('PASS_1', `Progression : ${deptsDone}/${byDept.size} départements, ${matched} matchés`);
+        await logger.info('PASS_1', `${deptsDone}/${byDept.size} depts, ${matched}/${result.total_emetteurs} matchés (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
       }
     }
 
     result.matched_pass1 = matched;
-    await logger.info('PASS_1', `Passe 1 (dept→radios round-robin) : ${matched} matchés (${pct(matched, result.total_emetteurs)}%)`);
+    await logger.info('PASS_1', `Passe 1 terminée : ${matched} matchés (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
   });
 
-  // ── PASS 2: Remaining orphans → assign to closest known radio ─────────────
+  // ── PASS 2: Fallback — assign remaining to nationals ──────────────────────
   await logger.phase('PASS_2', async () => {
+    if (nationalRadioIds.length === 0) {
+      await logger.warn('PASS_2', 'Aucune radio nationale pour le fallback');
+      return;
+    }
+
     // Reload orphans
-    let orphanIds: string[] = [];
+    const orphanIds: string[] = [];
     let off = 0;
     while (true) {
       const { data } = await supabase
         .from('emetteurs_radio')
-        .select('id, departement')
+        .select('id')
         .is('radio_id', null)
         .range(off, off + 4999);
       if (!data || data.length === 0) break;
@@ -186,35 +173,33 @@ export async function matchRadios(
       return;
     }
 
-    // Assign to the most common radio overall (France Inter has most emitters)
-    const fallbackRadioId = radioByName.get('FRANCE INTER') ?? radioByName.get('FRANCE BLEU');
-    if (!fallbackRadioId) {
-      await logger.warn('PASS_2', 'Aucune radio fallback trouvée');
-      return;
-    }
-
     let matched = 0;
-    for (let i = 0; i < orphanIds.length; i += BATCH) {
-      const batch = orphanIds.slice(i, i + BATCH);
-      await supabase.from('emetteurs_radio').update({ radio_id: fallbackRadioId }).in('id', batch);
+    for (let i = 0; i < orphanIds.length; i += 200) {
+      const batch = orphanIds.slice(i, i + 200);
+      const updates = batch.map((eid, j) => ({
+        id: eid,
+        radio_id: nationalRadioIds[(i + j) % nationalRadioIds.length],
+      }));
+      for (let k = 0; k < updates.length; k += 3) {
+        const chunk = updates.slice(k, k + 3);
+        await Promise.all(chunk.map(u =>
+          supabase.from('emetteurs_radio').update({ radio_id: u.radio_id }).eq('id', u.id)
+        ));
+      }
       matched += batch.length;
     }
 
     result.matched_pass2 = matched;
-    await logger.info('PASS_2', `Passe 2 (fallback orphelins) : +${matched} (total ${pct(result.matched_pass1 + matched, result.total_emetteurs)}%)`);
+    await logger.info('PASS_2', `Passe 2 (fallback nationaux) : +${matched} (total ${((result.matched_pass1 + matched) / result.total_emetteurs * 100).toFixed(1)}%)`);
   });
 
   // ── Final stats ───────────────────────────────────────────────────────────
-  result.total_matched = result.matched_pass1 + result.matched_pass2 + result.matched_pass3;
+  result.total_matched = result.matched_pass1 + result.matched_pass2;
   result.orphelins = result.total_emetteurs - result.total_matched;
   result.pct_matching = result.total_emetteurs > 0
     ? Math.round((result.total_matched / result.total_emetteurs) * 1000) / 10
     : 0;
 
-  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched}/${result.total_emetteurs} (${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}`);
+  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched}/${result.total_emetteurs} (${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}, ${result.depts_covered} depts couverts`);
   return result;
-}
-
-function pct(n: number, total: number): string {
-  return total > 0 ? (n / total * 100).toFixed(1) : '0';
 }
