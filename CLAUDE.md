@@ -1,4 +1,4 @@
-# CLAUDE.md — GENESIS
+# CLAUDE.md — GEOMATIK
 
 > Lu automatiquement à chaque session. Chaque ligne ici prévient une erreur réelle.
 
@@ -6,17 +6,18 @@
 
 ## Projet
 
-**GENESIS** — SaaS B2B géomarketing OOH. Planification d'affichage extérieur sur données INSEE.
+**GEOMATIK** — SaaS B2B géomarketing OOH. Planification d'affichage extérieur sur données INSEE.
 Stack : Next.js 14 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
 
 ### Vocabulaire métier
 - **OOH** = affichage publicitaire extérieur (panneaux, abribus, DOOH)
-- **IRIS** = découpage INSEE ~2000 hab (~51k zones France) — table `iris_data`
+- **IRIS** = découpage INSEE ~2000 hab (~51k zones France) — table `iris`
 - **Carreaux Filosofi** = grille INSEE 200m × 200m, indicateurs socio-démo — table `carreaux_filosofi` (~2.3M lignes)
 - **Isochrone** = zone accessible en N min (pied/vélo/voiture) via OpenRouteService
 - **Battle** = découpage territorial sans chevauchement (Voronoï pondéré par isochrones)
 - **Choroplèthe** = carte colorée par gradient selon un indicateur statistique
 - **Scoring OOH** = note composite d'un panneau (audience × démographie × trafic × proximité POI)
+- **PMTiles** = format de tuiles vectorielles statiques, hébergées sur GitHub Releases (limite Supabase Storage 50 MB)
 
 ## ⛔ RÈGLES CRITIQUES
 
@@ -29,7 +30,7 @@ INTERDIT :
 - Bbox France entière + DOM-TOM (`-63.2,-21.5,55.9,51.2`) sans LIMIT — bbox métro max : `-5.5,41.2,9.8,51.2`
 - Prefetch/preload massif au chargement de page
 - `Promise.all()` avec plus de 3 appels Supabase
-- Full table scan sur iris_data (51k) ou carreaux_filosofi (2.3M)
+- Full table scan sur iris (51k) ou carreaux_filosofi (2.3M)
 - Endpoints avec listes illimitées de colonnes (`?colonnes=X,Y,Z` est INTERDIT)
 
 OBLIGATOIRE :
@@ -55,6 +56,18 @@ NE JAMAIS remettre `getUser()` sur les routes API → cause 409 token refresh co
 - Fonctions PostGIS battle (`get_isochrone_battle`, `clip_geojson_to_france`)
 - `middleware.ts`
 
+### Données IRIS
+
+- Table `iris` — colonnes socio-démo **dynamiques** (ajoutées au fil des imports INSEE). Ne jamais hardcoder la liste de colonnes.
+- `is_true_iris` = true → vrais IRIS (~16 400). false → IRIS communaux (~33 000). Filtrer sur `is_true_iris = true` pour toute analyse statistique.
+- PMTiles IRIS hébergées sur **GitHub Releases** (pas Supabase Storage). Proxy CORS : `/api/iris-tiles-proxy`.
+- `.trim()` obligatoire sur les données CSV INSEE (espaces invisibles dans headers/valeurs).
+
+### Tuiles MVT
+
+- Gzip obligatoire sur les réponses MVT (`/api/tiles/`). MapLibre 5.x plante silencieusement sans gzip.
+- `geom_3857` pré-calculé sur `carreaux_filosofi` (2.3M lignes). Ne pas recalculer à la volée.
+
 ## Méthodologie
 
 1. **Reconnaissance** — `grep -rn` sur les fichiers concernés AVANT de coder
@@ -70,10 +83,13 @@ NE JAMAIS remettre `getUser()` sur les routes API → cause 409 token refresh co
 - Routes API : `export const dynamic = 'force-dynamic'`, validation Zod, `createAdminClient()` depuis `@/lib/auth`
 - Outils IA : 1 fichier = 1 outil dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
 - Inserts DB : batch par 50 max (pattern `lib/import/inserter.ts`)
-- Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`, PMTiles IRIS depuis `/public`
+- Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`, PMTiles IRIS via GitHub Releases
+- Git : commits atomiques (1 sujet = 1 commit), format `type: description` (feat/fix/chore/docs)
 
 ## Design System
 Pour TOUT travail frontend (composant, page, fix visuel), lis et applique les règles de DESIGN_SYSTEM.md AVANT de commencer. Ce fichier est la source de vérité pour les couleurs, typographies, composants et patterns UI.
+
+Résumé : dark minimal (Inter + JetBrains Mono), pas de violet, pas d'Orbitron/Michroma, sentence case, flat total, accent teal #4ecdc4.
 
 ## Fichiers de référence (lire avant de créer)
 
@@ -91,6 +107,15 @@ npm run build        # Build prod
 npx tsc --noEmit     # Type-check
 npm test             # Vitest
 npm run lint         # ESLint
+```
+
+## Lancement Claude Code (machine Dentsu)
+
+```powershell
+cd C:\GENESIS\genesis_app
+$env:CLAUDE_CODE_GIT_BASH_PATH = "C:\Users\vsidol01\AppData\Local\Programs\Git\bin\bash.exe"
+$env:PATH += ";C:\Users\LA_vsidol01\AppData\Roaming\npm"
+claude
 ```
 
 ## Compaction
