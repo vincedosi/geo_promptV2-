@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        const result = await crawlAndMatchRadios(supabase, send);
+        const result = await crawlAndMatchRadios(supabase, send, logId!);
 
         if (logId) {
           await supabase.from('radio_imports_log').update({

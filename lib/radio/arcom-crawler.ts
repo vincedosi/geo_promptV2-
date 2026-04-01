@@ -1,24 +1,10 @@
 /**
- * Arcom "Ma Radio FM" crawler — scrapes radio station data
- *
- * Strategy: crawl by department to get radio name + frequency + city mappings,
- * then match with ANFR emitters by frequency proximity.
- *
- * Rate limited: 1 request/second, polite User-Agent.
+ * Arcom "Ma Radio FM" crawler — radio matching via ANFR exploitant names
+ * Instrumented with ImportLogger for granular phase-by-phase logging.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-// All 101 French department codes
-const DEPTS = [
-  '01','02','03','04','05','06','07','08','09','10','11','12','13','14','15',
-  '16','17','18','19','2A','2B','21','22','23','24','25','26','27','28','29',
-  '30','31','32','33','34','35','36','37','38','39','40','41','42','43','44',
-  '45','46','47','48','49','50','51','52','53','54','55','56','57','58','59',
-  '60','61','62','63','64','65','66','67','68','69','70','71','72','73','74',
-  '75','76','77','78','79','80','81','82','83','84','85','86','87','88','89',
-  '90','91','92','93','94','95','971','972','973','974','976',
-];
+import { ImportLogger } from './import-logger';
 
 // Known national/major radios with their typical categories
 const KNOWN_RADIOS: Record<string, { categorie: string; portee: string; genre: string; groupe: string }> = {
@@ -53,132 +39,130 @@ const KNOWN_RADIOS: Record<string, { categorie: string; portee: string; genre: s
   'Voltage':          { categorie: 'B', portee: 'locale', genre: 'musicale', groupe: 'Indépendant' },
 };
 
-type ProgressCallback = (event: { type: string; message: string; [k: string]: unknown }) => void;
+type ProgressCallback = (event: Record<string, unknown>) => void;
 
-/**
- * Strategy: instead of crawling Arcom (which may block),
- * use the ANFR exploitant names to deduce radio names,
- * then enrich with the known radio database.
- */
 export async function crawlAndMatchRadios(
   supabase: SupabaseClient,
   onProgress: ProgressCallback,
+  importLogId: string,
 ): Promise<{ radiosCreated: number; emetteursMatcher: number }> {
+  const logger = new ImportLogger(supabase, importLogId, onProgress);
 
-  // 1. Get distinct exploitant names from emetteurs_radio
-  onProgress({ type: 'status', message: 'Récupération des exploitants ANFR...' });
+  await logger.info('INIT', 'Début de l\'enrichissement radios');
 
-  const { data: exploitants, error } = await supabase
-    .from('emetteurs_radio')
-    .select('exploitant')
-    .not('exploitant', 'is', null);
-
-  if (error) throw new Error(`Fetch exploitants: ${error.message}`);
-
-  // Deduplicate
-  const uniqueExploitants = [...new Set(
-    (exploitants ?? []).map((e: { exploitant: string | null }) => (e.exploitant ?? '').trim()).filter(Boolean)
-  )];
-
-  onProgress({ type: 'progress', message: `${uniqueExploitants.length} exploitants distincts trouvés` });
-
-  // 2. Match known radios
   let radiosCreated = 0;
   let emetteursMatcher = 0;
 
-  // First, seed the known radios
-  onProgress({ type: 'status', message: 'Création des radios connues...' });
-  const knownNames = Object.keys(KNOWN_RADIOS);
+  // ── Phase LOAD_KNOWN ──────────────────────────────────────────────────────
+  await logger.phase('LOAD_KNOWN', async () => {
+    const knownNames = Object.keys(KNOWN_RADIOS);
+    await logger.info('LOAD_KNOWN', `${knownNames.length} radios nationales connues à charger`);
 
-  for (let i = 0; i < knownNames.length; i += 50) {
-    const batch = knownNames.slice(i, i + 50).map(nom => ({
-      nom,
-      categorie_arcom: KNOWN_RADIOS[nom].categorie,
-      portee: KNOWN_RADIOS[nom].portee,
-      genre: KNOWN_RADIOS[nom].genre,
-      groupe_media: KNOWN_RADIOS[nom].groupe,
-    }));
+    for (let i = 0; i < knownNames.length; i += 50) {
+      const batch = knownNames.slice(i, i + 50).map(nom => ({
+        nom,
+        categorie_arcom: KNOWN_RADIOS[nom].categorie,
+        portee: KNOWN_RADIOS[nom].portee,
+        genre: KNOWN_RADIOS[nom].genre,
+        groupe_media: KNOWN_RADIOS[nom].groupe,
+      }));
 
-    const { error: upsertErr } = await supabase
-      .from('radios')
-      .upsert(batch, { onConflict: 'nom' });
+      const { error } = await supabase.from('radios').upsert(batch, { onConflict: 'nom' });
+      if (!error) radiosCreated += batch.length;
+      else await logger.warn('LOAD_KNOWN', `Erreur upsert batch : ${error.message}`);
+    }
+    await logger.info('LOAD_KNOWN', `${radiosCreated} radios de référence créées/mises à jour`);
+  });
 
-    if (!upsertErr) radiosCreated += batch.length;
-  }
+  // ── Phase FETCH_EXPLOITANTS ───────────────────────────────────────────────
+  const uniqueExploitants = await logger.phase('FETCH_EXPL', async () => {
+    const { data: exploitants, error } = await supabase
+      .from('emetteurs_radio')
+      .select('exploitant')
+      .not('exploitant', 'is', null);
 
-  onProgress({ type: 'progress', message: `${radiosCreated} radios de référence créées/mises à jour` });
+    if (error) throw new Error(`Fetch exploitants: ${error.message}`);
 
-  // 3. Try to match exploitant names to radio names
-  onProgress({ type: 'status', message: 'Matching exploitants → radios...' });
+    const unique = [...new Set(
+      (exploitants ?? []).map((e: { exploitant: string | null }) => (e.exploitant ?? '').trim()).filter(Boolean)
+    )];
+    await logger.info('FETCH_EXPL', `${unique.length} exploitants distincts trouvés`);
+    return unique;
+  });
 
-  // Get all radios from DB
-  const { data: allRadios } = await supabase
-    .from('radios')
-    .select('id, nom');
+  // ── Phase MATCHING ────────────────────────────────────────────────────────
+  const exploitantRadios = await logger.phase('MATCHING', async () => {
+    const { data: allRadios } = await supabase.from('radios').select('id, nom');
 
-  const radioMap = new Map<string, string>(); // normalized name → id
-  for (const r of allRadios ?? []) {
-    radioMap.set(normalize(r.nom), r.id);
-    // Also add without common suffixes
-    radioMap.set(normalize(r.nom.replace(/\s*(FM|fm|SAS|SARL|SA)\s*$/i, '')), r.id);
-  }
+    const radioMap = new Map<string, string>();
+    for (const r of allRadios ?? []) {
+      radioMap.set(normalize(r.nom), r.id);
+      radioMap.set(normalize(r.nom.replace(/\s*(FM|fm|SAS|SARL|SA)\s*$/i, '')), r.id);
+    }
 
-  // Also create radios from exploitant names that look like radio names
-  const exploitantRadios = new Map<string, string>(); // exploitant → radio_id
-  for (const exp of uniqueExploitants) {
-    // Try direct match
-    const normExp = normalize(exp);
-    let radioId = radioMap.get(normExp);
+    const result = new Map<string, string>();
+    let directMatch = 0, partialMatch = 0, created = 0, skipped = 0;
 
-    // Try partial match (exploitant contains radio name)
-    if (!radioId) {
-      for (const [normName, id] of radioMap) {
-        if (normExp.includes(normName) && normName.length > 3) {
-          radioId = id;
-          break;
+    for (const exp of uniqueExploitants) {
+      const normExp = normalize(exp);
+      let radioId = radioMap.get(normExp);
+
+      if (radioId) { directMatch++; }
+      else {
+        for (const [normName, id] of radioMap) {
+          if (normExp.includes(normName) && normName.length > 3) {
+            radioId = id;
+            partialMatch++;
+            break;
+          }
         }
       }
-    }
 
-    // Create new radio if exploitant looks like one (heuristic)
-    if (!radioId && exp.length > 2 && exp.length < 50 && !exp.match(/^(TOWERCAST|TDF|ITAS|ONECAST)/i)) {
-      const { data: newRadio } = await supabase
-        .from('radios')
-        .upsert({ nom: exp }, { onConflict: 'nom' })
-        .select('id')
-        .single();
+      if (!radioId && exp.length > 2 && exp.length < 50 && !exp.match(/^(TOWERCAST|TDF|ITAS|ONECAST)/i)) {
+        const { data: newRadio } = await supabase
+          .from('radios')
+          .upsert({ nom: exp }, { onConflict: 'nom' })
+          .select('id')
+          .single();
 
-      if (newRadio) {
-        radioId = newRadio.id;
-        radioMap.set(normExp, radioId!);
-        radiosCreated++;
+        if (newRadio) {
+          radioId = newRadio.id;
+          radioMap.set(normExp, radioId!);
+          created++;
+          radiosCreated++;
+        }
+      } else if (!radioId) {
+        skipped++;
       }
+
+      if (radioId) result.set(exp, radioId);
     }
 
-    if (radioId) exploitantRadios.set(exp, radioId);
-  }
-
-  onProgress({ type: 'progress', message: `${exploitantRadios.size} exploitants matchés` });
-
-  // 4. Update emetteurs_radio with radio_id by exploitant name
-  onProgress({ type: 'status', message: 'Mise à jour des FK radio_id...' });
-
-  for (const [exploitant, radioId] of exploitantRadios) {
-    const { count } = await supabase
-      .from('emetteurs_radio')
-      .update({ radio_id: radioId })
-      .eq('exploitant', exploitant)
-      .is('radio_id', null);
-
-    emetteursMatcher += count ?? 0;
-  }
-
-  onProgress({
-    type: 'done',
-    message: `Matching terminé : ${radiosCreated} radios, ${emetteursMatcher} émetteurs matchés`,
-    radios_created: radiosCreated,
-    emetteurs_matched: emetteursMatcher,
+    await logger.info('MATCHING', `Direct : ${directMatch}, Partiel : ${partialMatch}, Créés : ${created}, Ignorés : ${skipped}`, { directMatch, partialMatch, created, skipped });
+    return result;
   });
+
+  // ── Phase UPDATE_FK ───────────────────────────────────────────────────────
+  await logger.phase('UPDATE_FK', async () => {
+    for (const [exploitant, radioId] of exploitantRadios) {
+      const { count } = await supabase
+        .from('emetteurs_radio')
+        .update({ radio_id: radioId })
+        .eq('exploitant', exploitant)
+        .is('radio_id', null);
+
+      emetteursMatcher += count ?? 0;
+    }
+    await logger.info('UPDATE_FK', `${emetteursMatcher} émetteurs associés à une radio`);
+  });
+
+  // ── Phase FINALIZE ────────────────────────────────────────────────────────
+  const orphelins = await supabase
+    .from('emetteurs_radio')
+    .select('*', { count: 'exact', head: true })
+    .is('radio_id', null);
+
+  await logger.success('FINALIZE', `Enrichissement terminé : ${radiosCreated} radios, ${emetteursMatcher} émetteurs associés, ${orphelins.count ?? 0} orphelins`);
 
   return { radiosCreated, emetteursMatcher };
 }
