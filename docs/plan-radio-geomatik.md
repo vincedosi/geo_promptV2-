@@ -306,13 +306,15 @@ Ajouter dans la section "Admin" :
 - Endpoint heatmap (points pondérés)
 - Protection super-admin sur les routes d'écriture
 
-### Phase 4 — Page admin `/admin/radio`
-- Sidebar : ajout lien Radio
-- Page `/admin/sources` : carte stats Radio + onglet + bloc données système
-- Page `/admin/radio` : 3 onglets (Import, Radios, Stats)
-- Lancement import/crawl depuis l'UI avec logs temps réel
-- CRUD référentiel radios + import CSV bulk
-- Dashboard stats avec charts
+### Phase 4 — Page admin `/admin/radio` ✅
+- ✅ Sidebar : lien "Radio FM/DAB+" avec icône Radio + badge Admin
+- ✅ Page `/admin/sources` : 6ème carte stats "Radio" + onglet "Radio" + bloc données système avec lien "Gérer →"
+- ✅ Page `/admin/radio` : 3 onglets (Import, Radios, Stats) — 548 lignes
+  - Import : cards ANFR/enrichissement, streaming NDJSON, historique, zone danger
+  - Radios : table paginée avec search, badges audience/tarifs
+  - Stats : 4 KPIs + bar charts distribution (catégorie, portée, genre)
+- ✅ Lancement import/crawl depuis l'UI avec logs temps réel
+- ✅ Suppression avec dry-run + confirmation modale
 - Design System GEOMATIK (dark minimal, teal accent)
 
 ### Phase 5 — Intégration `/map`
