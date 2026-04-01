@@ -317,12 +317,16 @@ Ajouter dans la section "Admin" :
 - ✅ Suppression avec dry-run + confirmation modale
 - Design System GEOMATIK (dark minimal, teal accent)
 
-### Phase 5 — Intégration `/map`
-- Layer group Radio dans le layer switcher
-- 4 sous-couches : points clusters, buffers couverture, heatmap densité, radio spécifique
-- Panel filtre latéral section Radio
-- Popup émetteur + drawer fiche radio
-- Symbologie par portée et système (FM/DAB+)
+### Phase 5 — Intégration `/map` ✅
+- ✅ 6 layers MapLibre : radio-clusters, radio-cluster-count, radio-points, radio-heatmap, radio-coverage-fill, radio-coverage-line
+- ✅ Clustered GeoJSON source avec lazy loading par bbox + debounce 500ms
+- ✅ Points colorés par portée (nationale=bleu, locale=vert, autoroute=jaune)
+- ✅ Taille des points proportionnelle à la puissance
+- ✅ Heatmap densité pondérée par puissance, palette teal→blanc
+- ✅ Cercles de couverture estimée générés client-side (max 500)
+- ✅ Popup au clic : nom radio, fréquence, puissance, couverture, commune
+- ✅ FilterPanel section Radio : toggle principal + sous-toggles couverture/heatmap
+- ✅ Heatmap et clusters mutuellement exclusifs
 
 ### Phase 6 — Croisement OOH (V2)
 - Requête spatiale : panneaux sélectionnés → radios couvrant la même zone
