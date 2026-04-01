@@ -316,6 +316,7 @@ Ajouter dans la section "Admin" :
 - ✅ Lancement import/crawl depuis l'UI avec logs temps réel
 - ✅ Suppression avec dry-run + confirmation modale
 - Design System GEOMATIK (dark minimal, teal accent)
+- ✅ Système de logs détaillé (ImportLogger + radio_import_log_entries + log viewer terminal)
 
 ### Phase 5 — Intégration `/map` ✅
 - ✅ 6 layers MapLibre : radio-clusters, radio-cluster-count, radio-points, radio-heatmap, radio-coverage-fill, radio-coverage-line
