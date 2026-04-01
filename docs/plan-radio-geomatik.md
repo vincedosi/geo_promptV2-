@@ -286,25 +286,21 @@ Ajouter dans la section "Admin" :
 - ✅ Vue matérialisée `radio_couvertures_agg` (ST_Union des buffers couverture)
 - ✅ 4 tables, 22 index, 4 fonctions, 4 policies, 1 matview, 1 trigger
 
-### Phase 1 — Import ANFR (données techniques)
-- Script `scripts/update-radio.mjs`
-- Téléchargement ZIP data.gouv.fr
-- Parsing CSV, filtrage FM/DAB+, jointure support
-- Diff avec état courant, archivage, insertion
-- Calcul des rayons de couverture estimés
-- **Lancement :** `npm run update-radio`
+### Phase 1 — Import ANFR (données techniques) ✅
+- ✅ `lib/radio/anfr-parser.ts` — téléchargement ZIP data.gouv.fr, parsing CSV, filtrage FM/DAB+, jointure support, conversion DMS→décimal
+- ✅ `lib/radio/anfr-import.ts` — pipeline complet : log, archive, diff, upsert batch 500, calcul couverture, streaming NDJSON
+- ✅ `POST /api/radio/import-anfr` — route API streaming, super-admin, maxDuration 300s
+- **Lancement :** depuis `/admin/radio` (bouton import) ou via API
 
-### Phase 2 — Crawler Arcom (noms de radios)
-- Script `scripts/crawl-arcom-radios.mjs`
-- Crawl de la liste des radios par département
-- Extraction : nom, fréquences, émetteurs, catégorie
-- Matching avec les données ANFR (fréquence + proximité géo)
-- Peuplement table `radios` + FK `radio_id`
-- Rate limiting 1 req/s, cache local `data/cache-arcom/`, mode incrémental
-- **Lancement :** `npm run crawl-radios`
+### Phase 2 — Matching radios (noms + classification) ✅
+- ✅ `lib/radio/arcom-crawler.ts` — base de 28 radios nationales connues, matching ANFR exploitant → radio, création FK radio_id
+- ✅ `POST /api/radio/crawl-arcom` — route API streaming, super-admin
+- Note : le crawl Arcom HTML est remplacé par un matching par exploitant ANFR + base de radios connues (plus fiable et sans risque de blocage)
 
-### Phase 3 — API backend
-- Routes API listées en section 5.5
+### Phase 3 — API backend ✅
+- ✅ 9 routes API dans `app/api/radio/` (voir section 5.5)
+- ✅ `GET /stats`, `GET /imports-history`, `DELETE /data`, `GET /emetteurs` (GeoJSON), `GET /stations`, `GET /stations/[id]`, `PUT /stations/[id]`
+- ✅ Middleware : `/api/radio` ajouté aux routes protégées
 - RPC PostGIS pour les requêtes spatiales
 - Endpoint GeoJSON avec filtres combinables
 - Endpoint heatmap (points pondérés)
