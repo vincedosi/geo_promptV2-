@@ -127,7 +127,8 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio'>('all');
+  const [radioStats, setRadioStats] = useState<{ total_emetteurs: number; emetteurs_fm: number; emetteurs_dab: number; total_radios: number } | null>(null);
 
   // IRIS stats
   const [irisStats,   setIrisStats]   = useState<IrisStats | null>(null);
@@ -385,11 +386,19 @@ export default function SourcesPage() {
     setSourcesStatsLoading(false);
   }, []);
 
+  const fetchRadioStats = useCallback(async () => {
+    try {
+      const res = await adminFetch('/api/radio/stats');
+      if (res.ok) { const d = await res.json(); setRadioStats(d); }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchSources();
     fetchOrgs();
     fetchSourcesStats();
-  }, [fetchSources, fetchOrgs, fetchSourcesStats]);
+    fetchRadioStats();
+  }, [fetchSources, fetchOrgs, fetchSourcesStats, fetchRadioStats]);
 
   const fetchTransportStats = useCallback(async () => {
     setTransportLoading(true);
@@ -721,13 +730,14 @@ export default function SourcesPage() {
         const ss = sourcesStats;
         const fmtK = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n);
         const allTotal = ss ? ss.ooh.total + ss.poi.total + ss.transport.total + ss.flux.total + ss.carreaux.total + ss.iris.total : sources.length;
-        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport'; label: string; color: string }[] = [
+        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio'; label: string; color: string }[] = [
           { key: 'all',       label: `Toutes (${sourcesStatsLoading ? '…' : fmtK(allTotal)})`,              color: C.accent },
           { key: 'poi',       label: `POI (${ss ? fmtK(ss.poi.total) : '…'})`,                             color: '#4ecdc4' },
           { key: 'carreaux',  label: `Carreaux (${ss ? fmtK(ss.carreaux.total) : '…'})`,                  color: C.green },
           { key: 'panneaux',  label: `OOH (${ss ? fmtK(ss.ooh.total) : '…'})`,                            color: C.warn },
           { key: 'iris',      label: `IRIS (${ss ? fmtK(ss.iris.total) : '…'})`,                           color: '#06b6d4' },
           { key: 'transport', label: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, color: '#22c55e' },
+          { key: 'radio',     label: `Radio (${radioStats ? fmtK(radioStats.total_emetteurs) : '…'})`,    color: C.accent },
         ];
         return (
           <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
@@ -759,13 +769,14 @@ export default function SourcesPage() {
 
       {/* ── All Tab — KPI Cards ──────────────────────────────────────────────── */}
       {activeTab === 'all' && sourcesStats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 20 }}>
           {[
             { label: 'Panneaux OOH', value: sourcesStats.ooh.total.toLocaleString('fr-FR'), sub: `${sourcesStats.ooh.nb_villes} villes · ${(sourcesStats.ooh.regies ?? []).length} régies`, color: C.warn, tab: 'panneaux' as const },
             { label: 'POI', value: sourcesStats.poi.total.toLocaleString('fr-FR'), sub: `lycées, CIRFA, autres`, color: '#4ecdc4', tab: 'poi' as const },
             { label: 'Carreaux', value: (sourcesStats.carreaux.total / 1_000_000).toFixed(2) + 'M', sub: 'Filosofi 200m', color: C.green, tab: 'carreaux' as const },
             { label: 'IRIS', value: sourcesStats.iris.total.toLocaleString('fr-FR'), sub: `${sourcesStats.iris.enrichis.toLocaleString('fr-FR')} enrichis`, color: '#06b6d4', tab: 'iris' as const },
             { label: 'Transport & Flux', value: (sourcesStats.transport.total + sourcesStats.flux.total).toLocaleString('fr-FR'), sub: 'arrêts + routes', color: '#22c55e', tab: 'transport' as const },
+            { label: 'Radio', value: radioStats ? radioStats.total_emetteurs.toLocaleString('fr-FR') : '0', sub: radioStats ? `FM ${radioStats.emetteurs_fm} · DAB+ ${radioStats.emetteurs_dab}` : 'aucun import', color: C.accent, tab: 'radio' as const },
           ].map(({ label, value, sub, color, tab }, idx) => (
             <button
               key={tab}
@@ -1923,6 +1934,25 @@ export default function SourcesPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Radio system data block ── */}
+          {(activeTab === 'all' || activeTab === 'radio') && (
+            <div style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 10, padding: '2px 8px', background: C.accentDim, border: `0.5px solid ${C.borderLight}`, borderRadius: 4, color: C.accent }}>Radio</span>
+                <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>Radio — Émetteurs FM & DAB+</span>
+              </div>
+              <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span>{radioStats?.emetteurs_fm ?? 0} émetteurs FM</span>
+                <span>{radioStats?.emetteurs_dab ?? 0} émetteurs DAB+</span>
+                <span>{radioStats?.total_radios ?? 0} radios identifiées</span>
+                <span style={{ color: C.muted }}>table: emetteurs_radio</span>
+              </div>
+              <a href="/admin/radio" style={{ fontSize: 11, color: C.accent, textDecoration: 'none', fontFamily: fontInter }}>
+                Gérer →
+              </a>
             </div>
           )}
 
