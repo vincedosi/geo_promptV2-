@@ -13,6 +13,7 @@ import {
   MapPin,
   Monitor,
   PlusCircle,
+  Radio,
   Share2,
   Upload,
   Users,
@@ -55,6 +56,7 @@ const navItems: NavSection[] = [
       { href: '/admin/import', label: 'Import POI', icon: FileUp, badge: 'Admin' },
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
+      { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
     ],
   },
   {
