@@ -30,18 +30,20 @@ function sleep(ms: number): Promise<void> {
 function parseFrequencyPage(html: string, radioNom: string, slug: string): CrawledFrequency[] {
   const results: CrawledFrequency[] = [];
 
-  // Find table rows — the page has <tr><td>...</td><td>freq</td><td>dept</td><td>city</td></tr>
-  // Use regex since we can't use a DOM parser in Node.js without extra deps
+  // Normalize HTML: remove newlines inside tags to make regex work
+  const normalized = html.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
+
+  // Find table rows
   const rowRegex = /<tr[^>]*>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>/gi;
 
   let match;
-  while ((match = rowRegex.exec(html)) !== null) {
+  while ((match = rowRegex.exec(normalized)) !== null) {
     const freqStr = match[2].replace(/<[^>]*>/g, '').replace(',', '.').trim();
     const deptStr = match[3].replace(/<[^>]*>/g, '').trim();
     const cityStr = match[4].replace(/<[^>]*>/g, '').trim();
 
     const freq = parseFloat(freqStr);
-    if (isNaN(freq) || freq < 87 || freq > 108) continue; // Not a valid FM frequency
+    if (isNaN(freq) || freq < 87 || freq > 108) continue;
 
     // Extract department code from "75 - Paris" or "2A - Corse-du-Sud"
     const deptMatch = deptStr.match(/^(\d{2,3}[AB]?)/);
