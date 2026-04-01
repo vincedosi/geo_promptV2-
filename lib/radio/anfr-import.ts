@@ -66,10 +66,17 @@ export async function importAnfrData(
 
     // ── Phase DIFF ──────────────────────────────────────────────────────────
     const { existingSet, toDelete } = await logger.phase('DIFF', async () => {
-      const { data: existing } = await supabase
-        .from('emetteurs_radio')
-        .select('sta_nm_anfr');
-      const existingSet = new Set((existing ?? []).map((e: { sta_nm_anfr: string }) => e.sta_nm_anfr));
+      // Paginate to avoid PostgREST 5000 row limit
+      const allExisting: string[] = [];
+      let off = 0;
+      while (true) {
+        const { data } = await supabase.from('emetteurs_radio').select('sta_nm_anfr').range(off, off + 4999);
+        if (!data || data.length === 0) break;
+        allExisting.push(...data.map((e: { sta_nm_anfr: string }) => e.sta_nm_anfr));
+        if (data.length < 5000) break;
+        off += 5000;
+      }
+      const existingSet = new Set(allExisting);
       const newSet = new Set(emetteurs.map(e => e.sta_nm_anfr));
       const toDelete = [...existingSet].filter(k => !newSet.has(k));
       const newCount = emetteurs.filter(e => !existingSet.has(e.sta_nm_anfr)).length;

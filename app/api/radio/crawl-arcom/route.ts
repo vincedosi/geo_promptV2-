@@ -9,7 +9,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { crawlAndMatchRadios } from '@/lib/radio/arcom-crawler';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 600; // 10 min — crawl frequence-radio.com ~70 pages
 
 export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
