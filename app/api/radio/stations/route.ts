@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   // Fetch all radios with emitter count (no pagination at DB level — we sort/filter in JS)
   let query = supabase
     .from('radios')
-    .select('*, emetteurs_radio(count)', { count: 'exact' })
+    .select('*, emetteurs_radio(count), parent:radios!parent_radio_id(id, nom)', { count: 'exact' })
     .limit(5000);
 
   if (categorie) query = query.eq('categorie_arcom', categorie);
@@ -42,11 +42,15 @@ export async function GET(req: NextRequest) {
     const meta = r.metadata as Record<string, unknown> | null;
     const freqsFm = meta?.frequences_fm;
     const nbFreqFm = Array.isArray(freqsFm) ? freqsFm.length : 0;
+    const parentArr = r.parent as Array<{ id: string; nom: string }> | { id: string; nom: string } | null;
+    const parentObj = Array.isArray(parentArr) ? parentArr[0] : parentArr;
     return {
       ...r,
       nb_emetteurs: emCount?.[0]?.count ?? 0,
       nb_freq_fm: nbFreqFm,
+      parent_nom: parentObj?.nom ?? null,
       emetteurs_radio: undefined,
+      parent: undefined,
     };
   });
 

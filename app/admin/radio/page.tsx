@@ -36,6 +36,8 @@ interface RadioRow {
   genre: string | null; groupe_media: string | null; audience_data: Record<string, unknown>;
   tarifs_data: Record<string, unknown>; created_at: string;
   nb_emetteurs?: number;
+  nb_freq_fm?: number;
+  parent_nom?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -624,7 +626,7 @@ export default function RadioAdminPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: C.elevated }}>
-                    {['Nom', 'Cat.', 'Portée', 'Émetteurs', 'Freq FM', 'Slug crawl', ''].map(h => (
+                    {['Nom', 'Cat.', 'Émetteurs', 'Freq FM', 'Réseau', 'Slug', ''].map(h => (
                       <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: C.textDim, fontWeight: 500, borderBottom: `1px solid ${C.border}` }}>{h}</th>
                     ))}
                   </tr>
@@ -636,18 +638,19 @@ export default function RadioAdminPage() {
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
                       <td style={{ padding: '8px 12px', color: C.text, fontWeight: 500 }}>{r.nom}</td>
-                      <td style={{ padding: '8px 12px', color: C.textSec }}>{r.categorie_arcom ?? '—'}</td>
-                      <td style={{ padding: '8px 12px', color: C.textSec }}>{r.portee ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: C.textSec, fontSize: 11 }}>{r.categorie_arcom ?? '—'}</td>
                       <td style={{ padding: '8px 12px' }}>
                         {(r.nb_emetteurs ?? 0) > 0
                           ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: C.greenDim, color: C.green, border: `0.5px solid rgba(61,255,160,0.2)`, fontFamily: fMono }}>{r.nb_emetteurs}</span>
                           : <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: C.redDim, color: C.red, border: `0.5px solid rgba(255,87,87,0.2)`, fontFamily: fMono }}>0</span>}
                       </td>
                       <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 11, color: C.textDim }}>
-                        {(() => {
-                          const freqs = (r.metadata as Record<string, unknown> | undefined)?.frequences_fm;
-                          return Array.isArray(freqs) ? freqs.length : '—';
-                        })()}
+                        {r.nb_freq_fm ?? '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', fontSize: 11 }}>
+                        {r.parent_nom
+                          ? <span style={{ color: C.teal }}>{r.parent_nom}</span>
+                          : <span style={{ color: C.textDim }}>—</span>}
                       </td>
                       <td style={{ padding: '8px 12px' }}>
                         {(() => {
