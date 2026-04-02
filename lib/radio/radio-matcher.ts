@@ -7,7 +7,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ImportLogger } from './import-logger';
-import { crawlAllDepartments, type DeptCrawlEntry } from './dept-crawler';
+import { crawlAllDepartments } from './dept-crawler';
+import { crawlArcomPrefectures, enrichDeptIndexFromArcom } from './arcom-prefectures';
 
 export interface MatchResult {
   total_emetteurs: number;
@@ -123,6 +124,59 @@ export async function matchRadios(
 
     result.matched_pass1 = matched;
     await logger.info('PASS_1', `Passe 1 terminée : ${matched} matchés (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
+  });
+
+  // ── PASS 1.7: Arcom prefectures crawl → enrich dept index → match more ──
+  await logger.phase('PASS_1_7', async () => {
+    const arcomEntries = await crawlArcomPrefectures(supabase, logger);
+    const enriched = await enrichDeptIndexFromArcom(supabase, logger, arcomEntries, deptRadioIds);
+
+    if (enriched === 0) {
+      await logger.info('PASS_1_7', 'Aucune nouvelle entrée Arcom à matcher');
+      return;
+    }
+
+    // Re-match orphans with enriched index
+    let orphanIds: string[] = [];
+    let off = 0;
+    while (true) {
+      const { data } = await supabase
+        .from('emetteurs_radio')
+        .select('id, departement')
+        .is('radio_id', null)
+        .range(off, off + 4999);
+      if (!data || data.length === 0) break;
+      orphanIds.push(...data.map(d => `${d.id}|${d.departement ?? ''}`));
+      if (data.length < 5000) break;
+      off += 5000;
+    }
+
+    let matched = 0;
+    // Group orphans by dept
+    const orphansByDept = new Map<string, string[]>();
+    for (const o of orphanIds) {
+      const [id, dept] = o.split('|');
+      if (!dept) continue;
+      if (!orphansByDept.has(dept)) orphansByDept.set(dept, []);
+      orphansByDept.get(dept)!.push(id);
+    }
+
+    for (const [dept, ids] of orphansByDept) {
+      const radioIds = deptRadioIds.get(dept);
+      if (!radioIds || radioIds.size === 0) continue;
+      const rids = [...radioIds];
+
+      for (let i = 0; i < ids.length; i += 3) {
+        const chunk = ids.slice(i, i + 3);
+        await Promise.all(chunk.map((eid, j) =>
+          supabase.from('emetteurs_radio').update({ radio_id: rids[(i + j) % rids.length] }).eq('id', eid)
+        ));
+        matched += chunk.length;
+      }
+    }
+
+    result.matched_pass1 += matched; // count as part of pass 1 total
+    await logger.info('PASS_1_7', `Passe 1.7 (Arcom) : +${matched} matchés avec ${enriched} nouvelles entrées`);
   });
 
   // ── PASS 2: Fallback — uncovered departments → nationals ──────────────────
