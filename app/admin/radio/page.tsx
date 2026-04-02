@@ -112,14 +112,13 @@ export default function RadioAdminPage() {
   const [radiosPage, setRadiosPage] = useState(1);
   const [radiosSearch, setRadiosSearch] = useState('');
   const [radiosLoading, setRadiosLoading] = useState(false);
-  const [showUnmatched, setShowUnmatched] = useState(false);
+  const [radiosFilter, setRadiosFilter] = useState<'all' | 'matched' | 'unmatched'>('all');
 
   const fetchRadios = useCallback(async () => {
     setRadiosLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(radiosPage), limit: '20' });
+      const params = new URLSearchParams({ page: String(radiosPage), limit: '20', sort: 'freq_desc', filter: radiosFilter });
       if (radiosSearch) params.set('search', radiosSearch);
-      if (showUnmatched) params.set('unmatched', '1');
       const res = await adminFetch(`/api/radio/stations?${params}`);
       if (res.ok) {
         const d = await res.json();
@@ -128,7 +127,7 @@ export default function RadioAdminPage() {
       }
     } catch { /* ignore */ }
     setRadiosLoading(false);
-  }, [radiosPage, radiosSearch, showUnmatched]);
+  }, [radiosPage, radiosSearch, radiosFilter]);
 
   // ── ODS file upload ────────────────────────────────────────────────────────
   const odsFileRef = useRef<HTMLInputElement>(null);
@@ -585,10 +584,19 @@ export default function RadioAdminPage() {
               onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
               onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec, whiteSpace: 'nowrap' }}>
-              <input type="checkbox" checked={showUnmatched} onChange={() => { setShowUnmatched(v => !v); setRadiosPage(1); }} style={{ accentColor: '#ff5757' }} />
-              Sans émetteurs uniquement
-            </label>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {([['all', 'Toutes'], ['matched', 'Avec émetteurs'], ['unmatched', 'Sans émetteurs']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => { setRadiosFilter(val); setRadiosPage(1); }} style={{
+                  padding: '4px 10px', borderRadius: 4, fontSize: 10, fontFamily: fInter,
+                  background: radiosFilter === val ? (val === 'unmatched' ? C.redDim : val === 'matched' ? C.greenDim : 'rgba(78,205,196,0.1)') : 'transparent',
+                  border: `0.5px solid ${radiosFilter === val ? (val === 'unmatched' ? 'rgba(255,87,87,0.3)' : val === 'matched' ? 'rgba(61,255,160,0.3)' : '#4ecdc4') : '#262626'}`,
+                  color: radiosFilter === val ? (val === 'unmatched' ? C.red : val === 'matched' ? C.green : '#4ecdc4') : C.textDim,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  {label}
+                </button>
+              ))}
+            </div>
             {stats && (
               <span style={{ fontSize: 10, fontFamily: fMono, color: C.textDim }}>
                 {stats.emetteurs_matches}/{stats.total_radios} radios matchées ({stats.total_radios > 0 ? Math.round(stats.emetteurs_matches / stats.total_radios * 100) : 0}%)
@@ -616,7 +624,7 @@ export default function RadioAdminPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: C.elevated }}>
-                    {['Nom', 'Catégorie', 'Portée', 'Émetteurs', 'Freq FM', 'Groupe', ''].map(h => (
+                    {['Nom', 'Cat.', 'Portée', 'Émetteurs', 'Freq FM', 'Slug crawl', ''].map(h => (
                       <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: C.textDim, fontWeight: 500, borderBottom: `1px solid ${C.border}` }}>{h}</th>
                     ))}
                   </tr>
@@ -641,17 +649,22 @@ export default function RadioAdminPage() {
                           return Array.isArray(freqs) ? freqs.length : '—';
                         })()}
                       </td>
-                      <td style={{ padding: '8px 12px', color: C.textSec }}>{r.groupe_media ?? '—'}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        {(() => {
+                          const slug = r.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                          return (
+                            <a href={`https://www.frequence-radio.com/frequence-${slug}.html`} target="_blank" rel="noopener noreferrer"
+                              style={{ fontFamily: fMono, fontSize: 9, color: C.textDim, textDecoration: 'none', transition: 'color 0.15s' }}
+                              onMouseEnter={e => { e.currentTarget.style.color = C.teal; }}
+                              onMouseLeave={e => { e.currentTarget.style.color = C.textDim; }}
+                              title={`frequence-${slug}.html`}
+                            >{slug.slice(0, 20)}{slug.length > 20 ? '…' : ''}</a>
+                          );
+                        })()}
+                      </td>
                       <td style={{ padding: '8px 12px' }}>
                         {(r.nb_emetteurs ?? 0) === 0 && (
-                          <a
-                            href={`https://www.frequence-radio.com/frequence-${r.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.html`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: 10, color: C.teal, textDecoration: 'none' }}
-                          >
-                            Chercher →
-                          </a>
+                          <span style={{ fontSize: 10, color: C.red }}>non matché</span>
                         )}
                       </td>
                     </tr>
