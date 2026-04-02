@@ -81,6 +81,8 @@ export default function MapPage() {
   const [radioCoverageMode,  setRadioCoverageMode]  = useState(false);
   const [radioGeoJSON,       setRadioGeoJSON]       = useState<GeoJSON.FeatureCollection | null>(null);
   const [radioLoading,       setRadioLoading]       = useState(false);
+  const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
+  const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -393,18 +395,43 @@ export default function MapPage() {
     const ctrl = new AbortController();
     radioFetchRef.current = ctrl;
     try {
-      const b = map.getBounds();
-      const url = `/api/radio/emetteurs?bbox=${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`;
-      const res = await fetch(url, { signal: ctrl.signal });
+      const params = new URLSearchParams();
+      if (radioSelectedId) {
+        // When a specific radio is selected, load ALL its emitters (no bbox)
+        params.set('radio_id', radioSelectedId);
+      } else {
+        // Otherwise use bbox
+        const b = map.getBounds();
+        params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
+      }
+      if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
+      const res = await fetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
       if (!res.ok) return;
       const data: GeoJSON.FeatureCollection = await res.json();
       setRadioGeoJSON(data);
+
+      // FitBounds if specific radio selected
+      if (radioSelectedId && data.features.length > 0) {
+        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+        for (const f of data.features) {
+          if (f.geometry?.type === 'Point') {
+            const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          }
+        }
+        if (minLng < maxLng) {
+          map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 1000 });
+        }
+      }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') console.error('[radio]', e);
     } finally {
       setRadioLoading(false);
     }
-  }, [mapReady]);
+  }, [mapReady, radioSystemeFilter, radioSelectedId]);
 
   // Sync radio GeoJSON → map source + layer visibility
   useEffect(() => {
@@ -1289,6 +1316,9 @@ export default function MapPage() {
         radioCoverageMode={radioCoverageMode}
         onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
         radioLoading={radioLoading}
+        radioSystemeFilter={radioSystemeFilter}
+        onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
+        onSelectRadio={(id, _nom) => { setRadioSelectedId(id); setRadioVisible(true); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />

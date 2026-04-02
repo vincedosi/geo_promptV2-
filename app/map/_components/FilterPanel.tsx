@@ -42,6 +42,68 @@ const fMono     = "'JetBrains Mono','Fira Mono',monospace";
 const fMichroma = fInter;
 const fOrbitron = fInter;
 
+// ─── Radio search autocomplete ────────────────────────────────────────────────
+function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: string) => void }) {
+  const [query, setQuery] = React.useState('');
+  const [results, setResults] = React.useState<Array<{ id: string; nom: string; categorie_arcom: string | null }>>([]);
+  const [show, setShow] = React.useState(false);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+  const search = (q: string) => {
+    setQuery(q);
+    clearTimeout(timerRef.current);
+    if (q.length < 2) { setResults([]); setShow(false); return; }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/radio/stations?search=${encodeURIComponent(q)}&limit=8`);
+        if (!res.ok) return;
+        const d = await res.json();
+        setResults(d.stations ?? []);
+        setShow(true);
+      } catch { /* ignore */ }
+    }, 300);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={query}
+        onChange={e => search(e.target.value)}
+        placeholder="Ex: NRJ, France Inter..."
+        style={{
+          width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6,
+          padding: '6px 10px', fontSize: 11, color: '#f0f0f0', outline: 'none',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          transition: 'border-color 0.15s',
+        }}
+        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; if (results.length) setShow(true); }}
+        onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; setTimeout(() => setShow(false), 200); }}
+      />
+      {show && results.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+          background: '#0a0a0a', border: '0.5px solid #262626', borderRadius: 6,
+          marginTop: 4, maxHeight: 200, overflowY: 'auto',
+        }}>
+          {results.map(r => (
+            <button key={r.id} onMouseDown={() => { onSelect(r.id, r.nom); setQuery(r.nom); setShow(false); }} style={{
+              display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none',
+              textAlign: 'left', cursor: 'pointer', fontSize: 11, color: '#f0f0f0',
+              fontFamily: "'Inter', system-ui, sans-serif",
+              transition: 'background 0.1s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              {r.nom} {r.categorie_arcom && <span style={{ color: '#666666', fontSize: 10 }}>({r.categorie_arcom})</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tooltip data for complex labels ──────────────────────────────────────────
 const TOOLTIPS: Record<string, string> = {
   tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
@@ -268,6 +330,9 @@ export interface FilterPanelProps {
   radioCoverageMode?:     boolean;
   onToggleRadioCoverage?: () => void;
   radioLoading?:          boolean;
+  radioSystemeFilter?:    string;
+  onRadioSystemeChange?:  (v: string) => void;
+  onSelectRadio?:         (radioId: string, radioNom: string) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -401,6 +466,7 @@ export function FilterPanel({
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
+  radioSystemeFilter, onRadioSystemeChange, onSelectRadio,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -1740,22 +1806,49 @@ export function FilterPanel({
                 </button>
               </div>
 
-              {/* Sub-layer toggles (visible only when radio is on) */}
+              {/* Sub-layer toggles + filters (visible only when radio is on) */}
               {radioVisible && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
-                    Zones de couverture
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
-                    Densité (heatmap)
-                  </label>
-                  {radioCoverageMode && (
-                    <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', paddingLeft: 20 }}>
-                      Couverture estimée (approximation)
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Layer mode toggles */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                      <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
+                      Zones de couverture
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                      <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
+                      Densité (heatmap)
+                    </label>
+                    {radioCoverageMode && (
+                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', paddingLeft: 20 }}>
+                        Couverture estimée (approximation)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* System filter */}
+                  <div>
+                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Système</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[{ label: 'Tous', value: '' }, { label: 'FM', value: 'FM' }, { label: 'DAB+', value: 'DAB+' }].map(opt => (
+                        <button key={opt.value} onClick={() => onRadioSystemeChange?.(opt.value)} style={{
+                          flex: 1, padding: '4px 0', borderRadius: 4, fontSize: 10, fontFamily: fInter,
+                          background: radioSystemeFilter === opt.value ? 'rgba(78,205,196,0.1)' : 'transparent',
+                          border: `0.5px solid ${radioSystemeFilter === opt.value ? '#4ecdc4' : '#262626'}`,
+                          color: radioSystemeFilter === opt.value ? '#4ecdc4' : C.textDim,
+                          cursor: 'pointer', transition: 'all 0.15s',
+                        }}>
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Radio search */}
+                  <div>
+                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
+                    <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
+                  </div>
                 </div>
               )}
 

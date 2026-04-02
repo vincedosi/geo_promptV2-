@@ -466,19 +466,33 @@ export function useMapInit(
       const onRadioPointClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, unknown>;
-        const nom = p.radio_nom ?? 'Radio non identifiée';
-        const freq = p.frequence_mhz ? `${Number(p.frequence_mhz).toFixed(1)} MHz` : '';
-        const sys = p.systeme ?? '';
-        const pw = p.puissance_w ? `${Number(p.puissance_w) >= 1000 ? `${(Number(p.puissance_w)/1000).toFixed(1)} kW` : `${p.puissance_w} W`}` : '';
-        const cov = p.rayon_couverture_m ? `~${Math.round(Number(p.rayon_couverture_m)/1000)} km` : '';
-        new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
+        const nom = p.radio_nom ? String(p.radio_nom) : null;
+        const sys = String(p.systeme ?? 'FM');
+        const freqVal = Number(p.frequence_mhz);
+        // Don't show 87.5/108 (FM band boundaries) — show just "FM"
+        const freqDisplay = (freqVal && freqVal !== 87.5 && freqVal !== 108) ? `${freqVal.toFixed(1)} MHz` : sys;
+        const pwVal = Number(p.puissance_w);
+        const pw = pwVal > 0 ? (pwVal >= 1000000 ? `${(pwVal/1000000).toFixed(1)} MW` : pwVal >= 1000 ? `${(pwVal/1000).toFixed(1)} kW` : `${pwVal} W`) : '';
+        const covVal = Number(p.rayon_couverture_m);
+        const cov = covVal > 0 ? `~${Math.round(covVal / 1000)} km` : '';
+        const cat = p.categorie_arcom ? `Cat. ${p.categorie_arcom}` : '';
+        const portee = p.portee ? String(p.portee).charAt(0).toUpperCase() + String(p.portee).slice(1) : '';
+        const genre = p.genre ? String(p.genre).replace('_', '/') : '';
+        const groupe = p.groupe_media ? String(p.groupe_media) : '';
+
+        new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:10px 12px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
-            <b style="color:#f0f0f0;font-size:13px">${nom}</b>
-            <div style="color:#a0a0a0;font-size:11px">${[freq, sys].filter(Boolean).join(' · ')}</div>
-            ${pw ? `<div style="color:#666666;font-size:11px">Puissance : ${pw}</div>` : ''}
-            ${cov ? `<div style="color:#666666;font-size:11px">Couverture : ${cov}</div>` : ''}
-            <div style="color:#666666;font-size:11px">${[p.commune, p.departement].filter(Boolean).join(' · ')}</div>
+          .setHTML(`<div style="padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
+            <div style="font-size:14px;font-weight:600;color:${nom ? '#f0f0f0' : '#666666'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
+            ${nom ? `<div style="color:#a0a0a0;font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
+            ${groupe ? `<div style="color:#666666;font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
+            <div style="border-top:0.5px solid #1a1a1a;margin:4px 0;padding-top:4px">
+              <div style="color:#a0a0a0;font-size:11px">${freqDisplay}</div>
+              ${pw ? `<div style="color:#666666;font-size:11px">Puissance : ${pw}</div>` : ''}
+              ${cov ? `<div style="color:#666666;font-size:11px">Couverture : ${cov}</div>` : ''}
+              <div style="color:#666666;font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
+              ${p.exploitant ? `<div style="color:#444444;font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
+            </div>
           </div>`)
           .addTo(map);
       };
