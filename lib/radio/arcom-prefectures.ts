@@ -128,39 +128,36 @@ const BASE_URL = 'https://www.arcom.fr/radio-et-audio-numerique/radio-fm-dab/rad
 
 /**
  * Parse radio names from Arcom city page HTML.
- * The page contains radio names like "Radio Scoop DAB+ · FM" or "NRJ FM"
+ * Structure: <a ... class="fw-bold stretched-link">
+ *              Radio Scoop
+ *              <span ...>DAB+ · FM</span>
+ *            </a>
  */
 function parseArcomPage(html: string): string[] {
   const radioNames: string[] = [];
-  // The page lists radios as text with "FM" and/or "DAB+" markers
-  // Look for patterns like: radio name followed by FM/DAB+
-  // The HTML structure varies but typically has radio names in links or text nodes
-
-  // Strategy 1: find all text that ends with "FM" or "DAB+"
   const normalized = html.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
 
-  // Look for link-based listings: <a href="...">Radio Name</a> followed by type markers
-  const linkRegex = /<a[^>]*>([^<]+)<\/a>\s*((?:DAB\+|FM)[\s·]*(?:DAB\+|FM)?)/gi;
+  // Match the Arcom HTML structure: <a ...stretched-link">  Name  <span...>type</span> </a>
+  const regex = /class="[^"]*stretched-link[^"]*"[^>]*>\s*([^<]+?)\s*<span[^>]*>\s*((?:DAB\+|FM)[\s·]*(?:DAB\+|FM)?)\s*<\/span>/gi;
   let match;
-  while ((match = linkRegex.exec(normalized)) !== null) {
+  while ((match = regex.exec(normalized)) !== null) {
     const name = match[1].trim();
-    if (name.length >= 2 && name.length < 80 && !name.includes('http') && !name.includes('Voir')) {
+    if (name.length >= 2 && name.length < 80) {
       radioNames.push(name);
     }
   }
 
-  // Strategy 2: look for standalone radio names near FM/DAB+ text
+  // Fallback: look for bk-radio-station-list__item pattern
   if (radioNames.length === 0) {
-    const textRegex = /([A-ZÀ-Ÿa-zà-ÿ0-9''\-\s]{2,50})\s+(?:DAB\+\s*·?\s*)?FM/g;
-    while ((match = textRegex.exec(normalized)) !== null) {
+    const fallback = /bk-radio-station-list__item[^>]*>.*?<a[^>]*>\s*([^<]+?)\s*<span/gi;
+    while ((match = fallback.exec(normalized)) !== null) {
       const name = match[1].trim();
-      if (name.length >= 2 && !name.includes('disponible') && !name.includes('Vous pouvez')) {
+      if (name.length >= 2 && name.length < 80) {
         radioNames.push(name);
       }
     }
   }
 
-  // Deduplicate
   return [...new Set(radioNames)];
 }
 

@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ImportLogger } from './import-logger';
 import { crawlAllDepartments } from './dept-crawler';
 import { crawlArcomPrefectures, enrichDeptIndexFromArcom } from './arcom-prefectures';
+import { detectParentRadios } from './parent-detector';
 
 export interface MatchResult {
   total_emetteurs: number;
@@ -177,6 +178,11 @@ export async function matchRadios(
 
     result.matched_pass1 += matched; // count as part of pass 1 total
     await logger.info('PASS_1_7', `Passe 1.7 (Arcom) : +${matched} matchés avec ${enriched} nouvelles entrées`);
+  });
+
+  // ── PARENT DETECT: find parent networks BEFORE fallback ───────────────────
+  await logger.phase('PARENT_DETECT', async () => {
+    await detectParentRadios(supabase, logger);
   });
 
   // ── PASS 2: Fallback — uncovered departments → nationals ──────────────────
