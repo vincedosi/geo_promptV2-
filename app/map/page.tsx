@@ -83,6 +83,7 @@ export default function MapPage() {
   const [radioLoading,       setRadioLoading]       = useState(false);
   const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
   const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
+  const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -1331,7 +1332,10 @@ export default function MapPage() {
         radioLoading={radioLoading}
         radioSystemeFilter={radioSystemeFilter}
         onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
-        onSelectRadio={(id, _nom) => { setRadioSelectedId(id); setRadioVisible(true); }}
+        onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+        radioCount={radioGeoJSON?.features.length ?? 0}
+        radioSelectedNom={radioSelectedNom}
+        onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />

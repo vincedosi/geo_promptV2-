@@ -333,6 +333,9 @@ export interface FilterPanelProps {
   radioSystemeFilter?:    string;
   onRadioSystemeChange?:  (v: string) => void;
   onSelectRadio?:         (radioId: string, radioNom: string) => void;
+  radioCount?:            number;
+  radioSelectedNom?:      string | null;
+  onClearRadioSelection?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -467,6 +470,7 @@ export function FilterPanel({
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
   radioSystemeFilter, onRadioSystemeChange, onSelectRadio,
+  radioCount, radioSelectedNom, onClearRadioSelection,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -1787,8 +1791,33 @@ export function FilterPanel({
               <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
                 <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>Radio FM/DAB+</span>
+                {radioCount !== undefined && radioCount > 0 && (
+                  <span style={{ fontFamily: fMono, fontSize: 10, color: '#4ecdc4', background: 'rgba(78,205,196,0.1)', border: '0.5px solid rgba(78,205,196,0.2)', borderRadius: 4, padding: '1px 6px' }}>
+                    {radioCount.toLocaleString('fr-FR')}
+                  </span>
+                )}
                 {radioLoading && <span style={{ fontSize: 9, color: C.textDim, fontFamily: fMono }}>chargement...</span>}
               </div>
+
+              {/* Selected radio banner */}
+              {radioSelectedNom && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.2)',
+                  borderRadius: 6, padding: '6px 10px', fontSize: 11,
+                }}>
+                  <span style={{ color: '#4ecdc4', flex: 1, fontWeight: 500, fontFamily: fInter }}>
+                    📻 {radioSelectedNom}
+                  </span>
+                  <button onClick={onClearRadioSelection} style={{
+                    background: 'none', border: 'none', color: '#666666', cursor: 'pointer',
+                    fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 0.15s',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#f0f0f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#666666'; }}
+                  >×</button>
+                </div>
+              )}
 
               {/* Main toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
