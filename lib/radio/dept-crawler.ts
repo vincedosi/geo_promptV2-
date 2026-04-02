@@ -20,7 +20,7 @@ export interface DeptCrawlEntry {
 }
 
 const BASE_URL = 'https://www.frequence-radio.com';
-const RATE_LIMIT_MS = 800;
+const RATE_LIMIT_MS = 500; // 2 req/sec — only ~376 radios with 3+ frequencies
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -91,14 +91,20 @@ export async function crawlAllDepartments(
     return [];
   }
 
-  // Filter to radios that have at least 1 FM frequency
-  const radiosToCrawl = radios.filter(r => {
-    const freqs = (r.metadata as Record<string, unknown>)?.frequences_fm;
-    return Array.isArray(freqs) && freqs.length > 0;
-  });
+  // Filter to radios with 3+ FM frequencies, sorted by frequency count desc (most important first)
+  const radiosToCrawl = radios
+    .filter(r => {
+      const freqs = (r.metadata as Record<string, unknown>)?.frequences_fm;
+      return Array.isArray(freqs) && freqs.length >= 3;
+    })
+    .sort((a, b) => {
+      const aLen = ((a.metadata as Record<string, unknown>)?.frequences_fm as unknown[])?.length ?? 0;
+      const bLen = ((b.metadata as Record<string, unknown>)?.frequences_fm as unknown[])?.length ?? 0;
+      return bLen - aLen;
+    });
 
   const total = maxRadios > 0 ? Math.min(maxRadios, radiosToCrawl.length) : radiosToCrawl.length;
-  await logger.info('CRAWL_DEPT', `${total} radios à crawler sur frequence-radio.com`);
+  await logger.info('CRAWL_DEPT', `${total} radios à crawler (3+ fréquences FM, triées par importance)`);
 
   const allEntries: DeptCrawlEntry[] = [];
   let success = 0;
