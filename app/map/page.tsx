@@ -457,19 +457,32 @@ export default function MapPage() {
     try { map.setLayoutProperty('radio-coverage-line', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
   }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load radio data when visible, reload on map move
+  // Load radio data when visible — different strategy for selected radio vs global view
+  const lastRadioBboxRef = useRef('');
   useEffect(() => {
     if (!radioVisible || !mapReady) return;
     handleLoadRadio();
+
+    // If a specific radio is selected, load once and don't reload on move
+    if (radioSelectedId) return;
+
+    // Global view: reload on moveend with debounce + bbox change check
     const map = mapRef.current;
     if (!map) return;
-    const onMove = () => handleLoadRadio();
-    // Debounce moveend
     let timer: ReturnType<typeof setTimeout>;
-    const debouncedMove = () => { clearTimeout(timer); timer = setTimeout(onMove, 500); };
+    const debouncedMove = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = map.getBounds();
+        const newBbox = `${b.getWest().toFixed(2)},${b.getSouth().toFixed(2)},${b.getEast().toFixed(2)},${b.getNorth().toFixed(2)}`;
+        if (newBbox === lastRadioBboxRef.current) return; // bbox hasn't changed significantly
+        lastRadioBboxRef.current = newBbox;
+        handleLoadRadio();
+      }, 600);
+    };
     map.on('moveend', debouncedMove);
     return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
-  }, [radioVisible, mapReady, handleLoadRadio]);
+  }, [radioVisible, mapReady, radioSelectedId, handleLoadRadio]);
 
   // Generate coverage circles client-side when coverage mode is active
   useEffect(() => {

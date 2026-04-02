@@ -19,13 +19,12 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Join with radios table to get radio name and metadata
+  // Join with radios table — slim select for GeoJSON (heavy fields via detail route)
   let query = supabase
     .from('emetteurs_radio')
     .select(`
       id, sta_nm_anfr, radio_id, systeme, frequence_mhz, puissance_w,
-      hauteur_m, exploitant, commune, departement, rayon_couverture_m,
-      adresse, snapshot_date, geom,
+      commune, departement, rayon_couverture_m, geom,
       radios(nom, categorie_arcom, portee, genre, groupe_media)
     `)
     .not('geom', 'is', null)
@@ -75,7 +74,6 @@ export async function GET(req: NextRequest) {
           commune: r.commune,
           departement: r.departement,
           rayon_couverture_m: r.rayon_couverture_m,
-          adresse: r.adresse,
         },
       };
     });
