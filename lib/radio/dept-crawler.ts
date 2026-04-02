@@ -91,11 +91,11 @@ export async function crawlAllDepartments(
     return [];
   }
 
-  // Filter to radios with 3+ FM frequencies, sorted by frequency count desc (most important first)
+  // ALL radios with at least 1 FM frequency, sorted by count desc (most important first)
   const radiosToCrawl = radios
     .filter(r => {
       const freqs = (r.metadata as Record<string, unknown>)?.frequences_fm;
-      return Array.isArray(freqs) && freqs.length >= 3;
+      return Array.isArray(freqs) && freqs.length > 0;
     })
     .sort((a, b) => {
       const aLen = ((a.metadata as Record<string, unknown>)?.frequences_fm as unknown[])?.length ?? 0;
@@ -104,7 +104,7 @@ export async function crawlAllDepartments(
     });
 
   const total = maxRadios > 0 ? Math.min(maxRadios, radiosToCrawl.length) : radiosToCrawl.length;
-  await logger.info('CRAWL_DEPT', `${total} radios à crawler (3+ fréquences FM, triées par importance)`);
+  await logger.info('CRAWL_DEPT', `${total} radios à crawler (toutes avec fréquences FM)`);
 
   const allEntries: DeptCrawlEntry[] = [];
   let success = 0;
