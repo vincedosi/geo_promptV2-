@@ -336,6 +336,15 @@ export interface FilterPanelProps {
   radioCount?:            number;
   radioSelectedNom?:      string | null;
   onClearRadioSelection?: () => void;
+  radioCoverageColor?:    string;
+  onRadioCoverageColorChange?: (c: string) => void;
+  radioCoverageOpacity?:  number;
+  onRadioCoverageOpacityChange?: (v: number) => void;
+  radioBorderWidth?:      number;
+  onRadioBorderWidthChange?: (v: number) => void;
+  radioPointSize?:        number;
+  onRadioPointSizeChange?: (v: number) => void;
+  onRecenterFrance?:      () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -471,6 +480,11 @@ export function FilterPanel({
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
   radioSystemeFilter, onRadioSystemeChange, onSelectRadio,
   radioCount, radioSelectedNom, onClearRadioSelection,
+  radioCoverageColor, onRadioCoverageColorChange,
+  radioCoverageOpacity, onRadioCoverageOpacityChange,
+  radioBorderWidth, onRadioBorderWidthChange,
+  radioPointSize, onRadioPointSizeChange,
+  onRecenterFrance,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -1835,24 +1849,13 @@ export function FilterPanel({
                 </button>
               </div>
 
-              {/* Sub-layer toggles + filters (visible only when radio is on) */}
+              {/* Sub-layer toggles + filters + visual controls */}
               {radioVisible && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Layer mode toggles */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 8 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                      <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
-                      Zones de couverture
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                      <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
-                      Densité (heatmap)
-                    </label>
-                    {radioCoverageMode && (
-                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', paddingLeft: 20 }}>
-                        Couverture estimée (approximation)
-                      </div>
-                    )}
+                  {/* Radio search */}
+                  <div>
+                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
+                    <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
                   </div>
 
                   {/* System filter */}
@@ -1873,10 +1876,84 @@ export function FilterPanel({
                     </div>
                   </div>
 
-                  {/* Radio search */}
+                  <div style={{ borderTop: '0.5px solid #1a1a1a', paddingTop: 8 }} />
+
+                  {/* Layer toggles */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
+                    Zones de couverture
+                  </label>
+
+                  {/* Coverage controls (visible when coverage on) */}
+                  {radioCoverageMode && (
+                    <div style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', marginBottom: 2 }}>Couverture estimée (approximation)</div>
+
+                      {/* Color picker */}
+                      <div>
+                        <div style={{ fontSize: 10, color: C.textDim, marginBottom: 3 }}>Couleur</div>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          {['#4ecdc4', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
+                            <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
+                              width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid #f0f0f0' : '1px solid #333',
+                              cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
+                            }} />
+                          ))}
+                          <input type="color" value={radioCoverageColor ?? '#4ecdc4'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
+                        </div>
+                      </div>
+
+                      {/* Opacity slider */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
+                          <span>Opacité</span>
+                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioCoverageOpacity}%</span>
+                        </div>
+                        <input type="range" min={0} max={100} step={5} value={radioCoverageOpacity ?? 15}
+                          onChange={e => onRadioCoverageOpacityChange?.(Number(e.target.value))}
+                          style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                      </div>
+
+                      {/* Border width */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
+                          <span>Contour</span>
+                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioBorderWidth}px</span>
+                        </div>
+                        <input type="range" min={0} max={5} step={0.5} value={radioBorderWidth ?? 0.5}
+                          onChange={e => onRadioBorderWidthChange?.(Number(e.target.value))}
+                          style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
+                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
+                    Densité (heatmap)
+                  </label>
+
+                  {/* Point size */}
                   <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
-                    <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
+                      <span>Taille points</span>
+                      <span style={{ fontFamily: fMono, color: C.textSec }}>{radioPointSize}px</span>
+                    </div>
+                    <input type="range" min={2} max={12} step={1} value={radioPointSize ?? 5}
+                      onChange={e => onRadioPointSizeChange?.(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                  </div>
+
+                  <div style={{ borderTop: '0.5px solid #1a1a1a', paddingTop: 6 }}>
+                    <button onClick={onRecenterFrance} style={{
+                      background: 'transparent', border: '0.5px solid #262626', borderRadius: 6,
+                      padding: '5px 12px', fontSize: 10, color: C.textDim, cursor: 'pointer',
+                      fontFamily: fInter, transition: 'all 0.15s', width: '100%',
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#f0f0f0'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = C.textDim; }}
+                    >
+                      Recentrer France
+                    </button>
                   </div>
                 </div>
               )}

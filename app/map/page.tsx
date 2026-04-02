@@ -84,6 +84,10 @@ export default function MapPage() {
   const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
   const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
   const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
+  const [radioCoverageColor, setRadioCoverageColor] = useState('#4ecdc4');
+  const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
+  const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
+  const [radioPointSize,     setRadioPointSize]     = useState(5);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -456,7 +460,36 @@ export default function MapPage() {
     try { map.setLayoutProperty('radio-heatmap', 'visibility', showHeatmap ? 'visible' : 'none'); } catch { /* */ }
     try { map.setLayoutProperty('radio-coverage-fill', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
     try { map.setLayoutProperty('radio-coverage-line', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
-  }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Sync paint properties for controls
+    try { map.setPaintProperty('radio-coverage-fill', 'fill-color', radioCoverageColor); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-fill', 'fill-opacity', radioCoverageOpacity / 100); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-color', radioCoverageColor); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-opacity', Math.min(radioCoverageOpacity / 100 + 0.2, 1)); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-width', radioBorderWidth); } catch { /* */ }
+
+    // Point size + highlight mode
+    if (radioSelectedId) {
+      try {
+        map.setPaintProperty('radio-points', 'circle-color', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], '#4ecdc4', '#4b5563',
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-opacity', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
+      } catch { /* */ }
+    } else {
+      try {
+        map.setPaintProperty('radio-points', 'circle-color', [
+          'match', ['get', 'portee'],
+          'nationale', '#3b82f6', 'locale', '#22c55e', 'autoroute', '#eab308', '#6b7280',
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-opacity', 0.9);
+        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
+      } catch { /* */ }
+    }
+  }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady, radioCoverageColor, radioCoverageOpacity, radioBorderWidth, radioPointSize, radioSelectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load radio data when visible — different strategy for selected radio vs global view
   const lastRadioBboxRef = useRef('');
@@ -1336,6 +1369,15 @@ export default function MapPage() {
         radioCount={radioGeoJSON?.features.length ?? 0}
         radioSelectedNom={radioSelectedNom}
         onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+        radioCoverageColor={radioCoverageColor}
+        onRadioCoverageColorChange={setRadioCoverageColor}
+        radioCoverageOpacity={radioCoverageOpacity}
+        onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+        radioBorderWidth={radioBorderWidth}
+        onRadioBorderWidthChange={setRadioBorderWidth}
+        radioPointSize={radioPointSize}
+        onRadioPointSizeChange={setRadioPointSize}
+        onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
       />
