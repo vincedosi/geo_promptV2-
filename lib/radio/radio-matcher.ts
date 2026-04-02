@@ -1,8 +1,13 @@
 /**
- * Radio Matcher — department-based matching using crawled data from ALL radios
+ * Radio Matcher — department-based matching
  *
- * Pass 1: For departments covered by crawl → assign to crawled radios (proportional)
- * Pass 2: For uncovered departments → assign to national radios (D/E/P with most frequencies)
+ * Pipeline order (CRITICAL):
+ * 1. RESET all radio_id
+ * 2. CRAWL frequence-radio.com → build dept→radio index
+ * 3. CRAWL Arcom 100 prefectures → ENRICH the same index
+ * 4. PARENT DETECT (while radios still have 0 emitters)
+ * 5. PASS 1: match with MERGED index (freq-radio + Arcom)
+ * 6. PASS 2: fallback nationals for uncovered depts
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -33,32 +38,56 @@ export async function matchRadios(
     crawled_radios: 0, crawled_frequencies: 0, depts_covered: 0,
   };
 
-  // ── Step 0: Reset ─────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 0: RESET
+  // ══════════════════════════════════════════════════════════════════════════
   await logger.phase('RESET', async () => {
     await supabase.from('emetteurs_radio').update({ radio_id: null }).not('id', 'is', null);
     await logger.info('RESET', 'Tous les radio_id remis à NULL');
   });
 
-  // ── Step 1: Crawl ALL radios by auto-generated slug ───────────────────────
-  const crawledEntries = await logger.phase('CRAWL', async () => {
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 1: CRAWL frequence-radio.com → build dept→radio index
+  // ══════════════════════════════════════════════════════════════════════════
+  const deptRadioIds = new Map<string, Set<string>>();
+
+  const crawledEntries = await logger.phase('CRAWL_FREQ', async () => {
     return await crawlAllDepartments(supabase, logger);
   });
   result.crawled_frequencies = crawledEntries.length;
   result.crawled_radios = new Set(crawledEntries.map(e => e.radio_id)).size;
 
-  // Build dept → radio_ids index
-  const deptRadioIds = new Map<string, Set<string>>();
   for (const e of crawledEntries) {
     if (!deptRadioIds.has(e.departement)) deptRadioIds.set(e.departement, new Set());
     deptRadioIds.get(e.departement)!.add(e.radio_id);
   }
-  result.depts_covered = deptRadioIds.size;
-  await logger.info('INDEX', `${deptRadioIds.size} départements couverts, ${result.crawled_radios} radios crawlées`);
 
-  // Get national radio IDs for fallback
+  await logger.info('INDEX', `Après freq-radio : ${deptRadioIds.size} depts, ${result.crawled_radios} radios`);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 2: CRAWL Arcom prefectures → ENRICH the SAME index
+  // ══════════════════════════════════════════════════════════════════════════
+  await logger.phase('CRAWL_ARCOM', async () => {
+    const arcomEntries = await crawlArcomPrefectures(supabase, logger);
+    const enriched = await enrichDeptIndexFromArcom(supabase, logger, arcomEntries, deptRadioIds);
+    await logger.info('INDEX', `Après Arcom : ${deptRadioIds.size} depts (+${enriched} nouvelles entrées dept→radio)`);
+  });
+
+  result.depts_covered = deptRadioIds.size;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 3: PARENT DETECT (while radios still have 0 emitters)
+  // ══════════════════════════════════════════════════════════════════════════
+  await logger.phase('PARENT_DETECT', async () => {
+    await detectParentRadios(supabase, logger);
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // STEP 4: Load emitters + prepare national fallback
+  // ══════════════════════════════════════════════════════════════════════════
   const { data: nationalRadios } = await supabase
     .from('radios')
-    .select('id, nom, categorie_arcom, portee, metadata')
+    .select('id, metadata')
     .in('categorie_arcom', ['D', 'E', 'P'])
     .limit(1000);
 
@@ -70,7 +99,6 @@ export async function matchRadios(
     .map(r => r.id);
   await logger.info('INDEX', `${nationalIds.length} radios nationales pour le fallback`);
 
-  // ── Step 2: Load ALL emitters ─────────────────────────────────────────────
   const emetteurs: Array<{ id: string; departement: string | null }> = [];
   let offset = 0;
   while (true) {
@@ -95,7 +123,9 @@ export async function matchRadios(
     byDept.get(d)!.push(em.id);
   }
 
-  // ── PASS 1: Crawled departments ───────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // PASS 1: Match with MERGED index (freq-radio + Arcom combined)
+  // ══════════════════════════════════════════════════════════════════════════
   await logger.phase('PASS_1', async () => {
     let matched = 0;
     let deptsDone = 0;
@@ -105,8 +135,6 @@ export async function matchRadios(
       if (!radioIds || radioIds.size === 0) continue;
 
       const rids = [...radioIds];
-
-      // Round-robin: assign emitters to radios proportionally
       for (let i = 0; i < emitterIds.length; i += 3) {
         const chunk = emitterIds.slice(i, i + 3);
         await Promise.all(chunk.map((eid, j) =>
@@ -127,65 +155,9 @@ export async function matchRadios(
     await logger.info('PASS_1', `Passe 1 terminée : ${matched} matchés (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
   });
 
-  // ── PASS 1.7: Arcom prefectures crawl → enrich dept index → match more ──
-  await logger.phase('PASS_1_7', async () => {
-    const arcomEntries = await crawlArcomPrefectures(supabase, logger);
-    const enriched = await enrichDeptIndexFromArcom(supabase, logger, arcomEntries, deptRadioIds);
-
-    if (enriched === 0) {
-      await logger.info('PASS_1_7', 'Aucune nouvelle entrée Arcom à matcher');
-      return;
-    }
-
-    // Re-match orphans with enriched index
-    let orphanIds: string[] = [];
-    let off = 0;
-    while (true) {
-      const { data } = await supabase
-        .from('emetteurs_radio')
-        .select('id, departement')
-        .is('radio_id', null)
-        .range(off, off + 4999);
-      if (!data || data.length === 0) break;
-      orphanIds.push(...data.map(d => `${d.id}|${d.departement ?? ''}`));
-      if (data.length < 5000) break;
-      off += 5000;
-    }
-
-    let matched = 0;
-    // Group orphans by dept
-    const orphansByDept = new Map<string, string[]>();
-    for (const o of orphanIds) {
-      const [id, dept] = o.split('|');
-      if (!dept) continue;
-      if (!orphansByDept.has(dept)) orphansByDept.set(dept, []);
-      orphansByDept.get(dept)!.push(id);
-    }
-
-    for (const [dept, ids] of orphansByDept) {
-      const radioIds = deptRadioIds.get(dept);
-      if (!radioIds || radioIds.size === 0) continue;
-      const rids = [...radioIds];
-
-      for (let i = 0; i < ids.length; i += 3) {
-        const chunk = ids.slice(i, i + 3);
-        await Promise.all(chunk.map((eid, j) =>
-          supabase.from('emetteurs_radio').update({ radio_id: rids[(i + j) % rids.length] }).eq('id', eid)
-        ));
-        matched += chunk.length;
-      }
-    }
-
-    result.matched_pass1 += matched; // count as part of pass 1 total
-    await logger.info('PASS_1_7', `Passe 1.7 (Arcom) : +${matched} matchés avec ${enriched} nouvelles entrées`);
-  });
-
-  // ── PARENT DETECT: find parent networks BEFORE fallback ───────────────────
-  await logger.phase('PARENT_DETECT', async () => {
-    await detectParentRadios(supabase, logger);
-  });
-
-  // ── PASS 2: Fallback — uncovered departments → nationals ──────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // PASS 2: Fallback nationals for uncovered departments
+  // ══════════════════════════════════════════════════════════════════════════
   await logger.phase('PASS_2', async () => {
     if (nationalIds.length === 0) {
       await logger.warn('PASS_2', 'Aucune radio nationale pour le fallback');
@@ -223,16 +195,18 @@ export async function matchRadios(
     }
 
     result.matched_pass2 = matched;
-    await logger.info('PASS_2', `Passe 2 (fallback nationaux) : +${matched} (total ${((result.matched_pass1 + matched) / result.total_emetteurs * 100).toFixed(1)}%)`);
+    await logger.info('PASS_2', `Passe 2 (fallback nationaux) : +${matched}`);
   });
 
-  // ── Final stats ───────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // FINAL STATS
+  // ══════════════════════════════════════════════════════════════════════════
   result.total_matched = result.matched_pass1 + result.matched_pass2;
   result.orphelins = result.total_emetteurs - result.total_matched;
   result.pct_matching = result.total_emetteurs > 0
     ? Math.round((result.total_matched / result.total_emetteurs) * 1000) / 10
     : 0;
 
-  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched}/${result.total_emetteurs} (${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}, ${result.depts_covered} depts couverts, ${result.crawled_radios} radios crawlées`);
+  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched}/${result.total_emetteurs} (${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}, ${result.depts_covered} depts, ${result.crawled_radios} radios crawlées`);
   return result;
 }
