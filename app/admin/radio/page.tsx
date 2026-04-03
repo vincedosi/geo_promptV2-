@@ -43,6 +43,14 @@ interface RadioRow {
 
 type Tab = 'import' | 'radios' | 'stats';
 
+interface AuditData {
+  kpis: { matchees: number; non_matchees: number; total: number; pct: number; relations: number };
+  par_categorie: Array<{ cat: string; total: number; matchees: number; non_matchees: number; pct: number }>;
+  non_matchees: Array<{ id: string; nom: string; cat: string; portee: string | null; nb_freq_ods: number; parent_nom: string | null; diagnostic: string }>;
+  sources: Array<{ source: string; relations: number; radios: number }>;
+  historique: Array<{ id: string; started_at: string; completed_at: string | null; duration_s: number | null; stats: Record<string, unknown> | null; status: string }>;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(d: string | null) {
   if (!d) return '—';
@@ -96,6 +104,23 @@ export default function RadioAdminPage() {
       if (res.ok) { const d = await res.json(); setStats(d); }
     } catch { /* ignore */ }
     setStatsLoading(false);
+  }, []);
+
+  // ── Audit ────────────────────────────────────────────────────────────────
+  const [audit, setAudit] = useState<AuditData | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditCatFilter, setAuditCatFilter] = useState<string>('');
+  const [auditDiagFilter, setAuditDiagFilter] = useState<string>('');
+  const [auditFreqMin, setAuditFreqMin] = useState<number>(0);
+  const [auditSearch, setAuditSearch] = useState('');
+
+  const fetchAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const res = await adminFetch('/api/radio/audit');
+      if (res.ok) { const d = await res.json(); setAudit(d); }
+    } catch { /* ignore */ }
+    setAuditLoading(false);
   }, []);
 
   // ── Import history ────────────────────────────────────────────────────────
@@ -309,6 +334,7 @@ export default function RadioAdminPage() {
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => { fetchStats(); fetchImports(); }, [fetchStats, fetchImports]);
   useEffect(() => { if (tab === 'radios') fetchRadios(); }, [tab, fetchRadios]);
+  useEffect(() => { if (tab === 'stats') fetchAudit(); }, [tab, fetchAudit]);
   useEffect(() => { if (!userScrolledRef.current) logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [importLogs]);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -690,67 +716,181 @@ export default function RadioAdminPage() {
         </div>
       )}
 
-      {/* ═══════════ TAB STATS ═══════════ */}
+      {/* ═══════════ TAB STATS (Audit matching) ═══════════ */}
       {tab === 'stats' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {statsLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Chargement...</div>
-          ) : !stats || stats.total_emetteurs === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 13, color: C.textDim, marginBottom: 8 }}>Aucune donnée radio importée</div>
-              <button onClick={() => setTab('import')} style={{
-                background: 'transparent', border: `0.5px solid ${C.teal}`, borderRadius: 6,
-                padding: '8px 16px', fontSize: 12, color: C.teal, cursor: 'pointer', fontFamily: fInter,
-              }}>Lancer un import ANFR</button>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {auditLoading || !audit ? (
+            <div style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Chargement de l'audit...</div>
           ) : (
             <>
-              {/* KPI cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                <StatCard label="Total émetteurs" value={stats.total_emetteurs.toLocaleString('fr-FR')} sub={`FM ${stats.emetteurs_fm.toLocaleString('fr-FR')} · DAB+ ${stats.emetteurs_dab.toLocaleString('fr-FR')}`} />
-                <StatCard label="Radios identifiées" value={stats.total_radios.toLocaleString('fr-FR')} sub={`${stats.emetteurs_orphelins} orphelins`} />
-                <StatCard label="Taux de matching" value={stats.pct_matching !== null ? `${stats.pct_matching}%` : '—'} color={(stats.pct_matching ?? 0) > 80 ? C.green : (stats.pct_matching ?? 0) > 50 ? C.warn : C.red} sub={`${stats.emetteurs_matches} matchés`} />
-                <StatCard label="Dernière MAJ ANFR" value={stats.derniere_maj_anfr ? `${days}j` : '—'} color={freshColor} sub={stats.derniere_maj_anfr ? fmtDate(stats.derniere_maj_anfr) : 'Jamais'} />
+              {/* ── Section 1: KPIs synthétiques ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <StatCard label="Radios matchees" value={`${audit.kpis.matchees} / ${audit.kpis.total}`} sub={`${audit.kpis.pct}%`} color={audit.kpis.pct > 80 ? C.green : audit.kpis.pct > 60 ? C.warn : C.red} />
+                <StatCard label="Non matchees" value={String(audit.kpis.non_matchees)} sub={`${(100 - audit.kpis.pct).toFixed(1)}%`} color={audit.kpis.non_matchees > 0 ? C.red : C.green} />
+                <StatCard label="Relations m2m" value={audit.kpis.relations.toLocaleString('fr-FR')} sub="emetteur x radio" />
+              </div>
+              {/* Progress bar */}
+              <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,87,87,0.15)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${audit.kpis.pct}%`, background: C.green, borderRadius: 4, transition: 'width 0.3s' }} />
               </div>
 
-              {/* Distribution charts */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {[
-                  { label: 'Par catégorie Arcom', data: stats.par_categorie },
-                  { label: 'Par portée', data: stats.par_portee },
-                  { label: 'Par genre', data: stats.par_genre },
-                ].map(chart => (
-                  <div key={chart.label} style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
-                    <SH label={chart.label} />
-                    <div style={{ padding: '8px 14px' }}>
-                      {Object.entries(chart.data).length === 0 ? (
-                        <div style={{ color: C.textDim, fontSize: 12, padding: 8 }}>Aucune donnée</div>
-                      ) : (
-                        Object.entries(chart.data)
-                          .sort(([, a], [, b]) => (b as number) - (a as number))
-                          .map(([key, val]) => {
-                            const max = Math.max(...Object.values(chart.data).map(Number));
-                            const pct = max > 0 ? ((val as number) / max) * 100 : 0;
-                            return (
-                              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{ width: 80, fontSize: 11, color: C.textSec, fontFamily: fInter, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{key}</span>
-                                <div style={{ flex: 1, height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${pct}%`, background: C.teal, borderRadius: 3 }} />
-                                </div>
-                                <span style={{ width: 40, textAlign: 'right', fontSize: 11, fontFamily: fMono, color: C.textDim }}>{(val as number).toLocaleString('fr-FR')}</span>
+              {/* ── Section 2: Par catégorie ── */}
+              <div style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+                <SH label="Matching par categorie" />
+                <div style={{ padding: '0 14px 14px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        {['Categorie', 'Matchees', 'Non matchees', '%', ''].map(h => (
+                          <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: C.textDim, fontWeight: 500, fontSize: 11, borderBottom: `0.5px solid ${C.border}` }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(audit.par_categorie ?? []).map(row => {
+                        const catLabels: Record<string, string> = { A: 'A (associative)', B: 'B (locale comm.)', C: 'C (franchise)', D: 'D (thematique)', E: 'E (generaliste)', P: 'P (public)', '?': '?' };
+                        return (
+                          <tr key={row.cat} style={{ borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
+                            onClick={() => setAuditCatFilter(auditCatFilter === row.cat ? '' : row.cat)}
+                            onMouseEnter={e => { e.currentTarget.style.background = C.elevated; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = auditCatFilter === row.cat ? 'rgba(78,205,196,0.05)' : 'transparent'; }}
+                          >
+                            <td style={{ padding: '6px 8px', color: auditCatFilter === row.cat ? C.teal : C.text, fontWeight: 500, fontSize: 11 }}>{catLabels[row.cat] ?? row.cat}</td>
+                            <td style={{ padding: '6px 8px', fontFamily: fMono, fontSize: 11, color: C.textSec }}>{row.matchees}/{row.total}</td>
+                            <td style={{ padding: '6px 8px', fontFamily: fMono, fontSize: 11, color: row.non_matchees > 0 ? C.red : C.textDim }}>{row.non_matchees}</td>
+                            <td style={{ padding: '6px 8px', fontFamily: fMono, fontSize: 11, color: row.pct >= 90 ? C.green : row.pct >= 70 ? C.textSec : C.red }}>{row.pct}%</td>
+                            <td style={{ padding: '6px 8px', width: '40%' }}>
+                              <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${row.pct}%`, borderRadius: 3, background: row.pct >= 90 ? C.green : row.pct >= 70 ? C.teal : C.red, transition: 'width 0.3s' }} />
                               </div>
-                            );
-                          })
-                      )}
-                    </div>
-                  </div>
-                ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {/* Archive info */}
-              <div style={{ fontSize: 11, color: C.textDim, fontFamily: fMono, textAlign: 'right' }}>
-                {stats.archives_count} émetteurs en archive
+              {/* ── Section 3: Radios non matchées avec diagnostic ── */}
+              <div style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+                <SH label={`Radios non matchees (${audit.non_matchees.length})`} />
+                {/* Filters */}
+                <div style={{ padding: '8px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: `0.5px solid ${C.border}` }}>
+                  <input
+                    value={auditSearch} onChange={e => setAuditSearch(e.target.value)}
+                    placeholder="Rechercher..."
+                    style={{ flex: '1 1 150px', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '5px 10px', fontSize: 11, color: C.text, outline: 'none', fontFamily: fInter }}
+                  />
+                  <select value={auditCatFilter} onChange={e => setAuditCatFilter(e.target.value)}
+                    style={{ background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 11, color: C.textSec, fontFamily: fInter }}>
+                    <option value="">Toutes cat.</option>
+                    {['A', 'B', 'C', 'D', 'E', 'P'].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={auditDiagFilter} onChange={e => setAuditDiagFilter(e.target.value)}
+                    style={{ background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 11, color: C.textSec, fontFamily: fInter }}>
+                    <option value="">Tous diagnostics</option>
+                    <option value="parent">Parent detecte</option>
+                    <option value="declinaison">Declinaison locale</option>
+                    <option value="absente">Absente sources</option>
+                    <option value="aucune">Aucune freq FM</option>
+                  </select>
+                  <select value={String(auditFreqMin)} onChange={e => setAuditFreqMin(Number(e.target.value))}
+                    style={{ background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 11, color: C.textSec, fontFamily: fInter }}>
+                    <option value="0">Toutes freq</option>
+                    <option value="3">3+ freq FM</option>
+                    <option value="5">5+ freq FM</option>
+                  </select>
+                </div>
+                {/* Table */}
+                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fInter, fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: C.elevated, position: 'sticky', top: 0, zIndex: 1 }}>
+                        {['Radio', 'Cat.', 'Portee', 'Freq', 'Diagnostic', 'Liens'].map(h => (
+                          <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: C.textDim, fontWeight: 500, fontSize: 10, borderBottom: `0.5px solid ${C.border}` }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(audit.non_matchees ?? [])
+                        .filter(r => {
+                          if (auditCatFilter && r.cat !== auditCatFilter) return false;
+                          if (auditFreqMin && r.nb_freq_ods < auditFreqMin) return false;
+                          if (auditSearch && !r.nom.toLowerCase().includes(auditSearch.toLowerCase())) return false;
+                          if (auditDiagFilter === 'parent' && !r.diagnostic.startsWith('Parent')) return false;
+                          if (auditDiagFilter === 'declinaison' && !r.diagnostic.startsWith('Declinaison')) return false;
+                          if (auditDiagFilter === 'absente' && !r.diagnostic.startsWith('Absente')) return false;
+                          if (auditDiagFilter === 'aucune' && !r.diagnostic.startsWith('Aucune')) return false;
+                          return true;
+                        })
+                        .map(r => {
+                          const slug = r.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                          const diagColor = r.diagnostic.startsWith('Parent') ? C.teal : r.diagnostic.startsWith('Declinaison') ? C.warn : r.diagnostic.startsWith('Absente') ? C.red : C.textDim;
+                          return (
+                            <tr key={r.id} style={{ borderBottom: `0.5px solid ${C.border}` }}>
+                              <td style={{ padding: '6px 8px', color: C.text, fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.nom}</td>
+                              <td style={{ padding: '6px 8px', color: C.textDim }}>{r.cat}</td>
+                              <td style={{ padding: '6px 8px', color: C.textDim, fontSize: 10 }}>{r.portee ?? '—'}</td>
+                              <td style={{ padding: '6px 8px', fontFamily: fMono, color: r.nb_freq_ods >= 5 ? C.text : C.textDim }}>{r.nb_freq_ods}</td>
+                              <td style={{ padding: '6px 8px', color: diagColor, fontSize: 10, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.diagnostic}</td>
+                              <td style={{ padding: '6px 8px', display: 'flex', gap: 4 }}>
+                                <a href={`https://www.frequence-radio.com/frequence-${slug}.html`} target="_blank" rel="noopener noreferrer"
+                                  style={{ fontSize: 9, color: C.textDim, textDecoration: 'none', padding: '2px 6px', border: `0.5px solid ${C.border}`, borderRadius: 3 }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = C.teal; e.currentTarget.style.borderColor = C.teal; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = C.textDim; e.currentTarget.style.borderColor = C.border; }}
+                                >freq-radio</a>
+                                <a href={`https://www.arcom.fr/rechercher?query=${encodeURIComponent(r.nom)}`} target="_blank" rel="noopener noreferrer"
+                                  style={{ fontSize: 9, color: C.textDim, textDecoration: 'none', padding: '2px 6px', border: `0.5px solid ${C.border}`, borderRadius: 3 }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = C.teal; e.currentTarget.style.borderColor = C.teal; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = C.textDim; e.currentTarget.style.borderColor = C.border; }}
+                                >arcom</a>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {/* ── Section 4: Sources (compact) ── */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 14px', fontSize: 11, color: C.textSec, fontFamily: fInter }}>
+                {(audit.sources ?? []).map(s => {
+                  const totalRel = audit.kpis.relations || 1;
+                  const pct = ((s.relations / totalRel) * 100).toFixed(1);
+                  const colors: Record<string, string> = { 'freq-radio': C.teal, arcom: '#5b9bd5', 'fallback-national': C.warn };
+                  return (
+                    <span key={s.source} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors[s.source] ?? C.textDim }} />
+                      {s.source} {pct}%
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* ── Section 5: Historique enrichissements ── */}
+              {(audit.historique ?? []).length > 0 && (
+                <div style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+                  <SH label="Derniers enrichissements" />
+                  <div style={{ padding: '0 14px 10px' }}>
+                    {(audit.historique ?? []).map((h, i) => {
+                      const dur = h.duration_s ? (h.duration_s >= 60 ? `${Math.floor(h.duration_s / 60)}m${h.duration_s % 60}s` : `${h.duration_s}s`) : '—';
+                      const matchedP1 = (h.stats as Record<string, number> | null)?.matched_pass1 ?? 0;
+                      const matchedP2 = (h.stats as Record<string, number> | null)?.matched_pass2 ?? 0;
+                      return (
+                        <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < (audit.historique.length - 1) ? `0.5px solid ${C.border}` : 'none' }}>
+                          <span style={{ fontSize: 11, color: C.textSec }}>{fmtDate(h.started_at)}</span>
+                          <span style={{ fontSize: 11, color: C.textDim, fontFamily: fMono }}>{dur}</span>
+                          <span style={{ fontSize: 10, color: h.status === 'success' ? C.green : h.status === 'error' ? C.red : C.warn }}>
+                            {h.status === 'success' ? `P1: ${matchedP1.toLocaleString('fr-FR')} · P2: ${matchedP2.toLocaleString('fr-FR')}` : h.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
