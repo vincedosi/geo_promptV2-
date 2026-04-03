@@ -142,10 +142,16 @@ export async function matchRadios(
       radioFmCountById.set(r.id, Array.isArray(freqs) ? freqs.length : 0);
     }
 
-    // Check Radio Scoop specifically (id=3a6d8bcb)
-    const radioScoopId = '3a6d8bcb';
-    const radioScoopName = radioNameById.get(radioScoopId);
-    await logger.info('DIAGNOSTIC', `Radio Scoop dans DB : id=${radioScoopId}, nom="${radioScoopName ?? 'NON TROUVÉE'}"`);
+    // Find Radio Scoop by name (never hardcode partial UUIDs)
+    let radioScoopId: string | undefined;
+    for (const [id, nom] of radioNameById) {
+      if (nom.toLowerCase().trim() === 'radio scoop') { radioScoopId = id; break; }
+    }
+    if (radioScoopId) {
+      await logger.info('DIAGNOSTIC', `Radio Scoop dans DB : id=${radioScoopId}, nom="${radioNameById.get(radioScoopId)}", cat=${radioCatById.get(radioScoopId)}, ${radioFmCountById.get(radioScoopId)} freq FM`);
+    } else {
+      await logger.error('DIAGNOSTIC', 'Radio Scoop NON TROUVÉE dans la table radios — problème import ODS ?');
+    }
 
     // Check what Arcom returned for dept 69
     const arcom69 = arcomEntriesForReport.filter(e => e.departement === '69');
@@ -167,20 +173,22 @@ export async function matchRadios(
     if (dept69Ids && dept69Ids.size > 0) {
       const dept69Names = [...dept69Ids].map(id => `${radioNameById.get(id) ?? id} (${radioCatById.get(id)})`);
       await logger.info('DIAGNOSTIC', `Index fusionné dept 69 : ${dept69Ids.size} radios — ${dept69Names.join(', ')}`);
-      const scoopInIndex = dept69Ids.has(radioScoopId);
-      if (scoopInIndex) {
-        await logger.success('DIAGNOSTIC', `✓ Radio Scoop (${radioScoopId}) EST dans l'index dept 69`);
-      } else {
-        await logger.error('DIAGNOSTIC', `✗ Radio Scoop (${radioScoopId}) ABSENT de l'index dept 69 → 0 émetteurs garanti`);
-        // Check if it's in any dept
-        const scoopDepts: string[] = [];
-        for (const [d, ids] of deptRadioIds) {
-          if (ids.has(radioScoopId)) scoopDepts.push(d);
-        }
-        if (scoopDepts.length > 0) {
-          await logger.warn('DIAGNOSTIC', `Radio Scoop trouvée dans depts : ${scoopDepts.join(', ')} (mais pas 69)`);
+      if (radioScoopId) {
+        const scoopInIndex = dept69Ids.has(radioScoopId);
+        if (scoopInIndex) {
+          await logger.success('DIAGNOSTIC', `✓ Radio Scoop (${radioScoopId.slice(0, 8)}) EST dans l'index dept 69`);
         } else {
-          await logger.error('DIAGNOSTIC', 'Radio Scoop ABSENTE de TOUT l\'index fusionné — ni freq-radio ni Arcom');
+          await logger.error('DIAGNOSTIC', `✗ Radio Scoop (${radioScoopId.slice(0, 8)}) ABSENT de l'index dept 69 → 0 émetteurs garanti`);
+          // Check if it's in any dept
+          const scoopDepts: string[] = [];
+          for (const [d, ids] of deptRadioIds) {
+            if (ids.has(radioScoopId)) scoopDepts.push(d);
+          }
+          if (scoopDepts.length > 0) {
+            await logger.warn('DIAGNOSTIC', `Radio Scoop trouvée dans depts : ${scoopDepts.join(', ')} (mais pas 69)`);
+          } else {
+            await logger.error('DIAGNOSTIC', 'Radio Scoop ABSENTE de TOUT l\'index fusionné — ni freq-radio ni Arcom');
+          }
         }
       }
     } else {
@@ -188,11 +196,13 @@ export async function matchRadios(
     }
 
     // Check freq-radio crawl results for Radio Scoop
-    const freqRadioScoop = crawledEntries.filter(e => e.radio_id === radioScoopId);
-    if (freqRadioScoop.length > 0) {
-      await logger.info('DIAGNOSTIC', `freq-radio Radio Scoop : ${freqRadioScoop.length} entrées — depts: ${[...new Set(freqRadioScoop.map(e => e.departement))].join(', ')}`);
-    } else {
-      await logger.warn('DIAGNOSTIC', `freq-radio Radio Scoop : 0 entrées (slug "radio-scoop" probablement 404)`);
+    if (radioScoopId) {
+      const freqRadioScoop = crawledEntries.filter(e => e.radio_id === radioScoopId);
+      if (freqRadioScoop.length > 0) {
+        await logger.info('DIAGNOSTIC', `freq-radio Radio Scoop : ${freqRadioScoop.length} entrées — depts: ${[...new Set(freqRadioScoop.map(e => e.departement))].join(', ')}`);
+      } else {
+        await logger.warn('DIAGNOSTIC', `freq-radio Radio Scoop : 0 entrées (slug "radio-scoop" probablement 404)`);
+      }
     }
   });
 
@@ -453,13 +463,19 @@ async function generateMatchingReport(
 
     // Check for Radio Scoop specifically in dept 69
     if (dept === '69') {
-      const scoopId = '3a6d8bcb';
-      const scoopInIndex = radioIds.has(scoopId);
-      const scoopEmitters = radioEmitterCounts.get(scoopId) ?? 0;
-      if (scoopInIndex) {
-        await logger.success('RAPPORT', `[DEPT 69] ✓ Radio Scoop dans l'index, ${scoopEmitters} émetteurs`);
-      } else {
-        await logger.error('RAPPORT', `[DEPT 69] ✗ Radio Scoop ABSENT de l'index → ${scoopEmitters} émetteurs`);
+      // Find Radio Scoop by name — never hardcode partial UUIDs
+      let scoopId: string | undefined;
+      for (const [id, info] of radioMap) {
+        if (info.nom.toLowerCase().trim() === 'radio scoop') { scoopId = id; break; }
+      }
+      if (scoopId) {
+        const scoopInIndex = radioIds.has(scoopId);
+        const scoopEmitters = radioEmitterCounts.get(scoopId) ?? 0;
+        if (scoopInIndex) {
+          await logger.success('RAPPORT', `[DEPT 69] ✓ Radio Scoop (${scoopId.slice(0, 8)}) dans l'index, ${scoopEmitters} émetteurs`);
+        } else {
+          await logger.error('RAPPORT', `[DEPT 69] ✗ Radio Scoop (${scoopId.slice(0, 8)}) ABSENT de l'index → ${scoopEmitters} émetteurs`);
+        }
       }
     }
   }

@@ -239,17 +239,48 @@ export async function enrichDeptIndexFromArcom(
   arcomEntries: ArcomRadioEntry[],
   existingDeptIndex: Map<string, Set<string>>, // dept → Set<radio_id>
 ): Promise<number> {
-  // Load all radios from DB
+  // Load all radios from DB — build exact + fuzzy lookup maps
   const { data: allRadios } = await supabase.from('radios').select('id, nom').limit(100000);
-  const radioByName = new Map<string, string>(); // lowercase nom → id
-  for (const r of allRadios ?? []) {
-    radioByName.set(r.nom.toLowerCase().trim(), r.id);
+  const radioByExactName = new Map<string, string>(); // lowercase nom → id
+  const allRadiosList = allRadios ?? [];
+  for (const r of allRadiosList) {
+    radioByExactName.set(r.nom.toLowerCase().trim(), r.id);
   }
 
   let enriched = 0;
+  let matched = 0;
+  let notFound = 0;
+  let fuzzyMatched = 0;
+  const notFoundNames: string[] = [];
+
   for (const entry of arcomEntries) {
-    const radioId = radioByName.get(entry.radio_nom.toLowerCase().trim());
-    if (!radioId) continue;
+    const normalizedName = entry.radio_nom.toLowerCase().trim();
+
+    // 1. Exact match (lowercase + trim)
+    let radioId = radioByExactName.get(normalizedName);
+
+    // 2. Fuzzy fallback: substring match (handles "Radio Scoop Lyon" → "Radio Scoop")
+    if (!radioId) {
+      for (const r of allRadiosList) {
+        const dbName = r.nom.toLowerCase().trim();
+        if (dbName.includes(normalizedName) || normalizedName.includes(dbName)) {
+          radioId = r.id;
+          fuzzyMatched++;
+          await logger.debug('ARCOM_ENRICH', `Fuzzy match: Arcom "${entry.radio_nom}" → DB "${r.nom}" (${r.id.slice(0, 8)})`);
+          break;
+        }
+      }
+    }
+
+    if (!radioId) {
+      notFound++;
+      if (!notFoundNames.includes(entry.radio_nom)) {
+        notFoundNames.push(entry.radio_nom);
+      }
+      continue;
+    }
+
+    matched++;
 
     if (!existingDeptIndex.has(entry.departement)) {
       existingDeptIndex.set(entry.departement, new Set());
@@ -259,9 +290,16 @@ export async function enrichDeptIndexFromArcom(
     if (!deptSet.has(radioId)) {
       deptSet.add(radioId);
       enriched++;
+      await logger.debug('ARCOM_ENRICH', `Dept ${entry.departement}: "${entry.radio_nom}" → ${radioId.slice(0, 8)} ✓ (nouveau)`);
     }
   }
 
-  await logger.info('ARCOM_ENRICH', `${enriched} nouvelles entrées dept→radio ajoutées à l'index depuis Arcom`);
+  await logger.info('ARCOM_ENRICH', `${enriched} nouvelles entrées dept→radio ajoutées (${matched} matchés, ${fuzzyMatched} fuzzy, ${notFound} non trouvés en base)`);
+  if (notFoundNames.length > 0) {
+    // Log up to 30 unmatched names for diagnosis
+    const display = notFoundNames.slice(0, 30).join(', ');
+    const more = notFoundNames.length > 30 ? ` ... +${notFoundNames.length - 30} autres` : '';
+    await logger.warn('ARCOM_ENRICH', `Radios Arcom NON trouvées en base (${notFoundNames.length}) : ${display}${more}`);
+  }
   return enriched;
 }
