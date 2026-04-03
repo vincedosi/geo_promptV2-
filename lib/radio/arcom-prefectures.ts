@@ -133,6 +133,27 @@ const BASE_URL = 'https://www.arcom.fr/radio-et-audio-numerique/radio-fm-dab/rad
  *              <span ...>DAB+ · FM</span>
  *            </a>
  */
+/** Decode common HTML entities in radio names from Arcom pages */
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&eacute;/g, 'é')
+    .replace(/&egrave;/g, 'è')
+    .replace(/&agrave;/g, 'à')
+    .replace(/&ccedil;/g, 'ç')
+    .replace(/&ocirc;/g, 'ô')
+    .replace(/&ucirc;/g, 'û')
+    .replace(/&icirc;/g, 'î')
+    .replace(/&euml;/g, 'ë')
+    .replace(/&ouml;/g, 'ö')
+    .replace(/&uuml;/g, 'ü')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
 function parseArcomPage(html: string): string[] {
   const radioNames: string[] = [];
   const normalized = html.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ');
@@ -141,7 +162,7 @@ function parseArcomPage(html: string): string[] {
   const regex = /class="[^"]*stretched-link[^"]*"[^>]*>\s*([^<]+?)\s*<span[^>]*>\s*((?:DAB\+|FM)[\s·]*(?:DAB\+|FM)?)\s*<\/span>/gi;
   let match;
   while ((match = regex.exec(normalized)) !== null) {
-    const name = match[1].trim();
+    const name = decodeHtmlEntities(match[1].trim());
     if (name.length >= 2 && name.length < 80) {
       radioNames.push(name);
     }
@@ -151,7 +172,7 @@ function parseArcomPage(html: string): string[] {
   if (radioNames.length === 0) {
     const fallback = /bk-radio-station-list__item[^>]*>.*?<a[^>]*>\s*([^<]+?)\s*<span/gi;
     while ((match = fallback.exec(normalized)) !== null) {
-      const name = match[1].trim();
+      const name = decodeHtmlEntities(match[1].trim());
       if (name.length >= 2 && name.length < 80) {
         radioNames.push(name);
       }
