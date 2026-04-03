@@ -33,27 +33,18 @@ export async function detectParentRadios(
 
   if (!allRadios) return { detected: 0, independent: 0 };
 
-  // Build lookup of radios that HAVE emitters (potential parents)
-  const { data: withEmitters } = await supabase
-    .from('emetteurs_radio')
-    .select('radio_id')
-    .not('radio_id', 'is', null)
-    .limit(100000);
-
-  const radioIdsWithEmitters = new Set((withEmitters ?? []).map(e => e.radio_id));
-
-  // Build name→id map for parent candidates (only those with emitters)
+  // Build name→id map for ALL radios as parent candidates.
+  // We used to filter only radios with emitters, but since the m2m migration
+  // truncates the junction table in RESET (before parent detection runs),
+  // no radio has emitters at this stage. Prefix matching is robust enough
+  // to avoid false positives without this filter.
   const parentCandidates = new Map<string, string>(); // lowercase name → id
   for (const r of allRadios) {
-    if (radioIdsWithEmitters.has(r.id)) {
-      parentCandidates.set(r.nom.toLowerCase().trim(), r.id);
-    }
+    parentCandidates.set(r.nom.toLowerCase().trim(), r.id);
   }
 
-  // Find radios WITHOUT emitters and without existing parent
-  const orphans = allRadios.filter(r =>
-    !radioIdsWithEmitters.has(r.id) && !r.parent_radio_id
-  );
+  // Find radios without existing parent (all are potential orphans pre-PASS_1)
+  const orphans = allRadios.filter(r => !r.parent_radio_id);
 
   await logger.info('PARENT', `${orphans.length} radios sans émetteurs à analyser, ${parentCandidates.size} parents potentiels`);
 

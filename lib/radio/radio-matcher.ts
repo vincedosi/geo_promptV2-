@@ -87,6 +87,37 @@ export async function matchRadios(
   });
 
   // ══════════════════════════════════════════════════════════════════════════
+  // STEP 3b: INHERIT DEPTS — child radios get added to parent's departments
+  // ══════════════════════════════════════════════════════════════════════════
+  await logger.phase('INHERIT_DEPTS', async () => {
+    // Load radios with parent_radio_id set
+    const { data: childRadios } = await supabase
+      .from('radios')
+      .select('id, nom, parent_radio_id')
+      .not('parent_radio_id', 'is', null)
+      .limit(100000);
+
+    if (!childRadios || childRadios.length === 0) {
+      await logger.info('INHERIT_DEPTS', 'Aucune radio fille avec parent');
+      return;
+    }
+
+    let inherited = 0;
+    for (const child of childRadios) {
+      // Find all depts where the parent is in the index
+      const parentId = child.parent_radio_id as string;
+      for (const [dept, radioIds] of deptRadioIds) {
+        if (radioIds.has(parentId) && !radioIds.has(child.id)) {
+          radioIds.add(child.id);
+          inherited++;
+        }
+      }
+    }
+
+    await logger.info('INHERIT_DEPTS', `${inherited} entrées dept→radio ajoutées par héritage parent (${childRadios.length} radios filles)`);
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
   // STEP 4: Load emitters + prepare national fallback
   // ══════════════════════════════════════════════════════════════════════════
   const { data: nationalRadios } = await supabase
