@@ -43,8 +43,9 @@ export async function matchRadios(
   // STEP 0: RESET
   // ══════════════════════════════════════════════════════════════════════════
   await logger.phase('RESET', async () => {
+    await supabase.from('emetteur_radio_stations').delete().not('id', 'is', null);
     await supabase.from('emetteurs_radio').update({ radio_id: null }).not('id', 'is', null);
-    await logger.info('RESET', 'Tous les radio_id remis à NULL');
+    await logger.info('RESET', 'Junction table videe, radio_id remis a NULL');
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -209,8 +210,15 @@ export async function matchRadios(
   // ══════════════════════════════════════════════════════════════════════════
   // PASS 1: Match with MERGED index (freq-radio + Arcom combined)
   // ══════════════════════════════════════════════════════════════════════════
+  // Build a set of radio_ids that came from freq-radio per dept (for source tagging)
+  const freqRadioByDept = new Map<string, Set<string>>();
+  for (const e of crawledEntries) {
+    if (!freqRadioByDept.has(e.departement)) freqRadioByDept.set(e.departement, new Set());
+    freqRadioByDept.get(e.departement)!.add(e.radio_id);
+  }
+
   await logger.phase('PASS_1', async () => {
-    let matched = 0;
+    let totalRelations = 0;
     let deptsDone = 0;
 
     for (const [dept, emitterIds] of byDept) {
@@ -218,24 +226,38 @@ export async function matchRadios(
       if (!radioIds || radioIds.size === 0) continue;
 
       const rids = [...radioIds];
-      for (let i = 0; i < emitterIds.length; i += 3) {
-        const chunk = emitterIds.slice(i, i + 3);
-        await Promise.all(chunk.map((eid, j) =>
-          supabase.from('emetteurs_radio')
-            .update({ radio_id: rids[(i + j) % rids.length] })
-            .eq('id', eid)
-        ));
-        matched += chunk.length;
+      const freqSet = freqRadioByDept.get(dept);
+
+      // Build cartesian product: every emitter × every radio in this dept
+      const rows: Array<{ emetteur_id: string; radio_id: string; source: string }> = [];
+      for (const eid of emitterIds) {
+        for (const rid of rids) {
+          rows.push({
+            emetteur_id: eid,
+            radio_id: rid,
+            source: freqSet?.has(rid) ? 'freq-radio' : 'arcom',
+          });
+        }
       }
 
+      // Insert in batches of 500
+      for (let i = 0; i < rows.length; i += 500) {
+        const batch = rows.slice(i, i + 500);
+        await supabase.from('emetteur_radio_stations').upsert(batch, {
+          onConflict: 'emetteur_id,radio_id',
+          ignoreDuplicates: true,
+        });
+      }
+
+      totalRelations += rows.length;
       deptsDone++;
       if (deptsDone % 10 === 0) {
-        await logger.info('PASS_1', `${deptsDone}/${byDept.size} depts, ${matched}/${result.total_emetteurs} (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
+        await logger.info('PASS_1', `${deptsDone}/${byDept.size} depts, ${totalRelations} relations insérées`);
       }
     }
 
-    result.matched_pass1 = matched;
-    await logger.info('PASS_1', `Passe 1 terminée : ${matched} matchés (${(matched / result.total_emetteurs * 100).toFixed(1)}%)`);
+    result.matched_pass1 = totalRelations;
+    await logger.info('PASS_1', `Passe 1 terminée : ${totalRelations} relations (produit cartésien dept→radios×émetteurs)`);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -247,18 +269,13 @@ export async function matchRadios(
       return;
     }
 
-    let orphanIds: string[] = [];
-    let off = 0;
-    while (true) {
-      const { data } = await supabase
-        .from('emetteurs_radio')
-        .select('id')
-        .is('radio_id', null)
-        .range(off, off + 4999);
-      if (!data || data.length === 0) break;
-      orphanIds.push(...data.map(d => d.id));
-      if (data.length < 5000) break;
-      off += 5000;
+    // Find orphan emitters: depts that had no entry in deptRadioIds (skipped in PASS_1)
+    const orphanIds: string[] = [];
+    for (const [dept, emitterIds] of byDept) {
+      const radioIds = deptRadioIds.get(dept);
+      if (!radioIds || radioIds.size === 0) {
+        orphanIds.push(...emitterIds);
+      }
     }
 
     if (orphanIds.length === 0) {
@@ -266,31 +283,57 @@ export async function matchRadios(
       return;
     }
 
-    let matched = 0;
-    for (let i = 0; i < orphanIds.length; i += 3) {
-      const chunk = orphanIds.slice(i, i + 3);
-      await Promise.all(chunk.map((eid, j) =>
-        supabase.from('emetteurs_radio')
-          .update({ radio_id: nationalIds[(i + j) % nationalIds.length] })
-          .eq('id', eid)
-      ));
-      matched += chunk.length;
+    await logger.info('PASS_2', `${orphanIds.length} émetteurs orphelins × ${nationalIds.length} radios nationales`);
+
+    // Build cartesian product: every orphan emitter × every national radio
+    let totalRelations = 0;
+    const rows: Array<{ emetteur_id: string; radio_id: string; source: string }> = [];
+
+    for (const eid of orphanIds) {
+      for (const rid of nationalIds) {
+        rows.push({ emetteur_id: eid, radio_id: rid, source: 'fallback-national' });
+      }
     }
 
-    result.matched_pass2 = matched;
-    await logger.info('PASS_2', `Passe 2 (fallback nationaux) : +${matched}`);
+    // Insert in batches of 500
+    for (let i = 0; i < rows.length; i += 500) {
+      const batch = rows.slice(i, i + 500);
+      await supabase.from('emetteur_radio_stations').upsert(batch, {
+        onConflict: 'emetteur_id,radio_id',
+        ignoreDuplicates: true,
+      });
+    }
+
+    totalRelations = rows.length;
+    result.matched_pass2 = totalRelations;
+    await logger.info('PASS_2', `Passe 2 (fallback nationaux) : +${totalRelations} relations`);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
   // FINAL STATS
   // ══════════════════════════════════════════════════════════════════════════
   result.total_matched = result.matched_pass1 + result.matched_pass2;
-  result.orphelins = result.total_emetteurs - result.total_matched;
+
+  // Count unique emitters with at least one relation in the junction table
+  const uniqueEmittersLinked = new Set<string>();
+  let countOff = 0;
+  while (true) {
+    const { data } = await supabase
+      .from('emetteur_radio_stations')
+      .select('emetteur_id')
+      .range(countOff, countOff + 4999);
+    if (!data || data.length === 0) break;
+    for (const row of data) uniqueEmittersLinked.add(row.emetteur_id);
+    if (data.length < 5000) break;
+    countOff += 5000;
+  }
+  result.orphelins = result.total_emetteurs - uniqueEmittersLinked.size;
+
   result.pct_matching = result.total_emetteurs > 0
-    ? Math.round((result.total_matched / result.total_emetteurs) * 1000) / 10
+    ? Math.round((uniqueEmittersLinked.size / result.total_emetteurs) * 1000) / 10
     : 0;
 
-  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched}/${result.total_emetteurs} (${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}, ${result.depts_covered} depts, ${result.crawled_radios} radios crawlées`);
+  await logger.success('FINALIZE', `Matching terminé : ${result.total_matched} relations (${uniqueEmittersLinked.size}/${result.total_emetteurs} émetteurs liés, ${result.pct_matching}%) — P1:${result.matched_pass1} P2:${result.matched_pass2}, ${result.depts_covered} depts, ${result.crawled_radios} radios crawlées, ${result.orphelins} orphelins`);
 
   // ══════════════════════════════════════════════════════════════════════════
   // RAPPORT: Comprehensive matching audit log
@@ -326,14 +369,13 @@ async function generateMatchingReport(
     });
   }
 
-  // Count emitters per radio
+  // Count emitter relations per radio (from junction table)
   const radioEmitterCounts = new Map<string, number>();
   let offset = 0;
   while (true) {
     const { data } = await supabase
-      .from('emetteurs_radio')
+      .from('emetteur_radio_stations')
       .select('radio_id')
-      .not('radio_id', 'is', null)
       .range(offset, offset + 4999);
     if (!data || data.length === 0) break;
     for (const row of data) {
@@ -408,7 +450,7 @@ async function generateMatchingReport(
           conclusion = 'freq-radio la connaît mais aucune donnée dept récupérée';
         }
       } else {
-        conclusion = 'Présente dans l\'index mais aucun émetteur assigné — bug dans le round-robin ?';
+        conclusion = 'Présente dans l\'index mais aucune relation dans la junction table — bug dans le cartesian insert ?';
       }
 
       await logger.warn('RAPPORT', `  ✗ ${r.nom} (cat ${r.cat}, ${r.fmCount} freq FM)`);
