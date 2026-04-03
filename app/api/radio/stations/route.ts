@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Fetch all radios with emitter count (no pagination at DB level — we sort/filter in JS)
+  // Fetch radios (no embedded count — unreliable with self-join + supabase-js 2.97)
   let query = supabase
     .from('radios')
-    .select('*, emetteurs_radio(count), parent:radios!parent_radio_id(id, nom)', { count: 'exact' })
+    .select('*, parent:radios!parent_radio_id(id, nom)', { count: 'exact' })
     .limit(5000);
 
   if (categorie) query = query.eq('categorie_arcom', categorie);
@@ -33,12 +33,24 @@ export async function GET(req: NextRequest) {
   if (genre) query = query.eq('genre', genre);
   if (search) query = query.ilike('nom', `%${search}%`);
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Fetch emitter counts separately (reliable subquery via RPC-style SQL)
+  const [radiosResult, countsResult] = await Promise.all([
+    query,
+    supabase.rpc('count_emetteurs_par_radio'),
+  ]);
+
+  if (radiosResult.error) return NextResponse.json({ error: radiosResult.error.message }, { status: 500 });
+
+  // Build radio_id → count map
+  const emCountMap = new Map<string, number>();
+  if (countsResult.data) {
+    for (const row of countsResult.data as Array<{ radio_id: string; nb: number }>) {
+      emCountMap.set(row.radio_id, row.nb);
+    }
+  }
 
   // Transform + compute fields
-  let stations = (data ?? []).map((r: Record<string, unknown>) => {
-    const emCount = (r.emetteurs_radio as Array<{ count: number }> | null);
+  let stations = (radiosResult.data ?? []).map((r: Record<string, unknown>) => {
     const meta = r.metadata as Record<string, unknown> | null;
     const freqsFm = meta?.frequences_fm;
     const nbFreqFm = Array.isArray(freqsFm) ? freqsFm.length : 0;
@@ -46,10 +58,9 @@ export async function GET(req: NextRequest) {
     const parentObj = Array.isArray(parentArr) ? parentArr[0] : parentArr;
     return {
       ...r,
-      nb_emetteurs: emCount?.[0]?.count ?? 0,
+      nb_emetteurs: emCountMap.get(r.id as string) ?? 0,
       nb_freq_fm: nbFreqFm,
       parent_nom: parentObj?.nom ?? null,
-      emetteurs_radio: undefined,
       parent: undefined,
     };
   });
