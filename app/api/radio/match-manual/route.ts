@@ -30,12 +30,19 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   let updated = 0;
 
-  for (const m of parsed.data.matches) {
+  // Insert into junction table instead of updating radio_id
+  const rows = parsed.data.matches.map(m => ({
+    emetteur_id: m.emetteur_id,
+    radio_id: m.radio_id,
+    source: 'manual' as const,
+  }));
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const batch = rows.slice(i, i + 500);
     const { error } = await supabase
-      .from('emetteurs_radio')
-      .update({ radio_id: m.radio_id })
-      .eq('id', m.emetteur_id);
-    if (!error) updated++;
+      .from('emetteur_radio_stations')
+      .upsert(batch, { onConflict: 'emetteur_id,radio_id', ignoreDuplicates: true });
+    if (!error) updated += batch.length;
   }
 
   return NextResponse.json({ success: true, updated, total: parsed.data.matches.length });
