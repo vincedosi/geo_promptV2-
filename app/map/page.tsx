@@ -471,12 +471,9 @@ export default function MapPage() {
     // Point size + highlight mode
     if (radioSelectedId) {
       try {
-        map.setPaintProperty('radio-points', 'circle-color', [
-          'case', ['==', ['get', 'radio_id'], radioSelectedId], '#4ecdc4', '#4b5563',
-        ] as unknown as maplibregl.ExpressionSpecification);
-        map.setPaintProperty('radio-points', 'circle-opacity', [
-          'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
-        ] as unknown as maplibregl.ExpressionSpecification);
+        // All visible points belong to the selected radio (filtered by API via m2m junction)
+        map.setPaintProperty('radio-points', 'circle-color', '#4ecdc4');
+        map.setPaintProperty('radio-points', 'circle-opacity', 1);
         map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
       } catch { /* */ }
     } else {
