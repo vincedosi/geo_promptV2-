@@ -1,6 +1,6 @@
 /**
  * GET /api/radio/emetteurs/[staAnfr]
- * Detail of a single emitter with associated radio info.
+ * Detail of a single emitter with ALL associated radios (many-to-many).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
@@ -14,17 +14,24 @@ export async function GET(
   const { staAnfr } = params;
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
+  // Get emitter
+  const { data: emetteur, error } = await supabase
     .from('emetteurs_radio')
-    .select(`
-      *, radios(id, nom, categorie_arcom, portee, genre, groupe_media)
-    `)
+    .select('*')
     .eq('sta_nm_anfr', staAnfr)
     .single();
 
-  if (error || !data) {
-    return NextResponse.json({ error: 'Émetteur non trouvé' }, { status: 404 });
+  if (error || !emetteur) {
+    return NextResponse.json({ error: 'Emetteur non trouve' }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  // Get all radios via junction table
+  const { data: radios } = await supabase
+    .rpc('get_radios_for_emetteur', { p_emetteur_id: emetteur.id });
+
+  return NextResponse.json({
+    ...emetteur,
+    radios: radios ?? [],
+    nb_radios: (radios ?? []).length,
+  });
 }
