@@ -25,19 +25,35 @@ export async function GET(
     return NextResponse.json({ error: 'Radio non trouvée' }, { status: 404 });
   }
 
-  // Get emitters for this radio
-  const { data: emetteurs } = await supabase
-    .from('emetteurs_radio')
-    .select('id, sta_nm_anfr, systeme, frequence_mhz, puissance_w, hauteur_m, commune, departement, rayon_couverture_m')
+  // Get emitters for this radio via junction table
+  const { data: junctionRows } = await supabase
+    .from('emetteur_radio_stations')
+    .select('emetteur_id')
     .eq('radio_id', id)
-    .order('departement', { ascending: true })
     .limit(500);
+
+  const emetteurIds = (junctionRows ?? []).map((r: { emetteur_id: string }) => r.emetteur_id);
+
+  let emetteurs: Record<string, unknown>[] = [];
+  if (emetteurIds.length > 0) {
+    // Fetch in chunks of 100 (Supabase .in() limit)
+    for (let i = 0; i < emetteurIds.length; i += 100) {
+      const chunk = emetteurIds.slice(i, i + 100);
+      const { data } = await supabase
+        .from('emetteurs_radio')
+        .select('id, sta_nm_anfr, systeme, frequence_mhz, puissance_w, hauteur_m, commune, departement, rayon_couverture_m')
+        .in('id', chunk)
+        .order('departement', { ascending: true });
+      if (data) emetteurs.push(...data);
+    }
+  }
 
   return NextResponse.json({
     radio,
-    emetteurs: emetteurs ?? [],
-    nb_emetteurs_fm: (emetteurs ?? []).filter((e: { systeme: string }) => e.systeme === 'FM').length,
-    nb_emetteurs_dab: (emetteurs ?? []).filter((e: { systeme: string }) => e.systeme === 'DAB+').length,
+    emetteurs,
+    nb_emetteurs: emetteurs.length,
+    nb_emetteurs_fm: emetteurs.filter((e) => e.systeme === 'FM').length,
+    nb_emetteurs_dab: emetteurs.filter((e) => e.systeme === 'DAB+').length,
   });
 }
 
