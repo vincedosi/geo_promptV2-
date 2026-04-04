@@ -330,10 +330,9 @@ export async function enrichDeptIndexFromArcom(
 
   for (const e of resolvedEntries) {
     const info = radioInfo.get(e.radioId);
-    const isLocal = info && (info.cat === 'A' || info.cat === 'B') && info.portee === 'locale';
-
-    // Coherence check for local radios
-    if (isLocal) {
+    // Coherence check for local/regional radios (cat A/B)
+    const isSuspect = info && (info.cat === 'A' || info.cat === 'B');
+    if (isSuspect) {
       const arcomDepts = arcomDeptsByRadio.get(e.radioId);
       const freqDepts = freqRadioDepts.get(e.radioId);
 
