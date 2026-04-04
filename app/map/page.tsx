@@ -88,6 +88,9 @@ export default function MapPage() {
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
+  const [radioFilterIds,     setRadioFilterIds]     = useState<string[]>([]);
+  const [radioExcludeCats,   setRadioExcludeCats]   = useState<string[]>([]);
+  const [radioFilterOptions, setRadioFilterOptions] = useState<{ radios: Array<{ id: string; nom: string; cat: string | null }>; categories: Array<{ value: string; label: string }> } | null>(null);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -410,6 +413,10 @@ export default function MapPage() {
         params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
       }
       if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
+      if (radioFilterIds.length > 0) params.set('radio_ids', radioFilterIds.join(','));
+      // Expand composite exclusion keys (e.g. 'D,E,P' → ['D','E','P'])
+      const expandedCats = radioExcludeCats.flatMap(c => c.split(','));
+      if (expandedCats.length > 0) params.set('exclude_categories', expandedCats.join(','));
       const res = await fetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
       if (!res.ok) return;
       const data: GeoJSON.FeatureCollection = await res.json();
@@ -436,7 +443,7 @@ export default function MapPage() {
     } finally {
       setRadioLoading(false);
     }
-  }, [mapReady, radioSystemeFilter, radioSelectedId]);
+  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCats]);
 
   // Sync radio GeoJSON → map source + layer visibility
   useEffect(() => {
@@ -514,6 +521,20 @@ export default function MapPage() {
     map.on('moveend', debouncedMove);
     return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
   }, [radioVisible, mapReady, radioSelectedId, handleLoadRadio]);
+
+  // Fetch filter options when radio layer becomes visible
+  useEffect(() => {
+    if (!radioVisible || radioFilterOptions) return;
+    fetch('/api/radio/filter-options')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) setRadioFilterOptions({
+          radios: d.radios_with_emetteurs ?? [],
+          categories: d.categories ?? [],
+        });
+      })
+      .catch(() => {});
+  }, [radioVisible, radioFilterOptions]);
 
   // Generate coverage circles client-side when coverage mode is active
   useEffect(() => {
@@ -1366,6 +1387,11 @@ export default function MapPage() {
         radioCount={radioGeoJSON?.features.length ?? 0}
         radioSelectedNom={radioSelectedNom}
         onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+        radioFilterIds={radioFilterIds}
+        onRadioFilterIdsChange={setRadioFilterIds}
+        radioExcludeCategories={radioExcludeCats}
+        onRadioExcludeCategoriesChange={setRadioExcludeCats}
+        radioFilterOptions={radioFilterOptions}
         radioCoverageColor={radioCoverageColor}
         onRadioCoverageColorChange={setRadioCoverageColor}
         radioCoverageOpacity={radioCoverageOpacity}

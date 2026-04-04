@@ -336,6 +336,11 @@ export interface FilterPanelProps {
   radioCount?:            number;
   radioSelectedNom?:      string | null;
   onClearRadioSelection?: () => void;
+  radioFilterIds?:        string[];
+  onRadioFilterIdsChange?: (ids: string[]) => void;
+  radioExcludeCategories?: string[];
+  onRadioExcludeCategoriesChange?: (cats: string[]) => void;
+  radioFilterOptions?:    { radios: Array<{ id: string; nom: string; cat: string | null }>; categories: Array<{ value: string; label: string }> } | null;
   radioCoverageColor?:    string;
   onRadioCoverageColorChange?: (c: string) => void;
   radioCoverageOpacity?:  number;
@@ -480,6 +485,9 @@ export function FilterPanel({
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
   radioSystemeFilter, onRadioSystemeChange, onSelectRadio,
   radioCount, radioSelectedNom, onClearRadioSelection,
+  radioFilterIds, onRadioFilterIdsChange,
+  radioExcludeCategories, onRadioExcludeCategoriesChange,
+  radioFilterOptions,
   radioCoverageColor, onRadioCoverageColorChange,
   radioCoverageOpacity, onRadioCoverageOpacityChange,
   radioBorderWidth, onRadioBorderWidthChange,
@@ -1856,6 +1864,39 @@ export function FilterPanel({
                   <div>
                     <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
                     <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
+                  </div>
+
+                  {/* Multi-radio filter */}
+                  {radioFilterOptions && radioFilterOptions.radios.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Filtrer par radios</div>
+                      <MultiDropdown
+                        label="Selectionner des radios..."
+                        items={radioFilterOptions.radios.map(r => ({ id: r.id, label: `${r.nom}${r.cat ? ` (${r.cat})` : ''}` }))}
+                        selected={radioFilterIds ?? []}
+                        onChange={ids => onRadioFilterIdsChange?.(ids)}
+                        searchable
+                      />
+                    </div>
+                  )}
+
+                  {/* Exclude categories */}
+                  <div>
+                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Exclure des categories</div>
+                    <MultiDropdown
+                      label="Aucune exclusion"
+                      items={[
+                        { id: 'D,E,P', label: 'Toutes nationales (D/E/P)' },
+                        { id: 'D', label: 'D — Thematiques nationales' },
+                        { id: 'E', label: 'E — Generalistes nationales' },
+                        { id: 'P', label: 'P — Service public' },
+                        { id: 'A', label: 'A — Associatives' },
+                        { id: 'B', label: 'B — Locales commerciales' },
+                        { id: 'C', label: 'C — Franchises locales' },
+                      ]}
+                      selected={radioExcludeCategories ?? []}
+                      onChange={cats => onRadioExcludeCategoriesChange?.(cats)}
+                    />
                   </div>
 
                   {/* System filter */}
