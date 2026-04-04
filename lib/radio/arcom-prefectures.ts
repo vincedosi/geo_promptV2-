@@ -254,10 +254,11 @@ export async function crawlArcomPrefectures(
  * For each radio found via Arcom in a department, if it exists in our DB
  * with 0 emitters, add it to the dept→radio index for the matcher.
  */
-// Max depts a local radio (cat A/B) can reasonably appear in.
+// Max depts a cat A/B radio can reasonably appear in.
 // Arcom pages sometimes return radios from the wrong city (bug on arcom.fr).
-// A local radio in >10 depts is almost certainly bad data.
-const MAX_DEPTS_LOCAL = 10;
+// Thresholds by portee: locale=10, regionale=20.
+const MAX_DEPTS_LOCALE = 10;
+const MAX_DEPTS_REGIONALE = 20;
 
 export async function enrichDeptIndexFromArcom(
   supabase: SupabaseClient,
@@ -331,13 +332,14 @@ export async function enrichDeptIndexFromArcom(
   for (const e of resolvedEntries) {
     const info = radioInfo.get(e.radioId);
     // Coherence check for local/regional radios (cat A/B)
-    const isSuspect = info && (info.cat === 'A' || info.cat === 'B');
-    if (isSuspect) {
+    const isCatAB = info && (info.cat === 'A' || info.cat === 'B');
+    if (isCatAB) {
+      const maxDepts = info.portee === 'regionale' ? MAX_DEPTS_REGIONALE : MAX_DEPTS_LOCALE;
       const arcomDepts = arcomDeptsByRadio.get(e.radioId);
       const freqDepts = freqRadioDepts.get(e.radioId);
 
-      if (arcomDepts && arcomDepts.size > MAX_DEPTS_LOCAL) {
-        // Arcom claims this local radio is in too many depts — likely bad data.
+      if (arcomDepts && arcomDepts.size > maxDepts) {
+        // Arcom claims this radio is in too many depts — likely bad data.
         // Only keep depts where freq-radio also found it (trusted).
         if (freqDepts && freqDepts.has(e.dept)) {
           // freq-radio confirms this dept — keep it
@@ -362,7 +364,7 @@ export async function enrichDeptIndexFromArcom(
 
   await logger.info('ARCOM_ENRICH', `${enriched} nouvelles entrées dept→radio (+${fuzzyMatched} fuzzy, ${notFound} non trouvés, ${filtered} filtrées coherence)`);
   if (filtered > 0) {
-    await logger.warn('ARCOM_ENRICH', `${filtered} entrées filtrées : radios locales dans >${MAX_DEPTS_LOCAL} depts Arcom (bug site arcom.fr)`);
+    await logger.warn('ARCOM_ENRICH', `${filtered} entrées filtrées : radios cat A/B dans trop de depts Arcom (locale>${MAX_DEPTS_LOCALE}, regionale>${MAX_DEPTS_REGIONALE})`);
   }
   if (notFoundNames.length > 0) {
     const display = notFoundNames.slice(0, 30).join(', ');
