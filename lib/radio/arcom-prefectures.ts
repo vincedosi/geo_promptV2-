@@ -254,6 +254,11 @@ export async function crawlArcomPrefectures(
  * For each radio found via Arcom in a department, if it exists in our DB
  * with 0 emitters, add it to the dept→radio index for the matcher.
  */
+// Max depts a local radio (cat A/B) can reasonably appear in.
+// Arcom pages sometimes return radios from the wrong city (bug on arcom.fr).
+// A local radio in >10 depts is almost certainly bad data.
+const MAX_DEPTS_LOCAL = 10;
+
 export async function enrichDeptIndexFromArcom(
   supabase: SupabaseClient,
   logger: ImportLogger,
@@ -261,15 +266,17 @@ export async function enrichDeptIndexFromArcom(
   existingDeptIndex: Map<string, Set<string>>, // dept → Set<radio_id>
 ): Promise<number> {
   // Load all radios from DB — build exact + fuzzy lookup maps
-  const { data: allRadios } = await supabase.from('radios').select('id, nom').limit(100000);
+  const { data: allRadios } = await supabase.from('radios').select('id, nom, categorie_arcom, portee').limit(100000);
   const radioByExactName = new Map<string, string>(); // lowercase nom → id
+  const radioInfo = new Map<string, { cat: string | null; portee: string | null }>(); // id → info
   const allRadiosList = allRadios ?? [];
   for (const r of allRadiosList) {
     radioByExactName.set(r.nom.toLowerCase().trim(), r.id);
+    radioInfo.set(r.id, { cat: r.categorie_arcom, portee: r.portee });
   }
 
-  let enriched = 0;
-  let matched = 0;
+  // Phase 1: Resolve all Arcom entries to radio IDs
+  const resolvedEntries: Array<{ radioId: string; radioNom: string; dept: string }> = [];
   let notFound = 0;
   let fuzzyMatched = 0;
   const notFoundNames: string[] = [];
@@ -277,17 +284,16 @@ export async function enrichDeptIndexFromArcom(
   for (const entry of arcomEntries) {
     const normalizedName = entry.radio_nom.toLowerCase().trim();
 
-    // 1. Exact match (lowercase + trim)
+    // Exact match
     let radioId = radioByExactName.get(normalizedName);
 
-    // 2. Fuzzy fallback: substring match (handles "Radio Scoop Lyon" → "Radio Scoop")
+    // Fuzzy fallback
     if (!radioId) {
       for (const r of allRadiosList) {
         const dbName = r.nom.toLowerCase().trim();
         if (dbName.includes(normalizedName) || normalizedName.includes(dbName)) {
           radioId = r.id;
           fuzzyMatched++;
-          await logger.debug('ARCOM_ENRICH', `Fuzzy match: Arcom "${entry.radio_nom}" → DB "${r.nom}" (${r.id.slice(0, 8)})`);
           break;
         }
       }
@@ -295,29 +301,71 @@ export async function enrichDeptIndexFromArcom(
 
     if (!radioId) {
       notFound++;
-      if (!notFoundNames.includes(entry.radio_nom)) {
-        notFoundNames.push(entry.radio_nom);
-      }
+      if (!notFoundNames.includes(entry.radio_nom)) notFoundNames.push(entry.radio_nom);
       continue;
     }
 
-    matched++;
+    resolvedEntries.push({ radioId, radioNom: entry.radio_nom, dept: entry.departement });
+  }
 
-    if (!existingDeptIndex.has(entry.departement)) {
-      existingDeptIndex.set(entry.departement, new Set());
-    }
+  // Phase 2: Coherence filter — count Arcom depts per radio
+  const arcomDeptsByRadio = new Map<string, Set<string>>();
+  for (const e of resolvedEntries) {
+    if (!arcomDeptsByRadio.has(e.radioId)) arcomDeptsByRadio.set(e.radioId, new Set());
+    arcomDeptsByRadio.get(e.radioId)!.add(e.dept);
+  }
 
-    const deptSet = existingDeptIndex.get(entry.departement)!;
-    if (!deptSet.has(radioId)) {
-      deptSet.add(radioId);
-      enriched++;
-      await logger.debug('ARCOM_ENRICH', `Dept ${entry.departement}: "${entry.radio_nom}" → ${radioId.slice(0, 8)} ✓ (nouveau)`);
+  // Check which radios are also in the freq-radio index (trusted)
+  const freqRadioDepts = new Map<string, Set<string>>();
+  for (const [dept, radioIds] of existingDeptIndex) {
+    for (const rid of radioIds) {
+      if (!freqRadioDepts.has(rid)) freqRadioDepts.set(rid, new Set());
+      freqRadioDepts.get(rid)!.add(dept);
     }
   }
 
-  await logger.info('ARCOM_ENRICH', `${enriched} nouvelles entrées dept→radio ajoutées (${matched} matchés, ${fuzzyMatched} fuzzy, ${notFound} non trouvés en base)`);
+  // Phase 3: Add to index with coherence check
+  let enriched = 0;
+  let filtered = 0;
+
+  for (const e of resolvedEntries) {
+    const info = radioInfo.get(e.radioId);
+    const isLocal = info && (info.cat === 'A' || info.cat === 'B') && info.portee === 'locale';
+
+    // Coherence check for local radios
+    if (isLocal) {
+      const arcomDepts = arcomDeptsByRadio.get(e.radioId);
+      const freqDepts = freqRadioDepts.get(e.radioId);
+
+      if (arcomDepts && arcomDepts.size > MAX_DEPTS_LOCAL) {
+        // Arcom claims this local radio is in too many depts — likely bad data.
+        // Only keep depts where freq-radio also found it (trusted).
+        if (freqDepts && freqDepts.has(e.dept)) {
+          // freq-radio confirms this dept — keep it
+        } else {
+          // Arcom-only, suspicious — skip
+          filtered++;
+          continue;
+        }
+      }
+    }
+
+    if (!existingDeptIndex.has(e.dept)) {
+      existingDeptIndex.set(e.dept, new Set());
+    }
+
+    const deptSet = existingDeptIndex.get(e.dept)!;
+    if (!deptSet.has(e.radioId)) {
+      deptSet.add(e.radioId);
+      enriched++;
+    }
+  }
+
+  await logger.info('ARCOM_ENRICH', `${enriched} nouvelles entrées dept→radio (+${fuzzyMatched} fuzzy, ${notFound} non trouvés, ${filtered} filtrées coherence)`);
+  if (filtered > 0) {
+    await logger.warn('ARCOM_ENRICH', `${filtered} entrées filtrées : radios locales dans >${MAX_DEPTS_LOCAL} depts Arcom (bug site arcom.fr)`);
+  }
   if (notFoundNames.length > 0) {
-    // Log up to 30 unmatched names for diagnosis
     const display = notFoundNames.slice(0, 30).join(', ');
     const more = notFoundNames.length > 30 ? ` ... +${notFoundNames.length - 30} autres` : '';
     await logger.warn('ARCOM_ENRICH', `Radios Arcom NON trouvées en base (${notFoundNames.length}) : ${display}${more}`);
