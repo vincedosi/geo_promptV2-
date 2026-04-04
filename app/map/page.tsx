@@ -537,36 +537,67 @@ export default function MapPage() {
   }, [radioVisible, radioFilterOptions]);
 
   // Generate coverage circles client-side when coverage mode is active
+  // Regenerate on zoom change to adapt density + segment count
+  const lastCoverageZoomRef = useRef<number>(0);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !radioCoverageMode || !radioGeoJSON) return;
     const src = map.getSource('radio-coverage') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
-    // Generate circles (limit to 500)
-    const features = radioGeoJSON.features.slice(0, 500);
-    const circles: GeoJSON.Feature[] = [];
-    for (const f of features) {
-      if (f.geometry.type !== 'Point') continue;
-      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-      const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-      if (!radius || radius < 100) continue;
-      // Simple circle approximation (64 segments)
-      const coords: [number, number][] = [];
-      for (let i = 0; i <= 64; i++) {
-        const angle = (i / 64) * 2 * Math.PI;
-        const dlat = (radius / 111320) * Math.cos(angle);
-        const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
-        coords.push([lng + dlng, lat + dlat]);
-      }
-      circles.push({
-        type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [coords] },
-        properties: { color: '#4ecdc4' },
+    const generateCircles = () => {
+      const zoom = map.getZoom();
+      const bounds = map.getBounds();
+
+      // Adapt limits to zoom: more circles when zoomed in
+      const maxCircles = zoom >= 12 ? 2000 : zoom >= 10 ? 1000 : zoom >= 8 ? 500 : 200;
+      // Fewer polygon segments at low zoom (perf), more at high zoom (smooth)
+      const segments = zoom >= 12 ? 64 : zoom >= 9 ? 32 : 16;
+
+      // Filter to features in current viewport with valid coverage
+      const visible = radioGeoJSON.features.filter(f => {
+        if (f.geometry.type !== 'Point') return false;
+        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+        if (!bounds.contains([lng, lat])) return false;
+        const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+        return radius >= 100;
       });
-    }
-    src.setData({ type: 'FeatureCollection', features: circles });
-  }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+      // Sort by radius descending — show largest coverage first
+      visible.sort((a, b) => {
+        const ra = Number((a.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+        const rb = Number((b.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+        return rb - ra;
+      });
+
+      const circles: GeoJSON.Feature[] = [];
+      for (const f of visible.slice(0, maxCircles)) {
+        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+        const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+        const coords: [number, number][] = [];
+        for (let i = 0; i <= segments; i++) {
+          const angle = (i / segments) * 2 * Math.PI;
+          const dlat = (radius / 111320) * Math.cos(angle);
+          const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+          coords.push([lng + dlng, lat + dlat]);
+        }
+        circles.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [coords] },
+          properties: { color: radioCoverageColor },
+        });
+      }
+      src.setData({ type: 'FeatureCollection', features: circles });
+      lastCoverageZoomRef.current = zoom;
+    };
+
+    generateCircles();
+
+    // Regenerate on map move (zoom/pan changes visible emitters)
+    const onMoveEnd = () => { generateCircles(); };
+    map.on('moveend', onMoveEnd);
+    return () => { map.off('moveend', onMoveEnd); };
+  }, [radioGeoJSON, radioCoverageMode, radioCoverageColor, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
   const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
