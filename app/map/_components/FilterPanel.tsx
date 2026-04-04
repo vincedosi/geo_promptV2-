@@ -373,18 +373,34 @@ function MultiDropdown({
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const filtered = searchable && search
+  // Auto-enable search when >10 items
+  const showSearch = searchable || items.length > 10;
+
+  const filtered = showSearch && search
     ? items.filter(i => i.label.toLowerCase().includes(search.toLowerCase()) || i.id.toLowerCase().includes(search.toLowerCase()))
     : items;
 
   const toggle = (id: string) =>
     onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every(i => selected.includes(i.id));
+
+  const selectAllFiltered = () => {
+    const newIds = new Set(selected);
+    for (const i of filtered) newIds.add(i.id);
+    onChange([...newIds]);
+  };
+
+  const deselectAllFiltered = () => {
+    const toRemove = new Set(filtered.map(i => i.id));
+    onChange(selected.filter(id => !toRemove.has(id)));
+  };
+
   const displayLabel = selected.length === 0
     ? label
     : selected.length === 1
       ? (items.find(i => i.id === selected[0])?.label ?? selected[0])
-      : `${selected.length} selectionnes`;
+      : `${selected.length} / ${items.length} selectionnes`;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -399,25 +415,52 @@ function MultiDropdown({
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <span style={{ color: C.textDim, fontSize: 9, marginLeft: 8, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
+          {selected.length > 0 && (
+            <span
+              onClick={e => { e.stopPropagation(); onChange([]); }}
+              style={{ fontSize: 11, color: C.textDim, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+              title="Effacer"
+            >✕</span>
+          )}
+          <span style={{ color: C.textDim, fontSize: 9 }}>{open ? '▲' : '▼'}</span>
+        </div>
       </button>
 
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
           background: '#111111', border: `0.5px solid #262626`, borderTop: 'none',
-          borderRadius: '0 0 4px 4px', maxHeight: 200, display: 'flex', flexDirection: 'column',
+          borderRadius: '0 0 4px 4px', maxHeight: 260, display: 'flex', flexDirection: 'column',
           animation: 'fpDropIn 0.15s ease-out',
         }}>
-          {searchable && (
-            <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
+          {/* Search bar */}
+          {showSearch && (
+            <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Search size={12} style={{ color: C.textDim, flexShrink: 0 }} />
               <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 13, color: C.text }} />
+                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 12, color: C.text }} />
+              {search && (
+                <span onClick={() => setSearch('')} style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0 }}>✕</span>
+              )}
             </div>
           )}
+
+          {/* Select all / deselect all bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
+            <button onClick={allFilteredSelected ? deselectAllFiltered : selectAllFiltered}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: '#4ecdc4', padding: 0 }}>
+              {allFilteredSelected ? 'Tout deselectionner' : `Tout selectionner${search ? ` (${filtered.length})` : ''}`}
+            </button>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textDim }}>
+              {selected.length}/{items.length}
+            </span>
+          </div>
+
+          {/* Items list */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '8px 11px', fontFamily: fInter, fontSize: 13, color: C.textDim }}>Aucun résultat</div>
+              <div style={{ padding: '8px 11px', fontFamily: fInter, fontSize: 12, color: C.textDim }}>Aucun resultat</div>
             )}
             {filtered.map(item => {
               const active = selected.includes(item.id);
@@ -425,31 +468,25 @@ function MultiDropdown({
                 <button key={item.id} onClick={() => toggle(item.id)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '7px 11px', background: active ? 'rgba(255,255,255,0.06)' : 'none',
+                    padding: '6px 11px', background: active ? 'rgba(78,205,196,0.06)' : 'none',
                     border: 'none', borderBottom: `0.5px solid ${C.border}`,
                     cursor: 'pointer', textAlign: 'left',
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(255,255,255,0.06)' : 'none'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(78,205,196,0.06)' : 'none'; }}
                 >
                   <div style={{
-                    width: 11, height: 11, borderRadius: 2, border: `0.5px solid ${active ? '#f0f0f0' : '#262626'}`,
-                    background: active ? '#f0f0f0' : 'transparent', flexShrink: 0,
+                    width: 12, height: 12, borderRadius: 2, border: `0.5px solid ${active ? '#4ecdc4' : '#262626'}`,
+                    background: active ? '#4ecdc4' : 'transparent', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {active && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                    {active && <span style={{ fontSize: 8, color: '#050505', fontWeight: 700 }}>✓</span>}
                   </div>
-                  <span style={{ fontFamily: fInter, fontSize: 13, color: active ? C.text : C.textSec }}>{item.label}</span>
+                  <span style={{ fontFamily: fInter, fontSize: 12, color: active ? C.text : C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
                 </button>
               );
             })}
           </div>
-          {selected.length > 0 && (
-            <button onClick={() => { onChange([]); setOpen(false); }}
-              style={{ padding: '6px', background: 'none', border: 'none', borderTop: `0.5px solid ${C.border}`, cursor: 'pointer', fontFamily: fInter, fontSize: 11, color: C.red }}>
-              Tout désélectionner
-            </button>
-          )}
         </div>
       )}
     </div>
