@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { DataSource, Organization } from '@/types/admin';
+import type { CampaignListItem, CampaignImportEvent, CampaignImportReport } from '@/types/campaign';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // ── IRIS stats types ──────────────────────────────────────────────────────────
 interface IrisStats {
@@ -127,8 +130,22 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio' | 'dsp'>('all');
   const [radioStats, setRadioStats] = useState<{ total_emetteurs: number; emetteurs_fm: number; emetteurs_dab: number; total_radios: number } | null>(null);
+
+  // DSP campaigns
+  const [dspCampaigns, setDspCampaigns] = useState<CampaignListItem[]>([]);
+  const [dspLoading, setDspLoading] = useState(false);
+  const [dspImportOpen, setDspImportOpen] = useState(false);
+  const [dspImporting, setDspImporting] = useState(false);
+  const [dspFile, setDspFile] = useState<File | null>(null);
+  const [dspSource, setDspSource] = useState('adform');
+  const [dspCampaignName, setDspCampaignName] = useState('');
+  const [dspEvents, setDspEvents] = useState<CampaignImportEvent[]>([]);
+  const [dspReport, setDspReport] = useState<CampaignImportReport | null>(null);
+  const [dspDeleteConfirm, setDspDeleteConfirm] = useState<string | null>(null);
+  const [dspDeleting, setDspDeleting] = useState(false);
+  const dspFileRef = useRef<HTMLInputElement>(null);
 
   // IRIS stats
   const [irisStats,   setIrisStats]   = useState<IrisStats | null>(null);
@@ -393,6 +410,76 @@ export default function SourcesPage() {
     } catch { /* ignore */ }
   }, []);
 
+  // DSP campaigns
+  const fetchDspCampaigns = useCallback(async () => {
+    setDspLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/campaigns');
+      if (res.ok) setDspCampaigns(await res.json());
+    } catch { /* ignore */ }
+    setDspLoading(false);
+  }, []);
+
+  const handleDspImport = useCallback(async () => {
+    if (!dspFile) return;
+    setDspImporting(true);
+    setDspEvents([]);
+    setDspReport(null);
+    const form = new FormData();
+    form.append('file', dspFile);
+    form.append('dsp_source', dspSource);
+    if (dspCampaignName.trim()) form.append('campaign_name', dspCampaignName.trim());
+    try {
+      const res = await adminFetch('/api/admin/campaigns/import', { method: 'POST', body: form });
+      if (!res.ok || !res.body) { toastApi.error('Import échoué', `HTTP ${res.status}`); setDspImporting(false); return; }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          try {
+            const evt: CampaignImportEvent = JSON.parse(trimmed.slice(6));
+            setDspEvents((prev) => [...prev, evt]);
+            if (evt.type === 'complete') { setDspReport(evt.report); toastApi.success('Import terminé', `${evt.report.total_rows} lignes`); fetchDspCampaigns(); }
+            if (evt.type === 'error') toastApi.error('Erreur', evt.message);
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) { toastApi.error('Erreur réseau', String(err)); }
+    setDspImporting(false);
+  }, [dspFile, dspSource, dspCampaignName, toastApi, fetchDspCampaigns]);
+
+  const handleDspDelete = useCallback(async (id: string) => {
+    setDspDeleting(true);
+    try {
+      const res = await adminFetch(`/api/admin/campaigns/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toastApi.success('Campagne supprimée');
+        fetchDspCampaigns();
+      } else {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        toastApi.error('Erreur', body.error || 'Suppression échouée');
+      }
+    } catch (err) {
+      console.error('[dsp-delete] error:', err);
+      toastApi.error('Erreur réseau', String(err));
+    }
+    setDspDeleting(false);
+    setDspDeleteConfirm(null);
+  }, [toastApi, fetchDspCampaigns]);
+
+  const resetDspModal = useCallback(() => {
+    setDspFile(null); setDspCampaignName(''); setDspSource('adform');
+    setDspEvents([]); setDspReport(null); setDspImporting(false);
+  }, []);
+
   useEffect(() => {
     fetchSources();
     fetchOrgs();
@@ -441,6 +528,11 @@ export default function SourcesPage() {
   useEffect(() => {
     if (activeTab === 'poi') fetchSourcesStats();
   }, [activeTab, fetchSourcesStats]);
+
+  useEffect(() => {
+    if (activeTab === 'dsp') fetchDspCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ============================================================
   // Actions
@@ -730,7 +822,7 @@ export default function SourcesPage() {
         const ss = sourcesStats;
         const fmtK = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}k` : String(n);
         const allTotal = ss ? ss.ooh.total + ss.poi.total + ss.transport.total + ss.flux.total + ss.carreaux.total + ss.iris.total : sources.length;
-        const tabs: { key: 'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio'; label: string; color: string }[] = [
+        const tabs: { key: typeof activeTab; label: string; color: string }[] = [
           { key: 'all',       label: `Toutes (${sourcesStatsLoading ? '…' : fmtK(allTotal)})`,              color: C.accent },
           { key: 'poi',       label: `POI (${ss ? fmtK(ss.poi.total) : '…'})`,                             color: '#4ecdc4' },
           { key: 'carreaux',  label: `Carreaux (${ss ? fmtK(ss.carreaux.total) : '…'})`,                  color: C.green },
@@ -738,6 +830,7 @@ export default function SourcesPage() {
           { key: 'iris',      label: `IRIS (${ss ? fmtK(ss.iris.total) : '…'})`,                           color: '#06b6d4' },
           { key: 'transport', label: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, color: '#22c55e' },
           { key: 'radio',     label: `Radio (${radioStats ? fmtK(radioStats.total_emetteurs) : '…'})`,    color: C.accent },
+          { key: 'dsp',       label: `DSP (${dspCampaigns.length || '…'})`,                                color: C.warn },
         ];
         return (
           <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
@@ -2315,6 +2408,183 @@ export default function SourcesPage() {
         )}
       </div>
       )}
+
+      {/* ── DSP campaigns tab ── */}
+      {activeTab === 'dsp' && (() => {
+        const DSP_SOURCES = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'];
+        const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+        const fmtN = (n: number) => n.toLocaleString('fr-FR');
+        const lastProg = dspEvents.filter((e) => e.type === 'progress').at(-1);
+        const pPct = lastProg?.type === 'progress' && lastProg.total > 0 ? Math.round((lastProg.processed / lastProg.total) * 100) : 0;
+        const cardSt = { background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 2 };
+        return (
+          <div style={{ animation: 'srcFadeIn 0.3s ease-out' }}>
+            {/* Header + import button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>Campagnes DSP importées</span>
+              <button
+                onClick={() => { resetDspModal(); setDspImportOpen(true); }}
+                style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: fontInter, fontWeight: 500, fontSize: 12, cursor: 'pointer' }}
+              >
+                Importer une campagne
+              </button>
+            </div>
+
+            {/* Campaign list */}
+            {dspLoading ? (
+              <div style={{ ...cardSt, textAlign: 'center', padding: 40, color: C.textDim }}>
+                <Spinner size={20} /> Chargement…
+              </div>
+            ) : dspCampaigns.length === 0 ? (
+              <div style={{ ...cardSt, textAlign: 'center', padding: 40, color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
+                Aucune campagne DSP importée
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {dspCampaigns.map((c) => (
+                  <div key={c.id} style={{ ...cardSt, padding: '12px 16px', transition: 'border-color 0.15s' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderLight; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <Link href={`/admin/campaigns/${c.id}`} style={{ fontWeight: 500, fontSize: 14, color: C.accent, textDecoration: 'none', flex: 1, fontFamily: fontInter }}>
+                        {c.name}
+                      </Link>
+                      <span style={{ fontSize: 10, padding: '2px 8px', background: C.warnDim, border: `0.5px solid ${C.warn}44`, borderRadius: 4, color: C.warn, fontFamily: fontInter, fontWeight: 500 }}>
+                        {c.dsp_source}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDspDeleteConfirm(c.id); }}
+                        style={{ background: C.redDim, border: `0.5px solid rgba(255,87,87,0.2)`, borderRadius: 4, padding: '3px 10px', fontFamily: fontInter, fontSize: 10, color: C.red, cursor: 'pointer' }}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim, flexWrap: 'wrap' }}>
+                      <span>{fmtD(c.date_start)} → {fmtD(c.date_end)}</span>
+                      <span>{fmtN(c.total_tracked_ads)} tracked ads</span>
+                      <span>{fmtN(c.total_rows)} lignes</span>
+                      <span>{c.countries?.join(', ') ?? '—'}</span>
+                      {c.france_rows > 0 && (
+                        <span style={{ color: c.matched_iris > 0 ? C.green : C.textDim }}>
+                          {fmtN(c.matched_iris)} IRIS ({Math.round((c.matched_iris / c.france_rows) * 100)}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Import modal ── */}
+            <Dialog open={dspImportOpen} onOpenChange={(open) => { if (!dspImporting) setDspImportOpen(open); }}>
+              <DialogContent style={{ background: C.bgElevated, border: `0.5px solid ${C.border}`, maxWidth: 520 }}>
+                <DialogHeader>
+                  <DialogTitle style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 16, color: C.text }}>
+                    Importer une campagne DSP
+                  </DialogTitle>
+                </DialogHeader>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+                  {/* File drop zone */}
+                  <div>
+                    <label style={{ fontFamily: fontInter, fontSize: 12, color: C.textSec, display: 'block', marginBottom: 6 }}>Fichier (CSV ou XLSX)</label>
+                    <div
+                      onClick={() => dspFileRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setDspFile(f); }}
+                      style={{ background: C.bgSurface, border: `0.5px dashed ${C.borderLight}`, borderRadius: 6, padding: '20px 16px', textAlign: 'center', cursor: 'pointer' }}
+                    >
+                      <input ref={dspFileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={(e) => { if (e.target.files?.[0]) setDspFile(e.target.files[0]); }} />
+                      {dspFile
+                        ? <span style={{ fontFamily: fontMono, fontSize: 12, color: C.accent }}>{dspFile.name}</span>
+                        : <span style={{ fontFamily: fontInter, fontSize: 12, color: C.textSec }}>Glisser-déposer ou cliquer pour sélectionner</span>
+                      }
+                    </div>
+                  </div>
+                  {/* DSP source */}
+                  <div>
+                    <label style={{ fontFamily: fontInter, fontSize: 12, color: C.textSec, display: 'block', marginBottom: 6 }}>Source DSP</label>
+                    <select value={dspSource} onChange={(e) => setDspSource(e.target.value)} disabled={dspImporting}
+                      style={{ width: '100%', background: C.bgSurface, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fontInter, fontSize: 13, color: C.text, outline: 'none' }}>
+                      {DSP_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  {/* Campaign name */}
+                  <div>
+                    <label style={{ fontFamily: fontInter, fontSize: 12, color: C.textSec, display: 'block', marginBottom: 6 }}>Nom (optionnel, auto-détecté sinon)</label>
+                    <input type="text" value={dspCampaignName} onChange={(e) => setDspCampaignName(e.target.value)} disabled={dspImporting}
+                      placeholder="Ex: Adform Q1 2026"
+                      style={{ width: '100%', background: C.bgSurface, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fontInter, fontSize: 13, color: C.text, outline: 'none' }} />
+                  </div>
+                  {/* Progress */}
+                  {dspEvents.length > 0 && (
+                    <div style={{ background: C.bg, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: 12, maxHeight: 200, overflowY: 'auto' }}>
+                      {dspImporting && pPct > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ width: '100%', height: 4, background: C.border, borderRadius: 2 }}>
+                            <div style={{ width: `${pPct}%`, height: 4, background: C.accent, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                          </div>
+                          <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textSec, marginTop: 4, textAlign: 'right' }}>{pPct}%</div>
+                        </div>
+                      )}
+                      {dspEvents.map((evt, i) => (
+                        <div key={i} style={{ fontFamily: fontMono, fontSize: 11, padding: '2px 0', color: evt.type === 'error' ? C.red : evt.type === 'complete' ? C.green : C.textDim }}>
+                          {evt.type === 'complete' ? `✓ ${evt.report.total_rows} lignes, ${evt.report.matched_iris} IRIS (${evt.report.pct_matched}%)` : evt.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Report */}
+                  {dspReport && (
+                    <div style={{ background: C.greenDim, border: `0.5px solid rgba(61,255,160,0.2)`, borderRadius: 6, padding: 12 }}>
+                      <div style={{ fontFamily: fontInter, fontSize: 12, color: C.green, fontWeight: 500, marginBottom: 6 }}>Import réussi</div>
+                      <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                        <span>Lignes</span><span style={{ color: C.text }}>{fmtN(dspReport.total_rows)}</span>
+                        <span>Pays</span><span style={{ color: C.text }}>{dspReport.countries.join(', ')}</span>
+                        <span>France</span><span style={{ color: C.text }}>{fmtN(dspReport.total_france)}</span>
+                        <span>IRIS</span><span style={{ color: C.green }}>{fmtN(dspReport.matched_iris)} ({dspReport.pct_matched}%)</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Buttons */}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    {dspReport ? (
+                      <button onClick={() => setDspImportOpen(false)}
+                        style={{ background: C.text, color: C.bg, border: 'none', borderRadius: 6, padding: '10px 16px', fontFamily: fontInter, fontWeight: 500, fontSize: 13, cursor: 'pointer' }}>
+                        Fermer
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => setDspImportOpen(false)} disabled={dspImporting}
+                          style={{ background: 'transparent', border: `0.5px solid ${C.borderLight}`, borderRadius: 6, padding: '10px 16px', fontFamily: fontInter, fontSize: 13, color: C.textDim, cursor: dspImporting ? 'not-allowed' : 'pointer' }}>
+                          Annuler
+                        </button>
+                        <button onClick={handleDspImport} disabled={!dspFile || dspImporting}
+                          style={{ background: !dspFile || dspImporting ? C.borderLight : C.text, color: C.bg, border: 'none', borderRadius: 6, padding: '10px 16px', fontFamily: fontInter, fontWeight: 500, fontSize: 13, cursor: !dspFile || dspImporting ? 'not-allowed' : 'pointer' }}>
+                          {dspImporting ? 'Import en cours…' : 'Lancer l\'import'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete confirmation */}
+            <ConfirmModal
+              open={!!dspDeleteConfirm}
+              onClose={() => setDspDeleteConfirm(null)}
+              onConfirm={() => { if (dspDeleteConfirm) handleDspDelete(dspDeleteConfirm); }}
+              title="Supprimer cette campagne DSP"
+              message="La campagne et toutes ses données seront définitivement supprimées."
+              confirmLabel={dspDeleting ? 'Suppression…' : 'Supprimer'}
+              variant="danger"
+              loading={dspDeleting}
+            />
+          </div>
+        );
+      })()}
+
       {/* ── Delete confirmation modal ── */}
       <ConfirmModal
         open={!!deleteConfirm}
