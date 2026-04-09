@@ -499,6 +499,40 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
+      // ── Campaign impressions choropleth ───────────────────────────────
+      map.addSource('campaign-impressions', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'impressions-fill',
+        type: 'fill',
+        source: 'campaign-impressions',
+        paint: {
+          'fill-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'impressions'], 0],
+            0,     '#1a1a2e',
+            100,   '#16537e',
+            500,   '#4ecdc4',
+            2000,  '#f7fff7',
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'fill-opacity': 0.75,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      map.addLayer({
+        id: 'impressions-line',
+        type: 'line',
+        source: 'campaign-impressions',
+        paint: {
+          'line-color': '#333333',
+          'line-width': 0.5,
+        },
+        layout: { visibility: 'none' },
+      });
+
       // Click on individual radio point → popup
       const onRadioPointClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
