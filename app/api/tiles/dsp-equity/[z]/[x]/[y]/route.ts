@@ -42,7 +42,6 @@ export async function GET(
     return new NextResponse(null, { status: 204 });
   }
 
-  console.log(`[dsp-tile] ${zoom}/${tileX}/${tileY} campaign=${campaignId.slice(0,8)} mode=${mode}`);
 
   const key = `${campaignId}/${mode}/${zoom}/${tileX}/${tileY}`;
   const now = Date.now();
