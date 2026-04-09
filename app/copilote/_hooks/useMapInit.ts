@@ -467,7 +467,7 @@ export function useMapInit(
       map.addSource('dsp-equity-mvt', {
         type: 'vector',
         tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=none&mode=equity`],
-        minzoom: 5,
+        minzoom: 2,
         maxzoom: 14,
       });
 
@@ -476,7 +476,6 @@ export function useMapInit(
         type: 'fill',
         source: 'dsp-equity-mvt',
         'source-layer': 'dsp',
-        minzoom: 5,
         paint: {
           'fill-color': [
             'interpolate', ['linear'], ['to-number', ['get', 'equity_index'], 0],
@@ -498,7 +497,7 @@ export function useMapInit(
         type: 'line',
         source: 'dsp-equity-mvt',
         'source-layer': 'dsp',
-        minzoom: 8,
+        minzoom: 7,
         paint: {
           'line-color': '#333333',
           'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.1, 12, 0.4, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
@@ -511,7 +510,7 @@ export function useMapInit(
       map.addSource('dsp-impressions-mvt', {
         type: 'vector',
         tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=none&mode=impressions`],
-        minzoom: 5,
+        minzoom: 2,
         maxzoom: 14,
       });
 
@@ -520,7 +519,6 @@ export function useMapInit(
         type: 'fill',
         source: 'dsp-impressions-mvt',
         'source-layer': 'dsp',
-        minzoom: 5,
         paint: {
           'fill-color': [
             'interpolate', ['exponential', 0.5], ['to-number', ['get', 'impressions'], 0],
@@ -541,7 +539,7 @@ export function useMapInit(
         type: 'line',
         source: 'dsp-impressions-mvt',
         'source-layer': 'dsp',
-        minzoom: 8,
+        minzoom: 7,
         paint: {
           'line-color': '#333333',
           'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.1, 12, 0.4, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,

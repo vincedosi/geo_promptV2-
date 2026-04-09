@@ -186,7 +186,7 @@ export default function MapPage() {
     map.addSource(sourceId, {
       type: 'vector',
       tiles: [tileUrl],
-      minzoom: 5,
+      minzoom: 2,
       maxzoom: 14,
     });
 
@@ -440,7 +440,7 @@ export default function MapPage() {
         type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 5,
+        minzoom: 2,
         paint: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'fill-color':   matchExpr as any,

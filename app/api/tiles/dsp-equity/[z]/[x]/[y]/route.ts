@@ -37,8 +37,8 @@ export async function GET(
 
   const mode = req.nextUrl.searchParams.get('mode') || 'impressions';
 
-  // Skip very low zoom (too much data)
-  if (zoom < 5) {
+  // Skip very low zoom
+  if (zoom < 2) {
     return new NextResponse(null, { status: 204 });
   }
 
@@ -71,12 +71,25 @@ export async function GET(
       return new NextResponse(null, { status: 500 });
     }
 
-    const rawStr = String(data);
-    const buffer = rawStr.startsWith('\\x')
-      ? Buffer.from(rawStr.slice(2), 'hex')
-      : Buffer.from(rawStr, 'base64');
+    // Debug: log raw data type and start
+    const rawStr = String(data ?? '');
+    console.log(`[dsp-tile] ${zoom}/${tileX}/${tileY} raw: type=${typeof data} len=${rawStr.length} starts="${rawStr.slice(0,20)}"`);
 
-    if (!buffer || buffer.length === 0) {
+    let buffer: Buffer;
+    if (!data || rawStr === '' || rawStr === 'null') {
+      return new NextResponse(null, { status: 204 });
+    } else if (rawStr.startsWith('\\x') && rawStr.length > 2) {
+      buffer = Buffer.from(rawStr.slice(2), 'hex');
+    } else if (typeof data === 'string') {
+      buffer = Buffer.from(data, 'base64');
+    } else {
+      // data might already be a buffer-like object
+      buffer = Buffer.from(rawStr, 'base64');
+    }
+
+    console.log(`[dsp-tile] ${zoom}/${tileX}/${tileY} buffer: ${buffer.length} bytes`);
+
+    if (buffer.length === 0) {
       return new NextResponse(null, { status: 204 });
     }
 
