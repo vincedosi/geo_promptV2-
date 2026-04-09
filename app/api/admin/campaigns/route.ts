@@ -3,22 +3,38 @@
  * List all DSP campaigns with aggregated stats via SQL.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/auth';
+import { createClient } from '@supabase/supabase-js';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
+/** Admin client with fetch cache disabled (Next.js caches fetch by default) */
+function createNoCacheAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: {
+        fetch: (url, init) => fetch(url, { ...init, cache: 'no-store' }),
+      },
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
-  const supabase = createAdminClient();
+  const supabase = createNoCacheAdminClient();
 
-  // Fetch campaigns
   const { data: campaigns, error } = await supabase
     .from('dsp_campaigns')
     .select('*')
     .order('created_at', { ascending: false });
+
+  console.log('[campaigns] found:', campaigns?.length);
 
   if (error) {
     console.error('[GET /api/admin/campaigns] DB error:', error);
