@@ -414,7 +414,7 @@ export default function SourcesPage() {
   const fetchDspCampaigns = useCallback(async () => {
     setDspLoading(true);
     try {
-      const res = await adminFetch('/api/admin/campaigns');
+      const res = await adminFetch(`/api/admin/campaigns?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setDspCampaigns(Array.isArray(data) ? data : []);
