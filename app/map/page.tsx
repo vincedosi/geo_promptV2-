@@ -154,14 +154,37 @@ export default function MapPage() {
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
   // Helper: update MVT tile source URL for DSP layers
-  const updateDspTileSource = useCallback((sourceId: string, campaignId: string, mode: string) => {
+  // Remove and re-add source to force tile reload with new campaign_id
+  const updateDspTileSource = useCallback((sourceId: string, layerIds: string[], campaignId: string, mode: string) => {
     const map = mapRef.current;
     if (!map) return;
-    const src = map.getSource(sourceId);
-    if (src && 'setTiles' in src) {
-      (src as unknown as { setTiles: (tiles: string[]) => void }).setTiles([
-        `${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`
-      ]);
+
+    // Save layer configs before removing
+    const savedLayers: { id: string; layer: maplibregl.LayerSpecification }[] = [];
+    for (const lid of layerIds) {
+      const layer = map.getLayer(lid);
+      if (layer) {
+        savedLayers.push({ id: lid, layer: map.getStyle().layers.find(l => l.id === lid)! });
+        map.removeLayer(lid);
+      }
+    }
+
+    // Remove old source
+    if (map.getSource(sourceId)) {
+      map.removeSource(sourceId);
+    }
+
+    // Add new source with correct campaign URL
+    map.addSource(sourceId, {
+      type: 'vector',
+      tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`],
+      minzoom: 5,
+      maxzoom: 14,
+    });
+
+    // Re-add layers
+    for (const { layer } of savedLayers) {
+      map.addLayer({ ...layer, layout: { ...layer.layout, visibility: 'visible' } });
     }
   }, [mapRef]);
 
@@ -1516,7 +1539,7 @@ export default function MapPage() {
           setEquityLoading(true);
           try {
             // Update MVT tile source with campaign ID
-            updateDspTileSource('dsp-equity-mvt', campaignId, 'equity');
+            updateDspTileSource('dsp-equity-mvt', ['equity-fill', 'equity-line'], campaignId, 'equity');
             setEquityVisible(true);
             setImpressionsVisible(false);
             // Fetch stats via API
@@ -1544,7 +1567,7 @@ export default function MapPage() {
           setEquityVisible(false);
           try {
             // Update MVT tile source with campaign ID
-            updateDspTileSource('dsp-impressions-mvt', campaignId, 'impressions');
+            updateDspTileSource('dsp-impressions-mvt', ['impressions-fill', 'impressions-line'], campaignId, 'impressions');
             setImpressionsVisible(true);
             // Fetch lightweight stats from RPC (no GeoJSON)
             const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}`);
