@@ -72,3 +72,27 @@ export interface CampaignImportReport {
   matched_iris: number;
   pct_matched: number;
 }
+
+/* ── Geo-Equity analysis types ──────────────── */
+
+export interface EquityAnalysisStats {
+  total_impressions: number;
+  total_population: number;
+  avg_equity: number;
+  zones_sous_servies: number;
+  zones_sur_servies: number;
+  zones_equilibrees: number;
+  total_zones: number;
+}
+
+export const POPULATION_TARGETS = [
+  { value: 'population', label: 'Population totale' },
+  { value: 'pop_15_29', label: 'Jeunes 15-29 ans' },
+  { value: 'pop_30_44', label: 'Adultes 30-44 ans' },
+  { value: 'nb_csp_cadre', label: 'CSP+ (cadres)' },
+  { value: 'nb_diplome_sup', label: 'Diplômés supérieur' },
+  { value: 'nb_menages', label: 'Nombre de ménages' },
+  { value: 'rev_median', label: 'Revenus médians (€)' },
+] as const;
+
+export type PopulationField = typeof POPULATION_TARGETS[number]['value'];
