@@ -12,6 +12,8 @@ import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPM
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
+import type { CampaignListItem, EquityAnalysisStats } from '@/types/campaign';
+import { POPULATION_TARGETS } from '@/types/campaign';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
 const CorrelationPanel = dynamic(
@@ -350,6 +352,15 @@ export interface FilterPanelProps {
   radioPointSize?:        number;
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
+
+  // Geo-Equity
+  equityVisible?: boolean;
+  equityStats?: EquityAnalysisStats | null;
+  equityLoading?: boolean;
+  equityCampaignId?: string | null;
+  equityPopField?: string;
+  onEquityAnalyse?: (campaignId: string, popField: string) => void;
+  onEquityClear?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -530,6 +541,8 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
+  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField,
+  onEquityAnalyse, onEquityClear,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -674,10 +687,24 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false,
+    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false, equity: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Geo-Equity campaigns list
+  const [equityCampaigns, setEquityCampaigns] = useState<CampaignListItem[]>([]);
+  const [equitySelectedCampaign, setEquitySelectedCampaign] = useState<string>('');
+  const [equitySelectedPop, setEquitySelectedPop] = useState<string>('population');
+
+  useEffect(() => {
+    if (!analyseOpen.equity) return;
+    if (equityCampaigns.length > 0) return;
+    fetch('/api/admin/campaigns')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: CampaignListItem[]) => setEquityCampaigns(data))
+      .catch(() => {});
+  }, [analyseOpen.equity, equityCampaigns.length]);
 
   // Cluster overlay state
   const [clusterModels, setClusterModels] = useState<ClusterModelSummary[]>([]);
@@ -3049,6 +3076,146 @@ export function FilterPanel({
                 onFlyTo={onFlyTo ?? (() => {})}
                 onScoreComputed={onScoreComputed}
               />
+            </div>
+            )}
+
+            {/* ── Accordéon : GEO-EQUITY BIDDING ────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('equity')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: '#111111',
+                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+                Geo-Equity Bidding {equityVisible && <span style={{ color: C.green }}>●</span>}
+              </span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.equity ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.equity && (
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Campaign selector */}
+              <div>
+                <div style={labelStyle}>Campagne DSP</div>
+                <select
+                  value={equitySelectedCampaign}
+                  onChange={e => setEquitySelectedCampaign(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="">Sélectionner une campagne…</option>
+                  {equityCampaigns.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.
+                      {c.date_start && c.date_end ? ` (${c.date_start.slice(0, 10)} → ${c.date_end.slice(0, 10)})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Population target selector */}
+              <div>
+                <div style={labelStyle}>Population cible</div>
+                <select
+                  value={equitySelectedPop}
+                  onChange={e => setEquitySelectedPop(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  {POPULATION_TARGETS.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Launch button */}
+              <button
+                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedPop)}
+                disabled={!equitySelectedCampaign || equityLoading}
+                style={primaryBtn('#4ecdc4', !equitySelectedCampaign || equityLoading)}
+              >
+                {equityLoading ? 'Analyse en cours…' : 'Lancer l\'analyse'}
+              </button>
+
+              {/* Clear button */}
+              {equityVisible && (
+                <button
+                  onClick={() => {
+                    onEquityClear?.();
+                    setEquitySelectedCampaign('');
+                  }}
+                  style={{
+                    fontFamily: fInter, fontSize: 11, padding: '6px 10px',
+                    background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
+                    color: C.textDim, cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                >
+                  Effacer l&apos;analyse
+                </button>
+              )}
+
+              {/* Stats results */}
+              {equityStats && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ height: 1, background: C.border }} />
+                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec }}>Résultats</div>
+
+                  {/* KPI row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
+                      <div style={{ fontFamily: fMono, fontSize: 13, color: C.text }}>{Number(equityStats.total_impressions).toLocaleString('fr-FR')}</div>
+                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Impressions</div>
+                    </div>
+                    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
+                      <div style={{ fontFamily: fMono, fontSize: 13, color: C.text }}>{Number(equityStats.total_population).toLocaleString('fr-FR')}</div>
+                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Pop. cible</div>
+                    </div>
+                  </div>
+
+                  {/* Equity score */}
+                  <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}`, textAlign: 'center' }}>
+                    <div style={{ fontFamily: fMono, fontSize: 16, color: '#4ecdc4' }}>{equityStats.avg_equity}</div>
+                    <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Index moyen (imp. / 1000 hab.)</div>
+                  </div>
+
+                  {/* Zone breakdown */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef8a62', flexShrink: 0 }} />
+                      <span style={{ color: C.textSec }}>Sous-servies (opportunités)</span>
+                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sous_servies.toLocaleString('fr-FR')}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e0e0e0', flexShrink: 0 }} />
+                      <span style={{ color: C.textSec }}>Équilibrées</span>
+                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_equilibrees.toLocaleString('fr-FR')}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#67a9cf', flexShrink: 0 }} />
+                      <span style={{ color: C.textSec }}>Sur-servies (gaspillage)</span>
+                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sur_servies.toLocaleString('fr-FR')}</span>
+                    </div>
+                  </div>
+
+                  {/* Legend gradient */}
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>Légende</div>
+                    <div style={{
+                      height: 12, borderRadius: 3,
+                      background: 'linear-gradient(to right, #b2182b, #ef8a62, #f7f7f7, #67a9cf, #2166ac)',
+                    }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sous-servi (0)</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Équilibré (1)</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sur-servi (4+)</span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontFamily: fInter, fontSize: 9, color: C.textDim, fontStyle: 'italic' }}>
+                    {equityStats.total_zones.toLocaleString('fr-FR')} zones IRIS analysées
+                  </div>
+                </div>
+              )}
             </div>
             )}
 
