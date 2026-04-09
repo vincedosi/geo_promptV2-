@@ -46,8 +46,15 @@ export function parseDate(raw: string, dspSource: string): string | null {
   }
 
   // Fallback: try ISO format (YYYY-MM-DD)
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return s;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  // Excel serial number (e.g. 45952 = 2025-11-01)
+  const serial = Number(s);
+  if (!isNaN(serial) && serial > 40000 && serial < 60000) {
+    const d = new Date((serial - 25569) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
 
   return null;
 }
