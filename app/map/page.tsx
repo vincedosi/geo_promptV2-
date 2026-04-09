@@ -157,35 +157,46 @@ export default function MapPage() {
   // Remove and re-add source to force tile reload with new campaign_id
   const updateDspTileSource = useCallback((sourceId: string, layerIds: string[], campaignId: string, mode: string) => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map) { console.warn('[updateDspTileSource] no map'); return; }
+
+    console.log(`[updateDspTileSource] ${sourceId} → campaign=${campaignId} mode=${mode}`);
 
     // Save layer configs before removing
-    const savedLayers: { id: string; layer: maplibregl.LayerSpecification }[] = [];
+    const savedLayers: maplibregl.LayerSpecification[] = [];
     for (const lid of layerIds) {
-      const layer = map.getLayer(lid);
-      if (layer) {
-        savedLayers.push({ id: lid, layer: map.getStyle().layers.find(l => l.id === lid)! });
+      const layerSpec = map.getStyle().layers.find(l => l.id === lid);
+      if (layerSpec) {
+        savedLayers.push(layerSpec);
         map.removeLayer(lid);
+        console.log(`[updateDspTileSource] removed layer ${lid}`);
+      } else {
+        console.warn(`[updateDspTileSource] layer ${lid} not found`);
       }
     }
 
     // Remove old source
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId);
+      console.log(`[updateDspTileSource] removed source ${sourceId}`);
     }
 
     // Add new source with correct campaign URL
+    const tileUrl = `${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`;
+    console.log(`[updateDspTileSource] adding source with tiles: ${tileUrl}`);
     map.addSource(sourceId, {
       type: 'vector',
-      tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`],
+      tiles: [tileUrl],
       minzoom: 5,
       maxzoom: 14,
     });
 
-    // Re-add layers
-    for (const { layer } of savedLayers) {
+    // Re-add layers with visibility='visible'
+    for (const layer of savedLayers) {
       map.addLayer({ ...layer, layout: { ...layer.layout, visibility: 'visible' } });
+      console.log(`[updateDspTileSource] re-added layer ${layer.id}`);
     }
+
+    console.log(`[updateDspTileSource] done, ${savedLayers.length} layers restored`);
   }, [mapRef]);
 
   // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
@@ -1563,12 +1574,15 @@ export default function MapPage() {
         impressionsStats={impressionsStats}
         impressionsLoading={impressionsLoading}
         onShowImpressions={async (campaignId: string, _fullFrance: boolean, _scale: string) => {
+          console.log('[impressions] starting, campaignId=', campaignId);
           setImpressionsLoading(true);
           setEquityVisible(false);
           try {
             // Update MVT tile source with campaign ID
+            console.log('[impressions] updating tile source...');
             updateDspTileSource('dsp-impressions-mvt', ['impressions-fill', 'impressions-line'], campaignId, 'impressions');
             setImpressionsVisible(true);
+            console.log('[impressions] source updated, visible=true');
             // Fetch lightweight stats from RPC (no GeoJSON)
             const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}`);
             if (statsRes.ok) {
@@ -1584,7 +1598,7 @@ export default function MapPage() {
                 const p95 = Math.max(s.p95 || p90 * 1.3, p90 + 1);
                 const mx = Math.max(s.max || p95 * 2, p95 + 1);
                 map.setPaintProperty('impressions-fill', 'fill-color', [
-                  'interpolate', ['linear'], ['coalesce', ['get', 'impressions'], 0],
+                  'interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
                   0,              '#1a1a2e',
                   med * 0.25,     '#16537e',
                   med,            '#1e8a7a',

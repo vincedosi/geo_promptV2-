@@ -479,7 +479,7 @@ export function useMapInit(
         minzoom: 5,
         paint: {
           'fill-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'equity_index'], 0],
+            'interpolate', ['linear'], ['to-number', ['get', 'equity_index'], 0],
             0,     '#b2182b',
             500,   '#ef8a62',
             1000,  '#fddbc7',
@@ -523,7 +523,7 @@ export function useMapInit(
         minzoom: 5,
         paint: {
           'fill-color': [
-            'interpolate', ['exponential', 0.5], ['coalesce', ['get', 'impressions'], 0],
+            'interpolate', ['exponential', 0.5], ['to-number', ['get', 'impressions'], 0],
             0,        '#1a1a2e',
             500,      '#16537e',
             5000,     '#1e8a7a',
