@@ -462,34 +462,71 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
+      // ── Geo-Equity choropleth ─────────────────────────────────────────
+      map.addSource('equity-analysis', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'equity-fill',
+        type: 'fill',
+        source: 'equity-analysis',
+        paint: {
+          'fill-color': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'equity_index'], 0],
+            0,   '#b2182b',
+            0.5, '#ef8a62',
+            1.0, '#f7f7f7',
+            2.0, '#67a9cf',
+            4.0, '#2166ac',
+          ] as unknown as maplibregl.ExpressionSpecification,
+          'fill-opacity': 0.75,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      map.addLayer({
+        id: 'equity-line',
+        type: 'line',
+        source: 'equity-analysis',
+        paint: {
+          'line-color': '#333333',
+          'line-width': 0.5,
+        },
+        layout: { visibility: 'none' },
+      });
+
       // Click on individual radio point → popup
       const onRadioPointClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         if (!e.features?.length) return;
         const p = e.features[0].properties as Record<string, unknown>;
-        const nbRadios = Number(p.nb_radios ?? 0);
-        const principale = p.radio_principale ? String(p.radio_principale) : null;
+        const nom = p.radio_nom ? String(p.radio_nom) : null;
         const sys = String(p.systeme ?? 'FM');
         const freqVal = Number(p.frequence_mhz);
+        // Don't show 87.5/108 (FM band boundaries) — show just "FM"
         const freqDisplay = (freqVal && freqVal !== 87.5 && freqVal !== 108) ? `${freqVal.toFixed(1)} MHz` : sys;
         const pwVal = Number(p.puissance_w);
         const pw = pwVal > 0 ? (pwVal >= 1000000 ? `${(pwVal/1000000).toFixed(1)} MW` : pwVal >= 1000 ? `${(pwVal/1000).toFixed(1)} kW` : `${pwVal} W`) : '';
         const covVal = Number(p.rayon_couverture_m);
         const cov = covVal > 0 ? `~${Math.round(covVal / 1000)} km` : '';
-
-        const radioLine = nbRadios > 0
-          ? `<div style="font-size:14px;font-weight:600;color:#f0f0f0;margin-bottom:2px">${nbRadios} radio${nbRadios > 1 ? 's' : ''} dans cette zone</div>
-             ${principale ? `<div style="color:#a0a0a0;font-size:11px;margin-bottom:6px">Dont : ${principale}${nbRadios > 1 ? `, +${nbRadios - 1} autres` : ''}</div>` : ''}`
-          : '<div style="font-size:14px;font-weight:600;color:#666666;margin-bottom:2px">Aucune radio associee</div>';
+        const cat = p.categorie_arcom ? `Cat. ${p.categorie_arcom}` : '';
+        const portee = p.portee ? String(p.portee).charAt(0).toUpperCase() + String(p.portee).slice(1) : '';
+        const genre = p.genre ? String(p.genre).replace('_', '/') : '';
+        const groupe = p.groupe_media ? String(p.groupe_media) : '';
 
         new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
-            ${radioLine}
+            <div style="font-size:14px;font-weight:600;color:${nom ? '#f0f0f0' : '#666666'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
+            ${nom ? `<div style="color:#a0a0a0;font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
+            ${groupe ? `<div style="color:#666666;font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
             <div style="border-top:0.5px solid #1a1a1a;margin:4px 0;padding-top:4px">
               <div style="color:#a0a0a0;font-size:11px">${freqDisplay}</div>
               ${pw ? `<div style="color:#666666;font-size:11px">Puissance : ${pw}</div>` : ''}
               ${cov ? `<div style="color:#666666;font-size:11px">Couverture : ${cov}</div>` : ''}
               <div style="color:#666666;font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
+              ${p.exploitant ? `<div style="color:#444444;font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
             </div>
           </div>`)
           .addTo(map);
