@@ -100,7 +100,7 @@ export default function MapPage() {
   const [equityScale, setEquityScale] = useState<string>('iris');
   // Campaign impressions layer (exclusive with equity)
   const [impressionsVisible, setImpressionsVisible] = useState(false);
-  const [impressionsStats, setImpressionsStats] = useState<{ total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null>(null);
+  const [impressionsStats, setImpressionsStats] = useState<{ total_impressions: number; zones_count: number; min: number; max: number; median: number; p75: number; p90: number; p95: number } | null>(null);
   const [impressionsLoading, setImpressionsLoading] = useState(false);
 
   const radioFetchRef = useRef<AbortController | null>(null);
@@ -1546,11 +1546,30 @@ export default function MapPage() {
             // Update MVT tile source with campaign ID
             updateDspTileSource('dsp-impressions-mvt', campaignId, 'impressions');
             setImpressionsVisible(true);
-            // Fetch stats via API
-            const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}&full=true`);
+            // Fetch lightweight stats from RPC (no GeoJSON)
+            const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}`);
             if (statsRes.ok) {
               const data = await statsRes.json();
               setImpressionsStats(data.stats);
+              // Apply dynamic palette based on actual data percentiles
+              const map = mapRef.current;
+              if (map && data.stats && map.getLayer('impressions-fill')) {
+                const s = data.stats;
+                const med = Math.max(s.median || 1, 1);
+                const p75 = Math.max(s.p75 || med * 2, med + 1);
+                const p90 = Math.max(s.p90 || p75 * 1.5, p75 + 1);
+                const p95 = Math.max(s.p95 || p90 * 1.3, p90 + 1);
+                const mx = Math.max(s.max || p95 * 2, p95 + 1);
+                map.setPaintProperty('impressions-fill', 'fill-color', [
+                  'interpolate', ['linear'], ['coalesce', ['get', 'impressions'], 0],
+                  0,              '#1a1a2e',
+                  med * 0.25,     '#16537e',
+                  med,            '#1e8a7a',
+                  p75,            '#4ecdc4',
+                  p95,            '#7eddd5',
+                  mx,             '#f7fff7',
+                ]);
+              }
             }
           } catch (err) {
             console.error('[impressions] error:', err);

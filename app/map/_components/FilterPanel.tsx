@@ -425,7 +425,7 @@ export interface FilterPanelProps {
   onEquityClear?: () => void;
   // Campaign impressions
   impressionsVisible?: boolean;
-  impressionsStats?: { total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null;
+  impressionsStats?: { total_impressions: number; zones_count: number; min: number; max: number; median: number; p75: number; p90: number; p95: number } | null;
   impressionsLoading?: boolean;
   onShowImpressions?: (campaignId: string, full: boolean, scale: string) => void;
   onClearImpressions?: () => void;
@@ -3220,32 +3220,36 @@ export function FilterPanel({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
                     <span style={{ color: C.textSec }}>Total impressions</span>
-                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{impressionsStats.total_impressions.toLocaleString('fr-FR')}</span>
+                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{Number(impressionsStats.total_impressions).toLocaleString('fr-FR')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
-                    <span style={{ color: C.textSec }}>Zones touchées</span>
-                    <span style={{ fontFamily: fMono, color: C.text }}>{impressionsStats.zones_count.toLocaleString('fr-FR')}</span>
+                    <span style={{ color: C.textSec }}>Zones IRIS</span>
+                    <span style={{ fontFamily: fMono, color: C.text }}>{Number(impressionsStats.zones_count).toLocaleString('fr-FR')}</span>
                   </div>
-                  {impressionsStats.top_zones.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, fontFamily: fInter, color: C.textDim, marginBottom: 4 }}>Top zones</div>
-                      {impressionsStats.top_zones.map((z, i) => (
-                        <div key={z.code_iris} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: fInter, padding: '2px 0' }}>
-                          <span style={{ color: C.textSec }}>{i + 1}. {z.nom_commune}</span>
-                          <span style={{ fontFamily: fMono, color: C.text }}>{z.impressions.toLocaleString('fr-FR')}</span>
-                        </div>
-                      ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, fontSize: 10, fontFamily: fMono }}>
+                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
+                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>Médiane</div>
+                      <div style={{ color: C.text }}>{Number(impressionsStats.median).toLocaleString('fr-FR')}</div>
                     </div>
-                  )}
-                  {/* Impressions legend */}
+                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
+                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>P95</div>
+                      <div style={{ color: C.text }}>{Number(impressionsStats.p95).toLocaleString('fr-FR')}</div>
+                    </div>
+                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
+                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>Max</div>
+                      <div style={{ color: C.text }}>{Number(impressionsStats.max).toLocaleString('fr-FR')}</div>
+                    </div>
+                  </div>
+                  {/* Dynamic legend */}
                   <div>
                     <div style={{
                       height: 10, borderRadius: 3,
-                      background: 'linear-gradient(to right, #1a1a2e, #16537e, #4ecdc4, #f7fff7)',
+                      background: 'linear-gradient(to right, #1a1a2e, #16537e, #1e8a7a, #4ecdc4, #7eddd5, #f7fff7)',
                     }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                       <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>0</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{impressionsStats.max_impressions.toLocaleString('fr-FR')}</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{Number(impressionsStats.median).toLocaleString('fr-FR')}</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{Number(impressionsStats.max).toLocaleString('fr-FR')}</span>
                     </div>
                   </div>
                   <button
