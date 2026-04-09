@@ -89,9 +89,8 @@ export default function MapPage() {
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
-  // Geo-Equity analysis
+  // Geo-Equity analysis (MVT tiles — no client-side GeoJSON)
   const [equityVisible, setEquityVisible] = useState(false);
-  const [equityGeoJSON, setEquityGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   const [equityStats, setEquityStats] = useState<EquityAnalysisStats | null>(null);
   const [equityLoading, setEquityLoading] = useState(false);
   const [equityCampaignId, setEquityCampaignId] = useState<string | null>(null);
@@ -101,9 +100,9 @@ export default function MapPage() {
   const [equityScale, setEquityScale] = useState<string>('iris');
   // Campaign impressions layer (exclusive with equity)
   const [impressionsVisible, setImpressionsVisible] = useState(false);
-  const [impressionsGeoJSON, setImpressionsGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   const [impressionsStats, setImpressionsStats] = useState<{ total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null>(null);
   const [impressionsLoading, setImpressionsLoading] = useState(false);
+
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -154,6 +153,18 @@ export default function MapPage() {
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
+  // Helper: update MVT tile source URL for DSP layers
+  const updateDspTileSource = useCallback((sourceId: string, campaignId: string, mode: string) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource(sourceId);
+    if (src && 'setTiles' in src) {
+      (src as unknown as { setTiles: (tiles: string[]) => void }).setTiles([
+        `${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`
+      ]);
+    }
+  }, [mapRef]);
+
   // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
@@ -199,31 +210,23 @@ export default function MapPage() {
     }
   }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync equity layer visibility + data ──────────────────────────────────
+  // ── Sync equity MVT layer visibility ──────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = equityVisible && equityGeoJSON ? 'visible' : 'none';
+    const vis = equityVisible ? 'visible' : 'none';
     if (map.getLayer('equity-fill')) map.setLayoutProperty('equity-fill', 'visibility', vis);
     if (map.getLayer('equity-line')) map.setLayoutProperty('equity-line', 'visibility', vis);
-    if (equityGeoJSON) {
-      const src = map.getSource('equity-analysis') as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData(equityGeoJSON);
-    }
-  }, [equityVisible, equityGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [equityVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync impressions layer visibility + data ───────────────────────────────
+  // ── Sync impressions MVT layer visibility ──────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = impressionsVisible && impressionsGeoJSON ? 'visible' : 'none';
+    const vis = impressionsVisible ? 'visible' : 'none';
     if (map.getLayer('impressions-fill')) map.setLayoutProperty('impressions-fill', 'visibility', vis);
     if (map.getLayer('impressions-line')) map.setLayoutProperty('impressions-line', 'visibility', vis);
-    if (impressionsGeoJSON) {
-      const src = map.getSource('campaign-impressions') as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData(impressionsGeoJSON);
-    }
-  }, [impressionsVisible, impressionsGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [impressionsVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Impressions hover popup ────────────────────────────────────────────────
   useEffect(() => {
@@ -297,34 +300,7 @@ export default function MapPage() {
     };
   }, [equityVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Refresh equity data on map move ──────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    // Skip moveend refresh in full France mode or large scales (data already complete)
-    if (!map || !mapReady || !equityVisible || !equityCampaignId || equityFull) return;
-    if (equityScale === 'departement' || equityScale === 'region') return;
-
-    let timer: ReturnType<typeof setTimeout>;
-    const onMoveEnd = () => {
-      clearTimeout(timer);
-      timer = setTimeout(async () => {
-        const bounds = map.getBounds();
-        const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-        try {
-          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&source=${equitySource}&population_field=${equityPopField}&bbox=${bbox}&scale=${equityScale}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          setEquityGeoJSON(data);
-        } catch { /* ignore */ }
-      }, 500);
-    };
-
-    map.on('moveend', onMoveEnd);
-    return () => {
-      map.off('moveend', onMoveEnd);
-      clearTimeout(timer);
-    };
-  }, [equityVisible, equityCampaignId, equitySource, equityPopField, equityFull, equityScale, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  // MVT tiles auto-load per viewport — no moveend refresh needed
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -1537,81 +1513,53 @@ export default function MapPage() {
           setEquitySource(source);
           setEquityPopField(popField);
           setEquityScale(scale);
-          // For departement/region, always full
-          const effectiveFull = scale === 'departement' || scale === 'region' ? true : fullFrance;
-          setEquityFull(effectiveFull);
           setEquityLoading(true);
           try {
-            const map = mapRef.current;
-            if (!map) return;
-            let url = `/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&scale=${scale}`;
-            if (effectiveFull) {
-              url += '&full=true';
-            } else {
-              const bounds = map.getBounds();
-              url += `&bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            }
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(await res.text());
-            const data = await res.json();
-            setEquityGeoJSON(data);
-            setEquityStats(data.stats);
+            // Update MVT tile source with campaign ID
+            updateDspTileSource('dsp-equity-mvt', campaignId, 'equity');
             setEquityVisible(true);
-            // Exclusive mode: hide impressions
             setImpressionsVisible(false);
-            // Auto-zoom to France extent in full mode
-            if (effectiveFull) {
-              map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
+            // Fetch stats via API
+            const statsRes = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&scale=${scale}&full=true`);
+            if (statsRes.ok) {
+              const data = await statsRes.json();
+              setEquityStats(data.stats);
             }
           } catch (err) {
-            console.error('[equity] fetch error:', err);
+            console.error('[equity] error:', err);
           } finally {
             setEquityLoading(false);
           }
         }}
         onEquityClear={() => {
           setEquityVisible(false);
-          setEquityGeoJSON(null);
           setEquityStats(null);
           setEquityCampaignId(null);
         }}
         impressionsVisible={impressionsVisible}
         impressionsStats={impressionsStats}
         impressionsLoading={impressionsLoading}
-        onShowImpressions={async (campaignId: string, fullFrance: boolean, scale: string) => {
+        onShowImpressions={async (campaignId: string, _fullFrance: boolean, _scale: string) => {
           setImpressionsLoading(true);
-          setEquityScale(scale);
-          // Exclusive mode: hide equity
           setEquityVisible(false);
-          const effectiveFull = scale === 'departement' || scale === 'region' ? true : fullFrance;
           try {
-            const map = mapRef.current;
-            if (!map) return;
-            let url = `/api/map/campaign-impressions?campaign_id=${campaignId}&scale=${scale}`;
-            if (effectiveFull) {
-              url += '&full=true';
-            } else {
-              const bounds = map.getBounds();
-              url += `&bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            }
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(await res.text());
-            const data = await res.json();
-            setImpressionsGeoJSON(data);
-            setImpressionsStats(data.stats);
+            // Update MVT tile source with campaign ID
+            updateDspTileSource('dsp-impressions-mvt', campaignId, 'impressions');
             setImpressionsVisible(true);
-            if (effectiveFull) {
-              map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
+            // Fetch stats via API
+            const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}&full=true`);
+            if (statsRes.ok) {
+              const data = await statsRes.json();
+              setImpressionsStats(data.stats);
             }
           } catch (err) {
-            console.error('[impressions] fetch error:', err);
+            console.error('[impressions] error:', err);
           } finally {
             setImpressionsLoading(false);
           }
         }}
         onClearImpressions={() => {
           setImpressionsVisible(false);
-          setImpressionsGeoJSON(null);
           setImpressionsStats(null);
         }}
       />

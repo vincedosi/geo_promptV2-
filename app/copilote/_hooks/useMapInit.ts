@@ -462,26 +462,31 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      // ── Geo-Equity choropleth ─────────────────────────────────────────
-      map.addSource('equity-analysis', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+      // ── DSP Equity MVT tiles (same pattern as carreaux) ─────────────────
+      // Source URL updated dynamically when campaign is selected
+      map.addSource('dsp-equity-mvt', {
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=none&mode=equity`],
+        minzoom: 5,
+        maxzoom: 14,
       });
 
       map.addLayer({
         id: 'equity-fill',
         type: 'fill',
-        source: 'equity-analysis',
+        source: 'dsp-equity-mvt',
+        'source-layer': 'dsp',
+        minzoom: 5,
         paint: {
           'fill-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'normalized_index'], 1],
-            0,   '#b2182b',
-            0.5, '#ef8a62',
-            0.7, '#fddbc7',
-            1.0, '#f7f7f7',
-            1.3, '#d1e5f0',
-            1.5, '#67a9cf',
-            2.0, '#2166ac',
+            'interpolate', ['linear'], ['coalesce', ['get', 'equity_index'], 0],
+            0,    '#b2182b',
+            500,  '#ef8a62',
+            700,  '#fddbc7',
+            1000, '#f7f7f7',
+            1300, '#d1e5f0',
+            1500, '#67a9cf',
+            2000, '#2166ac',
           ] as unknown as maplibregl.ExpressionSpecification,
           'fill-opacity': 0.75,
         },
@@ -491,24 +496,31 @@ export function useMapInit(
       map.addLayer({
         id: 'equity-line',
         type: 'line',
-        source: 'equity-analysis',
+        source: 'dsp-equity-mvt',
+        'source-layer': 'dsp',
+        minzoom: 8,
         paint: {
           'line-color': '#333333',
-          'line-width': 0.5,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.1, 12, 0.4, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': 0.4,
         },
         layout: { visibility: 'none' },
       });
 
-      // ── Campaign impressions choropleth ───────────────────────────────
-      map.addSource('campaign-impressions', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+      // DSP Impressions MVT (same source, different mode)
+      map.addSource('dsp-impressions-mvt', {
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=none&mode=impressions`],
+        minzoom: 5,
+        maxzoom: 14,
       });
 
       map.addLayer({
         id: 'impressions-fill',
         type: 'fill',
-        source: 'campaign-impressions',
+        source: 'dsp-impressions-mvt',
+        'source-layer': 'dsp',
+        minzoom: 5,
         paint: {
           'fill-color': [
             'interpolate', ['linear'], ['coalesce', ['get', 'impressions'], 0],
@@ -525,10 +537,13 @@ export function useMapInit(
       map.addLayer({
         id: 'impressions-line',
         type: 'line',
-        source: 'campaign-impressions',
+        source: 'dsp-impressions-mvt',
+        'source-layer': 'dsp',
+        minzoom: 8,
         paint: {
           'line-color': '#333333',
-          'line-width': 0.5,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.1, 12, 0.4, 14, 0.8] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': 0.4,
         },
         layout: { visibility: 'none' },
       });
