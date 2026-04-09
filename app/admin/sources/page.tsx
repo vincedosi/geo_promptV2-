@@ -415,8 +415,15 @@ export default function SourcesPage() {
     setDspLoading(true);
     try {
       const res = await adminFetch('/api/admin/campaigns');
-      if (res.ok) setDspCampaigns(await res.json());
-    } catch { /* ignore */ }
+      if (res.ok) {
+        const data = await res.json();
+        setDspCampaigns(Array.isArray(data) ? data : []);
+      } else {
+        console.error('[fetchDspCampaigns] HTTP', res.status);
+      }
+    } catch (err) {
+      console.error('[fetchDspCampaigns] error:', err);
+    }
     setDspLoading(false);
   }, []);
 
