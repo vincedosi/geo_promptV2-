@@ -96,6 +96,7 @@ export default function MapPage() {
   const [equityLoading, setEquityLoading] = useState(false);
   const [equityCampaignId, setEquityCampaignId] = useState<string | null>(null);
   const [equityPopField, setEquityPopField] = useState<string>('population');
+  const [equitySource, setEquitySource] = useState<string>('iris');
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -258,7 +259,7 @@ export default function MapPage() {
         const bounds = map.getBounds();
         const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
         try {
-          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&population_field=${equityPopField}&bbox=${bbox}`);
+          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&source=${equitySource}&population_field=${equityPopField}&bbox=${bbox}`);
           if (!res.ok) return;
           const data = await res.json();
           setEquityGeoJSON(data);
@@ -271,7 +272,7 @@ export default function MapPage() {
       map.off('moveend', onMoveEnd);
       clearTimeout(timer);
     };
-  }, [equityVisible, equityCampaignId, equityPopField, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [equityVisible, equityCampaignId, equitySource, equityPopField, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -1476,8 +1477,10 @@ export default function MapPage() {
         equityLoading={equityLoading}
         equityCampaignId={equityCampaignId}
         equityPopField={equityPopField}
-        onEquityAnalyse={async (campaignId: string, popField: string) => {
+        equitySource={equitySource}
+        onEquityAnalyse={async (campaignId: string, source: string, popField: string) => {
           setEquityCampaignId(campaignId);
+          setEquitySource(source);
           setEquityPopField(popField);
           setEquityLoading(true);
           try {
@@ -1485,7 +1488,7 @@ export default function MapPage() {
             if (!map) return;
             const bounds = map.getBounds();
             const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            const res = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&population_field=${popField}&bbox=${bbox}`);
+            const res = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&bbox=${bbox}`);
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
             setEquityGeoJSON(data);

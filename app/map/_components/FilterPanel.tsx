@@ -13,7 +13,6 @@ import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayer
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
 import type { CampaignListItem, EquityAnalysisStats } from '@/types/campaign';
-import { POPULATION_TARGETS } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
@@ -21,6 +20,65 @@ const CorrelationPanel = dynamic(
   () => import('./CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
   { ssr: false },
 );
+
+// ─── Equity indicator types ──────────────────────────────────────────────────
+interface EquityIndicator {
+  field: string;
+  label: string;
+  type: string;
+}
+
+const IRIS_LABELS: Record<string, string> = {
+  'population': 'Population totale',
+  'pop_0_14': 'Enfants 0-14 ans',
+  'pop_15_29': 'Jeunes 15-29 ans',
+  'pop_30_44': 'Adultes 30-44 ans',
+  'pop_45_59': 'Seniors 45-59 ans',
+  'pop_60_74': 'Seniors 60-74 ans',
+  'pop_75_plus': 'Seniors 75+ ans',
+  'nb_csp_cadre': 'CSP+ Cadres',
+  'nb_csp_employe': 'Employés',
+  'nb_csp_ouvrier': 'Ouvriers',
+  'nb_diplome_aucun': 'Sans diplôme',
+  'nb_diplome_bac': 'Bac',
+  'nb_diplome_sup': 'Diplômés supérieur',
+  'taux_diplome_sup': '% Diplômés sup.',
+  'nb_menages': 'Ménages',
+  'rev_median': 'Revenu médian (€)',
+  'rev_d1': 'Revenu D1 (10% bas)',
+  'rev_d9': 'Revenu D9 (10% haut)',
+  'taux_proprio': '% Propriétaires',
+  'taux_chomage': '% Chômage',
+  'taux_pauvrete': '% Pauvreté',
+  'indice_gini': 'Indice de Gini',
+  'nb_emplois': 'Emplois',
+  'taux_emploi': '% Emploi',
+  'densite_pop': 'Densité pop.',
+  'indice_jeunesse': 'Indice jeunesse',
+  'part_pop_etrangere': '% Pop. étrangère',
+  'part_residences_principales': '% Rés. principales',
+  'part_appartements': '% Appartements',
+  'part_logements_sociaux': '% Logements sociaux',
+  'part_menages_emmenages_2ans': '% Emménagés <2 ans',
+  'part_familles_monoparentales': '% Fam. monoparentales',
+  'part_couples_avec_enfants': '% Couples av. enfants',
+  'part_actifs_marche_velo': '% Marche/vélo',
+  'part_actifs_transport_commun': '% Transport commun',
+  'part_hommes_actifs': '% Hommes actifs',
+  'part_femmes_actives': '% Femmes actives',
+  'part_pop_moins_18': '% Pop. <18 ans',
+  'part_pop_65_plus': '% Pop. 65+',
+  'part_sans_diplome': '% Sans diplôme',
+  'nb_emplois_commune': 'Emplois commune',
+};
+
+const CARREAUX_LABELS: Record<string, string> = {
+  'ind': 'Population totale',
+  'ind_18_24': 'Jeunes 18-24 ans',
+  'ind_25_39': 'Adultes 25-39 ans',
+  'ind_40_54': 'Adultes 40-54 ans',
+  'ind_inc': 'Population indéterminée',
+};
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -360,7 +418,8 @@ export interface FilterPanelProps {
   equityLoading?: boolean;
   equityCampaignId?: string | null;
   equityPopField?: string;
-  onEquityAnalyse?: (campaignId: string, popField: string) => void;
+  equitySource?: string;
+  onEquityAnalyse?: (campaignId: string, source: string, popField: string) => void;
   onEquityClear?: () => void;
 }
 
@@ -542,7 +601,7 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
-  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField,
+  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource,
   onEquityAnalyse, onEquityClear,
 }: FilterPanelProps) {
 
@@ -693,19 +752,34 @@ export function FilterPanel({
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
-  // Geo-Equity campaigns list
+  // Geo-Equity state
   const [equityCampaigns, setEquityCampaigns] = useState<CampaignListItem[]>([]);
   const [equitySelectedCampaign, setEquitySelectedCampaign] = useState<string>('');
+  const [equitySelectedSource, setEquitySelectedSource] = useState<string>('iris');
   const [equitySelectedPop, setEquitySelectedPop] = useState<string>('population');
+  const [equityIndicators, setEquityIndicators] = useState<{ iris: EquityIndicator[]; carreaux: EquityIndicator[] } | null>(null);
 
+  // Fetch campaigns and indicators when accordion opens
   useEffect(() => {
     if (!analyseOpen.equity) return;
-    if (equityCampaigns.length > 0) return;
-    adminFetch('/api/admin/campaigns')
-      .then(r => r.ok ? r.json() : [])
-      .then((data: CampaignListItem[]) => setEquityCampaigns(data))
-      .catch(() => {});
-  }, [analyseOpen.equity, equityCampaigns.length]);
+    if (equityCampaigns.length === 0) {
+      adminFetch('/api/admin/campaigns')
+        .then(r => r.ok ? r.json() : [])
+        .then((data: CampaignListItem[]) => setEquityCampaigns(data))
+        .catch(() => {});
+    }
+    if (!equityIndicators) {
+      fetch('/api/map/equity-indicators')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setEquityIndicators(data); })
+        .catch(() => {});
+    }
+  }, [analyseOpen.equity, equityCampaigns.length, equityIndicators]);
+
+  // Reset population field when source changes
+  useEffect(() => {
+    setEquitySelectedPop(equitySelectedSource === 'iris' ? 'population' : 'ind');
+  }, [equitySelectedSource]);
 
   // Cluster overlay state
   const [clusterModels, setClusterModels] = useState<ClusterModelSummary[]>([]);
@@ -3115,7 +3189,33 @@ export function FilterPanel({
                 </select>
               </div>
 
-              {/* Population target selector */}
+              {/* Source toggle */}
+              <div>
+                <div style={labelStyle}>Source de données</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { id: 'iris', label: 'IRIS (49k zones)' },
+                    { id: 'carreaux', label: 'Carreaux 200m' },
+                  ].map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => setEquitySelectedSource(s.id)}
+                      style={{
+                        flex: 1, padding: '7px 10px', fontSize: 11, fontFamily: fInter,
+                        background: equitySelectedSource === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
+                        border: `0.5px solid ${equitySelectedSource === s.id ? '#4ecdc4' : C.border}`,
+                        borderRadius: 4, cursor: 'pointer',
+                        color: equitySelectedSource === s.id ? '#4ecdc4' : C.textSec,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Population target selector (dynamic) */}
               <div>
                 <div style={labelStyle}>Population cible</div>
                 <select
@@ -3123,15 +3223,20 @@ export function FilterPanel({
                   onChange={e => setEquitySelectedPop(e.target.value)}
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
-                  {POPULATION_TARGETS.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
+                  {(equitySelectedSource === 'iris'
+                    ? (equityIndicators?.iris || [])
+                    : (equityIndicators?.carreaux || [])
+                  ).map(ind => (
+                    <option key={ind.field} value={ind.field}>
+                      {(equitySelectedSource === 'iris' ? IRIS_LABELS : CARREAUX_LABELS)[ind.field] || ind.field}
+                    </option>
                   ))}
                 </select>
               </div>
 
               {/* Launch button */}
               <button
-                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedPop)}
+                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop)}
                 disabled={!equitySelectedCampaign || equityLoading}
                 style={primaryBtn('#4ecdc4', !equitySelectedCampaign || equityLoading)}
               >
