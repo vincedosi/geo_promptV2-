@@ -98,6 +98,11 @@ export default function MapPage() {
   const [equityPopField, setEquityPopField] = useState<string>('population');
   const [equitySource, setEquitySource] = useState<string>('iris');
   const [equityFull, setEquityFull] = useState(false);
+  // Campaign impressions layer (exclusive with equity)
+  const [impressionsVisible, setImpressionsVisible] = useState(false);
+  const [impressionsGeoJSON, setImpressionsGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [impressionsStats, setImpressionsStats] = useState<{ total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null>(null);
+  const [impressionsLoading, setImpressionsLoading] = useState(false);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -205,6 +210,49 @@ export default function MapPage() {
       if (src) src.setData(equityGeoJSON);
     }
   }, [equityVisible, equityGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync impressions layer visibility + data ───────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = impressionsVisible && impressionsGeoJSON ? 'visible' : 'none';
+    if (map.getLayer('impressions-fill')) map.setLayoutProperty('impressions-fill', 'visibility', vis);
+    if (map.getLayer('impressions-line')) map.setLayoutProperty('impressions-line', 'visibility', vis);
+    if (impressionsGeoJSON) {
+      const src = map.getSource('campaign-impressions') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(impressionsGeoJSON);
+    }
+  }, [impressionsVisible, impressionsGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Impressions hover popup ────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !impressionsVisible) return;
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '240px' });
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; popup.remove(); };
+    const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties;
+      popup.setLngLat(e.lngLat).setHTML(`
+        <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
+          <div style="font-weight:500;margin-bottom:4px">${esc(p.code_iris)} — ${esc(p.nom_commune)}</div>
+          <div style="color:#a0a0a0">Impressions: <span style="color:#4ecdc4;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
+        </div>
+      `).addTo(map);
+    };
+
+    map.on('mouseenter', 'impressions-fill', onEnter);
+    map.on('mouseleave', 'impressions-fill', onLeave);
+    map.on('mousemove', 'impressions-fill', onMove);
+    return () => {
+      map.off('mouseenter', 'impressions-fill', onEnter);
+      map.off('mouseleave', 'impressions-fill', onLeave);
+      map.off('mousemove', 'impressions-fill', onMove);
+      popup.remove();
+    };
+  }, [impressionsVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Equity hover popup ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1503,6 +1551,8 @@ export default function MapPage() {
             setEquityGeoJSON(data);
             setEquityStats(data.stats);
             setEquityVisible(true);
+            // Exclusive mode: hide impressions
+            setImpressionsVisible(false);
             // Auto-zoom to France extent in full mode
             if (fullFrance) {
               map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
@@ -1518,6 +1568,43 @@ export default function MapPage() {
           setEquityGeoJSON(null);
           setEquityStats(null);
           setEquityCampaignId(null);
+        }}
+        impressionsVisible={impressionsVisible}
+        impressionsStats={impressionsStats}
+        impressionsLoading={impressionsLoading}
+        onShowImpressions={async (campaignId: string, fullFrance: boolean) => {
+          setImpressionsLoading(true);
+          // Exclusive mode: hide equity
+          setEquityVisible(false);
+          try {
+            const map = mapRef.current;
+            if (!map) return;
+            let url = `/api/map/campaign-impressions?campaign_id=${campaignId}`;
+            if (fullFrance) {
+              url += '&full=true';
+            } else {
+              const bounds = map.getBounds();
+              url += `&bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            setImpressionsGeoJSON(data);
+            setImpressionsStats(data.stats);
+            setImpressionsVisible(true);
+            if (fullFrance) {
+              map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
+            }
+          } catch (err) {
+            console.error('[impressions] fetch error:', err);
+          } finally {
+            setImpressionsLoading(false);
+          }
+        }}
+        onClearImpressions={() => {
+          setImpressionsVisible(false);
+          setImpressionsGeoJSON(null);
+          setImpressionsStats(null);
         }}
       />
       </div>{/* end fullscreen wrapper */}

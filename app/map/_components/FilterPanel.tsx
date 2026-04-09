@@ -422,6 +422,12 @@ export interface FilterPanelProps {
   equityFull?: boolean;
   onEquityAnalyse?: (campaignId: string, source: string, popField: string, full: boolean) => void;
   onEquityClear?: () => void;
+  // Campaign impressions
+  impressionsVisible?: boolean;
+  impressionsStats?: { total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null;
+  impressionsLoading?: boolean;
+  onShowImpressions?: (campaignId: string, full: boolean) => void;
+  onClearImpressions?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -604,6 +610,7 @@ export function FilterPanel({
   onRecenterFrance,
   equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource, equityFull,
   onEquityAnalyse, onEquityClear,
+  impressionsVisible, impressionsStats, impressionsLoading, onShowImpressions, onClearImpressions,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -3190,6 +3197,65 @@ export function FilterPanel({
                   ))}
                 </select>
               </div>
+
+              {/* Show impressions button */}
+              <button
+                onClick={() => onShowImpressions?.(equitySelectedCampaign, equityFullMode)}
+                disabled={!equitySelectedCampaign || impressionsLoading}
+                style={{
+                  fontFamily: fInter, fontSize: 11, padding: '8px 12px', width: '100%',
+                  background: impressionsVisible ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${impressionsVisible ? '#4ecdc4' : C.border}`, borderRadius: 4,
+                  color: impressionsVisible ? '#4ecdc4' : C.textSec, cursor: !equitySelectedCampaign ? 'not-allowed' : 'pointer',
+                  opacity: !equitySelectedCampaign ? 0.5 : 1, transition: 'all 0.2s',
+                }}
+              >
+                {impressionsLoading ? 'Chargement…' : impressionsVisible ? '● Impressions affichées' : 'Afficher les impressions'}
+              </button>
+
+              {/* Impressions results */}
+              {impressionsVisible && impressionsStats && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
+                    <span style={{ color: C.textSec }}>Total impressions</span>
+                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{impressionsStats.total_impressions.toLocaleString('fr-FR')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
+                    <span style={{ color: C.textSec }}>Zones touchées</span>
+                    <span style={{ fontFamily: fMono, color: C.text }}>{impressionsStats.zones_count.toLocaleString('fr-FR')}</span>
+                  </div>
+                  {impressionsStats.top_zones.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, fontFamily: fInter, color: C.textDim, marginBottom: 4 }}>Top zones</div>
+                      {impressionsStats.top_zones.map((z, i) => (
+                        <div key={z.code_iris} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: fInter, padding: '2px 0' }}>
+                          <span style={{ color: C.textSec }}>{i + 1}. {z.nom_commune}</span>
+                          <span style={{ fontFamily: fMono, color: C.text }}>{z.impressions.toLocaleString('fr-FR')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Impressions legend */}
+                  <div>
+                    <div style={{
+                      height: 10, borderRadius: 3,
+                      background: 'linear-gradient(to right, #1a1a2e, #16537e, #4ecdc4, #f7fff7)',
+                    }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>0</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{impressionsStats.max_impressions.toLocaleString('fr-FR')}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onClearImpressions?.()}
+                    style={{ fontFamily: fInter, fontSize: 10, padding: '4px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
+                  >
+                    Masquer
+                  </button>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: C.border }} />
 
               {/* Source toggle */}
               <div>
