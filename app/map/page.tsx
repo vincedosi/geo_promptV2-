@@ -97,6 +97,7 @@ export default function MapPage() {
   const [equityCampaignId, setEquityCampaignId] = useState<string | null>(null);
   const [equityPopField, setEquityPopField] = useState<string>('population');
   const [equitySource, setEquitySource] = useState<string>('iris');
+  const [equityFull, setEquityFull] = useState(false);
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -221,16 +222,16 @@ export default function MapPage() {
       if (!e.features?.length) return;
       const f = e.features[0];
       const p = f.properties;
-      const eq = p.equity_index ?? 0;
-      const tag = eq < 0.5 ? '<span style="color:#ef8a62">sous-servi</span>'
-                : eq > 2.0 ? '<span style="color:#67a9cf">sur-servi</span>'
+      const ni = Number(p.normalized_index ?? 1);
+      const tag = ni < 0.7 ? '<span style="color:#ef8a62">sous-servi</span>'
+                : ni > 1.3 ? '<span style="color:#67a9cf">sur-servi</span>'
                 : '<span style="color:#999">équilibré</span>';
       popup.setLngLat(e.lngLat).setHTML(`
         <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
           <div style="font-weight:500;margin-bottom:4px">${esc(p.code_iris)} — ${esc(p.nom_commune)}</div>
           <div style="color:#a0a0a0">Impressions: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
           <div style="color:#a0a0a0">Pop. cible: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.population_cible).toLocaleString('fr-FR')}</span></div>
-          <div style="color:#a0a0a0">Equity: <span style="font-family:'JetBrains Mono',monospace">${Number(eq).toFixed(2)}</span> ${tag}</div>
+          <div style="color:#a0a0a0">Index: <span style="font-family:'JetBrains Mono',monospace">${ni.toFixed(2)}×</span> ${tag}</div>
         </div>
       `).addTo(map);
     };
@@ -250,7 +251,8 @@ export default function MapPage() {
   // ── Refresh equity data on map move ──────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !equityVisible || !equityCampaignId) return;
+    // Skip moveend refresh in full France mode (data already complete)
+    if (!map || !mapReady || !equityVisible || !equityCampaignId || equityFull) return;
 
     let timer: ReturnType<typeof setTimeout>;
     const onMoveEnd = () => {
@@ -272,7 +274,7 @@ export default function MapPage() {
       map.off('moveend', onMoveEnd);
       clearTimeout(timer);
     };
-  }, [equityVisible, equityCampaignId, equitySource, equityPopField, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [equityVisible, equityCampaignId, equitySource, equityPopField, equityFull, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -1478,22 +1480,33 @@ export default function MapPage() {
         equityCampaignId={equityCampaignId}
         equityPopField={equityPopField}
         equitySource={equitySource}
-        onEquityAnalyse={async (campaignId: string, source: string, popField: string) => {
+        equityFull={equityFull}
+        onEquityAnalyse={async (campaignId: string, source: string, popField: string, fullFrance: boolean) => {
           setEquityCampaignId(campaignId);
           setEquitySource(source);
           setEquityPopField(popField);
+          setEquityFull(fullFrance);
           setEquityLoading(true);
           try {
             const map = mapRef.current;
             if (!map) return;
-            const bounds = map.getBounds();
-            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            const res = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&bbox=${bbox}`);
+            let url = `/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}`;
+            if (fullFrance) {
+              url += '&full=true';
+            } else {
+              const bounds = map.getBounds();
+              url += `&bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            }
+            const res = await fetch(url);
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
             setEquityGeoJSON(data);
             setEquityStats(data.stats);
             setEquityVisible(true);
+            // Auto-zoom to France extent in full mode
+            if (fullFrance) {
+              map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
+            }
           } catch (err) {
             console.error('[equity] fetch error:', err);
           } finally {

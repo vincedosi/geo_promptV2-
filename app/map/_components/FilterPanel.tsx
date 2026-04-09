@@ -419,7 +419,8 @@ export interface FilterPanelProps {
   equityCampaignId?: string | null;
   equityPopField?: string;
   equitySource?: string;
-  onEquityAnalyse?: (campaignId: string, source: string, popField: string) => void;
+  equityFull?: boolean;
+  onEquityAnalyse?: (campaignId: string, source: string, popField: string, full: boolean) => void;
   onEquityClear?: () => void;
 }
 
@@ -601,7 +602,7 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
-  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource,
+  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource, equityFull,
   onEquityAnalyse, onEquityClear,
 }: FilterPanelProps) {
 
@@ -757,6 +758,7 @@ export function FilterPanel({
   const [equitySelectedCampaign, setEquitySelectedCampaign] = useState<string>('');
   const [equitySelectedSource, setEquitySelectedSource] = useState<string>('iris');
   const [equitySelectedPop, setEquitySelectedPop] = useState<string>('population');
+  const [equityFullMode, setEquityFullMode] = useState(false);
   const [equityIndicators, setEquityIndicators] = useState<{ iris: EquityIndicator[]; carreaux: EquityIndicator[] } | null>(null);
 
   // Fetch campaigns and indicators when accordion opens
@@ -3234,13 +3236,26 @@ export function FilterPanel({
                 </select>
               </div>
 
+              {/* France toggle */}
+              {equitySelectedSource === 'iris' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, fontFamily: fInter, color: C.textSec }}>
+                <input
+                  type="checkbox"
+                  checked={equityFullMode}
+                  onChange={e => setEquityFullMode(e.target.checked)}
+                  style={{ accentColor: '#4ecdc4' }}
+                />
+                Vue France entière (géom. simplifiées)
+              </label>
+              )}
+
               {/* Launch button */}
               <button
-                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop)}
+                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop, equityFullMode && equitySelectedSource === 'iris')}
                 disabled={!equitySelectedCampaign || equityLoading}
                 style={primaryBtn('#4ecdc4', !equitySelectedCampaign || equityLoading)}
               >
-                {equityLoading ? 'Analyse en cours…' : 'Lancer l\'analyse'}
+                {equityLoading ? 'Analyse en cours…' : equityFullMode && equitySelectedSource === 'iris' ? 'Analyser toute la France' : 'Lancer l\'analyse'}
               </button>
 
               {/* Clear button */}
@@ -3280,40 +3295,40 @@ export function FilterPanel({
 
                   {/* Equity score */}
                   <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}`, textAlign: 'center' }}>
-                    <div style={{ fontFamily: fMono, fontSize: 16, color: '#4ecdc4' }}>{equityStats.avg_equity}</div>
-                    <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Index moyen (imp. / 1000 hab.)</div>
+                    <div style={{ fontFamily: fMono, fontSize: 16, color: '#4ecdc4' }}>{equityStats.median_equity?.toLocaleString('fr-FR') ?? equityStats.avg_equity}</div>
+                    <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Index médian (imp. / 1000 hab.)</div>
                   </div>
 
-                  {/* Zone breakdown */}
+                  {/* Zone breakdown (normalized thresholds) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef8a62', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Sous-servies (opportunités)</span>
+                      <span style={{ color: C.textSec }}>Sous-servies (&lt; 0.7×)</span>
                       <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sous_servies.toLocaleString('fr-FR')}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e0e0e0', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Équilibrées</span>
+                      <span style={{ color: C.textSec }}>Équilibrées (0.7× – 1.3×)</span>
                       <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_equilibrees.toLocaleString('fr-FR')}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#67a9cf', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Sur-servies (gaspillage)</span>
+                      <span style={{ color: C.textSec }}>Sur-servies (&gt; 1.3×)</span>
                       <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sur_servies.toLocaleString('fr-FR')}</span>
                     </div>
                   </div>
 
                   {/* Legend gradient */}
                   <div style={{ marginTop: 4 }}>
-                    <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>Légende</div>
+                    <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>Légende (normalisé / médiane)</div>
                     <div style={{
                       height: 12, borderRadius: 3,
-                      background: 'linear-gradient(to right, #b2182b, #ef8a62, #f7f7f7, #67a9cf, #2166ac)',
+                      background: 'linear-gradient(to right, #b2182b, #ef8a62, #fddbc7, #f7f7f7, #d1e5f0, #67a9cf, #2166ac)',
                     }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sous-servi (0)</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Équilibré (1)</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sur-servi (4+)</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sous-servi (0×)</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Médiane (1×)</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sur-servi (2×)</span>
                     </div>
                   </div>
 

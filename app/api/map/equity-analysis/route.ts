@@ -3,37 +3,39 @@ import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_FIELDS = ['population', 'pop_15_29', 'pop_30_44', 'nb_csp_cadre', 'nb_diplome_sup', 'rev_median', 'taux_proprio', 'nb_menages'];
 const ALLOWED_SOURCES = ['iris', 'carreaux'] as const;
 type Source = (typeof ALLOWED_SOURCES)[number];
 
-// For carreaux: compute stats from features (stats RPC too heavy for Nano)
-function computeStatsFromFeatures(features: Array<{ properties: { impressions: number; population_cible: number; equity_index: number } }>) {
+function computeStatsFromFeatures(features: Array<{ properties: { impressions: number; population_cible: number; normalized_index: number } }>) {
   let totalImpressions = 0;
   let totalPopulation = 0;
-  let equitySum = 0;
-  let equityCount = 0;
   let sousServies = 0;
   let surServies = 0;
   let equilibrees = 0;
+  const indices: number[] = [];
 
   for (const f of features) {
     const p = f.properties;
     totalImpressions += p.impressions;
     totalPopulation += p.population_cible;
-    if (p.equity_index != null) {
-      equitySum += p.equity_index;
-      equityCount++;
-      if (p.equity_index < 0.5) sousServies++;
-      else if (p.equity_index > 2.0) surServies++;
+    const ni = p.normalized_index;
+    if (ni != null && ni > 0) {
+      indices.push(ni);
+      if (ni < 0.7) sousServies++;
+      else if (ni > 1.3) surServies++;
       else equilibrees++;
     }
   }
 
+  // Compute median from sorted indices
+  indices.sort((a, b) => a - b);
+  const medianNorm = indices.length > 0 ? indices[Math.floor(indices.length / 2)] : 0;
+
   return {
     total_impressions: Math.round(totalImpressions),
     total_population: Math.round(totalPopulation),
-    avg_equity: equityCount > 0 ? Math.round(equitySum / equityCount * 100) / 100 : 0,
+    avg_equity: indices.length > 0 ? Math.round(indices.reduce((a, b) => a + b, 0) / indices.length * 100) / 100 : 0,
+    median_equity: Math.round(medianNorm * 100) / 100,
     zones_sous_servies: sousServies,
     zones_sur_servies: surServies,
     zones_equilibrees: equilibrees,
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
   const populationField = searchParams.get('population_field') || 'population';
   const source = (searchParams.get('source') || 'iris') as Source;
   const bboxStr = searchParams.get('bbox');
+  const full = searchParams.get('full') === 'true';
 
   if (!campaignId) {
     return NextResponse.json({ error: 'campaign_id required' }, { status: 400 });
@@ -56,13 +59,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: `Invalid source. Allowed: ${ALLOWED_SOURCES.join(', ')}` }, { status: 400 });
   }
 
-  if (!ALLOWED_FIELDS.includes(populationField)) {
-    return NextResponse.json({ error: `Invalid population_field. Allowed: ${ALLOWED_FIELDS.join(', ')}` }, { status: 400 });
-  }
-
-  // bbox is required for carreaux (too heavy without viewport filter)
+  // bbox is required for carreaux and for non-full IRIS
   if (source === 'carreaux' && !bboxStr) {
     return NextResponse.json({ error: 'bbox is required for carreaux source' }, { status: 400 });
+  }
+  if (!full && !bboxStr) {
+    return NextResponse.json({ error: 'bbox or full=true required' }, { status: 400 });
   }
 
   let bbox: number[] | null = null;
@@ -83,6 +85,7 @@ export async function GET(request: NextRequest) {
       p_source: source,
       p_population_field: populationField,
       p_bbox: bbox,
+      p_full: full,
     });
 
     if (geoResult.error) {
@@ -90,8 +93,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: geoResult.error.message }, { status: 500 });
     }
 
-    // For IRIS: also fetch stats from RPC
-    let statsFromRpc: Record<string, unknown> | null = null;
+    // For IRIS: also fetch stats from RPC (includes median_equity)
+    let statsFromRpc: { median_equity?: number; [key: string]: unknown } | null = null;
     if (source === 'iris') {
       const statsResult = await supabase.rpc('get_equity_stats', {
         p_campaign_id: campaignId,
@@ -99,17 +102,15 @@ export async function GET(request: NextRequest) {
         p_population_field: populationField,
       });
 
-      if (statsResult.error) {
-        console.error('[equity-analysis] stats error:', statsResult.error);
-        return NextResponse.json({ error: statsResult.error.message }, { status: 500 });
+      if (!statsResult.error && statsResult.data) {
+        statsFromRpc = statsResult.data;
       }
-
-      statsFromRpc = statsResult.data || null;
     }
 
     const rows = geoResult.data || [];
 
-    const features = rows
+    // Build features with raw equity_index
+    let features = rows
       .filter((r: { geom: unknown }) => r.geom)
       .map((r: { code_iris: string; nom_commune: string; code_dept: string; impressions: number; population_cible: number; equity_index: number; geom: unknown }) => ({
         type: 'Feature' as const,
@@ -120,24 +121,62 @@ export async function GET(request: NextRequest) {
           impressions: Math.round(r.impressions ?? 0),
           population_cible: Math.round(r.population_cible ?? 0),
           equity_index: r.equity_index ?? 0,
+          normalized_index: 0,
         },
         geometry: r.geom,
       }));
 
-    // Compute stats: from RPC for IRIS, from features for carreaux
-    const defaultStats = {
-      total_impressions: 0, total_population: 0, avg_equity: 0,
-      zones_sous_servies: 0, zones_sur_servies: 0, zones_equilibrees: 0, total_zones: 0,
-    };
+    // Compute median for normalization
+    let medianEquity: number;
+    if (source === 'iris' && statsFromRpc?.median_equity) {
+      medianEquity = statsFromRpc.median_equity as number;
+    } else {
+      // Compute from features
+      const indices = features
+        .map((f: { properties: { equity_index: number } }) => f.properties.equity_index)
+        .filter((v: number) => v > 0)
+        .sort((a: number, b: number) => a - b);
+      medianEquity = indices.length > 0 ? indices[Math.floor(indices.length / 2)] : 1;
+    }
 
-    const stats = source === 'carreaux'
-      ? computeStatsFromFeatures(features)
-      : (statsFromRpc || defaultStats);
+    // Normalize: zone_index / median → 1.0 = median
+    if (medianEquity > 0) {
+      features = features.map((f: { properties: { equity_index: number; normalized_index: number }; [key: string]: unknown }) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          normalized_index: Math.round((f.properties.equity_index / medianEquity) * 100) / 100,
+        },
+      }));
+    }
+
+    // Stats with normalized thresholds
+    let stats;
+    if (source === 'iris' && statsFromRpc) {
+      // Recompute zone counts with normalized thresholds
+      let sousServies = 0, surServies = 0, equilibrees = 0;
+      for (const f of features) {
+        const ni = f.properties.normalized_index;
+        if (ni < 0.7) sousServies++;
+        else if (ni > 1.3) surServies++;
+        else equilibrees++;
+      }
+      stats = {
+        ...statsFromRpc,
+        median_equity: medianEquity,
+        zones_sous_servies: sousServies,
+        zones_sur_servies: surServies,
+        zones_equilibrees: equilibrees,
+      };
+    } else {
+      stats = computeStatsFromFeatures(features);
+    }
 
     return NextResponse.json({
       type: 'FeatureCollection',
       features,
       stats,
+      median_equity: medianEquity,
     }, {
       headers: { 'Cache-Control': 'public, max-age=120' },
     });

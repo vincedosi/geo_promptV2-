@@ -474,12 +474,14 @@ export function useMapInit(
         source: 'equity-analysis',
         paint: {
           'fill-color': [
-            'interpolate', ['linear'], ['coalesce', ['get', 'equity_index'], 0],
+            'interpolate', ['linear'], ['coalesce', ['get', 'normalized_index'], 1],
             0,   '#b2182b',
             0.5, '#ef8a62',
+            0.7, '#fddbc7',
             1.0, '#f7f7f7',
-            2.0, '#67a9cf',
-            4.0, '#2166ac',
+            1.3, '#d1e5f0',
+            1.5, '#67a9cf',
+            2.0, '#2166ac',
           ] as unknown as maplibregl.ExpressionSpecification,
           'fill-opacity': 0.75,
         },

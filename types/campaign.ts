@@ -79,6 +79,7 @@ export interface EquityAnalysisStats {
   total_impressions: number;
   total_population: number;
   avg_equity: number;
+  median_equity: number;
   zones_sous_servies: number;
   zones_sur_servies: number;
   zones_equilibrees: number;
