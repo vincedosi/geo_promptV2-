@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const campaignId = searchParams.get('campaign_id');
   const bboxStr = searchParams.get('bbox');
-  const full = searchParams.get('full') === 'true';
+  const scale = searchParams.get('scale') || 'iris';
+  // For departement/region scales, always full (no bbox needed)
+  const full = scale === 'departement' || scale === 'region' ? true : searchParams.get('full') === 'true';
 
   if (!campaignId) {
     return NextResponse.json({ error: 'campaign_id required' }, { status: 400 });
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
       p_campaign_id: campaignId,
       p_bbox: bbox,
       p_full: full,
+      p_scale: scale,
     });
 
     if (error) {

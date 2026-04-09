@@ -420,13 +420,14 @@ export interface FilterPanelProps {
   equityPopField?: string;
   equitySource?: string;
   equityFull?: boolean;
-  onEquityAnalyse?: (campaignId: string, source: string, popField: string, full: boolean) => void;
+  equityScale?: string;
+  onEquityAnalyse?: (campaignId: string, source: string, popField: string, full: boolean, scale: string) => void;
   onEquityClear?: () => void;
   // Campaign impressions
   impressionsVisible?: boolean;
   impressionsStats?: { total_impressions: number; zones_count: number; max_impressions: number; top_zones: { code_iris: string; nom_commune: string; impressions: number }[] } | null;
   impressionsLoading?: boolean;
-  onShowImpressions?: (campaignId: string, full: boolean) => void;
+  onShowImpressions?: (campaignId: string, full: boolean, scale: string) => void;
   onClearImpressions?: () => void;
 }
 
@@ -608,7 +609,7 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
-  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource, equityFull,
+  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource, equityFull, equityScale,
   onEquityAnalyse, onEquityClear,
   impressionsVisible, impressionsStats, impressionsLoading, onShowImpressions, onClearImpressions,
 }: FilterPanelProps) {
@@ -766,6 +767,7 @@ export function FilterPanel({
   const [equitySelectedSource, setEquitySelectedSource] = useState<string>('iris');
   const [equitySelectedPop, setEquitySelectedPop] = useState<string>('population');
   const [equityFullMode, setEquityFullMode] = useState(false);
+  const [equitySelectedScale, setEquitySelectedScale] = useState<string>('iris');
   const [equityIndicators, setEquityIndicators] = useState<{ iris: EquityIndicator[]; carreaux: EquityIndicator[] } | null>(null);
 
   // Fetch campaigns and indicators when accordion opens
@@ -3200,7 +3202,7 @@ export function FilterPanel({
 
               {/* Show impressions button */}
               <button
-                onClick={() => onShowImpressions?.(equitySelectedCampaign, equityFullMode)}
+                onClick={() => onShowImpressions?.(equitySelectedCampaign, equityFullMode, equitySelectedScale)}
                 disabled={!equitySelectedCampaign || impressionsLoading}
                 style={{
                   fontFamily: fInter, fontSize: 11, padding: '8px 12px', width: '100%',
@@ -3283,6 +3285,34 @@ export function FilterPanel({
                 </div>
               </div>
 
+              {/* Scale selector */}
+              <div>
+                <div style={labelStyle}>Échelle d&apos;analyse</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[
+                    { id: 'iris', label: 'IRIS' },
+                    { id: 'commune', label: 'Commune' },
+                    { id: 'departement', label: 'Département' },
+                    { id: 'region', label: 'Région' },
+                  ].map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => setEquitySelectedScale(s.id)}
+                      style={{
+                        flex: 1, padding: '6px 4px', fontSize: 10, fontFamily: fInter,
+                        background: equitySelectedScale === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
+                        border: `0.5px solid ${equitySelectedScale === s.id ? '#4ecdc4' : C.border}`,
+                        borderRadius: 4, cursor: 'pointer',
+                        color: equitySelectedScale === s.id ? '#4ecdc4' : C.textSec,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Population target selector (dynamic) */}
               <div>
                 <div style={labelStyle}>Population cible</div>
@@ -3302,12 +3332,12 @@ export function FilterPanel({
                 </select>
               </div>
 
-              {/* France toggle */}
-              {equitySelectedSource === 'iris' && (
+              {/* France toggle — hidden for departement/region (always full) */}
+              {equitySelectedSource === 'iris' && equitySelectedScale !== 'departement' && equitySelectedScale !== 'region' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, fontFamily: fInter, color: C.textSec }}>
                 <input
                   type="checkbox"
-                  checked={equityFullMode}
+                  checked={equityFullMode || equitySelectedScale === 'departement' || equitySelectedScale === 'region'}
                   onChange={e => setEquityFullMode(e.target.checked)}
                   style={{ accentColor: '#4ecdc4' }}
                 />
@@ -3317,11 +3347,11 @@ export function FilterPanel({
 
               {/* Launch button */}
               <button
-                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop, equityFullMode && equitySelectedSource === 'iris')}
+                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop, equityFullMode && equitySelectedSource === 'iris', equitySelectedScale)}
                 disabled={!equitySelectedCampaign || equityLoading}
                 style={primaryBtn('#4ecdc4', !equitySelectedCampaign || equityLoading)}
               >
-                {equityLoading ? 'Analyse en cours…' : equityFullMode && equitySelectedSource === 'iris' ? 'Analyser toute la France' : 'Lancer l\'analyse'}
+                {equityLoading ? 'Analyse en cours…' : (equityFullMode && equitySelectedSource === 'iris') || equitySelectedScale === 'departement' || equitySelectedScale === 'region' ? 'Analyser toute la France' : 'Lancer l\'analyse'}
               </button>
 
               {/* Clear button */}

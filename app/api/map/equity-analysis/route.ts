@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_SOURCES = ['iris', 'carreaux'] as const;
 type Source = (typeof ALLOWED_SOURCES)[number];
 
+const ALLOWED_SCALES = ['iris', 'commune', 'departement', 'region'] as const;
+type Scale = (typeof ALLOWED_SCALES)[number];
+
 function computeStatsFromFeatures(features: Array<{ properties: { impressions: number; population_cible: number; normalized_index: number } }>) {
   let totalImpressions = 0;
   let totalPopulation = 0;
@@ -49,7 +52,9 @@ export async function GET(request: NextRequest) {
   const populationField = searchParams.get('population_field') || 'population';
   const source = (searchParams.get('source') || 'iris') as Source;
   const bboxStr = searchParams.get('bbox');
-  const full = searchParams.get('full') === 'true';
+  const scale = (searchParams.get('scale') || 'iris') as Scale;
+  // For departement/region scales, always full (no bbox needed)
+  const full = scale === 'departement' || scale === 'region' ? true : searchParams.get('full') === 'true';
 
   if (!campaignId) {
     return NextResponse.json({ error: 'campaign_id required' }, { status: 400 });
@@ -57,6 +62,10 @@ export async function GET(request: NextRequest) {
 
   if (!ALLOWED_SOURCES.includes(source)) {
     return NextResponse.json({ error: `Invalid source. Allowed: ${ALLOWED_SOURCES.join(', ')}` }, { status: 400 });
+  }
+
+  if (!ALLOWED_SCALES.includes(scale)) {
+    return NextResponse.json({ error: `Invalid scale. Allowed: ${ALLOWED_SCALES.join(', ')}` }, { status: 400 });
   }
 
   // bbox is required for carreaux and for non-full IRIS
@@ -86,6 +95,7 @@ export async function GET(request: NextRequest) {
       p_population_field: populationField,
       p_bbox: bbox,
       p_full: full,
+      p_scale: scale,
     });
 
     if (geoResult.error) {

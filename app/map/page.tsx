@@ -98,6 +98,7 @@ export default function MapPage() {
   const [equityPopField, setEquityPopField] = useState<string>('population');
   const [equitySource, setEquitySource] = useState<string>('iris');
   const [equityFull, setEquityFull] = useState(false);
+  const [equityScale, setEquityScale] = useState<string>('iris');
   // Campaign impressions layer (exclusive with equity)
   const [impressionsVisible, setImpressionsVisible] = useState(false);
   const [impressionsGeoJSON, setImpressionsGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -299,8 +300,9 @@ export default function MapPage() {
   // ── Refresh equity data on map move ──────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    // Skip moveend refresh in full France mode (data already complete)
+    // Skip moveend refresh in full France mode or large scales (data already complete)
     if (!map || !mapReady || !equityVisible || !equityCampaignId || equityFull) return;
+    if (equityScale === 'departement' || equityScale === 'region') return;
 
     let timer: ReturnType<typeof setTimeout>;
     const onMoveEnd = () => {
@@ -309,7 +311,7 @@ export default function MapPage() {
         const bounds = map.getBounds();
         const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
         try {
-          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&source=${equitySource}&population_field=${equityPopField}&bbox=${bbox}`);
+          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&source=${equitySource}&population_field=${equityPopField}&bbox=${bbox}&scale=${equityScale}`);
           if (!res.ok) return;
           const data = await res.json();
           setEquityGeoJSON(data);
@@ -322,7 +324,7 @@ export default function MapPage() {
       map.off('moveend', onMoveEnd);
       clearTimeout(timer);
     };
-  }, [equityVisible, equityCampaignId, equitySource, equityPopField, equityFull, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [equityVisible, equityCampaignId, equitySource, equityPopField, equityFull, equityScale, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -1529,17 +1531,21 @@ export default function MapPage() {
         equityPopField={equityPopField}
         equitySource={equitySource}
         equityFull={equityFull}
-        onEquityAnalyse={async (campaignId: string, source: string, popField: string, fullFrance: boolean) => {
+        equityScale={equityScale}
+        onEquityAnalyse={async (campaignId: string, source: string, popField: string, fullFrance: boolean, scale: string) => {
           setEquityCampaignId(campaignId);
           setEquitySource(source);
           setEquityPopField(popField);
-          setEquityFull(fullFrance);
+          setEquityScale(scale);
+          // For departement/region, always full
+          const effectiveFull = scale === 'departement' || scale === 'region' ? true : fullFrance;
+          setEquityFull(effectiveFull);
           setEquityLoading(true);
           try {
             const map = mapRef.current;
             if (!map) return;
-            let url = `/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}`;
-            if (fullFrance) {
+            let url = `/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&scale=${scale}`;
+            if (effectiveFull) {
               url += '&full=true';
             } else {
               const bounds = map.getBounds();
@@ -1554,7 +1560,7 @@ export default function MapPage() {
             // Exclusive mode: hide impressions
             setImpressionsVisible(false);
             // Auto-zoom to France extent in full mode
-            if (fullFrance) {
+            if (effectiveFull) {
               map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
             }
           } catch (err) {
@@ -1572,15 +1578,17 @@ export default function MapPage() {
         impressionsVisible={impressionsVisible}
         impressionsStats={impressionsStats}
         impressionsLoading={impressionsLoading}
-        onShowImpressions={async (campaignId: string, fullFrance: boolean) => {
+        onShowImpressions={async (campaignId: string, fullFrance: boolean, scale: string) => {
           setImpressionsLoading(true);
+          setEquityScale(scale);
           // Exclusive mode: hide equity
           setEquityVisible(false);
+          const effectiveFull = scale === 'departement' || scale === 'region' ? true : fullFrance;
           try {
             const map = mapRef.current;
             if (!map) return;
-            let url = `/api/map/campaign-impressions?campaign_id=${campaignId}`;
-            if (fullFrance) {
+            let url = `/api/map/campaign-impressions?campaign_id=${campaignId}&scale=${scale}`;
+            if (effectiveFull) {
               url += '&full=true';
             } else {
               const bounds = map.getBounds();
@@ -1592,7 +1600,7 @@ export default function MapPage() {
             setImpressionsGeoJSON(data);
             setImpressionsStats(data.stats);
             setImpressionsVisible(true);
-            if (fullFrance) {
+            if (effectiveFull) {
               map.fitBounds([[-5.5, 41.2], [9.8, 51.2]], { padding: 40 });
             }
           } catch (err) {
