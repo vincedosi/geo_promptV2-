@@ -31,6 +31,7 @@ import { SessionBadge }    from '@/components/SessionBadge';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
+import type { EquityAnalysisStats } from '@/types/campaign';
 
 // ─── HTML escape for popup content (prevents XSS from imported data) ─────────
 function esc(s: string | undefined | null): string {
@@ -88,9 +89,13 @@ export default function MapPage() {
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
-  const [radioFilterIds,     setRadioFilterIds]     = useState<string[]>([]);
-  const [radioExcludeCats,   setRadioExcludeCats]   = useState<string[]>([]);
-  const [radioFilterOptions, setRadioFilterOptions] = useState<{ radios: Array<{ id: string; nom: string; cat: string | null }>; categories: Array<{ value: string; label: string }> } | null>(null);
+  // Geo-Equity analysis
+  const [equityVisible, setEquityVisible] = useState(false);
+  const [equityGeoJSON, setEquityGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [equityStats, setEquityStats] = useState<EquityAnalysisStats | null>(null);
+  const [equityLoading, setEquityLoading] = useState(false);
+  const [equityCampaignId, setEquityCampaignId] = useState<string | null>(null);
+  const [equityPopField, setEquityPopField] = useState<string>('population');
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
@@ -185,6 +190,88 @@ export default function MapPage() {
       try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
     }
   }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync equity layer visibility + data ──────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = equityVisible && equityGeoJSON ? 'visible' : 'none';
+    if (map.getLayer('equity-fill')) map.setLayoutProperty('equity-fill', 'visibility', vis);
+    if (map.getLayer('equity-line')) map.setLayoutProperty('equity-line', 'visibility', vis);
+    if (equityGeoJSON) {
+      const src = map.getSource('equity-analysis') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(equityGeoJSON);
+    }
+  }, [equityVisible, equityGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Equity hover popup ───────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !equityVisible) return;
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '260px' });
+
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    };
+    const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (!e.features?.length) return;
+      const f = e.features[0];
+      const p = f.properties;
+      const eq = p.equity_index ?? 0;
+      const tag = eq < 0.5 ? '<span style="color:#ef8a62">sous-servi</span>'
+                : eq > 2.0 ? '<span style="color:#67a9cf">sur-servi</span>'
+                : '<span style="color:#999">équilibré</span>';
+      popup.setLngLat(e.lngLat).setHTML(`
+        <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
+          <div style="font-weight:500;margin-bottom:4px">${esc(p.code_iris)} — ${esc(p.nom_commune)}</div>
+          <div style="color:#a0a0a0">Impressions: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
+          <div style="color:#a0a0a0">Pop. cible: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.population_cible).toLocaleString('fr-FR')}</span></div>
+          <div style="color:#a0a0a0">Equity: <span style="font-family:'JetBrains Mono',monospace">${Number(eq).toFixed(2)}</span> ${tag}</div>
+        </div>
+      `).addTo(map);
+    };
+
+    map.on('mouseenter', 'equity-fill', onEnter);
+    map.on('mouseleave', 'equity-fill', onLeave);
+    map.on('mousemove', 'equity-fill', onMove);
+
+    return () => {
+      map.off('mouseenter', 'equity-fill', onEnter);
+      map.off('mouseleave', 'equity-fill', onLeave);
+      map.off('mousemove', 'equity-fill', onMove);
+      popup.remove();
+    };
+  }, [equityVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Refresh equity data on map move ──────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !equityVisible || !equityCampaignId) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const onMoveEnd = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const bounds = map.getBounds();
+        const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+        try {
+          const res = await fetch(`/api/map/equity-analysis?campaign_id=${equityCampaignId}&population_field=${equityPopField}&bbox=${bbox}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          setEquityGeoJSON(data);
+        } catch { /* ignore */ }
+      }, 500);
+    };
+
+    map.on('moveend', onMoveEnd);
+    return () => {
+      map.off('moveend', onMoveEnd);
+      clearTimeout(timer);
+    };
+  }, [equityVisible, equityCampaignId, equityPopField, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -413,10 +500,6 @@ export default function MapPage() {
         params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
       }
       if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
-      if (radioFilterIds.length > 0) params.set('radio_ids', radioFilterIds.join(','));
-      // Expand composite exclusion keys (e.g. 'D,E,P' → ['D','E','P'])
-      const expandedCats = radioExcludeCats.flatMap(c => c.split(','));
-      if (expandedCats.length > 0) params.set('exclude_categories', expandedCats.join(','));
       const res = await fetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
       if (!res.ok) return;
       const data: GeoJSON.FeatureCollection = await res.json();
@@ -443,7 +526,7 @@ export default function MapPage() {
     } finally {
       setRadioLoading(false);
     }
-  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCats]);
+  }, [mapReady, radioSystemeFilter, radioSelectedId]);
 
   // Sync radio GeoJSON → map source + layer visibility
   useEffect(() => {
@@ -478,9 +561,12 @@ export default function MapPage() {
     // Point size + highlight mode
     if (radioSelectedId) {
       try {
-        // All visible points belong to the selected radio (filtered by API via m2m junction)
-        map.setPaintProperty('radio-points', 'circle-color', '#4ecdc4');
-        map.setPaintProperty('radio-points', 'circle-opacity', 1);
+        map.setPaintProperty('radio-points', 'circle-color', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], '#4ecdc4', '#4b5563',
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-opacity', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
+        ] as unknown as maplibregl.ExpressionSpecification);
         map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
       } catch { /* */ }
     } else {
@@ -522,82 +608,37 @@ export default function MapPage() {
     return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
   }, [radioVisible, mapReady, radioSelectedId, handleLoadRadio]);
 
-  // Fetch filter options when radio layer becomes visible
-  useEffect(() => {
-    if (!radioVisible || radioFilterOptions) return;
-    fetch('/api/radio/filter-options')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) setRadioFilterOptions({
-          radios: d.radios_with_emetteurs ?? [],
-          categories: d.categories ?? [],
-        });
-      })
-      .catch(() => {});
-  }, [radioVisible, radioFilterOptions]);
-
   // Generate coverage circles client-side when coverage mode is active
-  // Regenerate on zoom change to adapt density + segment count
-  const lastCoverageZoomRef = useRef<number>(0);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !radioCoverageMode || !radioGeoJSON) return;
     const src = map.getSource('radio-coverage') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
-    const generateCircles = () => {
-      const zoom = map.getZoom();
-      const bounds = map.getBounds();
-
-      // Adapt limits to zoom: more circles when zoomed in
-      const maxCircles = zoom >= 12 ? 2000 : zoom >= 10 ? 1000 : zoom >= 8 ? 500 : 200;
-      // Fewer polygon segments at low zoom (perf), more at high zoom (smooth)
-      const segments = zoom >= 12 ? 64 : zoom >= 9 ? 32 : 16;
-
-      // Filter to features in current viewport with valid coverage
-      const visible = radioGeoJSON.features.filter(f => {
-        if (f.geometry.type !== 'Point') return false;
-        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-        if (!bounds.contains([lng, lat])) return false;
-        const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-        return radius >= 100;
-      });
-
-      // Sort by radius descending — show largest coverage first
-      visible.sort((a, b) => {
-        const ra = Number((a.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-        const rb = Number((b.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-        return rb - ra;
-      });
-
-      const circles: GeoJSON.Feature[] = [];
-      for (const f of visible.slice(0, maxCircles)) {
-        const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-        const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-        const coords: [number, number][] = [];
-        for (let i = 0; i <= segments; i++) {
-          const angle = (i / segments) * 2 * Math.PI;
-          const dlat = (radius / 111320) * Math.cos(angle);
-          const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
-          coords.push([lng + dlng, lat + dlat]);
-        }
-        circles.push({
-          type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [coords] },
-          properties: { color: radioCoverageColor },
-        });
+    // Generate circles (limit to 500)
+    const features = radioGeoJSON.features.slice(0, 500);
+    const circles: GeoJSON.Feature[] = [];
+    for (const f of features) {
+      if (f.geometry.type !== 'Point') continue;
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+      const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+      if (!radius || radius < 100) continue;
+      // Simple circle approximation (64 segments)
+      const coords: [number, number][] = [];
+      for (let i = 0; i <= 64; i++) {
+        const angle = (i / 64) * 2 * Math.PI;
+        const dlat = (radius / 111320) * Math.cos(angle);
+        const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+        coords.push([lng + dlng, lat + dlat]);
       }
-      src.setData({ type: 'FeatureCollection', features: circles });
-      lastCoverageZoomRef.current = zoom;
-    };
-
-    generateCircles();
-
-    // Regenerate on map move (zoom/pan changes visible emitters)
-    const onMoveEnd = () => { generateCircles(); };
-    map.on('moveend', onMoveEnd);
-    return () => { map.off('moveend', onMoveEnd); };
-  }, [radioGeoJSON, radioCoverageMode, radioCoverageColor, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+      circles.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { color: '#4ecdc4' },
+      });
+    }
+    src.setData({ type: 'FeatureCollection', features: circles });
+  }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
   const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
@@ -1418,11 +1459,6 @@ export default function MapPage() {
         radioCount={radioGeoJSON?.features.length ?? 0}
         radioSelectedNom={radioSelectedNom}
         onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
-        radioFilterIds={radioFilterIds}
-        onRadioFilterIdsChange={setRadioFilterIds}
-        radioExcludeCategories={radioExcludeCats}
-        onRadioExcludeCategoriesChange={setRadioExcludeCats}
-        radioFilterOptions={radioFilterOptions}
         radioCoverageColor={radioCoverageColor}
         onRadioCoverageColorChange={setRadioCoverageColor}
         radioCoverageOpacity={radioCoverageOpacity}
@@ -1434,6 +1470,39 @@ export default function MapPage() {
         onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
+        // Geo-Equity
+        equityVisible={equityVisible}
+        equityStats={equityStats}
+        equityLoading={equityLoading}
+        equityCampaignId={equityCampaignId}
+        equityPopField={equityPopField}
+        onEquityAnalyse={async (campaignId: string, popField: string) => {
+          setEquityCampaignId(campaignId);
+          setEquityPopField(popField);
+          setEquityLoading(true);
+          try {
+            const map = mapRef.current;
+            if (!map) return;
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            const res = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&population_field=${popField}&bbox=${bbox}`);
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            setEquityGeoJSON(data);
+            setEquityStats(data.stats);
+            setEquityVisible(true);
+          } catch (err) {
+            console.error('[equity] fetch error:', err);
+          } finally {
+            setEquityLoading(false);
+          }
+        }}
+        onEquityClear={() => {
+          setEquityVisible(false);
+          setEquityGeoJSON(null);
+          setEquityStats(null);
+          setEquityCampaignId(null);
+        }}
       />
       </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
