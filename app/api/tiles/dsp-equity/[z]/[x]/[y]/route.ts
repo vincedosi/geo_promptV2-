@@ -31,8 +31,8 @@ export async function GET(
   }
 
   const campaignId = req.nextUrl.searchParams.get('campaign_id');
-  if (!campaignId) {
-    return new NextResponse('campaign_id required', { status: 400 });
+  if (!campaignId || campaignId === 'none') {
+    return new NextResponse(null, { status: 204 });
   }
 
   const mode = req.nextUrl.searchParams.get('mode') || 'impressions';
@@ -41,6 +41,8 @@ export async function GET(
   if (zoom < 5) {
     return new NextResponse(null, { status: 204 });
   }
+
+  console.log(`[dsp-tile] ${zoom}/${tileX}/${tileY} campaign=${campaignId.slice(0,8)} mode=${mode}`);
 
   const key = `${campaignId}/${mode}/${zoom}/${tileX}/${tileY}`;
   const now = Date.now();
