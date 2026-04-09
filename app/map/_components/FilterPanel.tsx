@@ -14,6 +14,7 @@ import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
 import type { CampaignListItem, EquityAnalysisStats } from '@/types/campaign';
 import { POPULATION_TARGETS } from '@/types/campaign';
+import { adminFetch } from '@/lib/admin-fetch';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
 const CorrelationPanel = dynamic(
@@ -700,7 +701,7 @@ export function FilterPanel({
   useEffect(() => {
     if (!analyseOpen.equity) return;
     if (equityCampaigns.length > 0) return;
-    fetch('/api/admin/campaigns')
+    adminFetch('/api/admin/campaigns')
       .then(r => r.ok ? r.json() : [])
       .then((data: CampaignListItem[]) => setEquityCampaigns(data))
       .catch(() => {});
