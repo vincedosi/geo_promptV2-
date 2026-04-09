@@ -469,6 +469,8 @@ export default function SourcesPage() {
       const res = await adminFetch(`/api/admin/campaigns/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toastApi.success('Campagne supprimée');
+        // Force state update then re-fetch
+        setDspCampaigns(prev => prev.filter(c => c.id !== id));
         fetchDspCampaigns();
       } else {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
