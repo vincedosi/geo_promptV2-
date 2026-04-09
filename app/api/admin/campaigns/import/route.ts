@@ -114,12 +114,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Filter out rows with null date (violates NOT NULL constraint)
-        const dedupedRows = Array.from(aggMap.values()).filter(r => r.date != null);
-        const skippedNoDate = aggMap.size - dedupedRows.length;
-        if (skippedNoDate > 0) {
-          send({ type: 'progress', processed: 0, total: aggMap.size, message: `${skippedNoDate} lignes sans date ignorées` });
-        }
+        const dedupedRows = Array.from(aggMap.values());
         const dedupedTotal = dedupedRows.length;
 
         if (dedupedTotal < totalRows) {

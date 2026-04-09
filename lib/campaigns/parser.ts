@@ -65,7 +65,8 @@ export function parseCampaignFile(
       continue;
     }
 
-    const date = parseDate(mapped.date_raw ?? '', dspSource);
+    // Use '1970-01-01' sentinel when no date column exists in the file
+    const date = parseDate(mapped.date_raw ?? '', dspSource) ?? '1970-01-01';
     const trackedAds = parseInt(String(mapped.tracked_ads_raw ?? '0').replace(/[^0-9-]/g, ''), 10) || 0;
 
     const row: ParsedCampaignRow = {
