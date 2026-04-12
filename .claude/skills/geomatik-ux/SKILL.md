@@ -124,7 +124,43 @@ Chaque composant interactif DOIT gérer ces 4 états :
 
 ## 6. Filtres et contrôles
 
-### Barre de filtres
+### Railroad Stepper Pipeline (page Digital)
+
+La barre de filtres n'est PAS un ensemble de filtres indépendants.
+C'est un RAILROAD STEPPER : 5 noeuds circulaires connectés par des tracks teal.
+L'utilisateur progresse de gauche à droite. Chaque choix conditionne le suivant.
+
+```
+  (o)———————(o)———————(o)———————(o)———————(●)
+ Camp.     Cible     Vue geo   Régies    Focus
+Q1-86M    15-29     Regions   Toutes     Ratio
+```
+
+Composants du railroad :
+- Noeud : cercle 40px, icône SVG 18px, 3 états (done/active/future)
+- Track : ligne 2px entre noeuds, remplissage teal animé (transition 0.4s)
+- Label : 10px uppercase sous le noeud
+- Valeur : 12px bold sous le label, cliquable pour ouvrir le popover
+- Popover : bulle avec flèche, fond #0a0a0a, border #262626, radius 10px
+- Pulse ring animé sur le noeud actif (keyframes scale 1→1.3, opacity 0.4→0)
+
+Les 5 noeuds :
+1. Campagne : radio select + sparklines SVG, source DISTINCT dsp_campaigns
+2. Cible : radio select, source DISTINCT tranches d'âge de la campagne
+3. Vue géo : toggle group inline (Regions/Dept/CP), options fixes
+4. Régies : checkbox multi-select, source DISTINCT régies de la campagne
+5. Focus : radio select avec descriptions (Imp/Pop/Ratio/1-3), options fixes
+
+Règles :
+- Changer l'étape N reset les étapes N+1 à leur défaut
+- Les tracks passent de "done" à "future" sur les étapes reset
+- Options TOUJOURS dynamiques (DISTINCT sur données filtrées), jamais hardcodées
+- Sélection radio = ferme le popover immédiatement
+- Sélection checkbox (régies) = reste ouvert pour multi-select
+- Compteur de résultats + bouton Réinitialiser sous le railroad
+- Responsive < 768px : railroad vertical (noeuds empilés)
+
+### Barre de filtres générale (autres pages)
 - Chaque filtre a un label visible (pas juste la valeur)
 - Grouper les filtres liés
 - Nombre de résultats filtrés en temps réel
