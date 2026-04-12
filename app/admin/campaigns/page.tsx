@@ -153,6 +153,9 @@ export default function CampaignsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Org filter (super_admin only)
+  const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState<string>('');
 
   // Modal step: 'upload' → 'preview' → 'importing' → 'done'
   type ModalStep = 'upload' | 'preview' | 'importing' | 'done';
@@ -205,6 +208,19 @@ export default function CampaignsPage() {
   }, []);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  // Load orgs for filter (super_admin only)
+  useEffect(() => {
+    adminFetch('/api/admin/organizations')
+      .then(r => r.ok ? r.json() : { organizations: [] })
+      .then(d => setOrgs(Array.isArray(d) ? d : (d.organizations ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // Filter campaigns by selected org
+  const filteredCampaigns = selectedOrg
+    ? campaigns.filter(c => (c as unknown as { organization_id?: string }).organization_id === selectedOrg)
+    : campaigns;
 
   // ── Preview handler ───────────────────────────────────────────────────────
   const handlePreview = async () => {
@@ -358,7 +374,14 @@ export default function CampaignsPage() {
           <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: C.text, margin: 0 }}>Campagnes DSP</h1>
           <p style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, marginTop: 4 }}>Import et suivi des campagnes publicitaires digitales</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {orgs.length > 1 && (
+            <select value={selectedOrg} onChange={e => setSelectedOrg(e.target.value)}
+              style={{ background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 12, color: C.text, outline: 'none', cursor: 'pointer' }}>
+              <option value="">Toutes les organisations</option>
+              {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
           <button onClick={handlePopulateAndMatch} disabled={postalLoading}
             style={{ background: 'transparent', border: `0.5px solid ${C.teal}`, borderRadius: 6, padding: '10px 16px', fontFamily: fInter, fontWeight: 500, fontSize: 12, color: C.teal, cursor: postalLoading ? 'not-allowed' : 'pointer', opacity: postalLoading ? 0.6 : 1 }}>
             {postalLoading ? 'Matching…' : 'Peupler codes postaux + matcher IRIS'}
@@ -400,13 +423,13 @@ export default function CampaignsPage() {
       {/* Campaign list */}
       {loading ? (
         <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim, padding: 20 }}>Chargement…</div>
-      ) : campaigns.length === 0 ? (
+      ) : filteredCampaigns.length === 0 ? (
         <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim, padding: 40, textAlign: 'center', background: C.card, borderRadius: 6, border: `0.5px solid ${C.border}` }}>
-          Aucune campagne importée
+          Aucune campagne {selectedOrg ? 'pour cette organisation' : 'importee'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {campaigns.map((c) => {
+          {filteredCampaigns.map((c) => {
             const isExp = expandedId === c.id;
             const pctIris = c.france_rows > 0 ? Math.round((c.matched_iris / c.france_rows) * 100) : 0;
             return (
