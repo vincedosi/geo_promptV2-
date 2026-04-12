@@ -105,6 +105,49 @@ export async function DELETE(
   return NextResponse.json({ success: true, deleted: deleted?.length ?? 0 });
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
+  const { id } = await params;
+  const body = await request.json();
+  const { organization_id, name } = body;
+
+  const supabase = createAdminClient();
+
+  // Verify campaign exists
+  const { data: campaign } = await supabase.from('dsp_campaigns').select('organization_id').eq('id', id).single();
+  if (!campaign) return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+
+  // Admin can only modify campaigns in their org
+  if (profile.role !== 'super_admin') {
+    if (campaign.organization_id !== profile.organization_id) {
+      return NextResponse.json({ error: 'Cannot modify campaign from another org' }, { status: 403 });
+    }
+    if (organization_id && organization_id !== profile.organization_id) {
+      return NextResponse.json({ error: 'Cannot move campaign to another org' }, { status: 403 });
+    }
+  }
+
+  // Validate target org
+  if (organization_id) {
+    const { data: org } = await supabase.from('organizations').select('active').eq('id', organization_id).single();
+    if (!org?.active) return NextResponse.json({ error: 'Organization not found or inactive' }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (organization_id !== undefined) updates.organization_id = organization_id;
+  if (name !== undefined) updates.name = name;
+
+  const { error } = await supabase.from('dsp_campaigns').update(updates).eq('id', id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
+
 /* ── Helpers ─────────────────────────────────────────────────── */
 
 async function aggregateField(

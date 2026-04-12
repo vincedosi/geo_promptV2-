@@ -37,16 +37,23 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
   const [tab, setTab] = useState<'region' | 'dept' | 'cp'>('region');
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapAgg, setHeatmapAgg] = useState<string>('region');
+  // Heatmap follows the breakdown tab
+  const heatmapAgg = tab === 'cp' ? 'region' : tab; // CP → region for heatmap (too many columns otherwise)
 
   const fetchBreakdown = useCallback(async (agg: string) => {
     if (!campaignId) return;
     setLoading(true);
+    setBreakdownData([]); // Reset to prevent stale data
     try {
       let url = `/api/digital/${campaignId}/analysis?type=breakdown&aggregation=${agg}&indicator=${popField}&limit=100`;
       if (selectedMedia.length > 0) url += `&media=${selectedMedia.join(',')}`;
+      console.log(`[Breakdown] fetching: ${url}`);
       const res = await fetch(url);
-      if (res.ok) setBreakdownData(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        console.log(`[Breakdown] agg=${agg} rows=${data.length} first_nom=${data[0]?.nom ?? 'N/A'}`);
+        setBreakdownData(data);
+      }
     } catch (err) { console.error('[analysis]', err); }
     finally { setLoading(false); }
   }, [campaignId, popField, selectedMedia]);
@@ -123,7 +130,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
 
             {/* Col 2: Heatmap */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} onAggregationChange={setHeatmapAgg} />
+              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} onAggregationChange={() => {}} />
             </div>
 
             {/* Col 1: Action List */}

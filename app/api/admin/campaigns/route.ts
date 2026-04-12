@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   const { data: campaigns, error } = await supabase
     .from('dsp_campaigns')
-    .select('*')
+    .select('*, organizations(name)')
     .order('created_at', { ascending: false });
 
   console.log('[campaigns] found:', campaigns?.length);
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
 
   const items = campaigns.map((c) => ({
     ...c,
+    organization_name: (c as Record<string, unknown>).organizations ? ((c as Record<string, unknown>).organizations as Record<string, unknown>)?.name : null,
     total_rows: statsMap.get(c.id)?.total_rows ?? 0,
     france_rows: statsMap.get(c.id)?.france_rows ?? 0,
     matched_iris: statsMap.get(c.id)?.matched_iris ?? 0,

@@ -48,15 +48,15 @@ export function BreakdownChart({ data, aggregation, onBarClick }: BreakdownChart
       <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#a0a0a0', borderBottom: '0.5px solid #1a1a1a' }}>
         Ecart imp. vs pop. — {aggregation === 'region' ? 'Regions' : aggregation === 'dept' ? 'Departements' : 'Codes postaux'}
       </div>
-      <ResponsiveContainer width="100%" height={chartHeight}>
+      <ResponsiveContainer key={`${aggregation}-${sorted.length}`} width="100%" height={chartHeight}>
         <BarChart data={sorted} layout="vertical" margin={{ left: 80, right: 20, top: 8, bottom: 8 }}>
           <XAxis type="number" tick={{ fill: '#666666', fontSize: 9, fontFamily: fMono }} axisLine={{ stroke: '#1a1a1a' }} tickLine={false} />
           <YAxis type="category" dataKey="nom" tick={{ fill: '#a0a0a0', fontSize: 10, fontFamily: fInter }} axisLine={false} tickLine={false} width={75} />
           <Tooltip content={<CustomTooltip />} cursor={false} />
           <ReferenceLine x={0} stroke="#333333" strokeDasharray="3 3" />
           <Bar dataKey="ecart" radius={[2, 2, 2, 2]} onClick={(_d, _i, e) => { const code = (e as unknown as { payload?: { code?: string } })?.payload?.code; if (code) onBarClick?.(code); }} style={{ cursor: 'pointer' }}>
-            {sorted.map((entry, i) => (
-              <Cell key={i} fill={entry.ecart > 0 ? '#EF4444' : '#3B82F6'} fillOpacity={0.8} />
+            {sorted.map((entry) => (
+              <Cell key={entry.code} fill={entry.ecart > 0 ? '#EF4444' : '#3B82F6'} fillOpacity={0.8} />
             ))}
           </Bar>
         </BarChart>

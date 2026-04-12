@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -111,7 +111,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
 
           {/* Data rows */}
           {sortedMedias.map(media => (
-            <>
+            <Fragment key={media}>
               {/* Media label */}
               <div key={`label-${media}`} style={{
                 fontFamily: fInter, fontSize: 10, color: '#a0a0a0', padding: '2px 6px',
@@ -145,7 +145,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
                   </div>
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

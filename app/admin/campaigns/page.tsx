@@ -272,6 +272,7 @@ export default function CampaignsPage() {
       if (field) activeMapping[header] = field;
     }
     form.append('column_mapping', JSON.stringify(activeMapping));
+    if (selectedOrg) form.append('organization_id', selectedOrg);
 
     try {
       const res = await adminFetch('/api/admin/campaigns/import', { method: 'POST', body: form });
@@ -443,6 +444,25 @@ export default function CampaignsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <Link href={`/admin/campaigns/${c.id}`} style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: C.text, textDecoration: 'none' }}>{c.name}</Link>
                       <span style={{ background: C.warnDim, border: `0.5px solid ${C.warn}44`, borderRadius: 4, padding: '1px 6px', fontSize: 9, color: C.warn, fontFamily: fInter, fontWeight: 500 }}>{c.dsp_source}</span>
+                      {/* Org badge / inline reassign */}
+                      {orgs.length > 1 ? (
+                        <select
+                          value={(c as unknown as { organization_id?: string }).organization_id ?? ''}
+                          onChange={async (e) => {
+                            const res = await adminFetch(`/api/admin/campaigns/${c.id}`, {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ organization_id: e.target.value }),
+                            });
+                            if (res.ok) { toastApi.success('Organisation mise a jour'); fetchCampaigns(); }
+                            else { const err = await res.json(); toastApi.error('Erreur', err.error); }
+                          }}
+                          style={{ background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: '1px 6px', fontSize: 9, color: C.teal, fontFamily: fInter, cursor: 'pointer', outline: 'none' }}
+                        >
+                          {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: 9, color: C.textDim, fontFamily: fInter }}>{(c as unknown as { organization_name?: string }).organization_name ?? ''}</span>
+                      )}
                     </div>
                     <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, display: 'flex', gap: 12 }}>
                       <span>{fmtDate(c.date_start)} → {fmtDate(c.date_end)}</span>
@@ -517,6 +537,15 @@ export default function CampaignsPage() {
                     {DSP_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                {orgs.length > 1 && (
+                <div>
+                  <label style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, display: 'block', marginBottom: 6 }}>Organisation</label>
+                  <select value={selectedOrg || orgs[0]?.id || ''} onChange={(e) => setSelectedOrg(e.target.value)}
+                    style={{ width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: C.text, outline: 'none' }}>
+                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </div>
+                )}
                 <div>
                   <label style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, display: 'block', marginBottom: 6 }}>Nom (optionnel)</label>
                   <input type="text" value={campaignName} onChange={(e) => setCampaignName(e.target.value)}
