@@ -75,11 +75,11 @@ export function BiddingRecommendation({ data, aggregation }: BiddingRecommendati
 
       {/* Intensity slider */}
       <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontFamily: fInter, fontSize: 11, color: '#a0a0a0', whiteSpace: 'nowrap' }}>Intensite</span>
+        <span style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', whiteSpace: 'nowrap' }}>Intensite du bid</span>
         <input type="range" min={0.3} max={1.8} step={0.1} value={intensity}
           onChange={e => setIntensity(parseFloat(e.target.value))}
           style={{ flex: 1, accentColor: '#4ecdc4' }} />
-        <span style={{ fontFamily: fMono, fontSize: 11, color: '#4ecdc4', minWidth: 90, textAlign: 'right' }}>{intensityLabel} ({intensity.toFixed(1)})</span>
+        <span style={{ fontFamily: fMono, fontSize: 11, color: '#4ecdc4', minWidth: 90, textAlign: 'right' }}>{intensity.toFixed(1)}x — {intensityLabel}</span>
       </div>
 
       {/* Table */}
@@ -99,12 +99,12 @@ export function BiddingRecommendation({ data, aggregation }: BiddingRecommendati
           <tbody>
             {rows.map(r => (
               <tr key={r.code} style={{ borderBottom: '0.5px solid #0a0a0a' }}>
-                <td style={{ padding: '5px 12px', fontFamily: fInter, fontSize: 11, color: '#a0a0a0' }}>{r.code} — {r.nom}</td>
+                <td style={{ padding: '5px 12px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>{r.code} — {r.nom}</td>
                 <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 11, color: '#f0f0f0' }}>{r.ratio.toFixed(2)}</td>
                 <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 11, color: r.ecart > 0 ? '#EF4444' : '#3B82F6', fontWeight: 600 }}>
                   {r.ecart > 0 ? '+' : ''}{r.ecart.toFixed(2)}
                 </td>
-                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 12, fontWeight: 700, color: r.coeff > 1.1 ? '#3dffa0' : r.coeff < 0.9 ? '#ff5757' : '#a0a0a0' }}>
+                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 12, fontWeight: 700, color: r.coeff > 1.1 ? '#3dffa0' : r.coeff < 0.9 ? '#ff5757' : '#8a8a8a' }}>
                   {r.coeff.toFixed(2)}x {r.coeff > 1.05 ? '▲' : r.coeff < 0.95 ? '▼' : '─'}
                 </td>
               </tr>

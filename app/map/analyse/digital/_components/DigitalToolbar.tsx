@@ -7,7 +7,7 @@ const fInter = "'Inter', sans-serif";
 
 const C = {
   bg: '#050505', card: '#0a0a0a', elevated: '#111111',
-  border: '#1a1a1a', text: '#f0f0f0', textSec: '#a0a0a0', textDim: '#666666',
+  border: '#1a1a1a', text: '#f0f0f0', textSec: '#a0a0a0', textDim: '#8a8a8a',
   teal: '#4ecdc4',
 };
 
@@ -161,53 +161,67 @@ export function DigitalToolbar({
       background: C.card, borderBottom: `0.5px solid ${C.border}`,
       flexShrink: 0, flexWrap: 'wrap',
     }}>
-      <select
-        value={selectedCampaign}
-        onChange={e => onCampaignChange(e.target.value)}
-        style={{
-          background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4,
-          padding: '6px 10px', fontFamily: fInter, fontSize: 12, color: C.text, outline: 'none',
-          minWidth: 200, cursor: 'pointer',
-        }}
-      >
-        <option value="">Campagne</option>
-        {campaigns.map(c => (
-          <option key={c.id} value={c.id}>{c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.</option>
-        ))}
-      </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Campagne</span>
+        <select
+          value={selectedCampaign}
+          onChange={e => onCampaignChange(e.target.value)}
+          style={{
+            background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4,
+            padding: '6px 10px', fontFamily: fInter, fontSize: 12, color: C.text, outline: 'none',
+            minWidth: 200, cursor: 'pointer',
+          }}
+        >
+          <option value="">Campagne</option>
+          {campaigns.map(c => (
+            <option key={c.id} value={c.id}>{c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.</option>
+          ))}
+        </select>
+      </div>
 
-      <div style={{ display: 'flex', gap: 2 }}>
-        {[
-          { id: 'cp', label: 'CP' },
-          { id: 'departement', label: 'Dept' },
-          { id: 'region', label: 'Région' },
-        ].map(s => (
-          <button key={s.id} onClick={() => onScaleChange(s.id)} style={{
-            padding: '5px 10px', fontSize: 11, fontFamily: fInter, cursor: 'pointer',
-            background: scale === s.id ? 'rgba(78,205,196,0.12)' : 'transparent',
-            border: `0.5px solid ${scale === s.id ? C.teal : C.border}`,
-            borderRadius: 3, color: scale === s.id ? C.teal : C.textSec, transition: 'all 0.15s',
-          }}>{s.label}</button>
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decoupage</span>
+        <div style={{ display: 'flex', gap: 2 }}>
+          {[
+            { id: 'cp', label: 'CP' },
+            { id: 'departement', label: 'Dept' },
+            { id: 'region', label: 'Région' },
+          ].map(s => (
+            <button key={s.id} onClick={() => onScaleChange(s.id)} style={{
+              padding: '5px 10px', fontSize: 11, fontFamily: fInter, cursor: 'pointer',
+              background: scale === s.id ? 'rgba(78,205,196,0.12)' : 'transparent',
+              border: `0.5px solid ${scale === s.id ? C.teal : C.border}`,
+              borderRadius: 3, color: scale === s.id ? C.teal : C.textSec, transition: 'all 0.15s',
+            }}>{s.label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Population field */}
-      <select
-        value={popField}
-        onChange={e => onPopFieldChange(e.target.value)}
-        style={{
-          background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4,
-          padding: '5px 8px', fontFamily: fInter, fontSize: 11, color: C.text, outline: 'none',
-          cursor: 'pointer', maxWidth: 150,
-        }}
-      >
-        {POP_FIELDS.map(f => (
-          <option key={f.value} value={f.value}>{f.label}</option>
-        ))}
-      </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cible</span>
+        <select
+          value={popField}
+          onChange={e => onPopFieldChange(e.target.value)}
+          style={{
+            background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4,
+            padding: '5px 8px', fontFamily: fInter, fontSize: 11, color: C.text, outline: 'none',
+            cursor: 'pointer', maxWidth: 150,
+          }}
+        >
+          {POP_FIELDS.map(f => (
+            <option key={f.value} value={f.value}>{f.label}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Media filter — multi-select dropdown */}
-      {mediaList.length > 0 && <MediaMultiSelect mediaList={mediaList} selectedMedia={selectedMedia} onMediaChange={onMediaChange} />}
+      {mediaList.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Regies</span>
+          <MediaMultiSelect mediaList={mediaList} selectedMedia={selectedMedia} onMediaChange={onMediaChange} />
+        </div>
+      )}
 
       {loading && <span style={{ fontFamily: fInter, fontSize: 11, color: C.teal }}>Chargement...</span>}
       {!loading && zonesCount > 0 && (

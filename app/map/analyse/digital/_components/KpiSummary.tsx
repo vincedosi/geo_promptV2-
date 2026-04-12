@@ -29,13 +29,14 @@ export function KpiSummary({ totalImpressions, totalPop, ratioMoyen, couvertureP
 
   return (
     <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-      {kpis.map(k => (
+      {kpis.map((k, i) => (
         <div key={k.label} style={{
           flex: 1, padding: '8px 10px', background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 0,
-          display: 'flex', flexDirection: 'column', gap: 2,
+          display: 'flex', flexDirection: 'column', gap: 4,
+          ...(i === 0 ? { borderTop: '2px solid #4ecdc4' } : {}),
         }}>
-          <div style={{ fontFamily: fMono, fontSize: 14, fontWeight: 600, color: k.color }}>{k.value}</div>
-          <div style={{ fontFamily: fInter, fontSize: 9, color: '#666666' }}>{k.label}</div>
+          <div style={{ fontFamily: fMono, fontSize: i === 0 ? 20 : 14, fontWeight: 600, color: k.color }}>{k.value}</div>
+          <div style={{ fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>{k.label}</div>
         </div>
       ))}
     </div>

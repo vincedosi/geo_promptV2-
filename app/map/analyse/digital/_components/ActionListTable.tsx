@@ -43,8 +43,8 @@ export function ActionListTable({ data, onRowClick }: ActionListTableProps) {
           <button key={id} onClick={() => setTab(id)} style={{
             flex: 1, padding: '7px 0', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
             background: tab === id ? '#111111' : 'transparent',
-            border: 'none', borderBottom: tab === id ? `2px solid ${color}` : '2px solid transparent',
-            color: tab === id ? color : '#666666', transition: 'all 0.15s',
+            border: 'none', borderBottom: tab === id ? '2px solid #4ecdc4' : '2px solid transparent',
+            color: tab === id ? color : '#8a8a8a', transition: 'all 0.15s',
           }}>{label} ({(tab === id ? filtered : data.filter(d => id === 'over' ? d.ecart > 0 : d.ecart < 0)).length})</button>
         ))}
       </div>
@@ -71,7 +71,7 @@ export function ActionListTable({ data, onRowClick }: ActionListTableProps) {
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: '#a0a0a0' }}>
-                  <span style={{ color: '#666666', marginRight: 4 }}>{i + 1}.</span>{row.code} — {row.nom}
+                  <span style={{ color: '#8a8a8a', marginRight: 4 }}>{i + 1}.</span>{row.code} — {row.nom}
                 </td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#f0f0f0' }}>{fmt(row.impressions)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#a0a0a0' }}>{fmt(row.pop_value)}</td>
@@ -80,6 +80,11 @@ export function ActionListTable({ data, onRowClick }: ActionListTableProps) {
                 </td>
               </tr>
             ))}
+            {top.length === 0 && (
+              <tr><td colSpan={4} style={{ padding: '20px 12px', textAlign: 'center', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', fontStyle: 'italic' }}>
+                Aucune zone {tab === 'over' ? 'sur-servie' : 'sous-servie'}
+              </td></tr>
+            )}
           </tbody>
         </table>
       </div>

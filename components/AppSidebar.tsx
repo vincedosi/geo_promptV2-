@@ -43,7 +43,7 @@ type NavSection = {
 
 const navItems: NavSection[] = [
   {
-    section: 'App',
+    section: 'Analyse',
     items: [
       { href: '/map', label: 'geo.prompt', icon: MapPin },
       { href: '/clusters', label: 'Clustering', icon: Share2 },
@@ -51,7 +51,7 @@ const navItems: NavSection[] = [
     ],
   },
   {
-    section: 'Admin',
+    section: 'Administration',
     items: [
       { href: '/integration-panneaux', label: 'Intégration', icon: LayoutGrid, badge: 'CSV' },
       { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: Upload, badge: 'Admin' },
@@ -64,7 +64,7 @@ const navItems: NavSection[] = [
     ],
   },
   {
-    section: 'Système',
+    section: 'Systeme',
     items: [
       { href: '/admin/sources', label: 'Sources', icon: Database },
       { href: '/admin/organizations', label: 'Organisations', icon: Users },
@@ -208,7 +208,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
           <div key={section.section} className={si > 0 ? 'mt-5' : ''}>
             <p
               className="mb-2 px-3 text-[11px]"
-              style={{ color: '#666666', fontWeight: 400 }}
+              style={{ color: '#8a8a8a', fontWeight: 400 }}
             >
               {section.section}
             </p>
@@ -234,41 +234,45 @@ function SidebarContent({ pathname }: { pathname: string }) {
         ))}
       </nav>
 
-      <Separator style={{ background: '#1a1a1a', height: '0.5px' }} />
+      {process.env.NODE_ENV === 'development' && (
+        <>
+          <Separator style={{ background: '#1a1a1a', height: '0.5px' }} />
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          {/* Green status dot */}
-          <span className="relative flex shrink-0" style={{ width: 6, height: 6 }}>
-            <span
-              className="absolute inset-0 rounded-full animate-ping"
-              style={{ background: '#3dffa0', opacity: 0.4, animationDuration: '2s' }}
-            />
-            <span
-              className="relative inline-flex rounded-full"
-              style={{ width: 6, height: 6, background: '#3dffa0' }}
-            />
-          </span>
-          <span
-            className="text-[11px]"
-            style={{ color: '#666666', fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            Online
-          </span>
-          {time && (
-            <span
-              className="ml-auto text-[10px]"
-              style={{
-                color: '#333333',
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            >
-              {time}
-            </span>
-          )}
-        </div>
-      </div>
+          {/* ── Footer ─────────────────────────────────────────────────────────── */}
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              {/* Green status dot */}
+              <span className="relative flex shrink-0" style={{ width: 6, height: 6 }}>
+                <span
+                  className="absolute inset-0 rounded-full animate-ping"
+                  style={{ background: '#3dffa0', opacity: 0.4, animationDuration: '2s' }}
+                />
+                <span
+                  className="relative inline-flex rounded-full"
+                  style={{ width: 6, height: 6, background: '#3dffa0' }}
+                />
+              </span>
+              <span
+                className="text-[11px]"
+                style={{ color: '#666666', fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                Online
+              </span>
+              {time && (
+                <span
+                  className="ml-auto text-[10px]"
+                  style={{
+                    color: '#333333',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  {time}
+                </span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

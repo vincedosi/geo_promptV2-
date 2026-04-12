@@ -30,6 +30,11 @@ interface MediaHeatmapProps {
   onCellClick?: (media: string, zoneCode: string) => void;
 }
 
+function getContrastText(r: number, g: number, b: number): string {
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.45 ? '#1a1a1a' : '#f0f0f0';
+}
+
 function ecartColor(ecart: number, maxAbs: number): string {
   if (maxAbs === 0) return '#1a1a2e';
   const ratio = Math.min(Math.abs(ecart) / maxAbs, 1);
@@ -65,12 +70,12 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
     return { cellMap: map, maxAbs: mx || 1, sortedMedias: sorted };
   }, [data]);
 
-  if (loading) return <div style={{ padding: 16, fontFamily: fInter, fontSize: 11, color: '#666666' }}>Chargement heatmap...</div>;
+  if (loading) return <div style={{ padding: 16, fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>Chargement heatmap...</div>;
   if (!data || !data.cells.length) return null;
 
   const zones = data.zones ?? [];
   const isDept = aggregation === 'dept';
-  const cellSize = isDept ? 18 : 32;
+  const cellSize = isDept ? 24 : 40;
 
   return (
     <div style={{ background: '#050505', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
@@ -83,7 +88,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
               padding: '3px 8px', fontSize: 9, fontFamily: fInter, cursor: 'pointer',
               background: aggregation === id ? 'rgba(78,205,196,0.12)' : 'transparent',
               border: `0.5px solid ${aggregation === id ? '#4ecdc4' : '#1a1a1a'}`,
-              borderRadius: 3, color: aggregation === id ? '#4ecdc4' : '#666666',
+              borderRadius: 3, color: aggregation === id ? '#4ecdc4' : '#8a8a8a',
             }}>{label}</button>
           ))}
         </div>
@@ -96,7 +101,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
           <div />
           {zones.map(z => (
             <div key={z.code} style={{
-              fontFamily: fInter, fontSize: isDept ? 7 : 9, color: '#666666',
+              fontFamily: fInter, fontSize: isDept ? 8 : 10, color: '#8a8a8a',
               writingMode: isDept ? 'vertical-rl' : 'horizontal-tb',
               textOrientation: 'mixed', padding: '2px 1px',
               height: isDept ? 60 : 'auto', overflow: 'hidden',
@@ -116,6 +121,12 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
               {zones.map(z => {
                 const cell = cellMap.get(`${media}|${z.code}`);
                 const ecart = cell?.ecart ?? 0;
+                const bgColor = cell ? ecartColor(ecart, maxAbs) : '#111111';
+                let textColor = '#f0f0f0';
+                if (cell && !isDept) {
+                  const m = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                  if (m) textColor = getContrastText(Number(m[1]), Number(m[2]), Number(m[3]));
+                }
                 return (
                   <div
                     key={`${media}-${z.code}`}
@@ -124,10 +135,10 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
                     onClick={() => cell && onCellClick?.(media, z.code)}
                     style={{
                       width: cellSize, height: cellSize - 2, borderRadius: 2,
-                      background: cell ? ecartColor(ecart, maxAbs) : '#111111',
+                      background: bgColor,
                       cursor: cell ? 'pointer' : 'default',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: fMono, fontSize: isDept ? 0 : 8, color: 'rgba(255,255,255,0.7)',
+                      fontFamily: fMono, fontSize: isDept ? 0 : 9, color: textColor,
                     }}
                   >
                     {!isDept && cell ? (ecart > 0 ? '+' : '') + ecart.toFixed(1) : ''}
@@ -158,7 +169,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
       {/* Legend */}
       <div style={{ padding: '4px 10px 6px', display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid #111111' }}>
         <div style={{ width: 60, height: 6, borderRadius: 2, background: 'linear-gradient(to right, #3B82F6, #1a1a2e, #EF4444)' }} />
-        <span style={{ fontFamily: fMono, fontSize: 8, color: '#666666' }}>sous-servi → sur-servi</span>
+        <span style={{ fontFamily: fMono, fontSize: 8, color: '#8a8a8a' }}>sous-servi → sur-servi</span>
       </div>
     </div>
   );
