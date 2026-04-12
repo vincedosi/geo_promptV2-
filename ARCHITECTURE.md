@@ -1,7 +1,7 @@
 # ARCHITECTURE — GEOMATIK
 
-> Dernière mise à jour : 2026-04-01
-> Version : 7.5.x
+> Dernière mise à jour : 2026-04-08
+> Version : 7.6.x
 > Auteur initial : Vince Dosi
 
 ---
@@ -43,9 +43,11 @@ genesis_app/
 │   │   ├── import/             # Import universel de POI (CSV/XLSX/GeoJSON)
 │   │   ├── imports/            # Historique et gestion des imports
 │   │   ├── ooh-import/         # Import panneaux OOH depuis ArcGIS REST
+│   │   ├── campaigns/          # Campagnes DSP — liste, import (preview → SSE), détail
+│   │   │   └── [id]/           # Détail campagne + stats + données paginées
 │   │   ├── organizations/      # CRUD organisations (clients)
 │   │   ├── profiles/           # Gestion des profils utilisateurs
-│   │   └── sources/            # Gestion des sources de données importées
+│   │   └── sources/            # Gestion des sources de données (+ onglet DSP)
 │   ├── clusters/               # Pages analyse clustering POI × Filosofi
 │   │   └── [version]/          # Détail d'un modèle de clustering
 │   ├── copilote/               # Interface principale : chat IA + carte MapLibre
@@ -93,6 +95,9 @@ genesis_app/
 │   ├── clustering/             # Clustering POI × Filosofi
 │   ├── db/                     # Migrations SQL applicatives
 │   ├── geo/                    # france-admin.ts, locations.ts
+│   ├── campaigns/              # DSP campaign import
+│   │   ├── column-mappings.ts  # Mapping colonnes DSP → DB (Adform, DV360…)
+│   │   └── parser.ts           # Parser CSV/XLSX + mapping + validation
 │   ├── import/                 # Pipeline d'import universel
 │   ├── inngest/                # Jobs async (couverture, colonnes dérivées)
 │   ├── iris-crawler/           # Crawler INSEE IRIS (catalog, parser, storage, auto-map)
@@ -103,6 +108,7 @@ genesis_app/
 │
 ├── types/                      # Interfaces TypeScript partagées
 │   ├── poi.ts                  # POI, PoiRow (rank, audience, score_ooh)
+│   ├── campaign.ts             # DspCampaign, DspCampaignData, CampaignImportEvent…
 │   ├── spatial.ts              # ZoneData, IsochroneData, VoronoiData, BattleData…
 │   ├── api.ts                  # ApiError, PaginatedResponse
 │   └── admin.ts                # Organization, DataSource…
@@ -179,6 +185,17 @@ genesis_app/
 | `/api/poi-clusters/models/[version]` | GET | Détail modèle + profils |
 | `/api/poi-clusters/poi/[poiId]` | GET | Cluster d'un POI |
 
+### Campagnes DSP (toutes protégées par `requireAdmin()`)
+| Route | Méthode | Description |
+|-------|---------|-------------|
+| `/api/admin/campaigns` | GET | Liste campagnes avec stats agrégées (via RPC) |
+| `/api/admin/campaigns/preview` | POST | Preview mapping fichier AVANT import (colonnes + sample) |
+| `/api/admin/campaigns/import` | POST | Import SSE streaming (parse → batch insert → matching IRIS) |
+| `/api/admin/campaigns/populate-postal` | POST | Peuple `postal_code_commune` depuis La Poste |
+| `/api/admin/campaigns/[id]` | GET | Détail campagne + stats par pays/région/dept + données paginées |
+| `/api/admin/campaigns/[id]` | DELETE | Suppression campagne (CASCADE sur données) |
+| `/api/admin/campaigns/[id]/match-iris` | POST | Relance matching IRIS pour une campagne |
+
 ### Administration (toutes protégées par `requireAdmin()`)
 | Route | Méthode | Description |
 |-------|---------|-------------|
@@ -241,6 +258,9 @@ genesis_app/
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `dsp_campaigns` | Campagnes DSP (Adform, DV360…) | nom, source, dates, pays, tracked_ads |
+| `dsp_campaign_data` | Lignes d'impressions DSP | UNIQUE(campaign_id, date, postal_code, city), ON DELETE CASCADE |
+| `postal_code_commune` | Référentiel La Poste code postal → commune | ~35k lignes, source geo.api.gouv.fr |
 
 ---
 
@@ -267,6 +287,8 @@ genesis_app/
 | `populate_carreaux_columns` | Colonnes dérivées post-import | `lib/inngest/functions/` |
 | `get_table_sizes` | Taille tables (monitoring) | `api/admin/health/` |
 | `count_poi_by_categorie_source` | Compte POI par catégorie/source | `api/admin/import-datagouv/` |
+| `match_campaign_postal_to_iris` | Matching DSP postal → commune → IRIS | `api/admin/campaigns/import/` |
+| `get_dsp_campaign_stats` | Stats agrégées par campagne (COUNT FILTER) | `api/admin/campaigns/` |
 
 ---
 

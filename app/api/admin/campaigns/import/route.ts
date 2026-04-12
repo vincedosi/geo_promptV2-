@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null;
   const dspSource = (formData.get('dsp_source') as string) || 'adform';
   const campaignNameOverride = formData.get('campaign_name') as string | null;
+  const customMappingRaw = formData.get('column_mapping') as string | null;
 
   if (!file) {
     return new Response(JSON.stringify({ error: 'Fichier manquant' }), {
@@ -44,7 +45,11 @@ export async function POST(request: NextRequest) {
       try {
         send({ type: 'parsing', message: `Parsing ${fileName}…` });
 
-        const parsed = parseCampaignFile(buffer, fileName, dspSource);
+        let customMapping: Record<string, string> | null = null;
+        if (customMappingRaw) {
+          try { customMapping = JSON.parse(customMappingRaw); } catch { /* ignore */ }
+        }
+        const parsed = parseCampaignFile(buffer, fileName, dspSource, customMapping);
 
         if (parsed.errors.length > 0 && parsed.rows.length === 0) {
           send({ type: 'error', message: `Aucune ligne valide. Erreurs : ${parsed.errors.slice(0, 5).join('; ')}` });
@@ -92,11 +97,11 @@ export async function POST(request: NextRequest) {
         const aggMap = new Map<string, {
           campaign_id: string; date: string | null; city: string | null;
           country: string; postal_code: string | null; region: string | null;
-          dma_region: string | null; tracked_ads: number;
+          dma_region: string | null; tracked_ads: number; media: string | null;
         }>();
 
         for (const r of parsed.rows) {
-          const key = `${r.date}|${r.postal_code}|${r.city}`;
+          const key = `${r.date}|${r.postal_code}|${r.city}|${r.media ?? ''}`;
           const existing = aggMap.get(key);
           if (existing) {
             existing.tracked_ads += r.tracked_ads;
@@ -110,6 +115,7 @@ export async function POST(request: NextRequest) {
               region: r.region,
               dma_region: r.dma_region,
               tracked_ads: r.tracked_ads,
+              media: r.media,
             });
           }
         }
@@ -134,7 +140,7 @@ export async function POST(request: NextRequest) {
 
           const { error: insertErr } = await supabase
             .from('dsp_campaign_data')
-            .upsert(batch, { onConflict: 'campaign_id,date,postal_code,city' });
+            .insert(batch);
 
           if (insertErr) {
             send({ type: 'error', message: `Erreur insert batch ${i}: ${insertErr.message}` });

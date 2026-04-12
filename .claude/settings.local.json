@@ -29,7 +29,13 @@
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(xargs ls:*)",
+      "Bash(git log:*)",
+      "WebFetch(domain:www.arcom.fr)",
+      "mcp__claude_ai_Supabase__apply_migration"
     ]
   }
 }

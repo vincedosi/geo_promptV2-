@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Activity,
+  BarChart3,
   Database,
   FileUp,
   Layers,
@@ -15,6 +16,7 @@ import {
   PlusCircle,
   Radio,
   Share2,
+  Target,
   Upload,
   Users,
 } from 'lucide-react'
@@ -45,6 +47,7 @@ const navItems: NavSection[] = [
     items: [
       { href: '/map', label: 'geo.prompt', icon: MapPin },
       { href: '/clusters', label: 'Clustering', icon: Share2 },
+      { href: '/map/analyse/digital', label: 'Digital', icon: BarChart3 },
     ],
   },
   {
@@ -57,6 +60,7 @@ const navItems: NavSection[] = [
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
       { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
+      { href: '/admin/campaigns', label: 'Campagnes DSP', icon: Target, badge: 'Admin' },
     ],
   },
   {

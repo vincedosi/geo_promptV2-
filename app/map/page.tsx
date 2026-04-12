@@ -12,7 +12,7 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor, type CorrelationActionParams } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import { FilterPanel }         from '@/app/map/_components/FilterPanel';
+import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
@@ -31,7 +31,6 @@ import { SessionBadge }    from '@/components/SessionBadge';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
-import type { EquityAnalysisStats } from '@/types/campaign';
 
 // ─── HTML escape for popup content (prevents XSS from imported data) ─────────
 function esc(s: string | undefined | null): string {
@@ -89,19 +88,15 @@ export default function MapPage() {
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
-  // Geo-Equity analysis (MVT tiles — no client-side GeoJSON)
-  const [equityVisible, setEquityVisible] = useState(false);
-  const [equityStats, setEquityStats] = useState<EquityAnalysisStats | null>(null);
-  const [equityLoading, setEquityLoading] = useState(false);
-  const [equityCampaignId, setEquityCampaignId] = useState<string | null>(null);
-  const [equityPopField, setEquityPopField] = useState<string>('population');
-  const [equitySource, setEquitySource] = useState<string>('iris');
-  const [equityFull, setEquityFull] = useState(false);
-  const [equityScale, setEquityScale] = useState<string>('iris');
-  // Campaign impressions layer (exclusive with equity)
-  const [impressionsVisible, setImpressionsVisible] = useState(false);
-  const [impressionsStats, setImpressionsStats] = useState<{ total_impressions: number; zones_count: number; min: number; max: number; median: number; p75: number; p90: number; p95: number } | null>(null);
-  const [impressionsLoading, setImpressionsLoading] = useState(false);
+  // Digital (DSP impressions choropleth)
+  const [digitalVisible, setDigitalVisible] = useState(false);
+  const [digitalLoading, setDigitalLoading] = useState(false);
+  const [digitalStats, setDigitalStats] = useState<{ total_impressions: number; zones_count: number; campaign_name: string } | null>(null);
+  const [digitalPalette, setDigitalPalette] = useState('teal');
+  const [digitalInverted, setDigitalInverted] = useState(false);
+  const [digitalScale, setDigitalScale] = useState('cp');
+  const digitalPercentilesRef = useRef<number[]>([]);
+  const digitalCampaignIdRef = useRef<string>('');
 
   const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
@@ -153,52 +148,6 @@ export default function MapPage() {
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
-  // Helper: update MVT tile source URL for DSP layers
-  // Remove and re-add source to force tile reload with new campaign_id
-  const updateDspTileSource = useCallback((sourceId: string, layerIds: string[], campaignId: string, mode: string) => {
-    const map = mapRef.current;
-    if (!map) { console.warn('[updateDspTileSource] no map'); return; }
-
-    console.log(`[updateDspTileSource] ${sourceId} → campaign=${campaignId} mode=${mode}`);
-
-    // Save layer configs before removing
-    const savedLayers: maplibregl.LayerSpecification[] = [];
-    for (const lid of layerIds) {
-      const layerSpec = map.getStyle().layers.find(l => l.id === lid);
-      if (layerSpec) {
-        savedLayers.push(layerSpec);
-        map.removeLayer(lid);
-        console.log(`[updateDspTileSource] removed layer ${lid}`);
-      } else {
-        console.warn(`[updateDspTileSource] layer ${lid} not found`);
-      }
-    }
-
-    // Remove old source
-    if (map.getSource(sourceId)) {
-      map.removeSource(sourceId);
-      console.log(`[updateDspTileSource] removed source ${sourceId}`);
-    }
-
-    // Add new source with correct campaign URL
-    const tileUrl = `${window.location.origin}/api/tiles/dsp-equity/{z}/{x}/{y}?campaign_id=${campaignId}&mode=${mode}`;
-    console.log(`[updateDspTileSource] adding source with tiles: ${tileUrl}`);
-    map.addSource(sourceId, {
-      type: 'vector',
-      tiles: [tileUrl],
-      minzoom: 2,
-      maxzoom: 14,
-    });
-
-    // Re-add layers with visibility='visible'
-    for (const layer of savedLayers) {
-      map.addLayer({ ...layer, layout: { ...layer.layout, visibility: 'visible' } });
-      console.log(`[updateDspTileSource] re-added layer ${layer.id}`);
-    }
-
-    console.log(`[updateDspTileSource] done, ${savedLayers.length} layers restored`);
-  }, [mapRef]);
-
   // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
@@ -244,30 +193,122 @@ export default function MapPage() {
     }
   }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync equity MVT layer visibility ──────────────────────────────────────
+  // ── Digital: GeoJSON source + layers ──────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = equityVisible ? 'visible' : 'none';
-    if (map.getLayer('equity-fill')) map.setLayoutProperty('equity-fill', 'visibility', vis);
-    if (map.getLayer('equity-line')) map.setLayoutProperty('equity-line', 'visibility', vis);
-  }, [equityVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (map.getSource('digital-cp')) return; // already added
 
-  // ── Sync impressions MVT layer visibility ──────────────────────────────────
+    map.addSource('digital-cp', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+
+    map.addLayer({
+      id: 'digital-cp-fill',
+      type: 'fill',
+      source: 'digital-cp',
+      paint: {
+        'fill-color': 'rgba(78, 205, 196, 0.06)',
+        'fill-opacity': 0.8,
+      },
+      layout: { visibility: 'none' },
+    });
+
+    map.addLayer({
+      id: 'digital-cp-line',
+      type: 'line',
+      source: 'digital-cp',
+      paint: {
+        'line-color': 'rgba(78, 205, 196, 0.35)',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.3, 9, 0.8, 12, 1.2] as unknown as maplibregl.ExpressionSpecification,
+        'line-opacity': 0.6,
+      },
+      layout: { visibility: 'none' },
+    });
+  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: visibility sync ────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = impressionsVisible ? 'visible' : 'none';
-    if (map.getLayer('impressions-fill')) map.setLayoutProperty('impressions-fill', 'visibility', vis);
-    if (map.getLayer('impressions-line')) map.setLayoutProperty('impressions-line', 'visibility', vis);
-  }, [impressionsVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+    const vis = digitalVisible ? 'visible' : 'none';
+    if (map.getLayer('digital-cp-fill')) map.setLayoutProperty('digital-cp-fill', 'visibility', vis);
+    if (map.getLayer('digital-cp-line')) map.setLayoutProperty('digital-cp-line', 'visibility', vis);
+  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Impressions hover popup ────────────────────────────────────────────────
+  // ── Digital: re-fetch when scale changes (if already visible) ───────────────
+  useEffect(() => {
+    if (!digitalVisible || !digitalCampaignIdRef.current) return;
+    const cid = digitalCampaignIdRef.current;
+    const map = mapRef.current;
+    if (!map) return;
+
+    setDigitalLoading(true);
+    fetch(`/api/digital/${cid}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`)
+      .then(r => r.ok ? r.json() as Promise<GeoJSON.FeatureCollection> : null)
+      .then(fc => {
+        if (!fc) return;
+        const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+        if (src) src.setData(fc);
+
+        const values = fc.features.map(f => Number(f.properties?.impressions) || 0).filter(v => v > 0).sort((a, b) => a - b);
+        if (values.length > 0) {
+          const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
+          digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
+        }
+
+        const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+        const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+        const pts = digitalPercentilesRef.current;
+        const pairs: (string | number)[] = [];
+        for (let i = 0; i < Math.min(stops.length, pts.length); i++) pairs.push(pts[i], stops[i]);
+        map.setPaintProperty('digital-cp-fill', 'fill-color', [
+          'case', ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+          ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
+        ]);
+        map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+
+        const totalImp = values.reduce((a, b) => a + b, 0);
+        setDigitalStats(prev => prev ? { ...prev, total_impressions: totalImp, zones_count: fc.features.length } : prev);
+      })
+      .finally(() => setDigitalLoading(false));
+  }, [digitalScale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: apply palette when palette/inverted/percentiles change ─────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !impressionsVisible) return;
+    if (!map || !mapReady || !digitalVisible) return;
+    if (!map.getLayer('digital-cp-fill')) return;
 
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '240px' });
+    const pts = digitalPercentilesRef.current;
+    if (pts.length < 6) return; // need percentiles
+
+    const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+    const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+
+    // Build interpolation: p10, p25, p50, p75, p90, max
+    const pairs: (string | number)[] = [];
+    for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
+      pairs.push(pts[i], stops[i]);
+    }
+
+    map.setPaintProperty('digital-cp-fill', 'fill-color', [
+      'case',
+      ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+      ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
+        ...pairs,
+      ],
+    ]);
+    map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+  }, [digitalPalette, digitalInverted, digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: hover popup ────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !digitalVisible) return;
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '260px' });
     const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
     const onLeave = () => { map.getCanvas().style.cursor = ''; popup.remove(); };
     const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
@@ -275,66 +316,24 @@ export default function MapPage() {
       const p = e.features[0].properties;
       popup.setLngLat(e.lngLat).setHTML(`
         <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
-          <div style="font-weight:500;margin-bottom:4px">${esc(p.code_iris)} — ${esc(p.nom_commune)}</div>
+          <div style="font-weight:500;margin-bottom:4px">${esc(p.code)} — ${esc(p.nom)}</div>
           <div style="color:#a0a0a0">Impressions: <span style="color:#4ecdc4;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
+          ${p.pop_total ? `<div style="color:#a0a0a0">Population: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.pop_total).toLocaleString('fr-FR')}</span></div>` : ''}
+          ${p.imp_pour_mille ? `<div style="color:#a0a0a0">Imp./1000 hab: <span style="color:#4ecdc4;font-family:'JetBrains Mono',monospace">${Number(p.imp_pour_mille).toLocaleString('fr-FR')}</span></div>` : ''}
         </div>
       `).addTo(map);
     };
 
-    map.on('mouseenter', 'impressions-fill', onEnter);
-    map.on('mouseleave', 'impressions-fill', onLeave);
-    map.on('mousemove', 'impressions-fill', onMove);
+    map.on('mouseenter', 'digital-cp-fill', onEnter);
+    map.on('mouseleave', 'digital-cp-fill', onLeave);
+    map.on('mousemove', 'digital-cp-fill', onMove);
     return () => {
-      map.off('mouseenter', 'impressions-fill', onEnter);
-      map.off('mouseleave', 'impressions-fill', onLeave);
-      map.off('mousemove', 'impressions-fill', onMove);
+      map.off('mouseenter', 'digital-cp-fill', onEnter);
+      map.off('mouseleave', 'digital-cp-fill', onLeave);
+      map.off('mousemove', 'digital-cp-fill', onMove);
       popup.remove();
     };
-  }, [impressionsVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Equity hover popup ───────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !equityVisible) return;
-
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '260px' });
-
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => {
-      map.getCanvas().style.cursor = '';
-      popup.remove();
-    };
-    const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features?.length) return;
-      const f = e.features[0];
-      const p = f.properties;
-      const ni = Number(p.normalized_index ?? 1);
-      const tag = ni < 0.7 ? '<span style="color:#ef8a62">sous-servi</span>'
-                : ni > 1.3 ? '<span style="color:#67a9cf">sur-servi</span>'
-                : '<span style="color:#999">équilibré</span>';
-      popup.setLngLat(e.lngLat).setHTML(`
-        <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
-          <div style="font-weight:500;margin-bottom:4px">${esc(p.code_iris)} — ${esc(p.nom_commune)}</div>
-          <div style="color:#a0a0a0">Impressions: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
-          <div style="color:#a0a0a0">Pop. cible: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.population_cible).toLocaleString('fr-FR')}</span></div>
-          <div style="color:#a0a0a0">Index: <span style="font-family:'JetBrains Mono',monospace">${ni.toFixed(2)}×</span> ${tag}</div>
-        </div>
-      `).addTo(map);
-    };
-
-    map.on('mouseenter', 'equity-fill', onEnter);
-    map.on('mouseleave', 'equity-fill', onLeave);
-    map.on('mousemove', 'equity-fill', onMove);
-
-    return () => {
-      map.off('mouseenter', 'equity-fill', onEnter);
-      map.off('mouseleave', 'equity-fill', onLeave);
-      map.off('mousemove', 'equity-fill', onMove);
-      popup.remove();
-    };
-  }, [equityVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // MVT tiles auto-load per viewport — no moveend refresh needed
+  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -1533,90 +1532,80 @@ export default function MapPage() {
         onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
-        // Geo-Equity
-        equityVisible={equityVisible}
-        equityStats={equityStats}
-        equityLoading={equityLoading}
-        equityCampaignId={equityCampaignId}
-        equityPopField={equityPopField}
-        equitySource={equitySource}
-        equityFull={equityFull}
-        equityScale={equityScale}
-        onEquityAnalyse={async (campaignId: string, source: string, popField: string, fullFrance: boolean, scale: string) => {
-          setEquityCampaignId(campaignId);
-          setEquitySource(source);
-          setEquityPopField(popField);
-          setEquityScale(scale);
-          setEquityLoading(true);
+        digitalVisible={digitalVisible}
+        digitalLoading={digitalLoading}
+        digitalStats={digitalStats}
+        digitalPalette={digitalPalette}
+        onDigitalPaletteChange={setDigitalPalette}
+        digitalInverted={digitalInverted}
+        onDigitalInvertChange={setDigitalInverted}
+        digitalScale={digitalScale}
+        onDigitalScaleChange={setDigitalScale}
+        onDigitalShowImpressions={async (campaignId: string) => {
+          if (!campaignId) return;
+          digitalCampaignIdRef.current = campaignId;
+          setDigitalLoading(true);
+          mapLayers.setIrisVisible(false);
           try {
-            // Update MVT tile source with campaign ID
-            updateDspTileSource('dsp-equity-mvt', ['equity-fill', 'equity-line'], campaignId, 'equity');
-            setEquityVisible(true);
-            setImpressionsVisible(false);
-            // Fetch stats via API
-            const statsRes = await fetch(`/api/map/equity-analysis?campaign_id=${campaignId}&source=${source}&population_field=${popField}&scale=${scale}&full=true`);
-            if (statsRes.ok) {
-              const data = await statsRes.json();
-              setEquityStats(data.stats);
+            const map = mapRef.current;
+            if (!map) return;
+
+            // Always load all of France (metro + DOM)
+            const res = await fetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const fc = await res.json() as GeoJSON.FeatureCollection;
+
+            const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+            if (src) src.setData(fc);
+
+            // Compute percentiles for palette
+            const values = fc.features
+              .map(f => Number(f.properties?.impressions) || 0)
+              .filter(v => v > 0)
+              .sort((a, b) => a - b);
+
+            if (values.length > 0) {
+              const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
+              digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
+            } else {
+              digitalPercentilesRef.current = [0, 1, 10, 100, 1000, 10000];
             }
+
+            // Apply palette
+            const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+            const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+            const pts = digitalPercentilesRef.current;
+            const pairs: (string | number)[] = [];
+            for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
+              pairs.push(pts[i], stops[i]);
+            }
+            map.setPaintProperty('digital-cp-fill', 'fill-color', [
+              'case',
+              ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+              ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
+            ]);
+            map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+
+            const totalImp = values.reduce((a, b) => a + b, 0);
+            // Get campaign name
+            const campRes = await fetch('/api/digital/campaigns');
+            const camps = campRes.ok ? await campRes.json() : [];
+            const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
+
+            setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
+            setDigitalVisible(true);
           } catch (err) {
-            console.error('[equity] error:', err);
+            console.error('[digital]', err);
           } finally {
-            setEquityLoading(false);
+            setDigitalLoading(false);
           }
         }}
-        onEquityClear={() => {
-          setEquityVisible(false);
-          setEquityStats(null);
-          setEquityCampaignId(null);
-        }}
-        impressionsVisible={impressionsVisible}
-        impressionsStats={impressionsStats}
-        impressionsLoading={impressionsLoading}
-        onShowImpressions={async (campaignId: string, _fullFrance: boolean, _scale: string) => {
-          console.log('[impressions] starting, campaignId=', campaignId);
-          setImpressionsLoading(true);
-          setEquityVisible(false);
-          try {
-            // Update MVT tile source with campaign ID
-            console.log('[impressions] updating tile source...');
-            updateDspTileSource('dsp-impressions-mvt', ['impressions-fill', 'impressions-line'], campaignId, 'impressions');
-            setImpressionsVisible(true);
-            console.log('[impressions] source updated, visible=true');
-            // Fetch lightweight stats from RPC (no GeoJSON)
-            const statsRes = await fetch(`/api/map/campaign-impressions?campaign_id=${campaignId}`);
-            if (statsRes.ok) {
-              const data = await statsRes.json();
-              setImpressionsStats(data.stats);
-              // Apply dynamic palette based on actual data percentiles
-              const map = mapRef.current;
-              if (map && data.stats && map.getLayer('impressions-fill')) {
-                const s = data.stats;
-                const med = Math.max(s.median || 1, 1);
-                const p75 = Math.max(s.p75 || med * 2, med + 1);
-                const p90 = Math.max(s.p90 || p75 * 1.5, p75 + 1);
-                const p95 = Math.max(s.p95 || p90 * 1.3, p90 + 1);
-                const mx = Math.max(s.max || p95 * 2, p95 + 1);
-                map.setPaintProperty('impressions-fill', 'fill-color', [
-                  'interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
-                  0,              '#1a1a2e',
-                  med * 0.25,     '#16537e',
-                  med,            '#1e8a7a',
-                  p75,            '#4ecdc4',
-                  p95,            '#7eddd5',
-                  mx,             '#f7fff7',
-                ]);
-              }
-            }
-          } catch (err) {
-            console.error('[impressions] error:', err);
-          } finally {
-            setImpressionsLoading(false);
-          }
-        }}
-        onClearImpressions={() => {
-          setImpressionsVisible(false);
-          setImpressionsStats(null);
+        onDigitalClear={() => {
+          setDigitalVisible(false);
+          setDigitalStats(null);
+          const map = mapRef.current;
+          const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+          src?.setData({ type: 'FeatureCollection', features: [] });
         }}
       />
       </div>{/* end fullscreen wrapper */}

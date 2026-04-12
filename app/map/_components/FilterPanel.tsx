@@ -12,7 +12,7 @@ import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPM
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
-import type { CampaignListItem, EquityAnalysisStats } from '@/types/campaign';
+import type { CampaignListItem } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
@@ -22,63 +22,16 @@ const CorrelationPanel = dynamic(
 );
 
 // ─── Equity indicator types ──────────────────────────────────────────────────
-interface EquityIndicator {
-  field: string;
-  label: string;
-  type: string;
-}
-
-const IRIS_LABELS: Record<string, string> = {
-  'population': 'Population totale',
-  'pop_0_14': 'Enfants 0-14 ans',
-  'pop_15_29': 'Jeunes 15-29 ans',
-  'pop_30_44': 'Adultes 30-44 ans',
-  'pop_45_59': 'Seniors 45-59 ans',
-  'pop_60_74': 'Seniors 60-74 ans',
-  'pop_75_plus': 'Seniors 75+ ans',
-  'nb_csp_cadre': 'CSP+ Cadres',
-  'nb_csp_employe': 'Employés',
-  'nb_csp_ouvrier': 'Ouvriers',
-  'nb_diplome_aucun': 'Sans diplôme',
-  'nb_diplome_bac': 'Bac',
-  'nb_diplome_sup': 'Diplômés supérieur',
-  'taux_diplome_sup': '% Diplômés sup.',
-  'nb_menages': 'Ménages',
-  'rev_median': 'Revenu médian (€)',
-  'rev_d1': 'Revenu D1 (10% bas)',
-  'rev_d9': 'Revenu D9 (10% haut)',
-  'taux_proprio': '% Propriétaires',
-  'taux_chomage': '% Chômage',
-  'taux_pauvrete': '% Pauvreté',
-  'indice_gini': 'Indice de Gini',
-  'nb_emplois': 'Emplois',
-  'taux_emploi': '% Emploi',
-  'densite_pop': 'Densité pop.',
-  'indice_jeunesse': 'Indice jeunesse',
-  'part_pop_etrangere': '% Pop. étrangère',
-  'part_residences_principales': '% Rés. principales',
-  'part_appartements': '% Appartements',
-  'part_logements_sociaux': '% Logements sociaux',
-  'part_menages_emmenages_2ans': '% Emménagés <2 ans',
-  'part_familles_monoparentales': '% Fam. monoparentales',
-  'part_couples_avec_enfants': '% Couples av. enfants',
-  'part_actifs_marche_velo': '% Marche/vélo',
-  'part_actifs_transport_commun': '% Transport commun',
-  'part_hommes_actifs': '% Hommes actifs',
-  'part_femmes_actives': '% Femmes actives',
-  'part_pop_moins_18': '% Pop. <18 ans',
-  'part_pop_65_plus': '% Pop. 65+',
-  'part_sans_diplome': '% Sans diplôme',
-  'nb_emplois_commune': 'Emplois commune',
-};
-
-const CARREAUX_LABELS: Record<string, string> = {
-  'ind': 'Population totale',
-  'ind_18_24': 'Jeunes 18-24 ans',
-  'ind_25_39': 'Adultes 25-39 ans',
-  'ind_40_54': 'Adultes 40-54 ans',
-  'ind_inc': 'Population indéterminée',
-};
+// ─── Digital palettes (same IDs as IRIS for consistency) ──────────────────────
+export const DIGITAL_PALETTES = [
+  { id: 'bleu',    label: 'Bleu',    stops: ['#F7FBFF','#C6DBEF','#9ECAE1','#4292C6','#2171B5','#08306B'] },
+  { id: 'vert',    label: 'Vert',    stops: ['#F7FCF5','#C7E9C0','#74C476','#41AB5D','#238B45','#00441B'] },
+  { id: 'chaleur', label: 'Chaleur', stops: ['#FAEEDA','#FAC775','#EF9F27','#D85A30','#993C1D','#501313'] },
+  { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
+  { id: 'turbo',   label: 'Turbo',   stops: ['#30123b','#4675ed','#1bcfd4','#61fc6c','#f6a91b','#c42503'] },
+  { id: 'plasma',  label: 'Plasma',  stops: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921'] },
+  { id: 'teal',    label: 'Teal',    stops: ['#0a0a0a','#16537e','#1e8a7a','#4ecdc4','#7eddd5','#f7fff7'] },
+];
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -412,23 +365,18 @@ export interface FilterPanelProps {
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
 
-  // Geo-Equity
-  equityVisible?: boolean;
-  equityStats?: EquityAnalysisStats | null;
-  equityLoading?: boolean;
-  equityCampaignId?: string | null;
-  equityPopField?: string;
-  equitySource?: string;
-  equityFull?: boolean;
-  equityScale?: string;
-  onEquityAnalyse?: (campaignId: string, source: string, popField: string, full: boolean, scale: string) => void;
-  onEquityClear?: () => void;
-  // Campaign impressions
-  impressionsVisible?: boolean;
-  impressionsStats?: { total_impressions: number; zones_count: number; min: number; max: number; median: number; p75: number; p90: number; p95: number } | null;
-  impressionsLoading?: boolean;
-  onShowImpressions?: (campaignId: string, full: boolean, scale: string) => void;
-  onClearImpressions?: () => void;
+  // Digital (DSP impressions choropleth)
+  onDigitalShowImpressions?: (campaignId: string) => void;
+  onDigitalClear?: () => void;
+  digitalVisible?: boolean;
+  digitalLoading?: boolean;
+  digitalStats?: { total_impressions: number; zones_count: number; campaign_name: string } | null;
+  digitalPalette?: string;
+  onDigitalPaletteChange?: (paletteId: string) => void;
+  digitalInverted?: boolean;
+  onDigitalInvertChange?: (inverted: boolean) => void;
+  digitalScale?: string;
+  onDigitalScaleChange?: (scale: string) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -609,9 +557,9 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
-  equityVisible, equityStats, equityLoading, equityCampaignId, equityPopField, equitySource, equityFull, equityScale,
-  onEquityAnalyse, onEquityClear,
-  impressionsVisible, impressionsStats, impressionsLoading, onShowImpressions, onClearImpressions,
+  onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
+  digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
+  digitalScale, onDigitalScaleChange,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -756,41 +704,30 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false, equity: false,
+    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false, digital: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
-  // Geo-Equity state
-  const [equityCampaigns, setEquityCampaigns] = useState<CampaignListItem[]>([]);
-  const [equitySelectedCampaign, setEquitySelectedCampaign] = useState<string>('');
-  const [equitySelectedSource, setEquitySelectedSource] = useState<string>('iris');
-  const [equitySelectedPop, setEquitySelectedPop] = useState<string>('population');
-  const [equityFullMode, setEquityFullMode] = useState(false);
-  const [equitySelectedScale, setEquitySelectedScale] = useState<string>('iris');
-  const [equityIndicators, setEquityIndicators] = useState<{ iris: EquityIndicator[]; carreaux: EquityIndicator[] } | null>(null);
+  // Digital campaign state
+  const [digitalCampaigns, setDigitalCampaigns] = useState<CampaignListItem[]>([]);
+  const [digitalSelectedCampaign, setDigitalSelectedCampaign] = useState<string>('');
+  const [digitalMetricMode, setDigitalMetricMode] = useState<'brut' | 'pour_mille'>('brut');
 
-  // Fetch campaigns and indicators when accordion opens
   useEffect(() => {
-    if (!analyseOpen.equity) return;
-    if (equityCampaigns.length === 0) {
-      adminFetch('/api/admin/campaigns')
-        .then(r => r.ok ? r.json() : [])
-        .then((data: CampaignListItem[]) => setEquityCampaigns(data))
-        .catch(() => {});
-    }
-    if (!equityIndicators) {
-      fetch('/api/map/equity-indicators')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setEquityIndicators(data); })
-        .catch(() => {});
-    }
-  }, [analyseOpen.equity, equityCampaigns.length, equityIndicators]);
-
-  // Reset population field when source changes
-  useEffect(() => {
-    setEquitySelectedPop(equitySelectedSource === 'iris' ? 'population' : 'ind');
-  }, [equitySelectedSource]);
+    if (!analyseOpen.digital) return;
+    // Always refresh campaign list when accordion opens
+    fetch(`/api/digital/campaigns?_t=${Date.now()}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: CampaignListItem[]) => {
+        setDigitalCampaigns(data);
+        // Reset selection if current campaign no longer exists
+        if (digitalSelectedCampaign && !data.some(c => c.id === digitalSelectedCampaign)) {
+          setDigitalSelectedCampaign('');
+        }
+      })
+      .catch(() => {});
+  }, [analyseOpen.digital]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cluster overlay state
   const [clusterModels, setClusterModels] = useState<ClusterModelSummary[]>([]);
@@ -3165,9 +3102,9 @@ export function FilterPanel({
             </div>
             )}
 
-            {/* ── Accordéon : GEO-EQUITY BIDDING ────────────────────────── */}
+            {/* ── Accordéon : DIGITAL ───────────────────────────────── */}
             <button
-              onClick={() => toggleAnalyse('equity')}
+              onClick={() => toggleAnalyse('digital')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: '#111111',
@@ -3176,138 +3113,48 @@ export function FilterPanel({
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
               <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
-                Geo-Equity Bidding {equityVisible && <span style={{ color: C.green }}>●</span>}
+                Digital {digitalVisible && <span style={{ color: C.green }}>●</span>}
               </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.equity ? '▲' : '▼'}</span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.digital ? '▲' : '▼'}</span>
             </button>
-            {analyseOpen.equity && (
+            {analyseOpen.digital && (
             <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
               {/* Campaign selector */}
               <div>
                 <div style={labelStyle}>Campagne DSP</div>
                 <select
-                  value={equitySelectedCampaign}
-                  onChange={e => setEquitySelectedCampaign(e.target.value)}
+                  value={digitalSelectedCampaign}
+                  onChange={e => setDigitalSelectedCampaign(e.target.value)}
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
-                  <option value="">Sélectionner une campagne…</option>
-                  {equityCampaigns.map(c => (
+                  <option value="">Sélectionner une campagne</option>
+                  {digitalCampaigns.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.
-                      {c.date_start && c.date_end ? ` (${c.date_start.slice(0, 10)} → ${c.date_end.slice(0, 10)})` : ''}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              {/* Show impressions button */}
-              <button
-                onClick={() => onShowImpressions?.(equitySelectedCampaign, equityFullMode, equitySelectedScale)}
-                disabled={!equitySelectedCampaign || impressionsLoading}
-                style={{
-                  fontFamily: fInter, fontSize: 11, padding: '8px 12px', width: '100%',
-                  background: impressionsVisible ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${impressionsVisible ? '#4ecdc4' : C.border}`, borderRadius: 4,
-                  color: impressionsVisible ? '#4ecdc4' : C.textSec, cursor: !equitySelectedCampaign ? 'not-allowed' : 'pointer',
-                  opacity: !equitySelectedCampaign ? 0.5 : 1, transition: 'all 0.2s',
-                }}
-              >
-                {impressionsLoading ? 'Chargement…' : impressionsVisible ? '● Impressions affichées' : 'Afficher les impressions'}
-              </button>
-
-              {/* Impressions results */}
-              {impressionsVisible && impressionsStats && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
-                    <span style={{ color: C.textSec }}>Total impressions</span>
-                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{Number(impressionsStats.total_impressions).toLocaleString('fr-FR')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
-                    <span style={{ color: C.textSec }}>Zones IRIS</span>
-                    <span style={{ fontFamily: fMono, color: C.text }}>{Number(impressionsStats.zones_count).toLocaleString('fr-FR')}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, fontSize: 10, fontFamily: fMono }}>
-                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
-                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>Médiane</div>
-                      <div style={{ color: C.text }}>{Number(impressionsStats.median).toLocaleString('fr-FR')}</div>
-                    </div>
-                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
-                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>P95</div>
-                      <div style={{ color: C.text }}>{Number(impressionsStats.p95).toLocaleString('fr-FR')}</div>
-                    </div>
-                    <div style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 3, border: `0.5px solid ${C.border}` }}>
-                      <div style={{ color: C.textDim, fontFamily: fInter, fontSize: 9 }}>Max</div>
-                      <div style={{ color: C.text }}>{Number(impressionsStats.max).toLocaleString('fr-FR')}</div>
-                    </div>
-                  </div>
-                  {/* Dynamic legend */}
-                  <div>
-                    <div style={{
-                      height: 10, borderRadius: 3,
-                      background: 'linear-gradient(to right, #1a1a2e, #16537e, #1e8a7a, #4ecdc4, #7eddd5, #f7fff7)',
-                    }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>0</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{Number(impressionsStats.median).toLocaleString('fr-FR')}</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>{Number(impressionsStats.max).toLocaleString('fr-FR')}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onClearImpressions?.()}
-                    style={{ fontFamily: fInter, fontSize: 10, padding: '4px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
-                  >
-                    Masquer
-                  </button>
-                </div>
-              )}
-
-              <div style={{ height: 1, background: C.border }} />
-
-              {/* Source toggle */}
-              <div>
-                <div style={labelStyle}>Source de données</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[
-                    { id: 'iris', label: 'IRIS (49k zones)' },
-                    { id: 'carreaux', label: 'Carreaux 200m' },
-                  ].map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => setEquitySelectedSource(s.id)}
-                      style={{
-                        flex: 1, padding: '7px 10px', fontSize: 11, fontFamily: fInter,
-                        background: equitySelectedSource === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${equitySelectedSource === s.id ? '#4ecdc4' : C.border}`,
-                        borderRadius: 4, cursor: 'pointer',
-                        color: equitySelectedSource === s.id ? '#4ecdc4' : C.textSec,
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Scale selector */}
               <div>
-                <div style={labelStyle}>Échelle d&apos;analyse</div>
+                <div style={labelStyle}>Échelle</div>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  {[
-                    { id: 'iris', label: 'IRIS' },
-                    { id: 'commune', label: 'Commune' },
-                    { id: 'departement', label: 'Département' },
-                    { id: 'region', label: 'Région' },
-                  ].map(s => (
+                  {([
+                    { id: 'cp' as const, label: 'Code postal' },
+                    { id: 'departement' as const, label: 'Département' },
+                    { id: 'region' as const, label: 'Région' },
+                  ]).map(s => (
                     <button
                       key={s.id}
-                      onClick={() => setEquitySelectedScale(s.id)}
+                      onClick={() => onDigitalScaleChange?.(s.id)}
                       style={{
                         flex: 1, padding: '6px 4px', fontSize: 10, fontFamily: fInter,
-                        background: equitySelectedScale === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${equitySelectedScale === s.id ? '#4ecdc4' : C.border}`,
+                        background: digitalScale === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
+                        border: `0.5px solid ${digitalScale === s.id ? '#4ecdc4' : C.border}`,
                         borderRadius: 4, cursor: 'pointer',
-                        color: equitySelectedScale === s.id ? '#4ecdc4' : C.textSec,
+                        color: digitalScale === s.id ? '#4ecdc4' : C.textSec,
                         transition: 'all 0.2s',
                       }}
                     >
@@ -3317,124 +3164,85 @@ export function FilterPanel({
                 </div>
               </div>
 
-              {/* Population target selector (dynamic) */}
+              {/* Palette selector */}
               <div>
-                <div style={labelStyle}>Population cible</div>
-                <select
-                  value={equitySelectedPop}
-                  onChange={e => setEquitySelectedPop(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }}
-                >
-                  {(equitySelectedSource === 'iris'
-                    ? (equityIndicators?.iris || [])
-                    : (equityIndicators?.carreaux || [])
-                  ).map(ind => (
-                    <option key={ind.field} value={ind.field}>
-                      {(equitySelectedSource === 'iris' ? IRIS_LABELS : CARREAUX_LABELS)[ind.field] || ind.field}
-                    </option>
+                <div style={labelStyle}>Palette</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {DIGITAL_PALETTES.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => onDigitalPaletteChange?.(p.id)}
+                      title={p.label}
+                      style={{
+                        width: 28, height: 16, borderRadius: 3, cursor: 'pointer', padding: 0,
+                        background: `linear-gradient(to right, ${p.stops.join(', ')})`,
+                        border: `1.5px solid ${digitalPalette === p.id ? '#f0f0f0' : 'transparent'}`,
+                        transition: 'border 0.15s',
+                      }}
+                    />
                   ))}
-                </select>
+                </div>
               </div>
 
-              {/* France toggle — hidden for departement/region (always full) */}
-              {equitySelectedSource === 'iris' && equitySelectedScale !== 'departement' && equitySelectedScale !== 'region' && (
+              {/* Invert toggle */}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, fontFamily: fInter, color: C.textSec }}>
                 <input
                   type="checkbox"
-                  checked={equityFullMode || equitySelectedScale === 'departement' || equitySelectedScale === 'region'}
-                  onChange={e => setEquityFullMode(e.target.checked)}
+                  checked={digitalInverted ?? false}
+                  onChange={e => onDigitalInvertChange?.(e.target.checked)}
                   style={{ accentColor: '#4ecdc4' }}
                 />
-                Vue France entière (géom. simplifiées)
+                Inverser la palette
               </label>
-              )}
 
-              {/* Launch button */}
+              {/* Show impressions button */}
               <button
-                onClick={() => onEquityAnalyse?.(equitySelectedCampaign, equitySelectedSource, equitySelectedPop, equityFullMode && equitySelectedSource === 'iris', equitySelectedScale)}
-                disabled={!equitySelectedCampaign || equityLoading}
-                style={primaryBtn('#4ecdc4', !equitySelectedCampaign || equityLoading)}
+                onClick={() => onDigitalShowImpressions?.(digitalSelectedCampaign)}
+                disabled={!digitalSelectedCampaign || digitalLoading}
+                style={{
+                  fontFamily: fInter, fontSize: 12, padding: '10px 14px', width: '100%',
+                  background: digitalVisible ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.03)',
+                  border: `0.5px solid ${digitalVisible ? '#4ecdc4' : C.border}`, borderRadius: 6,
+                  color: digitalVisible ? '#4ecdc4' : C.text,
+                  cursor: !digitalSelectedCampaign ? 'not-allowed' : 'pointer',
+                  opacity: !digitalSelectedCampaign ? 0.5 : 1, transition: 'all 0.2s',
+                }}
               >
-                {equityLoading ? 'Analyse en cours…' : (equityFullMode && equitySelectedSource === 'iris') || equitySelectedScale === 'departement' || equitySelectedScale === 'region' ? 'Analyser toute la France' : 'Lancer l\'analyse'}
+                {digitalLoading ? 'Chargement...' : digitalVisible ? 'Impressions affichées' : 'Afficher les impressions'}
               </button>
 
-              {/* Clear button */}
-              {equityVisible && (
-                <button
-                  onClick={() => {
-                    onEquityClear?.();
-                    setEquitySelectedCampaign('');
-                  }}
-                  style={{
-                    fontFamily: fInter, fontSize: 11, padding: '6px 10px',
-                    background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
-                    color: C.textDim, cursor: 'pointer', transition: 'all 0.2s',
-                  }}
-                >
-                  Effacer l&apos;analyse
-                </button>
-              )}
-
-              {/* Stats results */}
-              {equityStats && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ height: 1, background: C.border }} />
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec }}>Résultats</div>
-
-                  {/* KPI row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                      <div style={{ fontFamily: fMono, fontSize: 13, color: C.text }}>{Number(equityStats.total_impressions).toLocaleString('fr-FR')}</div>
-                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Impressions</div>
-                    </div>
-                    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                      <div style={{ fontFamily: fMono, fontSize: 13, color: C.text }}>{Number(equityStats.total_population).toLocaleString('fr-FR')}</div>
-                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Pop. cible</div>
-                    </div>
+              {/* Stats + legend when visible */}
+              {digitalVisible && digitalStats && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
+                  {digitalStats.campaign_name && (
+                    <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec }}>{digitalStats.campaign_name}</div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
+                    <span style={{ color: C.textSec }}>Total impressions</span>
+                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{Number(digitalStats.total_impressions).toLocaleString('fr-FR')}</span>
                   </div>
-
-                  {/* Equity score */}
-                  <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}`, textAlign: 'center' }}>
-                    <div style={{ fontFamily: fMono, fontSize: 16, color: '#4ecdc4' }}>{equityStats.median_equity?.toLocaleString('fr-FR') ?? equityStats.avg_equity}</div>
-                    <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>Index médian (imp. / 1000 hab.)</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
+                    <span style={{ color: C.textSec }}>Codes postaux</span>
+                    <span style={{ fontFamily: fMono, color: C.text }}>{Number(digitalStats.zones_count).toLocaleString('fr-FR')}</span>
                   </div>
-
-                  {/* Zone breakdown (normalized thresholds) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef8a62', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Sous-servies (&lt; 0.7×)</span>
-                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sous_servies.toLocaleString('fr-FR')}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e0e0e0', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Équilibrées (0.7× – 1.3×)</span>
-                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_equilibrees.toLocaleString('fr-FR')}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: fInter }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#67a9cf', flexShrink: 0 }} />
-                      <span style={{ color: C.textSec }}>Sur-servies (&gt; 1.3×)</span>
-                      <span style={{ marginLeft: 'auto', fontFamily: fMono, color: C.text }}>{equityStats.zones_sur_servies.toLocaleString('fr-FR')}</span>
-                    </div>
-                  </div>
-
                   {/* Legend gradient */}
-                  <div style={{ marginTop: 4 }}>
-                    <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>Légende (normalisé / médiane)</div>
+                  <div>
                     <div style={{
-                      height: 12, borderRadius: 3,
-                      background: 'linear-gradient(to right, #b2182b, #ef8a62, #fddbc7, #f7f7f7, #d1e5f0, #67a9cf, #2166ac)',
+                      height: 10, borderRadius: 3,
+                      background: `linear-gradient(to right, ${(digitalInverted ? [...(DIGITAL_PALETTES.find(p => p.id === digitalPalette)?.stops ?? DIGITAL_PALETTES[0].stops)].reverse() : (DIGITAL_PALETTES.find(p => p.id === digitalPalette)?.stops ?? DIGITAL_PALETTES[0].stops)).join(', ')})`,
                     }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sous-servi (0×)</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Médiane (1×)</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>Sur-servi (2×)</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>0</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>médiane</span>
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>max</span>
                     </div>
                   </div>
-
-                  <div style={{ fontFamily: fInter, fontSize: 9, color: C.textDim, fontStyle: 'italic' }}>
-                    {equityStats.total_zones.toLocaleString('fr-FR')} zones IRIS analysées
-                  </div>
+                  <button
+                    onClick={() => onDigitalClear?.()}
+                    style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
+                  >
+                    Masquer
+                  </button>
                 </div>
               )}
             </div>

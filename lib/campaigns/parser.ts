@@ -7,7 +7,7 @@
 
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { getMappingForSource, parseDate } from './column-mappings';
+import { getMappingForSource, autoDetectMapping, parseDate } from './column-mappings';
 
 export interface ParsedCampaignRow {
   campaign_name: string;
@@ -18,6 +18,7 @@ export interface ParsedCampaignRow {
   region: string | null;
   dma_region: string | null;
   tracked_ads: number;
+  media: string | null;
 }
 
 export interface CampaignParseResult {
@@ -28,6 +29,7 @@ export interface CampaignParseResult {
   date_end: string | null;
   total_tracked_ads: number;
   errors: string[];
+  detected_columns: string[];
 }
 
 /**
@@ -36,12 +38,20 @@ export interface CampaignParseResult {
 export function parseCampaignFile(
   buffer: Buffer,
   fileName: string,
-  dspSource: string
+  dspSource: string,
+  customMapping?: Record<string, string> | null
 ): CampaignParseResult {
   const isXlsx = /\.xlsx?$/i.test(fileName);
   const rawRows = isXlsx ? parseXlsx(buffer) : parseCsv(buffer);
 
-  const mapping = getMappingForSource(dspSource);
+  // Use custom mapping if provided, else auto-detect, else DSP source fallback
+  const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+  const mapping = (customMapping && Object.keys(customMapping).length > 0)
+    ? customMapping
+    : (autoDetectMapping(headers) ?? getMappingForSource(dspSource));
+  const mappedTargets = new Set(Object.values(mapping));
+  const hasDateCol = mappedTargets.has('date');
+  const hasMediaCol = mappedTargets.has('media');
   const errors: string[] = [];
   const rows: ParsedCampaignRow[] = [];
 
@@ -65,8 +75,8 @@ export function parseCampaignFile(
       continue;
     }
 
-    // Use '1970-01-01' sentinel when no date column exists in the file
-    const date = parseDate(mapped.date_raw ?? '', dspSource) ?? '1970-01-01';
+    // null when no date column in file, otherwise parse or null
+    const date = hasDateCol ? (parseDate(mapped.date_raw ?? '') ?? null) : null;
     const trackedAds = parseInt(String(mapped.tracked_ads_raw ?? '0').replace(/[^0-9-]/g, ''), 10) || 0;
 
     const row: ParsedCampaignRow = {
@@ -78,6 +88,7 @@ export function parseCampaignFile(
       region: mapped.region?.trim() || null,
       dma_region: mapped.dma_region?.trim() || null,
       tracked_ads: trackedAds,
+      media: hasMediaCol ? (mapped.media?.trim() || null) : null,
     };
 
     rows.push(row);
@@ -96,6 +107,7 @@ export function parseCampaignFile(
     date_end: dates[dates.length - 1] ?? null,
     total_tracked_ads: totalTrackedAds,
     errors,
+    detected_columns: Array.from(mappedTargets),
   };
 }
 
@@ -134,6 +146,7 @@ interface MappedFields {
   region?: string;
   dma_region?: string;
   tracked_ads_raw?: string;
+  media?: string;
 }
 
 function applyMapping(
