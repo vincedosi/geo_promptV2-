@@ -67,6 +67,7 @@ const navItems: NavSection[] = [
     section: 'Systeme',
     items: [
       { href: '/admin/sources', label: 'Sources', icon: Database },
+      { href: '/admin/users', label: 'Users', icon: Users },
       { href: '/admin/organizations', label: 'Organisations', icon: Users },
       { href: '/login', label: 'Connexion', icon: Lock },
       { href: '/admin/imports', label: 'Imports', icon: Upload },
