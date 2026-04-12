@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
 import { DigitalToolbar } from './_components/DigitalToolbar';
+import { RailroadPipeline } from './_components/RailroadPipeline';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
 import { AnalysisPanel } from './_components/AnalysisPanel';
@@ -19,6 +20,8 @@ const POP_LABELS: Record<string, string> = {
   nb_csp_employe: 'employes', nb_csp_ouvrier: 'ouvriers', nb_diplome_sup: 'diplome sup.',
   rev_median: 'revenu median', taux_chomage: '% chomage', taux_pauvrete: '% pauvrete',
 };
+
+const POP_FIELDS = Object.entries(POP_LABELS).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }));
 
 type LayoutMode = 'equal' | 'focus-imp' | 'focus-pop' | 'focus-ratio';
 
@@ -240,15 +243,14 @@ export default function DigitalTripleMapPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#050505' }}>
-      {/* Top bar */}
-      <DigitalToolbar
-        campaigns={campaigns} selectedCampaign={campaignId} onCampaignChange={handleCampaignChange}
-        scale={scale} onScaleChange={handleScaleChange}
-        palette={impPalette} onPaletteChange={setImpPalette} inverted={impInverted} onInvertedChange={setImpInverted}
-        popField={popField} onPopFieldChange={handlePopFieldChange}
-        mediaList={mediaList} selectedMedia={selectedMedia} onMediaChange={handleMediaChange}
-        loading={geojsonLoading} zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp}
-        filtersDisabled={!hasCampaign}
+      {/* Railroad Pipeline */}
+      <RailroadPipeline
+        campaigns={campaigns} popFields={POP_FIELDS} mediaList={mediaList}
+        selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
+        selectedMedia={selectedMedia} selectedLayout={layout}
+        onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
+        onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
+        zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} loading={geojsonLoading}
       />
 
       {/* Context bar — only when campaign selected */}
@@ -262,18 +264,6 @@ export default function DigitalTripleMapPage() {
         />
       )}
 
-      {/* Layout selector — only when campaign selected */}
-      {hasCampaign && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 16px', background: '#0a0a0a', borderBottom: '0.5px solid #1a1a1a', flexShrink: 0 }}>
-          <LayoutButtons layout={layout} onChange={setLayout} />
-          <button onClick={() => setAnalysisOpen(v => !v)} style={{
-            padding: '4px 10px', fontSize: 10, fontFamily: fInter, cursor: 'pointer', marginLeft: 'auto',
-            background: analysisOpen ? 'rgba(78,205,196,0.12)' : 'transparent',
-            border: `0.5px solid ${analysisOpen ? '#4ecdc4' : '#1a1a1a'}`,
-            borderRadius: 3, color: analysisOpen ? '#4ecdc4' : '#8a8a8a',
-          }}>{analysisOpen ? 'Fermer analyse' : 'Ouvrir analyse'}</button>
-        </div>
-      )}
 
       {/* Content area */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
