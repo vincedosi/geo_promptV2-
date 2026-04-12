@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   const dspSource = (formData.get('dsp_source') as string) || 'adform';
   const campaignNameOverride = formData.get('campaign_name') as string | null;
   const customMappingRaw = formData.get('column_mapping') as string | null;
+  const organizationId = (formData.get('organization_id') as string) || profile.organization_id || '00000000-0000-0000-0000-000000000001';
 
   if (!file) {
     return new Response(JSON.stringify({ error: 'Fichier manquant' }), {
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
             total_tracked_ads: parsed.total_tracked_ads,
             countries: parsed.countries,
             created_by: profile.id,
+            organization_id: organizationId,
           })
           .select('id')
           .single();
