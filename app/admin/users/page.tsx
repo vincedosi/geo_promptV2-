@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { useToast } from '@/components/ui/geo-toast';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -16,23 +17,72 @@ interface User {
   id: string; email: string; full_name: string | null; role: string;
   organization_id: string | null; organization_name: string | null; created_at: string;
 }
+interface Org { id: string; name: string; }
+interface Role { value: string; label: string; level: number; }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [formEmail, setFormEmail] = useState('');
+  const [formName, setFormName] = useState('');
+  const [formRole, setFormRole] = useState('client');
+  const [formOrg, setFormOrg] = useState('');
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const fetchUsers = useCallback(() => {
+    setLoading(true);
+    adminFetch('/api/admin/users').then(r => r.ok ? r.json() : []).then(setUsers).finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    adminFetch('/api/admin/users')
-      .then(r => r.ok ? r.json() : [])
-      .then(setUsers)
-      .finally(() => setLoading(false));
-  }, []);
+    fetchUsers();
+    adminFetch('/api/admin/organizations').then(r => r.ok ? r.json() : []).then((d: Org[]) => setOrgs(Array.isArray(d) ? d : []));
+    adminFetch('/api/admin/roles').then(r => r.ok ? r.json() : []).then((d: Role[]) => setRoles(Array.isArray(d) ? d : []));
+  }, [fetchUsers]);
+
+  const openInvite = () => { setEditUser(null); setFormEmail(''); setFormName(''); setFormRole('client'); setFormOrg(''); setShowInvite(true); };
+  const openEdit = (u: User) => { setEditUser(u); setFormEmail(u.email); setFormName(u.full_name || ''); setFormRole(u.role); setFormOrg(u.organization_id || ''); setShowInvite(true); };
+  const closeModal = () => { setShowInvite(false); setEditUser(null); };
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      if (editUser) {
+        const res = await adminFetch(`/api/admin/users/${editUser.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full_name: formName, role: formRole, organization_id: formOrg || null }),
+        });
+        if (!res.ok) { const e = await res.json(); toast.error('Erreur', e.error); return; }
+        toast.success('User mis a jour');
+      } else {
+        const res = await adminFetch('/api/admin/users', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formEmail, full_name: formName, role: formRole, organization_id: formOrg || null }),
+        });
+        if (!res.ok) { const e = await res.json(); toast.error('Erreur', e.error); return; }
+        toast.success('Invitation envoyee');
+      }
+      closeModal();
+      fetchUsers();
+    } catch { toast.error('Erreur', 'Erreur reseau'); }
+    finally { setSaving(false); }
+  };
+
+  const inputStyle = { width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: '#f0f0f0', outline: 'none' };
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1200 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 600, color: '#f0f0f0', margin: 0 }}>Users</h1>
-        <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>{users.length} users</span>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>{users.length} users</span>
+          <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: '#f0f0f0', color: '#050505', border: 'none', borderRadius: 6 }}>+ Invite user</button>
+        </div>
       </div>
 
       {loading ? (
@@ -41,7 +91,7 @@ export default function AdminUsersPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Nom', 'Email', 'Organisation', 'Role', 'Cree le'].map(h => (
+              {['Nom', 'Email', 'Organisation', 'Role', 'Cree le', ''].map(h => (
                 <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#4ecdc4', borderBottom: '0.5px solid #1a1a1a', position: 'sticky', top: 0, background: '#050505' }}>{h}</th>
               ))}
             </tr>
@@ -60,11 +110,56 @@ export default function AdminUsersPage() {
                     <span style={{ fontFamily: fInter, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: rc.bg, color: rc.text }}>{u.role}</span>
                   </td>
                   <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 11, color: '#8a8a8a' }}>{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <button onClick={() => openEdit(u)} style={{ background: 'none', border: '0.5px solid #1a1a1a', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>Editer</button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      )}
+
+      {/* Invite / Edit modal */}
+      {showInvite && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }}>
+            <h2 style={{ fontFamily: fInter, fontSize: 16, fontWeight: 600, color: '#f0f0f0', margin: '0 0 16px' }}>{editUser ? 'Editer user' : 'Inviter un user'}</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {!editUser && (
+                <div>
+                  <label style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', display: 'block', marginBottom: 4 }}>Email</label>
+                  <input value={formEmail} onChange={e => setFormEmail(e.target.value)} style={inputStyle} placeholder="email@example.com" />
+                </div>
+              )}
+              <div>
+                <label style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', display: 'block', marginBottom: 4 }}>Nom complet</label>
+                <input value={formName} onChange={e => setFormName(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', display: 'block', marginBottom: 4 }}>Organisation</label>
+                <select value={formOrg} onChange={e => setFormOrg(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Aucune</option>
+                  {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', display: 'block', marginBottom: 4 }}>Role</label>
+                <select value={formRole} onChange={e => setFormRole(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button onClick={closeModal} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, cursor: 'pointer', background: 'transparent', border: '0.5px solid #1a1a1a', borderRadius: 6, color: '#8a8a8a' }}>Annuler</button>
+              <button onClick={handleSubmit} disabled={saving || (!editUser && !formEmail)} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, fontWeight: 500, cursor: saving ? 'wait' : 'pointer', background: '#f0f0f0', color: '#050505', border: 'none', borderRadius: 6, opacity: saving ? 0.5 : 1 }}>
+                {saving ? 'Envoi...' : editUser ? 'Sauvegarder' : 'Inviter'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
