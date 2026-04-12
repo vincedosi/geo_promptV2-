@@ -31,6 +31,7 @@ interface DigitalToolbarProps {
   loading: boolean;
   zonesCount: number;
   totalImpressions: number;
+  filtersDisabled?: boolean;
 }
 
 const POP_FIELDS = [
@@ -153,8 +154,9 @@ export function DigitalToolbar({
   palette, onPaletteChange, inverted, onInvertedChange,
   popField, onPopFieldChange,
   mediaList, selectedMedia, onMediaChange,
-  loading, zonesCount, totalImpressions,
+  loading, zonesCount, totalImpressions, filtersDisabled,
 }: DigitalToolbarProps) {
+  const disabledStyle = filtersDisabled ? { opacity: 0.3, pointerEvents: 'none' as const } : {};
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 16, padding: '8px 16px',
@@ -179,7 +181,7 @@ export function DigitalToolbar({
         </select>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, ...disabledStyle }}>
         <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decoupage</span>
         <div style={{ display: 'flex', gap: 2 }}>
           {[
@@ -198,7 +200,7 @@ export function DigitalToolbar({
       </div>
 
       {/* Population field */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, ...disabledStyle }}>
         <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cible</span>
         <select
           value={popField}
@@ -217,7 +219,7 @@ export function DigitalToolbar({
 
       {/* Media filter — multi-select dropdown */}
       {mediaList.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, ...disabledStyle }}>
           <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Regies</span>
           <MediaMultiSelect mediaList={mediaList} selectedMedia={selectedMedia} onMediaChange={onMediaChange} />
         </div>

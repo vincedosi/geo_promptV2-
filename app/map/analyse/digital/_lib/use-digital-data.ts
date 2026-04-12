@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-interface Campaign { id: string; name: string; total_tracked_ads: number; }
+interface Campaign {
+  id: string; name: string; total_tracked_ads: number;
+  dsp_source: string; date_start: string | null; date_end: string | null;
+  nb_medias: number; nb_postal_codes: number;
+}
 
 interface DigitalData {
   campaigns: Campaign[];

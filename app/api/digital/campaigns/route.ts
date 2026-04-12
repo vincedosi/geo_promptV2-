@@ -1,7 +1,6 @@
 /**
  * GET /api/digital/campaigns
- * List DSP campaigns with basic stats.
- * Auth: getSession() (JWT local, no network call)
+ * List DSP campaigns with enriched metadata (nb_medias, nb_postal_codes).
  */
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -23,16 +22,12 @@ function createNoCacheClient() {
 export async function GET() {
   const supabase = createNoCacheClient();
 
-  const { data, error } = await supabase
-    .from('dsp_campaigns')
-    .select('id, name, dsp_source, advertiser, date_start, date_end, countries, total_tracked_ads, created_at')
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase.rpc('get_digital_campaigns_list');
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data ?? [], {
-    headers: { 'Cache-Control': 'no-store' },
-  });
+  const rows = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
+  return NextResponse.json(rows, { headers: { 'Cache-Control': 'no-store' } });
 }

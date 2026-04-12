@@ -7,6 +7,8 @@ import { DigitalToolbar } from './_components/DigitalToolbar';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
 import { AnalysisPanel } from './_components/AnalysisPanel';
+import { WelcomeState } from './_components/WelcomeState';
+import { CampaignContextBar } from './_components/CampaignContextBar';
 
 const fInter = "'Inter', sans-serif";
 
@@ -221,8 +223,24 @@ export default function DigitalTripleMapPage() {
 
   const allKeys = ['imp', 'pop', 'ratio'];
 
+  // Concentration for health badge
+  const concentrationTop10 = useMemo(() => {
+    if (!geojson) return 0;
+    const values = geojson.features.map(f => Number(f.properties?.impressions) || 0).sort((a, b) => b - a);
+    const total = values.reduce((s, v) => s + v, 0);
+    if (total === 0) return 0;
+    const top10 = values.slice(0, Math.max(1, Math.ceil(values.length * 0.1))).reduce((s, v) => s + v, 0);
+    return top10 / total * 100;
+  }, [geojson]);
+
+  // Campaign name from list
+  const campaignName = campaigns.find(c => c.id === campaignId)?.name ?? '';
+
+  const hasCampaign = !!campaignId;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#050505' }}>
+      {/* Top bar */}
       <DigitalToolbar
         campaigns={campaigns} selectedCampaign={campaignId} onCampaignChange={handleCampaignChange}
         scale={scale} onScaleChange={handleScaleChange}
@@ -230,60 +248,83 @@ export default function DigitalTripleMapPage() {
         popField={popField} onPopFieldChange={handlePopFieldChange}
         mediaList={mediaList} selectedMedia={selectedMedia} onMediaChange={handleMediaChange}
         loading={geojsonLoading} zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp}
+        filtersDisabled={!hasCampaign}
       />
 
-      {/* Layout selector + analysis toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 16px', background: '#0a0a0a', borderBottom: '0.5px solid #1a1a1a', flexShrink: 0 }}>
-        <LayoutButtons layout={layout} onChange={setLayout} />
-        <button onClick={() => setAnalysisOpen(v => !v)} style={{
-          padding: '4px 10px', fontSize: 10, fontFamily: fInter, cursor: 'pointer', marginLeft: 'auto',
-          background: analysisOpen ? 'rgba(78,205,196,0.12)' : 'transparent',
-          border: `0.5px solid ${analysisOpen ? '#4ecdc4' : '#1a1a1a'}`,
-          borderRadius: 3, color: analysisOpen ? '#4ecdc4' : '#666666',
-        }}>{analysisOpen ? 'Fermer analyse' : 'Ouvrir analyse'}</button>
-      </div>
+      {/* Context bar — only when campaign selected */}
+      {hasCampaign && (
+        <CampaignContextBar
+          campaignName={campaignName}
+          totalImpressions={stats.totalImp}
+          zonesCount={geojson?.features.length ?? 0}
+          concentrationTop10={concentrationTop10}
+          onOpenAnalysis={() => setAnalysisOpen(true)}
+        />
+      )}
 
-      {/* Maps area + Analysis overlay */}
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        {/* Maps — always rendered but hidden when analysis is open */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', opacity: analysisOpen ? 0 : 1, pointerEvents: analysisOpen ? 'none' : 'auto', transition: 'opacity 0.3s ease' }}>
-          {layout === 'equal' ? (
-            <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
-              {allKeys.map(k => <div key={k} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>{makePanel(k, false)}</div>)}
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                {makePanel(focusMap!, false)}
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minHeight: 0 }}>
-                {allKeys.filter(k => k !== focusMap).map(k => (
-                  <div key={k} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                    {makePanel(k, true)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Layout selector — only when campaign selected */}
+      {hasCampaign && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 16px', background: '#0a0a0a', borderBottom: '0.5px solid #1a1a1a', flexShrink: 0 }}>
+          <LayoutButtons layout={layout} onChange={setLayout} />
+          <button onClick={() => setAnalysisOpen(v => !v)} style={{
+            padding: '4px 10px', fontSize: 10, fontFamily: fInter, cursor: 'pointer', marginLeft: 'auto',
+            background: analysisOpen ? 'rgba(78,205,196,0.12)' : 'transparent',
+            border: `0.5px solid ${analysisOpen ? '#4ecdc4' : '#1a1a1a'}`,
+            borderRadius: 3, color: analysisOpen ? '#4ecdc4' : '#8a8a8a',
+          }}>{analysisOpen ? 'Fermer analyse' : 'Ouvrir analyse'}</button>
         </div>
+      )}
 
-        {/* Analysis overlay — fullscreen over the maps */}
-        {campaignId && (
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 40, background: '#0a0a0f',
-            opacity: analysisOpen ? 1 : 0, pointerEvents: analysisOpen ? 'auto' : 'none',
-            transition: 'opacity 0.3s ease',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <AnalysisPanel
-              campaignId={campaignId}
-              scale={scale}
-              popField={popField}
-              selectedMedia={selectedMedia}
-              open={analysisOpen}
-              onToggle={() => setAnalysisOpen(false)}
-            />
-          </div>
+      {/* Content area */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+        {!hasCampaign ? (
+          /* Welcome state — no campaign selected */
+          <WelcomeState
+            campaigns={campaigns}
+            loading={!campaigns.length && geojsonLoading}
+            onSelect={handleCampaignChange}
+          />
+        ) : (
+          <>
+            {/* Maps — hidden when analysis overlay is open */}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', opacity: analysisOpen ? 0 : 1, pointerEvents: analysisOpen ? 'none' : 'auto', transition: 'opacity 0.3s ease' }}>
+              {layout === 'equal' ? (
+                <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
+                  {allKeys.map(k => <div key={k} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>{makePanel(k, false)}</div>)}
+                </div>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    {makePanel(focusMap!, false)}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minHeight: 0 }}>
+                    {allKeys.filter(k => k !== focusMap).map(k => (
+                      <div key={k} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        {makePanel(k, true)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Analysis overlay */}
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 40, background: '#0a0a0f',
+              opacity: analysisOpen ? 1 : 0, pointerEvents: analysisOpen ? 'auto' : 'none',
+              transition: 'opacity 0.3s ease',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <AnalysisPanel
+                campaignId={campaignId}
+                scale={scale}
+                popField={popField}
+                selectedMedia={selectedMedia}
+                open={analysisOpen}
+                onToggle={() => setAnalysisOpen(false)}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>
