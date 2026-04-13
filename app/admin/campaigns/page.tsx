@@ -67,6 +67,7 @@ const DB_FIELDS = [
   { value: 'region', label: 'Région' },
   { value: 'dma_region', label: 'DMA région' },
   { value: 'tracked_ads', label: 'Impressions' },
+  { value: 'unique_impressions', label: 'Impressions uniques' },
   { value: 'media', label: 'Régie / Media' },
 ] as const;
 
@@ -639,7 +640,8 @@ export default function CampaignsPage() {
                   </div>
                   <div style={{ overflowX: 'auto', maxHeight: 280 }}>
                     {(() => {
-                      const allCols = ['date', 'city', 'country', 'postal_code', 'region', 'dma_region', 'tracked_ads', 'media'] as const;
+                      const allCols = ['date', 'city', 'country', 'postal_code', 'region', 'dma_region', 'tracked_ads', 'unique_impressions', 'media'] as const;
+                      const numericCols = new Set(['tracked_ads', 'unique_impressions']);
                       const detected = previewData.detected_columns ?? allCols as unknown as string[];
                       // Map target names to display — show only detected columns + always show tracked_ads
                       const visibleCols = allCols.filter(c => c === 'tracked_ads' || detected.includes(c));
@@ -658,8 +660,8 @@ export default function CampaignsPage() {
                             {previewData.sample_rows.map((row, i) => (
                               <tr key={i} style={{ borderBottom: `0.5px solid ${C.border}` }}>
                                 {visibleCols.map((col) => (
-                                  <td key={col} style={{ padding: '3px 8px', whiteSpace: 'nowrap', color: col === 'tracked_ads' ? C.text : C.textSec, fontWeight: col === 'tracked_ads' ? 500 : 400 }}>
-                                    {col === 'tracked_ads' ? fmtNum(row[col]) : (row[col as keyof typeof row] as string) ?? '—'}
+                                  <td key={col} style={{ padding: '3px 8px', whiteSpace: 'nowrap', color: numericCols.has(col) ? C.text : C.textSec, fontWeight: numericCols.has(col) ? 500 : 400 }}>
+                                    {numericCols.has(col) ? fmtNum(Number(row[col as keyof typeof row] ?? 0)) : (row[col as keyof typeof row] as string) ?? '—'}
                                   </td>
                                 ))}
                               </tr>
