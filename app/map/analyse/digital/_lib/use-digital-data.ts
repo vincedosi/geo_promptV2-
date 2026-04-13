@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { MeteoParams, MeteoMeta } from '@/lib/meteo/types';
 
-export const METEO_SENTINEL = 'meteo' as const;
-
 interface Campaign {
   id: string; name: string; total_tracked_ads: number;
   total_unique_impressions: number;
@@ -26,7 +24,10 @@ interface DigitalData {
   geojson: GeoJSON.FeatureCollection | null;
   geojsonLoading: boolean;
   geographySummary: GeographySummary | null;
+  // Meteo state — independant de geojson, alimente uniquement la 3eme carte
+  meteoGeojson: GeoJSON.FeatureCollection | null;
   meteoMeta: MeteoMeta | null;
+  meteoLoading: boolean;
   fetchMap: (
     campaignId: string,
     scale: string,
@@ -34,8 +35,9 @@ interface DigitalData {
     media?: string[],
     metric?: 'impressions' | 'unique',
     geographySetId?: string | null,
-    meteoParams?: MeteoParams | null,
   ) => Promise<void>;
+  fetchMeteo: (campaignId: string, params: MeteoParams) => Promise<void>;
+  clearMeteo: () => void;
 }
 
 export function useDigitalData(): DigitalData {
@@ -44,8 +46,11 @@ export function useDigitalData(): DigitalData {
   const [geojson, setGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [geojsonLoading, setGeojsonLoading] = useState(false);
   const [geographySummary, setGeographySummary] = useState<GeographySummary | null>(null);
+  const [meteoGeojson, setMeteoGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [meteoMeta, setMeteoMeta] = useState<MeteoMeta | null>(null);
+  const [meteoLoading, setMeteoLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const meteoAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetch(`/api/digital/campaigns?_t=${Date.now()}`)
@@ -62,7 +67,6 @@ export function useDigitalData(): DigitalData {
     media?: string[],
     metric?: 'impressions' | 'unique',
     geographySetId?: string | null,
-    meteoParams?: MeteoParams | null,
   ) => {
     if (!campaignId) return;
     abortRef.current?.abort();
@@ -73,47 +77,9 @@ export function useDigitalData(): DigitalData {
       const pf = popField || 'population';
       const m = metric === 'unique' ? 'unique' : 'impressions';
 
-      // Mode "Zones Meteo" : sentinel virtuel, endpoint dedie
-      if (scale === 'zones' && geographySetId === METEO_SENTINEL) {
-        console.log('[digital-data] fetchMap scale=zones sentinel=meteo params=', meteoParams);
-        if (!meteoParams) {
-          setGeojson({ type: 'FeatureCollection', features: [] });
-          setGeographySummary(null);
-          setMeteoMeta(null);
-          return;
-        }
-        const p = new URLSearchParams({
-          variable: meteoParams.variable,
-          startDate: meteoParams.startDate,
-          endDate: meteoParams.endDate,
-          popField: pf,
-          metric: m,
-        });
-        if (meteoParams.resolution !== undefined) {
-          p.set('resolution', String(meteoParams.resolution));
-        }
-        const url = `/api/digital/${campaignId}/meteo?${p.toString()}`;
-        const res = await fetch(url, { signal: ctrl.signal });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => '');
-          throw new Error(`HTTP ${res.status} ${txt}`);
-        }
-        const data = await res.json() as {
-          geojson: GeoJSON.FeatureCollection;
-          summary: GeographySummary | null;
-          meta: MeteoMeta | null;
-        };
-        console.log('[digital-data] meteo features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
-        setGeojson(data.geojson);
-        setGeographySummary(data.summary);
-        setMeteoMeta(data.meta);
-        return;
-      }
-
-      // Mode "Zones" classique : appel de l'endpoint dedie geography
+      // Mode "Zones" : appel de l'endpoint dedie geography
       if (scale === 'zones') {
         console.log('[digital-data] fetchMap scale=zones setId=', geographySetId);
-        setMeteoMeta(null);
         if (!geographySetId) {
           setGeojson({ type: 'FeatureCollection', features: [] });
           setGeographySummary(null);
@@ -133,7 +99,6 @@ export function useDigitalData(): DigitalData {
       }
 
       setGeographySummary(null);
-      setMeteoMeta(null);
       let url = `/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${scale}&pop_field=${pf}&metric=${m}`;
       if (media && media.length > 0) url += `&media=${media.join(',')}`;
       const res = await fetch(url, { signal: ctrl.signal });
@@ -151,5 +116,56 @@ export function useDigitalData(): DigitalData {
     }
   }, []);
 
-  return { campaigns, campaignsLoading, geojson, geojsonLoading, geographySummary, meteoMeta, fetchMap };
+  // Fetch meteo grid — independant de fetchMap, alimente meteoGeojson
+  // uniquement (la 3eme carte s'en sert quand meteoActive)
+  const fetchMeteo = useCallback(async (campaignId: string, params: MeteoParams) => {
+    if (!campaignId) return;
+    meteoAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    meteoAbortRef.current = ctrl;
+    setMeteoLoading(true);
+    try {
+      const p = new URLSearchParams({
+        variable: params.variable,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
+      if (params.resolution !== undefined) p.set('resolution', String(params.resolution));
+      const url = `/api/digital/${campaignId}/meteo?${p.toString()}`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} ${txt}`);
+      }
+      const data = await res.json() as {
+        geojson: GeoJSON.FeatureCollection;
+        meta: MeteoMeta | null;
+      };
+      console.log('[digital-data] meteo features=', data.geojson?.features?.length, 'variable=', data.meta?.variable);
+      setMeteoGeojson(data.geojson);
+      setMeteoMeta(data.meta);
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('[digital-data] meteo', err);
+        setMeteoGeojson({ type: 'FeatureCollection', features: [] });
+        setMeteoMeta(null);
+      }
+    } finally {
+      setMeteoLoading(false);
+    }
+  }, []);
+
+  const clearMeteo = useCallback(() => {
+    meteoAbortRef.current?.abort();
+    setMeteoGeojson(null);
+    setMeteoMeta(null);
+    setMeteoLoading(false);
+  }, []);
+
+  return {
+    campaigns, campaignsLoading,
+    geojson, geojsonLoading, geographySummary,
+    meteoGeojson, meteoMeta, meteoLoading,
+    fetchMap, fetchMeteo, clearMeteo,
+  };
 }

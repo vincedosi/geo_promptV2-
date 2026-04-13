@@ -222,25 +222,37 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       const nom = String(p.nom ?? p.code ?? '—');
       const label = p.label && String(p.label) !== nom ? ` <span style="color:#666">· ${String(p.label)}</span>` : '';
 
-      // Bloc meteo conditionnel : affiche valeur + label qualitatif si presents
-      let weatherBlock = '';
-      if (p.weather_value !== undefined && p.weather_value !== null) {
+      // Construction conditionnelle des lignes du popup. La 3eme carte en mode
+      // meteo n'a pas impressions/pop/ratio — uniquement weather_value.
+      const lines: string[] = [];
+      const hasImpressions = p.impressions !== undefined && p.impressions !== null;
+      const hasPop = p.pop_value !== undefined && p.pop_value !== null;
+      const hasRatio = p.ratio !== undefined && p.ratio !== null;
+      const hasWeather = p.weather_value !== undefined && p.weather_value !== null;
+
+      if (hasImpressions) {
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${fmtNum(p.impressions)}</span></div>`);
+      }
+      if (hasPop) {
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>`);
+      }
+      if (hasRatio) {
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${Number(p.ratio).toFixed(1)}</span></div>`);
+      }
+      if (hasWeather) {
         const wv = Number(p.weather_value);
         const wu = p.weather_unit ? String(p.weather_unit) : '';
         const wl = p.weather_label ? ` <span style="color:#666">(${String(p.weather_label)})</span>` : '';
-        weatherBlock = `
-          <div style="margin-top:6px;padding-top:6px;border-top:0.5px solid #1a1a1a">
-            <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Meteo</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${wv.toFixed(1)} ${wu}${wl}</span></div>
-          </div>`;
+        const sep = lines.length > 0
+          ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid #1a1a1a"></div>'
+          : '';
+        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${wv.toFixed(1)} ${wu}${wl}</span></div>`);
       }
 
       const html = `
         <div style="font-family:'Inter',sans-serif;color:#f0f0f0;font-size:11px;line-height:1.5;min-width:160px">
           <div style="font-weight:500;font-size:12px;margin-bottom:4px">${nom}${label}</div>
-          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${fmtNum(p.impressions)}</span></div>
-          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>
-          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${p.ratio !== null && p.ratio !== undefined ? Number(p.ratio).toFixed(1) : '—'}</span></div>
-          ${weatherBlock}
+          ${lines.join('')}
         </div>`;
       if (!popupRef.current) {
         popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8, className: 'digital-hover-popup' });

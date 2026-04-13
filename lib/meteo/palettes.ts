@@ -13,6 +13,7 @@ export const METEO_PALETTES: Record<
 export function buildColorExpression(
   variable: MeteoVariable,
   stats: MeteoStats,
+  property: string = 'weather_value',
 ): unknown[] {
   const palette = METEO_PALETTES[variable];
   const { min, max } = stats;
@@ -22,5 +23,9 @@ export function buildColorExpression(
   for (let i = 0; i < palette.length; i++) {
     stops.push(min + step * i, palette[i]);
   }
-  return ['interpolate', ['linear'], ['get', 'value'], ...stops];
+  // Garantir des stops strictement croissants si range = 0 (éviter MapLibre error)
+  if (range === 0) {
+    return ['literal', palette[Math.floor(palette.length / 2)]];
+  }
+  return ['interpolate', ['linear'], ['get', property], ...stops];
 }

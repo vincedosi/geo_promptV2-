@@ -5,10 +5,6 @@ import { useState, useRef, useEffect } from 'react';
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-// Sentinel non-UUID utilise pour la geographie virtuelle "Zones Meteo"
-// Detecte par use-digital-data hook pour router vers /api/digital/[id]/meteo
-export const METEO_SENTINEL = 'meteo' as const;
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
@@ -28,6 +24,8 @@ interface RailroadPipelineProps {
   selectedMedia: string[];
   selectedLayout: string;
   selectedGeographySetId?: string | null;
+  // Meteo overlay (independant du scale)
+  isMeteoActive?: boolean;
   // Callbacks
   onCampaignChange: (id: string) => void;
   onPopFieldChange: (field: string) => void;
@@ -35,6 +33,7 @@ interface RailroadPipelineProps {
   onMediaChange: (media: string[]) => void;
   onLayoutChange: (layout: string) => void;
   onGeographySetChange?: (setId: string | null) => void;
+  onMeteoClick?: () => void;
   // Stats
   zonesCount: number;
   totalImpressions: number;
@@ -170,7 +169,9 @@ const IconFocus = ({ color }: { color: string }) => <svg width="18" height="18" 
 export function RailroadPipeline({
   campaigns, popFields, mediaList, geographySets = [],
   selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout, selectedGeographySetId,
+  isMeteoActive = false,
   onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange, onGeographySetChange,
+  onMeteoClick,
   zonesCount, totalImpressions, metric = 'impressions', loading,
 }: RailroadPipelineProps) {
   const impLabelShort = metric === 'unique' ? 'imp. uniques' : 'imp.';
@@ -191,12 +192,11 @@ export function RailroadPipeline({
   const campName = campaigns.find(c => c.id === selectedCampaign)?.name ?? '—';
   const popLabel = popFields.find(f => f.value === selectedPopField)?.label ?? selectedPopField;
   const activeGeoSet = geographySets.find(g => g.id === selectedGeographySetId) ?? null;
-  const isMeteoActive = selectedGeographySetId === METEO_SENTINEL;
-  const scaleLabel = selectedScale === 'cp' ? 'CP'
+  const scaleLabelBase = selectedScale === 'cp' ? 'CP'
     : selectedScale === 'departement' ? 'Dept'
-    : selectedScale === 'zones'
-      ? (isMeteoActive ? 'Meteo' : (activeGeoSet?.name ?? 'Zones'))
-      : 'Regions';
+    : selectedScale === 'zones' ? (activeGeoSet?.name ?? 'Zones')
+    : 'Regions';
+  const scaleLabel = isMeteoActive ? `${scaleLabelBase} + Meteo` : scaleLabelBase;
   const mediaLabel = selectedMedia.length === 0 ? `Toutes (${mediaList.length})` : `${selectedMedia.length}/${mediaList.length}`;
   const layoutLabels: Record<string, string> = { equal: '1/3', 'focus-imp': 'Imp.', 'focus-pop': 'Pop.', 'focus-ratio': 'Ratio' };
   const layoutLabel = layoutLabels[selectedLayout] ?? '1/3';
@@ -271,16 +271,9 @@ export function RailroadPipeline({
                 <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
                   JEU DE ZONES
                 </div>
-                {/* Entree virtuelle "Zones Meteo" en tete de liste */}
-                <RadioOption
-                  selected={selectedGeographySetId === METEO_SENTINEL}
-                  label="🌤 Zones Meteo"
-                  sub="dynamique · Open-Meteo"
-                  onClick={() => { onGeographySetChange?.(METEO_SENTINEL); setActivePopover(null); }}
-                />
                 {geographySets.length === 0 ? (
                   <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', lineHeight: 1.4 }}>
-                    Aucune geographie importee.<br />
+                    Aucune geographie.<br />
                     Creez-en une dans <span style={{ color: '#4ecdc4' }}>geo.prompt</span> apres un battle.
                   </div>
                 ) : (
@@ -296,6 +289,18 @@ export function RailroadPipeline({
                 )}
               </div>
             )}
+            {/* Overlay Meteo : independant du scale, swap uniquement la 3eme carte */}
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
+              <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
+                OVERLAY 3e CARTE
+              </div>
+              <RadioOption
+                selected={isMeteoActive}
+                label="🌤 Zones Meteo"
+                sub="Open-Meteo · swap la carte population"
+                onClick={() => { onMeteoClick?.(); setActivePopover(null); }}
+              />
+            </div>
           </Popover>
         </div>
 

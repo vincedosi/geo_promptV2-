@@ -1,16 +1,17 @@
 /**
  * GEOMATIK — API /api/digital/[campaignId]/meteo
- * Croisement campagne DSP × grille de zones météo dynamiques (Open-Meteo)
- * → GeoJSON + summary + meta (stats période)
+ * Grille météo dynamique Open-Meteo pour la 3ème carte de la page analyse digital.
  *
  * Flow serveur :
  *   1. Validation des params (Zod)
  *   2. Bbox de la campagne via RPC get_digital_campaign_bbox
  *   3. Génération d'une grille de points (résolution adaptative)
  *   4. Appel Open-Meteo en bulk → 1 valeur par point agrégée sur la période
- *   5. Construction des carrés GeoJSON avec weather_value
- *   6. Appel RPC get_digital_meteo_aggregation pour l'intersection spatiale
- *   7. Enrichissement des features avec label qualitatif + unité
+ *   5. Construction du GeoJSON (carrés + weather_value + label qualitatif)
+ *
+ * Note: pas d'agrégation spatiale DSP ici. La 3ème carte affiche uniquement
+ * les zones météo coloriées par la variable sélectionnée (palette météo).
+ * Les cartes Impressions et Ratio continuent d'utiliser /api/digital/[id]/map.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -28,16 +29,6 @@ import type { MeteoVariable } from '@/lib/meteo/types';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_POP_FIELDS = [
-  'population',
-  'pop_0_14',
-  'pop_15_29',
-  'pop_30_44',
-  'pop_45_59',
-  'pop_60_74',
-  'pop_75_plus',
-] as const;
-
 const QuerySchema = z.object({
   variable: z.enum([
     'precipitation',
@@ -47,8 +38,6 @@ const QuerySchema = z.object({
   ]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate must be YYYY-MM-DD'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate must be YYYY-MM-DD'),
-  popField: z.enum(ALLOWED_POP_FIELDS).default('population'),
-  metric: z.enum(['impressions', 'unique']).default('impressions'),
   resolution: z.coerce.number().min(0.05).max(1).optional(),
 });
 
@@ -66,26 +55,6 @@ function daysBetween(a: string, b: string): number {
   return Math.round(ms / 86400000);
 }
 
-interface MeteoZoneRow {
-  id: string;
-  weather_value: number;
-  total_impressions: number;
-  pop_value: number | null;
-  ratio: number | null;
-  geometry: GeoJSON.Geometry;
-}
-
-interface MeteoRpcResult {
-  zones: MeteoZoneRow[];
-  summary: {
-    in_zone_impressions: number;
-    total_impressions: number;
-    pct_in_zone: number;
-    total_zones: number;
-    zones_with_impressions: number;
-  };
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> },
@@ -100,8 +69,6 @@ export async function GET(
     variable: searchParams.get('variable'),
     startDate: searchParams.get('startDate'),
     endDate: searchParams.get('endDate'),
-    popField: searchParams.get('popField') ?? 'population',
-    metric: searchParams.get('metric') ?? 'impressions',
     resolution: searchParams.get('resolution') ?? undefined,
   });
 
@@ -193,77 +160,25 @@ export async function GET(
     );
   }
 
-  // 4. Construction de la FeatureCollection des carrés
-  const squaresFc: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: weatherResults.map((r) => ({
-      type: 'Feature',
-      geometry: buildSquarePolygon(r.point, resolution),
-      properties: {
-        square_id: computeSquareId(r.point),
-        weather_value: r.value,
-      },
-    })),
-  };
-
-  // 5. Agrégation spatiale via RPC
-  const { data: aggData, error: aggError } = await supabase.rpc(
-    'get_digital_meteo_aggregation',
-    {
-      p_campaign_id: campaignId,
-      p_squares: squaresFc,
-      p_pop_field: q.popField,
-      p_metric: q.metric,
-    },
-  );
-
-  if (aggError || !aggData) {
-    console.error('[digital/meteo] aggregation error', aggError?.message);
-    return NextResponse.json(
-      { error: 'Spatial aggregation failed', details: aggError?.message },
-      { status: 500 },
-    );
-  }
-
-  // 6. Parsing du résultat RPC (peut être string JSON ou objet)
-  let rpcResult: MeteoRpcResult;
-  if (typeof aggData === 'string') {
-    try {
-      rpcResult = JSON.parse(aggData) as MeteoRpcResult;
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid RPC response format' },
-        { status: 500 },
-      );
-    }
-  } else {
-    rpcResult = aggData as MeteoRpcResult;
-  }
-
-  const zones = Array.isArray(rpcResult?.zones) ? rpcResult.zones : [];
-
-  // 7. Calcul des stats à partir des valeurs météo brutes (tous les points)
+  // 4. Calcul des stats sur toutes les valeurs brutes (pour légende + labels)
   const rawValues = weatherResults.map((r) => r.value);
   const stats = computeStats(rawValues, q.variable as MeteoVariable);
   const unit = METEO_UNIT[q.variable as MeteoVariable];
 
-  // 8. Conversion zones → FeatureCollection enrichie
+  // 5. Construction directe de la FeatureCollection finale
   const fc: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: zones.map((z) => {
-      const value = Number(z.weather_value ?? 0);
+    features: weatherResults.map((r) => {
+      const squareId = computeSquareId(r.point);
       return {
         type: 'Feature',
-        geometry: z.geometry,
+        geometry: buildSquarePolygon(r.point, resolution),
         properties: {
-          id: z.id,
-          code: z.id,
-          nom: `Carré ${z.id}`,
-          impressions: z.total_impressions,
-          pop_value: z.pop_value,
-          ratio: z.ratio,
-          weather_value: value,
-          weather_label: qualitativeLabel(value, stats, q.variable as MeteoVariable),
+          id: squareId,
+          code: squareId,
+          nom: `Carré ${squareId}`,
+          weather_value: r.value,
+          weather_label: qualitativeLabel(r.value, stats, q.variable as MeteoVariable),
           weather_unit: unit,
         },
       };
@@ -272,7 +187,6 @@ export async function GET(
 
   const response = {
     geojson: fc,
-    summary: rpcResult?.summary ?? null,
     meta: {
       variable: q.variable,
       unit,

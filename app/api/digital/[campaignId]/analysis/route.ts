@@ -61,6 +61,11 @@ export async function GET(
   const metricRaw = searchParams.get('metric');
   const metric = metricRaw === 'unique' ? 'unique' : 'impressions';
 
+  // Drill-down parent filter : restrict to depts of a region, or CPs of a dept
+  const parentTypeRaw = searchParams.get('parent_type');
+  const parentType = parentTypeRaw === 'region' || parentTypeRaw === 'dept' ? parentTypeRaw : null;
+  const parentCode = parentType ? searchParams.get('parent_code') : null;
+
   const { data, error } = await supabase.rpc('get_digital_analysis_breakdown', {
     p_campaign_id: campaignId,
     p_aggregation: aggregation,
@@ -69,6 +74,8 @@ export async function GET(
     p_limit: limit,
     p_pop_min: popMin,
     p_metric: metric,
+    p_parent_type: parentType,
+    p_parent_code: parentCode,
   });
 
   if (error) {

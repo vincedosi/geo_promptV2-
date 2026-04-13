@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
-import { RailroadPipeline, type GeographySet, METEO_SENTINEL } from './_components/RailroadPipeline';
+import { RailroadPipeline, type GeographySet } from './_components/RailroadPipeline';
 import { MeteoGeoPanel } from './_components/MeteoGeoPanel';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
@@ -12,6 +12,8 @@ import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { MeteoParams } from '@/lib/meteo/types';
+import { METEO_LABEL } from '@/lib/meteo/types';
+import { buildColorExpression as buildMeteoColorExpression, METEO_PALETTES } from '@/lib/meteo/palettes';
 
 const fInter = "'Inter', sans-serif";
 
@@ -106,7 +108,11 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 }
 
 export default function DigitalTripleMapPage() {
-  const { campaigns, geojson, geojsonLoading, geographySummary, meteoMeta, fetchMap } = useDigitalData();
+  const {
+    campaigns, geojson, geojsonLoading, geographySummary,
+    meteoGeojson, meteoMeta, meteoLoading,
+    fetchMap, fetchMeteo, clearMeteo,
+  } = useDigitalData();
 
   const [campaignId, setCampaignId] = useState('');
   const [scale, setScale] = useState('region');
@@ -116,7 +122,10 @@ export default function DigitalTripleMapPage() {
   const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
   const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
   const [geographySetId, setGeographySetId] = useState<string | null>(null);
+  // Meteo overlay state : independant du scale, swap uniquement la 3eme carte
+  const [meteoOpen, setMeteoOpen] = useState(false);
   const [meteoParams, setMeteoParams] = useState<MeteoParams | null>(null);
+  const isMeteoActive = meteoGeojson !== null || meteoOpen;
 
   // Fetch geography sets on mount
   useEffect(() => {
@@ -165,54 +174,60 @@ export default function DigitalTripleMapPage() {
 
   const handleCampaignChange = useCallback((id: string) => {
     setCampaignId(id);
-    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId, meteoParams);
-  }, [scale, popField, selectedMedia, metric, geographySetId, meteoParams, fetchMap]);
+    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId);
+  }, [scale, popField, selectedMedia, metric, geographySetId, fetchMap]);
 
   const handleScaleChange = useCallback((s: string) => {
     setScale(s);
     let nextSetId = geographySetId;
-    // Quand on sort de zones, on nettoie aussi les meteoParams
-    if (s !== 'zones') {
-      setMeteoParams(null);
-    }
     if (s === 'zones' && !nextSetId && geographySets.length > 0) {
       nextSetId = geographySets[0].id;
       setGeographySetId(nextSetId);
     }
-    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId, s === 'zones' ? meteoParams : null);
-  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, meteoParams, fetchMap]);
+    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId);
+  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, fetchMap]);
 
   const handlePopFieldChange = useCallback((f: string) => {
     setPopField(f);
-    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId, meteoParams);
-  }, [campaignId, scale, selectedMedia, metric, geographySetId, meteoParams, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId);
+  }, [campaignId, scale, selectedMedia, metric, geographySetId, fetchMap]);
 
   const handleMediaChange = useCallback((media: string[]) => {
     setSelectedMedia(media);
-    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId, meteoParams);
-  }, [campaignId, scale, popField, metric, geographySetId, meteoParams, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId);
+  }, [campaignId, scale, popField, metric, geographySetId, fetchMap]);
 
   const handleGeographySetChange = useCallback((setId: string | null) => {
     setGeographySetId(setId);
-    // Cas meteo : on reset les params et on ATTEND que l'utilisateur
-    // clique sur "Appliquer" dans le MeteoGeoPanel. Pas de fetch ici.
-    if (setId === METEO_SENTINEL) {
-      setMeteoParams(null);
-      return;
-    }
-    // Cas zones classique : fetch immediat comme avant
-    setMeteoParams(null);
-    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId, null);
+    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId);
   }, [campaignId, scale, popField, selectedMedia, metric, fetchMap]);
+
+  // Meteo : toggle du panel ET du mode overlay.
+  // Clic quand inactif → ouvre le panel. Clic quand actif → sort du mode meteo.
+  const handleMeteoClick = useCallback(() => {
+    if (isMeteoActive) {
+      setMeteoOpen(false);
+      setMeteoParams(null);
+      clearMeteo();
+    } else {
+      setMeteoOpen(true);
+    }
+  }, [isMeteoActive, clearMeteo]);
 
   const handleMeteoApply = useCallback((params: MeteoParams) => {
     setMeteoParams(params);
-    if (campaignId) fetchMap(campaignId, 'zones', popField, selectedMedia, metric, METEO_SENTINEL, params);
-  }, [campaignId, popField, selectedMedia, metric, fetchMap]);
+    if (campaignId) fetchMeteo(campaignId, params);
+  }, [campaignId, fetchMeteo]);
+
+  const handleMeteoClose = useCallback(() => {
+    setMeteoOpen(false);
+    setMeteoParams(null);
+    clearMeteo();
+  }, [clearMeteo]);
 
   // Refetch map when metric toggles
   useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId, meteoParams);
+    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric]);
 
@@ -222,7 +237,7 @@ export default function DigitalTripleMapPage() {
     if (scale === 'zones' && !geographySetId && geographySets.length > 0 && campaignId) {
       const firstId = geographySets[0].id;
       setGeographySetId(firstId);
-      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId, null);
+      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geographySets, scale]);
@@ -255,6 +270,14 @@ export default function DigitalTripleMapPage() {
   const isZones = scale === 'zones';
   const metricLabelLong = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
 
+  // Expression de fill et stops pour la 3eme carte en mode meteo
+  const meteoIsReady = !!(meteoGeojson && meteoMeta);
+  const meteoFillExpr = useMemo(() => {
+    if (!meteoIsReady) return ['literal', '#1a1a1a'];
+    return buildMeteoColorExpression(meteoMeta!.variable, meteoMeta!.stats, 'weather_value');
+  }, [meteoIsReady, meteoMeta]);
+  const meteoLegendStops = meteoIsReady ? METEO_PALETTES[meteoMeta!.variable] : [];
+
   const makePanel = (key: string, isSmall: boolean) => {
     const zo = isSmall ? -0.7 : 0;
     if (key === 'imp') return (
@@ -265,14 +288,31 @@ export default function DigitalTripleMapPage() {
         legendMin="0" legendMid={stats.impPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.impPerc?.max.toLocaleString('fr-FR') ?? ''}
         hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
     );
-    if (key === 'pop') return (
-      <MapPanel title="Population" titleAccent={POP_LABELS[popField] ?? popField} palettes={allPalettes} palette={popPalette} onPaletteChange={setPopPalette} inverted={popInverted} onInvertedChange={setPopInverted}
-        mapId="pop" geojson={geojson} fillExpression={popExpr} lineColor="rgba(66,146,198,0.25)"
-        onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
-        percentiles={stats.popPerc} legendStops={popInverted ? [...popPal.stops].reverse() : popPal.stops}
-        legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''}
-        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
-    );
+    if (key === 'pop') {
+      // Swap meteo : la 3eme carte devient la grille meteo coloree par la variable
+      if (isMeteoActive && meteoIsReady) {
+        return (
+          <MapPanel title="Meteo" titleAccent={METEO_LABEL[meteoMeta!.variable]}
+            palettes={[]} palette="" onPaletteChange={() => {}} inverted={false} onInvertedChange={() => {}}
+            mapId="pop" geojson={meteoGeojson} fillExpression={meteoFillExpr} lineColor="rgba(78,205,196,0.25)"
+            onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
+            percentiles={{ p50: meteoMeta!.stats.mean, max: meteoMeta!.stats.max }}
+            legendStops={[...meteoLegendStops]}
+            legendMin={`${meteoMeta!.stats.min.toFixed(1)} ${meteoMeta!.unit}`}
+            legendMid={`${meteoMeta!.stats.mean.toFixed(1)} ${meteoMeta!.unit}`}
+            legendMax={`${meteoMeta!.stats.max.toFixed(1)} ${meteoMeta!.unit}`}
+            hideAdminBoundaries={true} showFeatureHover={true} metricLabel="Meteo" />
+        );
+      }
+      return (
+        <MapPanel title="Population" titleAccent={POP_LABELS[popField] ?? popField} palettes={allPalettes} palette={popPalette} onPaletteChange={setPopPalette} inverted={popInverted} onInvertedChange={setPopInverted}
+          mapId="pop" geojson={geojson} fillExpression={popExpr} lineColor="rgba(66,146,198,0.25)"
+          onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
+          percentiles={stats.popPerc} legendStops={popInverted ? [...popPal.stops].reverse() : popPal.stops}
+          legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''}
+          hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
+      );
+    }
     return (
       <MapPanel title="Ratio" titleAccent={`${metric === 'unique' ? 'imp. uniques' : 'imp.'} / ${POP_LABELS[popField] ?? popField}`} palettes={allPalettes} palette={ratioPalette} onPaletteChange={setRatioPalette} inverted={ratioInverted} onInvertedChange={setRatioInverted}
         mapId="ratio" geojson={geojson} fillExpression={ratExpr} lineColor="rgba(180,180,180,0.2)"
@@ -326,10 +366,12 @@ export default function DigitalTripleMapPage() {
                 selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
                 selectedMedia={selectedMedia} selectedLayout={layout}
                 selectedGeographySetId={geographySetId}
+                isMeteoActive={isMeteoActive}
                 onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
                 onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
                 onGeographySetChange={handleGeographySetChange}
-                zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} metric={metric} loading={geojsonLoading}
+                onMeteoClick={handleMeteoClick}
+                zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} metric={metric} loading={geojsonLoading || meteoLoading}
               />
             </div>
           </div>
@@ -381,16 +423,17 @@ export default function DigitalTripleMapPage() {
               )}
             </div>
 
-            {/* Meteo overlay panel : visible seulement en mode zones meteo */}
-            {scale === 'zones' && geographySetId === METEO_SENTINEL && !analysisOpen && (
+            {/* Meteo overlay panel : visible quand l'utilisateur a active le mode meteo */}
+            {meteoOpen && !analysisOpen && (
               <div style={{
                 position: 'absolute', top: 16, left: 16, zIndex: 30,
                 pointerEvents: 'auto',
               }}>
                 <MeteoGeoPanel
                   onApply={handleMeteoApply}
+                  onClose={handleMeteoClose}
                   initialParams={meteoParams}
-                  loading={geojsonLoading}
+                  loading={meteoLoading}
                   stats={meteoMeta?.stats ?? null}
                 />
               </div>

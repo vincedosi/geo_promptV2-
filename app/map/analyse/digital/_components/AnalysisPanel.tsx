@@ -242,7 +242,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
 
             {/* Col 1: Action List */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <ActionListTable data={breakdownData} metric={metric} onRowClick={handleBarClick} />
+              <ActionListTable data={breakdownData} metric={metric} aggregation={currentAggregation} onRowClick={handleBarClick} />
             </div>
 
             {/* Col 2: Bidding Recommendation */}

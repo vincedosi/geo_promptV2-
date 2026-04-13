@@ -18,6 +18,7 @@ interface ActionRow {
 interface ActionListTableProps {
   data: ActionRow[];
   metric?: 'impressions' | 'unique';
+  aggregation?: 'region' | 'dept' | 'cp';
   onRowClick?: (code: string) => void;
 }
 
@@ -27,9 +28,11 @@ function fmt(n: number): string {
   return n.toLocaleString('fr-FR');
 }
 
-export function ActionListTable({ data, metric = 'impressions', onRowClick }: ActionListTableProps) {
+export function ActionListTable({ data, metric = 'impressions', aggregation = 'region', onRowClick }: ActionListTableProps) {
   const [tab, setTab] = useState<'over' | 'under'>('over');
   const impHeader = metric === 'unique' ? 'Imp. uniq.' : 'Imp.';
+  const zoneHeader = aggregation === 'region' ? 'Region' : aggregation === 'dept' ? 'Departement' : 'Code postal';
+  const canDrill = aggregation !== 'cp';
 
   const filtered = tab === 'over'
     ? data.filter(d => d.ecart > 0).sort((a, b) => b.ecart - a.ecart)
@@ -56,9 +59,9 @@ export function ActionListTable({ data, metric = 'impressions', onRowClick }: Ac
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Zone', impHeader, 'Pop.', 'Ecart'].map(h => (
+              {[zoneHeader, impHeader, 'Pop.', 'Ecart'].map(h => (
                 <th key={h} style={{
-                  textAlign: h === 'Zone' ? 'left' : 'right', padding: '5px 8px',
+                  textAlign: h === zoneHeader ? 'left' : 'right', padding: '5px 8px',
                   fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#4ecdc4',
                   borderBottom: '0.5px solid #1a1a1a', position: 'sticky', top: 0, background: '#0a0a0a',
                 }}>{h}</th>
@@ -68,8 +71,8 @@ export function ActionListTable({ data, metric = 'impressions', onRowClick }: Ac
           <tbody>
             {top.map((row, i) => (
               <tr key={row.code} onClick={() => onRowClick?.(row.code)}
-                style={{ cursor: 'pointer', borderBottom: '0.5px solid #111111' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#111111'; }}
+                style={{ cursor: canDrill ? 'pointer' : 'default', borderBottom: '0.5px solid #111111' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = canDrill ? '#111111' : 'transparent'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: '#a0a0a0' }}>
