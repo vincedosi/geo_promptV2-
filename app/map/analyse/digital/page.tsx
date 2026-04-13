@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
-import { DigitalToolbar } from './_components/DigitalToolbar';
 import { RailroadPipeline } from './_components/RailroadPipeline';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
@@ -44,27 +43,6 @@ function PalettePicker({ palettes, selected, onChange }: {
   );
 }
 
-function LayoutButtons({ layout, onChange }: { layout: LayoutMode; onChange: (l: LayoutMode) => void }) {
-  const modes: { id: LayoutMode; label: string }[] = [
-    { id: 'equal', label: '1/3 · 1/3 · 1/3' },
-    { id: 'focus-imp', label: 'Imp. focus' },
-    { id: 'focus-pop', label: 'Pop. focus' },
-    { id: 'focus-ratio', label: 'Ratio focus' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 2 }}>
-      {modes.map(m => (
-        <button key={m.id} onClick={() => onChange(m.id)} style={{
-          padding: '4px 8px', fontSize: 10, fontFamily: fInter, cursor: 'pointer',
-          background: layout === m.id ? 'rgba(78,205,196,0.12)' : 'transparent',
-          border: `0.5px solid ${layout === m.id ? '#4ecdc4' : '#1a1a1a'}`,
-          borderRadius: 3, color: layout === m.id ? '#4ecdc4' : '#666666',
-          transition: 'all 0.15s',
-        }}>{m.label}</button>
-      ))}
-    </div>
-  );
-}
 
 /** A single map panel with title bar, palette picker, map, legend */
 function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inverted, onInvertedChange, mapId, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset, percentiles, legendStops, legendMin, legendMid, legendMax }: {
