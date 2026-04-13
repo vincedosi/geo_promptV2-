@@ -47,7 +47,7 @@ export const SessionBadge = memo(function SessionBadge() {
   // Fetch orgs on mount (once session is available)
   useEffect(() => {
     if (!session || orgsFetched) return;
-    const token = (session as unknown as { access_token?: string }).access_token;
+    const token = session.id;
     if (!token) return;
     fetch('/api/user/organizations', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
@@ -66,7 +66,7 @@ export const SessionBadge = memo(function SessionBadge() {
   const handleSwitchOrg = useCallback(async (orgId: string | null) => {
     if (!session) return;
     setSwitching(true);
-    const token = (session as unknown as { access_token?: string }).access_token;
+    const token = session.id;
     try {
       const res = await fetch('/api/user/switch-org', {
         method: 'POST',
