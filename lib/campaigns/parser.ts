@@ -19,6 +19,7 @@ export interface ParsedCampaignRow {
   dma_region: string | null;
   tracked_ads: number;
   media: string | null;
+  unique_impressions: number;
 }
 
 export interface CampaignParseResult {
@@ -52,6 +53,7 @@ export function parseCampaignFile(
   const mappedTargets = new Set(Object.values(mapping));
   const hasDateCol = mappedTargets.has('date');
   const hasMediaCol = mappedTargets.has('media');
+  const hasUniqueImpCol = mappedTargets.has('unique_impressions');
   const errors: string[] = [];
   const rows: ParsedCampaignRow[] = [];
 
@@ -89,6 +91,7 @@ export function parseCampaignFile(
       dma_region: mapped.dma_region?.trim() || null,
       tracked_ads: trackedAds,
       media: hasMediaCol ? (mapped.media?.trim() || null) : null,
+      unique_impressions: hasUniqueImpCol ? (parseInt(String(mapped.unique_impressions_raw ?? '0').replace(/[^0-9-]/g, ''), 10) || 0) : 0,
     };
 
     rows.push(row);
@@ -147,6 +150,7 @@ interface MappedFields {
   dma_region?: string;
   tracked_ads_raw?: string;
   media?: string;
+  unique_impressions_raw?: string;
 }
 
 function applyMapping(
@@ -168,6 +172,8 @@ function applyMapping(
         result['date_raw'] = value;
       } else if (targetField === 'tracked_ads') {
         result['tracked_ads_raw'] = value;
+      } else if (targetField === 'unique_impressions') {
+        result['unique_impressions_raw'] = value;
       } else {
         result[targetField] = value;
       }

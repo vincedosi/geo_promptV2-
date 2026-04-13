@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
           campaign_id: string; date: string | null; city: string | null;
           country: string; postal_code: string | null; region: string | null;
           dma_region: string | null; tracked_ads: number; media: string | null;
+          unique_impressions: number;
         }>();
 
         for (const r of parsed.rows) {
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
           const existing = aggMap.get(key);
           if (existing) {
             existing.tracked_ads += r.tracked_ads;
+            existing.unique_impressions += r.unique_impressions;
           } else {
             aggMap.set(key, {
               campaign_id: campaignId,
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
               dma_region: r.dma_region,
               tracked_ads: r.tracked_ads,
               media: r.media,
+              unique_impressions: r.unique_impressions,
             });
           }
         }

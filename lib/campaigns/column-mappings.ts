@@ -26,6 +26,7 @@ export const DSP_MAPPINGS: Record<string, ColumnMapping> = {
     'dma region':   'dma_region',
     'tracked ads':  'tracked_ads',
     'media':        'media',
+    'unique impressions': 'unique_impressions',
   },
 };
 
@@ -45,6 +46,7 @@ export function autoDetectMapping(headers: string[]): ColumnMapping | null {
     { target: 'dma_region',    variants: ['dma region', 'dma'] },
     { target: 'tracked_ads',   variants: ['tracked ads', 'tracked_ads', 'impressions', 'imps', 'imp', 'views', 'ads'] },
     { target: 'media',         variants: ['media', 'média', 'regie', 'régie', 'publisher', 'source', 'medi', 'medium'] },
+    { target: 'unique_impressions', variants: ['unique impressions', 'unique_impressions', 'unique users', 'uu', 'reach', 'unique views', 'impressions uniques'] },
   ];
 
   const mapping: ColumnMapping = {};
