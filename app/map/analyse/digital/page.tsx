@@ -92,9 +92,9 @@ export default function DigitalTripleMapPage() {
   const { campaigns, geojson, geojsonLoading, fetchMap } = useDigitalData();
 
   const [campaignId, setCampaignId] = useState('');
-  const [scale, setScale] = useState('cp');
+  const [scale, setScale] = useState('region');
   const [popField, setPopField] = useState('population');
-  const [layout, setLayout] = useState<LayoutMode>('equal');
+  const [layout, setLayout] = useState<LayoutMode>('focus-ratio');
   const [analysisOpen, setAnalysisOpen] = useState(false);
 
   // Escape to close analysis
@@ -221,32 +221,45 @@ export default function DigitalTripleMapPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#050505' }}>
-      {/* Railroad Pipeline */}
-      <RailroadPipeline
-        campaigns={campaigns} popFields={POP_FIELDS} mediaList={mediaList}
-        selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
-        selectedMedia={selectedMedia} selectedLayout={layout}
-        onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
-        onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
-        zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} loading={geojsonLoading}
-      />
-
-      {/* Context bar — only when campaign selected */}
+      {/* État 2 : Railroad + Context bar — only when campaign selected */}
       {hasCampaign && (
-        <CampaignContextBar
-          campaignName={campaignName}
-          totalImpressions={stats.totalImp}
-          zonesCount={geojson?.features.length ?? 0}
-          concentrationTop10={concentrationTop10}
-          onOpenAnalysis={() => setAnalysisOpen(true)}
-        />
-      )}
+        <>
+          {/* Back button + Railroad */}
+          <div style={{ display: 'flex', alignItems: 'stretch' }}>
+            <button onClick={() => { setCampaignId(''); setAnalysisOpen(false); }} style={{
+              padding: '0 14px', background: '#0a0a0a', border: 'none', borderRight: '0.5px solid #1a1a1a',
+              cursor: 'pointer', fontFamily: fInter, fontSize: 11, color: '#8a8a8a',
+              display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, transition: 'color 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#4ecdc4'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#8a8a8a'; }}
+            >← Campagnes</button>
+            <div style={{ flex: 1 }}>
+              <RailroadPipeline
+                campaigns={campaigns} popFields={POP_FIELDS} mediaList={mediaList}
+                selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
+                selectedMedia={selectedMedia} selectedLayout={layout}
+                onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
+                onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
+                zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} loading={geojsonLoading}
+              />
+            </div>
+          </div>
 
+          <CampaignContextBar
+            campaignName={campaignName}
+            totalImpressions={stats.totalImp}
+            zonesCount={geojson?.features.length ?? 0}
+            concentrationTop10={concentrationTop10}
+            onOpenAnalysis={() => setAnalysisOpen(true)}
+          />
+        </>
+      )}
 
       {/* Content area */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         {!hasCampaign ? (
-          /* Welcome state — no campaign selected */
+          /* État 1 : Page d'accueil */
           <WelcomeState
             campaigns={campaigns}
             loading={!campaigns.length && geojsonLoading}
