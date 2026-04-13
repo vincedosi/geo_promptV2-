@@ -96,6 +96,14 @@ export async function POST(request: NextRequest) {
 
         const campaignId = campaign.id;
 
+        // Lier l'org propriétaire dans la table pivot multi-org
+        await supabase
+          .from('campaign_organizations')
+          .upsert(
+            { campaign_id: campaignId, organization_id: organizationId, added_by: profile.id },
+            { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true }
+          );
+
         // ── Pre-aggregate duplicates (same date+postal_code+city) ────
         const aggMap = new Map<string, {
           campaign_id: string; date: string | null; city: string | null;
