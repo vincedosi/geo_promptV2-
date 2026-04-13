@@ -17,24 +17,40 @@ interface CampaignContextBarProps {
   totalImpressions: number;
   zonesCount: number;
   concentrationTop10: number;
+  metric: 'impressions' | 'unique';
+  onMetricChange: (m: 'impressions' | 'unique') => void;
   onOpenAnalysis: () => void;
 }
 
-export function CampaignContextBar({ campaignName, totalImpressions, zonesCount, concentrationTop10, onOpenAnalysis }: CampaignContextBarProps) {
+export function CampaignContextBar({ campaignName, totalImpressions, zonesCount, concentrationTop10, metric, onMetricChange, onOpenAnalysis }: CampaignContextBarProps) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 16, padding: '8px 20px',
+      display: 'flex', alignItems: 'center', gap: 12, padding: '6px 20px',
       background: 'rgba(255,255,255,0.02)', borderBottom: '0.5px solid rgba(255,255,255,0.08)',
-      flexShrink: 0,
+      flexShrink: 0, flexWrap: 'wrap',
     }}>
       <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: '#f0f0f0' }}>{campaignName}</span>
       <span style={{ fontFamily: fMono, fontSize: 11, color: '#8a8a8a' }}>
-        {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} imp.
+        {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
       </span>
       <HealthBadge concentrationTop10={concentrationTop10} />
+
+      {/* Metric toggle */}
+      <div style={{ display: 'flex', gap: 1, background: '#111111', borderRadius: 4, padding: 1 }}>
+        {([['impressions', 'Impressions'], ['unique', 'Imp. uniques']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => onMetricChange(id)} style={{
+            padding: '4px 10px', fontSize: 10, fontFamily: fInter, cursor: 'pointer',
+            background: metric === id ? 'rgba(78,205,196,0.12)' : 'transparent',
+            border: 'none', borderRadius: 3,
+            color: metric === id ? '#4ecdc4' : '#8a8a8a',
+            transition: 'all 0.15s',
+          }}>{label}</button>
+        ))}
+      </div>
+
       <div style={{ flex: 1 }} />
       <button onClick={onOpenAnalysis} style={{
-        padding: '6px 14px', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+        padding: '5px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
         background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.3)',
         borderRadius: 6, color: '#4ecdc4', transition: 'all 0.15s',
       }}

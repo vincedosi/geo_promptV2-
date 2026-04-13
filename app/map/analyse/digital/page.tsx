@@ -96,6 +96,7 @@ export default function DigitalTripleMapPage() {
   const [popField, setPopField] = useState('population');
   const [layout, setLayout] = useState<LayoutMode>('focus-ratio');
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
 
   // Escape to close analysis
   useEffect(() => {
@@ -180,7 +181,7 @@ export default function DigitalTripleMapPage() {
   const makePanel = (key: string, isSmall: boolean) => {
     const zo = isSmall ? -0.7 : 0;
     if (key === 'imp') return (
-      <MapPanel title="Impressions" palettes={PALETTES} palette={impPalette} onPaletteChange={setImpPalette} inverted={impInverted} onInvertedChange={setImpInverted}
+      <MapPanel title={metric === 'unique' ? 'Imp. uniques' : 'Impressions'} palettes={PALETTES} palette={impPalette} onPaletteChange={setImpPalette} inverted={impInverted} onInvertedChange={setImpInverted}
         mapId="imp" geojson={geojson} fillExpression={impExpr} lineColor="rgba(78,205,196,0.25)"
         onMove={handleMove('imp')} syncTarget={syncSource !== 'imp' ? syncState : null} zoomOffset={zo}
         percentiles={stats.impPerc} legendStops={impInverted ? [...impPal.stops].reverse() : impPal.stops}
@@ -251,6 +252,8 @@ export default function DigitalTripleMapPage() {
             totalImpressions={stats.totalImp}
             zonesCount={geojson?.features.length ?? 0}
             concentrationTop10={concentrationTop10}
+            metric={metric}
+            onMetricChange={setMetric}
             onOpenAnalysis={() => setAnalysisOpen(true)}
           />
         </>
