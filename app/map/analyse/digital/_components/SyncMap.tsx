@@ -18,12 +18,28 @@ interface SyncMapProps {
   syncTarget?: { center: [number, number]; zoom: number; bearing: number; pitch: number } | null;
   /** Extra zoom added when this map is in a small panel */
   zoomOffset?: number;
+  /** Hide basemap admin boundaries (country/region/dept outlines from Positron style) */
+  hideAdminBoundaries?: boolean;
+  /** Show rich hover popup (nom + impressions + pop + ratio) — used in zones mode */
+  showFeatureHover?: boolean;
+  /** Metric label for the hover popup ("Impressions" or "Imp. uniques") */
+  metricLabel?: string;
 }
 
-export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset = 0 }: SyncMapProps) {
+function fmtNum(n: unknown): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'G';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toLocaleString('fr-FR');
+}
+
+export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset = 0, hideAdminBoundaries = false, showFeatureHover = false, metricLabel = 'Impressions' }: SyncMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const isSyncing = useRef(false);
+  const popupRef = useRef<maplibregl.Popup | null>(null);
 
   // Init map
   useEffect(() => {
@@ -107,6 +123,135 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     });
     requestAnimationFrame(() => { isSyncing.current = false; });
   }, [syncTarget]);
+
+  // Zones mode styling :
+  //  1. Masquer UNIQUEMENT les boundaries admin sub-nationales (regions/depts)
+  //     → garder country/coast pour que la France reste lisible
+  //  2. Ajuster le layer digital-fill/line (opacité + stroke blanc)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const style = map.getStyle();
+      if (!style?.layers) return;
+
+      for (const layer of style.layers) {
+        const lid = layer.id.toLowerCase();
+        if (lid.startsWith('digital-')) continue;
+
+        const isAdminLayer = lid.includes('boundary') || lid.includes('admin') || lid.includes('border');
+        if (!isAdminLayer) continue;
+
+        // Garder les layers country / coast / nation / 0
+        const isCountryLayer =
+          lid.includes('country') ||
+          lid.includes('nation') ||
+          lid.includes('coast') ||
+          /(^|[_\-])0([_\-]|$)/.test(lid); // admin_0, boundary_0, etc.
+
+        // Inspecter le filter du layer pour détecter admin_level ciblé
+        let adminLevel: number | null = null;
+        const f = (layer as { filter?: unknown }).filter;
+        const scanFilter = (node: unknown): void => {
+          if (adminLevel !== null) return;
+          if (!Array.isArray(node)) return;
+          // ['==', 'admin_level', N] ou ['==', ['get','admin_level'], N]
+          if (node[0] === '==' || node[0] === '<=' || node[0] === '>=') {
+            const key = node[1];
+            const val = node[2];
+            const keyIsAdminLevel =
+              key === 'admin_level' ||
+              (Array.isArray(key) && key[0] === 'get' && key[1] === 'admin_level');
+            if (keyIsAdminLevel && typeof val === 'number') {
+              adminLevel = val;
+              return;
+            }
+          }
+          for (const child of node) scanFilter(child);
+        };
+        scanFilter(f);
+
+        // Décision : country (admin_level ≤ 2) OR nom country → KEEP
+        //            sinon → HIDE en mode zones
+        const isCountry = isCountryLayer || (adminLevel !== null && adminLevel <= 2);
+        const shouldHide = hideAdminBoundaries && !isCountry;
+
+        try {
+          map.setLayoutProperty(layer.id, 'visibility', shouldHide ? 'none' : 'visible');
+        } catch { /* noop */ }
+      }
+
+      // Ajuster le style des layers digital en mode zones
+      const fillId = `digital-fill-${id}`;
+      const lineId = `digital-line-${id}`;
+      if (map.getLayer(fillId)) {
+        try {
+          map.setPaintProperty(fillId, 'fill-opacity', hideAdminBoundaries ? 0.65 : 0.7);
+        } catch { /* noop */ }
+      }
+      if (map.getLayer(lineId)) {
+        try {
+          if (hideAdminBoundaries) {
+            map.setPaintProperty(lineId, 'line-color', 'rgba(255,255,255,0.3)');
+            map.setPaintProperty(lineId, 'line-width', 1.5);
+            map.setPaintProperty(lineId, 'line-opacity', 1);
+          } else {
+            map.setPaintProperty(lineId, 'line-color', lineColor ?? '#333333');
+            map.setPaintProperty(lineId, 'line-width', ['interpolate', ['linear'], ['zoom'], 5, 0.2, 9, 0.5, 12, 1] as maplibregl.ExpressionSpecification);
+            map.setPaintProperty(lineId, 'line-opacity', 0.4);
+          }
+        } catch { /* noop */ }
+      }
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [hideAdminBoundaries, id, lineColor]);
+
+  // Hover popup: nom + metric + pop + ratio
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const layerId = `digital-fill-${id}`;
+
+    const handleMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (!showFeatureHover) return;
+      const f = e.features?.[0];
+      if (!f) return;
+      map.getCanvas().style.cursor = 'pointer';
+      const p = (f.properties ?? {}) as Record<string, unknown>;
+      const nom = String(p.nom ?? p.code ?? '—');
+      const label = p.label && String(p.label) !== nom ? ` <span style="color:#666">· ${String(p.label)}</span>` : '';
+      const html = `
+        <div style="font-family:'Inter',sans-serif;color:#f0f0f0;font-size:11px;line-height:1.5;min-width:160px">
+          <div style="font-weight:500;font-size:12px;margin-bottom:4px">${nom}${label}</div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${fmtNum(p.impressions)}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${p.ratio !== null && p.ratio !== undefined ? Number(p.ratio).toFixed(1) : '—'}</span></div>
+        </div>`;
+      if (!popupRef.current) {
+        popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8, className: 'digital-hover-popup' });
+      }
+      popupRef.current.setLngLat(e.lngLat).setHTML(html).addTo(map);
+    };
+    const handleLeave = () => {
+      map.getCanvas().style.cursor = '';
+      popupRef.current?.remove();
+    };
+
+    const attach = () => {
+      if (!map.getLayer(layerId)) return;
+      map.on('mousemove', layerId, handleMove);
+      map.on('mouseleave', layerId, handleLeave);
+    };
+    if (map.isStyleLoaded()) attach();
+    else map.once('load', attach);
+
+    return () => {
+      map.off('mousemove', layerId, handleMove);
+      map.off('mouseleave', layerId, handleLeave);
+      popupRef.current?.remove();
+    };
+  }, [id, showFeatureHover, metricLabel]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }

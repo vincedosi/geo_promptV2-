@@ -3,12 +3,13 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
-import { RailroadPipeline } from './_components/RailroadPipeline';
+import { RailroadPipeline, type GeographySet } from './_components/RailroadPipeline';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
 import { AnalysisPanel } from './_components/AnalysisPanel';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
+import { adminFetch } from '@/lib/admin-fetch';
 
 const fInter = "'Inter', sans-serif";
 
@@ -45,7 +46,7 @@ function PalettePicker({ palettes, selected, onChange }: {
 
 
 /** A single map panel with title bar, palette picker, map, legend */
-function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inverted, onInvertedChange, mapId, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset, percentiles, legendStops, legendMin, legendMid, legendMax }: {
+function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inverted, onInvertedChange, mapId, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset, percentiles, legendStops, legendMin, legendMid, legendMax, hideAdminBoundaries, showFeatureHover, metricLabel }: {
   title: string;
   titleAccent?: string;
   palettes: { id: string; stops: string[] }[];
@@ -65,6 +66,9 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
   legendMin: string;
   legendMid: string;
   legendMax: string;
+  hideAdminBoundaries?: boolean;
+  showFeatureHover?: boolean;
+  metricLabel?: string;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', background: '#050505', flex: 1, minHeight: 0 }}>
@@ -81,7 +85,18 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
         </div>
       </div>
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <SyncMap id={mapId} geojson={geojson} fillExpression={fillExpression} lineColor={lineColor} onMove={onMove} syncTarget={syncTarget} zoomOffset={zoomOffset} />
+        <SyncMap
+          id={mapId}
+          geojson={geojson}
+          fillExpression={fillExpression}
+          lineColor={lineColor}
+          onMove={onMove}
+          syncTarget={syncTarget}
+          zoomOffset={zoomOffset}
+          hideAdminBoundaries={hideAdminBoundaries}
+          showFeatureHover={showFeatureHover}
+          metricLabel={metricLabel}
+        />
       </div>
       {percentiles && <MapLegend title={title} stops={legendStops} minLabel={legendMin} midLabel={legendMid} maxLabel={legendMax} />}
     </div>
@@ -89,7 +104,7 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 }
 
 export default function DigitalTripleMapPage() {
-  const { campaigns, geojson, geojsonLoading, fetchMap } = useDigitalData();
+  const { campaigns, geojson, geojsonLoading, geographySummary, fetchMap } = useDigitalData();
 
   const [campaignId, setCampaignId] = useState('');
   const [scale, setScale] = useState('region');
@@ -97,6 +112,18 @@ export default function DigitalTripleMapPage() {
   const [layout, setLayout] = useState<LayoutMode>('focus-ratio');
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
+  const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
+  const [geographySetId, setGeographySetId] = useState<string | null>(null);
+
+  // Fetch geography sets on mount
+  useEffect(() => {
+    adminFetch('/api/geographies')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.sets)) setGeographySets(data.sets);
+      })
+      .catch(() => {});
+  }, []);
 
   // Escape to close analysis
   useEffect(() => {
@@ -135,29 +162,50 @@ export default function DigitalTripleMapPage() {
 
   const handleCampaignChange = useCallback((id: string) => {
     setCampaignId(id);
-    if (id) fetchMap(id, scale, popField, selectedMedia, metric);
-  }, [scale, popField, selectedMedia, metric, fetchMap]);
+    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId);
+  }, [scale, popField, selectedMedia, metric, geographySetId, fetchMap]);
 
   const handleScaleChange = useCallback((s: string) => {
     setScale(s);
-    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric);
-  }, [campaignId, popField, selectedMedia, metric, fetchMap]);
+    let nextSetId = geographySetId;
+    if (s === 'zones' && !nextSetId && geographySets.length > 0) {
+      nextSetId = geographySets[0].id;
+      setGeographySetId(nextSetId);
+    }
+    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId);
+  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, fetchMap]);
 
   const handlePopFieldChange = useCallback((f: string) => {
     setPopField(f);
-    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric);
-  }, [campaignId, scale, selectedMedia, metric, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId);
+  }, [campaignId, scale, selectedMedia, metric, geographySetId, fetchMap]);
 
   const handleMediaChange = useCallback((media: string[]) => {
     setSelectedMedia(media);
-    if (campaignId) fetchMap(campaignId, scale, popField, media, metric);
-  }, [campaignId, scale, popField, metric, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId);
+  }, [campaignId, scale, popField, metric, geographySetId, fetchMap]);
+
+  const handleGeographySetChange = useCallback((setId: string | null) => {
+    setGeographySetId(setId);
+    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId);
+  }, [campaignId, scale, popField, selectedMedia, metric, fetchMap]);
 
   // Refetch map when metric toggles
   useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric);
+    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric]);
+
+  // Si l'utilisateur est en mode zones mais qu'aucun set n'était dispo au moment
+  // du switch, auto-sélectionner et fetcher dès que les sets arrivent
+  useEffect(() => {
+    if (scale === 'zones' && !geographySetId && geographySets.length > 0 && campaignId) {
+      const firstId = geographySets[0].id;
+      setGeographySetId(firstId);
+      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geographySets, scale]);
 
   const stats = useMemo(() => {
     if (!geojson) return { impPerc: null, popPerc: null, ratioPerc: null, totalImp: 0 };
@@ -184,28 +232,34 @@ export default function DigitalTripleMapPage() {
   // Determine which map is focused (1/2) and which two are stacked (1/4 each)
   const focusMap = layout === 'equal' ? null : layout.replace('focus-', '');
 
+  const isZones = scale === 'zones';
+  const metricLabelLong = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
+
   const makePanel = (key: string, isSmall: boolean) => {
     const zo = isSmall ? -0.7 : 0;
     if (key === 'imp') return (
-      <MapPanel title={metric === 'unique' ? 'Imp. uniques' : 'Impressions'} palettes={PALETTES} palette={impPalette} onPaletteChange={setImpPalette} inverted={impInverted} onInvertedChange={setImpInverted}
+      <MapPanel title={metricLabelLong} palettes={PALETTES} palette={impPalette} onPaletteChange={setImpPalette} inverted={impInverted} onInvertedChange={setImpInverted}
         mapId="imp" geojson={geojson} fillExpression={impExpr} lineColor="rgba(78,205,196,0.25)"
         onMove={handleMove('imp')} syncTarget={syncSource !== 'imp' ? syncState : null} zoomOffset={zo}
         percentiles={stats.impPerc} legendStops={impInverted ? [...impPal.stops].reverse() : impPal.stops}
-        legendMin="0" legendMid={stats.impPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.impPerc?.max.toLocaleString('fr-FR') ?? ''} />
+        legendMin="0" legendMid={stats.impPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.impPerc?.max.toLocaleString('fr-FR') ?? ''}
+        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
     );
     if (key === 'pop') return (
       <MapPanel title="Population" titleAccent={POP_LABELS[popField] ?? popField} palettes={allPalettes} palette={popPalette} onPaletteChange={setPopPalette} inverted={popInverted} onInvertedChange={setPopInverted}
         mapId="pop" geojson={geojson} fillExpression={popExpr} lineColor="rgba(66,146,198,0.25)"
         onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
         percentiles={stats.popPerc} legendStops={popInverted ? [...popPal.stops].reverse() : popPal.stops}
-        legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''} />
+        legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''}
+        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
     );
     return (
       <MapPanel title="Ratio" titleAccent={`${metric === 'unique' ? 'imp. uniques' : 'imp.'} / ${POP_LABELS[popField] ?? popField}`} palettes={allPalettes} palette={ratioPalette} onPaletteChange={setRatioPalette} inverted={ratioInverted} onInvertedChange={setRatioInverted}
         mapId="ratio" geojson={geojson} fillExpression={ratExpr} lineColor="rgba(180,180,180,0.2)"
         onMove={handleMove('ratio')} syncTarget={syncSource !== 'ratio' ? syncState : null} zoomOffset={zo}
         percentiles={stats.ratioPerc} legendStops={ratioInverted ? [...ratPal.stops].reverse() : ratPal.stops}
-        legendMin="sous-servi" legendMid="mediane" legendMax="sur-servi" />
+        legendMin="sous-servi" legendMid="mediane" legendMax="sur-servi"
+        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
     );
   };
 
@@ -248,10 +302,13 @@ export default function DigitalTripleMapPage() {
             <div style={{ flex: 1 }}>
               <RailroadPipeline
                 campaigns={campaigns} popFields={POP_FIELDS} mediaList={mediaList}
+                geographySets={geographySets}
                 selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
                 selectedMedia={selectedMedia} selectedLayout={layout}
+                selectedGeographySetId={geographySetId}
                 onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
                 onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
+                onGeographySetChange={handleGeographySetChange}
                 zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} metric={metric} loading={geojsonLoading}
               />
             </div>
@@ -265,6 +322,8 @@ export default function DigitalTripleMapPage() {
             metric={metric}
             onMetricChange={setMetric}
             onOpenAnalysis={() => setAnalysisOpen(true)}
+            inZonePct={scale === 'zones' ? geographySummary?.pct_in_zone ?? null : null}
+            inZoneImpressions={scale === 'zones' ? geographySummary?.in_zone_impressions ?? null : null}
           />
         </>
       )}

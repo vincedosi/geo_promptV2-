@@ -9,24 +9,28 @@ const fMono = "'JetBrains Mono', monospace";
 
 interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
 interface MediaItem { media: string; total_impressions: number; }
+export interface GeographySet { id: string; name: string; nb_zones: number; source_type: string; }
 
 interface RailroadPipelineProps {
   // Data
   campaigns: Campaign[];
   popFields: { value: string; label: string }[];
   mediaList: string[];
+  geographySets?: GeographySet[];
   // Selected values
   selectedCampaign: string;
   selectedPopField: string;
   selectedScale: string;
   selectedMedia: string[];
   selectedLayout: string;
+  selectedGeographySetId?: string | null;
   // Callbacks
   onCampaignChange: (id: string) => void;
   onPopFieldChange: (field: string) => void;
   onScaleChange: (scale: string) => void;
   onMediaChange: (media: string[]) => void;
   onLayoutChange: (layout: string) => void;
+  onGeographySetChange?: (setId: string | null) => void;
   // Stats
   zonesCount: number;
   totalImpressions: number;
@@ -160,9 +164,9 @@ const IconFocus = ({ color }: { color: string }) => <svg width="18" height="18" 
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function RailroadPipeline({
-  campaigns, popFields, mediaList,
-  selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout,
-  onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange,
+  campaigns, popFields, mediaList, geographySets = [],
+  selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout, selectedGeographySetId,
+  onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange, onGeographySetChange,
   zonesCount, totalImpressions, metric = 'impressions', loading,
 }: RailroadPipelineProps) {
   const impLabelShort = metric === 'unique' ? 'imp. uniques' : 'imp.';
@@ -182,7 +186,11 @@ export function RailroadPipeline({
   const hasCampaign = !!selectedCampaign;
   const campName = campaigns.find(c => c.id === selectedCampaign)?.name ?? '—';
   const popLabel = popFields.find(f => f.value === selectedPopField)?.label ?? selectedPopField;
-  const scaleLabel = selectedScale === 'cp' ? 'CP' : selectedScale === 'departement' ? 'Dept' : 'Regions';
+  const activeGeoSet = geographySets.find(g => g.id === selectedGeographySetId) ?? null;
+  const scaleLabel = selectedScale === 'cp' ? 'CP'
+    : selectedScale === 'departement' ? 'Dept'
+    : selectedScale === 'zones' ? (activeGeoSet?.name ?? 'Zones')
+    : 'Regions';
   const mediaLabel = selectedMedia.length === 0 ? `Toutes (${mediaList.length})` : `${selectedMedia.length}/${mediaList.length}`;
   const layoutLabels: Record<string, string> = { equal: '1/3', 'focus-imp': 'Imp.', 'focus-pop': 'Pop.', 'focus-ratio': 'Ratio' };
   const layoutLabel = layoutLabels[selectedLayout] ?? '1/3';
@@ -235,9 +243,46 @@ export function RailroadPipeline({
         <div style={{ position: 'relative', opacity: hasCampaign ? 1 : 0.3, pointerEvents: hasCampaign ? 'auto' : 'none' }}>
           <RailNode icon={<IconPin color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Vue geo" value={scaleLabel} done={hasCampaign} active={activePopover === 'geo'} onClick={() => toggle('geo')} />
           <Popover open={activePopover === 'geo'}>
-            {[{ id: 'region', label: 'Regions' }, { id: 'departement', label: 'Departements' }, { id: 'cp', label: 'Codes postaux' }].map(s => (
-              <RadioOption key={s.id} selected={selectedScale === s.id} label={s.label} onClick={() => { onScaleChange(s.id); setActivePopover(null); }} />
+            {[
+              { id: 'region', label: 'Regions' },
+              { id: 'departement', label: 'Departements' },
+              { id: 'cp', label: 'Codes postaux' },
+              { id: 'zones', label: 'Zones personnalisees' },
+            ].map(s => (
+              <RadioOption
+                key={s.id}
+                selected={selectedScale === s.id}
+                label={s.label}
+                sub={s.id === 'zones' ? `${geographySets.length} jeu${geographySets.length > 1 ? 'x' : ''} disponible${geographySets.length > 1 ? 's' : ''}` : undefined}
+                onClick={() => {
+                  onScaleChange(s.id);
+                  if (s.id !== 'zones') setActivePopover(null);
+                }}
+              />
             ))}
+            {selectedScale === 'zones' && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
+                <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
+                  JEU DE ZONES
+                </div>
+                {geographySets.length === 0 ? (
+                  <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', lineHeight: 1.4 }}>
+                    Aucune geographie.<br />
+                    Creez-en une dans <span style={{ color: '#4ecdc4' }}>geo.prompt</span> apres un battle.
+                  </div>
+                ) : (
+                  geographySets.map(g => (
+                    <RadioOption
+                      key={g.id}
+                      selected={selectedGeographySetId === g.id}
+                      label={g.name}
+                      sub={`${g.nb_zones} zones · ${g.source_type}`}
+                      onClick={() => { onGeographySetChange?.(g.id); setActivePopover(null); }}
+                    />
+                  ))
+                )}
+              </div>
+            )}
           </Popover>
         </div>
 
