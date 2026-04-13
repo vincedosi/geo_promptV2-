@@ -7,7 +7,8 @@ const fInter = "'Inter', sans-serif";
 interface Campaign {
   id: string; name: string; dsp_source: string;
   date_start: string | null; date_end: string | null;
-  total_tracked_ads: number; nb_medias: number; nb_postal_codes: number;
+  total_tracked_ads: number; total_unique_impressions: number;
+  nb_medias: number; nb_postal_codes: number;
 }
 
 interface WelcomeStateProps {

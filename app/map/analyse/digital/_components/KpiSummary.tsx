@@ -16,16 +16,22 @@ interface KpiSummaryProps {
   ratioMoyen: number;
   couverturePct: number;
   concentrationTop10: number;
+  metric?: 'impressions' | 'unique';
+  frequency?: number | null;
 }
 
-export function KpiSummary({ totalImpressions, totalPop, ratioMoyen, couverturePct, concentrationTop10 }: KpiSummaryProps) {
-  const kpis = [
-    { label: 'Impressions', value: fmt(totalImpressions), color: '#4ecdc4' },
+export function KpiSummary({ totalImpressions, totalPop, ratioMoyen, couverturePct, concentrationTop10, metric = 'impressions', frequency = null }: KpiSummaryProps) {
+  const impLabel = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
+  const kpis: { label: string; value: string; color: string }[] = [
+    { label: impLabel, value: fmt(totalImpressions), color: '#4ecdc4' },
     { label: 'Pop. cible', value: fmt(totalPop), color: '#f0f0f0' },
     { label: 'Ratio moy.', value: ratioMoyen.toFixed(1), color: '#f0f0f0' },
     { label: 'Couverture', value: couverturePct.toFixed(0) + '%', color: couverturePct > 80 ? '#3dffa0' : couverturePct > 50 ? '#f7b731' : '#ff5757' },
     { label: 'Top 10% CP =', value: concentrationTop10.toFixed(0) + '% imp.', color: concentrationTop10 > 60 ? '#ff5757' : '#3dffa0' },
   ];
+  if (frequency !== null && frequency > 0 && Number.isFinite(frequency)) {
+    kpis.push({ label: 'Fréquence moy.', value: frequency.toFixed(1) + 'x', color: '#f0f0f0' });
+  }
 
   return (
     <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>

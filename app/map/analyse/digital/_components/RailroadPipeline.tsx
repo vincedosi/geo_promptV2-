@@ -7,7 +7,7 @@ const fMono = "'JetBrains Mono', monospace";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface Campaign { id: string; name: string; total_tracked_ads: number; }
+interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
 interface MediaItem { media: string; total_impressions: number; }
 
 interface RailroadPipelineProps {
@@ -30,6 +30,7 @@ interface RailroadPipelineProps {
   // Stats
   zonesCount: number;
   totalImpressions: number;
+  metric?: 'impressions' | 'unique';
   loading: boolean;
 }
 
@@ -162,8 +163,9 @@ export function RailroadPipeline({
   campaigns, popFields, mediaList,
   selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout,
   onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange,
-  zonesCount, totalImpressions, loading,
+  zonesCount, totalImpressions, metric = 'impressions', loading,
 }: RailroadPipelineProps) {
+  const impLabelShort = metric === 'unique' ? 'imp. uniques' : 'imp.';
   const [activePopover, setActivePopover] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -203,9 +205,14 @@ export function RailroadPipeline({
         <div style={{ position: 'relative' }}>
           <RailNode icon={<IconGrid color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Campagne" value={hasCampaign ? campName : '—'} done={hasCampaign} active={activePopover === 'campaign'} onClick={() => toggle('campaign')} />
           <Popover open={activePopover === 'campaign'} align="left">
-            {campaigns.map(c => (
-              <RadioOption key={c.id} selected={selectedCampaign === c.id} label={c.name} sub={fmt(c.total_tracked_ads) + ' imp.'} onClick={() => { onCampaignChange(c.id); setActivePopover(null); }} />
-            ))}
+            {campaigns.map(c => {
+              const sub = c.total_unique_impressions && c.total_unique_impressions > 0
+                ? `${fmt(c.total_tracked_ads)} imp. · ${fmt(c.total_unique_impressions)} uniques`
+                : `${fmt(c.total_tracked_ads)} imp.`;
+              return (
+                <RadioOption key={c.id} selected={selectedCampaign === c.id} label={c.name} sub={sub} onClick={() => { onCampaignChange(c.id); setActivePopover(null); }} />
+              );
+            })}
             {campaigns.length === 0 && <div style={{ padding: 12, fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>Aucune campagne</div>}
           </Popover>
         </div>
@@ -275,7 +282,7 @@ export function RailroadPipeline({
         {loading && <span style={{ fontFamily: fInter, fontSize: 11, color: '#4ecdc4' }}>Chargement...</span>}
         {!loading && hasCampaign && (
           <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>
-            {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} imp.
+            {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {impLabelShort}
           </span>
         )}
       </div>
