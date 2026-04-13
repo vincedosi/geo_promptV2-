@@ -17,6 +17,7 @@ interface ActionRow {
 
 interface ActionListTableProps {
   data: ActionRow[];
+  metric?: 'impressions' | 'unique';
   onRowClick?: (code: string) => void;
 }
 
@@ -26,8 +27,9 @@ function fmt(n: number): string {
   return n.toLocaleString('fr-FR');
 }
 
-export function ActionListTable({ data, onRowClick }: ActionListTableProps) {
+export function ActionListTable({ data, metric = 'impressions', onRowClick }: ActionListTableProps) {
   const [tab, setTab] = useState<'over' | 'under'>('over');
+  const impHeader = metric === 'unique' ? 'Imp. uniq.' : 'Imp.';
 
   const filtered = tab === 'over'
     ? data.filter(d => d.ecart > 0).sort((a, b) => b.ecart - a.ecart)
@@ -54,7 +56,7 @@ export function ActionListTable({ data, onRowClick }: ActionListTableProps) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Zone', 'Imp.', 'Pop.', 'Ecart'].map(h => (
+              {['Zone', impHeader, 'Pop.', 'Ecart'].map(h => (
                 <th key={h} style={{
                   textAlign: h === 'Zone' ? 'left' : 'right', padding: '5px 8px',
                   fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#4ecdc4',

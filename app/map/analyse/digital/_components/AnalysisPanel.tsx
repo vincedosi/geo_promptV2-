@@ -26,12 +26,14 @@ interface AnalysisPanelProps {
   scale: string;
   popField: string;
   selectedMedia: string[];
+  metric: 'impressions' | 'unique';
+  frequency?: number | null;
   open: boolean;
   onToggle: () => void;
   onZoneClick?: (code: string) => void;
 }
 
-export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open, onToggle, onZoneClick }: AnalysisPanelProps) {
+export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metric, frequency, open, onToggle, onZoneClick }: AnalysisPanelProps) {
   const [breakdownData, setBreakdownData] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'region' | 'dept' | 'cp'>('region');
@@ -49,7 +51,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
     try {
       const isCp = agg === 'cp';
       const limit = isCp ? cpLimit : 100;
-      let url = `/api/digital/${campaignId}/analysis?type=breakdown&aggregation=${agg}&indicator=${popField}&limit=${limit}`;
+      let url = `/api/digital/${campaignId}/analysis?type=breakdown&aggregation=${agg}&indicator=${popField}&limit=${limit}&metric=${metric}`;
       if (isCp && cpPopMin > 0) url += `&pop_min=${cpPopMin}`;
       if (selectedMedia.length > 0) url += `&media=${selectedMedia.join(',')}`;
       console.log(`[Breakdown] fetching: ${url}`);
@@ -61,19 +63,19 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
       }
     } catch (err) { console.error('[analysis]', err); }
     finally { setLoading(false); }
-  }, [campaignId, popField, selectedMedia, cpLimit, cpPopMin]);
+  }, [campaignId, popField, selectedMedia, cpLimit, cpPopMin, metric]);
 
-  useEffect(() => { if (open && campaignId) fetchBreakdown(tab); }, [open, campaignId, tab, popField, selectedMedia, cpLimit, cpPopMin, fetchBreakdown]);
+  useEffect(() => { if (open && campaignId) fetchBreakdown(tab); }, [open, campaignId, tab, popField, selectedMedia, cpLimit, cpPopMin, metric, fetchBreakdown]);
 
   useEffect(() => {
     if (!open || !campaignId) return;
     setHeatmapLoading(true);
-    fetch(`/api/digital/${campaignId}/analysis?type=heatmap&aggregation=${heatmapAgg}&indicator=${popField}`)
+    fetch(`/api/digital/${campaignId}/analysis?type=heatmap&aggregation=${heatmapAgg}&indicator=${popField}&metric=${metric}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setHeatmapData(data); })
       .catch(() => {})
       .finally(() => setHeatmapLoading(false));
-  }, [open, campaignId, heatmapAgg, popField]);
+  }, [open, campaignId, heatmapAgg, popField, metric]);
 
   const totalImp = breakdownData.reduce((s, d) => s + Number(d.impressions), 0);
   const totalPop = breakdownData.reduce((s, d) => s + Number(d.pop_value || 0), 0);
@@ -92,6 +94,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
         <KpiSummary
           totalImpressions={totalImp} totalPop={totalPop} ratioMoyen={ratioMoyen}
           couverturePct={breakdownData.length > 0 ? 100 : 0} concentrationTop10={concentrationTop10}
+          metric={metric} frequency={frequency ?? null}
         />
       </div>
 
@@ -163,17 +166,17 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {/* Col 1: Breakdown */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <BreakdownChart data={breakdownData} aggregation={tab} onBarClick={onZoneClick} />
+              <BreakdownChart data={breakdownData} aggregation={tab} metric={metric} onBarClick={onZoneClick} />
             </div>
 
             {/* Col 2: Heatmap */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} onAggregationChange={() => {}} />
+              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} onAggregationChange={() => {}} />
             </div>
 
             {/* Col 1: Action List */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <ActionListTable data={breakdownData} onRowClick={onZoneClick} />
+              <ActionListTable data={breakdownData} metric={metric} onRowClick={onZoneClick} />
             </div>
 
             {/* Col 2: Bidding Recommendation */}

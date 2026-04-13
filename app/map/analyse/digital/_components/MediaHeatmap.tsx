@@ -26,6 +26,7 @@ interface MediaHeatmapProps {
   data: HeatmapData | null;
   loading: boolean;
   aggregation: string;
+  metric?: 'impressions' | 'unique';
   onAggregationChange: (agg: string) => void;
   onCellClick?: (media: string, zoneCode: string) => void;
 }
@@ -50,8 +51,9 @@ function fmt(n: number): string {
   return n.toLocaleString('fr-FR');
 }
 
-export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, onCellClick }: MediaHeatmapProps) {
+export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions', onAggregationChange, onCellClick }: MediaHeatmapProps) {
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
+  const impLabel = metric === 'unique' ? 'Imp. uniques' : 'Imp.';
 
   const { cellMap, maxAbs, sortedMedias } = useMemo(() => {
     if (!data) return { cellMap: new Map(), maxAbs: 1, sortedMedias: [] };
@@ -158,7 +160,7 @@ export function MediaHeatmap({ data, loading, aggregation, onAggregationChange, 
           display: 'flex', gap: 12, flexWrap: 'wrap',
         }}>
           <span style={{ fontWeight: 600, color: '#f0f0f0' }}>{hoveredCell.media} — {hoveredCell.zone_nom}</span>
-          <span>Imp: <span style={{ color: '#4ecdc4', fontFamily: fMono }}>{fmt(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
+          <span>{impLabel}: <span style={{ color: '#4ecdc4', fontFamily: fMono }}>{fmt(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
           <span>Pop: <span style={{ color: '#f0f0f0', fontFamily: fMono }}>{fmt(hoveredCell.pop_cible)}</span> ({hoveredCell.pct_pop}%)</span>
           <span style={{ color: hoveredCell.ecart > 0 ? '#EF4444' : '#3B82F6', fontFamily: fMono, fontWeight: 600 }}>
             {hoveredCell.ecart > 0 ? '+' : ''}{hoveredCell.ecart} pts

@@ -135,23 +135,29 @@ export default function DigitalTripleMapPage() {
 
   const handleCampaignChange = useCallback((id: string) => {
     setCampaignId(id);
-    if (id) fetchMap(id, scale, popField);
-  }, [scale, popField, fetchMap]);
+    if (id) fetchMap(id, scale, popField, selectedMedia, metric);
+  }, [scale, popField, selectedMedia, metric, fetchMap]);
 
   const handleScaleChange = useCallback((s: string) => {
     setScale(s);
-    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia);
-  }, [campaignId, popField, selectedMedia, fetchMap]);
+    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric);
+  }, [campaignId, popField, selectedMedia, metric, fetchMap]);
 
   const handlePopFieldChange = useCallback((f: string) => {
     setPopField(f);
-    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia);
-  }, [campaignId, scale, selectedMedia, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric);
+  }, [campaignId, scale, selectedMedia, metric, fetchMap]);
 
   const handleMediaChange = useCallback((media: string[]) => {
     setSelectedMedia(media);
-    if (campaignId) fetchMap(campaignId, scale, popField, media);
-  }, [campaignId, scale, popField, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, media, metric);
+  }, [campaignId, scale, popField, metric, fetchMap]);
+
+  // Refetch map when metric toggles
+  useEffect(() => {
+    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metric]);
 
   const stats = useMemo(() => {
     if (!geojson) return { impPerc: null, popPerc: null, ratioPerc: null, totalImp: 0 };
@@ -195,7 +201,7 @@ export default function DigitalTripleMapPage() {
         legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''} />
     );
     return (
-      <MapPanel title="Ratio" titleAccent={`imp. / ${POP_LABELS[popField] ?? popField}`} palettes={allPalettes} palette={ratioPalette} onPaletteChange={setRatioPalette} inverted={ratioInverted} onInvertedChange={setRatioInverted}
+      <MapPanel title="Ratio" titleAccent={`${metric === 'unique' ? 'imp. uniques' : 'imp.'} / ${POP_LABELS[popField] ?? popField}`} palettes={allPalettes} palette={ratioPalette} onPaletteChange={setRatioPalette} inverted={ratioInverted} onInvertedChange={setRatioInverted}
         mapId="ratio" geojson={geojson} fillExpression={ratExpr} lineColor="rgba(180,180,180,0.2)"
         onMove={handleMove('ratio')} syncTarget={syncSource !== 'ratio' ? syncState : null} zoomOffset={zo}
         percentiles={stats.ratioPerc} legendStops={ratioInverted ? [...ratPal.stops].reverse() : ratPal.stops}
@@ -215,8 +221,12 @@ export default function DigitalTripleMapPage() {
     return top10 / total * 100;
   }, [geojson]);
 
-  // Campaign name from list
-  const campaignName = campaigns.find(c => c.id === campaignId)?.name ?? '';
+  // Campaign name and frequency from list
+  const selectedCampaign = campaigns.find(c => c.id === campaignId);
+  const campaignName = selectedCampaign?.name ?? '';
+  const campaignFrequency = (selectedCampaign && selectedCampaign.total_unique_impressions > 0)
+    ? selectedCampaign.total_tracked_ads / selectedCampaign.total_unique_impressions
+    : null;
 
   const hasCampaign = !!campaignId;
 
@@ -242,7 +252,7 @@ export default function DigitalTripleMapPage() {
                 selectedMedia={selectedMedia} selectedLayout={layout}
                 onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
                 onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
-                zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} loading={geojsonLoading}
+                zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} metric={metric} loading={geojsonLoading}
               />
             </div>
           </div>
@@ -304,6 +314,8 @@ export default function DigitalTripleMapPage() {
                 scale={scale}
                 popField={popField}
                 selectedMedia={selectedMedia}
+                metric={metric}
+                frequency={campaignFrequency}
                 open={analysisOpen}
                 onToggle={() => setAnalysisOpen(false)}
               />

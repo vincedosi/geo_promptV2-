@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface Campaign {
   id: string; name: string; total_tracked_ads: number;
+  total_unique_impressions: number;
   dsp_source: string; date_start: string | null; date_end: string | null;
   nb_medias: number; nb_postal_codes: number;
 }
@@ -13,7 +14,7 @@ interface DigitalData {
   campaignsLoading: boolean;
   geojson: GeoJSON.FeatureCollection | null;
   geojsonLoading: boolean;
-  fetchMap: (campaignId: string, scale: string, popField?: string, media?: string[]) => Promise<void>;
+  fetchMap: (campaignId: string, scale: string, popField?: string, media?: string[], metric?: 'impressions' | 'unique') => Promise<void>;
 }
 
 export function useDigitalData(): DigitalData {
@@ -31,7 +32,7 @@ export function useDigitalData(): DigitalData {
       .finally(() => setCampaignsLoading(false));
   }, []);
 
-  const fetchMap = useCallback(async (campaignId: string, scale: string, popField?: string, media?: string[]) => {
+  const fetchMap = useCallback(async (campaignId: string, scale: string, popField?: string, media?: string[], metric?: 'impressions' | 'unique') => {
     if (!campaignId) return;
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -39,7 +40,8 @@ export function useDigitalData(): DigitalData {
     setGeojsonLoading(true);
     try {
       const pf = popField || 'population';
-      let url = `/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${scale}&pop_field=${pf}`;
+      const m = metric === 'unique' ? 'unique' : 'impressions';
+      let url = `/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${scale}&pop_field=${pf}&metric=${m}`;
       if (media && media.length > 0) url += `&media=${media.join(',')}`;
       const res = await fetch(url, { signal: ctrl.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
