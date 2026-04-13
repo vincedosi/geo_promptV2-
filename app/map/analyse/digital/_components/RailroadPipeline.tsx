@@ -5,6 +5,10 @@ import { useState, useRef, useEffect } from 'react';
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
+// Sentinel non-UUID utilise pour la geographie virtuelle "Zones Meteo"
+// Detecte par use-digital-data hook pour router vers /api/digital/[id]/meteo
+export const METEO_SENTINEL = 'meteo' as const;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
@@ -187,10 +191,12 @@ export function RailroadPipeline({
   const campName = campaigns.find(c => c.id === selectedCampaign)?.name ?? '—';
   const popLabel = popFields.find(f => f.value === selectedPopField)?.label ?? selectedPopField;
   const activeGeoSet = geographySets.find(g => g.id === selectedGeographySetId) ?? null;
+  const isMeteoActive = selectedGeographySetId === METEO_SENTINEL;
   const scaleLabel = selectedScale === 'cp' ? 'CP'
     : selectedScale === 'departement' ? 'Dept'
-    : selectedScale === 'zones' ? (activeGeoSet?.name ?? 'Zones')
-    : 'Regions';
+    : selectedScale === 'zones'
+      ? (isMeteoActive ? 'Meteo' : (activeGeoSet?.name ?? 'Zones'))
+      : 'Regions';
   const mediaLabel = selectedMedia.length === 0 ? `Toutes (${mediaList.length})` : `${selectedMedia.length}/${mediaList.length}`;
   const layoutLabels: Record<string, string> = { equal: '1/3', 'focus-imp': 'Imp.', 'focus-pop': 'Pop.', 'focus-ratio': 'Ratio' };
   const layoutLabel = layoutLabels[selectedLayout] ?? '1/3';
@@ -265,9 +271,16 @@ export function RailroadPipeline({
                 <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
                   JEU DE ZONES
                 </div>
+                {/* Entree virtuelle "Zones Meteo" en tete de liste */}
+                <RadioOption
+                  selected={selectedGeographySetId === METEO_SENTINEL}
+                  label="🌤 Zones Meteo"
+                  sub="dynamique · Open-Meteo"
+                  onClick={() => { onGeographySetChange?.(METEO_SENTINEL); setActivePopover(null); }}
+                />
                 {geographySets.length === 0 ? (
                   <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', lineHeight: 1.4 }}>
-                    Aucune geographie.<br />
+                    Aucune geographie importee.<br />
                     Creez-en une dans <span style={{ color: '#4ecdc4' }}>geo.prompt</span> apres un battle.
                   </div>
                 ) : (

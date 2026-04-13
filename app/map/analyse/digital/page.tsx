@@ -3,13 +3,15 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
-import { RailroadPipeline, type GeographySet } from './_components/RailroadPipeline';
+import { RailroadPipeline, type GeographySet, METEO_SENTINEL } from './_components/RailroadPipeline';
+import { MeteoGeoPanel } from './_components/MeteoGeoPanel';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
 import { AnalysisPanel } from './_components/AnalysisPanel';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { adminFetch } from '@/lib/admin-fetch';
+import type { MeteoParams } from '@/lib/meteo/types';
 
 const fInter = "'Inter', sans-serif";
 
@@ -104,7 +106,7 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 }
 
 export default function DigitalTripleMapPage() {
-  const { campaigns, geojson, geojsonLoading, geographySummary, fetchMap } = useDigitalData();
+  const { campaigns, geojson, geojsonLoading, geographySummary, meteoMeta, fetchMap } = useDigitalData();
 
   const [campaignId, setCampaignId] = useState('');
   const [scale, setScale] = useState('region');
@@ -114,6 +116,7 @@ export default function DigitalTripleMapPage() {
   const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
   const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
   const [geographySetId, setGeographySetId] = useState<string | null>(null);
+  const [meteoParams, setMeteoParams] = useState<MeteoParams | null>(null);
 
   // Fetch geography sets on mount
   useEffect(() => {
@@ -162,37 +165,54 @@ export default function DigitalTripleMapPage() {
 
   const handleCampaignChange = useCallback((id: string) => {
     setCampaignId(id);
-    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId);
-  }, [scale, popField, selectedMedia, metric, geographySetId, fetchMap]);
+    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId, meteoParams);
+  }, [scale, popField, selectedMedia, metric, geographySetId, meteoParams, fetchMap]);
 
   const handleScaleChange = useCallback((s: string) => {
     setScale(s);
     let nextSetId = geographySetId;
+    // Quand on sort de zones, on nettoie aussi les meteoParams
+    if (s !== 'zones') {
+      setMeteoParams(null);
+    }
     if (s === 'zones' && !nextSetId && geographySets.length > 0) {
       nextSetId = geographySets[0].id;
       setGeographySetId(nextSetId);
     }
-    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId);
-  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, fetchMap]);
+    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId, s === 'zones' ? meteoParams : null);
+  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, meteoParams, fetchMap]);
 
   const handlePopFieldChange = useCallback((f: string) => {
     setPopField(f);
-    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId);
-  }, [campaignId, scale, selectedMedia, metric, geographySetId, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId, meteoParams);
+  }, [campaignId, scale, selectedMedia, metric, geographySetId, meteoParams, fetchMap]);
 
   const handleMediaChange = useCallback((media: string[]) => {
     setSelectedMedia(media);
-    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId);
-  }, [campaignId, scale, popField, metric, geographySetId, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId, meteoParams);
+  }, [campaignId, scale, popField, metric, geographySetId, meteoParams, fetchMap]);
 
   const handleGeographySetChange = useCallback((setId: string | null) => {
     setGeographySetId(setId);
-    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId);
+    // Cas meteo : on reset les params et on ATTEND que l'utilisateur
+    // clique sur "Appliquer" dans le MeteoGeoPanel. Pas de fetch ici.
+    if (setId === METEO_SENTINEL) {
+      setMeteoParams(null);
+      return;
+    }
+    // Cas zones classique : fetch immediat comme avant
+    setMeteoParams(null);
+    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId, null);
   }, [campaignId, scale, popField, selectedMedia, metric, fetchMap]);
+
+  const handleMeteoApply = useCallback((params: MeteoParams) => {
+    setMeteoParams(params);
+    if (campaignId) fetchMap(campaignId, 'zones', popField, selectedMedia, metric, METEO_SENTINEL, params);
+  }, [campaignId, popField, selectedMedia, metric, fetchMap]);
 
   // Refetch map when metric toggles
   useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId);
+    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId, meteoParams);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric]);
 
@@ -202,7 +222,7 @@ export default function DigitalTripleMapPage() {
     if (scale === 'zones' && !geographySetId && geographySets.length > 0 && campaignId) {
       const firstId = geographySets[0].id;
       setGeographySetId(firstId);
-      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId);
+      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId, null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geographySets, scale]);
@@ -360,6 +380,21 @@ export default function DigitalTripleMapPage() {
                 </div>
               )}
             </div>
+
+            {/* Meteo overlay panel : visible seulement en mode zones meteo */}
+            {scale === 'zones' && geographySetId === METEO_SENTINEL && !analysisOpen && (
+              <div style={{
+                position: 'absolute', top: 16, left: 16, zIndex: 30,
+                pointerEvents: 'auto',
+              }}>
+                <MeteoGeoPanel
+                  onApply={handleMeteoApply}
+                  initialParams={meteoParams}
+                  loading={geojsonLoading}
+                  stats={meteoMeta?.stats ?? null}
+                />
+              </div>
+            )}
 
             {/* Analysis overlay */}
             <div style={{

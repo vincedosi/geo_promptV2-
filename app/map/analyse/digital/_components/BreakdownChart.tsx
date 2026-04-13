@@ -56,7 +56,7 @@ export function BreakdownChart({ data, aggregation, metric = 'impressions', onBa
           <YAxis type="category" dataKey="nom" tick={{ fill: '#a0a0a0', fontSize: 10, fontFamily: fInter }} axisLine={false} tickLine={false} width={75} />
           <Tooltip content={<CustomTooltip impLabel={impLabel} />} cursor={false} />
           <ReferenceLine x={0} stroke="#333333" strokeDasharray="3 3" />
-          <Bar dataKey="ecart" radius={[2, 2, 2, 2]} onClick={(_d, _i, e) => { const code = (e as unknown as { payload?: { code?: string } })?.payload?.code; if (code) onBarClick?.(code); }} style={{ cursor: 'pointer' }}>
+          <Bar dataKey="ecart" radius={[2, 2, 2, 2]} onClick={(_d, _i, e) => { const code = (e as unknown as { payload?: { code?: string } })?.payload?.code; if (code) onBarClick?.(code); }} style={{ cursor: aggregation === 'cp' ? 'default' : 'pointer' }}>
             {sorted.map((entry) => (
               <Cell key={entry.code} fill={entry.ecart > 0 ? '#EF4444' : '#3B82F6'} fillOpacity={0.8} />
             ))}
