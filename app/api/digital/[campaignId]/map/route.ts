@@ -33,6 +33,8 @@ export async function GET(
   const popField = searchParams.get('pop_field') || 'population';
   const mediaStr = searchParams.get('media');
   const media = mediaStr ? mediaStr.split(',').filter(Boolean) : null;
+  const metricRaw = searchParams.get('metric');
+  const metric = metricRaw === 'unique' ? 'unique' : 'impressions';
   const supabase = createAdminClient();
 
   const { data, error } = await supabase.rpc('get_digital_campaign_map', {
@@ -44,6 +46,7 @@ export async function GET(
     p_bbox_ymin: ymin,
     p_bbox_xmax: xmax,
     p_bbox_ymax: ymax,
+    p_metric: metric,
   });
 
   if (error) {
