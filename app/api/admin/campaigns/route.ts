@@ -57,9 +57,26 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Linked organizations via pivot
+  const campaignIds = campaigns.map((c) => c.id);
+  const { data: links } = await supabase
+    .from('campaign_organizations')
+    .select('campaign_id, organization_id, organizations(id, name, slug)')
+    .in('campaign_id', campaignIds);
+
+  const linksMap = new Map<string, { id: string; name: string; slug: string }[]>();
+  for (const l of links ?? []) {
+    const o = (l as unknown as { organizations: { id: string; name: string; slug: string } }).organizations;
+    if (!o) continue;
+    const arr = linksMap.get(l.campaign_id) ?? [];
+    arr.push(o);
+    linksMap.set(l.campaign_id, arr);
+  }
+
   const items = campaigns.map((c) => ({
     ...c,
     organization_name: (c as Record<string, unknown>).organizations ? ((c as Record<string, unknown>).organizations as Record<string, unknown>)?.name : null,
+    organizations_linked: linksMap.get(c.id) ?? [],
     total_rows: statsMap.get(c.id)?.total_rows ?? 0,
     france_rows: statsMap.get(c.id)?.france_rows ?? 0,
     matched_iris: statsMap.get(c.id)?.matched_iris ?? 0,

@@ -146,6 +146,124 @@ function CampaignPreviewPanel({ campaignId }: { campaignId: string }) {
   );
 }
 
+// ── Organization badges (multi-org sharing per campaign) ─────────────────────
+type OrgRef = { id: string; name: string; slug?: string };
+
+function OrgBadges({
+  campaignId,
+  ownerOrgId,
+  linked,
+  allOrgs,
+  onChange,
+}: {
+  campaignId: string;
+  ownerOrgId: string | null;
+  linked: OrgRef[];
+  allOrgs: OrgRef[];
+  onChange: () => void;
+}) {
+  const { toast: toastApi } = useToast();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const linkedIds = new Set(linked.map(o => o.id));
+  const available = allOrgs.filter(o => !linkedIds.has(o.id));
+
+  const removeOrg = async (orgId: string) => {
+    if (orgId === ownerOrgId) return;
+    if (linked.length <= 1) {
+      toastApi.error('Action impossible', 'Une campagne doit rester liée à au moins une organisation');
+      return;
+    }
+    setBusy(true);
+    const res = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations/${orgId}`, { method: 'DELETE' });
+    setBusy(false);
+    if (res.ok) { toastApi.success('Organisation retirée'); onChange(); }
+    else { const err = await res.json().catch(() => ({})); toastApi.error('Erreur', err.error ?? `HTTP ${res.status}`); }
+  };
+
+  const addOrg = async (orgId: string) => {
+    setPickerOpen(false);
+    setBusy(true);
+    const res = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organization_id: orgId }),
+    });
+    setBusy(false);
+    if (res.ok) { toastApi.success('Organisation ajoutée'); onChange(); }
+    else { const err = await res.json().catch(() => ({})); toastApi.error('Erreur', err.error ?? `HTTP ${res.status}`); }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', position: 'relative' }}>
+      {linked.map(o => {
+        const isOwner = o.id === ownerOrgId;
+        return (
+          <span key={o.id} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '1px 6px', borderRadius: 4,
+            fontFamily: fInter, fontSize: 9, fontWeight: 500,
+            background: isOwner ? 'rgba(78,205,196,0.08)' : C.elevated,
+            border: `0.5px solid ${isOwner ? C.teal + '66' : C.borderDefault}`,
+            color: isOwner ? C.teal : C.textSec,
+          }}>
+            {o.name}
+            {isOwner && <span style={{ fontSize: 8, opacity: 0.7 }}>★</span>}
+            {!isOwner && (
+              <button
+                onClick={() => removeOrg(o.id)}
+                disabled={busy}
+                style={{
+                  background: 'transparent', border: 'none', cursor: busy ? 'not-allowed' : 'pointer',
+                  padding: 0, marginLeft: 2, color: C.textDim, fontSize: 11, lineHeight: 1,
+                }}
+                title="Retirer cette organisation"
+              >×</button>
+            )}
+          </span>
+        );
+      })}
+      {available.length > 0 && (
+        <>
+          <button
+            onClick={() => setPickerOpen(p => !p)}
+            disabled={busy}
+            style={{
+              background: 'transparent', border: `0.5px dashed ${C.borderDefault}`, borderRadius: 4,
+              padding: '1px 6px', fontFamily: fInter, fontSize: 9, color: C.textDim,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}
+          >+ Ajouter</button>
+          {pickerOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 20,
+              background: C.card, border: `0.5px solid ${C.borderDefault}`, borderRadius: 4,
+              padding: 4, minWidth: 160,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            }}>
+              {available.map(o => (
+                <button
+                  key={o.id}
+                  onClick={() => addOrg(o.id)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: C.textSec,
+                    borderRadius: 3,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = C.elevated; e.currentTarget.style.color = C.teal; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textSec; }}
+                >{o.name}</button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CampaignsPage() {
   const { toast: toastApi } = useToast();
@@ -218,9 +336,13 @@ export default function CampaignsPage() {
       .catch(() => {});
   }, []);
 
-  // Filter campaigns by selected org
+  // Filter campaigns by selected org (matches if owner OR linked via pivot)
   const filteredCampaigns = selectedOrg
-    ? campaigns.filter(c => (c as unknown as { organization_id?: string }).organization_id === selectedOrg)
+    ? campaigns.filter(c => {
+        const cc = c as unknown as { organization_id?: string; organizations_linked?: OrgRef[] };
+        if (cc.organization_id === selectedOrg) return true;
+        return (cc.organizations_linked ?? []).some(o => o.id === selectedOrg);
+      })
     : campaigns;
 
   // ── Preview handler ───────────────────────────────────────────────────────
@@ -445,25 +567,13 @@ export default function CampaignsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <Link href={`/admin/campaigns/${c.id}`} style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: C.text, textDecoration: 'none' }}>{c.name}</Link>
                       <span style={{ background: C.warnDim, border: `0.5px solid ${C.warn}44`, borderRadius: 4, padding: '1px 6px', fontSize: 9, color: C.warn, fontFamily: fInter, fontWeight: 500 }}>{c.dsp_source}</span>
-                      {/* Org badge / inline reassign */}
-                      {orgs.length > 1 ? (
-                        <select
-                          value={(c as unknown as { organization_id?: string }).organization_id ?? ''}
-                          onChange={async (e) => {
-                            const res = await adminFetch(`/api/admin/campaigns/${c.id}`, {
-                              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ organization_id: e.target.value }),
-                            });
-                            if (res.ok) { toastApi.success('Organisation mise a jour'); fetchCampaigns(); }
-                            else { const err = await res.json(); toastApi.error('Erreur', err.error); }
-                          }}
-                          style={{ background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: '1px 6px', fontSize: 9, color: C.teal, fontFamily: fInter, cursor: 'pointer', outline: 'none' }}
-                        >
-                          {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </select>
-                      ) : (
-                        <span style={{ fontSize: 9, color: C.textDim, fontFamily: fInter }}>{(c as unknown as { organization_name?: string }).organization_name ?? ''}</span>
-                      )}
+                      <OrgBadges
+                        campaignId={c.id}
+                        ownerOrgId={(c as unknown as { organization_id?: string | null }).organization_id ?? null}
+                        linked={(c as unknown as { organizations_linked?: OrgRef[] }).organizations_linked ?? []}
+                        allOrgs={orgs}
+                        onChange={fetchCampaigns}
+                      />
                     </div>
                     <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, display: 'flex', gap: 12 }}>
                       <span>{fmtDate(c.date_start)} → {fmtDate(c.date_end)}</span>
