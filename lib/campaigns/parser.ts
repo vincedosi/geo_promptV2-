@@ -29,6 +29,7 @@ export interface CampaignParseResult {
   date_start: string | null;
   date_end: string | null;
   total_tracked_ads: number;
+  total_unique_impressions: number;
   errors: string[];
   detected_columns: string[];
 }
@@ -60,6 +61,7 @@ export function parseCampaignFile(
   let campaignName = '';
   const countriesSet = new Set<string>();
   let totalTrackedAds = 0;
+  let totalUniqueImpressions = 0;
   const dates: string[] = [];
 
   for (let i = 0; i < rawRows.length; i++) {
@@ -97,6 +99,7 @@ export function parseCampaignFile(
     rows.push(row);
     countriesSet.add(row.country);
     totalTrackedAds += trackedAds;
+    totalUniqueImpressions += row.unique_impressions;
     if (date) dates.push(date);
   }
 
@@ -109,6 +112,7 @@ export function parseCampaignFile(
     date_start: dates[0] ?? null,
     date_end: dates[dates.length - 1] ?? null,
     total_tracked_ads: totalTrackedAds,
+    total_unique_impressions: totalUniqueImpressions,
     errors,
     detected_columns: Array.from(mappedTargets),
   };

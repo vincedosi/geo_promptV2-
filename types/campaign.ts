@@ -12,6 +12,7 @@ export interface DspCampaign {
   date_start: string | null;
   date_end: string | null;
   total_tracked_ads: number;
+  total_unique_impressions: number;
   countries: string[] | null;
   created_at: string;
   created_by: string | null;
@@ -27,6 +28,8 @@ export interface DspCampaignData {
   region: string | null;
   dma_region: string | null;
   tracked_ads: number;
+  unique_impressions: number;
+  media: string | null;
   code_iris: string | null;
   code_commune: string | null;
   matched_at: string | null;

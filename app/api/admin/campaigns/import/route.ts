@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
             date_start: parsed.date_start,
             date_end: parsed.date_end,
             total_tracked_ads: parsed.total_tracked_ads,
+            total_unique_impressions: parsed.total_unique_impressions,
             countries: parsed.countries,
             created_by: profile.id,
             organization_id: organizationId,
