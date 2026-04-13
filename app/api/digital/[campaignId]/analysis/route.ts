@@ -54,6 +54,7 @@ export async function GET(
   const mediaStr = searchParams.get('media');
   const media = mediaStr ? mediaStr.split(',').filter(Boolean) : null;
   const limit = parseInt(searchParams.get('limit') || '100', 10);
+  const popMin = parseFloat(searchParams.get('pop_min') || '0') || 0;
 
   const { data, error } = await supabase.rpc('get_digital_analysis_breakdown', {
     p_campaign_id: campaignId,
@@ -61,6 +62,7 @@ export async function GET(
     p_indicator: indicator,
     p_media: media,
     p_limit: limit,
+    p_pop_min: popMin,
   });
 
   if (error) {

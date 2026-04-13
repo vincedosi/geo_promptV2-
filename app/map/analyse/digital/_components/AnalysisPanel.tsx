@@ -35,6 +35,8 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
   const [breakdownData, setBreakdownData] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'region' | 'dept' | 'cp'>('region');
+  const [cpLimit, setCpLimit] = useState<number>(50);
+  const [cpPopMin, setCpPopMin] = useState<number>(5000);
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   // Heatmap follows the breakdown tab
@@ -45,7 +47,10 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
     setLoading(true);
     setBreakdownData([]); // Reset to prevent stale data
     try {
-      let url = `/api/digital/${campaignId}/analysis?type=breakdown&aggregation=${agg}&indicator=${popField}&limit=100`;
+      const isCp = agg === 'cp';
+      const limit = isCp ? cpLimit : 100;
+      let url = `/api/digital/${campaignId}/analysis?type=breakdown&aggregation=${agg}&indicator=${popField}&limit=${limit}`;
+      if (isCp && cpPopMin > 0) url += `&pop_min=${cpPopMin}`;
       if (selectedMedia.length > 0) url += `&media=${selectedMedia.join(',')}`;
       console.log(`[Breakdown] fetching: ${url}`);
       const res = await fetch(url);
@@ -56,9 +61,9 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
       }
     } catch (err) { console.error('[analysis]', err); }
     finally { setLoading(false); }
-  }, [campaignId, popField, selectedMedia]);
+  }, [campaignId, popField, selectedMedia, cpLimit, cpPopMin]);
 
-  useEffect(() => { if (open && campaignId) fetchBreakdown(tab); }, [open, campaignId, tab, popField, selectedMedia, fetchBreakdown]);
+  useEffect(() => { if (open && campaignId) fetchBreakdown(tab); }, [open, campaignId, tab, popField, selectedMedia, cpLimit, cpPopMin, fetchBreakdown]);
 
   useEffect(() => {
     if (!open || !campaignId) return;
@@ -101,6 +106,39 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, open
           }}>{label}</button>
         ))}
         <div style={{ flex: 1 }} />
+        {tab === 'cp' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'center', marginRight: 8 }}>
+            <select
+              value={cpLimit}
+              onChange={(e) => setCpLimit(parseInt(e.target.value, 10))}
+              style={{
+                background: '#111111', border: '0.5px solid #262626', borderRadius: 4,
+                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: '#a0a0a0',
+                outline: 'none', cursor: 'pointer',
+              }}
+            >
+              <option value={10}>Top 10</option>
+              <option value={20}>Top 20</option>
+              <option value={50}>Top 50</option>
+              <option value={100}>Top 100</option>
+            </select>
+            <select
+              value={cpPopMin}
+              onChange={(e) => setCpPopMin(parseInt(e.target.value, 10))}
+              style={{
+                background: '#111111', border: '0.5px solid #262626', borderRadius: 4,
+                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: '#a0a0a0',
+                outline: 'none', cursor: 'pointer',
+              }}
+            >
+              <option value={0}>Pop. toutes</option>
+              <option value={1000}>Pop. min 1k</option>
+              <option value={5000}>Pop. min 5k</option>
+              <option value={10000}>Pop. min 10k</option>
+              <option value={50000}>Pop. min 50k</option>
+            </select>
+          </div>
+        )}
         <button onClick={onToggle} style={{
           padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: 'pointer',
           background: 'rgba(255,255,255,0.05)', border: '0.5px solid #262626', borderRadius: 4,
