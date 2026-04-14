@@ -9,9 +9,10 @@ interface AiAnalysisBlockProps {
   indicator: string;
   kpi: { totalImpressions: number; totalPop: number; ratioMoyen: number; couverturePct: number; concentrationTop10: number };
   breakdown: Array<{ code: string; nom: string; impressions: number; pop_value: number; pct_imp: number; pct_pop: number; ecart: number }>;
+  onComplete?: () => void;
 }
 
-export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown }: AiAnalysisBlockProps) {
+export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onComplete }: AiAnalysisBlockProps) {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown }: AiAna
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setAnalysis(data.analysis);
+      onComplete?.();
     } catch (err) {
       setError(String(err));
     } finally {
