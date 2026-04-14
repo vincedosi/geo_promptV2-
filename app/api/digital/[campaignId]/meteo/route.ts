@@ -43,8 +43,13 @@ const QuerySchema = z.object({
 
 const MAX_HISTORY_DAYS = 90;
 const MAX_FORECAST_DAYS = 16;
-const MAX_POINTS = 400;
-const DEFAULT_RESOLUTION = 0.1;
+// MAX_POINTS = limite avant l'application du filtre France (sur la bbox rectangulaire).
+// 4000 autorise une résolution de 0.2° sur la France métropolitaine entière sans
+// que adaptiveResolution ne double automatiquement.
+const MAX_POINTS = 4000;
+// Résolution par défaut en degrés. 0.2° ≈ 22 km par carré, sweet spot lisibilité/perf :
+// ~3300 points sur bbox France → ~1700 après clip → ~4 appels Open-Meteo (~3-4s).
+const DEFAULT_RESOLUTION = 0.2;
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -130,19 +135,45 @@ export async function GET(
     );
   }
 
-  // 2. Grille adaptative
+  // 2. Grille adaptative (sur la bbox rectangulaire avant clip France)
   const baseResolution = q.resolution ?? DEFAULT_RESOLUTION;
   const resolution = adaptiveResolution(bbox, baseResolution, MAX_POINTS);
-  const gridPoints = generateGrid(bbox, resolution);
+  const rawGridPoints = generateGrid(bbox, resolution);
 
-  if (gridPoints.length === 0) {
+  if (rawGridPoints.length === 0) {
     return NextResponse.json(
       { error: 'Empty grid generated for campaign bbox' },
       { status: 500 },
     );
   }
 
-  // 3. Fetch Open-Meteo
+  // 3. Filtre France : ne garder que les points à l'intérieur de l'hexagone
+  // via RPC PostGIS (france_boundary, 112 vertex, très rapide)
+  const { data: filteredData, error: filterError } = await supabase.rpc(
+    'filter_points_in_france',
+    { p_points: rawGridPoints },
+  );
+
+  if (filterError) {
+    console.error('[digital/meteo] filter_points_in_france error', filterError.message);
+    return NextResponse.json(
+      { error: 'Failed to filter grid to France', details: filterError.message },
+      { status: 500 },
+    );
+  }
+
+  const gridPoints = (filteredData as Array<{ lon: number; lat: number }> | null) ?? [];
+  if (gridPoints.length === 0) {
+    return NextResponse.json(
+      { error: 'No grid points fall inside France' },
+      { status: 500 },
+    );
+  }
+  console.log(
+    `[digital/meteo] grid: bbox=${rawGridPoints.length} pts → france=${gridPoints.length} pts (resolution=${resolution}°)`,
+  );
+
+  // 4. Fetch Open-Meteo (uniquement sur les points français)
   let weatherResults;
   try {
     weatherResults = await fetchWeatherForPoints(
