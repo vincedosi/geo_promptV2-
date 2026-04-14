@@ -6,8 +6,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
-const FRANCE_CENTER: [number, number] = [2.3, 46.6];
-const FRANCE_ZOOM = 5.5;
+const FRANCE_CENTER: [number, number] = [2.5, 46.5];
+const FRANCE_ZOOM = 5.2;
 
 interface SyncMapProps {
   id: string;
