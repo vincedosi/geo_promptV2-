@@ -7,6 +7,7 @@ import { ActionListTable } from './ActionListTable';
 import { MediaHeatmap } from './MediaHeatmap';
 import { AiAnalysisBlock } from './AiAnalysisBlock';
 import { BiddingRecommendation } from './BiddingRecommendation';
+import { BiddingCopilot } from './BiddingCopilot';
 
 const fInter = "'Inter', sans-serif";
 
@@ -258,6 +259,17 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                 indicator={popField}
                 kpi={{ totalImpressions: totalImp, totalPop, ratioMoyen, couverturePct: breakdownData.length > 0 ? 100 : 0, concentrationTop10 }}
                 breakdown={breakdownData}
+              />
+            </div>
+
+            {/* Full width: Bidding Copilot (chat + code gen + simulation) */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <BiddingCopilot
+                campaignId={campaignId}
+                indicator={popField}
+                breakdown={breakdownData}
+                metric={metric}
+                aggregation={currentAggregation}
               />
             </div>
           </div>
