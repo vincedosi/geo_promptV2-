@@ -91,6 +91,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   // Click handler — drills down when region or dept is clicked, propagates to map if given
   const handleBarClick = useCallback((code: string) => {
     const row = breakdownData.find(r => r.code === code);
+    console.log('[drilldown] handleBarClick', { code, currentAggregation, foundRow: !!row, rowsTotal: breakdownData.length });
     if (row) {
       if (currentAggregation === 'region') {
         setDrillPath([{ type: 'region', code, nom: row.nom }]);
