@@ -73,10 +73,11 @@ export interface MeteoGeoPanelProps {
   onClose?: () => void;
   initialParams?: MeteoParams | null;
   loading?: boolean;
+  progress?: { completed: number; total: number; cached: boolean } | null;
   stats?: MeteoStats | null;
 }
 
-export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, stats }: MeteoGeoPanelProps) {
+export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progress, stats }: MeteoGeoPanelProps) {
   const [variable, setVariable] = useState<MeteoVariable>(initialParams?.variable ?? 'precipitation');
   const [mode, setMode] = useState<MeteoMode>(() => {
     if (!initialParams) return 'forecast';
@@ -284,6 +285,55 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, stats 
           }}
         >
           {validation}
+        </div>
+      )}
+
+      {/* Progress bar (pendant le fetch SSE) */}
+      {loading && progress && progress.total > 0 && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderTop: `1px solid ${COLORS.border}`,
+            background: COLORS.bgElevated,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 6,
+              fontFamily: fInter,
+              fontSize: 11,
+              color: COLORS.textSecondary,
+            }}
+          >
+            <span>
+              {progress.cached
+                ? 'Lecture du cache…'
+                : 'Chargement météo…'}
+            </span>
+            <span style={{ fontFamily: fMono, color: COLORS.textPrimary }}>
+              {progress.completed}/{progress.total} points
+            </span>
+          </div>
+          <div
+            style={{
+              height: 3,
+              borderRadius: 2,
+              background: COLORS.border,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.min(100, (progress.completed / Math.max(1, progress.total)) * 100)}%`,
+                background: COLORS.accent,
+                transition: 'width 0.2s ease',
+              }}
+            />
+          </div>
         </div>
       )}
 

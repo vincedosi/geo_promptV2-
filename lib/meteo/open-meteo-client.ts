@@ -7,14 +7,18 @@ export type OpenMeteoHost =
   | 'archive-api.open-meteo.com';
 
 const ARCHIVE_CUTOFF = '2022-01-01';
-// Open-Meteo passe par nginx avec une limite d'URL ~8KB. À 500 points par call,
-// l'URL atteint ~10KB → 414. À 250 points : ~3.5KB, marge confortable.
+// Open-Meteo passe par nginx avec une limite d'URL ~8KB.
+// 250 points → URL ~5KB, marge safe. 300+ = risque 414.
 const MAX_POINTS_PER_CALL = 250;
-// Sequentiel : Open-Meteo throttle aggressivement les bursts parallèles
-// (429 "Minutely API request limit"). 7 calls séquentiels × ~700ms ≈ 5s.
+// Séquentiel strict : Open-Meteo applique un quota "minutely" qui compte
+// chaque coordonnée comme 1 call (600 calls/minute free tier). Les bursts
+// parallèles déclenchent 429 instantanément, même sur petit volume.
 const PARALLEL_BATCHES = 1;
-// Retry simple sur 429 (rate limit) avec backoff
-const RATE_LIMIT_RETRY_MS = 1500;
+// Délai entre batchs pour lisser le débit (≈ 1 batch/sec → ~250 coord/sec).
+const INTER_BATCH_DELAY_MS = 1000;
+// Retry exponentiel sur 429 : 5s, 20s, 60s. Couvre le reset de la fenêtre
+// "minutely" d'Open-Meteo dans la plupart des cas.
+const RATE_LIMIT_BACKOFFS_MS = [5000, 20000, 60000];
 
 export function pickHost(startDate: string, endDate: string): OpenMeteoHost {
   const today = new Date().toISOString().slice(0, 10);
@@ -47,6 +51,13 @@ export interface PointWeatherResult {
   value: number;
 }
 
+export interface FetchProgress {
+  completed: number;
+  total: number;
+}
+
+export type ProgressCallback = (progress: FetchProgress) => void;
+
 interface OpenMeteoHourlyBlock {
   time?: string[];
   [key: string]: unknown;
@@ -67,11 +78,17 @@ async function fetchOneBatch(
 ): Promise<PointWeatherResult[]> {
   const url = buildOpenMeteoUrl(host, batch, variable, startDate, endDate);
   let res = await fetch(url);
-  // Retry une fois sur 429 (rate limit minutely)
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, RATE_LIMIT_RETRY_MS));
+
+  // Retry exponentiel sur 429 : Open-Meteo a une fenêtre minutely glissante.
+  for (const backoff of RATE_LIMIT_BACKOFFS_MS) {
+    if (res.status !== 429) break;
+    console.warn(
+      `[open-meteo] 429 rate limit, waiting ${backoff}ms before retry`,
+    );
+    await new Promise((r) => setTimeout(r, backoff));
     res = await fetch(url);
   }
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
@@ -95,10 +112,12 @@ export async function fetchWeatherForPoints(
   variable: MeteoVariable,
   startDate: string,
   endDate: string,
+  onProgress?: ProgressCallback,
 ): Promise<PointWeatherResult[]> {
   if (points.length === 0) return [];
 
   const host = pickHost(startDate, endDate);
+  const total = points.length;
 
   // Découpe en batchs de MAX_POINTS_PER_CALL points
   const batches: GridPoint[][] = [];
@@ -106,14 +125,22 @@ export async function fetchWeatherForPoints(
     batches.push(points.slice(i, i + MAX_POINTS_PER_CALL));
   }
 
-  // Exécute les batchs par vagues parallèles de PARALLEL_BATCHES
+  // Progress initial (pour que le client voie 0/total dès le début)
+  onProgress?.({ completed: 0, total });
+
+  // Exécute les batchs par vagues parallèles de PARALLEL_BATCHES,
+  // avec un délai entre vagues pour lisser la charge sous la limite minutely.
   const results: PointWeatherResult[] = [];
   for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
+    if (i > 0 && INTER_BATCH_DELAY_MS > 0) {
+      await new Promise((r) => setTimeout(r, INTER_BATCH_DELAY_MS));
+    }
     const wave = batches.slice(i, i + PARALLEL_BATCHES);
     const waveResults = await Promise.all(
       wave.map((b) => fetchOneBatch(b, host, variable, startDate, endDate)),
     );
     for (const r of waveResults) results.push(...r);
+    onProgress?.({ completed: results.length, total });
   }
 
   return results;

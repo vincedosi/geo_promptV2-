@@ -110,7 +110,7 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 export default function DigitalTripleMapPage() {
   const {
     campaigns, geojson, geojsonLoading, geographySummary,
-    meteoGeojson, meteoMeta, meteoLoading,
+    meteoGeojson, meteoMeta, meteoLoading, meteoProgress,
     fetchMap, fetchMeteo, clearMeteo,
   } = useDigitalData();
 
@@ -434,6 +434,7 @@ export default function DigitalTripleMapPage() {
                   onClose={handleMeteoClose}
                   initialParams={meteoParams}
                   loading={meteoLoading}
+                  progress={meteoProgress}
                   stats={meteoMeta?.stats ?? null}
                 />
               </div>
