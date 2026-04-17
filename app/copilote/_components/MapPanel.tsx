@@ -55,21 +55,21 @@ interface MapPanelProps {
 
 // Design tokens
 const C = {
-  bg:        '#050505',
-  bgElevated:'#111111',
+  bg:        'var(--bg-primary)',
+  bgElevated:'var(--bg-level-2)',
   bgOverlay: 'rgba(10,10,10,0.9)',
-  border:    '#1a1a1a',
-  text:      '#f0f0f0',
-  textSec:   '#a0a0a0',
-  textDim:   '#666666',
-  green:     '#3dffa0',
-  warning:   '#f7b731',
-  red:       '#ff5757',
+  border:    'var(--border-subtle)',
+  text:      'var(--text-primary)',
+  textSec:   'var(--text-secondary)',
+  textDim:   'var(--text-tertiary)',
+  green:     'var(--success)',
+  warning:   'var(--warning)',
+  red:       'var(--danger)',
   danger:    '#ef4444',
   dangerBg:  'rgba(239,68,68,0.1)',
   dangerBorder: 'rgba(239,68,68,0.3)',
-  success:   '#3dffa0',
-  warn:      '#f7b731',
+  success:   'var(--success)',
+  warn:      'var(--warning)',
   blue:      '#38bdf8',
 };
 
@@ -80,7 +80,7 @@ const badgeBase: React.CSSProperties = {
   position: 'absolute',
   zIndex: 10,
   background: 'rgba(10,10,10,0.92)',
-  border: '0.5px solid #1a1a1a',
+  border: '0.5px solid var(--border-subtle)',
   borderRadius: 4,
   padding: '6px 10px',
   fontSize: 10,
@@ -97,7 +97,7 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   alignItems: 'center',
   gap: 6,
   background: active ? `${activeColor}18` : 'rgba(10,10,10,0.88)',
-  border: `0.5px solid ${active ? activeColor + '80' : '#1a1a1a'}`,
+  border: `0.5px solid ${active ? activeColor + '80' : 'var(--border-subtle)'}`,
   borderRadius: 4,
   padding: '6px 10px',
   cursor: 'pointer',
@@ -167,7 +167,7 @@ export function MapPanel({
           animation: 'mapBadgeFade 0.3s ease-out',
         }}>
           <span style={{ color: C.textDim, fontFamily: fontMono, fontSize: 9, letterSpacing: '0.08em' }}>Z</span>
-          <span style={{ color: '#4ecdc4', fontFamily: fontMono, fontSize: 11, fontWeight: 600 }}>{currentZoom}</span>
+          <span style={{ color: 'var(--brand-teal)', fontFamily: fontMono, fontSize: 11, fontWeight: 600 }}>{currentZoom}</span>
         </div>
       )}
 
@@ -219,7 +219,7 @@ export function MapPanel({
               <button
                 onClick={recalculerIsochrone}
                 disabled={isLoading}
-                style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '2px 8px', color: C.textSec, cursor: 'pointer', fontSize: 9, fontFamily: fontInter }}
+                style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', color: C.textSec, cursor: 'pointer', fontSize: 9, fontFamily: fontInter }}
               >RECALC</button>
             </div>
           )}
@@ -441,7 +441,7 @@ export function MapPanel({
                   <button
                     onClick={() => { setShowSavePanel(true); setSaveError(null); }}
                     title="Sauvegarder ce Voronoï"
-                    style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: C.textSec, cursor: 'pointer', fontFamily: fontInter }}
+                    style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: C.textSec, cursor: 'pointer', fontFamily: fontInter }}
                   >SAVE</button>
                 </div>
                 {voronoiPois.map(c => (
@@ -515,9 +515,9 @@ export function MapPanel({
                     marginTop: 5,
                     padding: '5px 9px',
                     background: 'transparent',
-                    border: `0.5px solid #4ecdc4`,
+                    border: `0.5px solid var(--brand-teal)`,
                     borderRadius: 4,
-                    color: '#4ecdc4',
+                    color: 'var(--brand-teal)',
                     fontFamily: fontInter,
                     fontSize: 9,
                     fontWeight: 500,
@@ -552,14 +552,14 @@ export function MapPanel({
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                 title={s.label}
                 style={{
-                  background: active ? '#4ecdc4' : 'transparent',
-                  border: `0.5px solid ${active ? '#4ecdc4' : '#262626'}`,
+                  background: active ? 'var(--brand-teal)' : 'transparent',
+                  border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                   borderRadius: 4,
                   padding: '3px 8px',
                   cursor: 'pointer',
                   fontSize: 9,
                   fontFamily: fontInter,
-                  color: active ? '#050505' : C.textDim,
+                  color: active ? 'var(--bg-primary)' : C.textDim,
                   transition: 'all 0.2s ease',
                 }}
               >

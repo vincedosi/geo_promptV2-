@@ -66,17 +66,17 @@ interface ChatPanelProps {
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:        '#0a0a0a',
-  bgSurface: '#0a0a0a',
-  bgElevated:'#111111',
-  border:    '#1a1a1a',
-  text:      '#f0f0f0',
-  textSec:   '#a0a0a0',
-  textDim:   '#666666',
-  green:     '#3dffa0',
-  teal:      '#4ecdc4',
-  warning:   '#f7b731',
-  red:       '#ff5757',
+  bg:        'var(--bg-surface)',
+  bgSurface: 'var(--bg-surface)',
+  bgElevated:'var(--bg-level-2)',
+  border:    'var(--border-subtle)',
+  text:      'var(--text-primary)',
+  textSec:   'var(--text-secondary)',
+  textDim:   'var(--text-tertiary)',
+  green:     'var(--success)',
+  teal:      'var(--brand-teal)',
+  warning:   'var(--warning)',
+  red:       'var(--danger)',
 };
 
 const fontOrbitron = "'Inter', system-ui, sans-serif";
@@ -333,11 +333,11 @@ export function ChatPanel({
   const providerModel = provider === 'mistral' ? 'mistral-small' : 'gemini-2.5-flash';
 
   const iconBtn = (active = false) => ({
-    background: active ? '#f0f0f0' : 'transparent',
-    border: '0.5px solid #262626',
+    background: active ? 'var(--text-primary)' : 'transparent',
+    border: '0.5px solid var(--border-default)',
     borderRadius: 4,
     padding: '4px 9px',
-    color: active ? '#050505' : C.textSec,
+    color: active ? 'var(--bg-primary)' : C.textSec,
     cursor: 'pointer' as const,
     fontSize: 12,
     lineHeight: 1,
@@ -386,9 +386,9 @@ export function ChatPanel({
                 <span style={{ fontSize: 14, fontFamily: fontMono, fontWeight: 500, color: C.teal }}>
                   geo.prompt
                 </span>
-                <span style={{ fontSize: 10, fontFamily: fontMono, background: '#181818', color: C.textSec, padding: '2px 5px', border: '0.5px solid #262626', borderRadius: 3 }}>BETA</span>
+                <span style={{ fontSize: 10, fontFamily: fontMono, background: 'var(--bg-level-3)', color: C.textSec, padding: '2px 5px', border: '0.5px solid var(--border-default)', borderRadius: 3 }}>BETA</span>
                 {geoBotStatusLabel && (
-                  <span style={{ fontSize: 10, fontFamily: fontMono, color: geoBotStatus === 'done' ? '#3dffa0' : C.teal }}>
+                  <span style={{ fontSize: 10, fontFamily: fontMono, color: geoBotStatus === 'done' ? 'var(--success)' : C.teal }}>
                     {geoBotStatusLabel}
                   </span>
                 )}
@@ -406,16 +406,16 @@ export function ChatPanel({
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts disponibles" style={iconBtn(showPromptsPanel)}
-                onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-                onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+                onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+                onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
               >?</button>
               <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}
-                onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-                onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+                onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+                onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
               >sv</button>
               <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}
-                onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-                onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+                onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+                onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
               >ld</button>
             </div>
           </div>
@@ -424,22 +424,22 @@ export function ChatPanel({
         <div style={{ padding: '6px 12px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <GeoBot status={geoBotStatus} size={20} />
           {geoBotStatusLabel && (
-            <span style={{ fontSize: 9, fontFamily: fontMono, color: geoBotStatus === 'done' ? '#3dffa0' : C.teal }}>
+            <span style={{ fontSize: 9, fontFamily: fontMono, color: geoBotStatus === 'done' ? 'var(--success)' : C.teal }}>
               {geoBotStatusLabel}
             </span>
           )}
           <div style={{ flex: 1 }} />
           <button onClick={() => { setShowPromptsPanel(v => !v); setShowSavePanel(false); setShowLoadPanel(false); }} title="Prompts" style={iconBtn(showPromptsPanel)}
-            onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-            onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+            onMouseEnter={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+            onMouseLeave={e => { if (!showPromptsPanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
           >?</button>
           <button onClick={() => { setShowSavePanel(v => !v); setShowLoadPanel(false); setShowPromptsPanel(false); setSaveError(null); }} title="Sauvegarder" style={iconBtn(showSavePanel)}
-            onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-            onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+            onMouseEnter={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+            onMouseLeave={e => { if (!showSavePanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
           >sv</button>
           <button onClick={() => { setShowLoadPanel(v => !v); setShowSavePanel(false); setShowPromptsPanel(false); if (!showLoadPanel) loadSavedMaps(); }} title="Charger" style={iconBtn(showLoadPanel)}
-            onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; } }}
-            onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'transparent'; } }}
+            onMouseEnter={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+            onMouseLeave={e => { if (!showLoadPanel) { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'transparent'; } }}
           >ld</button>
           {sessionTokens && sessionTokens.total > 0 && (
             <span style={{ fontSize: 10, fontFamily: fontMono, color: C.textDim, marginLeft: 4 }}>
@@ -462,7 +462,7 @@ export function ChatPanel({
             return (
               <button key={p.id} onClick={() => setProvider(p.id)} style={{
                 background: active ? 'rgba(78,205,196,0.08)' : 'transparent',
-                border: `0.5px solid ${active ? C.teal : '#262626'}`,
+                border: `0.5px solid ${active ? C.teal : 'var(--border-default)'}`,
                 borderRadius: 4, padding: '4px 10px',
                 color: active ? C.teal : C.textSec,
                 cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
@@ -484,7 +484,7 @@ export function ChatPanel({
             }
             style={{
               background: smartMode === 'smart' ? 'rgba(78,205,196,0.08)' : 'transparent',
-              border: `0.5px solid ${smartMode === 'smart' ? 'rgba(78,205,196,0.35)' : '#262626'}`,
+              border: `0.5px solid ${smartMode === 'smart' ? 'rgba(78,205,196,0.35)' : 'var(--border-default)'}`,
               borderRadius: 4, padding: '4px 8px',
               color: smartMode === 'smart' ? C.teal : C.textSec,
               cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
@@ -516,7 +516,7 @@ export function ChatPanel({
               placeholder="Nom de la carte…"
               style={{ flex: 1, background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 4, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', fontFamily: fontInter }}
             />
-            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? '#f0f0f0' : '#1a1a1a', border: 'none', borderRadius: 4, padding: '8px 14px', color: saveName.trim() && !saveLoading ? '#050505' : C.textDim, cursor: saveName.trim() && !saveLoading ? 'pointer' : 'default', fontSize: 11, fontWeight: 500, fontFamily: fontInter, transition: 'all 0.2s ease' }}>
+            <button onClick={saveCurrentMap} disabled={saveLoading || !saveName.trim()} style={{ background: saveName.trim() && !saveLoading ? 'var(--text-primary)' : 'var(--border-subtle)', border: 'none', borderRadius: 4, padding: '8px 14px', color: saveName.trim() && !saveLoading ? 'var(--bg-primary)' : C.textDim, cursor: saveName.trim() && !saveLoading ? 'pointer' : 'default', fontSize: 11, fontWeight: 500, fontFamily: fontInter, transition: 'all 0.2s ease' }}>
               {saveLoading ? '…' : 'Sauver'}
             </button>
           </div>
@@ -541,7 +541,7 @@ export function ChatPanel({
                   {new Date(m.created_at).toLocaleDateString('fr-FR')}
                 </div>
               </div>
-              <button onClick={() => loadMap(m.id)} style={{ background: '#1a1a1a', border: '0.5px solid #262626', borderRadius: 4, padding: '4px 10px', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fontInter, transition: 'all 0.2s ease' }}>Charger</button>
+              <button onClick={() => loadMap(m.id)} style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '4px 10px', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fontInter, transition: 'all 0.2s ease' }}>Charger</button>
               <button onClick={() => deleteMap(m.id)} title="Supprimer" style={{ background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.2)', borderRadius: 4, padding: '4px 7px', color: C.red, cursor: 'pointer', fontSize: 11 }}>✕</button>
             </div>
           ))}
@@ -572,7 +572,7 @@ export function ChatPanel({
                   animation: `cardStagger 0.4s ease-out ${0.1 + index * 0.06}s both`,
                   fontFamily: fontInter, fontWeight: 300, letterSpacing: '0.03em',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)'; e.currentTarget.style.background = '#151515'; e.currentTarget.style.color = C.text; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-teal-30)'; e.currentTarget.style.background = 'var(--bg-level-3)'; e.currentTarget.style.color = C.text; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textSec; }}
                 >{text}</button>
               ))}
@@ -629,7 +629,7 @@ export function ChatPanel({
               <div key={item.key}>
                 {msg.role === 'user' && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ maxWidth: '82%', background: '#f0f0f0', color: '#050505', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
+                    <div style={{ maxWidth: '82%', background: 'var(--text-primary)', color: 'var(--bg-primary)', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
                       {textContent}
                     </div>
                   </div>
@@ -641,7 +641,7 @@ export function ChatPanel({
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {runningTool && (
-                        <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 4, padding: '8px 12px', fontSize: 10, color: C.textDim, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 4, padding: '8px 12px', fontSize: 10, color: C.textDim, marginBottom: 6, fontFamily: fontMono, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ animation: 'pulseDot 1s infinite', display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: C.green }} />
                           {runningToolLabels[(runningTool as { type: string }).type] ?? 'Outil en cours…'}
                         </div>
@@ -666,7 +666,7 @@ export function ChatPanel({
                         );
                         if (isRawMcpOutput) return null;
                         return (
-                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, borderLeft: '2px solid #4ecdc4', paddingLeft: 12, padding: '8px 14px 8px 12px', fontSize: 13, color: '#f0f0f0', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 400 }}>
+                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, borderLeft: '2px solid var(--brand-teal)', paddingLeft: 12, padding: '8px 14px 8px 12px', fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 400 }}>
                             <ChatMarkdown text={textContent} />
                           </div>
                         );
@@ -684,7 +684,7 @@ export function ChatPanel({
           if (sm.type === 'smart_prompt') {
             return (
               <div key={item.key} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <div style={{ maxWidth: '82%', background: '#f0f0f0', color: '#050505', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
+                <div style={{ maxWidth: '82%', background: 'var(--text-primary)', color: 'var(--bg-primary)', borderRadius: '12px 12px 2px 12px', padding: '10px 14px', fontSize: 13, lineHeight: 1.55, fontFamily: fontInter, fontWeight: 400 }}>
                   <span style={{ fontSize: 8, fontFamily: fontMichroma, color: C.teal, letterSpacing: 1.5, marginRight: 6 }}>⚡ SMART</span>
                   {sm.content}
                 </div>
@@ -830,7 +830,7 @@ export function ChatPanel({
             disabled={isDisabled || !input.trim()}
             onMouseEnter={e => {
               if (input.trim() && !isDisabled) {
-                e.currentTarget.style.background = '#3dbdb5';
+                e.currentTarget.style.background = 'var(--brand-teal-hover)';
                 e.currentTarget.style.transform = 'scale(1.08)';
               }
             }}
@@ -842,9 +842,9 @@ export function ChatPanel({
             }}
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              background: input.trim() && !isDisabled ? C.teal : '#1a1a1a',
+              background: input.trim() && !isDisabled ? C.teal : 'var(--border-subtle)',
               border: 'none',
-              color: input.trim() && !isDisabled ? '#050505' : C.textDim,
+              color: input.trim() && !isDisabled ? 'var(--bg-primary)' : C.textDim,
               cursor: input.trim() && !isDisabled ? 'pointer' : 'default',
               transition: 'all 0.15s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center',

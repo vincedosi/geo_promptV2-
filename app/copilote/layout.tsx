@@ -26,8 +26,8 @@ export default function CopiloteLayout({ children }: { children: React.ReactNode
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center",
-        height: "100vh", background: "#050505",
-        fontFamily: "JetBrains Mono, monospace", color: "#4ecdc4", fontSize: 13,
+        height: "100vh", background: "var(--bg-primary)",
+        fontFamily: "JetBrains Mono, monospace", color: "var(--brand-teal)", fontSize: 13,
         letterSpacing: "0.05em",
       }}>
         {isLoading ? "vérification session..." : "redirection..."}
