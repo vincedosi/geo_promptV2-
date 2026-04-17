@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string; setId: string }> }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { campaignId, setId } = await params;
   if (!campaignId || !setId) {
     return NextResponse.json({ error: 'campaignId and setId required' }, { status: 400 });

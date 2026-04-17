@@ -52,7 +52,10 @@ export async function DELETE(
     .eq('campaign_id', id)
     .eq('organization_id', orgId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[DELETE /api/admin/campaigns/orgs]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

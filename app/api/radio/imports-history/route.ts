@@ -2,12 +2,15 @@
  * GET /api/radio/imports-history
  * 50 derniers imports radio depuis radio_imports_log.
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase

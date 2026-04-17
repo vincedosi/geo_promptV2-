@@ -10,10 +10,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
   const p = req.nextUrl.searchParams;
   const systeme = p.get('systeme') || undefined;
   const radioId = p.get('radio_id') || undefined;

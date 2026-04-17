@@ -4,13 +4,16 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { campaignId } = await params;
   const supabase = createAdminClient();
 

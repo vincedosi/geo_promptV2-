@@ -4,10 +4,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { searchParams } = new URL(request.url);
   const bboxStr = searchParams.get('bbox');
 

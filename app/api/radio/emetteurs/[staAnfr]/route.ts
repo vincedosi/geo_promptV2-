@@ -4,13 +4,16 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { staAnfr: string } },
 ) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
   const { staAnfr } = params;
   const supabase = createAdminClient();
 

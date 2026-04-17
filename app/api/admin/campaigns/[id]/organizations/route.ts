@@ -32,7 +32,10 @@ export async function GET(
     .select('organization_id, added_at, organizations(id, name, slug)')
     .eq('campaign_id', id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[GET /api/admin/campaigns/orgs]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   const rows = (data ?? []).map(r => {
     const o = (r as unknown as { organizations: { id: string; name: string; slug: string } }).organizations;
@@ -93,7 +96,10 @@ export async function POST(
       { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true }
     );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[POST /api/admin/campaigns/orgs]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

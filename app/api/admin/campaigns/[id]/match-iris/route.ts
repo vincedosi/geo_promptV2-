@@ -22,7 +22,8 @@ export async function POST(
     .rpc('match_campaign_postal_to_iris', { p_campaign_id: id });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[POST /api/admin/campaigns/match-iris]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, matched: matched ?? 0 });

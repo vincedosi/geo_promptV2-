@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, type ModelMessage } from 'ai';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import googleAdsGeoIds from '@/lib/digital/google-ads-geo-ids.json';
 
 export const dynamic = 'force-dynamic';
@@ -182,6 +183,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { campaignId } = await params;
   let body: BiddingChatBody;
   try {

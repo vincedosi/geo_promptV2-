@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
   console.log('[campaigns] found:', campaigns?.length);
 
   if (error) {
-    console.error('[GET /api/admin/campaigns] DB error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[GET /api/admin/campaigns] DB error:', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
   if (!campaigns || campaigns.length === 0) {

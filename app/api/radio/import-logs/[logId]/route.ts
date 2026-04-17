@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { logId: string } },
 ) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
   const { logId } = params;
   const level = req.nextUrl.searchParams.get('level');
   const phase = req.nextUrl.searchParams.get('phase');

@@ -27,6 +27,7 @@ import { readFile, writeFile, mkdir, stat } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { aggregatePeriod, computeStats, qualitativeLabel } from '@/lib/meteo/aggregation';
 import { METEO_DAILY_FIELD, METEO_UNIT } from '@/lib/meteo/types';
 import type {
@@ -194,6 +195,8 @@ function ndjsonLine(chunk: MeteoZoneChunk): string {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse | Response> {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { searchParams } = new URL(request.url);
   const parsed = QuerySchema.safeParse({
     scale: searchParams.get('scale'),

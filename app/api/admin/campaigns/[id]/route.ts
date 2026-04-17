@@ -99,7 +99,8 @@ export async function DELETE(
   console.log('[DELETE campaign] verify after delete:', check?.length, 'remaining');
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[DELETE /api/admin/campaigns]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, deleted: deleted?.length ?? 0 });
@@ -143,7 +144,10 @@ export async function PATCH(
   if (name !== undefined) updates.name = name;
 
   const { error } = await supabase.from('dsp_campaigns').update(updates).eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[PATCH /api/admin/campaigns]', error.message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { campaignId } = await params;
   const body = await request.json();
   const { indicator, medias, kpi, breakdown, heatmap_summary } = body;
