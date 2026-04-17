@@ -7,44 +7,7 @@
 /* ─── GEOMATIK — Design System Tokens ──────────────────────────────────────── */
 @layer base {
   :root {
-    /* shadcn/ui HSL tokens — mapped to GEOMATIK */
-    --background: 0 0% 2%;       /* #050505 */
-    --foreground: 0 0% 94%;      /* #f0f0f0 */
-    --card: 0 0% 4%;             /* #0a0a0a */
-    --card-foreground: 0 0% 94%;
-    --popover: 0 0% 7%;          /* #111111 */
-    --popover-foreground: 0 0% 94%;
-    --primary: 0 0% 94%;         /* #f0f0f0 — CTA blanc */
-    --primary-foreground: 0 0% 2%;
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 63%;
-    --muted: 0 0% 9%;
-    --muted-foreground: 0 0% 54%;
-    --accent: 174 52% 55%;       /* #4ecdc4 — brand teal */
-    --accent-foreground: 0 0% 2%;
-    --destructive: 0 100% 67%;   /* #ff5757 */
-    --destructive-foreground: 0 0% 94%;
-    --border: 0 0% 10%;          /* #1a1a1a */
-    --input: 0 0% 10%;
-    --ring: 174 52% 55%;         /* teal focus ring */
-    --radius: 0.375rem;          /* 6px */
-
-    /* GEOMATIK semantic tokens */
-    --brand-teal: #4ecdc4;
-    --brand-teal-hover: #3dbdb5;
-    --brand-teal-30: rgba(78,205,196,0.3);
-    --brand-teal-50: rgba(78,205,196,0.5);
-    --success: #3dffa0;
-    --danger: #ff5757;
-    --warning: #f7b731;
-    --text-secondary: #b0b0b0;
-    --text-tertiary: #8a8a8a;
-    --info: #5b9bd5;
-
-    --sidebar-width: 240px;
-  }
-
-  .dark {
+    /* shadcn/ui HSL tokens — dark mode values (default) */
     --background: 0 0% 2%;
     --foreground: 0 0% 94%;
     --card: 0 0% 4%;
@@ -65,10 +28,97 @@
     --input: 0 0% 10%;
     --ring: 174 52% 55%;
     --radius: 0.375rem;
+
+    /* GEOMATIK scale (dark defaults) */
+    --bg-level-0: #050505;   /* primary background */
+    --bg-level-1: #0a0a0a;   /* surface cards/panels */
+    --bg-level-2: #111111;   /* elevated / section bands */
+    --bg-level-3: #181818;   /* hover/focus */
+    --bg-primary: var(--bg-level-0);
+    --bg-surface: var(--bg-level-1);
+    --bg-hover:   var(--bg-level-3);
+
+    --border-subtle:  #1a1a1a;
+    --border-default: #262626;
+    --border-hover:   #333333;
+
+    --text-primary:   #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --text-tertiary:  #666666;
+
+    --brand-teal: #4ecdc4;
+    --brand-teal-hover: #3dbdb5;
+    --brand-teal-30: rgba(78,205,196,0.3);
+    --brand-teal-50: rgba(78,205,196,0.5);
+    --brand-teal-10: rgba(78,205,196,0.1);
+
     --success: #3dffa0;
-    --danger: #ff5757;
+    --danger:  #ff5757;
     --warning: #f7b731;
-    --info: #5b9bd5;
+    --info:    #5b9bd5;
+
+    --sidebar-width: 240px;
+  }
+
+  /* Light mode — triggered by <html class="light"> */
+  html.light {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 96%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 0 0% 10%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 30%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 174 52% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 174 52% 45%;
+
+    /* GEOMATIK scale (light mirror) */
+    --bg-level-0: #ffffff;
+    --bg-level-1: #f5f5f5;
+    --bg-level-2: #eeeeee;
+    --bg-level-3: #e2e2e2;
+    --bg-primary: var(--bg-level-0);
+    --bg-surface: var(--bg-level-1);
+    --bg-hover:   var(--bg-level-3);
+
+    --border-subtle:  #e5e5e5;
+    --border-default: #d0d0d0;
+    --border-hover:   #b8b8b8;
+
+    --text-primary:   #1a1a1a;
+    --text-secondary: #555555;
+    --text-tertiary:  #8a8a8a;
+
+    /* Accent invariant — teal stays the same across themes */
+    --brand-teal: #4ecdc4;
+    --brand-teal-hover: #3dbdb5;
+    --brand-teal-30: rgba(78,205,196,0.3);
+    --brand-teal-50: rgba(78,205,196,0.5);
+    --brand-teal-10: rgba(78,205,196,0.1);
+
+    --success: #0fa958;
+    --danger:  #d4202f;
+    --warning: #c08400;
+    --info:    #3a78c0;
+  }
+
+  /* Keep .dark selector for compatibility with shadcn components that target it */
+  .dark {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
   }
 }
 
@@ -83,10 +133,11 @@
 html,
 body {
   height: 100%;
-  background: #050505;
-  color: #f0f0f0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
