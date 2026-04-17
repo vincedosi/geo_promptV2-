@@ -245,7 +245,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
 
             {/* Col 2: Heatmap */}
             <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} onAggregationChange={() => {}} />
+              <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} />
             </div>
 
             {/* Col 1: Action List */}
