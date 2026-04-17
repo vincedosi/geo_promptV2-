@@ -132,9 +132,9 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   if (!open) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#0a0a0f' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: 'var(--bg-surface)' }}>
       {/* KPI bar — sticky top */}
-      <div style={{ flexShrink: 0, borderBottom: '0.5px solid #1a1a1a', padding: '6px 24px' }}>
+      <div style={{ flexShrink: 0, borderBottom: '0.5px solid var(--border-subtle)', padding: '6px 24px' }}>
         <KpiSummary
           totalImpressions={totalImp} totalPop={totalPop} ratioMoyen={ratioMoyen}
           couverturePct={breakdownData.length > 0 ? 100 : 0} concentrationTop10={concentrationTop10}
@@ -143,13 +143,13 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
       </div>
 
       {/* Aggregation tabs OR breadcrumb — sticky */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid #1a1a1a', flexShrink: 0, padding: '0 24px', minHeight: 36 }}>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0, padding: '0 24px', minHeight: 36 }}>
         {inDrillDown ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', fontFamily: fInter, fontSize: 12 }}>
             <button
               onClick={() => setDrillPath([])}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.4)', fontFamily: fInter, fontSize: 12, transition: 'color 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#4ecdc4'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
             >France</button>
             {drillPath.map((level, i) => {
@@ -166,7 +166,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                       fontWeight: isLast ? 500 : 400,
                       transition: 'color 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isLast) e.currentTarget.style.color = '#4ecdc4'; }}
+                    onMouseEnter={e => { if (!isLast) e.currentTarget.style.color = 'var(--brand-teal)'; }}
                     onMouseLeave={e => { if (!isLast) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
                   >{level.nom}</button>
                 </span>
@@ -177,9 +177,9 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
           ([['region', 'Regions'], ['dept', 'Departements'], ['cp', 'Codes postaux']] as const).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               padding: '8px 16px', fontFamily: fInter, fontSize: 12, cursor: 'pointer',
-              background: tab === id ? '#111111' : 'transparent',
-              border: 'none', borderBottom: tab === id ? '2px solid #4ecdc4' : '2px solid transparent',
-              color: tab === id ? '#4ecdc4' : '#666666',
+              background: tab === id ? 'var(--bg-level-2)' : 'transparent',
+              border: 'none', borderBottom: tab === id ? '2px solid var(--brand-teal)' : '2px solid transparent',
+              color: tab === id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
             }}>{label}</button>
           ))
         )}
@@ -190,8 +190,8 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
               value={cpLimit}
               onChange={(e) => setCpLimit(parseInt(e.target.value, 10))}
               style={{
-                background: '#111111', border: '0.5px solid #262626', borderRadius: 4,
-                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: '#a0a0a0',
+                background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
                 outline: 'none', cursor: 'pointer',
               }}
             >
@@ -204,8 +204,8 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
               value={cpPopMin}
               onChange={(e) => setCpPopMin(parseInt(e.target.value, 10))}
               style={{
-                background: '#111111', border: '0.5px solid #262626', borderRadius: 4,
-                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: '#a0a0a0',
+                background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+                padding: '4px 8px', fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
                 outline: 'none', cursor: 'pointer',
               }}
             >
@@ -219,43 +219,43 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
         )}
         <button onClick={onToggle} style={{
           padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: 'pointer',
-          background: 'rgba(255,255,255,0.05)', border: '0.5px solid #262626', borderRadius: 4,
-          color: '#a0a0a0', alignSelf: 'center',
+          background: 'rgba(255,255,255,0.05)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+          color: 'var(--text-secondary)', alignSelf: 'center',
         }}>Fermer analyse</button>
       </div>
 
       {/* Scrollable grid */}
       <style>{`
         .analysis-grid-scroll::-webkit-scrollbar { width: 8px; }
-        .analysis-grid-scroll::-webkit-scrollbar-track { background: #0a0a0f; }
-        .analysis-grid-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        .analysis-grid-scroll::-webkit-scrollbar-thumb:hover { background: #4ecdc4; }
+        .analysis-grid-scroll::-webkit-scrollbar-track { background: var(--bg-surface); }
+        .analysis-grid-scroll::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+        .analysis-grid-scroll::-webkit-scrollbar-thumb:hover { background: var(--brand-teal); }
       `}</style>
       <div className="analysis-grid-scroll" style={{
         flex: 1, minHeight: 0, overflowY: 'auto', padding: 24,
-        scrollbarWidth: 'thin', scrollbarColor: '#333 #0a0a0f',
+        scrollbarWidth: 'thin', scrollbarColor: 'var(--border-default) var(--bg-surface)',
       }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, fontFamily: fInter, fontSize: 13, color: '#666666' }}>Chargement...</div>
+          <div style={{ textAlign: 'center', padding: 40, fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)' }}>Chargement...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {/* Col 1: Breakdown */}
-            <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
               <BreakdownChart data={breakdownData} aggregation={currentAggregation} metric={metric} onBarClick={handleBarClick} />
             </div>
 
             {/* Col 2: Heatmap */}
-            <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
               <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} />
             </div>
 
             {/* Col 1: Action List */}
-            <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
               <ActionListTable data={breakdownData} metric={metric} aggregation={currentAggregation} onRowClick={handleBarClick} />
             </div>
 
             {/* Col 2: Bidding Recommendation */}
-            <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
               <BiddingRecommendation data={breakdownData} aggregation={currentAggregation} />
             </div>
 
@@ -289,13 +289,13 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                       background: 'rgba(78,205,196,0.12)',
                       border: '0.5px solid rgba(78,205,196,0.4)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: fInter, fontSize: 14, fontWeight: 600, color: '#4ecdc4',
+                      fontFamily: fInter, fontSize: 14, fontWeight: 600, color: 'var(--brand-teal)',
                     }}>⚡</div>
                     <div>
-                      <div style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: '#f0f0f0', marginBottom: 2 }}>
+                      <div style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
                         Aller plus loin avec le Copilote Bidding
                       </div>
-                      <div style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>
+                      <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
                         Discutez avec Gemini en langage naturel pour generer automatiquement vos coefficients, le code DV360/Adform et une simulation avant/apres.
                       </div>
                     </div>
@@ -305,7 +305,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                     style={{
                       padding: '10px 20px',
                       fontFamily: fInter, fontSize: 12, fontWeight: 500,
-                      background: '#4ecdc4', color: '#050505',
+                      background: 'var(--brand-teal)', color: 'var(--bg-primary)',
                       border: 'none', borderRadius: 6, cursor: 'pointer',
                       whiteSpace: 'nowrap', flexShrink: 0,
                     }}

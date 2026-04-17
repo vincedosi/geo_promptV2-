@@ -40,7 +40,7 @@ function PalettePicker({ palettes, selected, onChange }: {
         <button key={p.id} onClick={() => onChange(p.id)} style={{
           width: 18, height: 10, borderRadius: 2, cursor: 'pointer', padding: 0,
           background: `linear-gradient(to right, ${p.stops.join(', ')})`,
-          border: `1.5px solid ${selected === p.id ? '#f0f0f0' : 'transparent'}`,
+          border: `1.5px solid ${selected === p.id ? 'var(--text-primary)' : 'transparent'}`,
           transition: 'border 0.1s',
         }} />
       ))}
@@ -75,15 +75,15 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
   metricLabel?: string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: '#050505', flex: 1, minHeight: 0 }}>
-      <div style={{ padding: '6px 10px', fontFamily: fInter, borderBottom: '0.5px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#f0f0f0' }}>
-          {title}{titleAccent && <span style={{ fontSize: 10, fontWeight: 400, color: '#4ecdc4', marginLeft: 4 }}>{titleAccent}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '6px 10px', fontFamily: fInter, borderBottom: '0.5px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+          {title}{titleAccent && <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--brand-teal)', marginLeft: 4 }}>{titleAccent}</span>}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <PalettePicker palettes={palettes} selected={palette} onChange={onPaletteChange} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', fontSize: 9, color: '#666666' }}>
-            <input type="checkbox" checked={inverted} onChange={e => onInvertedChange(e.target.checked)} style={{ accentColor: '#4ecdc4', width: 9, height: 9 }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', fontSize: 9, color: 'var(--text-tertiary)' }}>
+            <input type="checkbox" checked={inverted} onChange={e => onInvertedChange(e.target.checked)} style={{ accentColor: 'var(--brand-teal)', width: 9, height: 9 }} />
             inv
           </label>
         </div>
@@ -388,19 +388,19 @@ export default function DigitalTripleMapPage() {
   const hasCampaign = !!campaignId;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#050505' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)' }}>
       {/* État 2 : Railroad + Context bar — only when campaign selected */}
       {hasCampaign && (
         <>
           {/* Back button + Railroad */}
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
             <button onClick={() => { setCampaignId(''); setAnalysisOpen(false); }} style={{
-              padding: '0 14px', background: '#0a0a0a', border: 'none', borderRight: '0.5px solid #1a1a1a',
-              cursor: 'pointer', fontFamily: fInter, fontSize: 11, color: '#8a8a8a',
+              padding: '0 14px', background: 'var(--bg-surface)', border: 'none', borderRight: '0.5px solid var(--border-subtle)',
+              cursor: 'pointer', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)',
               display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, transition: 'color 0.15s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#4ecdc4'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#8a8a8a'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
             >← Campagnes</button>
             <div style={{ flex: 1 }}>
               <RailroadPipeline
@@ -447,11 +447,11 @@ export default function DigitalTripleMapPage() {
             {/* Maps — hidden when analysis overlay is open */}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', opacity: analysisOpen ? 0 : 1, pointerEvents: analysisOpen ? 'none' : 'auto', transition: 'opacity 0.3s ease' }}>
               {layout === 'equal' ? (
-                <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
+                <div style={{ flex: 1, display: 'flex', gap: 1, background: 'var(--border-subtle)', minHeight: 0 }}>
                   {allKeys.map(k => <div key={k} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>{makePanel(k, false)}</div>)}
                 </div>
               ) : (
-                <div style={{ flex: 1, display: 'flex', gap: 1, background: '#1a1a1a', minHeight: 0 }}>
+                <div style={{ flex: 1, display: 'flex', gap: 1, background: 'var(--border-subtle)', minHeight: 0 }}>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     {makePanel(focusMap!, false)}
                   </div>

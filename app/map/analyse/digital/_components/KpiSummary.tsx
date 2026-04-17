@@ -23,26 +23,26 @@ interface KpiSummaryProps {
 export function KpiSummary({ totalImpressions, totalPop, ratioMoyen, couverturePct, concentrationTop10, metric = 'impressions', frequency = null }: KpiSummaryProps) {
   const impLabel = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
   const kpis: { label: string; value: string; color: string }[] = [
-    { label: impLabel, value: fmt(totalImpressions), color: '#4ecdc4' },
-    { label: 'Pop. cible', value: fmt(totalPop), color: '#f0f0f0' },
-    { label: 'Ratio moy.', value: ratioMoyen.toFixed(1), color: '#f0f0f0' },
-    { label: 'Couverture', value: couverturePct.toFixed(0) + '%', color: couverturePct > 80 ? '#3dffa0' : couverturePct > 50 ? '#f7b731' : '#ff5757' },
-    { label: 'Top 10% CP =', value: concentrationTop10.toFixed(0) + '% imp.', color: concentrationTop10 > 60 ? '#ff5757' : '#3dffa0' },
+    { label: impLabel, value: fmt(totalImpressions), color: 'var(--brand-teal)' },
+    { label: 'Pop. cible', value: fmt(totalPop), color: 'var(--text-primary)' },
+    { label: 'Ratio moy.', value: ratioMoyen.toFixed(1), color: 'var(--text-primary)' },
+    { label: 'Couverture', value: couverturePct.toFixed(0) + '%', color: couverturePct > 80 ? 'var(--success)' : couverturePct > 50 ? 'var(--warning)' : 'var(--danger)' },
+    { label: 'Top 10% CP =', value: concentrationTop10.toFixed(0) + '% imp.', color: concentrationTop10 > 60 ? 'var(--danger)' : 'var(--success)' },
   ];
   if (frequency !== null && frequency > 0 && Number.isFinite(frequency)) {
-    kpis.push({ label: 'Fréquence moy.', value: frequency.toFixed(1) + 'x', color: '#f0f0f0' });
+    kpis.push({ label: 'Fréquence moy.', value: frequency.toFixed(1) + 'x', color: 'var(--text-primary)' });
   }
 
   return (
     <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
       {kpis.map((k, i) => (
         <div key={k.label} style={{
-          flex: 1, padding: '8px 10px', background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 0,
+          flex: 1, padding: '8px 10px', background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 0,
           display: 'flex', flexDirection: 'column', gap: 4,
-          ...(i === 0 ? { borderTop: '2px solid #4ecdc4' } : {}),
+          ...(i === 0 ? { borderTop: '2px solid var(--brand-teal)' } : {}),
         }}>
           <div style={{ fontFamily: fMono, fontSize: i === 0 ? 20 : 14, fontWeight: 600, color: k.color }}>{k.value}</div>
-          <div style={{ fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>{k.label}</div>
+          <div style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>{k.label}</div>
         </div>
       ))}
     </div>

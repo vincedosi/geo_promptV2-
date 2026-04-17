@@ -63,23 +63,23 @@ export function BiddingRecommendation({ data, aggregation }: BiddingRecommendati
   if (!rows.length) return null;
 
   return (
-    <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #1a1a1a' }}>
-        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: '#f0f0f0' }}>Recommandation bidding</span>
+    <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--border-subtle)' }}>
+        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Recommandation bidding</span>
         <button onClick={exportCsv} style={{
           padding: '5px 12px', fontFamily: fInter, fontSize: 10, cursor: 'pointer',
-          background: 'rgba(78,205,196,0.08)', border: '0.5px solid #4ecdc4',
-          borderRadius: 4, color: '#4ecdc4',
+          background: 'rgba(78,205,196,0.08)', border: '0.5px solid var(--brand-teal)',
+          borderRadius: 4, color: 'var(--brand-teal)',
         }}>Exporter CSV</button>
       </div>
 
       {/* Intensity slider */}
-      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #1a1a1a', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', whiteSpace: 'nowrap' }}>Intensite du bid</span>
+      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Intensite du bid</span>
         <input type="range" min={0.3} max={1.8} step={0.1} value={intensity}
           onChange={e => setIntensity(parseFloat(e.target.value))}
-          style={{ flex: 1, accentColor: '#4ecdc4' }} />
-        <span style={{ fontFamily: fMono, fontSize: 11, color: '#4ecdc4', minWidth: 90, textAlign: 'right' }}>{intensity.toFixed(1)}x — {intensityLabel}</span>
+          style={{ flex: 1, accentColor: 'var(--brand-teal)' }} />
+        <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--brand-teal)', minWidth: 90, textAlign: 'right' }}>{intensity.toFixed(1)}x — {intensityLabel}</span>
       </div>
 
       {/* Table */}
@@ -90,21 +90,21 @@ export function BiddingRecommendation({ data, aggregation }: BiddingRecommendati
               {['Zone', 'Ratio', 'Ecart', 'Coeff.'].map(h => (
                 <th key={h} style={{
                   textAlign: h === 'Zone' ? 'left' : 'right', padding: '6px 12px',
-                  fontFamily: fInter, fontSize: 10, fontWeight: 500, color: '#4ecdc4',
-                  borderBottom: '0.5px solid #1a1a1a', position: 'sticky', top: 0, background: '#111111',
+                  fontFamily: fInter, fontSize: 10, fontWeight: 500, color: 'var(--brand-teal)',
+                  borderBottom: '0.5px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-level-2)',
                 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map(r => (
-              <tr key={r.code} style={{ borderBottom: '0.5px solid #0a0a0a' }}>
-                <td style={{ padding: '5px 12px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>{r.code} — {r.nom}</td>
-                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 11, color: '#f0f0f0' }}>{r.ratio.toFixed(2)}</td>
+              <tr key={r.code} style={{ borderBottom: '0.5px solid var(--bg-surface)' }}>
+                <td style={{ padding: '5px 12px', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>{r.code} — {r.nom}</td>
+                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 11, color: 'var(--text-primary)' }}>{r.ratio.toFixed(2)}</td>
                 <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 11, color: r.ecart > 0 ? '#EF4444' : '#3B82F6', fontWeight: 600 }}>
                   {r.ecart > 0 ? '+' : ''}{r.ecart.toFixed(2)}
                 </td>
-                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 12, fontWeight: 700, color: r.coeff > 1.1 ? '#3dffa0' : r.coeff < 0.9 ? '#ff5757' : '#8a8a8a' }}>
+                <td style={{ padding: '5px 12px', textAlign: 'right', fontFamily: fMono, fontSize: 12, fontWeight: 700, color: r.coeff > 1.1 ? 'var(--success)' : r.coeff < 0.9 ? 'var(--danger)' : 'var(--text-tertiary)' }}>
                   {r.coeff.toFixed(2)}x {r.coeff > 1.05 ? '▲' : r.coeff < 0.95 ? '▼' : '─'}
                 </td>
               </tr>

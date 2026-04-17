@@ -39,27 +39,27 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onCompl
   };
 
   return (
-    <div style={{ background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #1a1a1a' }}>
-        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: '#f0f0f0' }}>Analyse IA</span>
+    <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--border-subtle)' }}>
+        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Analyse IA</span>
         <button onClick={handleAnalyze} disabled={loading} style={{
           padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: loading ? 'wait' : 'pointer',
-          background: loading ? '#1a1a1a' : 'rgba(78,205,196,0.1)',
-          border: `0.5px solid ${loading ? '#1a1a1a' : '#4ecdc4'}`,
-          borderRadius: 4, color: loading ? '#666666' : '#4ecdc4',
+          background: loading ? 'var(--border-subtle)' : 'var(--brand-teal-10)',
+          border: `0.5px solid ${loading ? 'var(--border-subtle)' : 'var(--brand-teal)'}`,
+          borderRadius: 4, color: loading ? 'var(--text-tertiary)' : 'var(--brand-teal)',
         }}>{loading ? 'Analyse en cours...' : analysis ? 'Relancer' : 'Analyser'}</button>
       </div>
 
       <div style={{ padding: '16px', minHeight: 80 }}>
-        {error && <div style={{ fontFamily: fInter, fontSize: 11, color: '#ff5757' }}>{error}</div>}
+        {error && <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
         {!analysis && !loading && !error && (
-          <div style={{ fontFamily: fInter, fontSize: 12, color: '#666666', fontStyle: 'italic' }}>
+          <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
             Cliquez sur Analyser pour obtenir une synthese IA de votre campagne
           </div>
         )}
         {loading && (
-          <div style={{ fontFamily: fInter, fontSize: 12, color: '#4ecdc4', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #4ecdc4', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--brand-teal)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--brand-teal)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             Gemini analyse votre campagne...
           </div>
         )}
@@ -67,7 +67,7 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onCompl
           <div style={{ fontFamily: fInter, fontSize: 12, lineHeight: 1.7, color: '#e0e0e0', whiteSpace: 'pre-wrap' }}>
             {analysis.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
               part.startsWith('**') && part.endsWith('**')
-                ? <strong key={i} style={{ color: '#4ecdc4', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
+                ? <strong key={i} style={{ color: 'var(--brand-teal)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
                 : <span key={i}>{part}</span>
             )}
           </div>

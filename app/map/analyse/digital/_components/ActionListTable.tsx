@@ -41,15 +41,15 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
   const top = filtered.slice(0, 20);
 
   return (
-    <div style={{ background: '#050505', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--bg-primary)', borderRadius: 4, border: '0.5px solid var(--border-subtle)', overflow: 'hidden' }}>
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '0.5px solid #1a1a1a' }}>
+      <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-subtle)' }}>
         {([['over', 'Sur-servis', '#EF4444'], ['under', 'Sous-servis', '#3B82F6']] as const).map(([id, label, color]) => (
           <button key={id} onClick={() => setTab(id)} style={{
             flex: 1, padding: '7px 0', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
-            background: tab === id ? '#111111' : 'transparent',
-            border: 'none', borderBottom: tab === id ? '2px solid #4ecdc4' : '2px solid transparent',
-            color: tab === id ? color : '#8a8a8a', transition: 'all 0.15s',
+            background: tab === id ? 'var(--bg-level-2)' : 'transparent',
+            border: 'none', borderBottom: tab === id ? '2px solid var(--brand-teal)' : '2px solid transparent',
+            color: tab === id ? color : 'var(--text-tertiary)', transition: 'all 0.15s',
           }}>{label} ({(tab === id ? filtered : data.filter(d => id === 'over' ? d.ecart > 0 : d.ecart < 0)).length})</button>
         ))}
       </div>
@@ -62,8 +62,8 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
               {[zoneHeader, impHeader, 'Pop.', 'Ecart'].map(h => (
                 <th key={h} style={{
                   textAlign: h === zoneHeader ? 'left' : 'right', padding: '5px 8px',
-                  fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#4ecdc4',
-                  borderBottom: '0.5px solid #1a1a1a', position: 'sticky', top: 0, background: '#0a0a0a',
+                  fontFamily: fInter, fontSize: 9, fontWeight: 500, color: 'var(--brand-teal)',
+                  borderBottom: '0.5px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)',
                 }}>{h}</th>
               ))}
             </tr>
@@ -71,22 +71,22 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
           <tbody>
             {top.map((row, i) => (
               <tr key={row.code} onClick={() => { console.log('[drilldown] ActionListTable row clicked:', row.code); onRowClick?.(row.code); }}
-                style={{ cursor: canDrill ? 'pointer' : 'default', borderBottom: '0.5px solid #111111' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = canDrill ? '#111111' : 'transparent'; }}
+                style={{ cursor: canDrill ? 'pointer' : 'default', borderBottom: '0.5px solid var(--bg-level-2)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = canDrill ? 'var(--bg-level-2)' : 'transparent'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: '#a0a0a0' }}>
-                  <span style={{ color: '#8a8a8a', marginRight: 4 }}>{i + 1}.</span>{row.code} — {row.nom}
+                <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--text-tertiary)', marginRight: 4 }}>{i + 1}.</span>{row.code} — {row.nom}
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#f0f0f0' }}>{fmt(row.impressions)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#a0a0a0' }}>{fmt(row.pop_value)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-primary)' }}>{fmt(row.impressions)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>{fmt(row.pop_value)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, fontWeight: 600, color: row.ecart > 0 ? '#EF4444' : '#3B82F6' }}>
                   {row.ecart > 0 ? '+' : ''}{row.ecart.toFixed(2)}
                 </td>
               </tr>
             ))}
             {top.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: '20px 12px', textAlign: 'center', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', fontStyle: 'italic' }}>
+              <tr><td colSpan={4} style={{ padding: '20px 12px', textAlign: 'center', fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
                 Aucune zone {tab === 'over' ? 'sur-servie' : 'sous-servie'}
               </td></tr>
             )}
