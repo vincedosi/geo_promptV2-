@@ -477,7 +477,7 @@ function CorrelationResultsPanel({
       if (data.error) throw new Error(data.error);
       setAiAnalysis(data.analysis ?? 'Pas de réponse.');
       setAiOpen(true);
-    } catch (err) {
+    } catch (err: unknown) {
       setAiError(err instanceof Error ? err.message : 'Erreur Mistral');
     } finally {
       setAiLoading(false);

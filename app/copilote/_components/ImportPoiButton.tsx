@@ -91,7 +91,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
           }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') return;
       setPhase('error');
       setErrorMsg(err instanceof Error ? err.message : String(err));

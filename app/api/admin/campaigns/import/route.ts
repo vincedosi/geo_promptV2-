@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
             pct_matched: pctMatched,
           },
         });
-      } catch (err) {
+      } catch (err: unknown) {
         send({ type: 'error', message: `Erreur inattendue : ${err instanceof Error ? err.message : String(err)}` });
       } finally {
         controller.close();

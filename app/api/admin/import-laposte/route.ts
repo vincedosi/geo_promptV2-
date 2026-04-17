@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 
         // ── Done ──────────────────────────────────────────────────────────
         send({ phase: 'done', laposte_rows: inserted, ref_cp_count: cpCount });
-      } catch (err) {
+      } catch (err: unknown) {
         send({ phase: 'error', message: String(err) });
       } finally {
         controller.close();

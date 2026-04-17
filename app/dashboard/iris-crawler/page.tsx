@@ -167,7 +167,7 @@ export default function IrisCrawlerPage() {
       setStatusMap(data);
       const dl = Object.values(data).filter(s => s.downloaded).length;
       log(`Statut : ${dl}/${IRIS_CATALOG.length} bases téléchargées`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Erreur statut : ${String(e)}`);
     } finally {
       setLoadingStatus(false);
@@ -216,7 +216,7 @@ export default function IrisCrawlerPage() {
           discoverError: urls.length === 0 ? 'Aucune URL trouvée. Vérifier la page INSEE.' : undefined,
         },
       }));
-    } catch (e) {
+    } catch (e: unknown) {
       setEntryStates(prev => ({
         ...prev,
         [catalogId]: { ...prev[catalogId], discovering: false, discoverError: String(e) },
@@ -282,7 +282,7 @@ export default function IrisCrawlerPage() {
 
       // Rafraîchir le statut
       await loadStatus();
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! ${catalogId} erreur : ${String(e)}`);
       setEntryStates(prev => ({
         ...prev,
@@ -320,7 +320,7 @@ export default function IrisCrawlerPage() {
           log(`  ! ${entry.id} : aucune URL trouvée — ignoré`);
           continue;
         }
-      } catch (e) {
+      } catch (e: unknown) {
         log(`  ! ${entry.id} discover erreur : ${String(e)}`);
         continue;
       }
@@ -351,7 +351,7 @@ export default function IrisCrawlerPage() {
         [catalogId]: { ...prev[catalogId], showMapping: true, irisKeyCol, mapping },
       }));
       log(`Mapping ${catalogId} : ${Object.keys(mapping).length} colonnes auto-détectées`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Erreur mapping ${catalogId} : ${String(e)}`);
     }
   }, [entryStates, log]);
@@ -412,7 +412,7 @@ export default function IrisCrawlerPage() {
           } catch { /* ignore parse errors */ }
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Upload ${catalogId} erreur : ${String(e)}`);
       setEntryStates(prev => ({
         ...prev,
@@ -443,7 +443,7 @@ export default function IrisCrawlerPage() {
       const data = await res.json() as PreviewResponse;
       setPreviewData(data);
       log(`Preview ${catalogId} : ${data.totalRows} lignes × ${data.headers.length} colonnes`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Preview erreur : ${String(e)}`);
       setPreviewId(null);
     } finally {
@@ -1051,7 +1051,7 @@ function LocalFileUploadTab() {
       setKeyCol(data.autoMapResult.irisKeyCol);
       addLog(`✓ ${data.totalRows.toLocaleString('fr-FR')} lignes — ${data.autoMapResult.coreCols.length} colonnes mappées`, 'success');
       if (data.parseWarnings?.length) data.parseWarnings.forEach((w: string) => addLog(`! ${w}`, 'error'));
-    } catch (e) {
+    } catch (e: unknown) {
       addLog(`! ${String(e)}`, 'error');
     } finally {
       setUploading(false);
@@ -1102,7 +1102,7 @@ function LocalFileUploadTab() {
           } catch { /* skip */ }
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       addLog(`! ${String(e)}`, 'error');
     } finally {
       setImporting(false);

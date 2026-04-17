@@ -128,7 +128,7 @@ export default function OohImportPage() {
           } catch { /* JSON invalide */ }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       setLogs(p => [...p, `! ${err instanceof Error ? err.message : String(err)}`]);
     } finally { setRunning(false); }
   }

@@ -169,7 +169,7 @@ function extractJsonPayload(text: string): StructuredPayload | null {
   if (!match) return null;
   try {
     return JSON.parse(match[1]) as StructuredPayload;
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[bidding-chat] JSON parse failed:', err);
     return null;
   }
@@ -238,7 +238,7 @@ export async function POST(
       code_adform: payload?.code_adform,
       simulation: payload?.simulation,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[bidding-chat]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

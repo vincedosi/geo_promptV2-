@@ -196,7 +196,7 @@ export default function SourcesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erreur');
       setIrisSyncReport(data as IrisSyncReport);
-    } catch (e) {
+    } catch (e: unknown) {
       setIrisSyncError(e instanceof Error ? e.message : 'Erreur inconnue');
     } finally {
       setIrisSyncLoading(false);
@@ -222,7 +222,7 @@ export default function SourcesPage() {
       } else {
         setIrisPmtilesMsg(`! Erreur : ${data.error}`);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setIrisPmtilesMsg(`! Erreur réseau : ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIrisPmtilesLoading(false);
@@ -241,7 +241,7 @@ export default function SourcesPage() {
       } else {
         setIrisDeleteMsg(`! Erreur: ${data.error}`);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setIrisDeleteMsg(`! ${e instanceof Error ? e.message : 'Erreur'}`);
     } finally {
       setIrisDeleteLoading(false);
@@ -315,7 +315,7 @@ export default function SourcesPage() {
       setPoiModal({ open: false, mode: 'create', data: emptyForm });
       if (selectedPoiCat) { fetchPoiSamples(selectedPoiCat, 0); }
       refreshPoiStats();
-    } catch (e) { setPoiModalError(String(e)); }
+    } catch (e: unknown) { setPoiModalError(String(e)); }
     setPoiModalSaving(false);
   }, [poiModal, selectedPoiCat, fetchPoiSamples, refreshPoiStats]);
 
@@ -360,7 +360,7 @@ export default function SourcesPage() {
       const data = await res.json();
       if (data.success) setSources(data.sources || []);
       else console.error('[sources]', data.error);
-    } catch (e) { console.error('[sources] fetch error:', e); }
+    } catch (e: unknown) { console.error('[sources] fetch error:', e); }
     setIsLoading(false);
   }, []);
 
@@ -369,7 +369,7 @@ export default function SourcesPage() {
       const res = await adminFetch('/api/admin/organizations');
       const data = await res.json();
       if (data.success) setOrganizations(data.organizations || []);
-    } catch (e) { console.error('[orgs] fetch error:', e); }
+    } catch (e: unknown) { console.error('[orgs] fetch error:', e); }
   }, []);
 
   const fetchIrisStats = useCallback(async () => {
@@ -387,7 +387,7 @@ export default function SourcesPage() {
         setIrisDepts(data.top_depts || []);
         setIrisSource(data.source || null);
       } else console.error('[iris/stats]', data.error);
-    } catch (e) { console.error('[iris/stats] fetch error:', e); }
+    } catch (e: unknown) { console.error('[iris/stats] fetch error:', e); }
     setIrisLoading(false);
   }, []);
 
@@ -399,7 +399,7 @@ export default function SourcesPage() {
       const data = await res.json();
       if (data.success) setSourcesStats(data as SourcesStats);
       else console.error('[sources-stats]', data.error);
-    } catch (e) { console.error('[sources-stats] fetch error:', e); }
+    } catch (e: unknown) { console.error('[sources-stats] fetch error:', e); }
     setSourcesStatsLoading(false);
   }, []);
 
@@ -421,7 +421,7 @@ export default function SourcesPage() {
       } else {
         console.error('[fetchDspCampaigns] HTTP', res.status);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[fetchDspCampaigns] error:', err);
     }
     setDspLoading(false);
@@ -459,7 +459,7 @@ export default function SourcesPage() {
           } catch { /* skip */ }
         }
       }
-    } catch (err) { toastApi.error('Erreur réseau', String(err)); }
+    } catch (err: unknown) { toastApi.error('Erreur réseau', String(err)); }
     setDspImporting(false);
   }, [dspFile, dspSource, dspCampaignName, toastApi, fetchDspCampaigns]);
 
@@ -476,7 +476,7 @@ export default function SourcesPage() {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         toastApi.error('Erreur', body.error || 'Suppression échouée');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[dsp-delete] error:', err);
       toastApi.error('Erreur réseau', String(err));
     }
@@ -503,7 +503,7 @@ export default function SourcesPage() {
       const data = await res.json();
       if (data.success) setTransportStats(data);
       else console.error('[transport-stats]', data.error);
-    } catch (e) { console.error('[transport-stats] fetch error:', e); }
+    } catch (e: unknown) { console.error('[transport-stats] fetch error:', e); }
     setTransportLoading(false);
   }, []);
 
@@ -519,7 +519,7 @@ export default function SourcesPage() {
             .map((c: any) => ({ categorie: c.key, sigma_km: c.sigma_km, description: c.label ?? null }))
         );
       }
-    } catch (e) { console.error('[sigma-config] fetch error:', e); }
+    } catch (e: unknown) { console.error('[sigma-config] fetch error:', e); }
     setSigmaConfigLoading(false);
   }, []);
 

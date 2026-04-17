@@ -583,7 +583,7 @@ export default function MapPage() {
           map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 1000 });
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       if ((e as Error).name !== 'AbortError') console.error('[radio]', e);
     } finally {
       setRadioLoading(false);
@@ -1594,7 +1594,7 @@ export default function MapPage() {
 
             setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
             setDigitalVisible(true);
-          } catch (err) {
+          } catch (err: unknown) {
             console.error('[digital]', err);
           } finally {
             setDigitalLoading(false);

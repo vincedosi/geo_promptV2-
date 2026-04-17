@@ -89,7 +89,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
         console.log(`[Breakdown] agg=${agg} parent=${parentType ?? '-'}/${parentCode ?? '-'} rows=${data.length} first_nom=${data[0]?.nom ?? 'N/A'}`);
         setBreakdownData(data);
       }
-    } catch (err) { console.error('[analysis]', err); }
+    } catch (err: unknown) { console.error('[analysis]', err); }
     finally { setLoading(false); }
   }, [campaignId, currentAggregation, popField, selectedMedia, cpLimit, cpPopMin, metric, parentType, parentCode]);
 

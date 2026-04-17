@@ -30,7 +30,7 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onCompl
       const data = await res.json();
       setAnalysis(data.analysis);
       onComplete?.();
-    } catch (err) {
+    } catch (err: unknown) {
       setError(String(err));
     } finally {
       setLoading(false);

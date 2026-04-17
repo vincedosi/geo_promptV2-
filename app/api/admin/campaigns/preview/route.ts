@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       sample_rows: sampleRows,
       detected_columns: parsed.detected_columns,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     return NextResponse.json(
       { error: `Erreur parsing : ${err instanceof Error ? err.message : String(err)}` },
       { status: 500 }

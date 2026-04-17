@@ -68,7 +68,7 @@ export function SaveGeographyModal({
       toast.success('Geographie sauvegardee', `${body.nb_zones} zones`);
       onSaved?.(body.set_id);
       onClose();
-    } catch (e) {
+    } catch (e: unknown) {
       toast.error('Erreur', e instanceof Error ? e.message : 'Erreur reseau');
     } finally {
       setSaving(false);

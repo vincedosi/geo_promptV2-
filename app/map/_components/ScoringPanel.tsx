@@ -245,7 +245,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
       }
       const data = await res.json();
       setPanneaux((data.panneaux ?? []) as ScoredPanneau[]);
-    } catch (e) {
+    } catch (e: unknown) {
       setComputeMsg(`! Erreur chargement: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setLoading(false); }
   };
@@ -275,7 +275,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
       // Notifier l'onglet Étude avant le rechargement (garantit studyVille même si loadPanneaux échoue)
       onScoreComputed?.(ville);
       await loadPanneaux();
-    } catch (e) {
+    } catch (e: unknown) {
       setComputeMsg(`! Erreur: ${e instanceof Error ? e.message : 'inconnue'}`);
     } finally { setComputing(false); }
   };

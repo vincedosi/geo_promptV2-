@@ -1017,7 +1017,7 @@ async function exportPDF(
     a.download = `clustering-v${model.version}-${model.duration_minutes}min-${model.mode}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('PDF generation failed:', err);
     // Fallback
     window.print();
@@ -1096,7 +1096,7 @@ export function ClusterDetails({ version: versionProp, onClose }: { version: str
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setAnalysisJobId(data.job_id);
-    } catch (e) {
+    } catch (e: unknown) {
       setGeneratingAnalysis(false);
       setAnalysisError(String(e));
     }

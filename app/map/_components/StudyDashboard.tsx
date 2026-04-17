@@ -166,7 +166,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         const chunk = decoder.decode(value, { stream: true });
         setAnalysisText(prev => prev + chunk);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       if ((e as Error).name !== 'AbortError') setAnalysisText('Erreur analyse: ' + String(e));
     } finally {
       setAnalysisLoading(false);

@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
 
         send({ type: 'done', run_id: runId!, nb_total: nbTotal, nb_inseres: nbInseres, nb_maj: nbMaj, nb_doublons: nbDoublons, nb_erreurs: nbErreurs });
 
-      } catch (err) {
+      } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         send({ type: 'error', message: msg });
 

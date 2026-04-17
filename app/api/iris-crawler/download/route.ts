@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
             return;
           }
           zipBuffer = await res.arrayBuffer();
-        } catch (e) {
+        } catch (e: unknown) {
           clearTimeout(timer);
           send({ type: 'error', message: `Erreur téléchargement : ${e instanceof Error ? e.message : String(e)}` });
           controller.close();
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
           send({ type: 'status', message: `CSV direct (${(fileSizeBytes / 1024 / 1024).toFixed(1)} Mo). Lecture…` });
           try {
             csvContent = new TextDecoder('utf-8').decode(zipBuffer);
-          } catch (e) {
+          } catch (e: unknown) {
             send({ type: 'error', message: `Erreur lecture CSV : ${e instanceof Error ? e.message : String(e)}` });
             controller.close();
             return;
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
             csvFileName = chosen.name.split('/').pop() ?? chosen.name;
             send({ type: 'status', message: `Extraction de ${csvFileName}…` });
             csvContent = await chosen.file.async('string');
-          } catch (e) {
+          } catch (e: unknown) {
             send({ type: 'error', message: `Erreur extraction ZIP : ${e instanceof Error ? e.message : String(e)}` });
             controller.close();
             return;
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
 
           headers = result.meta.fields ?? [];
           rawRows = result.data;
-        } catch (e) {
+        } catch (e: unknown) {
           send({ type: 'error', message: `Erreur parsing CSV : ${e instanceof Error ? e.message : String(e)}` });
           controller.close();
           return;
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
           csvFileName,
         });
 
-      } catch (e) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         controller.enqueue(encoder.encode(
           JSON.stringify({ type: 'error', message: `Erreur inattendue : ${msg}` } satisfies DownloadStreamEvent) + '\n'

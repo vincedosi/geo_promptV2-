@@ -16,7 +16,7 @@ export async function GET() {
       campaigns: data,
       error: error?.message ?? null,
     });
-  } catch (e) {
+  } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: String(e) });
   }
 }

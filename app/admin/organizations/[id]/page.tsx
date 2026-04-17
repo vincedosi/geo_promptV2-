@@ -152,7 +152,7 @@ export default function WorkspacePage() {
       } else {
         console.error('[fetchSystemStats] error:', data.error);
       }
-    } catch (e) { console.error('[fetchSystemStats] exception:', e); }
+    } catch (e: unknown) { console.error('[fetchSystemStats] exception:', e); }
   }, []);
 
   const fetchOrg = useCallback(async () => {

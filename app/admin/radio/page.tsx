@@ -198,7 +198,7 @@ export default function RadioAdminPage() {
           } catch { /* skip */ }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setImportLogs(prev => [...prev, { message: `✗ ${msg}`, level: 'error' }]);
       toastApi.error('Import échoué', msg);
@@ -286,7 +286,7 @@ export default function RadioAdminPage() {
           } catch { /* skip malformed */ }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setImportLogs(prev => [...prev, { message: `✗ ${msg}`, level: 'error' }]);
       toastApi.error('Import échoué', msg);

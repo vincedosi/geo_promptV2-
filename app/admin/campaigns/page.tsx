@@ -319,7 +319,7 @@ export default function CampaignsPage() {
         console.error('[campaigns] error:', res.status, err);
         setFetchError(`HTTP ${res.status} : ${err}`);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('[campaigns] fetch error:', e);
       setFetchError(String(e));
     }
@@ -372,7 +372,7 @@ export default function CampaignsPage() {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         toastApi.error('Erreur preview', err.error ?? 'Erreur inconnue');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       toastApi.error('Erreur réseau', String(err));
     }
     setPreviewing(false);
@@ -432,7 +432,7 @@ export default function CampaignsPage() {
           } catch { /* skip */ }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       toastApi.error('Erreur réseau', String(err));
       setStep('preview');
     }
@@ -472,7 +472,7 @@ export default function CampaignsPage() {
       setPostalMsg('Matching IRIS terminé');
       toastApi.success('Matching IRIS terminé');
       fetchCampaigns();
-    } catch (err) {
+    } catch (err: unknown) {
       setPostalMsg(`Erreur: ${err instanceof Error ? err.message : String(err)}`);
     }
     setPostalLoading(false);

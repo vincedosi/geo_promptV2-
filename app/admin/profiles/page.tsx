@@ -269,7 +269,7 @@ export default function AdminProfilesPage() {
       setEditDraft(null);
       setIsNew(false);
       if (data.profile) setSelected(data.profile as ScoringProfile);
-    } catch (e) {
+    } catch (e: unknown) {
       setMsg(`Erreur : ${e instanceof Error ? e.message : 'inconnue'}`);
     } finally { setSaving(false); }
   };

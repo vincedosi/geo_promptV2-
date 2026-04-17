@@ -96,7 +96,7 @@ export class ImportLogger {
       const ms = Date.now() - t0;
       await this.success(name, `Phase ${name} terminée (${this.fmtDuration(ms)})`, undefined, ms);
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       const ms = Date.now() - t0;
       const msg = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;

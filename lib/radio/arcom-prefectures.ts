@@ -227,7 +227,7 @@ export async function crawlArcomPrefectures(
           await logger.info('ARCOM_CRAWL', `${i + 1}/${depts.length} — ${pref.slug} (${dept}): ${radios.length} radios`);
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       fail++;
       const msg = err instanceof Error ? err.message : String(err);
       if ((i + 1) % 20 === 0) await logger.debug('ARCOM_CRAWL', `${pref.slug}: erreur — ${msg}`);

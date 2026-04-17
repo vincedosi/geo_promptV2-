@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       unique_rows: uniqueRows.length,
       inserted,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     return NextResponse.json({
       success: false,
       error: err instanceof Error ? err.message : String(err),

@@ -80,7 +80,7 @@ export default function ImportsPage() {
       const data = await res.json();
       if (data.success) setImports(data.imports || []);
       else setError(data.error || 'Erreur');
-    } catch (e) { setError(String(e)); }
+    } catch (e: unknown) { setError(String(e)); }
     setIsLoading(false);
   }, []);
 

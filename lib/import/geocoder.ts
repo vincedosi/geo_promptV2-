@@ -61,7 +61,7 @@ export async function geocodeSingle(adresse: string, retries = 2): Promise<GeoRe
       const score = best.properties?.score ?? 0;
 
       return { lat, lng, score };
-    } catch (err) {
+    } catch (err: unknown) {
       if (attempt < retries) {
         // Exponential backoff (matches Python geocoder.py retry logic)
         await sleep(1000 * (attempt + 1));
@@ -238,7 +238,7 @@ export async function reverseGeocodeRows(
           code_postal: row.result_postcode || null,
         });
       }
-    } catch (err) {
+    } catch (err: unknown) {
       // On failure, push nulls for this chunk
       console.error('[GEOCODER] reverse batch failed:', err);
       for (const p of chunk) {
@@ -373,7 +373,7 @@ async function geocodeChunkCSV(
           resultPostcode: row.result_postcode || '',
         };
       });
-    } catch (err) {
+    } catch (err: unknown) {
       if (attempt < retries) {
         console.warn(`[GEOCODER] BAN CSV attempt ${attempt + 1} failed, retrying...`, err);
         await sleep(2000 * (attempt + 1));
@@ -443,7 +443,7 @@ export async function geocodeBatchDetailed(
           });
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       // If BAN CSV fails for this chunk, mark all as red
       console.error(`[GEOCODER] Chunk ${offset}-${offset + chunk.length} failed:`, err);
       for (let i = 0; i < chunk.length; i++) {

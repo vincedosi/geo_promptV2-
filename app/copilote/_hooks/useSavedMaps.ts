@@ -108,7 +108,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
 
       setShowLoadPanel(false);
       console.log(`[Copilote] Carte chargée: "${data.name}"`);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[Copilote] Erreur chargement carte:', err);
     }
   };

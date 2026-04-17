@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
         await logger.success('FINALIZE', `Import terminé : ${aggregated.length} radios (${created} créées, ${updated} mises à jour), ${totalFm} fréquences FM, ${totalDab} fréquences DAB+`);
 
-      } catch (err) {
+      } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         await logger.error('FATAL', msg, { stack: err instanceof Error ? err.stack : undefined });
         await supabase.from('radio_imports_log').update({

@@ -170,7 +170,7 @@ export async function importAnfrData(
 
     return stats;
 
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
     await logger.error('FATAL', `Import ANFR avorté : ${msg}`, { stack });

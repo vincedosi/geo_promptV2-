@@ -21,7 +21,7 @@ export default function InitPage() {
       });
       const data = await res.json();
       setResult(JSON.stringify(data, null, 2));
-    } catch (e) {
+    } catch (e: unknown) {
       setResult(String(e));
     } finally {
       setLoading(false);

@@ -113,7 +113,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
       if (data.code_dv360) setCodeDv360(data.code_dv360);
       if (data.code_adform) setCodeAdform(data.code_adform);
       if (data.simulation) setSimulation(data.simulation);
-    } catch (err) {
+    } catch (err: unknown) {
       setError(String(err));
     } finally {
       setLoading(false);

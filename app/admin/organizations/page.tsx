@@ -53,7 +53,7 @@ export default function OrganizationsPage() {
       try { data = JSON.parse(text); } catch { setError(`HTTP ${res.status} — réponse non-JSON`); setIsLoading(false); return; }
       if (data.success) setOrgs((data.organizations as typeof orgs) || []);
       else setError(`${res.status} — ${data.error ?? 'Erreur inconnue'}`);
-    } catch (e) { setError(String(e)); }
+    } catch (e: unknown) { setError(String(e)); }
     setIsLoading(false);
   }, []);
 

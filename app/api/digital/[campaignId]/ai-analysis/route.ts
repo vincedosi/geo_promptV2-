@@ -107,7 +107,7 @@ Ne repete pas les chiffres bruts, interprete-les.`;
     });
 
     return NextResponse.json({ analysis: result.text });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[ai-analysis]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

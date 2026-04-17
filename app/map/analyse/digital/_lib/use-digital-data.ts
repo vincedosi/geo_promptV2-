@@ -123,7 +123,7 @@ export function useDigitalData(): DigitalData {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const fc = await res.json() as GeoJSON.FeatureCollection;
       setGeojson(fc);
-    } catch (err) {
+    } catch (err: unknown) {
       if ((err as Error).name !== 'AbortError') {
         console.error('[digital-data]', err);
         // Clear stale data on error so user sees empty, not old region polygons
@@ -194,7 +194,7 @@ export function useDigitalData(): DigitalData {
           }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if ((err as Error).name !== 'AbortError') {
         const msg = err instanceof Error ? err.message : 'Erreur inconnue';
         console.error('[digital-data] meteo', msg);

@@ -379,7 +379,7 @@ export default function ClustersIndexPage() {
         setModels(prev => prev.filter(m => m.version !== confirmModel.version));
         setConfirmModel(null);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setDeleteError(String(e));
     } finally {
       setDeleting(false);

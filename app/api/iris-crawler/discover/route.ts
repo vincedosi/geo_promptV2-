@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       } satisfies DiscoverResponse);
     }
     html = await res.text();
-  } catch (e) {
+  } catch (e: unknown) {
     return NextResponse.json({
       urls: [],
       error: `Erreur réseau : ${e instanceof Error ? e.message : String(e)}`,
