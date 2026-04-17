@@ -69,7 +69,7 @@ function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: 
     if (q.length < 2) { setResults([]); setShow(false); return; }
     timerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/radio/stations?search=${encodeURIComponent(q)}&limit=8`);
+        const res = await adminFetch(`/api/radio/stations?search=${encodeURIComponent(q)}&limit=8`);
         if (!res.ok) return;
         const d = await res.json();
         setResults(d.stations ?? []);
@@ -717,7 +717,7 @@ export function FilterPanel({
   useEffect(() => {
     if (!analyseOpen.digital) return;
     // Always refresh campaign list when accordion opens
-    fetch(`/api/digital/campaigns?_t=${Date.now()}`)
+    adminFetch(`/api/digital/campaigns?_t=${Date.now()}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: CampaignListItem[]) => {
         setDigitalCampaigns(data);

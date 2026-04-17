@@ -1,5 +1,6 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 
 const fInter = "'Inter', sans-serif";
@@ -90,7 +91,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
     setError(null);
 
     try {
-      const res = await fetch(`/api/digital/${campaignId}/bidding-chat`, {
+      const res = await adminFetch(`/api/digital/${campaignId}/bidding-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

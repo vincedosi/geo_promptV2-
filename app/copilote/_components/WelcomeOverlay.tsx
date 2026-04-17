@@ -95,8 +95,8 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
         position: 'relative',
         maxWidth: 520,
         width: 'calc(100% - 32px)',
-        background: '#0a0a0a',
-        border: '0.5px solid #1a1a1a',
+        background: 'var(--bg-surface)',
+        border: '0.5px solid var(--border-subtle)',
         borderLeft: '2px solid rgba(78,205,196,0.2)',
         borderRadius: 12,
         padding: '20px 20px 16px',
@@ -120,18 +120,18 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#666666',
+            color: 'var(--text-tertiary)',
             fontSize: 18,
             lineHeight: 1,
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.background = '#181818';
-            (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-level-3)';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
           }}
           onMouseLeave={e => {
             (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            (e.currentTarget as HTMLButtonElement).style.color = '#666666';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)';
           }}
         >
           ✕
@@ -143,7 +143,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             fontSize: 20,
             fontWeight: 500,
             fontFamily: "'Inter', system-ui, sans-serif",
-            color: '#f0f0f0',
+            color: 'var(--text-primary)',
             marginBottom: 6,
             lineHeight: 1.25,
             letterSpacing: '-0.02em',
@@ -153,7 +153,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
           </div>
           <div style={{
             fontSize: 14,
-            color: '#666666',
+            color: 'var(--text-tertiary)',
             fontFamily: "'Inter', system-ui, sans-serif",
             fontWeight: 400,
             lineHeight: 1.5,
@@ -174,11 +174,11 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
             rows={2}
             style={{
               flex: 1,
-              background: '#111111',
-              border: '0.5px solid #1a1a1a',
+              background: 'var(--bg-level-2)',
+              border: '0.5px solid var(--border-subtle)',
               borderRadius: 8,
               padding: '10px 12px',
-              color: '#f0f0f0',
+              color: 'var(--text-primary)',
               fontSize: 13,
               fontFamily: "'Inter', system-ui, sans-serif",
               resize: 'none',
@@ -187,7 +187,7 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
               transition: 'border-color 0.3s ease',
             }}
             onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
           />
           <button
             onClick={handleSubmit}
@@ -198,14 +198,14 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
               width: 32,
               height: 32,
               borderRadius: '50%',
-              background: input.trim() ? (sendHover ? '#3dbdb5' : '#4ecdc4') : '#1a1a1a',
+              background: input.trim() ? (sendHover ? 'var(--brand-teal-hover)' : 'var(--brand-teal)') : 'var(--border-subtle)',
               border: 'none',
               cursor: input.trim() ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              color: input.trim() ? '#050505' : '#444444',
+              color: input.trim() ? 'var(--bg-primary)' : 'var(--border-hover)',
               fontSize: 16,
               transition: 'background 0.15s, color 0.15s',
               animation: !input.trim() ? 'welcomeSendPulse 3s ease-in-out infinite' : 'none',
@@ -223,11 +223,11 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
               onClick={() => dismiss(s)}
               style={{
                 animation: `welcomePillIn 0.35s ease-out ${0.35 + index * 0.08}s both`,
-                background: '#111111',
-                border: '0.5px solid #1a1a1a',
+                background: 'var(--bg-level-2)',
+                border: '0.5px solid var(--border-subtle)',
                 borderRadius: 6,
                 padding: '9px 14px',
-                color: '#a0a0a0',
+                color: 'var(--text-secondary)',
                 fontSize: 13,
                 fontFamily: "'Inter', system-ui, sans-serif",
                 cursor: 'pointer',
@@ -236,12 +236,12 @@ export function WelcomeOverlay({ sendMessage }: WelcomeOverlayProps) {
                 lineHeight: 1.4,
               }}
               onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(78,205,196,0.3)';
-                (e.currentTarget as HTMLButtonElement).style.background = '#151515';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--brand-teal-30)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-level-3)';
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1a1a';
-                (e.currentTarget as HTMLButtonElement).style.background = '#111111';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-subtle)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-level-2)';
               }}
             >
               {s}

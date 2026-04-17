@@ -136,8 +136,8 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
 
   return (
     <div style={{
-      borderBottom: '0.5px solid #1a1a1a',
-      background: '#0a0a0a',
+      borderBottom: '0.5px solid var(--border-subtle)',
+      background: 'var(--bg-surface)',
       maxHeight: 420,
       overflowY: 'auto',
     }}>
@@ -147,17 +147,17 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '0.5px solid #1a1a1a',
+        borderBottom: '0.5px solid var(--border-subtle)',
         position: 'sticky',
         top: 0,
-        background: '#0a0a0a',
+        background: 'var(--bg-surface)',
         zIndex: 1,
       }}>
         <span style={{
           fontSize: 11,
           fontFamily: "'Inter', system-ui, sans-serif",
           fontWeight: 500,
-          color: '#a0a0a0',
+          color: 'var(--text-secondary)',
           letterSpacing: '0.04em',
         }}>
           Prompts
@@ -167,15 +167,15 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
           style={{
             background: 'none',
             border: 'none',
-            color: '#666666',
+            color: 'var(--text-tertiary)',
             cursor: 'pointer',
             fontSize: 16,
             lineHeight: 1,
             padding: '0 2px',
             transition: 'color 0.2s ease',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
         >
           ✕
         </button>
@@ -183,7 +183,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
 
       {/* Categories */}
       {CATEGORIES.map(cat => (
-        <div key={cat.id} style={{ borderBottom: '0.5px solid #111111' }}>
+        <div key={cat.id} style={{ borderBottom: '0.5px solid var(--bg-level-2)' }}>
           {/* Category header */}
           <button
             onClick={() => toggle(cat.id)}
@@ -200,7 +200,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
               </div>
               <div style={{
                 fontSize: 10,
-                color: '#666666',
+                color: 'var(--text-tertiary)',
                 marginTop: 2,
                 lineHeight: 1.4,
                 overflow: 'hidden',
@@ -211,7 +211,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
                 {cat.description}
               </div>
             </div>
-            <span style={{ color: '#444444', fontSize: 12, flexShrink: 0 }}>
+            <span style={{ color: 'var(--border-hover)', fontSize: 12, flexShrink: 0 }}>
               {openId === cat.id ? '▲' : '▼'}
             </span>
           </button>
@@ -223,7 +223,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
               <div style={{
                 padding: '0 16px 8px 42px',
                 fontSize: 11,
-                color: '#666666',
+                color: 'var(--text-tertiary)',
                 lineHeight: 1.5,
                 fontFamily: "'Inter', system-ui, sans-serif",
               }}>
@@ -240,12 +240,12 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
                     background: 'none', border: 'none', cursor: 'pointer',
                     transition: 'background 0.2s ease',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#111111'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-level-2)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                 >
                   <div style={{
                     fontSize: 12,
-                    color: '#e0e0e0',
+                    color: 'var(--text-primary)',
                     lineHeight: 1.4,
                     fontFamily: "'Inter', system-ui, sans-serif",
                   }}>
@@ -254,7 +254,7 @@ export function PromptsPanel({ sendMessage, onClose }: PromptsPanelProps) {
                   </div>
                   <div style={{
                     fontSize: 10,
-                    color: '#444444',
+                    color: 'var(--border-hover)',
                     marginTop: 2,
                     fontFamily: "'Inter', system-ui, sans-serif",
                   }}>

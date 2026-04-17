@@ -8,15 +8,15 @@ export function ZoneCard({ zone }: { zone: ZoneData }) {
 
   return (
     <div style={{
-      background: 'rgba(78,205,196,0.05)', border: '0.5px solid rgba(78,205,196,0.2)',
+      background: 'var(--brand-teal-10)', border: '0.5px solid var(--brand-teal-30)',
       borderRadius: 10, padding: '12px 14px', marginTop: 8,
       fontSize: 12, fontFamily: "'JetBrains Mono', monospace",
       transition: 'border-color 0.2s ease',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <span style={{ color: '#4ecdc4', fontWeight: 700, fontSize: 13 }}>{zone.ville}</span>
+        <span style={{ color: 'var(--brand-teal)', fontWeight: 700, fontSize: 13 }}>{zone.ville}</span>
         {zone.rayon_metres && (
-          <span style={{ color: '#a0a0a0', fontSize: 11 }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
             zone {(zone.rayon_metres / 1000).toFixed(1)} km
           </span>
         )}
@@ -28,7 +28,7 @@ export function ZoneCard({ zone }: { zone: ZoneData }) {
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <Stat label="Établissements trouvés" value={String(zone.nb_pois)} color={zone.nb_pois > 0 ? '#3dffa0' : '#f59e0b'} />
+        <Stat label="Établissements trouvés" value={String(zone.nb_pois)} color={zone.nb_pois > 0 ? 'var(--success)' : '#f59e0b'} />
       </div>
 
       {zone.nb_pois === 0 ? (

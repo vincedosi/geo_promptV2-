@@ -150,7 +150,7 @@ export default function DigitalTripleMapPage() {
   // Fetch media list when campaign changes
   useEffect(() => {
     if (!campaignId) { setMediaList([]); setSelectedMedia([]); return; }
-    fetch(`/api/digital/${campaignId}/media`)
+    adminFetch(`/api/digital/${campaignId}/media`)
       .then(r => r.ok ? r.json() : [])
       .then((data: string[]) => { setMediaList(data); setSelectedMedia([]); })
       .catch(() => {});

@@ -79,19 +79,19 @@ export function SaveGeographyModal({
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    background: '#111111',
-    border: '0.5px solid #1a1a1a',
+    background: 'var(--bg-level-2)',
+    border: '0.5px solid var(--border-subtle)',
     borderRadius: 6,
     padding: '9px 12px',
     fontFamily: fInter,
     fontSize: 13,
-    color: '#f0f0f0',
+    color: 'var(--text-primary)',
     outline: 'none',
   };
   const labelStyle: React.CSSProperties = {
     fontFamily: fInter,
     fontSize: 11,
-    color: '#8a8a8a',
+    color: 'var(--text-tertiary)',
     display: 'block',
     marginBottom: 5,
   };
@@ -106,20 +106,20 @@ export function SaveGeographyModal({
       }}
     >
       <div style={{
-        background: '#0a0a0a',
-        border: '0.5px solid #1a1a1a',
+        background: 'var(--bg-surface)',
+        border: '0.5px solid var(--border-subtle)',
         borderRadius: 10,
         padding: 24,
         width: 440,
         maxWidth: '92vw',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', display: 'inline-block' }} />
-          <h2 style={{ fontFamily: fInter, fontSize: 15, fontWeight: 500, color: '#f0f0f0', margin: 0 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', display: 'inline-block' }} />
+          <h2 style={{ fontFamily: fInter, fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
             Sauvegarder comme geographie
           </h2>
         </div>
-        <p style={{ fontFamily: fInter, fontSize: 12, color: '#666666', margin: '0 0 18px 14px' }}>
+        <p style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 18px 14px' }}>
           Reutiliser ces zones dans le module Digital
         </p>
 
@@ -161,18 +161,18 @@ export function SaveGeographyModal({
           </div>
 
           <div style={{
-            background: '#111111',
-            border: '0.5px solid #1a1a1a',
+            background: 'var(--bg-level-2)',
+            border: '0.5px solid var(--border-subtle)',
             borderRadius: 6,
             padding: '10px 12px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
-            <span style={{ fontFamily: fInter, fontSize: 12, color: '#a0a0a0' }}>
-              <span style={{ color: '#4ecdc4', fontWeight: 500 }}>{nbZones}</span> zones detectees
+            <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
+              <span style={{ color: 'var(--brand-teal)', fontWeight: 500 }}>{nbZones}</span> zones detectees
             </span>
-            <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666' }}>
+            <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
               {categorie} · {minutes}min · {mode}
             </span>
           </div>
@@ -188,9 +188,9 @@ export function SaveGeographyModal({
               fontSize: 13,
               cursor: saving ? 'not-allowed' : 'pointer',
               background: 'transparent',
-              border: '0.5px solid #262626',
+              border: '0.5px solid var(--border-default)',
               borderRadius: 6,
-              color: '#a0a0a0',
+              color: 'var(--text-secondary)',
             }}
           >
             Annuler
@@ -205,9 +205,9 @@ export function SaveGeographyModal({
               fontWeight: 500,
               cursor: saving ? 'wait' : 'pointer',
               background: 'transparent',
-              border: '0.5px solid #4ecdc4',
+              border: '0.5px solid var(--brand-teal)',
               borderRadius: 6,
-              color: '#4ecdc4',
+              color: 'var(--brand-teal)',
               opacity: saving || !name.trim() ? 0.5 : 1,
             }}
           >

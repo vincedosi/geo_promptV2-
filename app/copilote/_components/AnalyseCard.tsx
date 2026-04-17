@@ -46,15 +46,15 @@ interface AnalyseOutput {
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const P = {
-  bg:      '#0a0a0a',
-  border:  '#1a1a1a',
-  violet:  '#4ecdc4',
+  bg:      'var(--bg-surface)',
+  border:  'var(--border-subtle)',
+  violet:  'var(--brand-teal)',
   green:   '#10b981',
   orange:  '#f97316',
   blue:    '#38bdf8',
-  text:    '#f0f0f0',
-  dim:     '#a0a0a0',
-  dimmer:  '#666666',
+  text:    'var(--text-primary)',
+  dim:     'var(--text-secondary)',
+  dimmer:  'var(--text-tertiary)',
   gridLn:  'rgba(255,255,255,0.06)',
 };
 
@@ -67,7 +67,7 @@ function Metric({
 }: { value: string; label: string; color: string; sub?: string }) {
   return (
     <div style={{
-      background: P.bg, border: `0.5px solid ${P.border}`,
+      background: 'var(--bg-surface)', border: `0.5px solid ${P.border}`,
       borderRadius: 8, padding: '12px 14px',
       display: 'flex', flexDirection: 'column', gap: 4,
       transition: 'border-color 0.2s ease',
@@ -105,7 +105,7 @@ function ChartTooltip({ active, payload, label }: {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: '#111111', border: `0.5px solid ${P.border}`,
+      background: 'var(--bg-level-2)', border: `0.5px solid ${P.border}`,
       borderRadius: 4, padding: '6px 10px',
       fontSize: 11, fontFamily: fontMono, color: P.text,
     }}>
@@ -232,7 +232,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
     <style>{analyseCardStyles}</style>
     <div className="analyse-card-root" style={{
       marginTop: 10,
-      background: '#0a0a0a',
+      background: 'var(--bg-surface)',
       border: `0.5px solid ${P.border}`,
       borderLeft: `3px solid ${P.violet}`,
       borderRadius: '2px 12px 12px 12px',
@@ -290,7 +290,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
       {demographie.revenu_median > 0 && (
         <div style={{
           marginTop: 8, padding: '7px 10px',
-          background: P.bg, border: `1px solid ${P.border}`,
+          background: 'var(--bg-surface)', border: `1px solid ${P.border}`,
           borderRadius: 6, fontSize: 11, color: P.dim,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -436,7 +436,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
       <div style={{
         marginTop: 16, paddingTop: 10,
         borderTop: "1px solid rgba(255,255,255,0.06)",
-        fontSize: 9, color: "#666666", fontFamily: fontMono,
+        fontSize: 9, color: "var(--text-tertiary)", fontFamily: fontMono,
         display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4,
       }}>
         <span>{(output as Record<string, unknown> & { metadata?: { source?: string; date_source?: string } }).metadata?.source ?? "Carreaux Filosofi"} · Millésime {(output as Record<string, unknown> & { metadata?: { date_source?: string } }).metadata?.date_source ?? "2022"}</span>

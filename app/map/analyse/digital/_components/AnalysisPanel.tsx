@@ -1,5 +1,6 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { KpiSummary } from './KpiSummary';
 import { BreakdownChart } from './BreakdownChart';
@@ -113,7 +114,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   useEffect(() => {
     if (!open || !campaignId) return;
     setHeatmapLoading(true);
-    fetch(`/api/digital/${campaignId}/analysis?type=heatmap&aggregation=${heatmapAgg}&indicator=${popField}&metric=${metric}`)
+    adminFetch(`/api/digital/${campaignId}/analysis?type=heatmap&aggregation=${heatmapAgg}&indicator=${popField}&metric=${metric}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setHeatmapData(data); })
       .catch(() => {})

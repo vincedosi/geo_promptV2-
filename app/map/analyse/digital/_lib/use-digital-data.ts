@@ -1,5 +1,6 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   MeteoParams,
@@ -71,7 +72,7 @@ export function useDigitalData(): DigitalData {
   const meteoAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetch(`/api/digital/campaigns?_t=${Date.now()}`)
+    adminFetch(`/api/digital/campaigns?_t=${Date.now()}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setCampaigns(data))
       .catch(() => {})
@@ -148,7 +149,7 @@ export function useDigitalData(): DigitalData {
         `&variable=${params.variable}` +
         `&startDate=${params.startDate}` +
         `&endDate=${params.endDate}`;
-      const res = await fetch(url, { signal: ctrl.signal });
+      const res = await adminFetch(url, { signal: ctrl.signal });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status} ${txt}`);

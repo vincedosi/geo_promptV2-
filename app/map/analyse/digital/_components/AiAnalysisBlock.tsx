@@ -1,5 +1,6 @@
 'use client';
 
+import { adminFetch } from '@/lib/admin-fetch';
 import { useState } from 'react';
 
 const fInter = "'Inter', sans-serif";
@@ -21,7 +22,7 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onCompl
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/digital/${campaignId}/ai-analysis`, {
+      const res = await adminFetch(`/api/digital/${campaignId}/ai-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ indicator, kpi, breakdown }),

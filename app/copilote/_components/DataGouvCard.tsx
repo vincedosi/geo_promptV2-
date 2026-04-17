@@ -307,8 +307,8 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(showAll ? datasets : datasets.slice(0, 5)).map((ds, i) => (
                 <div key={i} style={{
-                  background: '#111111',
-                  border: '0.5px solid #1a1a1a',
+                  background: 'var(--bg-level-2)',
+                  border: '0.5px solid var(--border-subtle)',
                   borderRadius: 8,
                   padding: '10px 12px',
                   animation: `dgFadeIn 0.3s ease ${i * 0.06}s both`,
@@ -415,8 +415,8 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
       {/* ── Autres résultats MCP (get_dataset_info, metrics, etc.) ── */}
       {!searchResult && !resourcesResult && toolResults.map((tr, i) => (
         <div key={i} style={{
-          background: '#111111',
-          border: '0.5px solid #1a1a1a',
+          background: 'var(--bg-level-2)',
+          border: '0.5px solid var(--border-subtle)',
           borderRadius: 8,
           padding: '8px 10px',
           marginBottom: i < toolResults.length - 1 ? 6 : 0,

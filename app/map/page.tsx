@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { adminFetch } from '@/lib/admin-fetch';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
@@ -245,7 +246,7 @@ export default function MapPage() {
     if (!map) return;
 
     setDigitalLoading(true);
-    fetch(`/api/digital/${cid}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`)
+    adminFetch(`/api/digital/${cid}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`)
       .then(r => r.ok ? r.json() as Promise<GeoJSON.FeatureCollection> : null)
       .then(fc => {
         if (!fc) return;
@@ -562,7 +563,7 @@ export default function MapPage() {
         params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
       }
       if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
-      const res = await fetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
+      const res = await adminFetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
       if (!res.ok) return;
       const data: GeoJSON.FeatureCollection = await res.json();
       setRadioGeoJSON(data);
@@ -1551,7 +1552,7 @@ export default function MapPage() {
             if (!map) return;
 
             // Always load all of France (metro + DOM)
-            const res = await fetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
+            const res = await adminFetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const fc = await res.json() as GeoJSON.FeatureCollection;
 
@@ -1588,7 +1589,7 @@ export default function MapPage() {
 
             const totalImp = values.reduce((a, b) => a + b, 0);
             // Get campaign name
-            const campRes = await fetch('/api/digital/campaigns');
+            const campRes = await adminFetch('/api/digital/campaigns');
             const camps = campRes.ok ? await campRes.json() : [];
             const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
 
