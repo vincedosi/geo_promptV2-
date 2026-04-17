@@ -8,6 +8,7 @@
  */
 import { useState, useMemo, useEffect, type CSSProperties } from 'react';
 import type { MeteoParams, MeteoVariable, MeteoMode, MeteoStats } from '@/lib/meteo/types';
+import type { MeteoProgress } from '../_lib/use-digital-data';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -73,11 +74,20 @@ export interface MeteoGeoPanelProps {
   onClose?: () => void;
   initialParams?: MeteoParams | null;
   loading?: boolean;
-  progress?: { completed: number; total: number; cached: boolean } | null;
+  progress?: MeteoProgress | null;
+  error?: string | null;
   stats?: MeteoStats | null;
 }
 
-export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progress, stats }: MeteoGeoPanelProps) {
+// Inject spin keyframes once (used by progress spinner + button loading state)
+if (typeof document !== 'undefined' && !document.head.querySelector('[data-meteo-style]')) {
+  const el = document.createElement('style');
+  el.setAttribute('data-meteo-style', '');
+  el.textContent = '@keyframes meteo-spin { to { transform: rotate(360deg); } }';
+  document.head.appendChild(el);
+}
+
+export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progress, error, stats }: MeteoGeoPanelProps) {
   const [variable, setVariable] = useState<MeteoVariable>(initialParams?.variable ?? 'precipitation');
   const [mode, setMode] = useState<MeteoMode>(() => {
     if (!initialParams) return 'forecast';
@@ -288,52 +298,19 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
         </div>
       )}
 
-      {/* Progress bar (pendant le fetch SSE) */}
-      {loading && progress && progress.total > 0 && (
+      {/* Fetch error */}
+      {error && !loading && (
         <div
           style={{
-            padding: '10px 14px',
+            padding: '8px 14px',
+            color: COLORS.danger,
+            fontFamily: fInter,
+            fontSize: 11,
+            background: 'rgba(255,87,87,0.05)',
             borderTop: `1px solid ${COLORS.border}`,
-            background: COLORS.bgElevated,
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 6,
-              fontFamily: fInter,
-              fontSize: 11,
-              color: COLORS.textSecondary,
-            }}
-          >
-            <span>
-              {progress.cached
-                ? 'Lecture du cache…'
-                : 'Chargement météo…'}
-            </span>
-            <span style={{ fontFamily: fMono, color: COLORS.textPrimary }}>
-              {progress.completed}/{progress.total} points
-            </span>
-          </div>
-          <div
-            style={{
-              height: 3,
-              borderRadius: 2,
-              background: COLORS.border,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: `${Math.min(100, (progress.completed / Math.max(1, progress.total)) * 100)}%`,
-                background: COLORS.accent,
-                transition: 'width 0.2s ease',
-              }}
-            />
-          </div>
+          {error}
         </div>
       )}
 
@@ -356,10 +333,66 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
             cursor: validation || loading ? 'not-allowed' : 'pointer',
             opacity: validation || loading ? 0.5 : 1,
             transition: 'all 0.15s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
           }}
         >
+          {loading && (
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                border: `2px solid ${COLORS.border}`,
+                borderTopColor: COLORS.accent,
+                borderRadius: '50%',
+                animation: 'meteo-spin 0.8s linear infinite',
+              }}
+            />
+          )}
           {loading ? 'Chargement…' : 'Appliquer'}
         </button>
+
+        {/* Progress bar — visible uniquement quand le serveur envoie des chunks
+            de progression (mode CP, plusieurs batchs). En mode region/departement
+            (1 batch) le spinner du bouton suffit. */}
+        {loading && progress && progress.total > 1 && (
+          <div style={{ marginTop: 10 }}>
+            <div
+              style={{
+                height: 3,
+                background: COLORS.border,
+                borderRadius: 2,
+                overflow: 'hidden',
+                marginBottom: 6,
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
+                  background: COLORS.accent,
+                  borderRadius: 2,
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                fontFamily: fMono,
+                fontSize: 10,
+                color: COLORS.textTertiary,
+                textAlign: 'center',
+              }}
+            >
+              Chargement météo… {progress.current}/{progress.total} requêtes
+              {progress.etaMs !== undefined && progress.etaMs > 5000 && (
+                <> · ~{Math.ceil(progress.etaMs / 60000)} min restant</>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats display (après fetch) */}

@@ -222,13 +222,14 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       const nom = String(p.nom ?? p.code ?? '—');
       const label = p.label && String(p.label) !== nom ? ` <span style="color:#666">· ${String(p.label)}</span>` : '';
 
-      // Construction conditionnelle des lignes du popup. La 3eme carte en mode
-      // meteo n'a pas impressions/pop/ratio — uniquement weather_value.
+      // Construction conditionnelle des lignes du popup. En mode meteo, les
+      // features sont enrichies avec meteo_value/unit/label (en plus des KPIs
+      // DSP si presents). L'ordre : KPI DSP d'abord, separator, puis meteo.
       const lines: string[] = [];
       const hasImpressions = p.impressions !== undefined && p.impressions !== null;
       const hasPop = p.pop_value !== undefined && p.pop_value !== null;
       const hasRatio = p.ratio !== undefined && p.ratio !== null;
-      const hasWeather = p.weather_value !== undefined && p.weather_value !== null;
+      const hasMeteo = p.meteo_value !== undefined && p.meteo_value !== null;
 
       if (hasImpressions) {
         lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${fmtNum(p.impressions)}</span></div>`);
@@ -239,14 +240,14 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       if (hasRatio) {
         lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${Number(p.ratio).toFixed(1)}</span></div>`);
       }
-      if (hasWeather) {
-        const wv = Number(p.weather_value);
-        const wu = p.weather_unit ? String(p.weather_unit) : '';
-        const wl = p.weather_label ? ` <span style="color:#666">(${String(p.weather_label)})</span>` : '';
+      if (hasMeteo) {
+        const mv = Number(p.meteo_value);
+        const mu = p.meteo_unit ? String(p.meteo_unit) : '';
+        const ml = p.meteo_label ? `<div style="color:#666;font-size:10px;margin-top:2px">${String(p.meteo_label)}</div>` : '';
         const sep = lines.length > 0
           ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid #1a1a1a"></div>'
           : '';
-        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${wv.toFixed(1)} ${wu}${wl}</span></div>`);
+        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${mv.toFixed(1)} ${mu}</span></div>${ml}`);
       }
 
       const html = `

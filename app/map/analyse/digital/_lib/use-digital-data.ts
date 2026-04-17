@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { MeteoParams, MeteoMeta } from '@/lib/meteo/types';
+import type {
+  MeteoParams,
+  MeteoScale,
+  MeteoZoneChunk,
+  MeteoZoneMeta,
+  MeteoZoneValue,
+} from '@/lib/meteo/types';
 
 interface Campaign {
   id: string; name: string; total_tracked_ads: number;
@@ -19,9 +25,9 @@ interface GeographySummary {
 }
 
 export interface MeteoProgress {
-  completed: number;
+  current: number;
   total: number;
-  cached: boolean;
+  etaMs?: number;
 }
 
 interface DigitalData {
@@ -30,11 +36,14 @@ interface DigitalData {
   geojson: GeoJSON.FeatureCollection | null;
   geojsonLoading: boolean;
   geographySummary: GeographySummary | null;
-  // Meteo state — independant de geojson, alimente uniquement la 3eme carte
-  meteoGeojson: GeoJSON.FeatureCollection | null;
-  meteoMeta: MeteoMeta | null;
+  // Meteo state — data = mapping code_zone → valeur météo
+  // Les 3 cartes réutilisent `geojson` (memes polygones), la 3eme carte enrichit
+  // chaque feature avec meteo_value via le lookup sur ce Record.
+  meteoData: Record<string, MeteoZoneValue> | null;
+  meteoMeta: MeteoZoneMeta | null;
   meteoLoading: boolean;
   meteoProgress: MeteoProgress | null;
+  meteoError: string | null;
   fetchMap: (
     campaignId: string,
     scale: string,
@@ -43,7 +52,7 @@ interface DigitalData {
     metric?: 'impressions' | 'unique',
     geographySetId?: string | null,
   ) => Promise<void>;
-  fetchMeteo: (campaignId: string, params: MeteoParams) => Promise<void>;
+  fetchMeteo: (scale: MeteoScale, params: MeteoParams) => Promise<void>;
   clearMeteo: () => void;
 }
 
@@ -53,10 +62,11 @@ export function useDigitalData(): DigitalData {
   const [geojson, setGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [geojsonLoading, setGeojsonLoading] = useState(false);
   const [geographySummary, setGeographySummary] = useState<GeographySummary | null>(null);
-  const [meteoGeojson, setMeteoGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [meteoMeta, setMeteoMeta] = useState<MeteoMeta | null>(null);
+  const [meteoData, setMeteoData] = useState<Record<string, MeteoZoneValue> | null>(null);
+  const [meteoMeta, setMeteoMeta] = useState<MeteoZoneMeta | null>(null);
   const [meteoLoading, setMeteoLoading] = useState(false);
   const [meteoProgress, setMeteoProgress] = useState<MeteoProgress | null>(null);
+  const [meteoError, setMeteoError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const meteoAbortRef = useRef<AbortController | null>(null);
 
@@ -124,97 +134,72 @@ export function useDigitalData(): DigitalData {
     }
   }, []);
 
-  // Fetch meteo grid — SSE streaming avec progression par batch Open-Meteo.
-  // Cache hit = done immédiat. Cache miss = progress events puis done.
-  const fetchMeteo = useCallback(async (campaignId: string, params: MeteoParams) => {
-    if (!campaignId) return;
+  // Fetch meteo par zones admin (centroïdes). Stream NDJSON pour progression.
+  const fetchMeteo = useCallback(async (scale: MeteoScale, params: MeteoParams) => {
     meteoAbortRef.current?.abort();
     const ctrl = new AbortController();
     meteoAbortRef.current = ctrl;
     setMeteoLoading(true);
     setMeteoProgress(null);
+    setMeteoError(null);
     try {
-      const p = new URLSearchParams({
-        variable: params.variable,
-        startDate: params.startDate,
-        endDate: params.endDate,
-      });
-      if (params.resolution !== undefined) p.set('resolution', String(params.resolution));
-      const url = `/api/digital/${campaignId}/meteo?${p.toString()}`;
+      const url =
+        `/api/meteo-geo?scale=${scale}` +
+        `&variable=${params.variable}` +
+        `&startDate=${params.startDate}` +
+        `&endDate=${params.endDate}`;
       const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         const txt = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status} ${txt}`);
       }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response body');
 
-      const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let totalPoints = 0;
-      let isCached = false;
-      let doneReceived = false;
 
       while (true) {
-        const { value, done } = await reader.read();
+        const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-        // Split by double newline (SSE event delimiter)
-        let idx;
-        while ((idx = buffer.indexOf('\n\n')) !== -1) {
-          const rawEvent = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 2);
-
-          // Extract data: lines
-          const lines = rawEvent.split('\n').filter((l) => l.startsWith('data: '));
-          if (lines.length === 0) continue;
-          const payload = lines.map((l) => l.slice(6)).join('');
-          if (!payload) continue;
-
-          let evt: unknown;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let chunk: MeteoZoneChunk;
           try {
-            evt = JSON.parse(payload);
+            chunk = JSON.parse(trimmed) as MeteoZoneChunk;
           } catch {
+            console.warn('[digital-data] meteo parse error', trimmed.slice(0, 100));
             continue;
           }
 
-          const e = evt as { type: string } & Record<string, unknown>;
-          if (e.type === 'init') {
-            totalPoints = (e.total as number) ?? 0;
-            isCached = (e.cached as boolean) ?? false;
-            setMeteoProgress({ completed: 0, total: totalPoints, cached: isCached });
-          } else if (e.type === 'progress') {
-            setMeteoProgress({
-              completed: (e.completed as number) ?? 0,
-              total: (e.total as number) ?? totalPoints,
-              cached: isCached,
-            });
-          } else if (e.type === 'done') {
-            const geojson = e.geojson as GeoJSON.FeatureCollection;
-            const meta = (e.meta as MeteoMeta | null) ?? null;
-            const cached = (e.cached as boolean) ?? false;
+          if (chunk.status === 'fetching') {
+            setMeteoProgress({ current: chunk.progress, total: chunk.total, etaMs: chunk.etaMs });
+          } else if (chunk.status === 'done') {
+            setMeteoData(chunk.data);
+            setMeteoMeta(chunk.meta);
+            setMeteoProgress(null);
             console.log(
-              '[digital-data] meteo done features=',
-              geojson?.features?.length,
-              'cached=',
-              cached,
+              '[digital-data] meteo done',
+              'zones=', Object.keys(chunk.data).length,
+              'variable=', chunk.meta.variable,
+              'cached=', chunk.meta.cachedAt !== null,
             );
-            setMeteoGeojson(geojson);
-            setMeteoMeta(meta);
-            doneReceived = true;
-          } else if (e.type === 'error') {
-            throw new Error((e.message as string) ?? 'meteo stream error');
+          } else if (chunk.status === 'error') {
+            throw new Error(chunk.error);
           }
         }
       }
-
-      if (!doneReceived) {
-        throw new Error('meteo stream ended without done event');
-      }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        console.error('[digital-data] meteo', err);
-        setMeteoGeojson({ type: 'FeatureCollection', features: [] });
+        const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+        console.error('[digital-data] meteo', msg);
+        setMeteoError(msg);
+        setMeteoData(null);
         setMeteoMeta(null);
       }
     } finally {
@@ -225,16 +210,17 @@ export function useDigitalData(): DigitalData {
 
   const clearMeteo = useCallback(() => {
     meteoAbortRef.current?.abort();
-    setMeteoGeojson(null);
+    setMeteoData(null);
     setMeteoMeta(null);
     setMeteoLoading(false);
     setMeteoProgress(null);
+    setMeteoError(null);
   }, []);
 
   return {
     campaigns, campaignsLoading,
     geojson, geojsonLoading, geographySummary,
-    meteoGeojson, meteoMeta, meteoLoading, meteoProgress,
+    meteoData, meteoMeta, meteoLoading, meteoProgress, meteoError,
     fetchMap, fetchMeteo, clearMeteo,
   };
 }

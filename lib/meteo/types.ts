@@ -61,6 +61,41 @@ export interface MeteoApiResponse {
   meta: MeteoMeta;
 }
 
+/** Scale admin supportée par l'endpoint /api/meteo-geo */
+export type MeteoScale = 'region' | 'departement' | 'cp';
+
+/** Valeur météo pour une zone admin (une seule par zone) */
+export interface MeteoZoneValue {
+  value: number;
+  unit: string;
+  label: string;
+}
+
+/** Métadonnées de la réponse /api/meteo-geo */
+export interface MeteoZoneMeta {
+  variable: MeteoVariable;
+  unit: string;
+  startDate: string;
+  endDate: string;
+  scale: MeteoScale;
+  stats: MeteoStats;
+  totalZones: number;
+  batchesTotal: number;
+  cachedAt: string | null;
+}
+
+/** Réponse complète de /api/meteo-geo (status = done) */
+export interface MeteoZoneResponse {
+  data: Record<string, MeteoZoneValue>;
+  meta: MeteoZoneMeta;
+}
+
+/** Chunk intermédiaire NDJSON pendant le streaming */
+export type MeteoZoneChunk =
+  | { status: 'fetching'; progress: number; total: number; etaMs?: number }
+  | { status: 'done'; progress: number; total: number; data: Record<string, MeteoZoneValue>; meta: MeteoZoneMeta }
+  | { status: 'error'; error: string };
+
 export const METEO_UNIT: Record<MeteoVariable, string> = {
   precipitation: 'mm',
   temperature_2m: '°C',
@@ -73,6 +108,16 @@ export const METEO_AGGREGATION: Record<MeteoVariable, MeteoAggregationFn> = {
   temperature_2m: 'mean',
   windspeed_10m: 'max',
   sunshine_duration: 'sum',
+};
+
+// Nom exact du champ dans la réponse Open-Meteo `daily.*` selon la variable.
+// Permet de requêter en daily (volume 24× plus petit qu'en hourly) et
+// d'extraire directement la valeur quotidienne déjà agrégée côté API.
+export const METEO_DAILY_FIELD: Record<MeteoVariable, string> = {
+  precipitation: 'precipitation_sum',
+  temperature_2m: 'temperature_2m_mean',
+  windspeed_10m: 'windspeed_10m_max',
+  sunshine_duration: 'sunshine_duration',
 };
 
 export const METEO_LABEL: Record<MeteoVariable, string> = {

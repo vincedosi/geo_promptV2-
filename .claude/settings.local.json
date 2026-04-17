@@ -35,7 +35,15 @@
       "Bash(xargs ls:*)",
       "Bash(git log:*)",
       "WebFetch(domain:www.arcom.fr)",
-      "mcp__claude_ai_Supabase__apply_migration"
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(git reset:*)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const d=require\\('/tmp/meteo-test.json'\\); console.log\\('keys:', Object.keys\\(d\\)\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', d.meta\\); console.log\\('first feature props:', d.geojson?.features?.[0]?.properties\\); }\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('/c/temp/meteo-test.json','utf8'\\)\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first feature props:', JSON.stringify\\(d.geojson?.features?.[0]?.properties\\)\\); }\")",
+      "Bash(mkdir -p /tmp)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-test.json','utf8'\\)\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first feature:', JSON.stringify\\(d.geojson?.features?.[0]?.properties\\)\\); }\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const raw=fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-small.json','utf8'\\); if\\(raw.startsWith\\('<'\\)\\){console.log\\('HTML page returned \\(404\\)'\\)} else { const d=JSON.parse\\(raw\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first 3 features:', JSON.stringify\\(d.geojson?.features?.slice\\(0,3\\)?.map\\(f=>f.properties\\)\\)\\); } }\")",
+      "Bash(taskkill //IM node.exe //F)"
     ]
   }
 }

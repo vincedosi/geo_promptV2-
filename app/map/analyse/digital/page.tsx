@@ -11,7 +11,7 @@ import { AnalysisPanel } from './_components/AnalysisPanel';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { adminFetch } from '@/lib/admin-fetch';
-import type { MeteoParams } from '@/lib/meteo/types';
+import type { MeteoParams, MeteoScale } from '@/lib/meteo/types';
 import { METEO_LABEL } from '@/lib/meteo/types';
 import { buildColorExpression as buildMeteoColorExpression, METEO_PALETTES } from '@/lib/meteo/palettes';
 
@@ -110,7 +110,7 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 export default function DigitalTripleMapPage() {
   const {
     campaigns, geojson, geojsonLoading, geographySummary,
-    meteoGeojson, meteoMeta, meteoLoading, meteoProgress,
+    meteoData, meteoMeta, meteoLoading, meteoProgress, meteoError,
     fetchMap, fetchMeteo, clearMeteo,
   } = useDigitalData();
 
@@ -122,10 +122,11 @@ export default function DigitalTripleMapPage() {
   const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
   const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
   const [geographySetId, setGeographySetId] = useState<string | null>(null);
-  // Meteo overlay state : independant du scale, swap uniquement la 3eme carte
+  // Meteo overlay state : la 3eme carte reutilise les memes polygones que les
+  // autres mais les colore par la valeur meteo lue dans meteoData[code].
   const [meteoOpen, setMeteoOpen] = useState(false);
   const [meteoParams, setMeteoParams] = useState<MeteoParams | null>(null);
-  const isMeteoActive = meteoGeojson !== null || meteoOpen;
+  const isMeteoActive = meteoData !== null || meteoOpen;
 
   // Fetch geography sets on mount
   useEffect(() => {
@@ -214,10 +215,26 @@ export default function DigitalTripleMapPage() {
     }
   }, [isMeteoActive, clearMeteo]);
 
+  // Mapping page scale → MeteoScale. Les zones custom et France n'ont pas
+  // de centroides dans ref_*, on fallback sur departement dans ce cas.
+  const toMeteoScale = useCallback((s: string): MeteoScale => {
+    if (s === 'region') return 'region';
+    if (s === 'cp') return 'cp';
+    return 'departement';
+  }, []);
+
   const handleMeteoApply = useCallback((params: MeteoParams) => {
     setMeteoParams(params);
-    if (campaignId) fetchMeteo(campaignId, params);
-  }, [campaignId, fetchMeteo]);
+    void fetchMeteo(toMeteoScale(scale), params);
+  }, [scale, fetchMeteo, toMeteoScale]);
+
+  // Refetch meteo quand le scale change pendant que le mode meteo est actif
+  useEffect(() => {
+    if (isMeteoActive && meteoParams) {
+      void fetchMeteo(toMeteoScale(scale), meteoParams);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale]);
 
   const handleMeteoClose = useCallback(() => {
     setMeteoOpen(false);
@@ -270,13 +287,38 @@ export default function DigitalTripleMapPage() {
   const isZones = scale === 'zones';
   const metricLabelLong = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
 
-  // Expression de fill et stops pour la 3eme carte en mode meteo
-  const meteoIsReady = !!(meteoGeojson && meteoMeta);
+  // Expression de fill et stops pour la 3eme carte en mode meteo.
+  // La 3eme carte reutilise `geojson` (memes polygones que les 2 autres) mais
+  // chaque feature est enrichie avec meteo_value/meteo_unit/meteo_label depuis
+  // meteoData via le code de la zone.
+  const meteoIsReady = !!(meteoData && meteoMeta);
   const meteoFillExpr = useMemo(() => {
     if (!meteoIsReady) return ['literal', '#1a1a1a'];
-    return buildMeteoColorExpression(meteoMeta!.variable, meteoMeta!.stats, 'weather_value');
+    return buildMeteoColorExpression(meteoMeta!.variable, meteoMeta!.stats, 'meteo_value');
   }, [meteoIsReady, meteoMeta]);
   const meteoLegendStops = meteoIsReady ? METEO_PALETTES[meteoMeta!.variable] : [];
+
+  // GeoJSON enrichi meteo : memes features que `geojson`, +props meteo_value/unit/label
+  const meteoEnrichedGeojson = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!meteoIsReady || !geojson) return null;
+    return {
+      type: 'FeatureCollection',
+      features: geojson.features.map((f) => {
+        const props = f.properties ?? {};
+        const code = String(props.code ?? props.id ?? '');
+        const entry = meteoData![code];
+        return {
+          ...f,
+          properties: {
+            ...props,
+            meteo_value: entry?.value ?? null,
+            meteo_unit: entry?.unit ?? '',
+            meteo_label: entry?.label ?? '',
+          },
+        };
+      }),
+    };
+  }, [meteoIsReady, meteoData, geojson]);
 
   const makePanel = (key: string, isSmall: boolean) => {
     const zo = isSmall ? -0.7 : 0;
@@ -289,19 +331,20 @@ export default function DigitalTripleMapPage() {
         hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
     );
     if (key === 'pop') {
-      // Swap meteo : la 3eme carte devient la grille meteo coloree par la variable
-      if (isMeteoActive && meteoIsReady) {
+      // Swap meteo : la 3eme carte reutilise les memes polygones (meteoEnrichedGeojson)
+      // colores par la valeur meteo lue dans meteoData[code].
+      if (isMeteoActive && meteoIsReady && meteoEnrichedGeojson) {
         return (
           <MapPanel title="Meteo" titleAccent={METEO_LABEL[meteoMeta!.variable]}
             palettes={[]} palette="" onPaletteChange={() => {}} inverted={false} onInvertedChange={() => {}}
-            mapId="pop" geojson={meteoGeojson} fillExpression={meteoFillExpr} lineColor="rgba(78,205,196,0.25)"
+            mapId="pop" geojson={meteoEnrichedGeojson} fillExpression={meteoFillExpr} lineColor="rgba(78,205,196,0.25)"
             onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
             percentiles={{ p50: meteoMeta!.stats.mean, max: meteoMeta!.stats.max }}
             legendStops={[...meteoLegendStops]}
             legendMin={`${meteoMeta!.stats.min.toFixed(1)} ${meteoMeta!.unit}`}
             legendMid={`${meteoMeta!.stats.mean.toFixed(1)} ${meteoMeta!.unit}`}
             legendMax={`${meteoMeta!.stats.max.toFixed(1)} ${meteoMeta!.unit}`}
-            hideAdminBoundaries={true} showFeatureHover={true} metricLabel="Meteo" />
+            hideAdminBoundaries={isZones} showFeatureHover={true} metricLabel={METEO_LABEL[meteoMeta!.variable]} />
         );
       }
       return (
@@ -435,6 +478,7 @@ export default function DigitalTripleMapPage() {
                   initialParams={meteoParams}
                   loading={meteoLoading}
                   progress={meteoProgress}
+                  error={meteoError}
                   stats={meteoMeta?.stats ?? null}
                 />
               </div>
