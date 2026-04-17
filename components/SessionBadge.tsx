@@ -99,11 +99,11 @@ export const SessionBadge = memo(function SessionBadge() {
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '5px 10px', cursor: showOrgDropdown ? 'pointer' : 'default',
-            background: orgDropdownOpen ? '#111111' : 'transparent',
-            border: `0.5px solid ${orgDropdownOpen ? '#262626' : 'transparent'}`,
+            background: orgDropdownOpen ? 'var(--bg-level-2)' : 'transparent',
+            border: `0.5px solid ${orgDropdownOpen ? 'var(--border-default)' : 'transparent'}`,
             borderRadius: 6, transition: 'all 0.15s',
           }}
-          onMouseEnter={e => { if (showOrgDropdown) e.currentTarget.style.background = '#111111'; }}
+          onMouseEnter={e => { if (showOrgDropdown) e.currentTarget.style.background = 'var(--bg-level-2)'; }}
           onMouseLeave={e => { if (!orgDropdownOpen) e.currentTarget.style.background = 'transparent'; }}
         >
           {/* Org initial or icon */}
@@ -111,15 +111,15 @@ export const SessionBadge = memo(function SessionBadge() {
             width: 22, height: 22, borderRadius: 5, flexShrink: 0,
             background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: fInter, fontSize: 10, fontWeight: 700, color: '#4ecdc4',
+            fontFamily: fInter, fontSize: 10, fontWeight: 700, color: 'var(--brand-teal)',
           }}>
             {activeOrgName ? activeOrgName.charAt(0).toUpperCase() : '●'}
           </div>
-          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {activeOrgName || 'Organisation'}
           </span>
           {showOrgDropdown && (
-            <span style={{ fontSize: 8, color: '#8a8a8a', transition: 'transform 0.2s', transform: orgDropdownOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+            <span style={{ fontSize: 8, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: orgDropdownOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
           )}
         </button>
 
@@ -127,7 +127,7 @@ export const SessionBadge = memo(function SessionBadge() {
         {orgDropdownOpen && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', left: 0,
-            background: '#0a0a0a', border: '0.5px solid #262626', borderRadius: 8,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 8,
             padding: 4, minWidth: 200, zIndex: 20000,
             boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
             animation: 'sbFadeIn 0.15s ease',
@@ -137,13 +137,13 @@ export const SessionBadge = memo(function SessionBadge() {
                 width: '100%', textAlign: 'left', padding: '7px 10px', cursor: switching ? 'wait' : 'pointer',
                 background: activeOrgId === null ? 'rgba(78,205,196,0.08)' : 'transparent',
                 border: 'none', borderRadius: 5, fontFamily: fInter, fontSize: 11,
-                color: activeOrgId === null ? '#4ecdc4' : '#8a8a8a',
+                color: activeOrgId === null ? 'var(--brand-teal)' : 'var(--text-tertiary)',
                 display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s',
               }}
-                onMouseEnter={e => { if (activeOrgId !== null) e.currentTarget.style.background = '#181818'; }}
+                onMouseEnter={e => { if (activeOrgId !== null) e.currentTarget.style.background = 'var(--bg-level-3)'; }}
                 onMouseLeave={e => { if (activeOrgId !== null) e.currentTarget.style.background = 'transparent'; }}
               >
-                {activeOrgId === null && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ecdc4' }} />}
+                {activeOrgId === null && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)' }} />}
                 Toutes les organisations
               </button>
             )}
@@ -152,13 +152,13 @@ export const SessionBadge = memo(function SessionBadge() {
                 width: '100%', textAlign: 'left', padding: '7px 10px', cursor: switching ? 'wait' : 'pointer',
                 background: activeOrgId === org.id ? 'rgba(78,205,196,0.08)' : 'transparent',
                 border: 'none', borderRadius: 5, fontFamily: fInter, fontSize: 11,
-                color: activeOrgId === org.id ? '#4ecdc4' : '#b0b0b0',
+                color: activeOrgId === org.id ? 'var(--brand-teal)' : 'var(--text-secondary)',
                 display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s',
               }}
-                onMouseEnter={e => { if (activeOrgId !== org.id) e.currentTarget.style.background = '#181818'; }}
+                onMouseEnter={e => { if (activeOrgId !== org.id) e.currentTarget.style.background = 'var(--bg-level-3)'; }}
                 onMouseLeave={e => { if (activeOrgId !== org.id) e.currentTarget.style.background = 'transparent'; }}
               >
-                {activeOrgId === org.id && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ecdc4' }} />}
+                {activeOrgId === org.id && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)' }} />}
                 {org.name}
               </button>
             ))}
@@ -167,7 +167,7 @@ export const SessionBadge = memo(function SessionBadge() {
       </div>
 
       {/* ── Separator ────────────────────────────────────────────── */}
-      <div style={{ width: '0.5px', height: 18, background: '#262626', flexShrink: 0 }} />
+      <div style={{ width: '0.5px', height: 18, background: 'var(--border-default)', flexShrink: 0 }} />
 
       {/* ── User badge + menu ────────────────────────────────────── */}
       <div ref={menuRef} style={{ position: 'relative' }}>
@@ -176,43 +176,43 @@ export const SessionBadge = memo(function SessionBadge() {
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '5px 10px', cursor: 'pointer',
-            background: menuOpen ? '#111111' : 'transparent',
-            border: `0.5px solid ${menuOpen ? '#262626' : 'transparent'}`,
+            background: menuOpen ? 'var(--bg-level-2)' : 'transparent',
+            border: `0.5px solid ${menuOpen ? 'var(--border-default)' : 'transparent'}`,
             borderRadius: 6, transition: 'all 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
           onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
         >
-          <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isLoading ? '#f7b731' : '#3dffa0', animation: isLoading ? 'sbPulse 1s ease-in-out infinite' : 'none' }} />
-          <span style={{ fontFamily: fInter, fontSize: 11, color: '#b0b0b0', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isLoading ? 'var(--warning)' : 'var(--success)', animation: isLoading ? 'sbPulse 1s ease-in-out infinite' : 'none' }} />
+          <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isLoading ? '…' : displayEmail}
           </span>
-          <span style={{ fontSize: 8, color: '#8a8a8a', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+          <span style={{ fontSize: 8, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
         </button>
 
         {/* User menu dropdown */}
         {menuOpen && session && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', right: 0,
-            background: '#0a0a0a', border: '0.5px solid #262626', borderRadius: 8,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 8,
             padding: 10, width: 220, zIndex: 20000,
             boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
             animation: 'sbFadeIn 0.15s ease',
           }}>
             <div style={{ padding: '4px 8px', marginBottom: 6 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, color: '#f0f0f0', wordBreak: 'break-all' }}>{email}</div>
-              <span style={{ fontFamily: fMono, fontSize: 9, color: '#8a8a8a', padding: '1px 5px', background: '#111111', borderRadius: 3, marginTop: 4, display: 'inline-block' }}>{role}</span>
+              <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{email}</div>
+              <span style={{ fontFamily: fMono, fontSize: 9, color: 'var(--text-tertiary)', padding: '1px 5px', background: 'var(--bg-level-2)', borderRadius: 3, marginTop: 4, display: 'inline-block' }}>{role}</span>
             </div>
-            <div style={{ height: '0.5px', background: '#1a1a1a', margin: '4px 0' }} />
+            <div style={{ height: '0.5px', background: 'var(--border-subtle)', margin: '4px 0' }} />
             <button
               onClick={async () => { setMenuOpen(false); await signOut(); }}
               style={{
                 width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 4,
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontFamily: fInter, fontSize: 11, color: '#8a8a8a', transition: 'all 0.1s',
+                fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', transition: 'all 0.1s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#ff5757'; e.currentTarget.style.background = 'rgba(255,87,87,0.06)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#8a8a8a'; e.currentTarget.style.background = 'transparent'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(255,87,87,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
             >Deconnexion</button>
           </div>
         )}
