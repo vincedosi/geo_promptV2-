@@ -84,7 +84,7 @@ function scoreColor(score: number): string {
 function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ flex: 1, height: 4, background: '#1a1a1a', borderRadius: 2 }}>
+      <div style={{ flex: 1, height: 4, background: 'var(--border-subtle)', borderRadius: 2 }}>
         <div style={{
           width: `${Math.min(100, (value / max) * 100)}%`,
           height: '100%',
@@ -179,12 +179,12 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
     return (
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column', gap: 16, color: '#666666',
+        flexDirection: 'column', gap: 16, color: 'var(--text-tertiary)',
       }}>
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
           ! aucune ville sélectionnée
         </div>
-        <div style={{ fontSize: 12, color: '#666666' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
           Lancez un scoring depuis le panneau OOH pour afficher l'étude
         </div>
       </div>
@@ -195,7 +195,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
     return (
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#4ecdc4',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--brand-teal)',
       }}>
         <span style={{ animation: 'pulse 1.5s infinite' }}>chargement données {ville}…</span>
       </div>
@@ -210,7 +210,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
       }}>
         <div>! {error}</div>
-        <div style={{ color: '#666666', fontSize: 11 }}>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>
           Assurez-vous d'avoir calculé les scores pour {ville}
         </div>
       </div>
@@ -220,8 +220,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
   if (!data) return null;
 
   const tooltipStyle = {
-    background: '#0a0a0a',
-    border: '0.5px solid #1a1a1a',
+    background: 'var(--bg-surface)',
+    border: '0.5px solid var(--border-subtle)',
     borderRadius: 2,
     fontSize: 11,
     fontFamily: 'JetBrains Mono, monospace',
@@ -241,13 +241,13 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         <div>
           <div style={{
             fontFamily: "'Inter', sans-serif", fontSize: 18, fontWeight: 700,
-            color: '#f0f0f0', letterSpacing: 2,
+            color: 'var(--text-primary)', letterSpacing: 2,
           }}>
             Étude OOH — {data.ville}
           </div>
-          <div style={{ fontSize: 11, color: '#666666', marginTop: 4, fontFamily: "'Inter', sans-serif", letterSpacing: 1 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, fontFamily: "'Inter', sans-serif", letterSpacing: 1 }}>
             {data.total} panneaux scorés
-            {data.profile_nom && <> · profil <span style={{ color: '#4ecdc4' }}>{data.profile_nom}</span></>}
+            {data.profile_nom && <> · profil <span style={{ color: 'var(--brand-teal)' }}>{data.profile_nom}</span></>}
             {data.scored_at && <> · {new Date(data.scored_at).toLocaleDateString('fr-FR')}</>}
           </div>
         </div>
@@ -255,8 +255,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           onClick={launchAnalysis}
           disabled={analysisLoading}
           style={{
-            padding: '7px 14px', background: analysisLoading ? '#1a1a1a' : '#111111',
-            border: '1px solid #4ecdc4', borderRadius: 2, color: '#4ecdc4',
+            padding: '7px 14px', background: analysisLoading ? 'var(--border-subtle)' : 'var(--bg-level-2)',
+            border: '1px solid var(--brand-teal)', borderRadius: 2, color: 'var(--brand-teal)',
             fontFamily: "'Inter', sans-serif", fontSize: 10, letterSpacing: 1,
             cursor: analysisLoading ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap',
@@ -271,21 +271,21 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         {[
           { label: 'Score moyen', value: data.kpis.score_moyen, suffix: '/100', color: scoreColor(data.kpis.score_moyen) },
           { label: 'Score max', value: data.kpis.score_max, suffix: '/100', color: scoreColor(data.kpis.score_max) },
-          { label: 'Panneaux top', value: data.kpis.top_tier_count, suffix: ` (${data.kpis.top_tier_pct}%)`, color: '#3dffa0' },
-          { label: 'Total scorés', value: data.total, suffix: '', color: '#f0f0f0' },
+          { label: 'Panneaux top', value: data.kpis.top_tier_count, suffix: ` (${data.kpis.top_tier_pct}%)`, color: 'var(--success)' },
+          { label: 'Total scorés', value: data.total, suffix: '', color: 'var(--text-primary)' },
         ].map(kpi => (
           <div key={kpi.label} style={{
-            background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2,
             padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               {kpi.label}
             </div>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: kpi.color }}>
               {typeof kpi.value === 'number' && kpi.label.includes('Score')
                 ? kpi.value.toFixed(1)
                 : kpi.value}
-              <span style={{ fontSize: 11, color: '#666666', fontWeight: 400 }}>{kpi.suffix}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>{kpi.suffix}</span>
             </div>
           </div>
         ))}
@@ -295,8 +295,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 16 }}>
 
         {/* Tiers bar */}
-        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
+        <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
             Répartition tiers
           </div>
           <ResponsiveContainer width="100%" height={120}>
@@ -313,8 +313,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         </div>
 
         {/* Histogram */}
-        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
+        <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 16 }}>
             Distribution des scores
           </div>
           <ResponsiveContainer width="100%" height={120}>
@@ -334,8 +334,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
 
         {/* Radar — top20 vs moyenne */}
         {data.radar.length > 0 && (
-          <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
-            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
+          <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
               Top 20 vs Moyenne
             </div>
             <ResponsiveContainer width="100%" height={200}>
@@ -345,7 +345,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#666666', fontSize: 8 }} tickCount={4} />
                 <Radar name="Top 20" dataKey="top20" stroke="#3dffa0" fill="#3dffa0" fillOpacity={0.15} dot={false} />
                 <Radar name="Moyenne" dataKey="moyenne" stroke="#4ecdc4" fill="#4ecdc4" fillOpacity={0.1} dot={false} />
-                <Legend wrapperStyle={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', paddingTop: 8 }} />
+                <Legend wrapperStyle={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', paddingTop: 8 }} />
                 <Tooltip contentStyle={tooltipStyle} />
               </RadarChart>
             </ResponsiveContainer>
@@ -353,8 +353,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         )}
 
         {/* Scatter — score vs distance lycée */}
-        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
-          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
+        <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
+          <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 8 }}>
             Score vs Distance lycée
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -379,9 +379,9 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
                   const d = payload[0].payload as ScatterPoint;
                   return (
                     <div style={{ ...tooltipStyle, padding: '6px 10px' }}>
-                      <div style={{ color: '#f0f0f0', marginBottom: 2, fontSize: 10 }}>{d.nom}</div>
+                      <div style={{ color: 'var(--text-primary)', marginBottom: 2, fontSize: 10 }}>{d.nom}</div>
                       <div style={{ color: scoreColor(d.score) }}>Score: {d.score}</div>
-                      {d.distance_lycee && <div style={{ color: '#a0a0a0' }}>Lycée: {Math.round(d.distance_lycee)}m</div>}
+                      {d.distance_lycee && <div style={{ color: 'var(--text-secondary)' }}>Lycée: {Math.round(d.distance_lycee)}m</div>}
                     </div>
                   );
                 }}
@@ -396,8 +396,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       </div>
 
       {/* Top 5 panneaux */}
-      <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
-        <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 14 }}>
+      <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
+        <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)', marginBottom: 14 }}>
           Top 5 panneaux
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -408,35 +408,35 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               style={{
                 display: 'grid', gridTemplateColumns: '24px 1fr auto',
                 alignItems: 'center', gap: 12,
-                background: 'transparent', border: '1px solid #1a1a1a',
+                background: 'transparent', border: '1px solid var(--border-subtle)',
                 borderRadius: 2, padding: '10px 12px',
                 cursor: 'pointer', textAlign: 'left',
                 transition: 'border-color 0.2s ease',
               }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#4ecdc4')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-teal)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
             >
               <span style={{
                 fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700,
-                color: i === 0 ? '#3dffa0' : '#666666',
+                color: i === 0 ? 'var(--success)' : 'var(--text-tertiary)',
               }}>
                 {i + 1}
               </span>
               <div>
-                <div style={{ fontSize: 12, color: '#f0f0f0', fontWeight: 500 }}>{p.nom}</div>
-                <div style={{ fontSize: 10, color: '#666666', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{p.nom}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
                   {p.type_panneau && <span>{p.type_panneau}</span>}
                   {p.regie && <span> · {p.regie}</span>}
                   {p.distance_lycee && <span> · lycée {Math.round(p.distance_lycee)}m</span>}
-                  {p.lycee_proche && <span style={{ color: '#666666' }}> ({p.lycee_proche})</span>}
+                  {p.lycee_proche && <span style={{ color: 'var(--text-tertiary)' }}> ({p.lycee_proche})</span>}
                 </div>
                 {p.scoring_results && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {Object.entries(p.scoring_results).slice(0, 4).map(([key, val]) => (
                       <span key={key} style={{
                         fontSize: 9, fontFamily: "'Inter', sans-serif",
-                        padding: '2px 6px', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 2,
-                        color: '#a0a0a0', letterSpacing: 0.5,
+                        padding: '2px 6px', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 2,
+                        color: 'var(--text-secondary)', letterSpacing: 0.5,
                       }}>
                         {key}: <span style={{ color: scoreColor(val.score) }}>{Math.round(val.score)}</span>
                       </span>
@@ -460,23 +460,23 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
 
       {/* AI Analysis block */}
       {analysisStarted && (
-        <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 2, padding: '16px 18px' }}>
+        <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 2, padding: '16px 18px' }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 14,
           }}>
-            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: '#a0a0a0', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
+            <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               Analyse IA — Mistral
               {analysisLoading && (
-                <span style={{ marginLeft: 8, color: '#4ecdc4', animation: 'pulse 1.5s infinite' }}>▶ en cours</span>
+                <span style={{ marginLeft: 8, color: 'var(--brand-teal)', animation: 'pulse 1.5s infinite' }}>▶ en cours</span>
               )}
             </div>
             {!analysisLoading && analysisText && (
               <button
                 onClick={launchAnalysis}
                 style={{
-                  padding: '3px 8px', background: 'transparent', border: '0.5px solid #1a1a1a',
-                  borderRadius: 2, color: '#666666', fontSize: 9,
+                  padding: '3px 8px', background: 'transparent', border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 2, color: 'var(--text-tertiary)', fontSize: 9,
                   fontFamily: "'Inter', sans-serif", cursor: 'pointer', letterSpacing: 1,
                 }}
               >
@@ -486,14 +486,14 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           </div>
           {analysisText ? (
             <div style={{
-              fontSize: 12, color: '#f0f0f0', lineHeight: 1.7,
+              fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.7,
               fontFamily: 'Inter, sans-serif',
               whiteSpace: 'pre-wrap',
             }}>
               {analysisText}
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: '#666666', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'JetBrains Mono, monospace' }}>
               {analysisLoading ? 'Génération en cours…' : ''}
             </div>
           )}

@@ -11,21 +11,21 @@ import {
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:        '#050505',
-  bgPanel:   '#0a0a0a',
-  bgInput:   '#111111',
-  border:    '#262626',
-  accent:    '#4ecdc4',
+  bg:        'var(--bg-primary)',
+  bgPanel:   'var(--bg-surface)',
+  bgInput:   'var(--bg-level-2)',
+  border:    'var(--border-default)',
+  accent:    'var(--brand-teal)',
   accentDim: 'rgba(78,205,196,0.10)',
-  green:     '#3dffa0',
+  green:     'var(--success)',
   greenDim:  'rgba(61,255,160,0.08)',
   amber:     '#f59e0b',
   amberDim:  'rgba(245,158,11,0.08)',
   red:       '#f87171',
   redDim:    'rgba(248,113,113,0.07)',
-  muted:     '#a0a0a0',
-  text:      '#f0f0f0',
-  textDim:   '#666666',
+  muted:     'var(--text-secondary)',
+  text:      'var(--text-primary)',
+  textDim:   'var(--text-tertiary)',
 };
 const fMono  = "'JetBrains Mono', monospace";
 const fLabel = "'Inter', sans-serif";
