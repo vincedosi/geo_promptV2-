@@ -1,18 +1,26 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from '@/lib/theme/ThemeProvider'
 
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const next: 'dark' | 'light' = theme === 'dark' ? 'light' : 'dark'
 
   return (
     <button
       type="button"
       onClick={toggleTheme}
-      title={`Passer en ${next === 'dark' ? 'mode sombre' : 'mode clair'}`}
-      aria-label={`Basculer le thème (actuel : ${theme})`}
+      title={mounted ? `Passer en ${next === 'dark' ? 'mode sombre' : 'mode clair'}` : undefined}
+      aria-label={mounted ? `Basculer le thème (actuel : ${theme})` : 'Basculer le thème'}
+      suppressHydrationWarning
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -38,7 +46,11 @@ export function ThemeToggle() {
         e.currentTarget.style.color = 'var(--text-secondary)'
       }}
     >
-      {theme === 'dark' ? <Sun size={15} strokeWidth={1.5} /> : <Moon size={15} strokeWidth={1.5} />}
+      <span suppressHydrationWarning style={{ display: 'inline-flex', width: 15, height: 15 }}>
+        {mounted ? (
+          theme === 'dark' ? <Sun size={15} strokeWidth={1.5} /> : <Moon size={15} strokeWidth={1.5} />
+        ) : null}
+      </span>
     </button>
   )
 }
