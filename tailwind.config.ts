@@ -66,6 +66,23 @@ const config: Config = {
         'geo-danger':   '#ff5757',
         'geo-warning':  '#f7b731',
         'geo-info':     '#5b9bd5',
+
+        // ── Theme-backed tokens (dark/light via CSS vars) ────────────────
+        'bg-primary':  'var(--bg-primary)',
+        'bg-surface':  'var(--bg-surface)',
+        'bg-hover':    'var(--bg-hover)',
+        'bg-level-0':  'var(--bg-level-0)',
+        'bg-level-1':  'var(--bg-level-1)',
+        'bg-level-2':  'var(--bg-level-2)',
+        'bg-level-3':  'var(--bg-level-3)',
+        'text-primary':   'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-tertiary':  'var(--text-tertiary)',
+        'border-subtle':  'var(--border-subtle)',
+        'border-default': 'var(--border-default)',
+        'border-hover':   'var(--border-hover)',
+        'accent-teal':    'var(--brand-teal)',
+        'accent-teal-hover': 'var(--brand-teal-hover)',
       },
       borderRadius: {
         lg: 'var(--radius)',
