@@ -4,7 +4,6 @@ export const STORAGE_KEY = 'geomatik-theme'
 
 type StorageLike = {
   getItem: (key: string) => string | null
-  setItem: (key: string, value: string) => void
 }
 
 export function resolveInitialTheme(storage: StorageLike | null | undefined): Theme {
