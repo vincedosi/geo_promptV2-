@@ -44,7 +44,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <body>
         <ThemeProvider>
           <SplashScreen minDuration={2000} />
           <ToastProvider>
@@ -57,17 +57,14 @@ export default function RootLayout({
                 zIndex: 200,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: '8px',
                 padding: '8px 12px',
               }}
             >
               <ThemeToggle />
               <SessionBadge />
             </div>
-            <main
-              className="md:pl-[240px] min-h-screen"
-              style={{ background: 'var(--bg-primary)' }}
-            >
+            <main className="md:pl-[240px] min-h-screen">
               <div className="p-8">
                 {children}
               </div>
