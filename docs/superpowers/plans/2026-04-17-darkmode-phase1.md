@@ -38,70 +38,104 @@
 ## Task 1: Create ThemeProvider with hydration-safe mount gate
 
 **Files:**
-- Create: `lib/theme/ThemeProvider.tsx`
-- Create: `tests/unit/theme/ThemeProvider.test.tsx`
+- Create: `lib/theme/theme-utils.ts` (pure helpers — testable in node env)
+- Create: `lib/theme/ThemeProvider.tsx` (React context + hook)
+- Create: `tests/unit/theme/theme-utils.test.ts` (Vitest)
+
+**Constraint:** Project Vitest uses `environment: 'node'` and includes only `tests/**/*.test.ts`. We test pure helpers — not React rendering — so no `@testing-library/react` or `jsdom` install is needed.
 
 - [ ] **Step 1: Write the failing test**
 
-```tsx
-// tests/unit/theme/ThemeProvider.test.tsx
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
-import { ThemeProvider, useTheme } from '@/lib/theme/ThemeProvider'
+```ts
+// tests/unit/theme/theme-utils.test.ts
+import { describe, it, expect } from 'vitest'
+import { resolveInitialTheme, nextTheme, STORAGE_KEY } from '@/lib/theme/theme-utils'
 
-function Probe() {
-  const { theme, toggleTheme } = useTheme()
-  return (
-    <>
-      <span data-testid="theme">{theme}</span>
-      <button onClick={toggleTheme}>toggle</button>
-    </>
-  )
+function makeStorage(initial: Record<string, string> = {}) {
+  const data: Record<string, string> = { ...initial }
+  return {
+    getItem: (k: string) => (k in data ? data[k] : null),
+    setItem: (k: string, v: string) => {
+      data[k] = v
+    },
+  }
 }
 
-describe('ThemeProvider', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    document.documentElement.className = ''
+describe('resolveInitialTheme', () => {
+  it('returns "dark" when storage is empty', () => {
+    expect(resolveInitialTheme(makeStorage())).toBe('dark')
   })
 
-  it('defaults to dark and adds "dark" class to <html>', () => {
-    render(<ThemeProvider><Probe /></ThemeProvider>)
-    expect(screen.getByTestId('theme').textContent).toBe('dark')
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  it('returns "light" when storage has "light"', () => {
+    expect(resolveInitialTheme(makeStorage({ [STORAGE_KEY]: 'light' }))).toBe('light')
   })
 
-  it('rehydrates "light" from localStorage', () => {
-    localStorage.setItem('geomatik-theme', 'light')
-    render(<ThemeProvider><Probe /></ThemeProvider>)
-    expect(screen.getByTestId('theme').textContent).toBe('light')
-    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  it('returns "dark" when storage has "dark"', () => {
+    expect(resolveInitialTheme(makeStorage({ [STORAGE_KEY]: 'dark' }))).toBe('dark')
   })
 
-  it('toggleTheme flips theme and persists', () => {
-    render(<ThemeProvider><Probe /></ThemeProvider>)
-    act(() => { screen.getByText('toggle').click() })
-    expect(screen.getByTestId('theme').textContent).toBe('light')
-    expect(localStorage.getItem('geomatik-theme')).toBe('light')
-    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  it('falls back to "dark" when storage has garbage', () => {
+    expect(resolveInitialTheme(makeStorage({ [STORAGE_KEY]: 'purple' }))).toBe('dark')
+  })
+
+  it('returns "dark" when storage is null (SSR)', () => {
+    expect(resolveInitialTheme(null)).toBe('dark')
+  })
+})
+
+describe('nextTheme', () => {
+  it('toggles dark → light', () => {
+    expect(nextTheme('dark')).toBe('light')
+  })
+
+  it('toggles light → dark', () => {
+    expect(nextTheme('light')).toBe('dark')
   })
 })
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/unit/theme/ThemeProvider.test.tsx`
-Expected: FAIL — `Cannot find module '@/lib/theme/ThemeProvider'`.
+Run: `npx vitest run tests/unit/theme/theme-utils.test.ts`
+Expected: FAIL — `Cannot find module '@/lib/theme/theme-utils'`.
 
-- [ ] **Step 3: Implement ThemeProvider**
+- [ ] **Step 3: Implement the pure helpers**
+
+```ts
+// lib/theme/theme-utils.ts
+export type Theme = 'dark' | 'light'
+
+export const STORAGE_KEY = 'geomatik-theme'
+
+type StorageLike = {
+  getItem: (key: string) => string | null
+  setItem: (key: string, value: string) => void
+}
+
+export function resolveInitialTheme(storage: StorageLike | null | undefined): Theme {
+  if (!storage) return 'dark'
+  const raw = storage.getItem(STORAGE_KEY)
+  return raw === 'light' || raw === 'dark' ? raw : 'dark'
+}
+
+export function nextTheme(current: Theme): Theme {
+  return current === 'dark' ? 'light' : 'dark'
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `npx vitest run tests/unit/theme/theme-utils.test.ts`
+Expected: PASS (7 tests).
+
+- [ ] **Step 5: Implement ThemeProvider on top of the helpers**
 
 ```tsx
 // lib/theme/ThemeProvider.tsx
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-
-export type Theme = 'dark' | 'light'
+import { type Theme, STORAGE_KEY, resolveInitialTheme, nextTheme } from './theme-utils'
 
 type ThemeContextValue = {
   theme: Theme
@@ -109,7 +143,6 @@ type ThemeContextValue = {
   setTheme: (theme: Theme) => void
 }
 
-const STORAGE_KEY = 'geomatik-theme'
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function applyThemeClass(theme: Theme) {
@@ -124,11 +157,9 @@ function applyThemeClass(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'dark'
-    const saved = window.localStorage.getItem(STORAGE_KEY) as Theme | null
-    return saved === 'light' || saved === 'dark' ? saved : 'dark'
-  })
+  const [theme, setThemeState] = useState<Theme>(() =>
+    resolveInitialTheme(typeof window === 'undefined' ? null : window.localStorage)
+  )
 
   useEffect(() => {
     applyThemeClass(theme)
@@ -142,7 +173,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value: ThemeContextValue = {
     theme,
     setTheme: setThemeState,
-    toggleTheme: () => setThemeState(t => (t === 'dark' ? 'light' : 'dark')),
+    toggleTheme: () => setThemeState(nextTheme),
   }
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
@@ -153,19 +184,21 @@ export function useTheme(): ThemeContextValue {
   if (!ctx) throw new Error('useTheme must be used within <ThemeProvider>')
   return ctx
 }
+
+export type { Theme }
 ```
 
-Note: The lazy `useState` initializer reads localStorage synchronously on the client. SSR always returns `'dark'` (matching the blocking `<script>` in layout — Task 5). The `useEffect` handles any drift + writes back.
+The React provider wraps the pure helpers. No additional test needed — the React rendering itself is validated by manual smoke in Task 5.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 6: Type-check**
 
-Run: `npx vitest run tests/unit/theme/ThemeProvider.test.tsx`
-Expected: PASS (3 tests).
+Run: `npx tsc --noEmit`
+Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add lib/theme/ThemeProvider.tsx tests/unit/theme/ThemeProvider.test.tsx
+git add lib/theme/theme-utils.ts lib/theme/ThemeProvider.tsx tests/unit/theme/theme-utils.test.ts
 git commit -m "feat(theme): add ThemeProvider context with localStorage persistence"
 ```
 
