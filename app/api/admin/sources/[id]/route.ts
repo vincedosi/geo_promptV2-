@@ -62,9 +62,14 @@ export async function PATCH(
   if (!profile) return adminUnauthorized();
 
   try {
+    const body = await request.json();
+
+    if (profile.role !== 'super_admin' && body.organization_id && body.organization_id !== profile.organization_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = createAdminClient();
     const { id } = params;
-    const body = await request.json();
 
     // Allowed update fields
     const updates: Record<string, unknown> = {};
