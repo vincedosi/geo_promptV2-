@@ -99,8 +99,8 @@ function NavLink({
         'border-l-2 pl-[10px]',
         'transition-all duration-150 ease-out',
         isActive
-          ? 'bg-[#151515] text-[#f0f0f0] border-[#f0f0f0]'
-          : 'text-[#a0a0a0] border-transparent hover:bg-[#111111] hover:text-[#f0f0f0] hover:translate-x-[2px]'
+          ? 'bg-bg-level-3 text-text-primary border-text-primary'
+          : 'text-text-secondary border-transparent hover:bg-bg-level-2 hover:text-text-primary hover:translate-x-[2px]'
       )}
       style={{
         animationDelay: `${index * 40}ms`,
@@ -111,17 +111,14 @@ function NavLink({
         strokeWidth={1.5}
         className={cn(
           'shrink-0 transition-colors duration-150',
-          isActive ? 'text-[#f0f0f0]' : 'text-[#666666] group-hover:text-[#a0a0a0]'
+          isActive ? 'text-text-primary' : 'text-text-tertiary group-hover:text-text-secondary'
         )}
       />
       <span className="flex-1 leading-none">{item.label}</span>
       {item.badge && (
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded"
+          className="text-[10px] px-1.5 py-0.5 rounded bg-bg-level-3 border border-border-default text-text-tertiary"
           style={{
-            background: '#181818',
-            border: '0.5px solid #262626',
-            color: '#666666',
             lineHeight: 1.4,
           }}
         >
@@ -158,7 +155,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
   let globalIndex = 0
 
   return (
-    <div className="flex h-full flex-col" style={{ background: '#0a0a0a' }}>
+    <div className="flex h-full flex-col" style={{ background: 'var(--bg-surface)' }}>
 
       {/* ── Header / Logo ──────────────────────────────────────────────────── */}
       <div className="px-4 pt-5 pb-4">
@@ -189,19 +186,19 @@ function SidebarContent({ pathname }: { pathname: string }) {
             className="text-[15px] font-bold leading-none"
             style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
           >
-            <span style={{ color: '#f0f0f0' }}>GEOM</span>
+            <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
             <span style={{ color: '#4ecdc4' }}>ATIK</span>
           </span>
         </div>
         <p
           className="mt-1.5 text-[11px]"
-          style={{ color: '#666666', fontWeight: 400, paddingLeft: 36 }}
+          style={{ color: 'var(--text-tertiary)', fontWeight: 400, paddingLeft: 36 }}
         >
           Geospatial intelligence
         </p>
       </div>
 
-      <Separator style={{ background: '#1a1a1a', height: '0.5px' }} />
+      <Separator style={{ background: 'var(--border-subtle)', height: '0.5px' }} />
 
       {/* ── Navigation ─────────────────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0">
@@ -209,7 +206,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
           <div key={section.section} className={si > 0 ? 'mt-5' : ''}>
             <p
               className="mb-2 px-3 text-[11px]"
-              style={{ color: '#8a8a8a', fontWeight: 400 }}
+              style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}
             >
               {section.section}
             </p>
@@ -237,7 +234,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       {process.env.NODE_ENV === 'development' && (
         <>
-          <Separator style={{ background: '#1a1a1a', height: '0.5px' }} />
+          <Separator style={{ background: 'var(--border-subtle)', height: '0.5px' }} />
 
           {/* ── Footer ─────────────────────────────────────────────────────────── */}
           <div className="px-4 py-3">
@@ -246,16 +243,16 @@ function SidebarContent({ pathname }: { pathname: string }) {
               <span className="relative flex shrink-0" style={{ width: 6, height: 6 }}>
                 <span
                   className="absolute inset-0 rounded-full animate-ping"
-                  style={{ background: '#3dffa0', opacity: 0.4, animationDuration: '2s' }}
+                  style={{ background: 'var(--success)', opacity: 0.4, animationDuration: '2s' }}
                 />
                 <span
                   className="relative inline-flex rounded-full"
-                  style={{ width: 6, height: 6, background: '#3dffa0' }}
+                  style={{ width: 6, height: 6, background: 'var(--success)' }}
                 />
               </span>
               <span
                 className="text-[11px]"
-                style={{ color: '#666666', fontFamily: "'JetBrains Mono', monospace" }}
+                style={{ color: 'var(--text-tertiary)', fontFamily: "'JetBrains Mono', monospace" }}
               >
                 Online
               </span>
@@ -263,7 +260,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
                 <span
                   className="ml-auto text-[10px]"
                   style={{
-                    color: '#333333',
+                    color: 'var(--border-hover)',
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
@@ -288,9 +285,9 @@ function MobileSidebarTrigger({ pathname }: { pathname: string }) {
           variant="ghost"
           size="icon"
           className="fixed top-3 left-3 z-50 md:hidden"
-          style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a' }}
+          style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)' }}
         >
-          <Menu size={16} style={{ color: '#a0a0a0' }} />
+          <Menu size={16} style={{ color: 'var(--text-secondary)' }} />
           <span className="sr-only">Ouvrir la navigation</span>
         </Button>
       </SheetTrigger>
@@ -299,8 +296,8 @@ function MobileSidebarTrigger({ pathname }: { pathname: string }) {
         className="p-0 border-r-0"
         style={{
           width: 240,
-          background: '#0a0a0a',
-          borderRight: '0.5px solid #1a1a1a',
+          background: 'var(--bg-surface)',
+          borderRight: '0.5px solid var(--border-subtle)',
         }}
       >
         <SidebarContent pathname={pathname} />
@@ -321,7 +318,7 @@ export default function AppSidebar() {
         className="hidden md:flex md:flex-col fixed inset-y-0 left-0 z-40"
         style={{
           width: 240,
-          borderRight: '0.5px solid #1a1a1a',
+          borderRight: '0.5px solid var(--border-subtle)',
         }}
       >
         <SidebarContent pathname={pathname} />
