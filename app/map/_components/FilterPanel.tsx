@@ -35,21 +35,21 @@ export const DIGITAL_PALETTES = [
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:        '#050505',
-  bgPanel:   '#0a0a0a',
-  bgInput:   '#111111',
-  border:    '#1a1a1a',
-  text:      '#f0f0f0',
-  textSec:   '#a0a0a0',
-  textDim:   '#666666',
-  green:     '#3dffa0',
+  bg:        'var(--bg-primary)',
+  bgPanel:   'var(--bg-surface)',
+  bgInput:   'var(--bg-level-2)',
+  border:    'var(--border-subtle)',
+  text:      'var(--text-primary)',
+  textSec:   'var(--text-secondary)',
+  textDim:   'var(--text-tertiary)',
+  green:     'var(--success)',
   greenDim:  'rgba(61,255,160,0.10)',
-  amber:     '#f7b731',
+  amber:     'var(--warning)',
   amberDim:  'rgba(247,183,49,0.10)',
-  red:       '#ff5757',
+  red:       'var(--danger)',
   redDim:    'rgba(255,87,87,0.08)',
   redBorder: 'rgba(255,87,87,0.25)',
-  muted:     '#666666',
+  muted:     'var(--text-tertiary)',
 };
 const fInter    = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
@@ -85,31 +85,31 @@ function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: 
         onChange={e => search(e.target.value)}
         placeholder="Ex: NRJ, France Inter..."
         style={{
-          width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6,
-          padding: '6px 10px', fontSize: 11, color: '#f0f0f0', outline: 'none',
+          width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+          padding: '6px 10px', fontSize: 11, color: 'var(--text-primary)', outline: 'none',
           fontFamily: "'Inter', system-ui, sans-serif",
           transition: 'border-color 0.15s',
         }}
         onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; if (results.length) setShow(true); }}
-        onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; setTimeout(() => setShow(false), 200); }}
+        onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; setTimeout(() => setShow(false), 200); }}
       />
       {show && results.length > 0 && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-          background: '#0a0a0a', border: '0.5px solid #262626', borderRadius: 6,
+          background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 6,
           marginTop: 4, maxHeight: 200, overflowY: 'auto',
         }}>
           {results.map(r => (
             <button key={r.id} onMouseDown={() => { onSelect(r.id, r.nom); setQuery(r.nom); setShow(false); }} style={{
               display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none',
-              textAlign: 'left', cursor: 'pointer', fontSize: 11, color: '#f0f0f0',
+              textAlign: 'left', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)',
               fontFamily: "'Inter', system-ui, sans-serif",
               transition: 'background 0.1s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
             >
-              {r.nom} {r.categorie_arcom && <span style={{ color: '#666666', fontSize: 10 }}>({r.categorie_arcom})</span>}
+              {r.nom} {r.categorie_arcom && <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>({r.categorie_arcom})</span>}
             </button>
           ))}
         </div>
@@ -144,7 +144,7 @@ function FilterSectionHeader({
     return (
       <>
         {label.slice(0, idx)}
-        <mark style={{ background: 'rgba(78,205,196,0.2)', color: '#f0f0f0', borderRadius: 2, padding: '0 1px' }}>
+        <mark style={{ background: 'rgba(78,205,196,0.2)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
           {label.slice(idx, idx + searchTerm.length)}
         </mark>
         {label.slice(idx + searchTerm.length)}
@@ -156,15 +156,15 @@ function FilterSectionHeader({
     <div
       onClick={onToggle}
       style={{
-        background: '#111111', borderTop: '1px solid #1a1a1a',
+        background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
         padding: '10px 14px', margin: '0 -16px',
         display: 'flex', alignItems: 'center', gap: 8,
         cursor: 'pointer', userSelect: 'none',
         position: 'sticky', top: 0, zIndex: 10,
       }}
     >
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-      <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+      <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
         {renderLabel()}
       </span>
       {tooltipKey && TOOLTIPS[tooltipKey] && (
@@ -173,19 +173,19 @@ function FilterSectionHeader({
           style={{ display: 'inline-flex', cursor: 'help', flexShrink: 0 }}
           onClick={e => e.stopPropagation()}
         >
-          <HelpCircle size={12} style={{ color: '#666666' }} />
+          <HelpCircle size={12} style={{ color: 'var(--text-tertiary)' }} />
         </span>
       )}
       {count !== undefined && count > 0 && (
         <span style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#4ecdc4',
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--brand-teal)',
           background: 'rgba(78,205,196,0.15)', borderRadius: 4, padding: '1px 6px', lineHeight: 1.4,
         }}>
           {count}
         </span>
       )}
       <ChevronDown size={14} style={{
-        color: '#666666', flexShrink: 0,
+        color: 'var(--text-tertiary)', flexShrink: 0,
         transition: 'transform 0.2s ease',
         transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
       }} />
@@ -436,7 +436,7 @@ function MultiDropdown({
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 11px', background: C.bgInput,
-          border: `0.5px solid ${open ? '#333333' : C.border}`, borderRadius: 4,
+          border: `0.5px solid ${open ? 'var(--border-hover)' : C.border}`, borderRadius: 4,
           cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
           transition: 'all 0.2s ease',
         }}
@@ -457,7 +457,7 @@ function MultiDropdown({
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
-          background: '#111111', border: `0.5px solid #262626`, borderTop: 'none',
+          background: 'var(--bg-level-2)', border: `0.5px solid var(--border-default)`, borderTop: 'none',
           borderRadius: '0 0 4px 4px', maxHeight: 260, display: 'flex', flexDirection: 'column',
           animation: 'fpDropIn 0.15s ease-out',
         }}>
@@ -476,7 +476,7 @@ function MultiDropdown({
           {/* Select all / deselect all bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
             <button onClick={allFilteredSelected ? deselectAllFiltered : selectAllFiltered}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: '#4ecdc4', padding: 0 }}>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: 'var(--brand-teal)', padding: 0 }}>
               {allFilteredSelected ? 'Tout deselectionner' : `Tout selectionner${search ? ` (${filtered.length})` : ''}`}
             </button>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textDim }}>
@@ -503,11 +503,11 @@ function MultiDropdown({
                   onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(78,205,196,0.06)' : 'none'; }}
                 >
                   <div style={{
-                    width: 12, height: 12, borderRadius: 2, border: `0.5px solid ${active ? '#4ecdc4' : '#262626'}`,
-                    background: active ? '#4ecdc4' : 'transparent', flexShrink: 0,
+                    width: 12, height: 12, borderRadius: 2, border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                    background: active ? 'var(--brand-teal)' : 'transparent', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {active && <span style={{ fontSize: 8, color: '#050505', fontWeight: 700 }}>✓</span>}
+                    {active && <span style={{ fontSize: 8, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
                   </div>
                   <span style={{ fontFamily: fInter, fontSize: 12, color: active ? C.text : C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
                 </button>
@@ -1222,9 +1222,9 @@ export function FilterPanel({
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, opacity: 0.3 }}>
-          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
-          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
-          <div style={{ width: 2, height: 2, borderRadius: '50%', background: '#666666' }} />
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: 'var(--text-tertiary)' }} />
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: 'var(--text-tertiary)' }} />
+          <div style={{ width: 2, height: 2, borderRadius: '50%', background: 'var(--text-tertiary)' }} />
         </div>
       </div>
 
@@ -1254,7 +1254,7 @@ export function FilterPanel({
         fontFamily: fInter, fontSize: 12,
         transition: 'all 0.2s ease',
       }}
-        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.text; (e.currentTarget as HTMLAnchorElement).style.background = '#111111'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.text; (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-level-2)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.textDim; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1275,17 +1275,17 @@ export function FilterPanel({
               border: 'none',
               cursor: 'pointer', transition: 'color 0.2s ease',
             }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
                 Geo.Prompt
               </div>
               {/* Sliding underline */}
               <span style={{
                 position: 'absolute', bottom: 0, left: '50%',
                 width: active ? '100%' : '0%',
-                height: 2, background: '#4ecdc4',
+                height: 2, background: 'var(--brand-teal)',
                 transform: 'translateX(-50%)',
                 transition: 'width 0.25s ease',
               }} />
@@ -1302,19 +1302,19 @@ export function FilterPanel({
               border: 'none',
               cursor: 'pointer', transition: 'color 0.2s ease',
             }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
                 Expert
               </div>
               {EXPERT_BADGE > 0 && (
-                <div style={{ position: 'absolute', top: 7, right: 10, width: 5, height: 5, borderRadius: '50%', background: '#4ecdc4', transition: 'opacity 0.2s ease' }} />
+                <div style={{ position: 'absolute', top: 7, right: 10, width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)', transition: 'opacity 0.2s ease' }} />
               )}
               <span style={{
                 position: 'absolute', bottom: 0, left: '50%',
                 width: active ? '100%' : '0%',
-                height: 2, background: '#4ecdc4',
+                height: 2, background: 'var(--brand-teal)',
                 transform: 'translateX(-50%)',
                 transition: 'width 0.25s ease',
               }} />
@@ -1335,19 +1335,19 @@ export function FilterPanel({
                 border: 'none',
                 cursor: 'pointer', transition: 'color 0.2s ease',
               }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '#0d0d0d'; }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
                 onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
               >
-                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? '#f0f0f0' : C.textDim, transition: 'color 0.2s ease' }}>
+                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
                   {sub.label}
                 </div>
                 {(sub.badge ?? 0) > 0 && (
-                  <div style={{ position: 'absolute', top: 5, right: 8, width: 4, height: 4, borderRadius: '50%', background: '#4ecdc4' }} />
+                  <div style={{ position: 'absolute', top: 5, right: 8, width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-teal)' }} />
                 )}
                 <span style={{
                   position: 'absolute', bottom: 0, left: '50%',
                   width: active ? '100%' : '0%',
-                  height: 1.5, background: '#4ecdc4',
+                  height: 1.5, background: 'var(--brand-teal)',
                   transform: 'translateX(-50%)',
                   transition: 'width 0.25s ease',
                 }} />
@@ -1377,26 +1377,26 @@ export function FilterPanel({
           <div style={{ padding: '8px 12px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Search input */}
             <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#666666', pointerEvents: 'none' }} />
+              <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 value={filterSearch}
                 onChange={e => setFilterSearch(e.target.value)}
                 placeholder="Rechercher un filtre..."
                 style={{
-                  width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6,
-                  padding: '6px 28px 6px 30px', fontSize: 12, color: '#f0f0f0',
+                  width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+                  padding: '6px 28px 6px 30px', fontSize: 12, color: 'var(--text-primary)',
                   fontFamily: fInter, outline: 'none', transition: 'border-color 0.15s',
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
               />
               {filterSearch && (
                 <button
                   onClick={() => setFilterSearch('')}
                   style={{
                     position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', color: '#666666',
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)',
                     padding: 2, display: 'flex', alignItems: 'center',
                   }}
                 >
@@ -1407,22 +1407,22 @@ export function FilterPanel({
             {/* Quick actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={collapseAll} style={{
-                background: 'none', border: '0.5px solid #262626', borderRadius: 4, padding: '3px 8px',
-                fontSize: 10, color: '#a0a0a0', cursor: 'pointer', fontFamily: fInter,
+                background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '3px 8px',
+                fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter,
                 transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'none'; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'none'; }}
               >
                 Tout réduire
               </button>
               <button onClick={expandAll} style={{
-                background: 'none', border: '0.5px solid #262626', borderRadius: 4, padding: '3px 8px',
-                fontSize: 10, color: '#a0a0a0', cursor: 'pointer', fontFamily: fInter,
+                background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '3px 8px',
+                fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter,
                 transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.background = '#111111'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.background = 'none'; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'none'; }}
               >
                 Tout déployer
               </button>
@@ -1719,10 +1719,10 @@ export function FilterPanel({
                   style={{
                     flexShrink: 0, padding: '0 10px',
                     background: densityMode ? 'rgba(255,255,255,0.08)' : C.bgInput,
-                    border: `0.5px solid ${densityMode ? '#f0f0f0' : C.border}`,
+                    border: `0.5px solid ${densityMode ? 'var(--text-primary)' : C.border}`,
                     borderRadius: 4, cursor: 'pointer',
                     fontFamily: fInter, fontSize: 12,
-                    color: densityMode ? '#f0f0f0' : C.textDim,
+                    color: densityMode ? 'var(--text-primary)' : C.textDim,
                     whiteSpace: 'nowrap', transition: 'all 0.2s ease',
                   }}
                 >
@@ -1897,11 +1897,11 @@ export function FilterPanel({
 
             {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: '#111111', borderTop: '1px solid #1a1a1a', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: '#f0f0f0', flex: 1 }}>Radio FM/DAB+</span>
+              <div style={{ background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>Radio FM/DAB+</span>
                 {radioCount !== undefined && radioCount > 0 && (
-                  <span style={{ fontFamily: fMono, fontSize: 10, color: '#4ecdc4', background: 'rgba(78,205,196,0.1)', border: '0.5px solid rgba(78,205,196,0.2)', borderRadius: 4, padding: '1px 6px' }}>
+                  <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--brand-teal)', background: 'rgba(78,205,196,0.1)', border: '0.5px solid rgba(78,205,196,0.2)', borderRadius: 4, padding: '1px 6px' }}>
                     {radioCount.toLocaleString('fr-FR')}
                   </span>
                 )}
@@ -1915,15 +1915,15 @@ export function FilterPanel({
                   background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.2)',
                   borderRadius: 6, padding: '6px 10px', fontSize: 11,
                 }}>
-                  <span style={{ color: '#4ecdc4', flex: 1, fontWeight: 500, fontFamily: fInter }}>
+                  <span style={{ color: 'var(--brand-teal)', flex: 1, fontWeight: 500, fontFamily: fInter }}>
                     📻 {radioSelectedNom}
                   </span>
                   <button onClick={onClearRadioSelection} style={{
-                    background: 'none', border: 'none', color: '#666666', cursor: 'pointer',
+                    background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer',
                     fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 0.15s',
                   }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#f0f0f0'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#666666'; }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
                   >×</button>
                 </div>
               )}
@@ -1936,8 +1936,8 @@ export function FilterPanel({
                     flex: 1, padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                     fontFamily: fInter, cursor: 'pointer', transition: 'all 0.15s',
                     background: radioVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
-                    border: `0.5px solid ${radioVisible ? '#4ecdc4' : '#262626'}`,
-                    color: radioVisible ? '#4ecdc4' : C.textSec,
+                    border: `0.5px solid ${radioVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                    color: radioVisible ? 'var(--brand-teal)' : C.textSec,
                   }}
                 >
                   {radioVisible ? '📻 Émetteurs visibles' : '📻 Afficher les émetteurs'}
@@ -1994,8 +1994,8 @@ export function FilterPanel({
                         <button key={opt.value} onClick={() => onRadioSystemeChange?.(opt.value)} style={{
                           flex: 1, padding: '4px 0', borderRadius: 4, fontSize: 10, fontFamily: fInter,
                           background: radioSystemeFilter === opt.value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                          border: `0.5px solid ${radioSystemeFilter === opt.value ? '#4ecdc4' : '#262626'}`,
-                          color: radioSystemeFilter === opt.value ? '#4ecdc4' : C.textDim,
+                          border: `0.5px solid ${radioSystemeFilter === opt.value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                          color: radioSystemeFilter === opt.value ? 'var(--brand-teal)' : C.textDim,
                           cursor: 'pointer', transition: 'all 0.15s',
                         }}>
                           {opt.label}
@@ -2004,11 +2004,11 @@ export function FilterPanel({
                     </div>
                   </div>
 
-                  <div style={{ borderTop: '0.5px solid #1a1a1a', paddingTop: 8 }} />
+                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 8 }} />
 
                   {/* Layer toggles */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: '#4ecdc4' }} />
+                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: 'var(--brand-teal)' }} />
                     Zones de couverture
                   </label>
 
@@ -2023,7 +2023,7 @@ export function FilterPanel({
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                           {['#4ecdc4', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                             <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
-                              width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid #f0f0f0' : '1px solid #333',
+                              width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid var(--text-primary)' : '1px solid var(--border-hover)',
                               cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
                             }} />
                           ))}
@@ -2039,7 +2039,7 @@ export function FilterPanel({
                         </div>
                         <input type="range" min={0} max={100} step={5} value={radioCoverageOpacity ?? 15}
                           onChange={e => onRadioCoverageOpacityChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
                       </div>
 
                       {/* Border width */}
@@ -2050,13 +2050,13 @@ export function FilterPanel({
                         </div>
                         <input type="range" min={0} max={5} step={0.5} value={radioBorderWidth ?? 0.5}
                           onChange={e => onRadioBorderWidthChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
                       </div>
                     </div>
                   )}
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: '#4ecdc4' }} />
+                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: 'var(--brand-teal)' }} />
                     Densité (heatmap)
                   </label>
 
@@ -2068,17 +2068,17 @@ export function FilterPanel({
                     </div>
                     <input type="range" min={2} max={12} step={1} value={radioPointSize ?? 5}
                       onChange={e => onRadioPointSizeChange?.(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: '#4ecdc4', height: 4, cursor: 'pointer' }} />
+                      style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
                   </div>
 
-                  <div style={{ borderTop: '0.5px solid #1a1a1a', paddingTop: 6 }}>
+                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 6 }}>
                     <button onClick={onRecenterFrance} style={{
-                      background: 'transparent', border: '0.5px solid #262626', borderRadius: 6,
+                      background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 6,
                       padding: '5px 12px', fontSize: 10, color: C.textDim, cursor: 'pointer',
                       fontFamily: fInter, transition: 'all 0.15s', width: '100%',
                     }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#f0f0f0'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = C.textDim; }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.textDim; }}
                     >
                       Recentrer France
                     </button>
@@ -2105,12 +2105,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('spatiale')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Analyse spatiale
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
@@ -2143,7 +2143,7 @@ export function FilterPanel({
                       </div>
                     ))}
                   </div>
-                  <div style={{ marginTop: 12, padding: '9px 11px', background: 'rgba(255,255,255,0.03)', border: `0.5px solid #262626`, borderRadius: 4 }}>
+                  <div style={{ marginTop: 12, padding: '9px 11px', background: 'rgba(255,255,255,0.03)', border: `0.5px solid var(--border-default)`, borderRadius: 4 }}>
                     <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec, marginBottom: 4 }}>
                       Sélectionnez 1 seul type de POI
                     </div>
@@ -2181,13 +2181,13 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Voronoï Géométrique ── */}
-                  <div style={{ border: `0.5px solid ${showVoronoi ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showVoronoi ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={isLoading}
                       onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); setShowBattleV2(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showVoronoi ? '#111111' : 'rgba(255,255,255,0.02)',
+                        padding: '9px 12px', background: showVoronoi ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
@@ -2197,7 +2197,7 @@ export function FilterPanel({
                       <span style={{ color: C.textDim, fontSize: 10 }}>{showVoronoi ? '▲' : '▼'}</span>
                     </button>
                     {showVoronoi && (
-                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
                           Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
                         </div>
@@ -2214,13 +2214,13 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Bataille V2 — cache only ── */}
-                  <div style={{ border: `0.5px solid ${showBattleV2 ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showBattleV2 ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={battleV2Loading}
                       onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattleV2 ? '#111111' : 'rgba(255,255,255,0.02)',
+                        padding: '9px 12px', background: showBattleV2 ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
@@ -2230,7 +2230,7 @@ export function FilterPanel({
                       <span style={{ color: C.textDim, fontSize: 10 }}>{showBattleV2 ? '▲' : '▼'}</span>
                     </button>
                   {showBattleV2 && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
                         Lit le cache existant — <span style={{ color: C.text }}>aucun appel ORS</span>. Paliers manquants skippés.
                         Lance d'abord les isochrones v1 pour remplir le cache.
@@ -2272,7 +2272,7 @@ export function FilterPanel({
                               <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
                                 {v2CacheStatus.total_pois} POIs · {v2CacheStatus.total_combos} isochrones
                               </span>
-                              <span style={{ fontFamily: fMono, fontSize: 9, color: v2CacheStatus.missing_combos === 0 ? '#3dffa0' : C.amber, fontWeight: 700 }}>
+                              <span style={{ fontFamily: fMono, fontSize: 9, color: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
                                 {v2CacheStatus.missing_combos === 0
                                   ? '✓ 100% en cache'
                                   : `✕ ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 's' : ''} manquants`}
@@ -2283,11 +2283,11 @@ export function FilterPanel({
                               <div style={{
                                 height: '100%', borderRadius: 2,
                                 width: `${Math.round((v2CacheStatus.cached_combos / Math.max(v2CacheStatus.total_combos, 1)) * 100)}%`,
-                                background: v2CacheStatus.missing_combos === 0 ? '#3dffa0' : '#22d3ee',
+                                background: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : '#22d3ee',
                                 transition: 'width 0.4s ease',
                               }} />
                             </div>
-                            <div style={{ fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                            <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
                               {v2CacheStatus.cached_combos}/{v2CacheStatus.total_combos} en cache
                               {v2CacheStatus.missing_combos > 0 && ` · ${v2CacheStatus.missing_combos} à calculer`}
                             </div>
@@ -2344,7 +2344,7 @@ export function FilterPanel({
                             <span style={{ color: v2FillPct > 0 ? C.green : C.textDim }}>{v2FillPct}%</span>
                           </div>
                           {/* Barre principale */}
-                          <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{
                               height: '100%', borderRadius: 2,
                               width: `${v2FillPct}%`,
@@ -2374,10 +2374,10 @@ export function FilterPanel({
                             </span>
                           </div>
                           {/* Barre indéterminée */}
-                          <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
                             <div style={{
                               position: 'absolute', height: '100%', width: '40%',
-                              background: 'linear-gradient(90deg, transparent, #a0a0a0, transparent)',
+                              background: 'linear-gradient(90deg, transparent, var(--text-secondary), transparent)',
                               animation: 'fpScan 1.8s linear infinite',
                               borderRadius: 2,
                             }} />
@@ -2388,7 +2388,7 @@ export function FilterPanel({
                       {/* ── Log terminal ── */}
                       {battleV2Log.length > 0 && (
                         <div style={{
-                          background: '#080808', border: `0.5px solid #262626`,
+                          background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
                           borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
                           color: C.textDim, lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
                           display: 'flex', flexDirection: 'column', gap: 1,
@@ -2417,13 +2417,13 @@ export function FilterPanel({
                   </div>
 
                   {/* ── Isochrones Routiers (ORS) ── */}
-                  <div style={{ border: `0.5px solid ${showBattle ? '#262626' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ border: `0.5px solid ${showBattle ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
                     <button
                       disabled={battleLoading}
                       onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattle ? '#111111' : 'rgba(255,255,255,0.02)',
+                        padding: '9px 12px', background: showBattle ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
                         border: 'none', cursor: 'pointer',
                       }}
                     >
@@ -2433,7 +2433,7 @@ export function FilterPanel({
                       <span style={{ color: C.textDim, fontSize: 10 }}>{showBattle ? '▲' : '▼'}</span>
                     </button>
                     {showBattle && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid #1a1a1a`, display: 'flex', flexDirection: 'column', gap: 13 }}>
+                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 13 }}>
 
                       {/* Durées */}
                       <div>
@@ -2464,7 +2464,7 @@ export function FilterPanel({
                             <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
                               {orsCacheStatus.total_pois} POIs · {orsCacheStatus.total_combos} isochrones
                             </span>
-                            <span style={{ fontFamily: fMono, fontSize: 9, color: orsCacheStatus.missing_combos === 0 ? '#3dffa0' : C.amber, fontWeight: 700 }}>
+                            <span style={{ fontFamily: fMono, fontSize: 9, color: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
                               {orsCacheStatus.missing_combos === 0
                                 ? '✓ 100% en cache'
                                 : `${orsCacheStatus.missing_pois} POI${orsCacheStatus.missing_pois > 1 ? 's' : ''} à calculer`}
@@ -2474,11 +2474,11 @@ export function FilterPanel({
                             <div style={{
                               height: '100%', borderRadius: 2,
                               width: `${Math.round((orsCacheStatus.cached_combos / Math.max(orsCacheStatus.total_combos, 1)) * 100)}%`,
-                              background: orsCacheStatus.missing_combos === 0 ? '#3dffa0' : C.red,
+                              background: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.red,
                               transition: 'width 0.4s ease',
                             }} />
                           </div>
-                          <div style={{ fontFamily: fMono, fontSize: 8, color: '#6b7280' }}>
+                          <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
                             {orsCacheStatus.cached_combos}/{orsCacheStatus.total_combos} en cache
                             {orsCacheStatus.missing_combos > 0 && ` · ORS calculera les ${orsCacheStatus.missing_combos} manquants automatiquement`}
                           </div>
@@ -2520,7 +2520,7 @@ export function FilterPanel({
                                 </span>
                                 <span style={{ color: battleProgress > 0 ? C.green : C.textDim }}>{battleProgress}%</span>
                               </div>
-                              <div style={{ height: 4, background: '#111111', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{
                                   height: '100%',
                                   width: `${battleProgress}%`,
@@ -2533,7 +2533,7 @@ export function FilterPanel({
                           )}
                           {/* ── Log terminal ── */}
                           <div style={{
-                            background: '#080808', border: `0.5px solid #262626`,
+                            background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
                             borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
                             color: C.textDim, lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
                             display: 'flex', flexDirection: 'column', gap: 1,
@@ -2602,7 +2602,7 @@ export function FilterPanel({
                         </button>
                         {/* Barre de progression BATAILLE */}
                         {battleApplyLoading && (
-                          <div style={{ height: 3, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: 3, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{
                               height: '100%',
                               width: `${battleApplyPct}%`,
@@ -2631,12 +2631,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('clustering')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Clustering
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.clustering ? '▲' : '▼'}</span>
@@ -2649,36 +2649,36 @@ export function FilterPanel({
                   {clusterModels.length > 0 && (
                     <div style={{ marginBottom: 10 }}>
                       {clusterModels.map((m) => {
-                        const silColor = m.silhouette_score >= 0.5 ? '#3dffa0' : m.silhouette_score >= 0.3 ? '#f7b731' : '#ff5757';
+                        const silColor = m.silhouette_score >= 0.5 ? 'var(--success)' : m.silhouette_score >= 0.3 ? 'var(--warning)' : 'var(--danger)';
                         const dateStr = new Date(m.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
                         return (
                           <div
                             key={m.version}
                             onClick={() => setSelectedClusterVersion(m.version)}
                             style={{
-                              background: '#111111',
-                              border: '0.5px solid #1a1a1a',
+                              background: 'var(--bg-level-2)',
+                              border: '0.5px solid var(--border-subtle)',
                               borderRadius: 6,
                               padding: '10px 12px',
                               marginBottom: 6,
                               cursor: 'pointer',
                               transition: 'border-color 0.2s ease',
                             }}
-                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(78,205,196,0.3)')}
-                            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1a1a1a')}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-teal-30)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                              <span style={{ fontFamily: fMono, fontSize: 12, fontWeight: 500, color: '#f0f0f0' }}>
+                              <span style={{ fontFamily: fMono, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
                                 v{m.version}
                               </span>
                               <span style={{ fontFamily: fMono, fontSize: 9, color: silColor, border: `1px solid ${silColor}40`, borderRadius: 2, padding: '1px 4px' }}>
                                 SIL {m.silhouette_score.toFixed(3)}
                               </span>
-                              <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666', marginLeft: 'auto' }}>
+                              <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
                                 {dateStr}
                               </span>
                             </div>
-                            <div style={{ fontFamily: fMono, fontSize: 10, color: '#a0a0a0' }}>
+                            <div style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>
                               {m.k} clusters · {m.n_poi_trained} POI · {m.duration_minutes}min {m.mode}
                             </div>
                           </div>
@@ -2687,7 +2687,7 @@ export function FilterPanel({
                     </div>
                   )}
                   {clusterModels.length === 0 && (
-                    <div style={{ fontFamily: fMono, fontSize: 11, color: '#666666', padding: '12px 0', textAlign: 'center' }}>
+                    <div style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)', padding: '12px 0', textAlign: 'center' }}>
                       Aucun modèle calculé
                     </div>
                   )}
@@ -2697,8 +2697,8 @@ export function FilterPanel({
                     style={{
                       width: '100%',
                       background: 'transparent',
-                      border: '0.5px solid #4ecdc4',
-                      color: '#4ecdc4',
+                      border: '0.5px solid var(--brand-teal)',
+                      color: 'var(--brand-teal)',
                       borderRadius: 6,
                       padding: '8px 16px',
                       fontFamily: fInter,
@@ -2720,9 +2720,9 @@ export function FilterPanel({
                     style={{
                       display: 'block', width: '100%',
                       background: 'none', border: 'none',
-                      borderBottom: '0.5px solid #1a1a1a',
+                      borderBottom: '0.5px solid var(--border-subtle)',
                       padding: '8px 12px', cursor: 'pointer',
-                      fontFamily: fMono, fontSize: 11, color: '#666666',
+                      fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)',
                       textAlign: 'left',
                     }}
                   >
@@ -2753,12 +2753,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('carreaux')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Carreaux
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
@@ -2772,12 +2772,12 @@ export function FilterPanel({
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
                   background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${carreauxVisible ? '#262626' : C.border}`,
+                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
                   borderRadius: 4, cursor: 'pointer', width: '100%',
                 }}
               >
-                <span style={{ width: 11, height: 11, background: carreauxVisible ? '#f0f0f0' : 'transparent', border: `0.5px solid ${carreauxVisible ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {carreauxVisible && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
                 </span>
                 <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
                   Carreaux{carreauxLoaded ? ' ✓' : ''}
@@ -2805,7 +2805,7 @@ export function FilterPanel({
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {CARREAUX_PALETTES.map(p => (
                     <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? '#f0f0f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
                     >
                       {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
                     </button>
@@ -2819,7 +2819,7 @@ export function FilterPanel({
                 <input type="range" min={0.1} max={1} step={0.05}
                   value={carreauxOpacity ?? 0.72}
                   onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: '#f0f0f0', cursor: 'pointer', height: 4 }}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
                 />
                 <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
                   {Math.round((carreauxOpacity ?? 0.72) * 100)}%
@@ -2879,12 +2879,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('iris')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 IRIS
                 {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
               </span>
@@ -2899,12 +2899,12 @@ export function FilterPanel({
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
                   background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${irisVisible ? '#262626' : C.border}`,
+                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
                   borderRadius: 4, cursor: 'pointer', width: '100%',
                 }}
               >
-                <span style={{ width: 11, height: 11, background: irisVisible ? '#f0f0f0' : 'transparent', border: `0.5px solid ${irisVisible ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisVisible && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
                 </span>
                 <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
                   Couche IRIS
@@ -2921,8 +2921,8 @@ export function FilterPanel({
                   borderRadius: 4, cursor: 'pointer', width: '100%',
                 }}
               >
-                <span style={{ width: 11, height: 11, background: irisTrueOnly ? '#f0f0f0' : 'transparent', border: `0.5px solid ${irisTrueOnly ? '#f0f0f0' : '#262626'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisTrueOnly && <span style={{ fontSize: 7, color: '#050505', fontWeight: 700 }}>✓</span>}
+                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
                 </span>
                 <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
                   Vrais IRIS uniquement
@@ -2959,7 +2959,7 @@ export function FilterPanel({
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {IRIS_PALETTES.map(p => (
                     <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? '#f0f0f0' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
                     >
                       {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
                     </button>
@@ -2973,7 +2973,7 @@ export function FilterPanel({
                 <input type="range" min={0.1} max={1} step={0.05}
                   value={irisOpacity ?? 0.45}
                   onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: '#f0f0f0', cursor: 'pointer', height: 4 }}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
                 />
                 <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
                   {Math.round((irisOpacity ?? 0.45) * 100)}%
@@ -3023,12 +3023,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('couverture')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Couverture
                 {coverageSummary && coverageSummary.length > 0 && (
                   <span style={{ color: C.green, marginLeft: 6 }}>● {coverageSummary.length}</span>
@@ -3053,12 +3053,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('correlation')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Corrélation IRIS × POI
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
@@ -3080,12 +3080,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('scoring')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Scoring OOH
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>
@@ -3107,12 +3107,12 @@ export function FilterPanel({
               onClick={() => toggleAnalyse('digital')}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: '#111111',
-                border: 'none', borderTop: '1px solid #1a1a1a', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: '#f0f0f0', flex: 1, textAlign: 'left' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
                 Digital {digitalVisible && <span style={{ color: C.green }}>●</span>}
               </span>
               <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.digital ? '▲' : '▼'}</span>
@@ -3152,9 +3152,9 @@ export function FilterPanel({
                       style={{
                         flex: 1, padding: '6px 4px', fontSize: 10, fontFamily: fInter,
                         background: digitalScale === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${digitalScale === s.id ? '#4ecdc4' : C.border}`,
+                        border: `0.5px solid ${digitalScale === s.id ? 'var(--brand-teal)' : C.border}`,
                         borderRadius: 4, cursor: 'pointer',
-                        color: digitalScale === s.id ? '#4ecdc4' : C.textSec,
+                        color: digitalScale === s.id ? 'var(--brand-teal)' : C.textSec,
                         transition: 'all 0.2s',
                       }}
                     >
@@ -3176,7 +3176,7 @@ export function FilterPanel({
                       style={{
                         width: 28, height: 16, borderRadius: 3, cursor: 'pointer', padding: 0,
                         background: `linear-gradient(to right, ${p.stops.join(', ')})`,
-                        border: `1.5px solid ${digitalPalette === p.id ? '#f0f0f0' : 'transparent'}`,
+                        border: `1.5px solid ${digitalPalette === p.id ? 'var(--text-primary)' : 'transparent'}`,
                         transition: 'border 0.15s',
                       }}
                     />
@@ -3190,7 +3190,7 @@ export function FilterPanel({
                   type="checkbox"
                   checked={digitalInverted ?? false}
                   onChange={e => onDigitalInvertChange?.(e.target.checked)}
-                  style={{ accentColor: '#4ecdc4' }}
+                  style={{ accentColor: 'var(--brand-teal)' }}
                 />
                 Inverser la palette
               </label>
@@ -3202,8 +3202,8 @@ export function FilterPanel({
                 style={{
                   fontFamily: fInter, fontSize: 12, padding: '10px 14px', width: '100%',
                   background: digitalVisible ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.03)',
-                  border: `0.5px solid ${digitalVisible ? '#4ecdc4' : C.border}`, borderRadius: 6,
-                  color: digitalVisible ? '#4ecdc4' : C.text,
+                  border: `0.5px solid ${digitalVisible ? 'var(--brand-teal)' : C.border}`, borderRadius: 6,
+                  color: digitalVisible ? 'var(--brand-teal)' : C.text,
                   cursor: !digitalSelectedCampaign ? 'not-allowed' : 'pointer',
                   opacity: !digitalSelectedCampaign ? 0.5 : 1, transition: 'all 0.2s',
                 }}
@@ -3219,7 +3219,7 @@ export function FilterPanel({
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
                     <span style={{ color: C.textSec }}>Total impressions</span>
-                    <span style={{ fontFamily: fMono, color: '#4ecdc4' }}>{Number(digitalStats.total_impressions).toLocaleString('fr-FR')}</span>
+                    <span style={{ fontFamily: fMono, color: 'var(--brand-teal)' }}>{Number(digitalStats.total_impressions).toLocaleString('fr-FR')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
                     <span style={{ color: C.textSec }}>Codes postaux</span>
@@ -3266,7 +3266,7 @@ export function FilterPanel({
             background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
             color: C.textDim, cursor: 'pointer', transition: 'all 0.2s ease',
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = C.text; }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.text; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
         >
           Sauvegarder

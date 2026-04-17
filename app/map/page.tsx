@@ -315,11 +315,11 @@ export default function MapPage() {
       if (!e.features?.length) return;
       const p = e.features[0].properties;
       popup.setLngLat(e.lngLat).setHTML(`
-        <div style="font-family:Inter,sans-serif;font-size:11px;color:#f0f0f0;background:#0a0a0a;padding:8px 10px;border-radius:6px;border:0.5px solid #262626">
+        <div style="font-family:Inter,sans-serif;font-size:11px;color:var(--text-primary);background:var(--bg-surface);padding:8px 10px;border-radius:6px;border:0.5px solid var(--border-default)">
           <div style="font-weight:500;margin-bottom:4px">${esc(p.code)} — ${esc(p.nom)}</div>
-          <div style="color:#a0a0a0">Impressions: <span style="color:#4ecdc4;font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
-          ${p.pop_total ? `<div style="color:#a0a0a0">Population: <span style="color:#f0f0f0;font-family:'JetBrains Mono',monospace">${Number(p.pop_total).toLocaleString('fr-FR')}</span></div>` : ''}
-          ${p.imp_pour_mille ? `<div style="color:#a0a0a0">Imp./1000 hab: <span style="color:#4ecdc4;font-family:'JetBrains Mono',monospace">${Number(p.imp_pour_mille).toLocaleString('fr-FR')}</span></div>` : ''}
+          <div style="color:var(--text-secondary)">Impressions: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
+          ${p.pop_total ? `<div style="color:var(--text-secondary)">Population: <span style="color:var(--text-primary);font-family:'JetBrains Mono',monospace">${Number(p.pop_total).toLocaleString('fr-FR')}</span></div>` : ''}
+          ${p.imp_pour_mille ? `<div style="color:var(--text-secondary)">Imp./1000 hab: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.imp_pour_mille).toLocaleString('fr-FR')}</span></div>` : ''}
         </div>
       `).addTo(map);
     };
@@ -467,11 +467,11 @@ export default function MapPage() {
         : (d.residual >  0.5 ? '#22c55e' : d.residual < -0.5 ? '#ef4444' : '#e2e8f0');
       new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
         .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:#e2e8f0;padding:12px;">
-          <strong style="font-size:12px;color:#4ecdc4;">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
-          <div style="font-size:11px;color:#666666;margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
+        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:var(--text-primary);padding:12px;">
+          <strong style="font-size:12px;color:var(--brand-teal);">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
           <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
-          <div style="font-size:11px;color:#94a3b8;">
+          <div style="font-size:11px;color:var(--text-secondary);">
             POI réels : <strong>${d.poi_count}</strong><br/>
             POI prédits : <strong>${d.predicted.toFixed(2)}</strong><br/>
             Métrique : <strong>${d.metric_value.toLocaleString('fr')}</strong>
@@ -887,13 +887,13 @@ export default function MapPage() {
         const nom = esc(p.nom || 'POI');
         const audienceVal = p.audience;
         const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="font-size:12px;padding:6px 8px;color:#888">` +
+          `<div style="font-size:12px;padding:6px 8px;color:var(--text-secondary)">` +
           (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-          `<strong style="color:#fff;font-size:13px">${nom}</strong><br/>` +
+          `<strong style="color:var(--text-primary);font-size:13px">${nom}</strong><br/>` +
           `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
-          (p.sous_categorie ? ` <span style="color:#555;font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
-          (audienceVal != null ? `<br/><span style="color:#3dffa0;font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:#555;font-size:11px">${esc(p.adresse)}</span>` : '') +
+          (p.sous_categorie ? ` <span style="color:var(--text-tertiary);font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
+          (audienceVal != null ? `<br/><span style="color:var(--success);font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
+          (p.adresse ? `<br/><span style="color:var(--text-tertiary);font-size:11px">${esc(p.adresse)}</span>` : '') +
           `</div>`
         );
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
@@ -912,7 +912,7 @@ export default function MapPage() {
 
     // Marqueur ville
     const cityEl = document.createElement('div');
-    cityEl.style.cssText = 'width:10px;height:10px;background:#4ecdc4;border:2px solid #fff;border-radius:2px';
+    cityEl.style.cssText = 'width:10px;height:10px;background:var(--brand-teal);border:2px solid #fff;border-radius:2px';
     markersRef.current.push(new maplibregl.Marker({ element: cityEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
 
     if (zoneData.pois.length > 1) {
@@ -1356,7 +1356,7 @@ export default function MapPage() {
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#060608' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)' }}>
       <div style={{
         transition: 'margin-left 0.3s ease, opacity 0.3s ease',
         marginLeft: mapFullscreen ? '-100%' : 0,
@@ -1615,7 +1615,7 @@ export default function MapPage() {
         {/* Tab bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 0,
-          background: '#050505', borderBottom: '0.5px solid #1a1a1a',
+          background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border-subtle)',
           padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
           position: 'relative',
         }}>
@@ -1626,23 +1626,23 @@ export default function MapPage() {
                 padding: '0 18px', height: '100%', position: 'relative',
                 background: 'transparent',
                 border: 'none',
-                color: active ? '#f0f0f0' : '#666666',
+                color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
                 letterSpacing: '0.01em', cursor: 'pointer',
                 transition: 'color 0.2s ease',
               }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
               >
                 {tab === 'map' ? 'Carte' : 'Étude'}
                 {tab === 'study' && studyVille && (
-                  <span style={{ marginLeft: 6, fontSize: 9, color: '#4ecdc4', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
+                  <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--brand-teal)', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
                 )}
                 {/* Underline that grows from center */}
                 <span style={{
                   position: 'absolute', bottom: 0, left: '50%',
                   width: active ? '100%' : '0%',
-                  height: 2, background: '#4ecdc4',
+                  height: 2, background: 'var(--brand-teal)',
                   transform: 'translateX(-50%)',
                   transition: 'width 0.25s ease',
                 }} />
@@ -1663,13 +1663,13 @@ export default function MapPage() {
             title={mapFullscreen ? 'Quitter le plein écran (Escape)' : 'Carte plein écran'}
             style={{
               position: 'absolute', top: 10, right: 10, zIndex: 20,
-              background: '#0a0a0a', border: '0.5px solid #262626',
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#a0a0a0', transition: 'all 0.15s ease',
+              color: 'var(--text-secondary)', transition: 'all 0.15s ease',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#111111'; e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.color = '#f0f0f0'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#0a0a0a'; e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = '#a0a0a0'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
             {mapFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
           </button>
@@ -1724,14 +1724,14 @@ export default function MapPage() {
             <div style={{
               position: 'absolute', bottom: 44, left: 12, zIndex: 100,
               background: 'rgba(5,5,5,0.92)',
-              border: '1px solid #1a1a1a',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 2,
               padding: '10px 12px',
               minWidth: 200,
               fontFamily: "'JetBrains Mono','Fira Mono',monospace",
             }}>
               {/* Titre */}
-              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: '#4ecdc4', marginBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: 'var(--brand-teal)', marginBottom: 6 }}>
                 RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
               </div>
 
@@ -1758,39 +1758,39 @@ export default function MapPage() {
               ).map(({ color, label }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                   <span style={{ width: 10, height: 10, background: color, borderRadius: 1, flexShrink: 0, opacity: 0.85 }} />
-                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>{label}</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>{label}</span>
                 </div>
               ))}
 
               {/* Séparateur */}
-              <div style={{ borderTop: '1px solid #1a1a1a', marginTop: 8, paddingTop: 8 }}>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8, paddingTop: 8 }}>
 
                 {/* Slider opacité */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                     OPACITÉ
                   </span>
                   <input
                     type="range" min={0.1} max={1} step={0.05}
                     value={residualOpacity}
                     onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
-                    style={{ flex: 1, accentColor: '#4ecdc4', cursor: 'pointer', height: 4 }}
+                    style={{ flex: 1, accentColor: 'var(--brand-teal)', cursor: 'pointer', height: 4 }}
                   />
-                  <span style={{ fontSize: 8, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
+                  <span style={{ fontSize: 8, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>
                     {Math.round(residualOpacity * 100)}%
                   </span>
                 </div>
 
                 {/* Toggle inversion */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>Inverser couleurs</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>Inverser couleurs</span>
                   <button
                     onClick={() => handleResidualInvert(!residualInverted)}
                     style={{
                       position: 'relative',
                       width: 32, height: 16,
-                      background: residualInverted ? '#4ecdc4' : '#1a1a1a',
-                      border: `1px solid ${residualInverted ? '#4ecdc4' : '#262626'}`,
+                      background: residualInverted ? 'var(--brand-teal)' : 'var(--border-subtle)',
+                      border: `1px solid ${residualInverted ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                       borderRadius: 8,
                       cursor: 'pointer',
                       transition: 'background 150ms, border-color 150ms',
@@ -1809,13 +1809,13 @@ export default function MapPage() {
                     }} />
                   </button>
                 </div>
-                <div style={{ fontSize: 7.5, color: '#666666', marginBottom: 6 }}>
+                <div style={{ fontSize: 7.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
                   Rouge = {residualInverted ? 'excédent' : 'déficit'}
                 </div>
               </div>
 
               {/* Stats */}
-              <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 6, fontSize: 8, color: '#666666' }}>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 6, fontSize: 8, color: 'var(--text-tertiary)' }}>
                 {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
               </div>
 
@@ -1824,8 +1824,8 @@ export default function MapPage() {
                 onClick={() => handleShowResiduals(null)}
                 style={{
                   marginTop: 6, width: '100%', padding: '4px 0',
-                  background: 'transparent', border: '1px solid #262626',
-                  borderRadius: 2, color: '#666666', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
+                  background: 'transparent', border: '1px solid var(--border-default)',
+                  borderRadius: 2, color: 'var(--text-tertiary)', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
                   fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
                 }}
               >
@@ -1857,7 +1857,7 @@ export default function MapPage() {
 
         {/* Study dashboard — lazy, affiché quand onglet Étude */}
         {activeTab === 'study' && (
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#060608' }}>
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
             <StudyDashboard
               ville={studyVille}
               onPanneauClick={(lat, lng) => {
