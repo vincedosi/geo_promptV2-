@@ -25,8 +25,8 @@ export function SectionHeader({
     <div
       onClick={isCollapsible ? onToggle : undefined}
       style={{
-        background: '#111111',
-        borderTop: '1px solid #1a1a1a',
+        background: 'var(--bg-level-2)',
+        borderTop: '1px solid var(--border-subtle)',
         padding: '10px 14px',
         display: 'flex',
         alignItems: 'center',
@@ -39,13 +39,13 @@ export function SectionHeader({
       {/* Teal dot */}
       <div style={{
         width: 6, height: 6, borderRadius: '50%',
-        background: '#4ecdc4', flexShrink: 0,
+        background: 'var(--brand-teal)', flexShrink: 0,
       }} />
 
       {/* Label */}
       <span style={{
         fontFamily: "'Inter', system-ui, sans-serif",
-        fontWeight: 500, fontSize: 12, color: '#f0f0f0',
+        fontWeight: 500, fontSize: 12, color: 'var(--text-primary)',
         flex: 1,
       }}>
         {label}
@@ -55,8 +55,8 @@ export function SectionHeader({
       {count !== undefined && count > 0 && (
         <span style={{
           fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10, color: '#4ecdc4',
-          background: 'rgba(78,205,196,0.1)',
+          fontSize: 10, color: 'var(--brand-teal)',
+          background: 'var(--brand-teal-10)',
           border: '0.5px solid rgba(78,205,196,0.2)',
           borderRadius: 4,
           padding: '1px 6px',
@@ -75,13 +75,13 @@ export function SectionHeader({
           }}
           style={{
             background: 'none', border: 'none',
-            fontSize: 10, color: '#666666',
+            fontSize: 10, color: 'var(--text-tertiary)',
             cursor: 'pointer', padding: '0 4px',
             fontFamily: "'Inter', system-ui, sans-serif",
             transition: 'color 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#a0a0a0' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#666666' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
         >
           Reset
         </button>
@@ -92,7 +92,7 @@ export function SectionHeader({
         <ChevronDown
           size={14}
           style={{
-            color: '#666666',
+            color: 'var(--text-tertiary)',
             transition: 'transform 0.2s ease',
             transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
             flexShrink: 0,
