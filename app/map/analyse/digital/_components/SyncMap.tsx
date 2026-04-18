@@ -90,7 +90,12 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     map.on('move', handleMove);
 
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
+
+    // Resize observer — ensures tiles render when container goes from 0 to real size
+    const ro = new ResizeObserver(() => { map.resize(); });
+    ro.observe(containerRef.current);
+
+    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update GeoJSON data
