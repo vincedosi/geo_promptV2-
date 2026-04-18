@@ -23,19 +23,19 @@ export function HelpTooltip({ text }: HelpTooltipProps) {
               cursor: 'help', flexShrink: 0,
             }}
           >
-            <HelpCircle size={12} style={{ color: '#666666' }} />
+            <HelpCircle size={12} style={{ color: 'var(--text-tertiary)' }} />
           </span>
         </TooltipTrigger>
         <TooltipContent
           side="top"
           style={{
-            background: '#181818',
-            border: '0.5px solid #262626',
+            background: 'var(--bg-level-3)',
+            border: '0.5px solid var(--border-default)',
             borderRadius: 6,
             padding: '6px 10px',
             maxWidth: 240,
             fontSize: 11,
-            color: '#a0a0a0',
+            color: 'var(--text-secondary)',
             fontFamily: "'Inter', system-ui, sans-serif",
             lineHeight: 1.5,
           }}

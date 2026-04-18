@@ -43,6 +43,7 @@ const PROTECTED_API_PREFIXES = [
   '/api/saved-maps',
   '/api/smart-prompt',
   '/api/correlation',
+  '/api/radio',
 ];
 
 const PROTECTED_PAGE_PREFIXES = [
@@ -161,5 +162,6 @@ export const config = {
     '/api/saved-maps/:path*',
     '/api/smart-prompt/:path*',
     '/api/correlation/:path*',
+    '/api/radio/:path*',
   ],
 };

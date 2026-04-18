@@ -25,18 +25,18 @@ if (typeof document !== 'undefined') {
 
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg:        '#050505',
-  bgPanel:   '#0a0a0a',
-  bgInput:   '#111111',
-  border:    '#262626',
-  accent:    '#4ecdc4',
+  bg:        'var(--bg-primary)',
+  bgPanel:   'var(--bg-surface)',
+  bgInput:   'var(--bg-level-2)',
+  border:    'var(--border-default)',
+  accent:    'var(--brand-teal)',
   accentDim: 'rgba(78,205,196,0.12)',
-  green:     '#3dffa0',
+  green:     'var(--success)',
   amber:     '#f59e0b',
   red:       '#f87171',
-  muted:     '#a0a0a0',
-  text:      '#f0f0f0',
-  textDim:   '#666666',
+  muted:     'var(--text-secondary)',
+  text:      'var(--text-primary)',
+  textDim:   'var(--text-tertiary)',
 };
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
 const fInter    = "'Inter', system-ui, sans-serif";
@@ -66,10 +66,10 @@ function buildGroupedOptions(metrics: { key: string; label: string }[]) {
 // Style commun pour les selects métriques (DESIGN_SYSTEM.md)
 const metricSelectStyle: React.CSSProperties = {
   width: '100%',
-  background: '#111111',
-  border: '0.5px solid #1a1a1a',
+  background: 'var(--bg-level-2)',
+  border: '0.5px solid var(--border-subtle)',
   borderRadius: 2,
-  color: '#f0f0f0',
+  color: 'var(--text-primary)',
   fontFamily: fInter,
   fontSize: 13,
   padding: '6px 8px',
@@ -82,7 +82,7 @@ const handleSelectFocus = (e: React.FocusEvent<HTMLSelectElement>) => {
   e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)';
 };
 const handleSelectBlur = (e: React.FocusEvent<HTMLSelectElement>) => {
-  e.currentTarget.style.borderColor = '#1a1a1a';
+  e.currentTarget.style.borderColor = 'var(--border-subtle)';
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ function ScatterPlot({ points, stats, width = 280, height = 160, interactive = f
           position: 'absolute',
           left: tooltip.svgX + 10,
           top:  tooltip.svgY - 36,
-          background: '#111111',
+          background: 'var(--bg-level-2)',
           border: `1px solid ${C.border}`,
           borderRadius: 2,
           padding: '4px 8px',
@@ -477,7 +477,7 @@ function CorrelationResultsPanel({
       if (data.error) throw new Error(data.error);
       setAiAnalysis(data.analysis ?? 'Pas de réponse.');
       setAiOpen(true);
-    } catch (err) {
+    } catch (err: unknown) {
       setAiError(err instanceof Error ? err.message : 'Erreur Mistral');
     } finally {
       setAiLoading(false);
@@ -519,7 +519,7 @@ function CorrelationResultsPanel({
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: 'clamp(550px, 50vw, 680px)',
         background: C.bgPanel,
-        borderLeft: `0.5px solid #1a1a1a`,
+        borderLeft: `0.5px solid var(--border-subtle)`,
         zIndex: 10000,
         transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.2s ease',
@@ -545,7 +545,7 @@ function CorrelationResultsPanel({
           </div>
           <button
             onClick={handleClose}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#333333'; }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; }}
             style={{
               background: 'transparent', border: `1px solid ${C.border}`,
@@ -635,8 +635,8 @@ function CorrelationResultsPanel({
 
               {/* ── Scatter plot ── */}
               <div style={{
-                background: '#111111',
-                border: `0.5px solid #1a1a1a`,
+                background: 'var(--bg-level-2)',
+                border: `0.5px solid var(--border-subtle)`,
                 borderRadius: 2,
                 padding: '12px 8px 8px',
                 marginBottom: 16,
@@ -1296,7 +1296,7 @@ export function CorrelationPanel({
               min={0.2} max={20} step={0.1}
               value={sigmaKm}
               onChange={e => setSigmaKm(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#4ecdc4', cursor: 'pointer' }}
+              style={{ width: '100%', accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 7, color: C.textDim, marginTop: 1 }}>
               <span>200m</span><span>20km</span>
@@ -1306,7 +1306,7 @@ export function CorrelationPanel({
 
         {/* ── Métrique IRIS (commune aux deux modes / axe X en iris_iris) ── */}
         <div style={{ padding: '4px 12px 4px' }}>
-          <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#666666', marginBottom: 6 }}>
+          <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>
             {mode === 'iris_iris' ? 'Métrique X' : 'Métrique IRIS'}
           </div>
           <select
@@ -1317,7 +1317,7 @@ export function CorrelationPanel({
             onBlur={handleSelectBlur}
           >
             {buildGroupedOptions(metrics).map(({ group, items }) => (
-              <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
+              <optgroup key={group} label={group} style={{ color: 'var(--brand-teal)', fontWeight: 500 }}>
                 {items.map(m => (
                   <option key={m.key} value={m.key}>{m.label}</option>
                 ))}
@@ -1329,7 +1329,7 @@ export function CorrelationPanel({
         {/* ── Mode IRIS × IRIS : sélecteur métrique Y ── */}
         {mode === 'iris_iris' && (
           <div style={{ padding: '4px 12px 4px' }}>
-            <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#666666', marginBottom: 6 }}>
+            <div style={{ fontFamily: fInter, fontWeight: 400, fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>
               Métrique Y
             </div>
             <select
@@ -1340,7 +1340,7 @@ export function CorrelationPanel({
               onBlur={handleSelectBlur}
             >
               {buildGroupedOptions(metrics).map(({ group, items }) => (
-                <optgroup key={group} label={group} style={{ color: '#4ecdc4', fontWeight: 500 }}>
+                <optgroup key={group} label={group} style={{ color: 'var(--brand-teal)', fontWeight: 500 }}>
                   {items.map(m => (
                     <option key={m.key} value={m.key} disabled={m.key === selectedMetricX}>
                       {m.key === selectedMetricX ? `${m.label} (déjà en X)` : m.label}

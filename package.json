@@ -29,7 +29,6 @@
     "ai": "^6.0.105",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
     "fzstd": "^0.1.1",
     "hyparquet": "^1.25.1",
     "inngest": "^3.52.6",
@@ -44,12 +43,12 @@
     "react-dom": "^19.0.0",
     "recharts": "^3.8.0",
     "shpjs": "^4.0.4",
-    "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "vitest": "^2.0.0",
     "xlsx": "^0.18.5",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",

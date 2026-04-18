@@ -37,10 +37,10 @@ export function useToast() {
 // ─── Variant config ────────────────────────────────────────────────────────────
 
 const VARIANTS: Record<ToastVariant, { color: string; Icon: typeof Check }> = {
-  success: { color: '#3dffa0', Icon: Check },
-  error:   { color: '#ff5757', Icon: X },
-  warning: { color: '#f7b731', Icon: AlertTriangle },
-  info:    { color: '#4ecdc4', Icon: Info },
+  success: { color: 'var(--success)', Icon: Check },
+  error:   { color: 'var(--danger)', Icon: X },
+  warning: { color: 'var(--warning)', Icon: AlertTriangle },
+  info:    { color: 'var(--brand-teal)', Icon: Info },
 }
 
 const DURATION = 4000
@@ -68,8 +68,8 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
     <div
       style={{
         pointerEvents: 'auto',
-        background: '#0a0a0a',
-        border: '0.5px solid #262626',
+        background: 'var(--bg-surface)',
+        border: '0.5px solid var(--border-default)',
         borderLeft: `3px solid ${v.color}`,
         borderRadius: 8,
         minWidth: 280,
@@ -85,14 +85,14 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 13, fontWeight: 500, color: '#f0f0f0',
+            fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
             fontFamily: "'Inter', system-ui, sans-serif",
           }}>
             {t.title}
           </div>
           {t.message && (
             <div style={{
-              fontSize: 12, color: '#a0a0a0', marginTop: 2, lineHeight: 1.5,
+              fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.5,
               fontFamily: "'Inter', system-ui, sans-serif",
             }}>
               {t.message}
@@ -105,19 +105,19 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
           onClick={onDismiss}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: '#666666', flexShrink: 0, padding: 0,
+            color: 'var(--text-tertiary)', flexShrink: 0, padding: 0,
             display: 'flex', alignItems: 'center',
             transition: 'color 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#f0f0f0' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#666666' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
         >
           <X size={14} />
         </button>
       </div>
 
       {/* Progress bar */}
-      <div style={{ height: 2, background: '#1a1a1a' }}>
+      <div style={{ height: 2, background: 'var(--border-subtle)' }}>
         <div style={{
           height: '100%', background: v.color, opacity: 0.4,
           width: `${progress}%`,

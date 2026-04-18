@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
           const zipBuf   = Buffer.from(arrayBuf);
           send({ type: 'log', source: src, message: `${(zipBuf.length / 1024 / 1024).toFixed(1)} Mo reçus` });
           csvBuffer = await extractCsvFromZip(zipBuf);
-        } catch (e) {
+        } catch (e: unknown) {
           send({ type: 'error', source: src, message: `Téléchargement échoué : ${String(e)}` });
           continue;
         }
@@ -334,7 +334,7 @@ export async function POST(req: NextRequest) {
         try {
           rows = parseCsv(csvBuffer);
           send({ type: 'log', source: src, message: `${rows.length.toLocaleString('fr-FR')} lignes lues` });
-        } catch (e) {
+        } catch (e: unknown) {
           send({ type: 'error', source: src, message: `Parse CSV échoué : ${String(e)}` });
           continue;
         }

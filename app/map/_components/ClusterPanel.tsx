@@ -9,17 +9,17 @@ const ClusteringWizard = dynamic(
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#050505',
-  bgPanel: '#0a0a0a',
-  bgInput: '#111111',
-  border:  '#262626',
-  accent:  '#4ecdc4',
-  green:   '#3dffa0',
+  bg:      'var(--bg-primary)',
+  bgPanel: 'var(--bg-surface)',
+  bgInput: 'var(--bg-level-2)',
+  border:  'var(--border-default)',
+  accent:  'var(--brand-teal)',
+  green:   'var(--success)',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#f0f0f0',
-  textDim: '#666666',
-  muted:   '#a0a0a0',
+  text:    'var(--text-primary)',
+  textDim: 'var(--text-tertiary)',
+  muted:   'var(--text-secondary)',
 };
 const fMono  = "'JetBrains Mono', monospace";
 const fLabel = "'Inter', sans-serif";
@@ -137,7 +137,7 @@ function RadarChart({
       {/* Grid */}
       {[0.25, 0.5, 0.75, 1].map(f => (
         <polygon key={f} points={gridPoly(f)}
-          fill="none" stroke={f === 1 ? '#262626' : '#1a1a1a'} strokeWidth={f === 1 ? 0.8 : 0.4} />
+          fill="none" stroke={f === 1 ? 'var(--border-default)' : 'var(--border-subtle)'} strokeWidth={f === 1 ? 0.8 : 0.4} />
       ))}
       {/* Axes */}
       {keys.map((_, i) => {
@@ -159,7 +159,7 @@ function RadarChart({
         return (
           <text key={i} x={x.toFixed(1)} y={y.toFixed(1)}
             textAnchor={anchor} dominantBaseline={baseline}
-            fontSize={7} fill="#a0a0a0" fontFamily={fLabel} letterSpacing="0.05em">
+            fontSize={7} fill="var(--text-secondary)" fontFamily={fLabel} letterSpacing="0.05em">
             {short}
           </text>
         );
@@ -459,13 +459,13 @@ export function ClusterPanel({
             marginLeft: 'auto', fontFamily: fLabel, fontSize: 6.5, letterSpacing: '0.08em',
             padding: '3px 8px', borderRadius: 2, cursor: 'pointer',
             background: 'rgba(245,158,11,0.08)', border: `1px solid rgba(245,158,11,0.35)`,
-            color: '#f59e0b',
+            color: C.amber,
           }}>Nouveau</button>
         </div>
       </div>
 
       {/* ── Sub-tabs ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: '#0a0a0a' }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: 'var(--bg-surface)' }}>
         {([
           { id: 'legend',  label: 'L\u00e9gende' },
           { id: 'table',   label: `POI (${poiRows.length})` },
@@ -705,7 +705,7 @@ export function ClusterPanel({
 }
 
 // ─── Compare durations panel (Phase 9) ────────────────────────────────────────
-const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: '#4ecdc4' };
+const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: 'var(--brand-teal)' };
 
 function CompareDurationsView({
   poiName, currentDuration, featKeys, durData, loading, onClose,
@@ -862,7 +862,7 @@ function CompareDurationsView({
                   </div>
                 </div>
                 {/* Range bar */}
-                <div style={{ height: 2, background: '#262626', borderRadius: 1, position: 'relative' }}>
+                <div style={{ height: 2, background: 'var(--border-default)', borderRadius: 1, position: 'relative' }}>
                   {selectedDurs.map((d, i) => {
                     const maxAll = Math.max(...row.vals, 0.001);
                     const pct    = (row.vals[i] / maxAll) * 100;
@@ -917,7 +917,7 @@ function CompareView({
 }) {
   const lbl = {
     fontFamily: "'Inter', sans-serif", fontSize: 9, letterSpacing: '0.04em',
-    color: '#a0a0a0', marginBottom: 6,
+    color: 'var(--text-secondary)', marginBottom: 6,
     paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)',
   };
 
@@ -944,7 +944,7 @@ function CompareView({
         <div style={lbl}>Comparaison</div>
         <button onClick={onExit} style={{
           fontFamily: "'Inter', sans-serif", fontSize: 7, padding: '3px 7px',
-          background: 'none', border: '1px solid #261a35', color: '#a0a0a0',
+          background: 'none', border: '1px solid #261a35', color: 'var(--text-secondary)',
           borderRadius: 2, cursor: 'pointer',
         }}>Fermer</button>
       </div>
@@ -953,16 +953,16 @@ function CompareView({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {([poiA, poiB] as const).map((poi, i) => (
           <button key={i} onClick={() => poi.lat && onFlyTo(poi.lat, poi.lng!, 12)} style={{
-            padding: '7px 8px', background: '#111111',
+            padding: '7px 8px', background: 'var(--bg-level-2)',
             border: `1px solid ${[poiA, poiB][i].cluster_color}55`,
             borderRadius: 2, textAlign: 'left', cursor: 'pointer', width: '100%',
           }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#f0f0f0', fontWeight: 700 }}>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: 'var(--text-primary)', fontWeight: 700 }}>
               {poi.poi_name.slice(0, 18) || poi.poi_id.slice(0, 8)}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
               <span style={{ width: 6, height: 6, borderRadius: 1, background: [poiA, poiB][i].cluster_color, display: 'inline-block' }} />
-              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 6.5, color: '#a0a0a0' }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 6.5, color: 'var(--text-secondary)' }}>
                 {poi.cluster_label.split('/')[0].trim().slice(0, 14)}
               </span>
             </div>
@@ -972,7 +972,7 @@ function CompareView({
 
       {/* Radar */}
       {featKeys.length >= 3 && (
-        <div style={{ background: '#111111', border: '1px solid #261a35', borderRadius: 2, padding: 10 }}>
+        <div style={{ background: 'var(--bg-level-2)', border: '1px solid #261a35', borderRadius: 2, padding: 10 }}>
           <div style={lbl}>Profils compar\u00e9s</div>
           <RadarChart
             profiles={[
@@ -1001,11 +1001,11 @@ function CompareView({
             const barW     = Math.min(100, absDelta * 500);
             return (
               <div key={d.key} style={{
-                padding: '4px 8px', background: '#111111',
+                padding: '4px 8px', background: 'var(--bg-level-2)',
                 border: '1px solid #261a35', borderRadius: 2,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 7, color: '#a0a0a0' }}>{d.label}</span>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 7, color: 'var(--text-secondary)' }}>{d.label}</span>
                   <div style={{ display: 'flex', gap: 10, fontFamily: "'JetBrains Mono',monospace", fontSize: 8 }}>
                     <span style={{ color: poiA.cluster_color }}>{(d.valA * 100).toFixed(1)}%</span>
                     <span style={{ color: poiB.cluster_color }}>{(d.valB * 100).toFixed(1)}%</span>
@@ -1013,7 +1013,7 @@ function CompareView({
                   </div>
                 </div>
                 {/* Delta bar */}
-                <div style={{ height: 2, background: '#262626', borderRadius: 1 }}>
+                <div style={{ height: 2, background: 'var(--border-default)', borderRadius: 1 }}>
                   <div style={{
                     height: '100%', width: `${barW}%`,
                     background: d.delta > 0 ? '#3dffa0' : '#f87171',
@@ -1032,7 +1032,7 @@ function CompareView({
         border: '1px solid rgba(78,205,196,0.2)', borderRadius: 2,
       }}>
         <div style={lbl}>Verdict</div>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: '#f0f0f0', lineHeight: 1.7 }}>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: 'var(--text-primary)', lineHeight: 1.7 }}>
           {poiA.cluster_id === poiB.cluster_id
             ? `Même cluster (${poiA.cluster_label.split('/')[0].trim()}). Profils similaires.`
             : `Clusters distincts. Différences principales :`}
@@ -1040,7 +1040,7 @@ function CompareView({
         {poiA.cluster_id !== poiB.cluster_id && (
           <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {top3.map((f, i) => (
-              <div key={f} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: '#a0a0a0' }}>
+              <div key={f} style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: 'var(--text-secondary)' }}>
                 {i + 1}. {f}
               </div>
             ))}

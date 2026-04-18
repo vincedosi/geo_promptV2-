@@ -18,11 +18,11 @@ import type {
 // ============================================================
 
 const C = {
-  bg: '#050505', bgElevated: '#0a0a0a', bgSurface: '#111111',
-  border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
-  accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.08)',
-  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666', muted: '#505050',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
+  bg: 'var(--bg-primary)', bgElevated: 'var(--bg-surface)', bgSurface: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)', borderLight: 'var(--brand-teal-30)',
+  accent: 'var(--brand-teal)', accentDim: 'var(--brand-teal-10)',
+  text: 'var(--text-primary)', textDim: 'var(--text-secondary)', textSec: 'var(--text-tertiary)', muted: '#505050',
+  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
   warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
 };
@@ -565,7 +565,7 @@ export default function ImportUniverselPage() {
     background: C.accentDim,
     border: `1px solid ${C.borderLight}`,
     borderRadius: 2,
-    color: '#050505',
+    color: 'var(--bg-primary)',
     padding: '7px 16px',
     cursor: 'pointer',
     display: 'inline-flex',
@@ -1735,7 +1735,7 @@ export default function ImportUniverselPage() {
                   <div
                     ref={logContainerRef}
                     style={{
-                      background: '#020202',
+                      background: 'var(--bg-primary)',
                       border: `1px solid ${C.border}`,
                       borderRadius: 2,
                       padding: '8px 12px',

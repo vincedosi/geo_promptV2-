@@ -50,6 +50,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    if (profile.role !== 'super_admin' && body.organization_id && body.organization_id !== profile.organization_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = createAdminClient();
 
     const { data, error } = await supabase

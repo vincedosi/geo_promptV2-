@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, categories: data || [] });
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erreur interne';
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, categorie: normalized });
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erreur interne';
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }

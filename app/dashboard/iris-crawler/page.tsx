@@ -13,18 +13,18 @@ import type {
 
 // ── Design tokens (GEO.PROMPT terminal dark) ─────────────────────────────────
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#111111',
-  bgSurface:   '#111111',
-  bgRow:       '#0a0a0a',
-  border:      '#1a1a1a',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-level-2)',
+  bgSurface:   'var(--bg-level-2)',
+  bgRow:       'var(--bg-surface)',
+  border:      'var(--border-subtle)',
   borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
+  accent:      'var(--brand-teal)',
   accentDim:   'rgba(78,205,196,0.1)',
-  text:        '#f0f0f0',
-  textDim:     '#a0a0a0',
-  textSec:     '#666666',
-  muted:       '#666666',
+  text:        'var(--text-primary)',
+  textDim:     'var(--text-secondary)',
+  textSec:     'var(--text-tertiary)',
+  muted:       'var(--text-tertiary)',
   green:       '#3dffa0',
   greenDim:    'rgba(61,255,160,0.10)',
   red:         '#ff5757',
@@ -167,7 +167,7 @@ export default function IrisCrawlerPage() {
       setStatusMap(data);
       const dl = Object.values(data).filter(s => s.downloaded).length;
       log(`Statut : ${dl}/${IRIS_CATALOG.length} bases téléchargées`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Erreur statut : ${String(e)}`);
     } finally {
       setLoadingStatus(false);
@@ -216,7 +216,7 @@ export default function IrisCrawlerPage() {
           discoverError: urls.length === 0 ? 'Aucune URL trouvée. Vérifier la page INSEE.' : undefined,
         },
       }));
-    } catch (e) {
+    } catch (e: unknown) {
       setEntryStates(prev => ({
         ...prev,
         [catalogId]: { ...prev[catalogId], discovering: false, discoverError: String(e) },
@@ -282,7 +282,7 @@ export default function IrisCrawlerPage() {
 
       // Rafraîchir le statut
       await loadStatus();
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! ${catalogId} erreur : ${String(e)}`);
       setEntryStates(prev => ({
         ...prev,
@@ -320,7 +320,7 @@ export default function IrisCrawlerPage() {
           log(`  ! ${entry.id} : aucune URL trouvée — ignoré`);
           continue;
         }
-      } catch (e) {
+      } catch (e: unknown) {
         log(`  ! ${entry.id} discover erreur : ${String(e)}`);
         continue;
       }
@@ -351,7 +351,7 @@ export default function IrisCrawlerPage() {
         [catalogId]: { ...prev[catalogId], showMapping: true, irisKeyCol, mapping },
       }));
       log(`Mapping ${catalogId} : ${Object.keys(mapping).length} colonnes auto-détectées`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Erreur mapping ${catalogId} : ${String(e)}`);
     }
   }, [entryStates, log]);
@@ -412,7 +412,7 @@ export default function IrisCrawlerPage() {
           } catch { /* ignore parse errors */ }
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Upload ${catalogId} erreur : ${String(e)}`);
       setEntryStates(prev => ({
         ...prev,
@@ -443,7 +443,7 @@ export default function IrisCrawlerPage() {
       const data = await res.json() as PreviewResponse;
       setPreviewData(data);
       log(`Preview ${catalogId} : ${data.totalRows} lignes × ${data.headers.length} colonnes`);
-    } catch (e) {
+    } catch (e: unknown) {
       log(`! Preview erreur : ${String(e)}`);
       setPreviewId(null);
     } finally {
@@ -677,7 +677,7 @@ export default function IrisCrawlerPage() {
                       <button
                         onClick={() => handleUpload(entry.id)}
                         disabled={es.uploading}
-                        style={btnSmall('#4ecdc4', 'rgba(78,205,196,0.1)', 'rgba(78,205,196,0.3)')}>
+                        style={btnSmall('var(--brand-teal)', 'rgba(78,205,196,0.1)', 'rgba(78,205,196,0.3)')}>
                         {es.uploading ? `⏳ ${es.uploadProgress}%` : `↑ Importer ${Object.keys(es.mapping).length} col.`}
                       </button>
                     )}
@@ -1051,7 +1051,7 @@ function LocalFileUploadTab() {
       setKeyCol(data.autoMapResult.irisKeyCol);
       addLog(`✓ ${data.totalRows.toLocaleString('fr-FR')} lignes — ${data.autoMapResult.coreCols.length} colonnes mappées`, 'success');
       if (data.parseWarnings?.length) data.parseWarnings.forEach((w: string) => addLog(`! ${w}`, 'error'));
-    } catch (e) {
+    } catch (e: unknown) {
       addLog(`! ${String(e)}`, 'error');
     } finally {
       setUploading(false);
@@ -1102,7 +1102,7 @@ function LocalFileUploadTab() {
           } catch { /* skip */ }
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       addLog(`! ${String(e)}`, 'error');
     } finally {
       setImporting(false);

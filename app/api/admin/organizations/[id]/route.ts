@@ -1,6 +1,7 @@
 /**
- * GET  /api/admin/organizations/[id] — Détail d'une organisation
- * PATCH /api/admin/organizations/[id] — Mise à jour config workspace
+ * GET    /api/admin/organizations/[id] — Détail d'une organisation
+ * PATCH  /api/admin/organizations/[id] — Mise à jour config workspace
+ * DELETE /api/admin/organizations/[id] — Suppression organisation (super_admin only)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
@@ -47,9 +48,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { id } = params;
   const body = await request.json();
 
+  // Non-super_admin can only edit their own org, and cannot touch slug/config/active
+  if (profile.role !== 'super_admin') {
+    if (id !== profile.organization_id) {
+      return NextResponse.json({ error: 'Cannot edit another organization' }, { status: 403 });
+    }
+    delete body.slug;
+    delete body.config;
+    delete body.active;
+  }
+
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
+  // slug, config, active: super_admin only (already stripped above for non-super_admin)
+  if (body.slug !== undefined) updates.slug = body.slug;
   if (body.config !== undefined) updates.config = body.config;
   if (body.active !== undefined) updates.active = body.active;
 
@@ -63,4 +76,32 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   return NextResponse.json({ success: true, organization: data });
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
+  // Only super_admin can delete organizations
+  if (profile.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Only super_admin can delete organizations' }, { status: 403 });
+  }
+
+  const sb = createAdminClient();
+  const { id } = params;
+
+  const { error: checkError, data: org } = await sb
+    .from('organizations')
+    .select('id')
+    .eq('id', id)
+    .single();
+
+  if (checkError || !org) {
+    return NextResponse.json({ success: false, error: 'Organisation introuvable' }, { status: 404 });
+  }
+
+  const { error } = await sb.from('organizations').delete().eq('id', id);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
 }

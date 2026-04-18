@@ -44,8 +44,8 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
 export function SkeletonCard() {
   return (
     <div style={{
-      background: '#0a0a0a',
-      border: '0.5px solid #1a1a1a',
+      background: 'var(--bg-surface)',
+      border: '0.5px solid var(--border-subtle)',
       borderRadius: 6,
       overflow: 'hidden',
     }}>
@@ -64,8 +64,8 @@ export function SkeletonCard() {
 export function SkeletonChart({ height = 160 }: { height?: number }) {
   return (
     <div style={{
-      background: '#0a0a0a',
-      border: '0.5px solid #1a1a1a',
+      background: 'var(--bg-surface)',
+      border: '0.5px solid var(--border-subtle)',
       borderRadius: 6,
       height,
       padding: 16,
@@ -94,8 +94,8 @@ export function SkeletonMap({ height = 300 }: { height?: number }) {
   return (
     <div style={{
       position: 'relative',
-      background: '#0a0a0a',
-      border: '0.5px solid #1a1a1a',
+      background: 'var(--bg-surface)',
+      border: '0.5px solid var(--border-subtle)',
       borderRadius: 6,
       height,
       overflow: 'hidden',

@@ -1,177 +1,227 @@
 'use client';
 
-import { useState, useRef, useEffect, memo } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { useSession, useSignOut } from '@/lib/auth-client';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono  = "'JetBrains Mono', monospace";
 
+interface OrgItem { id: string; name: string; slug: string; logo_url: string | null; }
+
 export const SessionBadge = memo(function SessionBadge() {
   const { session, isLoading } = useSession();
   const { signOut }            = useSignOut();
-  const [open, setOpen]        = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const orgRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
+  // Org switcher state
+  const [orgs, setOrgs] = useState<OrgItem[]>([]);
+  const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
+  const [activeOrgName, setActiveOrgName] = useState<string>('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [orgsFetched, setOrgsFetched] = useState(false);
+
+  // Close menu on outside click
   useEffect(() => {
-    if (!open) return;
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
-  // Don't render when no session (login page, loading done)
+  // Close org dropdown on outside click
+  useEffect(() => {
+    if (!orgDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (orgRef.current && !orgRef.current.contains(e.target as Node)) setOrgDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [orgDropdownOpen]);
+
+  // Fetch orgs on mount (once session is available)
+  useEffect(() => {
+    if (!session || orgsFetched) return;
+    const token = session.id;
+    if (!token) return;
+    fetch('/api/user/organizations', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        setOrgs(data.organizations ?? []);
+        setActiveOrgId(data.active_org_id ?? null);
+        setIsSuperAdmin(data.is_super_admin ?? false);
+        const name = (data.organizations ?? []).find((o: OrgItem) => o.id === data.active_org_id)?.name;
+        setActiveOrgName(name ?? (data.active_org_id ? '...' : 'Toutes'));
+        setOrgsFetched(true);
+      })
+      .catch(() => {});
+  }, [session, orgsFetched]);
+
+  const handleSwitchOrg = useCallback(async (orgId: string | null) => {
+    if (!session) return;
+    setSwitching(true);
+    const token = session.id;
+    try {
+      const res = await fetch('/api/user/switch-org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` },
+        body: JSON.stringify({ organization_id: orgId }),
+      });
+      if (res.ok) {
+        setActiveOrgId(orgId);
+        setOrgDropdownOpen(false);
+        window.location.reload();
+      }
+    } catch { /* ignore */ }
+    finally { setSwitching(false); }
+  }, [session]);
+
   if (!isLoading && !session) return null;
 
-  const email      = session?.user.email ?? '';
-  const role       = session?.user.role  ?? 'authenticated';
-  const orgId      = session?.user.organizationId ?? null;
+  const email = session?.user.email ?? '';
   const displayEmail = email.length > 25 ? email.slice(0, 22) + '…' : email;
+  const role = session?.user.role ?? 'authenticated';
+  const showOrgDropdown = orgs.length > 1 || isSuperAdmin;
 
   return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
-      {/* ── Trigger ─────────────────────────────────────────────────── */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '6px 12px',
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          animation: 'sbEntrance 0.3s ease-out',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.querySelectorAll<HTMLElement>('[data-hover]').forEach(el => {
-            el.style.color = '#f0f0f0';
-          });
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.querySelectorAll<HTMLElement>('[data-hover]').forEach(el => {
-            el.style.color = el.dataset.hoverColor ?? '#a0a0a0';
-          });
-        }}
-      >
-        {/* Logo GEOMATIK */}
-        <img src="/geomatik-icon.svg" width={20} height={20} alt="" style={{ flexShrink: 0 }} />
-        <span style={{ fontFamily: fInter, fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: 'nowrap' }}>
-          <span style={{ color: '#f0f0f0' }}>GEOM</span><span style={{ color: '#4ecdc4' }}>ATIK</span>
-        </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative', flexShrink: 0 }}>
 
-        {/* Séparateur vertical */}
-        <div style={{ width: '0.5px', height: 18, background: '#262626', flexShrink: 0, margin: '0 6px' }} />
+      {/* ── Org selector (replaces logo) ─────────────────────────── */}
+      <div ref={orgRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => { if (showOrgDropdown) setOrgDropdownOpen(o => !o); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '5px 10px', cursor: showOrgDropdown ? 'pointer' : 'default',
+            background: orgDropdownOpen ? 'var(--bg-level-2)' : 'transparent',
+            border: `0.5px solid ${orgDropdownOpen ? 'var(--border-default)' : 'transparent'}`,
+            borderRadius: 6, transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (showOrgDropdown) e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+          onMouseLeave={e => { if (!orgDropdownOpen) e.currentTarget.style.background = 'transparent'; }}
+        >
+          {/* Org initial or icon */}
+          <div style={{
+            width: 22, height: 22, borderRadius: 5, flexShrink: 0,
+            background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: fInter, fontSize: 10, fontWeight: 700, color: 'var(--brand-teal)',
+          }}>
+            {activeOrgName ? activeOrgName.charAt(0).toUpperCase() : '●'}
+          </div>
+          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {activeOrgName || 'Organisation'}
+          </span>
+          {showOrgDropdown && (
+            <span style={{ fontSize: 8, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: orgDropdownOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+          )}
+        </button>
 
-        {/* Status dot */}
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-          background: isLoading ? '#f7b731' : '#3dffa0',
-          animation: isLoading ? 'sbPulse 1s ease-in-out infinite' : 'none',
-        }} />
+        {/* Org dropdown */}
+        {orgDropdownOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 8,
+            padding: 4, minWidth: 200, zIndex: 20000,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            animation: 'sbFadeIn 0.15s ease',
+          }}>
+            {isSuperAdmin && (
+              <button onClick={() => handleSwitchOrg(null)} disabled={switching} style={{
+                width: '100%', textAlign: 'left', padding: '7px 10px', cursor: switching ? 'wait' : 'pointer',
+                background: activeOrgId === null ? 'rgba(78,205,196,0.08)' : 'transparent',
+                border: 'none', borderRadius: 5, fontFamily: fInter, fontSize: 11,
+                color: activeOrgId === null ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+                display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s',
+              }}
+                onMouseEnter={e => { if (activeOrgId !== null) e.currentTarget.style.background = 'var(--bg-level-3)'; }}
+                onMouseLeave={e => { if (activeOrgId !== null) e.currentTarget.style.background = 'transparent'; }}
+              >
+                {activeOrgId === null && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)' }} />}
+                Toutes les organisations
+              </button>
+            )}
+            {orgs.map(org => (
+              <button key={org.id} onClick={() => handleSwitchOrg(org.id)} disabled={switching} style={{
+                width: '100%', textAlign: 'left', padding: '7px 10px', cursor: switching ? 'wait' : 'pointer',
+                background: activeOrgId === org.id ? 'rgba(78,205,196,0.08)' : 'transparent',
+                border: 'none', borderRadius: 5, fontFamily: fInter, fontSize: 11,
+                color: activeOrgId === org.id ? 'var(--brand-teal)' : 'var(--text-secondary)',
+                display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s',
+              }}
+                onMouseEnter={e => { if (activeOrgId !== org.id) e.currentTarget.style.background = 'var(--bg-level-3)'; }}
+                onMouseLeave={e => { if (activeOrgId !== org.id) e.currentTarget.style.background = 'transparent'; }}
+              >
+                {activeOrgId === org.id && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)' }} />}
+                {org.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-        {/* Email + org */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
-          <span
-            data-hover=""
-            data-hover-color="#a0a0a0"
-            style={{
-              fontFamily: fInter, fontWeight: 400, fontSize: 11, color: '#a0a0a0',
-              maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              display: 'block', transition: 'color 0.2s ease',
-            }}
-          >
+      {/* ── Separator ────────────────────────────────────────────── */}
+      <div style={{ width: '0.5px', height: 18, background: 'var(--border-default)', flexShrink: 0 }} />
+
+      {/* ── User badge + menu ────────────────────────────────────── */}
+      <div ref={menuRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '5px 10px', cursor: 'pointer',
+            background: menuOpen ? 'var(--bg-level-2)' : 'transparent',
+            border: `0.5px solid ${menuOpen ? 'var(--border-default)' : 'transparent'}`,
+            borderRadius: 6, transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+          onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
+        >
+          <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isLoading ? 'var(--warning)' : 'var(--success)', animation: isLoading ? 'sbPulse 1s ease-in-out infinite' : 'none' }} />
+          <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isLoading ? '…' : displayEmail}
           </span>
-          {orgId && (
-            <span
-              data-hover=""
-              data-hover-color="#666666"
-              style={{
-                fontFamily: fMono, fontWeight: 400, fontSize: 9, color: '#666666',
-                maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                display: 'block', transition: 'color 0.2s ease',
-              }}
-            >
-              {orgId.slice(0, 8)}…
-            </span>
-          )}
-        </div>
-      </button>
+          <span style={{ fontSize: 8, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+        </button>
 
-      {/* ── Dropdown ────────────────────────────────────────────────── */}
-      {open && session && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', right: 0,
-          background: '#0a0a0a',
-          border: '0.5px solid #1a1a1a',
-          borderRadius: 8,
-          padding: 12,
-          width: 240,
-          zIndex: 20000,
-          display: 'flex', flexDirection: 'column', gap: 8,
-          animation: 'sbFadeIn 0.2s ease',
-        }}>
-          {/* Email */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontFamily: fInter, fontSize: 10, color: '#666666' }}>Email</span>
-            <span style={{ fontFamily: fInter, fontSize: 12, color: '#a0a0a0', wordBreak: 'break-all' }}>
-              {email}
-            </span>
-          </div>
-
-          {/* Rôle */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontFamily: fInter, fontSize: 10, color: '#666666' }}>Rôle</span>
-            <span style={{ fontFamily: fInter, fontSize: 12, color: '#a0a0a0' }}>
-              {role}
-            </span>
-          </div>
-
-          {/* Organisation */}
-          {orgId && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontFamily: fInter, fontSize: 10, color: '#666666' }}>Organisation</span>
-              <span style={{ fontFamily: fMono, fontSize: 10, color: '#a0a0a0', wordBreak: 'break-all' }}>
-                {orgId}
-              </span>
+        {/* User menu dropdown */}
+        {menuOpen && session && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 8,
+            padding: 10, width: 220, zIndex: 20000,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            animation: 'sbFadeIn 0.15s ease',
+          }}>
+            <div style={{ padding: '4px 8px', marginBottom: 6 }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{email}</div>
+              <span style={{ fontFamily: fMono, fontSize: 9, color: 'var(--text-tertiary)', padding: '1px 5px', background: 'var(--bg-level-2)', borderRadius: 3, marginTop: 4, display: 'inline-block' }}>{role}</span>
             </div>
-          )}
-
-          {/* Separator */}
-          <div style={{ height: '0.5px', background: '#1a1a1a' }} />
-
-          {/* Déconnexion */}
-          <button
-            onClick={async () => { setOpen(false); await signOut(); }}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontFamily: fInter, fontSize: 12, color: '#666666',
-              textAlign: 'left', padding: '4px 0',
-              transition: 'color 0.2s ease',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ff5757'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
-          >
-            Déconnexion
-          </button>
-        </div>
-      )}
+            <div style={{ height: '0.5px', background: 'var(--border-subtle)', margin: '4px 0' }} />
+            <button
+              onClick={async () => { setMenuOpen(false); await signOut(); }}
+              style={{
+                width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 4,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', transition: 'all 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(255,87,87,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
+            >Deconnexion</button>
+          </div>
+        )}
+      </div>
 
       <style>{`
-        @keyframes sbPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        @keyframes sbFadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes sbEntrance {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          * { animation-duration: 0s !important; transition-duration: 0s !important; }
-        }
+        @keyframes sbPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes sbFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0s !important; transition-duration: 0s !important; } }
       `}</style>
     </div>
   );

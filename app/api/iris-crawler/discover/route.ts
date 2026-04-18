@@ -6,6 +6,27 @@ export const dynamic = 'force-dynamic';
 const INSEE_BASE = 'https://www.insee.fr';
 const TIMEOUT_MS = 15_000;
 
+/** Domaines autorisés pour les URLs découvertes (anti-SSRF) */
+const ALLOWED_DISCOVER_DOMAINS = [
+  'www.insee.fr',
+  'insee.fr',
+  'data.gouv.fr',
+  'www.data.gouv.fr',
+  'static.data.gouv.fr',
+];
+
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    return ALLOWED_DISCOVER_DOMAINS.some(
+      (d) => parsed.hostname === d || parsed.hostname.endsWith('.' + d)
+    );
+  } catch {
+    return false;
+  }
+}
+
 // GET /api/iris-crawler/discover?pageId=8647014&pageType=statistiques
 export async function GET(req: NextRequest) {
   const pageId   = req.nextUrl.searchParams.get('pageId');
@@ -39,7 +60,7 @@ export async function GET(req: NextRequest) {
       } satisfies DiscoverResponse);
     }
     html = await res.text();
-  } catch (e) {
+  } catch (e: unknown) {
     return NextResponse.json({
       urls: [],
       error: `Erreur réseau : ${e instanceof Error ? e.message : String(e)}`,
@@ -54,57 +75,36 @@ export async function GET(req: NextRequest) {
   const found: Array<{ url: string; name: string }> = [];
   const seen = new Set<string>();
 
+  /** Helper: resolve raw href → absolute URL, validate domain, deduplicate */
+  function tryAdd(raw: string) {
+    const url = raw.startsWith('http') ? raw : `${INSEE_BASE}${raw}`;
+    if (seen.has(url) || !isAllowedUrl(url)) return;
+    seen.add(url);
+    const name = url.split('/').pop() ?? url;
+    found.push({ url, name });
+  }
+
   // Pattern 1 : fichiers ZIP avec "csv" dans le nom
   const zipRegex = /href="([^"]*\/fichier\/[^"]*(?:csv|CSV)[^"]*\.zip[^"]*)"/gi;
   let m: RegExpExecArray | null;
-  while ((m = zipRegex.exec(html)) !== null) {
-    const raw = m[1];
-    const url = raw.startsWith('http') ? raw : `${INSEE_BASE}${raw}`;
-    if (!seen.has(url)) {
-      seen.add(url);
-      const name = url.split('/').pop() ?? url;
-      found.push({ url, name });
-    }
-  }
+  while ((m = zipRegex.exec(html)) !== null) tryAdd(m[1]);
 
   // Pattern 2 : tous les ZIP (même sans "csv" explicite)
   if (found.length === 0) {
     const allZipRegex = /href="([^"]*\.zip[^"]*)"/gi;
-    while ((m = allZipRegex.exec(html)) !== null) {
-      const raw = m[1];
-      const url = raw.startsWith('http') ? raw : `${INSEE_BASE}${raw}`;
-      if (!seen.has(url)) {
-        seen.add(url);
-        const name = url.split('/').pop() ?? url;
-        found.push({ url, name });
-      }
-    }
+    while ((m = allZipRegex.exec(html)) !== null) tryAdd(m[1]);
   }
 
   // Pattern 3 : liens download directs CSV
   const csvRegex = /href="([^"]*\.csv[^"]*)"/gi;
-  while ((m = csvRegex.exec(html)) !== null) {
-    const raw = m[1];
-    const url = raw.startsWith('http') ? raw : `${INSEE_BASE}${raw}`;
-    if (!seen.has(url)) {
-      seen.add(url);
-      const name = url.split('/').pop() ?? url;
-      found.push({ url, name });
-    }
-  }
+  while ((m = csvRegex.exec(html)) !== null) tryAdd(m[1]);
 
   // Pattern 4 : liens téléchargement génériques INSEE (/telechargement/ ou /fichier/)
   if (found.length === 0) {
     const dlRegex = /href="([^"]*(?:telechargement|fichier)[^"]*\.[a-z]{2,4}[^"]*)"/gi;
     while ((m = dlRegex.exec(html)) !== null) {
-      const raw = m[1];
-      if (raw.includes('css') || raw.includes('js')) continue;
-      const url = raw.startsWith('http') ? raw : `${INSEE_BASE}${raw}`;
-      if (!seen.has(url)) {
-        seen.add(url);
-        const name = url.split('/').pop() ?? url;
-        found.push({ url, name });
-      }
+      if (m[1].includes('css') || m[1].includes('js')) continue;
+      tryAdd(m[1]);
     }
   }
 

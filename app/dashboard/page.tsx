@@ -37,17 +37,17 @@ export default function DashboardPage() {
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', minHeight: '50vh', gap: 16,
       }}>
-        <Hexagon size={48} strokeWidth={1} style={{ color: '#333333' }} />
-        <p style={{ fontSize: 13, color: '#666666' }}>Session expirée</p>
+        <Hexagon size={48} strokeWidth={1} style={{ color: 'var(--border-hover)' }} />
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Session expirée</p>
         <Link
           href="/login"
           style={{
-            fontSize: 13, color: '#050505', background: '#f0f0f0',
+            fontSize: 13, color: 'var(--bg-primary)', background: 'var(--text-primary)',
             padding: '10px 24px', borderRadius: 6, textDecoration: 'none',
             fontWeight: 500, transition: 'background 0.15s',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#d4d4d4'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#f0f0f0'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--text-primary)'; }}
         >
           Se connecter
         </Link>
@@ -103,12 +103,12 @@ export default function DashboardPage() {
       {/* ── Page header ────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{
-          fontWeight: 500, fontSize: 18, color: '#f0f0f0',
+          fontWeight: 500, fontSize: 18, color: 'var(--text-primary)',
           letterSpacing: '-0.02em', margin: '0 0 4px',
         }}>
           Dashboard
         </h1>
-        <p style={{ fontSize: 13, color: '#666666', margin: 0 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary)', margin: 0 }}>
           Bienvenue, {displayName}
         </p>
       </div>
@@ -120,8 +120,8 @@ export default function DashboardPage() {
             <div
               key={i}
               style={{
-                background: '#0a0a0a',
-                border: '0.5px solid #1a1a1a',
+                background: 'var(--bg-surface)',
+                border: '0.5px solid var(--border-subtle)',
                 borderRadius: 6,
                 padding: '16px 18px',
                 transition: 'border-color 0.15s, transform 0.2s',
@@ -129,24 +129,24 @@ export default function DashboardPage() {
                 animation: `slideUp 0.3s ease ${i * 60}ms both`,
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#262626';
+                e.currentTarget.style.borderColor = 'var(--border-default)';
                 if (s.href) e.currentTarget.style.transform = 'translateY(-1px)';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#1a1a1a';
+                e.currentTarget.style.borderColor = 'var(--border-subtle)';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <s.icon size={20} strokeWidth={1.5} style={{ color: '#4ecdc4', marginBottom: 12 }} />
+              <s.icon size={20} strokeWidth={1.5} style={{ color: 'var(--brand-teal)', marginBottom: 12 }} />
               <div style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 500, fontSize: 15, color: '#f0f0f0',
+                fontWeight: 500, fontSize: 15, color: 'var(--text-primary)',
                 marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {s.value}
               </div>
               <div style={{
-                fontSize: 12, color: '#666666',
+                fontSize: 12, color: 'var(--text-tertiary)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {s.label}
@@ -170,31 +170,31 @@ export default function DashboardPage() {
       {/* ── Navigation cards grid ──────────────────────────────────────────── */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0,
-        border: '0.5px solid #1a1a1a', borderTop: 'none', borderRadius: '0 0 6px 6px',
+        border: '0.5px solid var(--border-subtle)', borderTop: 'none', borderRadius: '0 0 6px 6px',
         overflow: 'hidden',
       }}>
         {navCards.map(({ href, icon: Icon, label, sub }, i) => (
           <Link key={href} href={href} style={{ textDecoration: 'none' }}>
             <div
               style={{
-                background: '#0a0a0a',
+                background: 'var(--bg-surface)',
                 padding: '16px 18px',
-                borderRight: (i % 3 !== 2) ? '0.5px solid #1a1a1a' : 'none',
-                borderBottom: i < 3 ? '0.5px solid #1a1a1a' : 'none',
+                borderRight: (i % 3 !== 2) ? '0.5px solid var(--border-subtle)' : 'none',
+                borderBottom: i < 3 ? '0.5px solid var(--border-subtle)' : 'none',
                 transition: 'background 0.15s',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'flex-start', gap: 12,
                 animation: `slideUp 0.3s ease ${200 + i * 50}ms both`,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#111111'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#0a0a0a'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
             >
-              <Icon size={16} strokeWidth={1.5} style={{ color: '#666666', marginTop: 2, flexShrink: 0 }} />
+              <Icon size={16} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', marginTop: 2, flexShrink: 0 }} />
               <div>
-                <div style={{ fontWeight: 500, fontSize: 13, color: '#f0f0f0', marginBottom: 2 }}>
+                <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-primary)', marginBottom: 2 }}>
                   {label}
                 </div>
-                <div style={{ fontSize: 12, color: '#666666' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                   {sub}
                 </div>
               </div>

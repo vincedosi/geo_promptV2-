@@ -6,18 +6,18 @@ import { adminFetch } from '@/lib/admin-fetch';
 import type { Organization } from '@/types/admin';
 
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#0a0a0a',
-  bgSurface:   '#111111',
-  border:      '#1a1a1a',
-  borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
-  accentDim:   'rgba(78,205,196,0.08)',
-  text:        '#f0f0f0',
-  textDim:     '#a0a0a0',
-  textSec:     '#666666',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-surface)',
+  bgSurface:   'var(--bg-level-2)',
+  border:      'var(--border-subtle)',
+  borderLight: 'var(--brand-teal-30)',
+  accent:      'var(--brand-teal)',
+  accentDim:   'var(--brand-teal-10)',
+  text:        'var(--text-primary)',
+  textDim:     'var(--text-secondary)',
+  textSec:     'var(--text-tertiary)',
   muted:       '#505050',
-  green:       '#3dffa0',
+  green:       'var(--success)',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
   redDim:      'rgba(248,113,113,0.1)',
@@ -53,7 +53,7 @@ export default function OrganizationsPage() {
       try { data = JSON.parse(text); } catch { setError(`HTTP ${res.status} — réponse non-JSON`); setIsLoading(false); return; }
       if (data.success) setOrgs((data.organizations as typeof orgs) || []);
       else setError(`${res.status} — ${data.error ?? 'Erreur inconnue'}`);
-    } catch (e) { setError(String(e)); }
+    } catch (e: unknown) { setError(String(e)); }
     setIsLoading(false);
   }, []);
 
@@ -95,7 +95,7 @@ export default function OrganizationsPage() {
           </h1>
           <span style={{
             fontFamily: fontInter, fontSize: 11,
-            color: C.textSec, background: '#181818', border: `1px solid #262626`, borderRadius: 2,
+            color: C.textSec, background: 'var(--bg-level-3)', border: `1px solid var(--border-default)`, borderRadius: 2,
             padding: '2px 6px',
           }}>
             {orgs.length}
@@ -146,7 +146,7 @@ export default function OrganizationsPage() {
                   background: isCreating || !newOrgName.trim() ? C.muted : C.accent,
                   border: 'none',
                   borderRadius: 2,
-                  color: '#050505',
+                  color: 'var(--bg-primary)',
                   fontFamily: fontInter,
                   fontSize: 12,
                   fontWeight: 500,

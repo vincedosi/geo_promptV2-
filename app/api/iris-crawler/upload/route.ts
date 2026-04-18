@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
           { totalUpdated, columns: mappedCols }
         );
 
-      } catch (e) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         controller.enqueue(encoder.encode(
           JSON.stringify({ type: 'error', message: `Erreur inattendue : ${msg}` }) + '\n'

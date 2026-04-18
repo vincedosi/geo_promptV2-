@@ -91,7 +91,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
           }
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') return;
       setPhase('error');
       setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -182,10 +182,10 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             style={{
               width: '100%',
               padding: '5px 8px',
-              background: '#0a0a0a',
-              border: '0.5px solid #262626',
+              background: 'var(--bg-surface)',
+              border: '0.5px solid var(--border-default)',
               borderRadius: 5,
-              color: '#f0f0f0',
+              color: 'var(--text-primary)',
               fontSize: 12,
               fontFamily: 'JetBrains Mono, monospace',
               outline: 'none',
@@ -223,9 +223,9 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             style={{
               padding: '5px 10px',
               background: 'transparent',
-              border: '0.5px solid #262626',
+              border: '0.5px solid var(--border-default)',
               borderRadius: 5,
-              color: '#a0a0a0',
+              color: 'var(--text-secondary)',
               fontSize: 11,
               cursor: 'pointer',
               transition: 'border-color 0.2s ease, color 0.2s ease',
@@ -271,7 +271,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
               <div style={{
                 height: '100%',
                 width: `${pct}%`,
-                background: '#4ecdc4',
+                background: 'var(--brand-teal)',
                 borderRadius: 2,
                 transition: 'width 0.2s ease',
               }} />
@@ -292,9 +292,9 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
             marginTop: 8,
             padding: '3px 10px',
             background: 'transparent',
-            border: '0.5px solid #262626',
+            border: '0.5px solid var(--border-default)',
             borderRadius: 4,
-            color: '#a0a0a0',
+            color: 'var(--text-secondary)',
             fontSize: 10,
             cursor: 'pointer',
             transition: 'border-color 0.2s ease',

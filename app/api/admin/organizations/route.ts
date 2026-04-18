@@ -16,33 +16,41 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createAdminClient();
 
-    const { data: orgs, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: true });
+    let query = supabase.from('organizations').select('*').order('created_at', { ascending: true });
+    // Admin non-super_admin ne voit que son org
+    if (profile.role !== 'super_admin' && profile.organization_id) {
+      query = query.eq('id', profile.organization_id);
+    }
+    const { data: orgs, error } = await query;
 
     if (error) throw error;
 
     // Enrich with member count + source count — 3 queries total regardless of org count
     const orgIds = (orgs || []).map((o) => o.id);
-    const [membersRes, sourcesRes] = await Promise.all([
+    const [membersRes, sourcesRes, campaignsRes] = await Promise.all([
       supabase.from('profiles').select('organization_id').in('organization_id', orgIds),
       supabase.from('data_sources').select('organization_id').in('organization_id', orgIds).neq('status', 'deleted'),
+      supabase.from('dsp_campaigns').select('organization_id').in('organization_id', orgIds),
     ]);
 
     const memberCounts: Record<string, number> = {};
     const sourceCounts: Record<string, number> = {};
+    const campaignCounts: Record<string, number> = {};
     for (const m of membersRes.data ?? []) {
       memberCounts[m.organization_id] = (memberCounts[m.organization_id] ?? 0) + 1;
     }
     for (const s of sourcesRes.data ?? []) {
       sourceCounts[s.organization_id] = (sourceCounts[s.organization_id] ?? 0) + 1;
     }
+    for (const c of campaignsRes.data ?? []) {
+      campaignCounts[c.organization_id] = (campaignCounts[c.organization_id] ?? 0) + 1;
+    }
 
     const enriched = (orgs || []).map((org) => ({
       ...org,
       member_count: memberCounts[org.id] ?? 0,
       source_count: sourceCounts[org.id] ?? 0,
+      campaign_count: campaignCounts[org.id] ?? 0,
     }));
 
     return NextResponse.json({ success: true, organizations: enriched });

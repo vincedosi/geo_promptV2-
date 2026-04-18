@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         google: { thinkingConfig: { thinkingBudget: 0 } },
       } : undefined,
       onFinish: ({ usage }) => {
-        console.log(`[CHAT] LLM total: ${Date.now() - t1}ms | tokens — input:${usage.inputTokens} output:${usage.outputTokens} total:${usage.totalTokens}`);
+        console.log(`[CHAT] LLM total: ${Date.now() - t1}ms | tokens — in:${usage.inputTokens} out:${usage.outputTokens}`);
       },
     }));
 

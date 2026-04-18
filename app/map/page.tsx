@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { adminFetch } from '@/lib/admin-fetch';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
@@ -12,7 +14,7 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor, type CorrelationActionParams } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import { FilterPanel }         from '@/app/map/_components/FilterPanel';
+import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
@@ -21,6 +23,14 @@ import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
+  { ssr: false },
+);
+const TripleMapView = dynamic(
+  () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
+  { ssr: false },
+);
+const DigitalAnalysisPanel = dynamic(
+  () => import('@/app/map/analyse/digital/_components/AnalysisPanel').then(m => ({ default: m.AnalysisPanel })),
   { ssr: false },
 );
 import type { ZoneData, BattleResult } from '@/types/spatial';
@@ -75,6 +85,40 @@ export default function MapPage() {
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Radio FM/DAB+ — émetteurs
+  const [radioVisible,       setRadioVisible]       = useState(false);
+  const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
+  const [radioCoverageMode,  setRadioCoverageMode]  = useState(false);
+  const [radioGeoJSON,       setRadioGeoJSON]       = useState<GeoJSON.FeatureCollection | null>(null);
+  const [radioLoading,       setRadioLoading]       = useState(false);
+  const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
+  const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
+  const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
+  const [radioCoverageColor, setRadioCoverageColor] = useState('var(--brand-teal)');
+  const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
+  const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
+  const [radioPointSize,     setRadioPointSize]     = useState(5);
+  // Digital (DSP impressions choropleth)
+  const [digitalVisible, setDigitalVisible] = useState(false);
+  const [digitalLoading, setDigitalLoading] = useState(false);
+  const [digitalStats, setDigitalStats] = useState<{ total_impressions: number; zones_count: number; campaign_name: string } | null>(null);
+  const [digitalPalette, setDigitalPalette] = useState('teal');
+  const [digitalInverted, setDigitalInverted] = useState(false);
+  const [digitalScale, setDigitalScale] = useState('region');
+  const [digitalCompareView, setDigitalCompareView] = useState(true);
+  const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
+
+  // Auto-activate Digital layer from sidebar shortcut (?layer=digital)
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('layer') === 'digital') {
+      setDigitalVisible(true);
+    }
+  }, [searchParams]);
+  const digitalPercentilesRef = useRef<number[]>([]);
+  const digitalCampaignIdRef = useRef<string>('');
+
+  const radioFetchRef = useRef<AbortController | null>(null);
   // Corrélation IRIS × POI — params depuis le chat
   const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
   // Résidus de corrélation — layer MVT (match expression sur iris-source)
@@ -168,6 +212,148 @@ export default function MapPage() {
       try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
     }
   }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: GeoJSON source + layers ──────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (map.getSource('digital-cp')) return; // already added
+
+    map.addSource('digital-cp', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+
+    map.addLayer({
+      id: 'digital-cp-fill',
+      type: 'fill',
+      source: 'digital-cp',
+      paint: {
+        'fill-color': 'rgba(78, 205, 196, 0.06)',
+        'fill-opacity': 0.8,
+      },
+      layout: { visibility: 'none' },
+    });
+
+    map.addLayer({
+      id: 'digital-cp-line',
+      type: 'line',
+      source: 'digital-cp',
+      paint: {
+        'line-color': 'rgba(78, 205, 196, 0.35)',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.3, 9, 0.8, 12, 1.2] as unknown as maplibregl.ExpressionSpecification,
+        'line-opacity': 0.6,
+      },
+      layout: { visibility: 'none' },
+    });
+  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: visibility sync ────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = digitalVisible ? 'visible' : 'none';
+    if (map.getLayer('digital-cp-fill')) map.setLayoutProperty('digital-cp-fill', 'visibility', vis);
+    if (map.getLayer('digital-cp-line')) map.setLayoutProperty('digital-cp-line', 'visibility', vis);
+  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: re-fetch when scale changes (if already visible) ───────────────
+  useEffect(() => {
+    if (!digitalVisible || !digitalCampaignIdRef.current) return;
+    const cid = digitalCampaignIdRef.current;
+    const map = mapRef.current;
+    if (!map) return;
+
+    setDigitalLoading(true);
+    adminFetch(`/api/digital/${cid}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`)
+      .then(r => r.ok ? r.json() as Promise<GeoJSON.FeatureCollection> : null)
+      .then(fc => {
+        if (!fc) return;
+        const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+        if (src) src.setData(fc);
+
+        const values = fc.features.map(f => Number(f.properties?.impressions) || 0).filter(v => v > 0).sort((a, b) => a - b);
+        if (values.length > 0) {
+          const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
+          digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
+        }
+
+        const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+        const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+        const pts = digitalPercentilesRef.current;
+        const pairs: (string | number)[] = [];
+        for (let i = 0; i < Math.min(stops.length, pts.length); i++) pairs.push(pts[i], stops[i]);
+        map.setPaintProperty('digital-cp-fill', 'fill-color', [
+          'case', ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
+          ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
+        ]);
+        map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+
+        const totalImp = values.reduce((a, b) => a + b, 0);
+        setDigitalStats(prev => prev ? { ...prev, total_impressions: totalImp, zones_count: fc.features.length } : prev);
+      })
+      .finally(() => setDigitalLoading(false));
+  }, [digitalScale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: apply palette when palette/inverted/percentiles change ─────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !digitalVisible) return;
+    if (!map.getLayer('digital-cp-fill')) return;
+
+    const pts = digitalPercentilesRef.current;
+    if (pts.length < 6) return; // need percentiles
+
+    const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+    const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+
+    // Build interpolation: p10, p25, p50, p75, p90, max
+    const pairs: (string | number)[] = [];
+    for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
+      pairs.push(pts[i], stops[i]);
+    }
+
+    map.setPaintProperty('digital-cp-fill', 'fill-color', [
+      'case',
+      ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
+      ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
+        ...pairs,
+      ],
+    ]);
+    map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+  }, [digitalPalette, digitalInverted, digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Digital: hover popup ────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !digitalVisible) return;
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '260px' });
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; popup.remove(); };
+    const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties;
+      popup.setLngLat(e.lngLat).setHTML(`
+        <div style="font-family:Inter,sans-serif;font-size:11px;color:var(--text-primary);background:var(--bg-surface);padding:8px 10px;border-radius:6px;border:0.5px solid var(--border-default)">
+          <div style="font-weight:500;margin-bottom:4px">${esc(p.code)} — ${esc(p.nom)}</div>
+          <div style="color:var(--text-secondary)">Impressions: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
+          ${p.pop_total ? `<div style="color:var(--text-secondary)">Population: <span style="color:var(--text-primary);font-family:'JetBrains Mono',monospace">${Number(p.pop_total).toLocaleString('fr-FR')}</span></div>` : ''}
+          ${p.imp_pour_mille ? `<div style="color:var(--text-secondary)">Imp./1000 hab: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.imp_pour_mille).toLocaleString('fr-FR')}</span></div>` : ''}
+        </div>
+      `).addTo(map);
+    };
+
+    map.on('mouseenter', 'digital-cp-fill', onEnter);
+    map.on('mouseleave', 'digital-cp-fill', onLeave);
+    map.on('mousemove', 'digital-cp-fill', onMove);
+    return () => {
+      map.off('mouseenter', 'digital-cp-fill', onEnter);
+      map.off('mouseleave', 'digital-cp-fill', onLeave);
+      map.off('mousemove', 'digital-cp-fill', onMove);
+      popup.remove();
+    };
+  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -273,7 +459,7 @@ export default function MapPage() {
         type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 5,
+        minzoom: 2,
         paint: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'fill-color':   matchExpr as any,
@@ -301,11 +487,11 @@ export default function MapPage() {
         : (d.residual >  0.5 ? '#22c55e' : d.residual < -0.5 ? '#ef4444' : '#e2e8f0');
       new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
         .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:#e2e8f0;padding:12px;">
-          <strong style="font-size:12px;color:#4ecdc4;">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
-          <div style="font-size:11px;color:#666666;margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
+        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:var(--text-primary);padding:12px;">
+          <strong style="font-size:12px;color:var(--brand-teal);">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
           <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
-          <div style="font-size:11px;color:#94a3b8;">
+          <div style="font-size:11px;color:var(--text-secondary);">
             POI réels : <strong>${d.poi_count}</strong><br/>
             POI prédits : <strong>${d.predicted.toFixed(2)}</strong><br/>
             Métrique : <strong>${d.metric_value.toLocaleString('fr')}</strong>
@@ -376,6 +562,165 @@ export default function MapPage() {
     const data: GeoJSON.FeatureCollection = await res.json();
     setTmjaGeoJSON(data);
   };
+
+  // ── Radio émetteurs — fetch + sync ─────────────────────────────────────────
+  const handleLoadRadio = useCallback(async () => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    setRadioLoading(true);
+    radioFetchRef.current?.abort();
+    const ctrl = new AbortController();
+    radioFetchRef.current = ctrl;
+    try {
+      const params = new URLSearchParams();
+      if (radioSelectedId) {
+        // When a specific radio is selected, load ALL its emitters (no bbox)
+        params.set('radio_id', radioSelectedId);
+      } else {
+        // Otherwise use bbox
+        const b = map.getBounds();
+        params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
+      }
+      if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
+      const res = await adminFetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
+      if (!res.ok) return;
+      const data: GeoJSON.FeatureCollection = await res.json();
+      setRadioGeoJSON(data);
+
+      // FitBounds if specific radio selected
+      if (radioSelectedId && data.features.length > 0) {
+        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+        for (const f of data.features) {
+          if (f.geometry?.type === 'Point') {
+            const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          }
+        }
+        if (minLng < maxLng) {
+          map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 1000 });
+        }
+      }
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') console.error('[radio]', e);
+    } finally {
+      setRadioLoading(false);
+    }
+  }, [mapReady, radioSystemeFilter, radioSelectedId]);
+
+  // Sync radio GeoJSON → map source + layer visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const showClusters = radioVisible && !radioHeatmapMode;
+    const showHeatmap  = radioVisible && radioHeatmapMode;
+    const showPoints   = radioVisible && !radioHeatmapMode;
+
+    // Update source data
+    if (radioGeoJSON) {
+      const src = map.getSource('radio-emetteurs') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(radioGeoJSON);
+    }
+
+    // Toggle layer visibility
+    try { map.setLayoutProperty('radio-clusters', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-cluster-count', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-points', 'visibility', showPoints ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-heatmap', 'visibility', showHeatmap ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-coverage-fill', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
+    try { map.setLayoutProperty('radio-coverage-line', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
+
+    // Sync paint properties for controls
+    try { map.setPaintProperty('radio-coverage-fill', 'fill-color', radioCoverageColor); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-fill', 'fill-opacity', radioCoverageOpacity / 100); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-color', radioCoverageColor); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-opacity', Math.min(radioCoverageOpacity / 100 + 0.2, 1)); } catch { /* */ }
+    try { map.setPaintProperty('radio-coverage-line', 'line-width', radioBorderWidth); } catch { /* */ }
+
+    // Point size + highlight mode
+    if (radioSelectedId) {
+      try {
+        map.setPaintProperty('radio-points', 'circle-color', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], 'var(--brand-teal)', '#4b5563',
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-opacity', [
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
+      } catch { /* */ }
+    } else {
+      try {
+        map.setPaintProperty('radio-points', 'circle-color', [
+          'match', ['get', 'portee'],
+          'nationale', '#3b82f6', 'locale', '#22c55e', 'autoroute', '#eab308', '#6b7280',
+        ] as unknown as maplibregl.ExpressionSpecification);
+        map.setPaintProperty('radio-points', 'circle-opacity', 0.9);
+        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
+      } catch { /* */ }
+    }
+  }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady, radioCoverageColor, radioCoverageOpacity, radioBorderWidth, radioPointSize, radioSelectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load radio data when visible — different strategy for selected radio vs global view
+  const lastRadioBboxRef = useRef('');
+  useEffect(() => {
+    if (!radioVisible || !mapReady) return;
+    handleLoadRadio();
+
+    // If a specific radio is selected, load once and don't reload on move
+    if (radioSelectedId) return;
+
+    // Global view: reload on moveend with debounce + bbox change check
+    const map = mapRef.current;
+    if (!map) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const debouncedMove = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = map.getBounds();
+        const newBbox = `${b.getWest().toFixed(2)},${b.getSouth().toFixed(2)},${b.getEast().toFixed(2)},${b.getNorth().toFixed(2)}`;
+        if (newBbox === lastRadioBboxRef.current) return; // bbox hasn't changed significantly
+        lastRadioBboxRef.current = newBbox;
+        handleLoadRadio();
+      }, 600);
+    };
+    map.on('moveend', debouncedMove);
+    return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
+  }, [radioVisible, mapReady, radioSelectedId, handleLoadRadio]);
+
+  // Generate coverage circles client-side when coverage mode is active
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !radioCoverageMode || !radioGeoJSON) return;
+    const src = map.getSource('radio-coverage') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+
+    // Generate circles (limit to 500)
+    const features = radioGeoJSON.features.slice(0, 500);
+    const circles: GeoJSON.Feature[] = [];
+    for (const f of features) {
+      if (f.geometry.type !== 'Point') continue;
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+      const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
+      if (!radius || radius < 100) continue;
+      // Simple circle approximation (64 segments)
+      const coords: [number, number][] = [];
+      for (let i = 0; i <= 64; i++) {
+        const angle = (i / 64) * 2 * Math.PI;
+        const dlat = (radius / 111320) * Math.cos(angle);
+        const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+        coords.push([lng + dlng, lat + dlat]);
+      }
+      circles.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { color: 'var(--brand-teal)' },
+      });
+    }
+    src.setData({ type: 'FeatureCollection', features: circles });
+  }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
   const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
@@ -523,7 +868,7 @@ export default function MapPage() {
     if (useDensity) {
       // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
       const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? '#4ecdc4';
+      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
@@ -562,13 +907,13 @@ export default function MapPage() {
         const nom = esc(p.nom || 'POI');
         const audienceVal = p.audience;
         const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="font-size:12px;padding:6px 8px;color:#888">` +
+          `<div style="font-size:12px;padding:6px 8px;color:var(--text-secondary)">` +
           (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-          `<strong style="color:#fff;font-size:13px">${nom}</strong><br/>` +
+          `<strong style="color:var(--text-primary);font-size:13px">${nom}</strong><br/>` +
           `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
-          (p.sous_categorie ? ` <span style="color:#555;font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
-          (audienceVal != null ? `<br/><span style="color:#3dffa0;font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:#555;font-size:11px">${esc(p.adresse)}</span>` : '') +
+          (p.sous_categorie ? ` <span style="color:var(--text-tertiary);font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
+          (audienceVal != null ? `<br/><span style="color:var(--success);font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
+          (p.adresse ? `<br/><span style="color:var(--text-tertiary);font-size:11px">${esc(p.adresse)}</span>` : '') +
           `</div>`
         );
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
@@ -587,7 +932,7 @@ export default function MapPage() {
 
     // Marqueur ville
     const cityEl = document.createElement('div');
-    cityEl.style.cssText = 'width:10px;height:10px;background:#4ecdc4;border:2px solid #fff;border-radius:2px';
+    cityEl.style.cssText = 'width:10px;height:10px;background:var(--brand-teal);border:2px solid #fff;border-radius:2px';
     markersRef.current.push(new maplibregl.Marker({ element: cityEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
 
     if (zoneData.pois.length > 1) {
@@ -1031,7 +1376,7 @@ export default function MapPage() {
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: '#060608' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)' }}>
       <div style={{
         transition: 'margin-left 0.3s ease, opacity 0.3s ease',
         marginLeft: mapFullscreen ? '-100%' : 0,
@@ -1183,8 +1528,107 @@ export default function MapPage() {
         onLoadTMJA={handleLoadTMJA}
         tmjaVisible={!!tmjaGeoJSON}
         onClearTMJA={() => setTmjaGeoJSON(null)}
+        radioVisible={radioVisible}
+        onToggleRadio={() => setRadioVisible(v => !v)}
+        radioHeatmapMode={radioHeatmapMode}
+        onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+        radioCoverageMode={radioCoverageMode}
+        onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+        radioLoading={radioLoading}
+        radioSystemeFilter={radioSystemeFilter}
+        onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
+        onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+        radioCount={radioGeoJSON?.features.length ?? 0}
+        radioSelectedNom={radioSelectedNom}
+        onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+        radioCoverageColor={radioCoverageColor}
+        onRadioCoverageColorChange={setRadioCoverageColor}
+        radioCoverageOpacity={radioCoverageOpacity}
+        onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+        radioBorderWidth={radioBorderWidth}
+        onRadioBorderWidthChange={setRadioBorderWidth}
+        radioPointSize={radioPointSize}
+        onRadioPointSizeChange={setRadioPointSize}
+        onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
         correlationParams={correlationParams}
         onShowResiduals={handleShowResiduals}
+        digitalVisible={digitalVisible}
+        digitalLoading={digitalLoading}
+        digitalStats={digitalStats}
+        digitalPalette={digitalPalette}
+        onDigitalPaletteChange={setDigitalPalette}
+        digitalInverted={digitalInverted}
+        onDigitalInvertChange={setDigitalInverted}
+        digitalScale={digitalScale}
+        onDigitalScaleChange={setDigitalScale}
+        onDigitalShowImpressions={async (campaignId: string) => {
+          if (!campaignId) return;
+          digitalCampaignIdRef.current = campaignId;
+          setDigitalLoading(true);
+          mapLayers.setIrisVisible(false);
+          try {
+            const map = mapRef.current;
+            if (!map) return;
+
+            // Always load all of France (metro + DOM)
+            const res = await adminFetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const fc = await res.json() as GeoJSON.FeatureCollection;
+
+            const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+            if (src) src.setData(fc);
+
+            // Compute percentiles for palette
+            const values = fc.features
+              .map(f => Number(f.properties?.impressions) || 0)
+              .filter(v => v > 0)
+              .sort((a, b) => a - b);
+
+            if (values.length > 0) {
+              const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
+              digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
+            } else {
+              digitalPercentilesRef.current = [0, 1, 10, 100, 1000, 10000];
+            }
+
+            // Apply palette
+            const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+            const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+            const pts = digitalPercentilesRef.current;
+            const pairs: (string | number)[] = [];
+            for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
+              pairs.push(pts[i], stops[i]);
+            }
+            map.setPaintProperty('digital-cp-fill', 'fill-color', [
+              'case',
+              ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
+              ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
+            ]);
+            map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+
+            const totalImp = values.reduce((a, b) => a + b, 0);
+            // Get campaign name
+            const campRes = await adminFetch('/api/digital/campaigns');
+            const camps = campRes.ok ? await campRes.json() : [];
+            const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
+
+            setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
+            setDigitalVisible(true);
+          } catch (err: unknown) {
+            console.error('[digital]', err);
+          } finally {
+            setDigitalLoading(false);
+          }
+        }}
+        onDigitalClear={() => {
+          setDigitalVisible(false);
+          setDigitalStats(null);
+          setDigitalAnalysisOpen(false);
+          const map = mapRef.current;
+          const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+          src?.setData({ type: 'FeatureCollection', features: [] });
+        }}
+        onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
       />
       </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
@@ -1193,7 +1637,7 @@ export default function MapPage() {
         {/* Tab bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 0,
-          background: '#050505', borderBottom: '0.5px solid #1a1a1a',
+          background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border-subtle)',
           padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
           position: 'relative',
         }}>
@@ -1204,23 +1648,23 @@ export default function MapPage() {
                 padding: '0 18px', height: '100%', position: 'relative',
                 background: 'transparent',
                 border: 'none',
-                color: active ? '#f0f0f0' : '#666666',
+                color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
                 letterSpacing: '0.01em', cursor: 'pointer',
                 transition: 'color 0.2s ease',
               }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
               >
                 {tab === 'map' ? 'Carte' : 'Étude'}
                 {tab === 'study' && studyVille && (
-                  <span style={{ marginLeft: 6, fontSize: 9, color: '#4ecdc4', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
+                  <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--brand-teal)', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
                 )}
                 {/* Underline that grows from center */}
                 <span style={{
                   position: 'absolute', bottom: 0, left: '50%',
                   width: active ? '100%' : '0%',
-                  height: 2, background: '#4ecdc4',
+                  height: 2, background: 'var(--brand-teal)',
                   transform: 'translateX(-50%)',
                   transition: 'width 0.25s ease',
                 }} />
@@ -1241,16 +1685,57 @@ export default function MapPage() {
             title={mapFullscreen ? 'Quitter le plein écran (Escape)' : 'Carte plein écran'}
             style={{
               position: 'absolute', top: 10, right: 10, zIndex: 20,
-              background: '#0a0a0a', border: '0.5px solid #262626',
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#a0a0a0', transition: 'all 0.15s ease',
+              color: 'var(--text-secondary)', transition: 'all 0.15s ease',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#111111'; e.currentTarget.style.borderColor = '#333333'; e.currentTarget.style.color = '#f0f0f0'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#0a0a0a'; e.currentTarget.style.borderColor = '#262626'; e.currentTarget.style.color = '#a0a0a0'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
             {mapFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
           </button>
+
+          {/* Toggle vue comparée / fusionnée — visible uniquement quand Digital actif */}
+          {digitalVisible && (
+            <div style={{
+              position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 25,
+              display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden',
+              border: '0.5px solid var(--border-default)',
+              background: 'var(--bg-surface)',
+            }}>
+              {[
+                { id: true, label: 'Vue comparee' },
+                { id: false, label: 'Vue fusionnee' },
+              ].map(opt => (
+                <button
+                  key={String(opt.id)}
+                  onClick={() => setDigitalCompareView(opt.id)}
+                  style={{
+                    padding: '6px 14px', border: 'none', cursor: 'pointer',
+                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+                    background: digitalCompareView === opt.id ? 'rgba(78,205,196,0.12)' : 'transparent',
+                    color: digitalCompareView === opt.id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Triple map view — visible when Digital active + vue comparée */}
+          {digitalVisible && digitalCompareView && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 15 }}>
+              <TripleMapView
+                campaignId={digitalCampaignIdRef.current}
+                scale={digitalScale}
+                popField="population"
+                metric="impressions"
+              />
+            </div>
+          )}
 
       <MapPanel
         mapContainerRef={mapContainerRef}
@@ -1302,14 +1787,14 @@ export default function MapPage() {
             <div style={{
               position: 'absolute', bottom: 44, left: 12, zIndex: 100,
               background: 'rgba(5,5,5,0.92)',
-              border: '1px solid #1a1a1a',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 2,
               padding: '10px 12px',
               minWidth: 200,
               fontFamily: "'JetBrains Mono','Fira Mono',monospace",
             }}>
               {/* Titre */}
-              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: '#4ecdc4', marginBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: 'var(--brand-teal)', marginBottom: 6 }}>
                 RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
               </div>
 
@@ -1336,39 +1821,39 @@ export default function MapPage() {
               ).map(({ color, label }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                   <span style={{ width: 10, height: 10, background: color, borderRadius: 1, flexShrink: 0, opacity: 0.85 }} />
-                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>{label}</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>{label}</span>
                 </div>
               ))}
 
               {/* Séparateur */}
-              <div style={{ borderTop: '1px solid #1a1a1a', marginTop: 8, paddingTop: 8 }}>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8, paddingTop: 8 }}>
 
                 {/* Slider opacité */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                     OPACITÉ
                   </span>
                   <input
                     type="range" min={0.1} max={1} step={0.05}
                     value={residualOpacity}
                     onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
-                    style={{ flex: 1, accentColor: '#4ecdc4', cursor: 'pointer', height: 4 }}
+                    style={{ flex: 1, accentColor: 'var(--brand-teal)', cursor: 'pointer', height: 4 }}
                   />
-                  <span style={{ fontSize: 8, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
+                  <span style={{ fontSize: 8, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>
                     {Math.round(residualOpacity * 100)}%
                   </span>
                 </div>
 
                 {/* Toggle inversion */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 8.5, color: '#8888aa' }}>Inverser couleurs</span>
+                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>Inverser couleurs</span>
                   <button
                     onClick={() => handleResidualInvert(!residualInverted)}
                     style={{
                       position: 'relative',
                       width: 32, height: 16,
-                      background: residualInverted ? '#4ecdc4' : '#1a1a1a',
-                      border: `1px solid ${residualInverted ? '#4ecdc4' : '#262626'}`,
+                      background: residualInverted ? 'var(--brand-teal)' : 'var(--border-subtle)',
+                      border: `1px solid ${residualInverted ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                       borderRadius: 8,
                       cursor: 'pointer',
                       transition: 'background 150ms, border-color 150ms',
@@ -1387,13 +1872,13 @@ export default function MapPage() {
                     }} />
                   </button>
                 </div>
-                <div style={{ fontSize: 7.5, color: '#666666', marginBottom: 6 }}>
+                <div style={{ fontSize: 7.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
                   Rouge = {residualInverted ? 'excédent' : 'déficit'}
                 </div>
               </div>
 
               {/* Stats */}
-              <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: 6, fontSize: 8, color: '#666666' }}>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 6, fontSize: 8, color: 'var(--text-tertiary)' }}>
                 {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
               </div>
 
@@ -1402,8 +1887,8 @@ export default function MapPage() {
                 onClick={() => handleShowResiduals(null)}
                 style={{
                   marginTop: 6, width: '100%', padding: '4px 0',
-                  background: 'transparent', border: '1px solid #262626',
-                  borderRadius: 2, color: '#666666', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
+                  background: 'transparent', border: '1px solid var(--border-default)',
+                  borderRadius: 2, color: 'var(--text-tertiary)', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
                   fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
                 }}
               >
@@ -1431,11 +1916,47 @@ export default function MapPage() {
               />
             </div>
           )}
+
+          {/* Drawer analyse détaillée Digital */}
+          {digitalAnalysisOpen && digitalCampaignIdRef.current && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
+              height: '50%', minHeight: 300,
+              background: 'var(--bg-surface)',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex', flexDirection: 'column',
+              transition: 'transform 0.3s ease',
+            }}>
+              <div style={{
+                padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0,
+              }}>
+                <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Analyse detaillee
+                </span>
+                <button
+                  onClick={() => setDigitalAnalysisOpen(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+                >×</button>
+              </div>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <DigitalAnalysisPanel
+                  campaignId={digitalCampaignIdRef.current}
+                  scale={digitalScale}
+                  popField="population"
+                  selectedMedia={[]}
+                  metric="impressions"
+                  open={digitalAnalysisOpen}
+                  onToggle={() => setDigitalAnalysisOpen(false)}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Study dashboard — lazy, affiché quand onglet Étude */}
         {activeTab === 'study' && (
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: '#060608' }}>
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
             <StudyDashboard
               ville={studyVille}
               onPanneauClick={(lat, lng) => {

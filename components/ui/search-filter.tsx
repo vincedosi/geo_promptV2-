@@ -20,7 +20,7 @@ export function SearchFilter({
         style={{
           position: 'absolute', left: 10, top: '50%',
           transform: 'translateY(-50%)',
-          color: '#666666', pointerEvents: 'none',
+          color: 'var(--text-tertiary)', pointerEvents: 'none',
         }}
       />
       <input
@@ -30,18 +30,18 @@ export function SearchFilter({
         placeholder={placeholder}
         style={{
           width: '100%',
-          background: '#111111',
-          border: '0.5px solid #1a1a1a',
+          background: 'var(--bg-level-2)',
+          border: '0.5px solid var(--border-subtle)',
           borderRadius: 6,
           padding: '7px 30px 7px 32px',
           fontSize: 12,
-          color: '#f0f0f0',
+          color: 'var(--text-primary)',
           fontFamily: "'Inter', system-ui, sans-serif",
           outline: 'none',
           transition: 'border-color 0.15s ease',
         }}
         onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)' }}
-        onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a' }}
+        onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
       />
       {value && (
         <button
@@ -50,12 +50,12 @@ export function SearchFilter({
             position: 'absolute', right: 6, top: '50%',
             transform: 'translateY(-50%)',
             background: 'none', border: 'none', cursor: 'pointer',
-            color: '#666666', padding: 2,
+            color: 'var(--text-tertiary)', padding: 2,
             display: 'flex', alignItems: 'center',
             transition: 'color 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#a0a0a0' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#666666' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
         >
           <X size={12} />
         </button>

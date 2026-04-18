@@ -1,0 +1,159 @@
+/**
+ * POST /api/radio/import-arcom-ods
+ * Import Arcom ODS reference file — creates/updates radios with frequencies.
+ * Super-admin only. Accepts multipart/form-data with .ods file.
+ * Returns NDJSON streaming progress.
+ */
+import { NextRequest } from 'next/server';
+import { createAdminClient } from '@/lib/auth';
+import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { ImportLogger } from '@/lib/radio/import-logger';
+import { parseArcomODS, aggregateByRadio } from '@/lib/radio/arcom-ods-parser';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
+
+export async function POST(req: NextRequest) {
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
+  const formData = await req.formData();
+  const file = formData.get('file') as File | null;
+  if (!file) {
+    return Response.json({ error: 'Fichier .ods requis (champ "file")' }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  // Create import log
+  const { data: logData } = await supabase
+    .from('radio_imports_log')
+    .insert({ type: 'arcom', status: 'running', source_file: file.name })
+    .select('id')
+    .single();
+  const logId = logData?.id ?? 'unknown';
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => {
+        try { controller.enqueue(encoder.encode(JSON.stringify(event) + '\n')); } catch { /* closed */ }
+      };
+      const logger = new ImportLogger(supabase, logId, send);
+
+      try {
+        // Phase PARSE
+        const buffer = Buffer.from(await file.arrayBuffer());
+        await logger.info('PARSE', `Parsing du fichier ${file.name} (${(buffer.length / 1024).toFixed(0)} Ko)...`);
+
+        const entries = parseArcomODS(buffer);
+        const aggregated = aggregateByRadio(entries);
+
+        await logger.info('PARSE', `${entries.length} entrées parsées, ${aggregated.length} radios uniques`);
+
+        // Category breakdown
+        const catCounts: Record<string, number> = {};
+        for (const e of entries) {
+          catCounts[e.categorie_arcom] = (catCounts[e.categorie_arcom] ?? 0) + 1;
+        }
+        await logger.info('VALIDATE', `Catégories : ${Object.entries(catCounts).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+
+        // Phase CLEANUP — remove junk auto-created radios
+        await logger.phase('CLEANUP', async () => {
+          // Nullify FK references to junk radios
+          const { data: junkRadios } = await supabase
+            .from('radios')
+            .select('id')
+            .or('nom.like.Radio %.% MHz%,nom.eq.TDF,nom.eq.TOWERCAST,nom.eq.Site privé,nom.eq.ARCOM');
+
+          if (junkRadios && junkRadios.length > 0) {
+            const junkIds = junkRadios.map(r => r.id);
+            for (let i = 0; i < junkIds.length; i += 200) {
+              const batch = junkIds.slice(i, i + 200);
+              await supabase.from('emetteurs_radio').update({ radio_id: null }).in('radio_id', batch);
+            }
+            for (let i = 0; i < junkIds.length; i += 200) {
+              const batch = junkIds.slice(i, i + 200);
+              await supabase.from('radios').delete().in('id', batch);
+            }
+            await logger.info('CLEANUP', `${junkRadios.length} radios bidons supprimées`);
+          } else {
+            await logger.info('CLEANUP', 'Aucune radio bidon à supprimer');
+          }
+        });
+
+        // Phase UPSERT — insert/update all radios from ODS
+        let created = 0, updated = 0;
+        await logger.phase('UPSERT', async () => {
+          for (let i = 0; i < aggregated.length; i++) {
+            const r = aggregated[i];
+            const { data: existing } = await supabase
+              .from('radios')
+              .select('id')
+              .eq('nom', r.nom)
+              .limit(1)
+              .single();
+
+            const radioData = {
+              nom: r.nom,
+              categorie_arcom: r.categorie_arcom,
+              portee: r.portee,
+              groupe_media: r.titulaire,
+              metadata: {
+                frequences_fm: r.frequences_fm,
+                frequences_dab: r.frequences_dab,
+                blocs_dab: r.blocs_dab,
+                categorie_label: r.categorie_label,
+                titulaire: r.titulaire,
+                source: 'arcom_ods',
+                import_date: new Date().toISOString().slice(0, 10),
+              },
+            };
+
+            if (existing) {
+              await supabase.from('radios').update(radioData).eq('id', existing.id);
+              updated++;
+            } else {
+              await supabase.from('radios').insert(radioData);
+              created++;
+            }
+
+            if ((i + 1) % 100 === 0) {
+              await logger.info('UPSERT', `${i + 1}/${aggregated.length} radios traitées (${created} créées, ${updated} mises à jour)`);
+            }
+          }
+          await logger.info('UPSERT', `Terminé : ${created} créées, ${updated} mises à jour`);
+        });
+
+        // Phase FINALIZE
+        const totalFm = aggregated.reduce((s, r) => s + r.frequences_fm.length, 0);
+        const totalDab = aggregated.reduce((s, r) => s + r.frequences_dab.length, 0);
+
+        await supabase.from('radio_imports_log').update({
+          status: 'success',
+          completed_at: new Date().toISOString(),
+          stats: { radios: aggregated.length, created, updated, frequences_fm: totalFm, frequences_dab: totalDab },
+        }).eq('id', logId);
+
+        await logger.success('FINALIZE', `Import terminé : ${aggregated.length} radios (${created} créées, ${updated} mises à jour), ${totalFm} fréquences FM, ${totalDab} fréquences DAB+`);
+
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await logger.error('FATAL', msg, { stack: err instanceof Error ? err.stack : undefined });
+        await supabase.from('radio_imports_log').update({
+          status: 'error', completed_at: new Date().toISOString(), error_message: msg,
+        }).eq('id', logId);
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}

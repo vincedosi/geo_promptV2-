@@ -25,9 +25,9 @@ export default function GeoBot({ status = 'idle', size = 36, show = true }: GeoB
   const active = t || s;
 
   // Head stroke color: teal when active
-  const headStroke = active || d ? '#4ecdc4' : '#262626';
+  const headStroke = active || d ? 'var(--brand-teal)' : 'var(--border-default)';
   // Chest indicator color
-  const chestColor = d ? '#3dffa0' : '#4ecdc4';
+  const chestColor = d ? '#3dffa0' : 'var(--brand-teal)';
   const chestOpacity = s ? 1 : t ? undefined : d ? 0.6 : 0.4;
 
   return (

@@ -62,9 +62,14 @@ export async function PATCH(
   if (!profile) return adminUnauthorized();
 
   try {
+    const body = await request.json();
+
+    if (profile.role !== 'super_admin' && body.organization_id && body.organization_id !== profile.organization_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = createAdminClient();
     const { id } = params;
-    const body = await request.json();
 
     // Allowed update fields
     const updates: Record<string, unknown> = {};
@@ -130,8 +135,8 @@ export async function DELETE(
           await supabase.rpc('drop_carreaux_table', { table_name: tableName });
           deletedCarreaux = true;
           console.log(`[delete-source] Table carreaux '${tableName}' supprimée`);
-        } catch (dropErr: any) {
-          console.error(`[delete-source] Erreur DROP table '${tableName}':`, dropErr.message);
+        } catch (dropErr: unknown) {
+          console.error(`[delete-source] Erreur DROP table '${tableName}':`, dropErr instanceof Error ? dropErr.message : String(dropErr));
           // Fallback: try deleting directly if RPC doesn't exist
           // The table will be orphaned but the source entry will still be removed
         }

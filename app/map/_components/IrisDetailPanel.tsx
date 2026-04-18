@@ -5,15 +5,15 @@ import { SkeletonText } from '@/components/ui/GeoSkeleton';
 
 // ─── Tokens design system (GEOMATIK) ──────────────────────────────────────────
 const C = {
-  bg:      '#0a0a0a',
-  bgPanel: '#111111',
-  border:  '#1a1a1a',
-  accent:  '#4ecdc4',
-  green:   '#3dffa0',
-  text:    '#f0f0f0',
-  dim:     '#666666',
-  red:     '#ff5757',
-  yellow:  '#f7b731',
+  bg:      'var(--bg-surface)',
+  bgPanel: 'var(--bg-level-2)',
+  border:  'var(--border-subtle)',
+  accent:  'var(--brand-teal)',
+  green:   'var(--success)',
+  text:    'var(--text-primary)',
+  dim:     'var(--text-tertiary)',
+  red:     'var(--danger)',
+  yellow:  'var(--warning)',
 };
 const fMono = "'JetBrains Mono',monospace";
 const fLabel = "'Inter',system-ui,sans-serif";
@@ -81,7 +81,7 @@ function BarRow({ col, raw }: { col: typeof IRIS_DB_COLUMNS[number]; raw: unknow
           <div style={{
             height: '100%',
             width: `${pct}%`,
-            background: pct > 60 ? C.accent : pct > 30 ? C.green : '#4ecdc4',
+            background: pct > 60 ? C.accent : pct > 30 ? C.green : 'var(--brand-teal)',
             borderRadius: 2,
             transition: 'width 0.4s ease',
           }} />

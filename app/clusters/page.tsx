@@ -6,17 +6,17 @@ import { FEATURE_THEMES } from '@/lib/clustering/feature-themes';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#050505',
-  bgPanel: '#0a0a0a',
-  bgCard:  '#0a0a0a',
-  border:  '#1a1a1a',
-  accent:  '#4ecdc4',
-  green:   '#3dffa0',
+  bg:      'var(--bg-primary)',
+  bgPanel: 'var(--bg-surface)',
+  bgCard:  'var(--bg-surface)',
+  border:  'var(--border-subtle)',
+  accent:  'var(--brand-teal)',
+  green:   'var(--success)',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#f0f0f0',
-  muted:   '#a0a0a0',
-  dim:     '#666666',
+  text:    'var(--text-primary)',
+  muted:   'var(--text-secondary)',
+  dim:     'var(--text-tertiary)',
 };
 const fMono  = "'JetBrains Mono','Fira Mono',monospace";
 const fInter = "'Inter', system-ui, sans-serif";
@@ -64,7 +64,7 @@ function ClusterMiniBar({
   const cids = Object.keys(labels).sort((a, b) => Number(a) - Number(b));
   if (!cids.length) return null;
 
-  const COLORS = ['#4ecdc4','#a0a0a0','#5b9bd5','#f7b731','#3dffa0','#ff9da7','#b07aa1','#edc948'];
+  const COLORS = ['var(--brand-teal)','#a0a0a0','#5b9bd5','#f7b731','#3dffa0','#ff9da7','#b07aa1','#edc948'];
 
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
@@ -319,7 +319,7 @@ function DeleteModal({
             disabled={deleting}
             style={{
               fontFamily: fInter, fontSize: 12,
-              color: '#050505', background: deleting ? C.red + '60' : C.red,
+              color: 'var(--bg-primary)', background: deleting ? C.red + '60' : C.red,
               border: `1px solid ${C.red}`, borderRadius: 2,
               padding: '8px 16px', cursor: deleting ? 'default' : 'pointer',
               transition: 'background 0.15s',
@@ -379,7 +379,7 @@ export default function ClustersIndexPage() {
         setModels(prev => prev.filter(m => m.version !== confirmModel.version));
         setConfirmModel(null);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       setDeleteError(String(e));
     } finally {
       setDeleting(false);

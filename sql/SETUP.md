@@ -104,6 +104,9 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreaux_5km` | migrations/034 | ~17k cellules 5km pré-agrégées |
 | `carreaux_1km` | migrations/044 | ~250k cellules 1km pré-agrégées (fix trous z10-12) |
 | `france_borders` | (manuel) | MultiPolygon France — requis pour clip isochrones |
+| `dsp_campaigns` | migrations/20260408 | Campagnes DSP (Adform, DV360…) |
+| `dsp_campaign_data` | migrations/20260408 | Lignes d'impressions DSP (~280k/campagne), CASCADE |
+| `postal_code_commune` | migrations/20260408 | Référentiel La Poste (~35k), peuplé via geo.api.gouv.fr |
 
 ## Fonctions RPC actives (état final)
 
@@ -119,6 +122,8 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `get_tile()` | migrations/045 | Tuiles MVT multi-res : z>=13: 200m, z10-12: 1km, z8-9: 2km, z6-7: 5km |
 | `get_table_sizes()` | 004 | Tailles des tables (monitoring) |
 | `notify_pgrst_reload()` | 005_upsert | Reload cache PostgREST |
+| `match_campaign_postal_to_iris()` | migrations/20260408 | Matching DSP postal → commune → IRIS |
+| `get_dsp_campaign_stats()` | migrations/20260408 | Stats agrégées par campagne (COUNT FILTER) |
 
 ---
 

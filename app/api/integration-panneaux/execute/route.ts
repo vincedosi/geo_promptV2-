@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
   console.log('[execute] ▶ POST reçu');
 
   const profile = await requireAdmin(request);
-  console.log('[execute] profile:', profile ? profile.email : 'null (non autorisé)');
   if (!profile) return new Response('Unauthorized', { status: 401 });
 
   // ── Parse request body BEFORE creating the stream ──────────

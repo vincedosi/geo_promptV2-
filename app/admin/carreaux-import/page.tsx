@@ -240,18 +240,18 @@ function fmtNum(n: number): string {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
-  bg: '#050505',
-  bgElevated: '#0a0a0a',
-  bgSurface: '#111111',
-  border: '#1a1a1a',
-  borderLight: 'rgba(78,205,196,0.2)',
-  accent: '#4ecdc4',
-  accentDim: 'rgba(78,205,196,0.08)',
-  text: '#f0f0f0',
-  textDim: '#a0a0a0',
-  textSec: '#666666',
+  bg: 'var(--bg-primary)',
+  bgElevated: 'var(--bg-surface)',
+  bgSurface: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)',
+  borderLight: 'var(--brand-teal-30)',
+  accent: 'var(--brand-teal)',
+  accentDim: 'var(--brand-teal-10)',
+  text: 'var(--text-primary)',
+  textDim: 'var(--text-secondary)',
+  textSec: 'var(--text-tertiary)',
   muted: '#505050',
-  green: '#3dffa0',
+  green: 'var(--success)',
   greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171',
   redDim: 'rgba(248,113,113,0.1)',
@@ -644,8 +644,8 @@ export default function ImportShapefilePage() {
         }
         .spin { animation: spin 1s linear infinite; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a0a; }
-        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+        ::-webkit-scrollbar-track { background: var(--bg-surface); }
+        ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(78,205,196,0.4); }
       `}</style>
 

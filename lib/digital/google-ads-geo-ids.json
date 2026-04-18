@@ -1,0 +1,17 @@
+{
+  "regions": {
+    "11": { "geo_id": 20339, "name": "Île-de-France" },
+    "24": { "geo_id": 20345, "name": "Centre-Val de Loire" },
+    "27": { "geo_id": 20346, "name": "Bourgogne-Franche-Comté" },
+    "28": { "geo_id": 20362, "name": "Normandie" },
+    "32": { "geo_id": 20347, "name": "Hauts-de-France" },
+    "44": { "geo_id": 20360, "name": "Grand Est" },
+    "52": { "geo_id": 20363, "name": "Pays de la Loire" },
+    "53": { "geo_id": 20348, "name": "Bretagne" },
+    "75": { "geo_id": 20361, "name": "Nouvelle-Aquitaine" },
+    "76": { "geo_id": 20349, "name": "Occitanie" },
+    "84": { "geo_id": 20350, "name": "Auvergne-Rhône-Alpes" },
+    "93": { "geo_id": 20364, "name": "Provence-Alpes-Côte d'Azur" },
+    "94": { "geo_id": 20365, "name": "Corse" }
+  }
+}

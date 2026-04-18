@@ -109,7 +109,7 @@ export function useSignIn() {
       // Prevent open redirect: only allow same-origin relative paths
       const safeRedirect = /^\/[^/\\]/.test(redirect) ? redirect : '/map';
       window.location.href = safeRedirect;
-    } catch (err) {
+    } catch (err: unknown) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);
       throw e;
@@ -137,7 +137,7 @@ export function useSignUp() {
         options: { data: { full_name: name || email.split("@")[0] } },
       });
       if (sbError) throw new Error(sbError.message);
-    } catch (err) {
+    } catch (err: unknown) {
       const e = err instanceof Error ? err : new Error(String(err));
       setError(e);
       throw e;

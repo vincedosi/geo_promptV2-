@@ -217,7 +217,7 @@ export async function insertRows(
       const batchSummary = `Batch ${batchNum} termine: +${result.inserted} inseres, ${result.ignored} ignores, ${result.errors} erreurs`;
       console.log(`[INSERTER] ${batchSummary}`);
       onLog?.('info', batchSummary);
-    } catch (err) {
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[INSERTER] Erreur fatale batch ${batchNum}: ${msg}`);
       onLog?.('error', `Erreur fatale batch ${batchNum}: ${msg}`);

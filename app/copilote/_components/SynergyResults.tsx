@@ -40,8 +40,8 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
           <div style={{ color: '#f59e0b', fontWeight: 700, fontSize: 13 }}>
             {zoneData.nb_pois} panneau{zoneData.nb_pois > 1 ? 'x' : ''} stratégique{zoneData.nb_pois > 1 ? 's' : ''}
           </div>
-          <div style={{ color: '#a0a0a0', fontSize: 11, marginTop: 1 }}>
-            à moins de {s.max_distance_m}m d'un <span style={{ color: '#4ecdc4', fontWeight: 600 }}>{s.poi_category}</span>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 1 }}>
+            à moins de {s.max_distance_m}m d'un <span style={{ color: 'var(--brand-teal)', fontWeight: 600 }}>{s.poi_category}</span>
             {' '}· cible{' '}
             <span style={{ color: '#34d399', fontWeight: 600 }}>{s.target_demo_label}</span>
           </div>
@@ -58,7 +58,7 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
         alignItems: 'center',
         justifyContent: 'space-between',
       }}>
-        <span style={{ color: '#a0a0a0', fontSize: 11 }}>Audience cumulee (Top {zoneData.nb_pois})</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>Audience cumulee (Top {zoneData.nb_pois})</span>
         <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 14 }}>
           {s.total_audience.toLocaleString('fr-FR')} pers.
         </span>
@@ -67,7 +67,7 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
       {/* Top 3 */}
       {top3.length > 0 && (
         <div>
-          <div style={{ color: '#666666', fontSize: 10, fontWeight: 600, letterSpacing: '0.05em', marginBottom: 6 }}>
+          <div style={{ color: 'var(--text-tertiary)', fontSize: 10, fontWeight: 600, letterSpacing: '0.05em', marginBottom: 6 }}>
             TOP {Math.min(3, top3.length)} PANNEAUX
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -77,7 +77,7 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
                 gridTemplateColumns: '20px 1fr auto',
                 alignItems: 'center',
                 gap: 8,
-                background: '#111111',
+                background: 'var(--bg-level-2)',
                 borderRadius: 6,
                 padding: '6px 8px',
                 animation: `synergyFadeIn 0.3s ease ${idx * 0.08}s both`,
@@ -93,10 +93,10 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
                   {p.rank}
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ color: '#f0f0f0', fontWeight: 600, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.nom}
                   </div>
-                  <div style={{ color: '#a0a0a0', fontSize: 10 }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 10 }}>
                     {[p.adresse, p.sous_categorie, p.ville].filter(Boolean).join(' · ')}
                   </div>
                 </div>
@@ -104,7 +104,7 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
                   <div style={{ color: '#34d399', fontWeight: 700, fontSize: 12 }}>
                     {Number(p.audience).toLocaleString('fr-FR')}
                   </div>
-                  <div style={{ color: '#666666', fontSize: 9 }}>pers.</div>
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>pers.</div>
                 </div>
               </div>
             ))}
@@ -127,14 +127,14 @@ export function SynergyResults({ zoneData }: SynergyResultsProps) {
           { label: 'Colonne', value: s.target_demo_col },
         ].map(({ label, value }) => (
           <span key={label} style={{
-            background: '#111111',
-            border: '0.5px solid #1a1a1a',
+            background: 'var(--bg-level-2)',
+            border: '0.5px solid var(--border-subtle)',
             borderRadius: 4,
             padding: '2px 6px',
-            color: '#a0a0a0',
+            color: 'var(--text-secondary)',
             fontSize: 10,
           }}>
-            {label}: <span style={{ color: '#f0f0f0', fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
+            {label}: <span style={{ color: 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
           </span>
         ))}
       </div>

@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
 
         send({ type: 'done', inserted: totalInserted, errors: totalErrors, total });
 
-      } catch (err) {
+      } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         send({ type: 'error', message: msg });
       } finally {

@@ -186,7 +186,7 @@ export function CarreauxPMTilesLayer({
 
     try {
       map.setPaintProperty(FILL_ID, 'fill-color', buildColorExpression(p5, p95, ind));
-    } catch (e) { console.error('[carreaux] setPaintProperty ERREUR:', e); }
+    } catch (e: unknown) { console.error('[carreaux] setPaintProperty ERREUR:', e); }
   }, []);
 
   const scheduleColor = useCallback((map: maplibregl.Map) => {
@@ -222,7 +222,7 @@ export function CarreauxPMTilesLayer({
           maxzoom: 16, // Fix 1 — over-zoom fluide au-delà de z14
           attribution: 'INSEE, Filosofi 2019',
         });
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('[carreaux] addSource ERREUR:', e);
         return;
       }
@@ -240,7 +240,7 @@ export function CarreauxPMTilesLayer({
           },
           layout: { visibility: visibleRef.current ? 'visible' : 'none' },
         });
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('[carreaux] addLayer FILL ERREUR:', e);
         return;
       }
@@ -264,7 +264,7 @@ export function CarreauxPMTilesLayer({
           },
           layout: { visibility: visibleRef.current ? 'visible' : 'none' },
         });
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('[carreaux] addLayer LINE ERREUR:', e);
       }
 
@@ -344,7 +344,7 @@ export function CarreauxPMTilesLayer({
     if (!map || !mapReady || !initializedRef.current) return;
     try {
       map.setPaintProperty(FILL_ID, 'fill-opacity', opacity);
-    } catch (e) { console.error('[carreaux] setPaintProperty opacity ERREUR:', e); }
+    } catch (e: unknown) { console.error('[carreaux] setPaintProperty opacity ERREUR:', e); }
   }, [opacity, mapRef, mapReady]);
 
   // ── Visibilité ─────────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ export function CarreauxPMTilesLayer({
       map.setLayoutProperty(FILL_ID, 'visibility', vis);
       map.setLayoutProperty(LINE_ID, 'visibility', vis);
       if (visible) scheduleColor(map);
-    } catch (e) { console.error('[carreaux] setLayoutProperty ERREUR:', e); }
+    } catch (e: unknown) { console.error('[carreaux] setLayoutProperty ERREUR:', e); }
   }, [visible, mapRef, mapReady, scheduleColor]);
 
   // ── Indicateur ─────────────────────────────────────────────────────────────

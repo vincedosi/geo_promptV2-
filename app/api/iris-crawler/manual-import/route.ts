@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
           { totalInserted, totalErrors, status: finalStatus, historyId, columns: mappedCols }
         );
 
-      } catch (e) {
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         if (historyId) {
           try {

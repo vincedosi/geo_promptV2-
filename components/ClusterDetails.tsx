@@ -13,24 +13,24 @@ import type { GeminiAnalysis } from '@/components/ClusteringPDFReport';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#050505',
-  bgPanel: '#0a0a0a',
-  bgCard:  '#0a0a0a',
-  bgRow:   '#0a0a0a',
-  border:  '#1a1a1a',
-  accent:  '#4ecdc4',
-  green:   '#3dffa0',
+  bg:      'var(--bg-primary)',
+  bgPanel: 'var(--bg-surface)',
+  bgCard:  'var(--bg-surface)',
+  bgRow:   'var(--bg-surface)',
+  border:  'var(--border-subtle)',
+  accent:  'var(--brand-teal)',
+  green:   'var(--success)',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#f0f0f0',
-  muted:   '#a0a0a0',
-  dim:     '#666666',
+  text:    'var(--text-primary)',
+  muted:   'var(--text-secondary)',
+  dim:     'var(--text-tertiary)',
 };
 const fMono  = "'JetBrains Mono','Fira Mono',monospace";
 const fInter = "'Inter', system-ui, sans-serif";
 
 const CLUSTER_COLORS = [
-  '#4ecdc4','#a0a0a0','#5b9bd5','#f7b731',
+  'var(--brand-teal)','#a0a0a0','#5b9bd5','#f7b731',
   '#3dffa0','#ff9da7','#b07aa1','#edc948',
   '#9c755f','#bab0ac',
 ];
@@ -1017,7 +1017,7 @@ async function exportPDF(
     a.download = `clustering-v${model.version}-${model.duration_minutes}min-${model.mode}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('PDF generation failed:', err);
     // Fallback
     window.print();
@@ -1096,7 +1096,7 @@ export function ClusterDetails({ version: versionProp, onClose }: { version: str
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
       setAnalysisJobId(data.job_id);
-    } catch (e) {
+    } catch (e: unknown) {
       setGeneratingAnalysis(false);
       setAnalysisError(String(e));
     }

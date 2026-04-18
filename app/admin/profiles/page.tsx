@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:         '#050505',
+  bg:         'var(--bg-primary)',
   bgSurface:  '#0d0d14',
   bgCard:     '#0a0a12',
-  border:     '#1a1a1a',
-  accent:     '#4ecdc4',
-  accentDim:  'rgba(78,205,196,0.1)',
-  text:       '#f0f0f0',
-  textDim:    '#a0a0a0',
-  textSec:    '#666666',
-  green:      '#3dffa0',
+  border:     'var(--border-subtle)',
+  accent:     'var(--brand-teal)',
+  accentDim:  'var(--brand-teal-10)',
+  text:       'var(--text-primary)',
+  textDim:    'var(--text-secondary)',
+  textSec:    'var(--text-tertiary)',
+  green:      'var(--success)',
   red:        '#f87171',
 };
 const fontMono     = "'JetBrains Mono', monospace";
@@ -103,7 +103,7 @@ function ProfileEditor({
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10, color: C.textSec, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Critères</div>
         {profile.profil.criteres.map((crit, idx) => (
-          <div key={crit.id} style={{ background: C.bgCard, border: `1px solid ${crit.enabled ? C.border : '#1a1a1a'}`, borderRadius: 2, padding: 12, marginBottom: 8, opacity: crit.enabled ? 1 : 0.5 }}>
+          <div key={crit.id} style={{ background: C.bgCard, border: `1px solid ${crit.enabled ? C.border : 'var(--border-subtle)'}`, borderRadius: 2, padding: 12, marginBottom: 8, opacity: crit.enabled ? 1 : 0.5 }}>
             {/* Header critère */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <input
@@ -269,7 +269,7 @@ export default function AdminProfilesPage() {
       setEditDraft(null);
       setIsNew(false);
       if (data.profile) setSelected(data.profile as ScoringProfile);
-    } catch (e) {
+    } catch (e: unknown) {
       setMsg(`Erreur : ${e instanceof Error ? e.message : 'inconnue'}`);
     } finally { setSaving(false); }
   };
@@ -296,7 +296,7 @@ export default function AdminProfilesPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={startNew}
-          style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: '#050505', padding: '8px 16px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
+          style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: 'var(--bg-primary)', padding: '8px 16px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
           + Nouveau profil
         </button>
       </div>
@@ -398,7 +398,7 @@ export default function AdminProfilesPage() {
                   Annuler
                 </button>
                 <button onClick={saveProfile} disabled={saving}
-                  style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: '#050505', padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
+                  style={{ background: C.accentDim, border: `1px solid ${C.accent}`, color: 'var(--bg-primary)', padding: '6px 14px', borderRadius: 2, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: fontInter }}>
                   {saving ? 'Sauvegarde...' : isNew ? 'Créer' : 'Mettre à jour'}
                 </button>
               </div>

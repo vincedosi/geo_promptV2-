@@ -1,81 +1,71 @@
 # CLAUDE.md — GEOMATIK
 
-> Lu automatiquement à chaque session. Chaque ligne ici prévient une erreur réelle.
+> Chaque ligne ici prévient une erreur réelle. Si tu l'ignores, l'app casse.
 
 @ARCHITECTURE.md
+@DESIGN_SYSTEM.md
 
 ## Projet
 
-**GEOMATIK** — SaaS B2B géomarketing OOH. Planification d'affichage extérieur sur données INSEE.
+**GEOMATIK** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
 Stack : Next.js 14 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
+Projet Supabase : `vkkdbygwbrxyogqosten` (eu-west-3). Utiliser MCP Supabase (`execute_sql`, `apply_migration`), JAMAIS de SQL manuel.
 
-### Vocabulaire métier
-- **OOH** = affichage publicitaire extérieur (panneaux, abribus, DOOH)
-- **IRIS** = découpage INSEE ~2000 hab (~51k zones France) — table `iris`
-- **Carreaux Filosofi** = grille INSEE 200m × 200m, indicateurs socio-démo — table `carreaux_filosofi` (~2.3M lignes)
-- **Isochrone** = zone accessible en N min (pied/vélo/voiture) via OpenRouteService
-- **Battle** = découpage territorial sans chevauchement (Voronoï pondéré par isochrones)
-- **Choroplèthe** = carte colorée par gradient selon un indicateur statistique
-- **Scoring OOH** = note composite d'un panneau (audience × démographie × trafic × proximité POI)
-- **PMTiles** = format de tuiles vectorielles statiques, hébergées sur GitHub Releases (limite Supabase Storage 50 MB)
-
-## ⛔ RÈGLES CRITIQUES
+## ⛔ RÈGLES CRITIQUES — NON NÉGOCIABLE
 
 ### Supabase Nano — Disk I/O (250 IOPS, 5 MB/s, burst 30 min/jour)
 
-**Si le budget I/O est épuisé → Auth 504 → app inaccessible pendant des heures.**
+**Budget I/O épuisé → Auth 504 → app down pendant des heures. Déjà arrivé 3 fois.**
 
 INTERDIT :
-- Batch/parallèle de plus de 1 colonne sur les tables IRIS ou carreaux
-- Bbox France entière + DOM-TOM (`-63.2,-21.5,55.9,51.2`) sans LIMIT — bbox métro max : `-5.5,41.2,9.8,51.2`
+- Batch/parallèle > 1 colonne sur tables IRIS (51k) ou carreaux_filosofi (2.3M)
+- Bbox France entière sans LIMIT — bbox métro max : `-5.5,41.2,9.8,51.2`
 - Prefetch/preload massif au chargement de page
-- `Promise.all()` avec plus de 3 appels Supabase
-- Full table scan sur iris (51k) ou carreaux_filosofi (2.3M)
-- Endpoints avec listes illimitées de colonnes (`?colonnes=X,Y,Z` est INTERDIT)
+- `Promise.all()` > 3 appels Supabase simultanés
+- Full table scan sur tables volumineuses
+- Endpoints acceptant des listes illimitées de colonnes
 
 OBLIGATOIRE :
-- Lazy loading : 1 colonne/ressource à la fois, à la demande
-- Bbox = viewport visible de la carte, jamais France entière au premier chargement
+- Lazy loading : 1 colonne à la fois, à la demande
+- Bbox = viewport carte visible, jamais France entière au 1er chargement
 - Cache client `useRef` — vérifier AVANT tout fetch
-- Concurrence API ≤ 3 simultanés
 - `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS
 - Index GIST sur toute colonne géométrie
 
-### Middleware Auth
+### Auth Middleware
 
 ```
 Routes API (/api/*) → getSession()  — JWT local, ZÉRO appel réseau
 Pages (/map, /dashboard…) → getUser() — un appel par navigation
 ```
 
-NE JAMAIS remettre `getUser()` sur les routes API → cause 409 token refresh concurrent → déconnexion.
+IMPORTANT : `getUser()` sur routes API → 409 token refresh concurrent → déconnexion. Incident du 28/03.
 
 ### Fichiers protégés — NE PAS MODIFIER sauf demande explicite
 
-- `app/api/isochrone-battle/route.ts`
-- Fonctions PostGIS battle (`get_isochrone_battle`, `clip_geojson_to_france`)
-- `middleware.ts`
+`app/api/isochrone-battle/route.ts` · Fonctions PostGIS battle · `middleware.ts`
 
-### Données IRIS
+### Données clés
 
-- Table `iris` — colonnes socio-démo **dynamiques** (ajoutées au fil des imports INSEE). Ne jamais hardcoder la liste de colonnes.
-- `is_true_iris` = true → vrais IRIS (~16 400). false → IRIS communaux (~33 000). Filtrer sur `is_true_iris = true` pour toute analyse statistique.
-- PMTiles IRIS hébergées sur **GitHub Releases** (pas Supabase Storage). Proxy CORS : `/api/iris-tiles-proxy`.
-- `.trim()` obligatoire sur les données CSV INSEE (espaces invisibles dans headers/valeurs).
-
-### Tuiles MVT
-
-- Gzip obligatoire sur les réponses MVT (`/api/tiles/`). MapLibre 5.x plante silencieusement sans gzip.
-- `geom_3857` pré-calculé sur `carreaux_filosofi` (2.3M lignes). Ne pas recalculer à la volée.
+- Table `iris` — colonnes socio-démo **dynamiques**. JAMAIS hardcoder la liste de colonnes.
+- `is_true_iris = true` → vrais IRIS (~16 400). Filtrer pour toute analyse statistique.
+- `.trim()` obligatoire sur données CSV INSEE (espaces invisibles).
+- Gzip obligatoire sur réponses MVT. MapLibre 5.x plante silencieusement sans.
+- `geom_3857` pré-calculé sur `carreaux_filosofi`. Ne pas recalculer à la volée.
+- PMTiles IRIS → GitHub Releases (pas Supabase Storage). Proxy : `/api/iris-tiles-proxy`.
 
 ## Méthodologie
 
 1. **Reconnaissance** — `grep -rn` sur les fichiers concernés AVANT de coder
-2. **Impact I/O** — Évaluer si le changement augmente la charge DB. Si oui → alerter
+2. **Impact I/O** — Le changement augmente la charge DB ? → alerter AVANT de coder
 3. **Pas de modifs non demandées** — Ne pas refactorer/améliorer du code adjacent
 4. **Code complet** — Copy-pasteable, jamais de `// ... rest of the code`
-5. **Vérification grep** — Après modif, confirmer que rien d'autre n'est cassé
-6. **Résumé structuré** — Fichiers modifiés, ce qui a changé, ce qui n'a pas changé
+5. **Vérification** — Après modif, `grep` pour confirmer que rien d'autre n'est cassé
+6. **Résumé structuré** — Fichiers modifiés, changements, ce qui n'a PAS changé
+
+### Imports & batch DB — Progression OBLIGATOIRE
+
+Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes traitées/total), logs temps réel (SSE/NDJSON), étapes nommées (parsing → insertion → post-traitement), compteurs finaux. JAMAIS de traitement DB silencieux.
 
 ## Conventions
 
@@ -83,21 +73,21 @@ NE JAMAIS remettre `getUser()` sur les routes API → cause 409 token refresh co
 - Routes API : `export const dynamic = 'force-dynamic'`, validation Zod, `createAdminClient()` depuis `@/lib/auth`
 - Outils IA : 1 fichier = 1 outil dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
 - Inserts DB : batch par 50 max (pattern `lib/import/inserter.ts`)
-- Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`, PMTiles IRIS via GitHub Releases
-- Git : commits atomiques (1 sujet = 1 commit), format `type: description` (feat/fix/chore/docs)
+- Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`
+- Git : commits atomiques, format `type: description`
+- Design : dark minimal, Inter + JetBrains Mono, accent teal #4ecdc4, pas de violet, sentence case, flat total
 
-## Design System
-Pour TOUT travail frontend (composant, page, fix visuel), lis et applique les règles de DESIGN_SYSTEM.md AVANT de commencer. Ce fichier est la source de vérité pour les couleurs, typographies, composants et patterns UI.
+## Fichiers de référence (lire AVANT de créer)
 
-Résumé : dark minimal (Inter + JetBrains Mono), pas de violet, pas d'Orbitron/Michroma, sentence case, flat total, accent teal #4ecdc4.
-
-## Fichiers de référence (lire avant de créer)
-
-- Nouvelle route API → `app/api/iris/stats/route.ts`
-- Nouvel outil IA → n'importe quel fichier dans `lib/chat/tools/`
-- Nouveau composant carte → `app/map/_components/FilterPanel.tsx`
-- Import de données → `lib/import/inserter.ts`
-- Migration SQL → `sql/SETUP.md`
+| Type | Exemple à lire |
+|------|---------------|
+| Route API | `app/api/iris/stats/route.ts` |
+| Outil IA | `lib/chat/tools/*.ts` |
+| Composant carte | `app/map/_components/FilterPanel.tsx` |
+| Import données | `lib/import/inserter.ts` |
+| Import DSP | `app/api/admin/campaigns/import/route.ts` |
+| Column mappings | `lib/campaigns/column-mappings.ts` |
+| Migration SQL | `sql/SETUP.md` |
 
 ## Commandes
 
@@ -109,22 +99,20 @@ npm test             # Vitest
 npm run lint         # ESLint
 ```
 
-## Lancement Claude Code (machine Dentsu)
-
-```powershell
-cd C:\GENESIS\genesis_app
-$env:CLAUDE_CODE_GIT_BASH_PATH = "C:\Users\vsidol01\AppData\Local\Programs\Git\bin\bash.exe"
-$env:PATH += ";C:\Users\LA_vsidol01\AppData\Roaming\npm"
-claude
-```
-
 ## Compaction
 
-Quand tu fais `/compact`, préserve : la liste des fichiers modifiés, le statut des tests, et les contraintes I/O Supabase Nano.
+Quand tu fais `/compact`, préserve TOUJOURS :
+- La liste exacte des fichiers modifiés dans cette session
+- Le statut des tests (pass/fail + erreurs)
+- Les contraintes I/O Supabase Nano (section ⛔ ci-dessus)
+- Le contexte de la tâche en cours
 
 ## Incidents — NE PAS REPRODUIRE
 
-| Date | Cause | Conséquence |
-|------|-------|-------------|
-| 2026-03-28 | Prefetch batch 24 colonnes IRIS × bbox France entière | Disk I/O Nano épuisé → Supabase 504 → app down plusieurs heures |
-| 2026-03-28 | `getUser()` middleware sur routes API × 15 requêtes parallèles | 409 token refresh → déconnexion utilisateur |
+| Date | Cause | Impact |
+|------|-------|--------|
+| 03-28 | Prefetch 24 colonnes IRIS × bbox France | I/O épuisé → 504 → down heures |
+| 03-28 | `getUser()` sur routes API × 15 req parallèles | 409 refresh → déconnexion |
+| 04-08 | 3 COUNT séquentiels × N campagnes (280k rows) | Timeout + boucle infinie client |
+| 04-08 | `request.formData()` dans `ReadableStream.start()` | Import SSE cassé (body consumed) |
+| 04-08 | Matching IRIS 266k lignes (DISTINCT ON + 3 JOINs) | I/O épuisé → DB down ~5 min |
