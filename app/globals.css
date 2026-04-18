@@ -61,10 +61,15 @@
 
     /* Category colors */
     --cat-context: #8a8a8a;
+    --cat-context-rgb: 138, 138, 138;
     --cat-terrain: #4ecdc4;
+    --cat-terrain-rgb: 78, 205, 196;
     --cat-socio: #5b9bd5;
+    --cat-socio-rgb: 91, 155, 213;
     --cat-media: #f7b731;
+    --cat-media-rgb: 247, 183, 49;
     --cat-analysis: #e8845c;
+    --cat-analysis-rgb: 232, 132, 92;
   }
 
   /* Light mode — triggered by <html class="light"> */
@@ -120,10 +125,15 @@
 
     /* Category colors (light) */
     --cat-context: #737373;
+    --cat-context-rgb: 115, 115, 115;
     --cat-terrain: #0d9488;
+    --cat-terrain-rgb: 13, 148, 136;
     --cat-socio: #2563eb;
+    --cat-socio-rgb: 37, 99, 235;
     --cat-media: #d97706;
+    --cat-media-rgb: 217, 119, 6;
     --cat-analysis: #c2410c;
+    --cat-analysis-rgb: 194, 65, 12;
   }
 
   /* Keep .dark selector for compatibility with shadcn components that target it */

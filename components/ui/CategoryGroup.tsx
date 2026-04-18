@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react';
 interface CategoryGroupProps {
   title: string;
   color?: string;
+  colorRgb?: string;
   defaultOpen?: boolean;
   collapsible?: boolean;
   children: ReactNode;
@@ -16,6 +17,7 @@ const STORAGE_PREFIX = 'geomatik-cat-';
 export function CategoryGroup({
   title,
   color = 'var(--brand-teal)',
+  colorRgb = '78, 205, 196',
   defaultOpen = true,
   collapsible = true,
   children,
@@ -54,39 +56,44 @@ export function CategoryGroup({
   };
 
   return (
-    <div style={{ marginBottom: open ? 4 : 8 }}>
-      {/* Header bandeau */}
+    <div style={{ marginBottom: 12 }}>
+      {/* Header bandeau — fond teinté par la couleur catégorie */}
       <div
         onClick={toggle}
         style={{
-          background: 'var(--bg-level-2)',
-          borderTop: '1px solid var(--border-subtle)',
+          background: `rgba(${colorRgb}, 0.06)`,
+          borderTop: `1px solid rgba(${colorRgb}, 0.12)`,
+          borderBottom: `1px solid rgba(${colorRgb}, 0.08)`,
           padding: '10px 14px',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
           cursor: collapsible ? 'pointer' : 'default',
           userSelect: 'none',
+          transition: 'background 0.15s',
         }}
+        onMouseEnter={collapsible ? e => { e.currentTarget.style.background = `rgba(${colorRgb}, 0.10)`; } : undefined}
+        onMouseLeave={collapsible ? e => { e.currentTarget.style.background = `rgba(${colorRgb}, 0.06)`; } : undefined}
       >
         <div style={{
-          width: 6, height: 6, borderRadius: '50%',
+          width: 8, height: 8, borderRadius: '50%',
           background: color, flexShrink: 0,
         }} />
         <span style={{
           fontFamily: "'Inter', system-ui, sans-serif",
-          fontWeight: 500,
+          fontWeight: 600,
           fontSize: 11,
           color: color,
           textTransform: 'uppercase',
-          letterSpacing: '0.06em',
+          letterSpacing: '0.08em',
           flex: 1,
         }}>
           {title}
         </span>
         {collapsible && (
           <ChevronDown size={14} style={{
-            color: 'var(--text-tertiary)',
+            color: color,
+            opacity: 0.5,
             flexShrink: 0,
             transition: 'transform 0.2s ease',
             transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',

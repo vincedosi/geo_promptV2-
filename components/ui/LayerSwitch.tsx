@@ -7,6 +7,7 @@ interface LayerSwitchProps {
   icon?: ReactNode;
   badge?: string;
   color?: string;
+  colorRgb?: string;
   active: boolean;
   onToggle: () => void;
   expanded?: boolean;
@@ -19,6 +20,7 @@ export function LayerSwitch({
   icon,
   badge,
   color = 'var(--brand-teal)',
+  colorRgb = '78, 205, 196',
   active,
   onToggle,
   expanded,
@@ -46,19 +48,20 @@ export function LayerSwitch({
 
   return (
     <div style={{ borderBottom: '0.5px solid var(--border-subtle)' }}>
-      {/* Compact row — 36px */}
+      {/* Compact row — 36px, indented */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        padding: '8px 14px',
+        padding: '8px 14px 8px 30px',
         minHeight: 36,
+        transition: 'background 0.1s',
       }}>
         {/* Dot indicator */}
         <div style={{
           width: 6, height: 6, borderRadius: '50%',
           background: color,
-          opacity: active ? 1 : 0.3,
+          opacity: active ? 1 : 0.25,
           flexShrink: 0,
           transition: 'opacity 0.2s ease',
         }} />
@@ -75,7 +78,7 @@ export function LayerSwitch({
           onClick={children ? toggleExpand : undefined}
           style={{
             fontFamily: "'Inter', system-ui, sans-serif",
-            fontWeight: 400,
+            fontWeight: active ? 500 : 400,
             fontSize: 13,
             color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
             flex: 1,
@@ -141,9 +144,10 @@ export function LayerSwitch({
           }}
         >
           <div style={{
-            padding: '8px 14px 12px 32px',
-            borderLeft: '2px solid var(--border-subtle)',
-            marginLeft: 20,
+            marginLeft: 30,
+            padding: '8px 12px 12px 14px',
+            borderLeft: `2px solid rgba(${colorRgb}, 0.25)`,
+            borderBottom: '0.5px solid var(--border-subtle)',
           }}>
             {children}
           </div>
