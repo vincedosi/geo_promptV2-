@@ -1746,9 +1746,11 @@ export default function MapPage() {
             </div>
           )}
 
-      {/* Main map — hidden when Digital compare view is active (TripleMapView takes over) */}
+      {/* Main map — hidden behind TripleMapView when Digital compare view is active */}
       <div style={{
-        display: (digitalVisible && digitalCompareView && digitalCampaignId) ? 'none' : 'contents',
+        ...(digitalVisible && digitalCompareView && digitalCampaignId
+          ? { position: 'absolute' as const, inset: 0, zIndex: 1, visibility: 'hidden' as const }
+          : { display: 'contents' as const }),
       }}>
       <MapPanel
         mapContainerRef={mapContainerRef}
