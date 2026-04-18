@@ -1746,6 +1746,10 @@ export default function MapPage() {
             </div>
           )}
 
+      {/* Main map — hidden when Digital compare view is active (TripleMapView takes over) */}
+      <div style={{
+        display: (digitalVisible && digitalCompareView && digitalCampaignId) ? 'none' : 'contents',
+      }}>
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
@@ -1790,6 +1794,7 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
+      </div>
 
           {/* Résidus de corrélation — légende flottante */}
           {residualsMeta && (

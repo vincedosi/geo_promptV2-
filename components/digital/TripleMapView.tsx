@@ -155,16 +155,19 @@ export function TripleMapView({ campaignId, scale, popField, metric, selectedMed
 
   const metricLabel = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
 
-  if (geojsonLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)' }}>
-        Chargement des donnees...
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flex: 1, gap: 1, background: 'var(--border-subtle)', minHeight: 0, height: '100%' }}>
+    <div style={{ display: 'flex', flex: 1, gap: 1, background: 'var(--border-subtle)', minHeight: 0, height: '100%', position: 'relative' }}>
+      {/* Loading overlay — does NOT unmount maps */}
+      {geojsonLoading && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(5,5,5,0.7)',
+          fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)',
+        }}>
+          Chargement des donnees...
+        </div>
+      )}
       {/* Ratio (focus — left, large) */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <SingleMapPanel
