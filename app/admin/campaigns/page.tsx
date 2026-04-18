@@ -11,13 +11,13 @@ import type { ParsedCampaignRow } from '@/lib/campaigns/parser';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg: '#050505', card: '#0a0a0a', elevated: '#111111',
-  border: '#1a1a1a', borderDefault: '#262626',
-  teal: '#4ecdc4', tealDim: 'rgba(78,205,196,0.1)',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.1)',
-  red: '#ff5757', redDim: 'rgba(255,87,87,0.08)',
-  warn: '#f7b731', warnDim: 'rgba(247,183,49,0.1)',
-  text: '#f0f0f0', textSec: '#a0a0a0', textDim: '#666666',
+  bg: 'var(--bg-primary)', card: 'var(--bg-surface)', elevated: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)', borderDefault: 'var(--border-default)',
+  teal: 'var(--brand-teal)', tealDim: 'var(--brand-teal-10)',
+  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.1)',
+  red: 'var(--danger)', redDim: 'rgba(255,87,87,0.08)',
+  warn: 'var(--warning)', warnDim: 'rgba(247,183,49,0.1)',
+  text: 'var(--text-primary)', textSec: 'var(--text-secondary)', textDim: 'var(--text-tertiary)',
 };
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -127,7 +127,7 @@ function CampaignPreviewPanel({ campaignId }: { campaignId: string }) {
                   const val = row[col.key];
                   const empty = val == null || val === '';
                   return (
-                    <td key={col.key} style={{ padding: '3px 8px', whiteSpace: 'nowrap', color: empty ? '#333' : (col.color ?? C.textSec), fontSize: 10 }}>
+                    <td key={col.key} style={{ padding: '3px 8px', whiteSpace: 'nowrap', color: empty ? 'var(--border-hover)' : (col.color ?? C.textSec), fontSize: 10 }}>
                       {empty ? '—' : col.key === 'tracked_ads' ? fmtNum(val as number) : String(val)}
                     </td>
                   );

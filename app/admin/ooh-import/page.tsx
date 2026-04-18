@@ -32,18 +32,18 @@ type StreamEvent =
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#0a0a0a',
-  bgSurface:   '#111111',
-  border:      '#1a1a1a',
-  borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
-  accentDim:   'rgba(78,205,196,0.08)',
-  text:        '#f0f0f0',
-  textDim:     '#a0a0a0',
-  textSec:     '#666666',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-surface)',
+  bgSurface:   'var(--bg-level-2)',
+  border:      'var(--border-subtle)',
+  borderLight: 'var(--brand-teal-30)',
+  accent:      'var(--brand-teal)',
+  accentDim:   'var(--brand-teal-10)',
+  text:        'var(--text-primary)',
+  textDim:     'var(--text-secondary)',
+  textSec:     'var(--text-tertiary)',
   muted:       '#505050',
-  green:       '#3dffa0',
+  green:       'var(--success)',
   greenDim:    'rgba(61,255,160,0.12)',
   red:         '#f87171',
   redDim:      'rgba(248,113,113,0.1)',
@@ -195,7 +195,7 @@ export default function OohImportPage() {
           style={{
             background: running || !customUrl.trim() ? C.muted : C.accent,
             border: 'none', borderRadius: 2, padding: '9px 20px',
-            color: '#050505', cursor: running || !customUrl.trim() ? 'not-allowed' : 'pointer',
+            color: 'var(--bg-primary)', cursor: running || !customUrl.trim() ? 'not-allowed' : 'pointer',
             fontSize: 12, fontFamily: fontInter, fontWeight: 500,
             display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.15s',
           }}
@@ -211,7 +211,7 @@ export default function OohImportPage() {
 
       {/* ── Terminal logs ── */}
       {logs.length > 0 && (
-        <div style={{ background: '#020202', border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', marginBottom: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim, maxHeight: 220, overflowY: 'auto', lineHeight: 1.7 }}>
+        <div style={{ background: 'var(--bg-primary)', border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 16px', marginBottom: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim, maxHeight: 220, overflowY: 'auto', lineHeight: 1.7 }}>
           <div style={{ fontFamily: fontInter, fontSize: 11, color: C.accent, marginBottom: 8 }}>Sortie</div>
           {logs.map((l, i) => (
             <div key={i} style={{ color: l.startsWith('!') ? C.red : l.startsWith('>') ? C.green : C.textDim }}>
@@ -266,7 +266,7 @@ export default function OohImportPage() {
                     setRuns(prev => prev.map(r => r.id === stats.run_id ? { ...r, source: datasetName.trim() } : r));
                   }}
                   disabled={!datasetName.trim()}
-                  style={{ background: datasetName.trim() ? C.accent : C.muted, border: 'none', borderRadius: 2, padding: '8px 16px', color: '#050505', cursor: datasetName.trim() ? 'pointer' : 'not-allowed', fontSize: 12, fontFamily: fontInter, fontWeight: 500, whiteSpace: 'nowrap' }}
+                  style={{ background: datasetName.trim() ? C.accent : C.muted, border: 'none', borderRadius: 2, padding: '8px 16px', color: 'var(--bg-primary)', cursor: datasetName.trim() ? 'pointer' : 'not-allowed', fontSize: 12, fontFamily: fontInter, fontWeight: 500, whiteSpace: 'nowrap' }}
                 >
                   Enregistrer
                 </button>

@@ -7,13 +7,13 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg: '#050505', card: '#0a0a0a', elevated: '#111111',
-  border: '#1a1a1a', borderDefault: '#262626',
-  teal: '#4ecdc4', tealDim: 'rgba(78,205,196,0.1)',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.1)',
-  red: '#ff5757', redDim: 'rgba(255,87,87,0.08)',
-  warn: '#f7b731', warnDim: 'rgba(247,183,49,0.1)',
-  text: '#f0f0f0', textSec: '#a0a0a0', textDim: '#666666',
+  bg: 'var(--bg-primary)', card: 'var(--bg-surface)', elevated: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)', borderDefault: 'var(--border-default)',
+  teal: 'var(--brand-teal)', tealDim: 'var(--brand-teal-10)',
+  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.1)',
+  red: 'var(--danger)', redDim: 'rgba(255,87,87,0.08)',
+  warn: 'var(--warning)', warnDim: 'rgba(247,183,49,0.1)',
+  text: 'var(--text-primary)', textSec: 'var(--text-secondary)', textDim: 'var(--text-tertiary)',
 };
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -347,7 +347,7 @@ export default function RadioAdminPage() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <h1 style={{ fontSize: 18, fontWeight: 500, color: C.text, margin: 0, letterSpacing: '-0.02em' }}>Radio FM/DAB+</h1>
-          <span style={{ fontSize: 10, padding: '2px 8px', background: '#181818', border: '0.5px solid #262626', borderRadius: 4, color: C.textDim }}>Admin</span>
+          <span style={{ fontSize: 10, padding: '2px 8px', background: 'var(--bg-level-3)', border: '0.5px solid var(--border-default)', borderRadius: 4, color: C.textDim }}>Admin</span>
         </div>
         <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Import, classification, audience et tarifs des émetteurs radio</p>
       </div>
@@ -471,7 +471,7 @@ export default function RadioAdminPage() {
                   <button key={lv} onClick={() => setLogFilter(prev => { const n = new Set(prev); n.has(lv) ? n.delete(lv) : n.add(lv); return n; })} style={{
                     padding: '2px 8px', borderRadius: 3, fontSize: 10, fontFamily: fMono,
                     background: logFilter.has(lv) ? `${logLevelColor[lv]}20` : 'transparent',
-                    border: `0.5px solid ${logFilter.has(lv) ? logLevelColor[lv] : '#262626'}`,
+                    border: `0.5px solid ${logFilter.has(lv) ? logLevelColor[lv] : 'var(--border-default)'}`,
                     color: logFilter.has(lv) ? logLevelColor[lv] : C.textDim,
                     cursor: 'pointer', transition: 'all 0.15s',
                   }}>
@@ -563,7 +563,7 @@ export default function RadioAdminPage() {
                               padding: '3px 8px', fontSize: 10, color: C.textSec, cursor: 'pointer',
                               fontFamily: fInter, transition: 'all 0.15s',
                             }}
-                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#4ecdc4'; e.currentTarget.style.color = '#4ecdc4'; }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-teal)'; e.currentTarget.style.color = 'var(--brand-teal)'; }}
                               onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderDefault; e.currentTarget.style.color = C.textSec; }}
                             >
                               Voir
@@ -617,8 +617,8 @@ export default function RadioAdminPage() {
                 <button key={val} onClick={() => { setRadiosFilter(val); setRadiosPage(1); }} style={{
                   padding: '4px 10px', borderRadius: 4, fontSize: 10, fontFamily: fInter,
                   background: radiosFilter === val ? (val === 'unmatched' ? C.redDim : val === 'matched' ? C.greenDim : 'rgba(78,205,196,0.1)') : 'transparent',
-                  border: `0.5px solid ${radiosFilter === val ? (val === 'unmatched' ? 'rgba(255,87,87,0.3)' : val === 'matched' ? 'rgba(61,255,160,0.3)' : '#4ecdc4') : '#262626'}`,
-                  color: radiosFilter === val ? (val === 'unmatched' ? C.red : val === 'matched' ? C.green : '#4ecdc4') : C.textDim,
+                  border: `0.5px solid ${radiosFilter === val ? (val === 'unmatched' ? 'rgba(255,87,87,0.3)' : val === 'matched' ? 'rgba(61,255,160,0.3)' : 'var(--brand-teal)') : 'var(--border-default)'}`,
+                  color: radiosFilter === val ? (val === 'unmatched' ? C.red : val === 'matched' ? C.green : 'var(--brand-teal)') : C.textDim,
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}>
                   {label}

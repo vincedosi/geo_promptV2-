@@ -111,24 +111,24 @@ export default function AdminUsersPage() {
     finally { setDeleting(false); }
   };
 
-  const inputStyle = { width: '100%', background: '#111111', border: '0.5px solid #1a1a1a', borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: '#f0f0f0', outline: 'none' };
+  const inputStyle = { width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)', outline: 'none' };
 
   const renderUserRow = (u: User) => {
     const rc = ROLE_COLORS[u.role] ?? ROLE_COLORS.client;
     return (
-      <tr key={u.id} style={{ borderBottom: '0.5px solid #111111' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#111111'; }}
+      <tr key={u.id} style={{ borderBottom: '0.5px solid var(--bg-level-2)' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-level-2)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-        <td style={{ padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: '#f0f0f0' }}>{u.full_name || '—'}</td>
-        <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 12, color: '#b0b0b0' }}>{u.email}</td>
+        <td style={{ padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)' }}>{u.full_name || '—'}</td>
+        <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 12, color: 'var(--text-secondary)' }}>{u.email}</td>
         <td style={{ padding: '8px 12px' }}>
           <span style={{ fontFamily: fInter, fontSize: 10, padding: '3px 8px', borderRadius: 4, background: rc.bg, color: rc.text }}>{u.role}</span>
         </td>
-        <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 11, color: '#8a8a8a' }}>{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
+        <td style={{ padding: '8px 12px', fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)' }}>{new Date(u.created_at).toLocaleDateString('fr-FR')}</td>
         <td style={{ padding: '8px 12px', textAlign: 'right' }}>
           <div style={{ display: 'inline-flex', gap: 6 }}>
-            <button onClick={() => openEdit(u)} style={{ background: 'none', border: '0.5px solid #1a1a1a', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>Editer</button>
-            <button onClick={() => setDeleteUser(u)} style={{ background: 'none', border: '0.5px solid rgba(255,87,87,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: '#ff5757' }}>Supprimer</button>
+            <button onClick={() => openEdit(u)} style={{ background: 'none', border: '0.5px solid var(--border-subtle)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)' }}>Editer</button>
+            <button onClick={() => setDeleteUser(u)} style={{ background: 'none', border: '0.5px solid rgba(255,87,87,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: 'var(--danger)' }}>Supprimer</button>
           </div>
         </td>
       </tr>
@@ -138,32 +138,32 @@ export default function AdminUsersPage() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1200 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 600, color: '#f0f0f0', margin: 0 }}>Users</h1>
+        <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Users</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>{users.length} users</span>
-          <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: '#f0f0f0', color: '#050505', border: 'none', borderRadius: 6 }}>+ Invite user</button>
+          <span style={{ fontFamily: fMono, fontSize: 12, color: 'var(--text-tertiary)' }}>{users.length} users</span>
+          <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6 }}>+ Invite user</button>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ fontFamily: fInter, fontSize: 13, color: '#8a8a8a', padding: 20 }}>Chargement...</div>
+        <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: 20 }}>Chargement...</div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {['Nom', 'Email', 'Role', 'Cree le', ''].map(h => (
-                <th key={h} style={{ textAlign: h === '' ? 'right' : 'left', padding: '8px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#4ecdc4', borderBottom: '0.5px solid #1a1a1a', position: 'sticky', top: 0, background: '#050505' }}>{h}</th>
+                <th key={h} style={{ textAlign: h === '' ? 'right' : 'left', padding: '8px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--brand-teal)', borderBottom: '0.5px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-primary)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {groupedUsers.superAdmins.length > 0 && [
               <tr key="h-super">
-                <td colSpan={5} style={{ padding: '14px 12px 6px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#f0f0f0' }}>
+                <td colSpan={5} style={{ padding: '14px 12px 6px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', display: 'inline-block' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', display: 'inline-block' }} />
                     Super admins
-                    <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666', marginLeft: 4 }}>{groupedUsers.superAdmins.length}</span>
+                    <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 4 }}>{groupedUsers.superAdmins.length}</span>
                   </span>
                 </td>
               </tr>,
@@ -171,11 +171,11 @@ export default function AdminUsersPage() {
             ]}
             {groupedUsers.orgGroups.flatMap(group => [
               <tr key={`h-${group.name}`}>
-                <td colSpan={5} style={{ padding: '14px 12px 6px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#f0f0f0' }}>
+                <td colSpan={5} style={{ padding: '14px 12px 6px', fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ecdc4', display: 'inline-block' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', display: 'inline-block' }} />
                     {group.name}
-                    <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666', marginLeft: 4 }}>{group.users.length}</span>
+                    <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 4 }}>{group.users.length}</span>
                   </span>
                 </td>
               </tr>,
@@ -188,13 +188,13 @@ export default function AdminUsersPage() {
       {/* Invite / Edit modal */}
       {showInvite && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div style={{ background: '#0a0a0a', border: '0.5px solid #1a1a1a', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }}>
-            <h2 style={{ fontFamily: fInter, fontSize: 16, fontWeight: 600, color: '#f0f0f0', margin: '0 0 16px' }}>{editUser ? 'Editer user' : 'Inviter un user'}</h2>
+          <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }}>
+            <h2 style={{ fontFamily: fInter, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 16px' }}>{editUser ? 'Editer user' : 'Inviter un user'}</h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {!editUser && (
                 <div>
-                  <label style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a', display: 'block', marginBottom: 4 }}>Email</label>
+                  <label style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Email</label>
                   <input value={formEmail} onChange={e => setFormEmail(e.target.value)} style={inputStyle} placeholder="email@example.com" />
                 </div>
               )}
@@ -218,8 +218,8 @@ export default function AdminUsersPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button onClick={closeModal} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, cursor: 'pointer', background: 'transparent', border: '0.5px solid #1a1a1a', borderRadius: 6, color: '#8a8a8a' }}>Annuler</button>
-              <button onClick={handleSubmit} disabled={saving || (!editUser && !formEmail)} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, fontWeight: 500, cursor: saving ? 'wait' : 'pointer', background: '#f0f0f0', color: '#050505', border: 'none', borderRadius: 6, opacity: saving ? 0.5 : 1 }}>
+              <button onClick={closeModal} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, cursor: 'pointer', background: 'transparent', border: '0.5px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-tertiary)' }}>Annuler</button>
+              <button onClick={handleSubmit} disabled={saving || (!editUser && !formEmail)} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, fontWeight: 500, cursor: saving ? 'wait' : 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6, opacity: saving ? 0.5 : 1 }}>
                 {saving ? 'Envoi...' : editUser ? 'Sauvegarder' : 'Inviter'}
               </button>
             </div>

@@ -9,12 +9,12 @@ import type { CampaignDetail, DspCampaignData } from '@/types/campaign';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg: '#050505', card: '#0a0a0a', elevated: '#111111',
-  border: '#1a1a1a', borderDefault: '#262626',
-  teal: '#4ecdc4', tealDim: 'rgba(78,205,196,0.1)',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.1)',
-  red: '#ff5757', redDim: 'rgba(255,87,87,0.08)',
-  text: '#f0f0f0', textSec: '#a0a0a0', textDim: '#666666',
+  bg: 'var(--bg-primary)', card: 'var(--bg-surface)', elevated: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)', borderDefault: 'var(--border-default)',
+  teal: 'var(--brand-teal)', tealDim: 'var(--brand-teal-10)',
+  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.1)',
+  red: 'var(--danger)', redDim: 'rgba(255,87,87,0.08)',
+  text: 'var(--text-primary)', textSec: 'var(--text-secondary)', textDim: 'var(--text-tertiary)',
 };
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -144,7 +144,7 @@ export default function CampaignDetailPage() {
           </h1>
           <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
             <span style={{
-              background: '#181818', border: `0.5px solid ${C.borderDefault}`,
+              background: 'var(--bg-level-3)', border: `0.5px solid ${C.borderDefault}`,
               borderRadius: 4, padding: '2px 8px', fontSize: 10, color: C.textDim, fontFamily: fInter,
             }}>
               {camp.dsp_source}

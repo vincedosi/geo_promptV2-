@@ -39,22 +39,22 @@ interface SourcesStats {
 const SCHEMA_FILTER_COLS = ['region', 'departement', 'ville', 'code_postal', 'categorie', 'sous_categorie'];
 
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#0a0a0a',
-  bgSurface:   '#111111',
-  border:      '#1a1a1a',
-  borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
-  accentDim:   'rgba(78,205,196,0.08)',
-  text:        '#f0f0f0',
-  textDim:     '#a0a0a0',
-  textSec:     '#666666',
-  muted:       '#666666',
-  green:       '#3dffa0',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-surface)',
+  bgSurface:   'var(--bg-level-2)',
+  border:      'var(--border-subtle)',
+  borderLight: 'var(--brand-teal-30)',
+  accent:      'var(--brand-teal)',
+  accentDim:   'var(--brand-teal-10)',
+  text:        'var(--text-primary)',
+  textDim:     'var(--text-secondary)',
+  textSec:     'var(--text-tertiary)',
+  muted:       'var(--text-tertiary)',
+  green:       'var(--success)',
   greenDim:    'rgba(61,255,160,0.10)',
-  red:         '#ff5757',
+  red:         'var(--danger)',
   redDim:      'rgba(255,87,87,0.1)',
-  warn:        '#f7b731',
+  warn:        'var(--warning)',
   warnDim:     'rgba(247,183,49,0.1)',
   blue:        '#5b9bd5',
 };
@@ -720,7 +720,7 @@ export default function SourcesPage() {
     background: C.accentDim,
     border: `0.5px solid ${C.borderLight}`,
     borderRadius: 2,
-    color: '#050505',
+    color: 'var(--bg-primary)',
     fontFamily: fontInter,
     fontSize: 12,
     fontWeight: 500,
@@ -987,7 +987,7 @@ export default function SourcesPage() {
                         <tr
                           key={v.ville}
                           style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', transition: 'background 0.2s ease', animation: `srcFadeIn 0.3s ease-out ${Math.min(i, 20) * 0.02}s both` }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = '#111111')}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-level-2)')}
                           onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
                         >
                           <td style={{ padding: '5px 12px', color: C.muted, width: 30 }}>{i + 1}</td>
@@ -1006,8 +1006,8 @@ export default function SourcesPage() {
 
       {/* ── POI Panel ────────────────────────────────────────────────────────── */}
       {activeTab === 'poi' && (() => {
-        const teal = '#4ecdc4';
-        const tealDim = 'rgba(78,205,196,0.10)';
+        const teal = 'var(--brand-teal)';
+        const tealDim = 'var(--brand-teal-10)';
         const tealBorder = 'rgba(78,205,196,0.25)';
         const ss = sourcesStats;
         if (!ss) return (
@@ -1180,7 +1180,7 @@ export default function SourcesPage() {
                           <tr
                             key={p.id}
                             style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', transition: 'background 0.2s ease', animation: `srcFadeIn 0.3s ease-out ${Math.min(i, 20) * 0.02}s both` }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#111111')}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-level-2)')}
                             onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
                           >
                             <td style={{ padding: '5px 12px', color: C.text, fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nom ?? '—'}</td>
@@ -1951,7 +1951,7 @@ export default function SourcesPage() {
                               <tr
                                 key={v.ville}
                                 style={{ borderBottom: `1px solid ${C.bgSurface}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', transition: 'background 0.2s ease', animation: `srcFadeIn 0.3s ease-out ${Math.min(i, 20) * 0.02}s both` }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = '#111111')}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-level-2)')}
                                 onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
                               >
                                 <td style={{ padding: '6px 12px', color: C.text, fontWeight: 600 }}>{v.ville}</td>
@@ -2286,9 +2286,9 @@ export default function SourcesPage() {
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => setEditFilterFields((prev) => isChecked ? prev.filter((f) => f !== field) : [...prev, field])}
-                                style={{ accentColor: '#4ecdc4' }}
+                                style={{ accentColor: 'var(--brand-teal)' }}
                               />
-                              <span style={{ color: isChecked ? '#4ecdc4' : C.textSec, flex: 1, fontFamily: fontMono }}>{field}</span>
+                              <span style={{ color: isChecked ? 'var(--brand-teal)' : C.textSec, flex: 1, fontFamily: fontMono }}>{field}</span>
                               <span style={{ fontSize: 9, color: C.muted, fontFamily: fontInter, fontWeight: 500 }}>meta</span>
                             </label>
                           );

@@ -13,17 +13,17 @@ proj4.defs('EPSG:3035', '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=321000
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#0a0a0a',
-  bgCard:      '#111111',
-  border:      '#1a1a1a',
-  borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
-  accentDim:   'rgba(78,205,196,0.08)',
-  text:        '#f0f0f0',
-  textDim:     '#a0a0a0',
-  textSec:     '#666666',
-  green:       '#3dffa0',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-surface)',
+  bgCard:      'var(--bg-level-2)',
+  border:      'var(--border-subtle)',
+  borderLight: 'var(--brand-teal-30)',
+  accent:      'var(--brand-teal)',
+  accentDim:   'var(--brand-teal-10)',
+  text:        'var(--text-primary)',
+  textDim:     'var(--text-secondary)',
+  textSec:     'var(--text-tertiary)',
+  green:       'var(--success)',
   red:         '#f87171',
   yellow:      '#f59e0b',
 };
@@ -162,7 +162,7 @@ function Btn({ onClick, disabled, children, variant = 'primary' }: {
       style={{
         padding: '9px 22px',
         background: variant === 'primary' ? C.accent : 'transparent',
-        color: variant === 'primary' ? '#050505' : C.textDim,
+        color: variant === 'primary' ? 'var(--bg-primary)' : C.textDim,
         border: variant === 'ghost' ? `1px solid ${C.border}` : 'none',
         borderRadius: 2,
         fontFamily: fontInter,
@@ -690,7 +690,7 @@ export default function FilosofiImportPage() {
             <div
               ref={logRef}
               style={{
-                background: '#0a0a0a', border: `1px solid ${C.border}`, borderRadius: 2,
+                background: 'var(--bg-surface)', border: `1px solid ${C.border}`, borderRadius: 2,
                 height: 320, overflowY: 'auto', padding: '12px 14px',
                 fontFamily: fontMono, fontSize: 10, lineHeight: 1.7,
               }}
@@ -758,11 +758,11 @@ function RefreshVilleStats() {
   }
 
   return (
-    <div style={{ marginTop: 32, padding: '16px 20px', background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 2 }}>
-      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: '#a0a0a0', marginBottom: 10 }}>
+    <div style={{ marginTop: 32, padding: '16px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 2 }}>
+      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 10 }}>
         Cache smart prompt — classement villes
       </div>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: '#a0a0a0', marginBottom: 12 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
         Pré-calcule les totaux Filosofi par ville (contours IRIS). A lancer après chaque import de carreaux.
       </div>
       <button
@@ -770,23 +770,23 @@ function RefreshVilleStats() {
         disabled={status === 'running'}
         style={{
           fontFamily: fontInter, fontSize: 12, fontWeight: 500,
-          padding: '8px 16px', borderRadius: 2, border: '1px solid #4ecdc4',
+          padding: '8px 16px', borderRadius: 2, border: '1px solid var(--brand-teal)',
           background: status === 'running' ? 'rgba(78,205,196,0.05)' : 'rgba(78,205,196,0.08)',
-          color: status === 'running' ? '#666666' : '#050505',
+          color: status === 'running' ? 'var(--text-tertiary)' : 'var(--bg-primary)',
           cursor: status === 'running' ? 'not-allowed' : 'pointer',
         }}
       >
         {status === 'running' ? 'Calcul en cours...' : 'Recalculer cache villes'}
       </button>
       {status === 'running' && total > 0 && (
-        <div style={{ marginTop: 10, height: 4, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: '#4ecdc4', width: `${(progress/total)*100}%`, transition: 'width 0.3s' }} />
+        <div style={{ marginTop: 10, height: 4, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: 'var(--brand-teal)', width: `${(progress/total)*100}%`, transition: 'width 0.3s' }} />
         </div>
       )}
       {msg && (
         <div style={{
           marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-          color: status === 'error' ? '#f87171' : status === 'done' ? '#3dffa0' : '#a0a0a0',
+          color: status === 'error' ? '#f87171' : status === 'done' ? 'var(--success)' : 'var(--text-secondary)',
         }}>
           {msg}
         </div>

@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 
 const C = {
-  bg: '#050505', bgElevated: '#0a0a0a', bgSurface: '#111111',
-  border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
-  accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.08)',
-  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666',
-  green: '#3dffa0', greenDim: 'rgba(61,255,160,0.12)',
+  bg: 'var(--bg-primary)', bgElevated: 'var(--bg-surface)', bgSurface: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)', borderLight: 'var(--brand-teal-30)',
+  accent: 'var(--brand-teal)', accentDim: 'var(--brand-teal-10)',
+  text: 'var(--text-primary)', textDim: 'var(--text-secondary)', textSec: 'var(--text-tertiary)',
+  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.12)',
   red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
   warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)',
   blue: '#3b82f6', blueDim: 'rgba(59,130,246,0.12)',
