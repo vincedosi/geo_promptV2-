@@ -379,6 +379,8 @@ export interface FilterPanelProps {
   digitalScale?: string;
   onDigitalScaleChange?: (scale: string) => void;
   onOpenDigitalAnalysis?: () => void;
+  digitalPopField?: string;
+  onDigitalPopFieldChange?: (field: string) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -561,7 +563,7 @@ export function FilterPanel({
   onRecenterFrance,
   onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
-  digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis,
+  digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -715,6 +717,8 @@ export function FilterPanel({
   const [digitalCampaigns, setDigitalCampaigns] = useState<CampaignListItem[]>([]);
   const [digitalSelectedCampaign, setDigitalSelectedCampaign] = useState<string>('');
   const [digitalMetricMode, setDigitalMetricMode] = useState<'brut' | 'pour_mille'>('brut');
+  const digitalPopField = digitalPopFieldProp ?? 'population';
+  const setDigitalPopField = (v: string) => onDigitalPopFieldChange?.(v);
 
   useEffect(() => {
     // Fetch campaign list on mount (was: on accordion open)
@@ -3081,6 +3085,29 @@ export function FilterPanel({
                     <option key={c.id} value={c.id}>
                       {c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.
                     </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Population target selector */}
+              <div>
+                <div style={labelStyle}>Cible population</div>
+                <select
+                  value={digitalPopField}
+                  onChange={e => setDigitalPopField(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  {[
+                    { value: 'population', label: 'Ensemble' },
+                    { value: 'pop_15_29', label: '15-29 ans' },
+                    { value: 'pop_25_49', label: '25-49 ans' },
+                    { value: 'pop_30_44', label: '30-44 ans' },
+                    { value: 'pop_45_59', label: '45-59 ans' },
+                    { value: 'pop_60_74', label: '60-74 ans' },
+                    { value: 'nb_menages', label: 'Menages' },
+                    { value: 'rev_median', label: 'Revenu median' },
+                  ].map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               </div>
