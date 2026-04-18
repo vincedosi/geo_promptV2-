@@ -38,6 +38,7 @@ import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-exp
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
+import { ThemeToggle }     from '@/components/ThemeToggle';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -107,6 +108,8 @@ export default function MapPage() {
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);
   const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
+  const [digitalCampaignId, setDigitalCampaignId] = useState('');
+  const [digitalPopField, setDigitalPopField] = useState('population');
 
   // Auto-activate Digital layer from sidebar shortcut (?layer=digital)
   const searchParams = useSearchParams();
@@ -1564,6 +1567,7 @@ export default function MapPage() {
         onDigitalShowImpressions={async (campaignId: string) => {
           if (!campaignId) return;
           digitalCampaignIdRef.current = campaignId;
+          setDigitalCampaignId(campaignId);
           setDigitalLoading(true);
           mapLayers.setIrisVisible(false);
           try {
@@ -1624,11 +1628,14 @@ export default function MapPage() {
           setDigitalVisible(false);
           setDigitalStats(null);
           setDigitalAnalysisOpen(false);
+          setDigitalCampaignId('');
           const map = mapRef.current;
           const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
           src?.setData({ type: 'FeatureCollection', features: [] });
         }}
         onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
+        digitalPopField={digitalPopField}
+        onDigitalPopFieldChange={setDigitalPopField}
       />
       </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
@@ -1671,7 +1678,8 @@ export default function MapPage() {
               </button>
             );
           })}
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ThemeToggle />
             <SessionBadge />
           </div>
         </div>
@@ -1726,12 +1734,12 @@ export default function MapPage() {
           )}
 
           {/* Triple map view — visible when Digital active + vue comparée */}
-          {digitalVisible && digitalCompareView && (
+          {digitalVisible && digitalCompareView && digitalCampaignId && (
             <div style={{ position: 'absolute', inset: 0, zIndex: 15 }}>
               <TripleMapView
-                campaignId={digitalCampaignIdRef.current}
+                campaignId={digitalCampaignId}
                 scale={digitalScale}
-                popField="population"
+                popField={digitalPopField}
                 metric="impressions"
               />
             </div>
@@ -1918,7 +1926,7 @@ export default function MapPage() {
           )}
 
           {/* Drawer analyse détaillée Digital */}
-          {digitalAnalysisOpen && digitalCampaignIdRef.current && (
+          {digitalAnalysisOpen && digitalCampaignId && (
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
               height: '50%', minHeight: 300,
@@ -1941,9 +1949,9 @@ export default function MapPage() {
               </div>
               <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                 <DigitalAnalysisPanel
-                  campaignId={digitalCampaignIdRef.current}
+                  campaignId={digitalCampaignId}
                   scale={digitalScale}
-                  popField="population"
+                  popField={digitalPopField}
                   selectedMedia={[]}
                   metric="impressions"
                   open={digitalAnalysisOpen}
