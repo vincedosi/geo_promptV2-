@@ -3225,7 +3225,7 @@ export function FilterPanel({
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.text; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
         >
-          Sauvegarder
+          Sauvegarder la vue
         </button>
       </div>
       )}
