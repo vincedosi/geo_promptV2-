@@ -13,18 +13,18 @@ import type { GeminiAnalysis } from '@/components/ClusteringPDFReport';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#050505',
-  bgPanel: '#0a0a0a',
-  bgCard:  '#0a0a0a',
-  bgRow:   '#0a0a0a',
-  border:  '#1a1a1a',
-  accent:  '#4ecdc4',
-  green:   '#3dffa0',
+  bg:      'var(--bg-primary)',
+  bgPanel: 'var(--bg-surface)',
+  bgCard:  'var(--bg-surface)',
+  bgRow:   'var(--bg-surface)',
+  border:  'var(--border-subtle)',
+  accent:  'var(--brand-teal)',
+  green:   'var(--success)',
   amber:   '#f59e0b',
   red:     '#f87171',
-  text:    '#f0f0f0',
-  muted:   '#a0a0a0',
-  dim:     '#666666',
+  text:    'var(--text-primary)',
+  muted:   'var(--text-secondary)',
+  dim:     'var(--text-tertiary)',
 };
 const fMono  = "'JetBrains Mono','Fira Mono',monospace";
 const fInter = "'Inter', system-ui, sans-serif";

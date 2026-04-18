@@ -440,7 +440,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
       display: 'flex', flexDirection: 'column',
     } : {
       position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 50,
-      background: '#0a0a0a', borderLeft: '0.5px solid #1a1a1a',
+      background: 'var(--bg-surface)', borderLeft: '0.5px solid var(--border-subtle)',
       display: 'flex', flexDirection: 'column',
       transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
       transition: 'transform 0.2s ease',
@@ -451,7 +451,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
       {!inline && (
       <div style={{
         padding:      '14px 18px',
-        borderBottom: '0.5px solid #1a1a1a',
+        borderBottom: '0.5px solid var(--border-subtle)',
         display:      'flex',
         alignItems:   'center',
         gap:          10,
@@ -461,14 +461,14 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           fontFamily:    "'Inter', system-ui, sans-serif",
           fontSize:      11,
           fontWeight:    600,
-          color:         '#4ecdc4',
+          color:         'var(--brand-teal)',
           letterSpacing: '0.04em',
           flex:          1,
         }}>
           Analyse de couverture
         </span>
         {loading && progress && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#4ecdc4' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--brand-teal)' }}>
             {progress.metricLabel} {progress.current}/{progress.total}
           </span>
         )}
@@ -476,7 +476,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           <span style={{
             fontFamily:   "'JetBrains Mono', monospace",
             fontSize:     10,
-            color:        '#3dffa0',
+            color:        'var(--success)',
             background:   '#081a10',
             border:       '0.5px solid #14532d',
             borderRadius: 2,
@@ -492,8 +492,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             title="Exporter JSON (debug)"
             style={{
               background:     'none',
-              border:         '0.5px solid #1a1a1a',
-              color:          '#3dffa0',
+              border:         '0.5px solid var(--border-subtle)',
+              color:          'var(--success)',
               cursor:         'pointer',
               width:          22,
               height:         22,
@@ -514,8 +514,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           onClick={onClose}
           style={{
             background:     'none',
-            border:         '0.5px solid #1a1a1a',
-            color:          '#666666',
+            border:         '0.5px solid var(--border-subtle)',
+            color:          'var(--text-tertiary)',
             cursor:         'pointer',
             width:          22,
             height:         22,
@@ -537,7 +537,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
       {/* ── Metric selector + Lancer ─────────────────────────────────────────── */}
       <div style={{
         padding:      '10px 18px',
-        borderBottom: '0.5px solid #1a1a1a',
+        borderBottom: '0.5px solid var(--border-subtle)',
         flexShrink:   0,
         display:      'flex',
         flexDirection: 'column',
@@ -549,7 +549,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             const groupMetrics = METRICS.filter(m => m.group === group);
             return (
               <div key={group}>
-                <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 8, fontWeight: 500, color: '#666666', letterSpacing: '0.06em', marginBottom: 4 }}>
+                <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 8, fontWeight: 500, color: 'var(--text-tertiary)', letterSpacing: '0.06em', marginBottom: 4 }}>
                   {group}
                 </div>
                 <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
@@ -566,8 +566,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                         })}
                         style={{
                           background:    checked ? 'rgba(78,205,196,0.08)' : 'none',
-                          border:        `0.5px solid ${checked ? '#4ecdc4' : '#262626'}`,
-                          color:         checked ? '#4ecdc4' : '#666666',
+                          border:        `0.5px solid ${checked ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                          color:         checked ? 'var(--brand-teal)' : 'var(--text-tertiary)',
                           fontFamily:    "'JetBrains Mono', monospace",
                           fontSize:      9,
                           padding:       '3px 8px',
@@ -594,8 +594,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           disabled={!loading && !canLaunch}
           style={{
             background:    loading ? 'rgba(239,68,68,0.08)' : canLaunch ? 'rgba(78,205,196,0.08)' : 'none',
-            border:        `0.5px solid ${loading ? '#ef4444' : canLaunch ? '#4ecdc4' : '#262626'}`,
-            color:         loading ? '#ef4444' : canLaunch ? '#4ecdc4' : '#666666',
+            border:        `0.5px solid ${loading ? 'var(--danger)' : canLaunch ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+            color:         loading ? 'var(--danger)' : canLaunch ? 'var(--brand-teal)' : 'var(--text-tertiary)',
             fontFamily:    "'JetBrains Mono', monospace",
             fontSize:      9,
             letterSpacing: 1,
@@ -618,11 +618,11 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           display:      'flex',
           gap:          4,
           padding:      '7px 18px',
-          borderBottom: '0.5px solid #1a1a1a',
+          borderBottom: '0.5px solid var(--border-subtle)',
           flexShrink:   0,
           flexWrap:     'wrap',
         }}>
-          <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 8, fontWeight: 500, color: '#666666', letterSpacing: '0.04em', alignSelf: 'center', marginRight: 2 }}>
+          <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 8, fontWeight: 500, color: 'var(--text-tertiary)', letterSpacing: '0.04em', alignSelf: 'center', marginRight: 2 }}>
             Afficher
           </span>
           {METRICS.filter(m => computedMetrics.has(m.key)).map(m => (
@@ -631,8 +631,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
               onClick={() => setDisplayMetric(m.key)}
               style={{
                 background:    displayMetric === m.key ? '#0d1a0d' : 'none',
-                border:        `0.5px solid ${displayMetric === m.key ? '#3dffa0' : '#262626'}`,
-                color:         displayMetric === m.key ? '#3dffa0' : '#666666',
+                border:        `0.5px solid ${displayMetric === m.key ? 'var(--success)' : 'var(--border-default)'}`,
+                color:         displayMetric === m.key ? 'var(--success)' : 'var(--text-tertiary)',
                 fontFamily:    "'JetBrains Mono', monospace",
                 fontSize:      9,
                 padding:       '3px 9px',
@@ -654,7 +654,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
         {/* Empty state */}
         {battleFeatures.length === 0 && !loading && (
           <div style={{
-            color:      '#666666',
+            color:      'var(--text-tertiary)',
             fontFamily: "'JetBrains Mono', monospace",
             fontSize:   11,
             textAlign:  'center',
@@ -662,7 +662,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             lineHeight: 2,
           }}>
             Calculez des isochrones<br />
-            <span style={{ color: '#666666', fontSize: 10 }}>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>
               Territoire → Isochrones<br />ou Bataille isochrones
             </span>
           </div>
@@ -671,7 +671,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
         {/* Ready state — battle loaded but not yet computed */}
         {battleFeatures.length > 0 && !loading && computedMetrics.size === 0 && !fetchErr && (
           <div style={{
-            color:      '#666666',
+            color:      'var(--text-tertiary)',
             fontFamily: "'JetBrains Mono', monospace",
             fontSize:   10,
             textAlign:  'center',
@@ -679,7 +679,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             lineHeight: 2,
           }}>
             {poiOrder.length} POI · {paliers.length} palier{paliers.length > 1 ? 's' : ''}<br />
-            <span style={{ color: '#666666', fontSize: 9 }}>Sélectionnez les cibles et lancez le calcul</span>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 9 }}>Sélectionnez les cibles et lancez le calcul</span>
           </div>
         )}
 
@@ -689,7 +689,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             fontFamily:   "'JetBrains Mono', monospace",
             fontSize:     9,
             color:        '#f59e0b',
-            background:   '#111111',
+            background:   'var(--bg-level-2)',
             border:       '0.5px solid #78350f',
             borderRadius: 2,
             padding:      '6px 10px',
@@ -703,7 +703,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
               </div>
             )}
             {firstErr && (
-              <div style={{ color: '#6b7280', marginTop: 3, fontSize: 8 }}>
+              <div style={{ color: 'var(--text-tertiary)', marginTop: 3, fontSize: 8 }}>
                 {firstErr.slice(0, 120)}
               </div>
             )}
@@ -713,11 +713,11 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
         {/* Fatal error */}
         {fetchErr && (
           <div style={{
-            color:        '#ef4444',
+            color:        'var(--danger)',
             fontFamily:   "'JetBrains Mono', monospace",
             fontSize:     10,
             padding:      12,
-            border:       '0.5px solid #ef4444',
+            border:       '0.5px solid var(--danger)',
             borderRadius: 2,
             marginBottom: 16,
             lineHeight:   1.8,
@@ -738,7 +738,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                 flex:         1,
                 fontFamily:   "'JetBrains Mono', monospace",
                 fontSize:     9,
-                color:        '#666666',
+                color:        'var(--text-tertiary)',
                 letterSpacing: 0.5,
                 overflow:     'hidden',
                 textOverflow: 'ellipsis',
@@ -749,11 +749,11 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                   : 'Initialisation...'}
               </div>
             </div>
-            <div style={{ height: 3, background: '#111111', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: 3, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
                 height:     '100%',
                 borderRadius: 2,
-                background: '#4ecdc4',
+                background: 'var(--brand-teal)',
                 width:      progress ? `${Math.round((progress.current / progress.total) * 100)}%` : '0%',
                 transition: 'width 0.2s ease',
               }} />
@@ -766,7 +766,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                     key={i}
                     style={{
                       height:         h,
-                      background:     '#111111',
+                      background:     'var(--bg-level-2)',
                       borderRadius:   4,
                       marginBottom:   12,
                       animation:      'covPulse 1.5s ease-in-out infinite',
@@ -799,7 +799,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                     fontFamily:    "'Inter', system-ui, sans-serif",
                     fontSize:      8,
                     fontWeight:    500,
-                    color:         '#4ecdc4',
+                    color:         'var(--brand-teal)',
                     letterSpacing: '0.06em',
                     marginBottom:  6,
                   }}>
@@ -809,13 +809,13 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                     fontFamily:  "'JetBrains Mono', monospace",
                     fontSize:    32,
                     fontWeight:  700,
-                    color:       '#4ecdc4',
+                    color:       'var(--brand-teal)',
                     lineHeight:  1,
                     marginBottom: 4,
                   }}>
                     {fmtNum(maxPalierDedup)}
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'rgba(78,205,196,0.5)' }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--brand-teal-50)' }}>
                     hab. uniques — sans double comptage
                   </div>
                 </div>
@@ -837,13 +837,13 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                 label={`${displayLabel} — somme POI`}
                 value={fmtNum(chart1.reduce((s, c) => s + c.value, 0))}
                 sub={`${poiOrder.length} points (avec doublons)`}
-                color="#3dffa0"
+                color="var(--success)"
               />
               <MetricCard
                 label="Accès médian"
                 value={tempsMovenAcces != null ? `${tempsMovenAcces} min` : '—'}
                 sub="temps pondéré"
-                color="#4ecdc4"
+                color="var(--brand-teal)"
               />
             </div>
 
@@ -903,8 +903,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
 
             {/* ── Insights ── */}
             <div style={{
-              background:   '#111111',
-              border:       '0.5px solid #1a1a1a',
+              background:   'var(--bg-level-2)',
+              border:       '0.5px solid var(--border-subtle)',
               borderLeft:   '2px solid rgba(78,205,196,0.25)',
               borderRadius: 4,
               padding:      '14px 16px',
@@ -915,17 +915,17 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                 fontFamily:    "'Inter', system-ui, sans-serif",
                 fontSize:      10,
                 fontWeight:    600,
-                color:         '#4ecdc4',
+                color:         'var(--brand-teal)',
                 letterSpacing: '0.04em',
                 marginBottom:  12,
               }}>
                 Insights
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <InsightLine color="#262626" text="Chevauchement entre zones" note="bientôt disponible" />
-                <InsightLine color="#262626" text="Top 5 communes non couvertes" note="bientôt disponible" />
-                <InsightLine color="#262626" text="Équité territoriale (score)" note="bientôt disponible" />
-                <InsightLine color="#262626" text="Simulation d'ajout de point" note="bientôt disponible" />
+                <InsightLine color="var(--border-default)" text="Chevauchement entre zones" note="bientôt disponible" />
+                <InsightLine color="var(--border-default)" text="Top 5 communes non couvertes" note="bientôt disponible" />
+                <InsightLine color="var(--border-default)" text="Équité territoriale (score)" note="bientôt disponible" />
+                <InsightLine color="var(--border-default)" text="Simulation d'ajout de point" note="bientôt disponible" />
               </div>
             </div>
           </>
@@ -938,13 +938,13 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           position:      'fixed',
           left:          tooltip.x + 12,
           top:           tooltip.y - 8,
-          background:    '#111111',
-          border:        '0.5px solid #262626',
+          background:    'var(--bg-level-2)',
+          border:        '0.5px solid var(--border-default)',
           borderRadius:  2,
           padding:       '5px 9px',
           fontFamily:    "'JetBrains Mono', monospace",
           fontSize:      11,
-          color:         '#f0f0f0',
+          color:         'var(--text-primary)',
           zIndex:        60,
           pointerEvents: 'none',
           whiteSpace:    'nowrap',
@@ -979,8 +979,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
 function MetricCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
     <div style={{
-      background:   '#111111',
-      border:       '0.5px solid #1a1a1a',
+      background:   'var(--bg-level-2)',
+      border:       '0.5px solid var(--border-subtle)',
       borderRadius: 4,
       padding:      '10px 10px 8px',
     }}>
@@ -988,7 +988,7 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
         fontFamily:    "'Inter', system-ui, sans-serif",
         fontSize:      8,
         fontWeight:    500,
-        color:         '#666666',
+        color:         'var(--text-tertiary)',
         letterSpacing: '0.04em',
         marginBottom:  6,
       }}>
@@ -1004,7 +1004,7 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
       }}>
         {value}
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#666666' }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text-tertiary)' }}>
         {sub}
       </div>
     </div>
@@ -1018,7 +1018,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         fontFamily:    "'Inter', system-ui, sans-serif",
         fontSize:      9,
         fontWeight:    500,
-        color:         '#a0a0a0',
+        color:         'var(--text-secondary)',
         letterSpacing: '0.04em',
         marginBottom:  10,
         paddingLeft:   8,
@@ -1041,8 +1041,8 @@ function InsightLine({ color, text, note }: { color: string; text: string; note:
       fontSize:   10,
     }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
-      <span style={{ color: '#666666' }}>{text}</span>
-      <span style={{ color: '#333333', fontStyle: 'italic', marginLeft: 'auto', flexShrink: 0 }}>{note}</span>
+      <span style={{ color: 'var(--text-tertiary)' }}>{text}</span>
+      <span style={{ color: 'var(--border-hover)', fontStyle: 'italic', marginLeft: 'auto', flexShrink: 0 }}>{note}</span>
     </div>
   );
 }
@@ -1055,7 +1055,7 @@ function PalierLegend({ paliers }: { paliers: number[] }) {
           fontFamily:   "'JetBrains Mono', monospace",
           fontSize:     9,
           color:        PALIER_COLORS[p] ?? '#888',
-          background:   '#0a0a0a',
+          background:   'var(--bg-surface)',
           border:       `0.5px solid ${PALIER_COLORS[p] ?? '#888'}`,
           borderRadius: 2,
           padding:      '2px 6px',
@@ -1101,11 +1101,11 @@ function HBarChart({
               x={LABEL_W}
               y={y + ROW_H / 2 + 4}
               textAnchor="end"
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fill: d.failed ? '#666666' : '#a0a0a0' }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fill: d.failed ? 'var(--text-tertiary)' : 'var(--text-secondary)' }}
             >
               {d.label.length > 14 ? d.label.slice(0, 13) + '…' : d.label}
             </text>
-            <rect x={CHART_PAD.left} y={y + 4} width={barW} height={ROW_H - 8} rx={2} fill="#111111" />
+            <rect x={CHART_PAD.left} y={y + 4} width={barW} height={ROW_H - 8} rx={2} fill="var(--bg-level-2)" />
             {w > 0 && (
               <rect
                 x={CHART_PAD.left} y={y + 4}
@@ -1153,11 +1153,11 @@ function StackedHBarChart({
               x={LABEL_W}
               y={y + ROW_H / 2 + 4}
               textAnchor="end"
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fill: '#a0a0a0' }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fill: 'var(--text-secondary)' }}
             >
               {row.name.length > 14 ? row.name.slice(0, 13) + '…' : row.name}
             </text>
-            <rect x={CHART_PAD.left} y={y + 4} width={barW} height={ROW_H - 8} rx={2} fill="#111111" />
+            <rect x={CHART_PAD.left} y={y + 4} width={barW} height={ROW_H - 8} rx={2} fill="var(--bg-level-2)" />
             {row.segments.map((sg, j) => {
               const w = Math.max((sg.value / maxTotal) * barW, sg.value > 0 ? 2 : 0);
               const x = CHART_PAD.left + xOff;
@@ -1178,7 +1178,7 @@ function StackedHBarChart({
             <text
               x={CHART_PAD.left + (total / maxTotal) * barW + 4}
               y={y + ROW_H / 2 + 4}
-              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fill: '#a0a0a0' }}
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fill: 'var(--text-secondary)' }}
             >
               {formatValue(total)}
             </text>
@@ -1222,14 +1222,14 @@ function AreaLineChart({
       </defs>
       {[0, 25, 50, 75, 100].map(pct => (
         <g key={pct}>
-          <line x1={PAD.left} x2={PAD.left + gW} y1={yOf(pct)} y2={yOf(pct)} stroke="#1a1a1a" strokeWidth={1} />
-          <text x={PAD.left - 4} y={yOf(pct) + 4} textAnchor="end" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fill: '#666666' }}>
+          <line x1={PAD.left} x2={PAD.left + gW} y1={yOf(pct)} y2={yOf(pct)} stroke="var(--border-subtle)" strokeWidth={1} />
+          <text x={PAD.left - 4} y={yOf(pct) + 4} textAnchor="end" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fill: 'var(--text-tertiary)' }}>
             {pct}%
           </text>
         </g>
       ))}
-      <line x1={PAD.left} x2={PAD.left + gW} y1={y80} y2={y80} stroke="#666666" strokeWidth={1} strokeDasharray="5 3" />
-      <text x={PAD.left + gW - 2} y={y80 - 3} textAnchor="end" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fill: '#666666' }}>
+      <line x1={PAD.left} x2={PAD.left + gW} y1={y80} y2={y80} stroke="var(--text-tertiary)" strokeWidth={1} strokeDasharray="5 3" />
+      <text x={PAD.left + gW - 2} y={y80 - 3} textAnchor="end" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fill: 'var(--text-tertiary)' }}>
         Objectif 80%
       </text>
       <path d={area} fill="url(#areaGrad)" />
@@ -1238,12 +1238,12 @@ function AreaLineChart({
         <g key={i}>
           <circle
             cx={xOf(i)} cy={yOf(d.pct)} r={4}
-            fill="#0a0a0a" stroke="#378ADD" strokeWidth={2}
+            fill="var(--bg-surface)" stroke="#378ADD" strokeWidth={2}
             style={{ cursor: 'default' }}
             onMouseMove={e => onHover({ x: e.clientX, y: e.clientY, text: `${d.label} — ${d.pct}% (${d.coverage.toLocaleString('fr-FR')} hab)` })}
             onMouseLeave={() => onHover(null)}
           />
-          <text x={xOf(i)} y={H - PAD.bottom + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fill: '#666666' }}>
+          <text x={xOf(i)} y={H - PAD.bottom + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fill: 'var(--text-tertiary)' }}>
             {d.label}
           </text>
         </g>

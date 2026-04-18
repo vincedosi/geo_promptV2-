@@ -123,7 +123,7 @@ export function ClusterRadar({
     ? labels.map((lbl, i) => ({ label: lbl, color: colors[i] }))
     : [];
   if (reference && (showRefLegend ?? true)) {
-    legendEntries.push({ label: 'Moy. France', color: '#666666', dashed: true });
+    legendEntries.push({ label: 'Moy. France', color: '#666666', dashed: true }); // data-viz reference color — keep literal
   }
 
   return (
@@ -132,7 +132,7 @@ export function ClusterRadar({
       {[0.25, 0.5, 0.75, 1].map(f => (
         <polygon key={f} points={gridPoly(f)}
           fill="none"
-          stroke={f === 1 ? '#1a1a1a' : '#111111'}
+          stroke={f === 1 ? 'var(--border-subtle)' : 'var(--bg-level-2)'}
           strokeWidth={f === 1 ? 0.8 : 0.4}
         />
       ))}
@@ -143,7 +143,7 @@ export function ClusterRadar({
           <line key={i}
             x1={cx.toFixed(1)} y1={cy.toFixed(1)}
             x2={x.toFixed(1)}  y2={y.toFixed(1)}
-            stroke="#1a1a1a" strokeWidth={0.5}
+            stroke="var(--border-subtle)" strokeWidth={0.5}
           />
         );
       })}
@@ -175,7 +175,7 @@ export function ClusterRadar({
           <text key={i}
             x={x.toFixed(1)} y={y.toFixed(1)}
             textAnchor={anchor} dominantBaseline={baseline}
-            fontSize={7} fill="#a0a0a0"
+            fontSize={7} fill="var(--text-secondary)"
             fontFamily={fInter} letterSpacing="0.05em"
           >
             {short}
@@ -190,7 +190,7 @@ export function ClusterRadar({
                 stroke={e.color} strokeWidth={1.5} strokeDasharray="3 2" />
             : <rect width={7} height={7} fill={e.color} rx={1} />
           }
-          <text x={10} y={6} fontSize={7} fill="#a0a0a0" fontFamily={fInter}>
+          <text x={10} y={6} fontSize={7} fill="var(--text-secondary)" fontFamily={fInter}>
             {e.label}
           </text>
         </g>
