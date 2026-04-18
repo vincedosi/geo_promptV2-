@@ -108,6 +108,7 @@ export default function MapPage() {
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);
   const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
+  const [digitalAnalysisSize, setDigitalAnalysisSize] = useState<'half' | 'full'>('half');
   const [digitalCampaignId, setDigitalCampaignId] = useState('');
   const [digitalPopField, setDigitalPopField] = useState('population');
 
@@ -1929,11 +1930,11 @@ export default function MapPage() {
           {digitalAnalysisOpen && digitalCampaignId && (
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
-              height: '50%', minHeight: 300,
+              height: digitalAnalysisSize === 'full' ? '100%' : '50%', minHeight: 300,
               background: 'var(--bg-surface)',
               borderTop: '1px solid var(--border-default)',
               display: 'flex', flexDirection: 'column',
-              transition: 'transform 0.3s ease',
+              transition: 'height 0.3s ease',
             }}>
               <div style={{
                 padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1942,10 +1943,21 @@ export default function MapPage() {
                 <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
                   Analyse detaillee
                 </span>
-                <button
-                  onClick={() => setDigitalAnalysisOpen(false)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
-                >×</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    onClick={() => setDigitalAnalysisSize(s => s === 'half' ? 'full' : 'half')}
+                    title={digitalAnalysisSize === 'full' ? 'Reduire' : 'Plein ecran'}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px', display: 'flex', transition: 'color 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                  >
+                    {digitalAnalysisSize === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                  <button
+                    onClick={() => { setDigitalAnalysisOpen(false); setDigitalAnalysisSize('half'); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+                  >×</button>
+                </div>
               </div>
               <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                 <DigitalAnalysisPanel
