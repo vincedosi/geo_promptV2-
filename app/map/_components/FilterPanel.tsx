@@ -716,19 +716,17 @@ export function FilterPanel({
   const [digitalMetricMode, setDigitalMetricMode] = useState<'brut' | 'pour_mille'>('brut');
 
   useEffect(() => {
-    if (!analyseOpen.digital) return;
-    // Always refresh campaign list when accordion opens
+    // Fetch campaign list on mount (was: on accordion open)
     adminFetch(`/api/digital/campaigns?_t=${Date.now()}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: CampaignListItem[]) => {
         setDigitalCampaigns(data);
-        // Reset selection if current campaign no longer exists
         if (digitalSelectedCampaign && !data.some(c => c.id === digitalSelectedCampaign)) {
           setDigitalSelectedCampaign('');
         }
       })
       .catch(() => {});
-  }, [analyseOpen.digital]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cluster overlay state
   const [clusterModels, setClusterModels] = useState<ClusterModelSummary[]>([]);
@@ -3060,23 +3058,14 @@ export function FilterPanel({
             </div>
             )}
 
-            {/* ── Accordéon : DIGITAL ───────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('digital')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Digital {digitalVisible && <span style={{ color: C.green }}>●</span>}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.digital ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.digital && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          </div>
+        </CategoryGroup>
+
+        {/* ════════════════════════════════════════
+            CATÉGORIE — CAMPAGNES MÉDIA
+        ════════════════════════════════════════ */}
+        <CategoryGroup title="Campagnes média" defaultOpen={false}>
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Campaign selector */}
               <div>
@@ -3203,8 +3192,6 @@ export function FilterPanel({
                   </button>
                 </div>
               )}
-            </div>
-            )}
 
           </div>
         </CategoryGroup>
