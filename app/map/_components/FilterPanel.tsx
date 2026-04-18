@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Search, X, ChevronDown, HelpCircle } from 'lucide-react';
+import { CategoryGroup } from '@/components/ui/CategoryGroup';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
@@ -211,7 +212,7 @@ interface ClusterModelSummary {
 }
 
 type Tab = 'geoprompt' | 'expert';
-type ExpertSubTab = 'territoire' | 'poi' | 'analyse';
+// ExpertSubTab supprimé — panel unique scrollable (Sprint 1)
 
 // ─── POI Style ────────────────────────────────────────────────────────────────
 export interface POIStyle { size: string; color: string; }
@@ -670,7 +671,7 @@ export function FilterPanel({
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('geoprompt');
-  const [activeExpertTab, setActiveExpertTab] = useState<ExpertSubTab>('territoire');
+  // activeExpertTab supprimé — panel unique scrollable (Sprint 1)
 
   // ── OOH / DOOH state ──────────────────────────────────────────────────────
   // Régies disponibles dans global_ooh (source: Brest Métropole)
@@ -861,7 +862,6 @@ export function FilterPanel({
   useEffect(() => {
     if (!correlationParams) return;
     setActiveTab('expert');
-    setActiveExpertTab('analyse');
     setAnalyseOpen(prev => ({ ...prev, correlation: true }));
   }, [correlationParams]);
 
@@ -1195,11 +1195,6 @@ export function FilterPanel({
 
   // ── Tab config ────────────────────────────────────────────────────────────
   const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0) + (clusterGeoJSON ? 1 : 0);
-  const EXPERT_SUBTABS: { id: ExpertSubTab; label: string; badge?: number }[] = [
-    { id: 'territoire', label: 'Territoire', badge: hasTerritoire ? 1 : 0 },
-    { id: 'poi',        label: 'POI',        badge: selectedPOI.length + selectedOOH.length },
-    { id: 'analyse',    label: 'Analyse',    badge: clusterGeoJSON ? 1 : 0 },
-  ];
 
   return (
     <div style={{
@@ -1323,39 +1318,7 @@ export function FilterPanel({
         })()}
       </div>
 
-      {/* ── Sous-onglets EXPERT ───────────────────────────────────────────── */}
-      {activeTab === 'expert' && (
-        <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel }}>
-          {EXPERT_SUBTABS.map(sub => {
-            const active = activeExpertTab === sub.id;
-            return (
-              <button key={sub.id} onClick={() => setActiveExpertTab(sub.id)} className="fp-tab" style={{
-                flex: 1, padding: '9px 4px 7px', position: 'relative',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer', transition: 'color 0.2s ease',
-              }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-              >
-                <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: active ? 500 : 400, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
-                  {sub.label}
-                </div>
-                {(sub.badge ?? 0) > 0 && (
-                  <div style={{ position: 'absolute', top: 5, right: 8, width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-teal)' }} />
-                )}
-                <span style={{
-                  position: 'absolute', bottom: 0, left: '50%',
-                  width: active ? '100%' : '0%',
-                  height: 1.5, background: 'var(--brand-teal)',
-                  transform: 'translateX(-50%)',
-                  transition: 'width 0.25s ease',
-                }} />
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Sous-onglets Expert supprimés — tout en panel unique scrollable */}
 
       {/* ── Tab content ──────────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -1435,9 +1398,9 @@ export function FilterPanel({
         <div className="filter-panel-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
-            ONGLET 2 — TERRITOIRE
+            CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
-        {activeExpertTab === 'territoire' && (
+        <CategoryGroup title="Contexte" defaultOpen={true} collapsible={false}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
@@ -1552,12 +1515,12 @@ export function FilterPanel({
             )}
 
           </div>
-        )}
+        </CategoryGroup>
 
         {/* ════════════════════════════════════════
-            ONGLET POI — Points d'intérêt
+            CATÉGORIE — DONNÉES TERRAIN (ex-POI)
         ════════════════════════════════════════ */}
-        {activeExpertTab === 'poi' && (
+        <CategoryGroup title="Données terrain" defaultOpen={true}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
@@ -2087,12 +2050,12 @@ export function FilterPanel({
             </div>
 
           </div>
-        )}
+        </CategoryGroup>
 
         {/* ════════════════════════════════════════
-            ONGLET ANALYSE — accordéons
+            CATÉGORIE — ANALYSES (ex-Analyse)
         ════════════════════════════════════════ */}
-        {activeExpertTab === 'analyse' && (
+        <CategoryGroup title="Analyses" defaultOpen={false}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
@@ -3244,7 +3207,7 @@ export function FilterPanel({
             )}
 
           </div>
-        )}
+        </CategoryGroup>
 
         </div>
         )}
