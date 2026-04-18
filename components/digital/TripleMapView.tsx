@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { SyncMap } from '@/app/map/analyse/digital/_components/SyncMap';
 import { MapLegend } from '@/app/map/analyse/digital/_components/MapLegend';
 import { useDigitalData } from '@/app/map/analyse/digital/_lib/use-digital-data';
@@ -100,8 +100,12 @@ interface TripleMapViewProps {
   selectedMedia?: string[];
 }
 
-export function TripleMapView({ campaignId, scale, popField, metric, selectedMedia = [] }: TripleMapViewProps) {
+export function TripleMapView({ campaignId, scale, popField, metric, selectedMedia }: TripleMapViewProps) {
   const { geojson, geojsonLoading, fetchMap } = useDigitalData();
+
+  // Stable ref for selectedMedia to avoid useEffect re-trigger on array identity change
+  const mediaRef = useRef(selectedMedia ?? []);
+  mediaRef.current = selectedMedia ?? [];
 
   // Palette state per map
   const [impPalette, setImpPalette] = useState('teal');
@@ -122,10 +126,10 @@ export function TripleMapView({ campaignId, scale, popField, metric, selectedMed
     setSyncState({ center, zoom, bearing, pitch });
   }, []);
 
-  // Fetch map data when props change
+  // Fetch map data when props change (use mediaRef to avoid array identity changes)
   useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric);
-  }, [campaignId, scale, popField, selectedMedia, metric, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, mediaRef.current, metric);
+  }, [campaignId, scale, popField, metric, fetchMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute percentiles + expressions
   const stats = useMemo(() => {
