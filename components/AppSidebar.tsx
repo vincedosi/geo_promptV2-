@@ -47,7 +47,7 @@ const navItems: NavSection[] = [
     items: [
       { href: '/map', label: 'geo.prompt', icon: MapPin },
       { href: '/clusters', label: 'Clustering', icon: Share2 },
-      { href: '/map/analyse/digital', label: 'Digital', icon: BarChart3 },
+      { href: '/map?layer=digital', label: 'Digital', icon: BarChart3 },
     ],
   },
   {

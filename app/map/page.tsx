@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -106,6 +107,14 @@ export default function MapPage() {
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);
   const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
+
+  // Auto-activate Digital layer from sidebar shortcut (?layer=digital)
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('layer') === 'digital') {
+      setDigitalVisible(true);
+    }
+  }, [searchParams]);
   const digitalPercentilesRef = useRef<number[]>([]);
   const digitalCampaignIdRef = useRef<string>('');
 
