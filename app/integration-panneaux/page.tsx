@@ -12,7 +12,7 @@ const C = {
   bg: '#050505', bgElevated: '#111111', bgSurface: '#111111',
   border: '#1a1a1a', borderLight: 'rgba(78,205,196,0.2)',
   accent: '#4ecdc4', accentDim: 'rgba(78,205,196,0.1)',
-  text: '#f0f0f0', textDim: '#a0a0a0', textSec: '#666666', muted: '#666666',
+  text: '#f0f0f0', textDim: 'var(--text-secondary)', textSec: 'var(--text-tertiary)', muted: 'var(--text-tertiary)',
   green: '#3dffa0', greenDim: 'rgba(61,255,160,0.10)',
   red: '#ff5757', redDim: 'rgba(255,87,87,0.1)',
   warn: '#f7b731', warnDim: 'rgba(247,183,49,0.1)', blue: '#5b9bd5',

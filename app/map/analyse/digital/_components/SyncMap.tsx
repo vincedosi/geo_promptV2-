@@ -220,7 +220,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       map.getCanvas().style.cursor = 'pointer';
       const p = (f.properties ?? {}) as Record<string, unknown>;
       const nom = String(p.nom ?? p.code ?? '—');
-      const label = p.label && String(p.label) !== nom ? ` <span style="color:#666">· ${String(p.label)}</span>` : '';
+      const label = p.label && String(p.label) !== nom ? ` <span style="color:var(--text-tertiary)">· ${String(p.label)}</span>` : '';
 
       // Construction conditionnelle des lignes du popup. En mode meteo, les
       // features sont enrichies avec meteo_value/unit/label (en plus des KPIs
@@ -243,7 +243,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       if (hasMeteo) {
         const mv = Number(p.meteo_value);
         const mu = p.meteo_unit ? String(p.meteo_unit) : '';
-        const ml = p.meteo_label ? `<div style="color:#666;font-size:10px;margin-top:2px">${String(p.meteo_label)}</div>` : '';
+        const ml = p.meteo_label ? `<div style="color:var(--text-tertiary);font-size:10px;margin-top:2px">${String(p.meteo_label)}</div>` : '';
         const sep = lines.length > 0
           ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid #1a1a1a"></div>'
           : '';

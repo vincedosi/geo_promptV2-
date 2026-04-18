@@ -150,7 +150,7 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
       const fmtVal = crit.distance != null ? `${Math.round(crit.distance)}m` :
                      crit.valeur   != null ? String(crit.valeur) : '';
       criteriaHtml +=
-        `<div style="font-size:10px;color:#666;margin:4px 0 1px">${critLabel}</div>` +
+        `<div style="font-size:10px;color:var(--text-tertiary);margin:4px 0 1px">${critLabel}</div>` +
         `<div style="display:flex;justify-content:space-between;font-size:10px">` +
         `<span style="color:#ccc">${crit.score}/${crit.poids}</span>` +
         `<span style="color:#555">${fmtVal}</span></div>` +
@@ -162,28 +162,28 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
   } else {
     // V1 fallback: colonnes legacy
     criteriaHtml =
-      `<div style="font-size:10px;color:#666;margin-bottom:2px">Proximité lycée</div>` +
+      `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:2px">Proximité lycée</div>` +
       `<div style="font-size:10px;color:#ccc">${p.score_proximite_lycee}/30</div>` +
       bar(p.score_proximite_lycee, 30) +
-      `<div style="font-size:10px;color:#666;margin:4px 0 2px">Proximité CIRFA</div>` +
+      `<div style="font-size:10px;color:var(--text-tertiary);margin:4px 0 2px">Proximité CIRFA</div>` +
       `<div style="font-size:10px;color:#ccc">${p.score_proximite_cirfa}/20</div>` +
       bar(p.score_proximite_cirfa, 20) +
-      `<div style="font-size:10px;color:#666;margin:4px 0 2px">Transport</div>` +
+      `<div style="font-size:10px;color:var(--text-tertiary);margin:4px 0 2px">Transport</div>` +
       `<div style="font-size:10px;color:#ccc">${p.score_transport}/20</div>` +
       bar(p.score_transport, 20) +
-      `<div style="font-size:10px;color:#666;margin:4px 0 2px">Démographie</div>` +
+      `<div style="font-size:10px;color:var(--text-tertiary);margin:4px 0 2px">Démographie</div>` +
       `<div style="font-size:10px;color:#ccc">${p.score_demo}/30</div>` +
       bar(p.score_demo, 30);
   }
 
   return `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:10px 12px;color:#888;min-width:220px">` +
     `<div style="color:#fff;font-size:12px;font-weight:700;margin-bottom:4px">#${rank} ${nom}</div>` +
-    `<div style="color:#666666;font-size:10px;margin-bottom:8px">` +
+    `<div style="color:var(--text-tertiary);font-size:10px;margin-bottom:8px">` +
     `${p.regie ?? '—'} · ${p.type_panneau ?? '—'}</div>` +
     `<div style="color:${col};font-size:16px;font-weight:800;margin-bottom:8px">` +
     `${p.score_ooh_final}/${maxScore} <span style="font-size:10px;font-weight:400;color:#888">${scoreLabel(p.score_ooh_final)}</span></div>` +
     criteriaHtml +
-    `<div style="border-top:1px solid #1a1a1a;margin:6px 0;padding-top:4px;font-size:10px;color:#666">` +
+    `<div style="border-top:1px solid #1a1a1a;margin:6px 0;padding-top:4px;font-size:10px;color:var(--text-tertiary)">` +
     `Sous-total <span style="color:#ccc">${p.score_ooh_total}/${maxScore}</span>` +
     (p.bonus_isochrone > 0 ? ` · Bonus iso <span style="color:${col}">+${p.bonus_isochrone}</span>` : '') +
     `</div>` +

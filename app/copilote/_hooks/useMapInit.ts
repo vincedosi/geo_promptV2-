@@ -134,7 +134,7 @@ export function useMapInit(
       'pointer-events:none',
       'background:rgba(5,5,5,0.82)',
       'border:0.5px solid #262626',
-      'color:#a0a0a0',
+      'color:var(--text-secondary)',
       'font-family:JetBrains Mono,monospace',
       'font-size:11px',
       'letter-spacing:0.05em',
@@ -483,14 +483,14 @@ export function useMapInit(
         new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
-            <div style="font-size:14px;font-weight:600;color:${nom ? '#f0f0f0' : '#666666'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
-            ${nom ? `<div style="color:#a0a0a0;font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
-            ${groupe ? `<div style="color:#666666;font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
+            <div style="font-size:14px;font-weight:600;color:${nom ? 'var(--text-primary)' : 'var(--text-tertiary)'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
+            ${nom ? `<div style="color:var(--text-secondary);font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
+            ${groupe ? `<div style="color:var(--text-tertiary);font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
             <div style="border-top:0.5px solid #1a1a1a;margin:4px 0;padding-top:4px">
-              <div style="color:#a0a0a0;font-size:11px">${freqDisplay}</div>
-              ${pw ? `<div style="color:#666666;font-size:11px">Puissance : ${pw}</div>` : ''}
-              ${cov ? `<div style="color:#666666;font-size:11px">Couverture : ${cov}</div>` : ''}
-              <div style="color:#666666;font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
+              <div style="color:var(--text-secondary);font-size:11px">${freqDisplay}</div>
+              ${pw ? `<div style="color:var(--text-tertiary);font-size:11px">Puissance : ${pw}</div>` : ''}
+              ${cov ? `<div style="color:var(--text-tertiary);font-size:11px">Couverture : ${cov}</div>` : ''}
+              <div style="color:var(--text-tertiary);font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
               ${p.exploitant ? `<div style="color:#444444;font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
             </div>
           </div>`)

@@ -354,7 +354,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                   {['Zone', 'Ratio avant', 'Ratio apres', 'Δ'].map(h => (
                     <th key={h} style={{
                       textAlign: h === 'Zone' ? 'left' : 'right', padding: '5px 8px',
-                      fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#666666',
+                      fontFamily: fInter, fontSize: 9, fontWeight: 500, color: 'var(--text-tertiary)',
                       borderBottom: '0.5px solid #1a1a1a',
                     }}>{h}</th>
                   ))}
@@ -366,10 +366,10 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                   const improving = Math.abs(s.ratio_apres - 1) < Math.abs(s.ratio_avant - 1);
                   return (
                     <tr key={s.code} style={{ borderBottom: '0.5px solid #111111' }}>
-                      <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: '#a0a0a0' }}>
+                      <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-secondary)' }}>
                         <span style={{ color: '#8a8a8a', marginRight: 4 }}>{s.code}</span>{s.nom}
                       </td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#a0a0a0' }}>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>
                         {s.ratio_avant.toFixed(2)}
                       </td>
                       <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#f0f0f0', fontWeight: 500 }}>

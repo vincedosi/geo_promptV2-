@@ -268,7 +268,7 @@ export function RailroadPipeline({
             ))}
             {selectedScale === 'zones' && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
-                <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
+                <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.08em' }}>
                   JEU DE ZONES
                 </div>
                 {geographySets.length === 0 ? (
@@ -291,7 +291,7 @@ export function RailroadPipeline({
             )}
             {/* Overlay Meteo : independant du scale, swap uniquement la 3eme carte */}
             <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
-              <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: '#666666', letterSpacing: '0.08em' }}>
+              <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.08em' }}>
                 OVERLAY 3e CARTE
               </div>
               <RadioOption

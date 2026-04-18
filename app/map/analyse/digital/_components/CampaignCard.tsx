@@ -50,13 +50,13 @@ export function CampaignCard({ campaign: c, onClick }: CampaignCardProps) {
           }}>{fmt(c.total_tracked_ads)} imp.</span>
           {c.total_unique_impressions > 0 && (
             <span style={{
-              fontFamily: fMono, fontSize: 11, color: '#a0a0a0',
+              fontFamily: fMono, fontSize: 11, color: 'var(--text-secondary)',
               background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4,
             }}>{fmt(c.total_unique_impressions)} uniques</span>
           )}
           <span style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>{c.nb_medias} regies</span>
           <span style={{ fontFamily: fInter, fontSize: 11, color: '#8a8a8a' }}>{c.nb_postal_codes.toLocaleString('fr-FR')} CP</span>
-          {period && <span style={{ fontFamily: fMono, fontSize: 10, color: '#666' }}>{period}</span>}
+          {period && <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>{period}</span>}
         </div>
       </div>
       <span style={{ color: '#8a8a8a', fontSize: 16, flexShrink: 0 }}>›</span>

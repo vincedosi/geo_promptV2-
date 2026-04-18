@@ -159,7 +159,7 @@ function RadarChart({
         return (
           <text key={i} x={x.toFixed(1)} y={y.toFixed(1)}
             textAnchor={anchor} dominantBaseline={baseline}
-            fontSize={7} fill="#a0a0a0" fontFamily={fLabel} letterSpacing="0.05em">
+            fontSize={7} fill="var(--text-secondary)" fontFamily={fLabel} letterSpacing="0.05em">
             {short}
           </text>
         );

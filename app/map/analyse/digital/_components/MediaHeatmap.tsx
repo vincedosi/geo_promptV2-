@@ -134,7 +134,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
       ? { position: 'sticky', top: 0, left: 0, zIndex: 3, background: bodyBg, width: firstColWidth, height: colHeaderHeight }
       : { width: firstColWidth, height: colHeaderHeight };
     const colHeaderStyleBase: React.CSSProperties = {
-      fontFamily: fInter, fontSize: colLabelFontSize, color: '#a0a0a0',
+      fontFamily: fInter, fontSize: colLabelFontSize, color: 'var(--text-secondary)',
       writingMode: verticalColLabels ? 'vertical-rl' : 'horizontal-tb',
       textOrientation: 'mixed', padding: '2px 2px',
       height: colHeaderHeight, overflow: 'hidden',
@@ -145,7 +145,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
       ...(sticky ? { position: 'sticky', top: 0, zIndex: 2 } : {}),
     };
     const rowLabelStyleBase: React.CSSProperties = {
-      fontFamily: fInter, fontSize: labelFontSize, color: '#a0a0a0', padding: '2px 6px',
+      fontFamily: fInter, fontSize: labelFontSize, color: 'var(--text-secondary)', padding: '2px 6px',
       display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden',
       textOverflow: 'ellipsis', background: bodyBg, width: firstColWidth,
       ...(sticky ? { position: 'sticky', left: 0, zIndex: 1 } : {}),
@@ -205,7 +205,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
   const tooltip = hoveredCell && (
     <div style={{
       padding: '8px 10px', borderTop: '0.5px solid #1a1a1a', background: '#0a0a0a',
-      fontFamily: fInter, fontSize: 11, color: '#a0a0a0',
+      fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
       display: 'flex', gap: 12, flexWrap: 'wrap',
     }}>
       <span style={{ fontWeight: 600, color: '#f0f0f0' }}>{hoveredCell.media} — {hoveredCell.zone_nom}</span>
@@ -254,7 +254,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
       <div style={{ background: '#050505', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #1a1a1a' }}>
-          <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: '#a0a0a0' }}>Regies x geographie</span>
+          <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>Regies x geographie</span>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               type="button"
@@ -322,7 +322,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
                   background: transposed ? 'rgba(78,205,196,0.1)' : 'transparent',
                   border: `0.5px solid ${transposed ? '#4ecdc4' : '#262626'}`,
                   borderRadius: 6,
-                  color: transposed ? '#4ecdc4' : '#a0a0a0',
+                  color: transposed ? 'var(--brand-teal)' : 'var(--text-secondary)',
                   cursor: 'pointer',
                   fontFamily: fInter, fontSize: 12, fontWeight: 500,
                 }}

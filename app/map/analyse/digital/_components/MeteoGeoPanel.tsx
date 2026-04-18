@@ -19,8 +19,8 @@ const COLORS = {
   border: '#1a1a1a',
   borderHover: '#262626',
   textPrimary: '#f0f0f0',
-  textSecondary: '#a0a0a0',
-  textTertiary: '#666666',
+  textSecondary: 'var(--text-secondary)',
+  textTertiary: 'var(--text-tertiary)',
   accent: '#4ecdc4',
   danger: '#ff5757',
 };

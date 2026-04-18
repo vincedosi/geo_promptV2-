@@ -49,7 +49,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
             <span style={{ fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>in-zone</span>
           </span>
           {inZoneImpressions !== null && inZoneImpressions !== undefined && (
-            <span style={{ fontFamily: fMono, fontSize: 10, color: '#666666' }}>
+            <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
               {fmt(inZoneImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
             </span>
           )}

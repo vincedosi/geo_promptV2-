@@ -302,11 +302,11 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={data.tiers} layout="vertical" barSize={14} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="tier" type="category" tick={{ fill: '#666666', fontSize: 10, fontFamily: "'Inter', sans-serif" }} axisLine={false} tickLine={false} width={42} />
+              <XAxis type="number" tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <YAxis dataKey="tier" type="category" tick={{ fill: 'var(--text-tertiary)', fontSize: 10, fontFamily: "'Inter', sans-serif" }} axisLine={false} tickLine={false} width={42} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
               <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[0, 2, 2, 0]}
-                label={{ fill: '#666666', fontSize: 9, position: 'right', fontFamily: 'JetBrains Mono' }}
+                label={{ fill: 'var(--text-tertiary)', fontSize: 9, position: 'right', fontFamily: 'JetBrains Mono' }}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -320,8 +320,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={data.histogram} barSize={18} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-              <XAxis dataKey="range" tick={{ fill: '#666666', fontSize: 8, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="range" tick={{ fill: 'var(--text-tertiary)', fontSize: 8, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
               <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[2, 2, 0, 0]} />
             </BarChart>
@@ -341,8 +341,8 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
             <ResponsiveContainer width="100%" height={200}>
               <RadarChart data={data.radar} margin={{ top: 8, right: 30, bottom: 8, left: 30 }}>
                 <PolarGrid stroke="#262626" />
-                <PolarAngleAxis dataKey="critere" tick={{ fill: '#666666', fontSize: 9, fontFamily: "'Inter', sans-serif" }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#666666', fontSize: 8 }} tickCount={4} />
+                <PolarAngleAxis dataKey="critere" tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: "'Inter', sans-serif" }} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-tertiary)', fontSize: 8 }} tickCount={4} />
                 <Radar name="Top 20" dataKey="top20" stroke="#3dffa0" fill="#3dffa0" fillOpacity={0.15} dot={false} />
                 <Radar name="Moyenne" dataKey="moyenne" stroke="#4ecdc4" fill="#4ecdc4" fillOpacity={0.1} dot={false} />
                 <Legend wrapperStyle={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', paddingTop: 8 }} />
@@ -362,12 +362,12 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
               <XAxis
                 dataKey="distance_lycee" name="Distance (m)" type="number"
-                tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
-                label={{ value: 'm', position: 'insideRight', fill: '#666666', fontSize: 9 }}
+                tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
+                label={{ value: 'm', position: 'insideRight', fill: 'var(--text-tertiary)', fontSize: 9 }}
               />
               <YAxis
                 dataKey="score" name="Score" type="number" domain={[0, 100]}
-                tick={{ fill: '#666666', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
+                tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false}
               />
               <ReferenceLine y={80} stroke="#3dffa0" strokeDasharray="4 2" strokeOpacity={0.4} />
               <ReferenceLine y={50} stroke="#4ecdc4" strokeDasharray="4 2" strokeOpacity={0.4} />
