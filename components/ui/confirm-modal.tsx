@@ -53,8 +53,8 @@ export function ConfirmModal({
     >
       <div
         style={{
-          background: '#0a0a0a',
-          border: '0.5px solid #262626',
+          background: 'var(--bg-surface)',
+          border: '0.5px solid var(--border-default)',
           borderRadius: 12,
           maxWidth: 420,
           width: 'calc(100% - 32px)',
@@ -71,19 +71,19 @@ export function ConfirmModal({
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
             }}>
-              <AlertTriangle size={18} strokeWidth={1.5} style={{ color: '#ff5757' }} />
+              <AlertTriangle size={18} strokeWidth={1.5} style={{ color: 'var(--danger)' }} />
             </div>
           )}
           <div>
             <div style={{
-              fontSize: 16, fontWeight: 500, color: '#f0f0f0',
+              fontSize: 16, fontWeight: 500, color: 'var(--text-primary)',
               fontFamily: "'Inter', system-ui, sans-serif",
               marginBottom: 6,
             }}>
               {title}
             </div>
             <div style={{
-              fontSize: 13, color: '#a0a0a0', lineHeight: 1.6,
+              fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,
               fontFamily: "'Inter', system-ui, sans-serif",
             }}>
               {message}
@@ -98,25 +98,25 @@ export function ConfirmModal({
             disabled={loading}
             style={{
               background: 'transparent',
-              border: '0.5px solid #262626',
+              border: '0.5px solid var(--border-default)',
               borderRadius: 6,
               padding: '9px 18px',
               fontSize: 13,
               fontWeight: 500,
-              color: '#a0a0a0',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               fontFamily: "'Inter', system-ui, sans-serif",
               transition: 'all 0.15s ease',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.borderColor = '#333333'
-              e.currentTarget.style.background = '#111111'
-              e.currentTarget.style.color = '#f0f0f0'
+              e.currentTarget.style.borderColor = 'var(--border-hover)'
+              e.currentTarget.style.background = 'var(--bg-level-2)'
+              e.currentTarget.style.color = 'var(--text-primary)'
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.borderColor = '#262626'
+              e.currentTarget.style.borderColor = 'var(--border-default)'
               e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#a0a0a0'
+              e.currentTarget.style.color = 'var(--text-secondary)'
             }}
           >
             {cancelLabel}
@@ -125,13 +125,13 @@ export function ConfirmModal({
             onClick={onConfirm}
             disabled={loading}
             style={{
-              background: isDanger ? '#ff5757' : '#f0f0f0',
+              background: isDanger ? 'var(--danger)' : 'var(--text-primary)',
               border: 'none',
               borderRadius: 6,
               padding: '9px 18px',
               fontSize: 13,
               fontWeight: 500,
-              color: isDanger ? '#f0f0f0' : '#050505',
+              color: isDanger ? 'var(--text-primary)' : 'var(--bg-primary)',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.5 : 1,
               fontFamily: "'Inter', system-ui, sans-serif",

@@ -47,10 +47,10 @@ export default function InitPage() {
           className="w-full px-3 py-2 border rounded"
         />
       </div>
-      <button onClick={handleInit} disabled={loading || !email || !password} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+      <button onClick={handleInit} disabled={loading || !email || !password} className="px-4 py-2 bg-bg-level-2 text-text-primary border border-border-default rounded hover:bg-bg-level-3 disabled:opacity-50">
         {loading ? "..." : "Créer Admin"}
       </button>
-      {result && <pre className="mt-4 p-3 bg-gray-100 rounded text-xs overflow-auto">{result}</pre>}
+      {result && <pre className="mt-4 p-3 bg-bg-level-2 border border-border-subtle rounded text-xs overflow-auto">{result}</pre>}
     </div>
   );
 }

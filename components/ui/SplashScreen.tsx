@@ -25,7 +25,7 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: '#050505',
+        background: 'var(--bg-primary)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         opacity: phase === 'fading' ? 0 : 1,
@@ -81,13 +81,13 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
           opacity: 0,
           animation: 'splash-text 0.5s ease-out 0.8s forwards',
         }}>
-          <span style={{ color: '#f0f0f0' }}>GEOM</span>
-          <span style={{ color: '#4ecdc4' }}>ATIK</span>
+          <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
+          <span style={{ color: 'var(--brand-teal)' }}>ATIK</span>
         </div>
 
         {/* Tagline */}
         <div style={{
-          fontSize: 11, color: '#666666', fontWeight: 400,
+          fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400,
           fontFamily: "'Inter', system-ui, sans-serif",
           opacity: 0,
           animation: 'splash-text 0.5s ease-out 1.1s forwards',
@@ -99,10 +99,10 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
       {/* Progress bar — bottom */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: 2, background: '#1a1a1a',
+        height: 2, background: 'var(--border-subtle)',
       }}>
         <div style={{
-          height: '100%', background: '#4ecdc4',
+          height: '100%', background: 'var(--brand-teal)',
           animation: `splash-progress ${minDuration}ms ease-in-out forwards`,
         }} />
       </div>

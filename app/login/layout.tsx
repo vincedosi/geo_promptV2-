@@ -4,7 +4,7 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
       position: 'fixed',
       inset: 0,
       zIndex: 9999,
-      background: '#050505',
+      background: 'var(--bg-primary)',
       overflow: 'auto',
     }}>
       {children}

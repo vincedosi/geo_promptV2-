@@ -73,7 +73,7 @@ export default function LoginPage() {
     <div style={{
       display: 'flex',
       height: '100vh',
-      background: '#050505',
+      background: 'var(--bg-primary)',
       fontFamily: fInter,
     }}>
 
@@ -101,10 +101,10 @@ export default function LoginPage() {
 
           {/* Section title */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 15, fontWeight: 500, color: '#f0f0f0', marginBottom: 4 }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
               {mode === 'login' ? 'Connexion' : 'Inscription'}
             </div>
-            <div style={{ fontSize: 13, color: '#666666', fontWeight: 400 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', fontWeight: 400 }}>
               {mode === 'login'
                 ? 'Accédez à votre espace de travail'
                 : 'Créez votre espace de travail'}
@@ -117,7 +117,7 @@ export default function LoginPage() {
             {/* Email */}
             <div>
               <label style={{
-                display: 'block', fontSize: 12, color: '#666666', fontWeight: 400, marginBottom: 6,
+                display: 'block', fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 400, marginBottom: 6,
               }}>
                 Email
               </label>
@@ -129,32 +129,32 @@ export default function LoginPage() {
                 required
                 autoFocus
                 style={{
-                  width: '100%', background: '#111111',
-                  border: '0.5px solid #1a1a1a', borderRadius: 6,
+                  width: '100%', background: 'var(--bg-level-2)',
+                  border: '0.5px solid var(--border-subtle)', borderRadius: 6,
                   padding: '9px 12px', fontSize: 13, fontFamily: fInter,
-                  color: '#f0f0f0', outline: 'none', boxSizing: 'border-box',
+                  color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box',
                   transition: 'border-color 0.15s',
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
               />
             </div>
 
             {/* Password */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: 12, color: '#666666', fontWeight: 400 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 400 }}>
                   Mot de passe
                 </label>
                 <button
                   type="button"
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 11, color: '#666666', fontFamily: fInter, padding: 0,
+                    fontSize: 11, color: 'var(--text-tertiary)', fontFamily: fInter, padding: 0,
                     transition: 'color 0.15s',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
                   tabIndex={-1}
                 >
                   Mot de passe oublié ?
@@ -169,14 +169,14 @@ export default function LoginPage() {
                   required
                   minLength={6}
                   style={{
-                    width: '100%', background: '#111111',
-                    border: '0.5px solid #1a1a1a', borderRadius: 6,
+                    width: '100%', background: 'var(--bg-level-2)',
+                    border: '0.5px solid var(--border-subtle)', borderRadius: 6,
                     padding: '9px 36px 9px 12px', fontSize: 13, fontFamily: fInter,
-                    color: '#f0f0f0', outline: 'none', boxSizing: 'border-box',
+                    color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box',
                     transition: 'border-color 0.15s',
                   }}
                   onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#1a1a1a'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
                 />
                 <button
                   type="button"
@@ -184,11 +184,11 @@ export default function LoginPage() {
                   style={{
                     position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                    color: '#666666', display: 'flex', alignItems: 'center',
+                    color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center',
                     transition: 'color 0.15s',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#666666'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
                   tabIndex={-1}
                 >
                   {showPassword
@@ -206,9 +206,9 @@ export default function LoginPage() {
                 border: '0.5px solid rgba(255,87,87,0.2)',
                 borderRadius: 6, padding: '10px 12px',
               }}>
-                <AlertCircle size={14} style={{ color: '#ff5757', flexShrink: 0, marginTop: 1 }} />
+                <AlertCircle size={14} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
                 <span style={{
-                  fontSize: 12, color: '#ff5757', fontFamily: fInter,
+                  fontSize: 12, color: 'var(--danger)', fontFamily: fInter,
                   fontWeight: 400, lineHeight: 1.5, whiteSpace: 'pre-wrap',
                 }}>
                   {formatAuthError(
@@ -225,8 +225,8 @@ export default function LoginPage() {
               disabled={isLoading}
               style={{
                 width: '100%', padding: '10px 0',
-                background: isLoading ? '#262626' : '#f0f0f0',
-                color: isLoading ? '#666666' : '#050505',
+                background: isLoading ? 'var(--border-default)' : 'var(--text-primary)',
+                color: isLoading ? 'var(--text-tertiary)' : 'var(--bg-primary)',
                 border: 'none', borderRadius: 6,
                 fontSize: 13, fontWeight: 500, fontFamily: fInter,
                 cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -234,7 +234,7 @@ export default function LoginPage() {
                 transition: 'background 0.15s, color 0.15s',
               }}
               onMouseEnter={e => { if (!isLoading) (e.currentTarget as HTMLButtonElement).style.background = '#d4d4d4'; }}
-              onMouseLeave={e => { if (!isLoading) (e.currentTarget as HTMLButtonElement).style.background = '#f0f0f0'; }}
+              onMouseLeave={e => { if (!isLoading) (e.currentTarget as HTMLButtonElement).style.background = 'var(--text-primary)'; }}
             >
               {isLoading ? (
                 <>
@@ -249,19 +249,19 @@ export default function LoginPage() {
           </form>
 
           {/* Signup link */}
-          <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#666666' }}>
+          <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--text-tertiary)' }}>
             {mode === 'login' ? (
               <span>
                 Pas de compte ?{' '}
                 <button
                   onClick={() => setMode('signup')}
                   style={{
-                    background: 'none', border: 'none', color: '#a0a0a0',
+                    background: 'none', border: 'none', color: 'var(--text-secondary)',
                     cursor: 'pointer', fontSize: 12, fontFamily: fInter,
                     padding: 0, transition: 'color 0.15s',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
                 >
                   Inscription
                 </button>
@@ -272,12 +272,12 @@ export default function LoginPage() {
                 <button
                   onClick={() => setMode('login')}
                   style={{
-                    background: 'none', border: 'none', color: '#a0a0a0',
+                    background: 'none', border: 'none', color: 'var(--text-secondary)',
                     cursor: 'pointer', fontSize: 12, fontFamily: fInter,
                     padding: 0, transition: 'color 0.15s',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f0f0f0'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a0a0a0'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
                 >
                   Connexion
                 </button>
@@ -286,10 +286,10 @@ export default function LoginPage() {
           </div>
 
           {/* Footer */}
-          <div style={{ marginTop: 40, borderTop: '0.5px solid #1a1a1a', paddingTop: 16 }}>
+          <div style={{ marginTop: 40, borderTop: '0.5px solid var(--border-subtle)', paddingTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3dffa0', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: '#666666', fontFamily: fMono }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: fMono }}>
                 Tous les systèmes opérationnels
               </span>
             </div>
@@ -302,8 +302,8 @@ export default function LoginPage() {
         className="hidden md:flex"
         style={{
           flex: '0 0 50%',
-          background: '#0a0a0a',
-          borderLeft: '0.5px solid #1a1a1a',
+          background: 'var(--bg-surface)',
+          borderLeft: '0.5px solid var(--border-subtle)',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
@@ -350,12 +350,12 @@ export default function LoginPage() {
         {/* Copy */}
         <div style={{ textAlign: 'center', maxWidth: 300 }}>
           <div style={{
-            fontSize: 15, fontWeight: 500, color: '#f0f0f0', marginBottom: 8, fontFamily: fInter,
+            fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 8, fontFamily: fInter,
           }}>
             Intelligence OOH en temps réel
           </div>
           <div style={{
-            fontSize: 13, color: '#666666', lineHeight: 1.6,
+            fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.6,
             fontFamily: fInter, fontWeight: 400, maxWidth: 260, margin: '0 auto',
           }}>
             49 000 zones IRIS, 2.3M carreaux INSEE, isochrones multi-modaux — le tout piloté par IA.
@@ -375,13 +375,13 @@ export default function LoginPage() {
           ].map((stat, i) => (
             <div key={stat.label} style={{ textAlign: 'center', animation: `fadeIn 0.5s ease ${0.3 + i * 0.1}s both` }}>
               <div style={{
-                fontSize: 18, fontWeight: 500, color: '#f0f0f0',
+                fontSize: 18, fontWeight: 500, color: 'var(--text-primary)',
                 fontFamily: fMono, letterSpacing: '-0.02em',
               }}>
                 {stat.value}
               </div>
               <div style={{
-                fontSize: 10, color: '#666666', fontFamily: fInter, marginTop: 4,
+                fontSize: 10, color: 'var(--text-tertiary)', fontFamily: fInter, marginTop: 4,
               }}>
                 {stat.label}
               </div>
