@@ -277,9 +277,9 @@ export default function DigitalTripleMapPage() {
   const popPal = allPalettes.find(p => p.id === popPalette) ?? PALETTES[1];
   const ratPal = allPalettes.find(p => p.id === ratioPalette) ?? RATIO_PALETTE;
 
-  const impExpr = useMemo(() => stats.impPerc ? buildFillExpression('impressions', impPal.stops, stats.impPerc, impInverted) : ['literal', '#1a1a1a'], [stats.impPerc, impPal.stops, impInverted]);
-  const popExpr = useMemo(() => stats.popPerc ? buildFillExpression('pop_value', popPal.stops, stats.popPerc, popInverted) : ['literal', '#1a1a1a'], [stats.popPerc, popPal.stops, popInverted]);
-  const ratExpr = useMemo(() => stats.ratioPerc ? buildFillExpression('ratio', ratPal.stops, stats.ratioPerc, ratioInverted) : ['literal', '#1a1a1a'], [stats.ratioPerc, ratPal.stops, ratioInverted]);
+  const impExpr = useMemo(() => stats.impPerc ? buildFillExpression('impressions', impPal.stops, stats.impPerc, impInverted) : ['literal', 'var(--border-subtle)'], [stats.impPerc, impPal.stops, impInverted]);
+  const popExpr = useMemo(() => stats.popPerc ? buildFillExpression('pop_value', popPal.stops, stats.popPerc, popInverted) : ['literal', 'var(--border-subtle)'], [stats.popPerc, popPal.stops, popInverted]);
+  const ratExpr = useMemo(() => stats.ratioPerc ? buildFillExpression('ratio', ratPal.stops, stats.ratioPerc, ratioInverted) : ['literal', 'var(--border-subtle)'], [stats.ratioPerc, ratPal.stops, ratioInverted]);
 
   // Determine which map is focused (1/2) and which two are stacked (1/4 each)
   const focusMap = layout === 'equal' ? null : layout.replace('focus-', '');
@@ -293,7 +293,7 @@ export default function DigitalTripleMapPage() {
   // meteoData via le code de la zone.
   const meteoIsReady = !!(meteoData && meteoMeta);
   const meteoFillExpr = useMemo(() => {
-    if (!meteoIsReady) return ['literal', '#1a1a1a'];
+    if (!meteoIsReady) return ['literal', 'var(--border-subtle)'];
     return buildMeteoColorExpression(meteoMeta!.variable, meteoMeta!.stats, 'meteo_value');
   }, [meteoIsReady, meteoMeta]);
   const meteoLegendStops = meteoIsReady ? METEO_PALETTES[meteoMeta!.variable] : [];

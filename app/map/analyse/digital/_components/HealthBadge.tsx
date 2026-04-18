@@ -11,7 +11,7 @@ export function HealthBadge({ concentrationTop10 }: HealthBadgeProps) {
   let label: string, dotColor: string, bgColor: string, textColor: string;
 
   if (pct < 40) {
-    label = 'Distribution equilibree'; dotColor = '#4ecdc4'; bgColor = 'rgba(78,205,196,0.1)'; textColor = '#4ecdc4';
+    label = 'Distribution equilibree'; dotColor = 'var(--brand-teal)'; bgColor = 'rgba(78,205,196,0.1)'; textColor = 'var(--brand-teal)';
   } else if (pct < 60) {
     label = 'Moderement concentree'; dotColor = '#ef9f27'; bgColor = 'rgba(239,159,39,0.1)'; textColor = '#ef9f27';
   } else {

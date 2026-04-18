@@ -105,7 +105,7 @@ const runningToolLabels: Record<string, string> = {
 // ─── Agent badges ─────────────────────────────────────────────────────────────
 const AGENT_COLOR: Record<AgentName, string> = {
   demographie:      '#3dffa0',
-  poi_clustering:   '#4ecdc4',
+  poi_clustering:   'var(--brand-teal)',
   panneaux:         '#fbbf24',
   isochrone_battle: '#38bdf8',
   benchmark:        '#f472b6',

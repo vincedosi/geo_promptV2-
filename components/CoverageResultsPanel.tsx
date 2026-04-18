@@ -10,14 +10,14 @@ const PALIER_COLORS: Record<number, string> = {
   60:  '#BA7517',
   90:  '#E24B4A',
   120: '#791F1F',
-  150: '#4ecdc4',
+  150: 'var(--brand-teal)',
   180: '#475569',
 };
 
 const POI_PALETTE = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
-  '#4ecdc4', '#06b6d4', '#84cc16', '#f97316',
-  '#ec4899', '#6366f1', '#14b8a6', '#3dbdb5',
+  'var(--brand-teal)', '#06b6d4', '#84cc16', '#f97316',
+  '#ec4899', '#6366f1', '#14b8a6', 'var(--brand-teal-hover)',
 ];
 
 export type MetricKey =
@@ -877,7 +877,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                     .map(([p, v]) => ({
                       label: `${p} min`,
                       value: v,
-                      color: PALIER_COLORS[p] ?? '#4ecdc4',
+                      color: PALIER_COLORS[p] ?? 'var(--brand-teal)',
                     }))}
                   formatValue={fmtNum}
                   onHover={setTooltip}

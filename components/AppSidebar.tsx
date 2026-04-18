@@ -187,7 +187,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
             style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
           >
             <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
-            <span style={{ color: '#4ecdc4' }}>ATIK</span>
+            <span style={{ color: 'var(--brand-teal)' }}>ATIK</span>
           </span>
         </div>
         <p

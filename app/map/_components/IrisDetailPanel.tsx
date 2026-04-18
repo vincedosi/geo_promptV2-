@@ -81,7 +81,7 @@ function BarRow({ col, raw }: { col: typeof IRIS_DB_COLUMNS[number]; raw: unknow
           <div style={{
             height: '100%',
             width: `${pct}%`,
-            background: pct > 60 ? C.accent : pct > 30 ? C.green : '#4ecdc4',
+            background: pct > 60 ? C.accent : pct > 30 ? C.green : 'var(--brand-teal)',
             borderRadius: 2,
             transition: 'width 0.4s ease',
           }} />

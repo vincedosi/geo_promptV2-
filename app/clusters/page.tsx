@@ -64,7 +64,7 @@ function ClusterMiniBar({
   const cids = Object.keys(labels).sort((a, b) => Number(a) - Number(b));
   if (!cids.length) return null;
 
-  const COLORS = ['#4ecdc4','#a0a0a0','#5b9bd5','#f7b731','#3dffa0','#ff9da7','#b07aa1','#edc948'];
+  const COLORS = ['var(--brand-teal)','#a0a0a0','#5b9bd5','#f7b731','#3dffa0','#ff9da7','#b07aa1','#edc948'];
 
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>

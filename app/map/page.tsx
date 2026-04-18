@@ -94,7 +94,7 @@ export default function MapPage() {
   const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
   const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
   const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
-  const [radioCoverageColor, setRadioCoverageColor] = useState('#4ecdc4');
+  const [radioCoverageColor, setRadioCoverageColor] = useState('var(--brand-teal)');
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
@@ -284,7 +284,7 @@ export default function MapPage() {
         const pairs: (string | number)[] = [];
         for (let i = 0; i < Math.min(stops.length, pts.length); i++) pairs.push(pts[i], stops[i]);
         map.setPaintProperty('digital-cp-fill', 'fill-color', [
-          'case', ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+          'case', ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
           ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
         ]);
         map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
@@ -315,7 +315,7 @@ export default function MapPage() {
 
     map.setPaintProperty('digital-cp-fill', 'fill-color', [
       'case',
-      ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+      ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
       ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
         ...pairs,
       ],
@@ -644,7 +644,7 @@ export default function MapPage() {
     if (radioSelectedId) {
       try {
         map.setPaintProperty('radio-points', 'circle-color', [
-          'case', ['==', ['get', 'radio_id'], radioSelectedId], '#4ecdc4', '#4b5563',
+          'case', ['==', ['get', 'radio_id'], radioSelectedId], 'var(--brand-teal)', '#4b5563',
         ] as unknown as maplibregl.ExpressionSpecification);
         map.setPaintProperty('radio-points', 'circle-opacity', [
           'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
@@ -716,7 +716,7 @@ export default function MapPage() {
       circles.push({
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [coords] },
-        properties: { color: '#4ecdc4' },
+        properties: { color: 'var(--brand-teal)' },
       });
     }
     src.setData({ type: 'FeatureCollection', features: circles });
@@ -868,7 +868,7 @@ export default function MapPage() {
     if (useDensity) {
       // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
       const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? '#4ecdc4';
+      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
@@ -1601,7 +1601,7 @@ export default function MapPage() {
             }
             map.setPaintProperty('digital-cp-fill', 'fill-color', [
               'case',
-              ['==', ['to-number', ['get', 'impressions'], 0], 0], '#1a1a1a',
+              ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
               ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
             ]);
             map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);

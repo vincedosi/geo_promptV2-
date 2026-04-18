@@ -21,7 +21,7 @@ export function WelcomeState({ campaigns, loading, onSelect }: WelcomeStateProps
   return (
     <div style={{
       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#050505',
+      background: 'var(--bg-primary)',
     }}>
       <div style={{ maxWidth: 520, width: '100%', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
@@ -36,7 +36,7 @@ export function WelcomeState({ campaigns, loading, onSelect }: WelcomeStateProps
           </svg>
         </div>
 
-        <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: '#f0f0f0', margin: '0 0 8px' }}>
+        <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: 'var(--text-primary)', margin: '0 0 8px' }}>
           Analyse digitale
         </h1>
         <p style={{ fontFamily: fInter, fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, margin: '0 0 32px' }}>

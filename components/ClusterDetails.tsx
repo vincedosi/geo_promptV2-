@@ -30,7 +30,7 @@ const fMono  = "'JetBrains Mono','Fira Mono',monospace";
 const fInter = "'Inter', system-ui, sans-serif";
 
 const CLUSTER_COLORS = [
-  '#4ecdc4','#a0a0a0','#5b9bd5','#f7b731',
+  'var(--brand-teal)','#a0a0a0','#5b9bd5','#f7b731',
   '#3dffa0','#ff9da7','#b07aa1','#edc948',
   '#9c755f','#bab0ac',
 ];

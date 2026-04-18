@@ -59,28 +59,28 @@ function RailNode({ icon, label, value, done, active, onClick }: {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative', zIndex: 2 }}>
       <button onClick={onClick} style={{
         width: 40, height: 40, borderRadius: '50%', cursor: 'pointer',
-        background: done ? 'rgba(78,205,196,0.08)' : '#0a0a0a',
-        border: `2px solid ${done || active ? '#4ecdc4' : '#262626'}`,
+        background: done ? 'rgba(78,205,196,0.08)' : 'var(--bg-surface)',
+        border: `2px solid ${done || active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: active ? '0 0 0 4px rgba(78,205,196,0.12)' : 'none',
         transition: 'all 0.2s',
         position: 'relative',
       }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = '#4ecdc4'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = done || active ? '#4ecdc4' : '#262626'; e.currentTarget.style.transform = 'scale(1)'; }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-teal)'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = done || active ? 'var(--brand-teal)' : 'var(--border-default)'; e.currentTarget.style.transform = 'scale(1)'; }}
       >
         {icon}
         {active && <span style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1px solid rgba(78,205,196,0.08)', animation: 'rrPulse 2s ease-out infinite' }} />}
       </button>
       <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
       <button onClick={onClick} style={{
-        fontFamily: fInter, fontSize: 12, fontWeight: 500, color: done ? '#f0f0f0' : '#8a8a8a',
+        fontFamily: fInter, fontSize: 12, fontWeight: 500, color: done ? 'var(--text-primary)' : '#8a8a8a',
         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         transition: 'color 0.15s',
       }}
-        onMouseEnter={e => { e.currentTarget.style.color = '#4ecdc4'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = done ? '#f0f0f0' : '#8a8a8a'; }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = done ? 'var(--text-primary)' : '#8a8a8a'; }}
       >{value}</button>
     </div>
   );
@@ -92,7 +92,7 @@ function Track({ fill }: { fill: 'done' | 'current' | 'future' }) {
   const w = fill === 'done' ? '100%' : fill === 'current' ? '50%' : '0%';
   return (
     <div style={{ flex: 1, height: 40, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1, marginTop: -28 }}>
-      <div style={{ width: '100%', height: 2, background: '#1a1a1a', borderRadius: 1, position: 'relative' }}>
+      <div style={{ width: '100%', height: 2, background: 'var(--border-subtle)', borderRadius: 1, position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', borderRadius: 1, width: w, background: 'linear-gradient(90deg, #4ecdc4, rgba(78,205,196,0.3))', transition: 'width 0.4s ease' }} />
       </div>
     </div>
@@ -107,7 +107,7 @@ function Popover({ open, children, align }: { open: boolean; children: React.Rea
   return (
     <div style={{
       position: 'absolute', top: 'calc(100% + 12px)', ...pos,
-      background: '#0a0a0a', border: '0.5px solid #262626', borderRadius: 10, padding: 6,
+      background: 'var(--bg-surface)', border: '0.5px solid #262626', borderRadius: 10, padding: 6,
       minWidth: 200, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
     }}>{children}</div>
   );
@@ -119,15 +119,15 @@ function RadioOption({ selected, label, sub, onClick }: { selected: boolean; lab
   return (
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6,
-      background: selected ? '#181818' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+      background: selected ? 'var(--overlay, #181818)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
       transition: 'background 0.1s',
     }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#181818'; }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--overlay, #181818)'; }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
     >
-      <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1.5px solid ${selected ? '#4ecdc4' : '#333'}`, background: selected ? '#4ecdc4' : 'transparent', flexShrink: 0 }} />
+      <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1.5px solid ${selected ? 'var(--brand-teal)' : '#333'}`, background: selected ? 'var(--brand-teal)' : 'transparent', flexShrink: 0 }} />
       <div>
-        <div style={{ fontFamily: fInter, fontSize: 12, color: selected ? '#f0f0f0' : '#b0b0b0' }}>{label}</div>
+        <div style={{ fontFamily: fInter, fontSize: 12, color: selected ? 'var(--text-primary)' : '#b0b0b0' }}>{label}</div>
         {sub && <div style={{ fontFamily: fMono, fontSize: 10, color: '#8a8a8a' }}>{sub}</div>}
       </div>
     </button>
@@ -138,18 +138,18 @@ function CheckOption({ checked, label, sub, onClick }: { checked: boolean; label
   return (
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6,
-      background: checked ? '#181818' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+      background: checked ? 'var(--overlay, #181818)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
     }}
-      onMouseEnter={e => { if (!checked) e.currentTarget.style.background = '#181818'; }}
+      onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'var(--overlay, #181818)'; }}
       onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
     >
       <span style={{
-        width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${checked ? '#4ecdc4' : '#333'}`,
-        background: checked ? '#4ecdc4' : 'transparent', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#050505', fontWeight: 700,
+        width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${checked ? 'var(--brand-teal)' : '#333'}`,
+        background: checked ? 'var(--brand-teal)' : 'transparent', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--bg-primary)', fontWeight: 700,
       }}>{checked ? '✓' : ''}</span>
       <div>
-        <div style={{ fontFamily: fInter, fontSize: 12, color: checked ? '#f0f0f0' : '#b0b0b0' }}>{label}</div>
+        <div style={{ fontFamily: fInter, fontSize: 12, color: checked ? 'var(--text-primary)' : '#b0b0b0' }}>{label}</div>
         {sub && <div style={{ fontFamily: fMono, fontSize: 10, color: '#8a8a8a' }}>{sub}</div>}
       </div>
     </button>
@@ -212,12 +212,12 @@ export function RailroadPipeline({
   const toggle = (id: string) => setActivePopover(prev => prev === id ? null : id);
 
   return (
-    <div ref={containerRef} style={{ flexShrink: 0, borderBottom: '0.5px solid #1a1a1a', background: '#050505' }}>
+    <div ref={containerRef} style={{ flexShrink: 0, borderBottom: '0.5px solid #1a1a1a', background: 'var(--bg-primary)' }}>
       {/* Railroad */}
       <div style={{ display: 'flex', alignItems: 'flex-start', padding: '16px 24px 0', gap: 0 }}>
         {/* Node 1: Campaign */}
         <div style={{ position: 'relative' }}>
-          <RailNode icon={<IconGrid color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Campagne" value={hasCampaign ? campName : '—'} done={hasCampaign} active={activePopover === 'campaign'} onClick={() => toggle('campaign')} />
+          <RailNode icon={<IconGrid color={hasCampaign ? 'var(--brand-teal)' : '#8a8a8a'} />} label="Campagne" value={hasCampaign ? campName : '—'} done={hasCampaign} active={activePopover === 'campaign'} onClick={() => toggle('campaign')} />
           <Popover open={activePopover === 'campaign'} align="left">
             {campaigns.map(c => {
               const sub = c.total_unique_impressions && c.total_unique_impressions > 0
@@ -235,7 +235,7 @@ export function RailroadPipeline({
 
         {/* Node 2: Target */}
         <div style={{ position: 'relative', opacity: hasCampaign ? 1 : 0.3, pointerEvents: hasCampaign ? 'auto' : 'none' }}>
-          <RailNode icon={<IconTarget color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Cible" value={popLabel} done={hasCampaign} active={activePopover === 'target'} onClick={() => toggle('target')} />
+          <RailNode icon={<IconTarget color={hasCampaign ? 'var(--brand-teal)' : '#8a8a8a'} />} label="Cible" value={popLabel} done={hasCampaign} active={activePopover === 'target'} onClick={() => toggle('target')} />
           <Popover open={activePopover === 'target'}>
             {popFields.map(f => (
               <RadioOption key={f.value} selected={selectedPopField === f.value} label={f.label} onClick={() => { onPopFieldChange(f.value); setActivePopover(null); }} />
@@ -247,7 +247,7 @@ export function RailroadPipeline({
 
         {/* Node 3: Geo view */}
         <div style={{ position: 'relative', opacity: hasCampaign ? 1 : 0.3, pointerEvents: hasCampaign ? 'auto' : 'none' }}>
-          <RailNode icon={<IconPin color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Vue geo" value={scaleLabel} done={hasCampaign} active={activePopover === 'geo'} onClick={() => toggle('geo')} />
+          <RailNode icon={<IconPin color={hasCampaign ? 'var(--brand-teal)' : '#8a8a8a'} />} label="Vue geo" value={scaleLabel} done={hasCampaign} active={activePopover === 'geo'} onClick={() => toggle('geo')} />
           <Popover open={activePopover === 'geo'}>
             {[
               { id: 'region', label: 'Regions' },
@@ -274,7 +274,7 @@ export function RailroadPipeline({
                 {geographySets.length === 0 ? (
                   <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', lineHeight: 1.4 }}>
                     Aucune geographie.<br />
-                    Creez-en une dans <span style={{ color: '#4ecdc4' }}>geo.prompt</span> apres un battle.
+                    Creez-en une dans <span style={{ color: 'var(--brand-teal)' }}>geo.prompt</span> apres un battle.
                   </div>
                 ) : (
                   geographySets.map(g => (
@@ -308,10 +308,10 @@ export function RailroadPipeline({
 
         {/* Node 4: Media */}
         <div style={{ position: 'relative', opacity: hasCampaign ? 1 : 0.3, pointerEvents: hasCampaign ? 'auto' : 'none' }}>
-          <RailNode icon={<IconBuilding color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Regies" value={mediaLabel} done={hasCampaign} active={activePopover === 'media'} onClick={() => toggle('media')} />
+          <RailNode icon={<IconBuilding color={hasCampaign ? 'var(--brand-teal)' : '#8a8a8a'} />} label="Regies" value={mediaLabel} done={hasCampaign} active={activePopover === 'media'} onClick={() => toggle('media')} />
           <Popover open={activePopover === 'media'}>
             <CheckOption checked={allSelected} label="Toutes les regies" onClick={() => onMediaChange([])} />
-            <div style={{ height: '0.5px', background: '#1a1a1a', margin: '2px 0' }} />
+            <div style={{ height: '0.5px', background: 'var(--border-subtle)', margin: '2px 0' }} />
             {mediaList.map(m => (
               <CheckOption key={m} checked={allSelected || selectedMedia.includes(m)} label={m} onClick={() => {
                 if (allSelected) onMediaChange([m]);
@@ -326,7 +326,7 @@ export function RailroadPipeline({
 
         {/* Node 5: Focus */}
         <div style={{ position: 'relative', opacity: hasCampaign ? 1 : 0.3, pointerEvents: hasCampaign ? 'auto' : 'none' }}>
-          <RailNode icon={<IconFocus color={hasCampaign ? '#4ecdc4' : '#8a8a8a'} />} label="Focus" value={layoutLabel} done={hasCampaign} active={activePopover === 'focus'} onClick={() => toggle('focus')} />
+          <RailNode icon={<IconFocus color={hasCampaign ? 'var(--brand-teal)' : '#8a8a8a'} />} label="Focus" value={layoutLabel} done={hasCampaign} active={activePopover === 'focus'} onClick={() => toggle('focus')} />
           <Popover open={activePopover === 'focus'} align="right">
             {[
               { id: 'equal', label: 'Vue 1/3 - 1/3 - 1/3', sub: 'Trois cartes egales' },
@@ -342,7 +342,7 @@ export function RailroadPipeline({
 
       {/* Footer: stats + reset */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, padding: '8px 24px 10px', borderTop: '0.5px solid #111111', marginTop: 8 }}>
-        {loading && <span style={{ fontFamily: fInter, fontSize: 11, color: '#4ecdc4' }}>Chargement...</span>}
+        {loading && <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--brand-teal)' }}>Chargement...</span>}
         {!loading && hasCampaign && (
           <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>
             {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {impLabelShort}

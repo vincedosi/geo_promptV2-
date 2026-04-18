@@ -376,7 +376,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
       const cFc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [...iso5L.features, ...iso5C.features] };
       try {
         if (!map.getSource(cId)) map.addSource(cId, { type: 'geojson', data: cFc });
-        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': '#4ecdc4', 'fill-opacity': 0.20 } });
+        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': 'var(--brand-teal)', 'fill-opacity': 0.20 } });
       } catch { /* */ }
     }
   }, [isoVisible, isoData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -470,7 +470,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
               <input
                 value={ville} onChange={e => setVille(e.target.value)}
                 onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
                 style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 10, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
                 placeholder="Ville"
               />
@@ -492,7 +492,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                     if (p) setSelectedProfile(p);
                   }}
                   onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
                   style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 5px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
                 >
                   {profiles.map(p => (
@@ -523,7 +523,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                   value={editProfile.nom}
                   onChange={e => setEditProfile({ ...editProfile, nom: e.target.value })}
                   onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#262626'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
                   style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', marginBottom: 6, boxSizing: 'border-box', transition: 'border-color 0.3s ease', outline: 'none' }}
                   placeholder="Nom du profil"
                 />

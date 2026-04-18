@@ -137,7 +137,7 @@ function RadarChart({
       {/* Grid */}
       {[0.25, 0.5, 0.75, 1].map(f => (
         <polygon key={f} points={gridPoly(f)}
-          fill="none" stroke={f === 1 ? '#262626' : '#1a1a1a'} strokeWidth={f === 1 ? 0.8 : 0.4} />
+          fill="none" stroke={f === 1 ? 'var(--border-default)' : 'var(--border-subtle)'} strokeWidth={f === 1 ? 0.8 : 0.4} />
       ))}
       {/* Axes */}
       {keys.map((_, i) => {
@@ -705,7 +705,7 @@ export function ClusterPanel({
 }
 
 // ─── Compare durations panel (Phase 9) ────────────────────────────────────────
-const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: '#4ecdc4' };
+const DUR_COLORS: Record<number, string> = { 30: '#59a14f', 45: '#f59e0b', 60: 'var(--brand-teal)' };
 
 function CompareDurationsView({
   poiName, currentDuration, featKeys, durData, loading, onClose,

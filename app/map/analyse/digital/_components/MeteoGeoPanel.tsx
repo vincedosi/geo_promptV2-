@@ -14,14 +14,14 @@ const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
 const COLORS = {
-  bg: '#0a0a0a',
-  bgElevated: '#111111',
-  border: '#1a1a1a',
-  borderHover: '#262626',
-  textPrimary: '#f0f0f0',
+  bg: 'var(--bg-surface)',
+  bgElevated: 'var(--bg-level-2)',
+  border: 'var(--border-subtle)',
+  borderHover: 'var(--border-default)',
+  textPrimary: 'var(--text-primary)',
   textSecondary: 'var(--text-secondary)',
   textTertiary: 'var(--text-tertiary)',
-  accent: '#4ecdc4',
+  accent: 'var(--brand-teal)',
   danger: '#ff5757',
 };
 
@@ -326,7 +326,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
             background: validation || loading ? 'transparent' : COLORS.accent,
             border: `0.5px solid ${COLORS.accent}`,
             borderRadius: 6,
-            color: validation || loading ? COLORS.accent : '#050505',
+            color: validation || loading ? COLORS.accent : 'var(--bg-primary)',
             fontFamily: fInter,
             fontSize: 12,
             fontWeight: 500,

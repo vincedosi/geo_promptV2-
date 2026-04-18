@@ -31,7 +31,7 @@ export const DIGITAL_PALETTES = [
   { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
   { id: 'turbo',   label: 'Turbo',   stops: ['#30123b','#4675ed','#1bcfd4','#61fc6c','#f6a91b','#c42503'] },
   { id: 'plasma',  label: 'Plasma',  stops: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921'] },
-  { id: 'teal',    label: 'Teal',    stops: ['#0a0a0a','#16537e','#1e8a7a','#4ecdc4','#7eddd5','#f7fff7'] },
+  { id: 'teal',    label: 'Teal',    stops: ['var(--bg-surface)','#16537e','#1e8a7a','var(--brand-teal)','#7eddd5','#f7fff7'] },
 ];
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -761,7 +761,7 @@ export function FilterPanel({
   // ── POI pin styles ─────────────────────────────────────────────────────────
   const PIN_SIZES = ['Petite', 'Standard', 'Grosse', 'Large'] as const;
   const PIN_COLORS: { label: string; hex: string }[] = [
-    { label: 'Noir',    hex: '#111111' },
+    { label: 'Noir',    hex: 'var(--bg-level-2)' },
     { label: 'Blanc',   hex: '#eeeeee' },
     { label: 'Gris',    hex: '#888888' },
     { label: 'Violet',  hex: '#a855f7' },
@@ -1739,7 +1739,7 @@ export function FilterPanel({
 
               {/* Bouton toujours visible */}
               <button
-                style={{ ...primaryBtn('#4ecdc4', false) }}
+                style={{ ...primaryBtn('var(--brand-teal)', false) }}
                 onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
               >
                 {selectedOOH.length > 0
@@ -1792,7 +1792,7 @@ export function FilterPanel({
               </div>
 
               <button
-                style={primaryBtn('#4ecdc4', transportLoading || !onLoadTransport)}
+                style={primaryBtn('var(--brand-teal)', transportLoading || !onLoadTransport)}
                 disabled={transportLoading || !onLoadTransport}
                 onClick={async () => {
                   setTransportLoading(true);
@@ -1832,7 +1832,7 @@ export function FilterPanel({
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  style={{ ...primaryBtn('#4ecdc4', tmjaLoading || !onLoadTMJA), flex: 1 }}
+                  style={{ ...primaryBtn('var(--brand-teal)', tmjaLoading || !onLoadTMJA), flex: 1 }}
                   disabled={tmjaLoading || !onLoadTMJA}
                   onClick={async () => {
                     setTmjaLoading(true);
@@ -1976,13 +1976,13 @@ export function FilterPanel({
                       <div>
                         <div style={{ fontSize: 10, color: C.textDim, marginBottom: 3 }}>Couleur</div>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          {['#4ecdc4', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
+                          {['var(--brand-teal)', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                             <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
                               width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid var(--text-primary)' : '1px solid var(--border-hover)',
                               cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
                             }} />
                           ))}
-                          <input type="color" value={radioCoverageColor ?? '#4ecdc4'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
+                          <input type="color" value={radioCoverageColor ?? 'var(--brand-teal)'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
                         </div>
                       </div>
 
@@ -2130,7 +2130,7 @@ export function FilterPanel({
                     <div style={labelStyle}>Mode de transport</div>
                     <div style={{ display: 'flex', gap: 5 }}>
                       {ISO_MODES.map(m => (
-                        <button key={m.id} style={{ ...pill(transportMode === m.id, '#f0f0f0'), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
+                        <button key={m.id} style={{ ...pill(transportMode === m.id, 'var(--text-primary)'), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
                           {m.label}
                         </button>
                       ))}
@@ -2158,7 +2158,7 @@ export function FilterPanel({
                         <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
                           Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
                         </div>
-                        <button style={primaryBtn('#f0f0f0', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
+                        <button style={primaryBtn('var(--text-primary)', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
                           Lancer le calcul
                         </button>
                         {voronoiVisible && (
@@ -2202,7 +2202,7 @@ export function FilterPanel({
                           {[10, 20, 30, 40, 50, 60, 90].map(p => (
                             <button
                               key={p}
-                              style={pill(battleV2Paliers.includes(p), '#f0f0f0')}
+                              style={pill(battleV2Paliers.includes(p), 'var(--text-primary)')}
                               onClick={() => {
                                 setV2CacheStatus(null);
                                 setBattleV2Paliers(prev =>
@@ -2400,7 +2400,7 @@ export function FilterPanel({
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {ISO_DURATIONS.map(d => (
-                            <button key={d} style={pill(isoDurations.includes(d), '#f0f0f0')} onClick={() => toggleDuration(d)}>
+                            <button key={d} style={pill(isoDurations.includes(d), 'var(--text-primary)')} onClick={() => toggleDuration(d)}>
                               {d} min
                             </button>
                           ))}

@@ -40,12 +40,12 @@ export function CampaignCard({ campaign: c, onClick }: CampaignCardProps) {
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: fInter, fontSize: 14, fontWeight: 500, color: '#f0f0f0', marginBottom: 4 }}>
+        <div style={{ fontFamily: fInter, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
           {c.name}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{
-            fontFamily: fMono, fontSize: 11, color: '#4ecdc4',
+            fontFamily: fMono, fontSize: 11, color: 'var(--brand-teal)',
             background: 'rgba(78,205,196,0.12)', padding: '2px 6px', borderRadius: 4,
           }}>{fmt(c.total_tracked_ads)} imp.</span>
           {c.total_unique_impressions > 0 && (

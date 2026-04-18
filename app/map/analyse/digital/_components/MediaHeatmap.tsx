@@ -33,7 +33,7 @@ interface MediaHeatmapProps {
 
 function getContrastText(r: number, g: number, b: number): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.45 ? '#1a1a1a' : '#f0f0f0';
+  return luminance > 0.45 ? 'var(--border-subtle)' : 'var(--text-primary)';
 }
 
 function ecartColor(ecart: number, maxAbs: number): string {
@@ -170,8 +170,8 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
             {colItems.map(col => {
               const cell = getCell(row.key, col.key);
               const ecart = cell?.ecart ?? 0;
-              const bgColor = cell ? ecartColor(ecart, maxAbs) : '#111111';
-              let textColor = '#f0f0f0';
+              const bgColor = cell ? ecartColor(ecart, maxAbs) : 'var(--bg-level-2)';
+              let textColor = 'var(--text-primary)';
               if (cell && showCellValue) {
                 const m = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                 if (m) textColor = getContrastText(Number(m[1]), Number(m[2]), Number(m[3]));
@@ -204,13 +204,13 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
 
   const tooltip = hoveredCell && (
     <div style={{
-      padding: '8px 10px', borderTop: '0.5px solid #1a1a1a', background: '#0a0a0a',
+      padding: '8px 10px', borderTop: '0.5px solid #1a1a1a', background: 'var(--bg-surface)',
       fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
       display: 'flex', gap: 12, flexWrap: 'wrap',
     }}>
-      <span style={{ fontWeight: 600, color: '#f0f0f0' }}>{hoveredCell.media} — {hoveredCell.zone_nom}</span>
-      <span>{impLabel}: <span style={{ color: '#4ecdc4', fontFamily: fMono }}>{fmt(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
-      <span>Pop: <span style={{ color: '#f0f0f0', fontFamily: fMono }}>{fmt(hoveredCell.pop_cible)}</span> ({hoveredCell.pct_pop}%)</span>
+      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{hoveredCell.media} — {hoveredCell.zone_nom}</span>
+      <span>{impLabel}: <span style={{ color: 'var(--brand-teal)', fontFamily: fMono }}>{fmt(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
+      <span>Pop: <span style={{ color: 'var(--text-primary)', fontFamily: fMono }}>{fmt(hoveredCell.pop_cible)}</span> ({hoveredCell.pct_pop}%)</span>
       <span style={{ color: hoveredCell.ecart > 0 ? '#EF4444' : '#3B82F6', fontFamily: fMono, fontWeight: 600 }}>
         {hoveredCell.ecart > 0 ? '+' : ''}{hoveredCell.ecart} pts
       </span>
@@ -234,7 +234,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
     labelFontSize: 10,
     colLabelFontSize: verticalColLabels ? 8 : 10,
     showCellValue: compactCellSize >= 28,
-    bodyBg: '#050505',
+    bodyBg: 'var(--bg-primary)',
   };
 
   const overlayOpts: GridOptions = {
@@ -251,7 +251,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
 
   return (
     <>
-      <div style={{ background: '#050505', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #1a1a1a' }}>
           <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>Regies x geographie</span>
@@ -262,8 +262,8 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
               title="Transposer lignes/colonnes"
               style={{
                 ...iconBtnStyle,
-                borderColor: transposed ? '#4ecdc4' : '#1a1a1a',
-                color: transposed ? '#4ecdc4' : '#8a8a8a',
+                borderColor: transposed ? 'var(--brand-teal)' : 'var(--border-subtle)',
+                color: transposed ? 'var(--brand-teal)' : '#8a8a8a',
               }}
             >
               <ArrowUpDown size={12} />
@@ -309,7 +309,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             borderBottom: '0.5px solid #1a1a1a',
           }}>
-            <span style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: '#f0f0f0' }}>
+            <span style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)' }}>
               Regies x geographie
             </span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -320,7 +320,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
                 style={{
                   height: 28, padding: '0 10px', display: 'inline-flex', alignItems: 'center', gap: 6,
                   background: transposed ? 'rgba(78,205,196,0.1)' : 'transparent',
-                  border: `0.5px solid ${transposed ? '#4ecdc4' : '#262626'}`,
+                  border: `0.5px solid ${transposed ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                   borderRadius: 6,
                   color: transposed ? 'var(--brand-teal)' : 'var(--text-secondary)',
                   cursor: 'pointer',
@@ -337,7 +337,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
                 aria-label="Fermer"
                 style={{
                   ...iconBtnLargeStyle,
-                  borderColor: '#262626',
+                  borderColor: 'var(--border-default)',
                 }}
               >
                 <X size={16} />

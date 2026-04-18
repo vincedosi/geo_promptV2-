@@ -59,7 +59,7 @@ const CATEGORIES: PromptCategory[] = [
     id: 'voronoi',
     icon: '⬡',
     label: 'Découpage territorial',
-    color: '#4ecdc4',
+    color: 'var(--brand-teal)',
     description: "Divise le territoire entre établissements — chaque zone appartient à l'établissement le plus proche. Instantané.",
     prompts: [
       { text: 'Découpe le territoire entre les CIRFA de France', desc: "Zones d'influence (France entière)" },
@@ -97,7 +97,7 @@ const CATEGORIES: PromptCategory[] = [
     id: 'coverage',
     icon: '·',
     label: 'Couverture population',
-    color: '#4ecdc4',
+    color: 'var(--brand-teal)',
     description: "Calcule combien de personnes d'une tranche d'âge sont accessibles depuis un point en un temps donné.",
     prompts: [
       { text: 'Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?', desc: 'Résultat numérique + zone sur la carte' },

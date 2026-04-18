@@ -77,7 +77,7 @@ interface Props {
 
 function scoreColor(score: number): string {
   if (score >= 80) return '#3dffa0';
-  if (score >= 50) return '#4ecdc4';
+  if (score >= 50) return 'var(--brand-teal)';
   return '#ef4444';
 }
 
@@ -304,7 +304,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" horizontal={false} />
               <XAxis type="number" tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
               <YAxis dataKey="tier" type="category" tick={{ fill: 'var(--text-tertiary)', fontSize: 10, fontFamily: "'Inter', sans-serif" }} axisLine={false} tickLine={false} width={42} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--border-subtle)' }} />
               <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[0, 2, 2, 0]}
                 label={{ fill: 'var(--text-tertiary)', fontSize: 9, position: 'right', fontFamily: 'JetBrains Mono' }}
               />
@@ -322,7 +322,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
               <XAxis dataKey="range" tick={{ fill: 'var(--text-tertiary)', fontSize: 8, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--border-subtle)' }} />
               <Bar dataKey="count" name="Panneaux" fill="#4ecdc4" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -373,7 +373,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
               <ReferenceLine y={50} stroke="#4ecdc4" strokeDasharray="4 2" strokeOpacity={0.4} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                cursor={{ stroke: '#262626' }}
+                cursor={{ stroke: 'var(--border-default)' }}
                 content={({ payload }) => {
                   if (!payload?.length) return null;
                   const d = payload[0].payload as ScatterPoint;

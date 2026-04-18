@@ -331,7 +331,7 @@ export default function LoginPage() {
                   <polygon
                     points={hexPoints(pos.x, pos.y, 14)}
                     fill={isAccent ? 'rgba(78,205,196,0.12)' : 'transparent'}
-                    stroke={isAccent ? '#4ecdc4' : isMid ? '#262626' : '#1a1a1a'}
+                    stroke={isAccent ? 'var(--brand-teal)' : isMid ? 'var(--border-default)' : 'var(--border-subtle)'}
                     strokeWidth="0.5"
                   />
                   {isAccent && (

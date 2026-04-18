@@ -33,7 +33,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
       background: 'rgba(255,255,255,0.02)', borderBottom: '0.5px solid rgba(255,255,255,0.08)',
       flexShrink: 0, flexWrap: 'wrap',
     }}>
-      <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: '#f0f0f0' }}>{campaignName}</span>
+      <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{campaignName}</span>
       <span style={{ fontFamily: fMono, fontSize: 11, color: '#8a8a8a' }}>
         {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
       </span>
@@ -43,7 +43,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
           borderLeft: '0.5px solid rgba(255,255,255,0.1)',
         }}>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontFamily: fMono, fontSize: 20, fontWeight: 500, color: '#4ecdc4', lineHeight: 1 }}>
+            <span style={{ fontFamily: fMono, fontSize: 20, fontWeight: 500, color: 'var(--brand-teal)', lineHeight: 1 }}>
               {(inZonePct ?? 0).toFixed(1)}%
             </span>
             <span style={{ fontFamily: fInter, fontSize: 10, color: '#8a8a8a' }}>in-zone</span>
@@ -63,13 +63,13 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
       <HealthBadge concentrationTop10={concentrationTop10} />
 
       {/* Metric toggle */}
-      <div style={{ display: 'flex', gap: 1, background: '#111111', borderRadius: 4, padding: 1 }}>
+      <div style={{ display: 'flex', gap: 1, background: 'var(--bg-level-2)', borderRadius: 4, padding: 1 }}>
         {([['impressions', 'Impressions'], ['unique', 'Imp. uniques']] as const).map(([id, label]) => (
           <button key={id} onClick={() => onMetricChange(id)} style={{
             padding: '4px 10px', fontSize: 10, fontFamily: fInter, cursor: 'pointer',
             background: metric === id ? 'rgba(78,205,196,0.12)' : 'transparent',
             border: 'none', borderRadius: 3,
-            color: metric === id ? '#4ecdc4' : '#8a8a8a',
+            color: metric === id ? 'var(--brand-teal)' : '#8a8a8a',
             transition: 'all 0.15s',
           }}>{label}</button>
         ))}
@@ -79,7 +79,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
       <button onClick={onOpenAnalysis} style={{
         padding: '5px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
         background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.3)',
-        borderRadius: 6, color: '#4ecdc4', transition: 'all 0.15s',
+        borderRadius: 6, color: 'var(--brand-teal)', transition: 'all 0.15s',
       }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.15)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.08)'; }}

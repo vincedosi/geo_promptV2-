@@ -199,7 +199,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
             ) : (
               <div style={{
                 background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px',
-                fontFamily: fInter, fontSize: 12, color: '#f0f0f0', maxWidth: '85%', lineHeight: 1.5,
+                fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)', maxWidth: '85%', lineHeight: 1.5,
               }}>{msg.content}</div>
             )}
           </div>
@@ -372,7 +372,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                       <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>
                         {s.ratio_avant.toFixed(2)}
                       </td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: '#f0f0f0', fontWeight: 500 }}>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-primary)', fontWeight: 500 }}>
                         {s.ratio_apres.toFixed(2)}
                       </td>
                       <td style={{

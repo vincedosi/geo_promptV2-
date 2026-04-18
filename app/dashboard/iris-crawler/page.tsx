@@ -13,15 +13,15 @@ import type {
 
 // ── Design tokens (GEO.PROMPT terminal dark) ─────────────────────────────────
 const C = {
-  bg:          '#050505',
-  bgElevated:  '#111111',
-  bgSurface:   '#111111',
-  bgRow:       '#0a0a0a',
-  border:      '#1a1a1a',
+  bg:          'var(--bg-primary)',
+  bgElevated:  'var(--bg-level-2)',
+  bgSurface:   'var(--bg-level-2)',
+  bgRow:       'var(--bg-surface)',
+  border:      'var(--border-subtle)',
   borderLight: 'rgba(78,205,196,0.2)',
-  accent:      '#4ecdc4',
+  accent:      'var(--brand-teal)',
   accentDim:   'rgba(78,205,196,0.1)',
-  text:        '#f0f0f0',
+  text:        'var(--text-primary)',
   textDim:     'var(--text-secondary)',
   textSec:     'var(--text-tertiary)',
   muted:       'var(--text-tertiary)',
@@ -677,7 +677,7 @@ export default function IrisCrawlerPage() {
                       <button
                         onClick={() => handleUpload(entry.id)}
                         disabled={es.uploading}
-                        style={btnSmall('#4ecdc4', 'rgba(78,205,196,0.1)', 'rgba(78,205,196,0.3)')}>
+                        style={btnSmall('var(--brand-teal)', 'rgba(78,205,196,0.1)', 'rgba(78,205,196,0.3)')}>
                         {es.uploading ? `⏳ ${es.uploadProgress}%` : `↑ Importer ${Object.keys(es.mapping).length} col.`}
                       </button>
                     )}
