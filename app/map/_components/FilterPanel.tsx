@@ -1777,7 +1777,7 @@ export function FilterPanel({
 
               {/* Bouton toujours visible */}
               <button
-                style={{ ...primaryBtn(C.teal, false) }}
+                style={{ ...primaryBtn('#4ecdc4', false) }}
                 onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
               >
                 {selectedOOH.length > 0
@@ -1830,7 +1830,7 @@ export function FilterPanel({
               </div>
 
               <button
-                style={primaryBtn(C.teal, transportLoading || !onLoadTransport)}
+                style={primaryBtn('#4ecdc4', transportLoading || !onLoadTransport)}
                 disabled={transportLoading || !onLoadTransport}
                 onClick={async () => {
                   setTransportLoading(true);
@@ -1870,7 +1870,7 @@ export function FilterPanel({
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  style={{ ...primaryBtn(C.teal, tmjaLoading || !onLoadTMJA), flex: 1 }}
+                  style={{ ...primaryBtn('#4ecdc4', tmjaLoading || !onLoadTMJA), flex: 1 }}
                   disabled={tmjaLoading || !onLoadTMJA}
                   onClick={async () => {
                     setTmjaLoading(true);
