@@ -376,7 +376,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
       const cFc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [...iso5L.features, ...iso5C.features] };
       try {
         if (!map.getSource(cId)) map.addSource(cId, { type: 'geojson', data: cFc });
-        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': 'var(--brand-teal)', 'fill-opacity': 0.20 } });
+        if (!map.getLayer(cId)) map.addLayer({ id: cId, type: 'fill', source: cId, paint: { 'fill-color': '#4ecdc4', 'fill-opacity': 0.20 } });
       } catch { /* */ }
     }
   }, [isoVisible, isoData, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps

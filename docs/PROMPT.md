@@ -1,251 +1,327 @@
-# FIX CARTES NOIRES + REFONTE VISUELLE PANEL EXPERT
+# REFONTE HIÉRARCHIE VISUELLE PANEL EXPERT
 
 ## SKILLS OBLIGATOIRES
 @verification-before-completion @executing-plans @systematic-debugging @smart-explore @finishing-a-development-branch @writing-plans @brainstorming @dispatching-parallel-agents @receiving-code-review @requesting-code-review @subagent-driven-development @test-driven-development @using-git-worktrees @using-superpowers @writing-skills @do @make-plan @mem-search @timeline-report @frontend-design
 
 ## LECTURE PRÉALABLE — OBLIGATOIRE AVANT TOUTE LIGNE DE CODE
 1. DESIGN_SYSTEM.md
-2. .claude/skills/geomatik-product-vision/SKILL.md
-3. .claude/skills/geomatik-ux/SKILL.md
+2. .claude/skills/geomatik-ux/SKILL.md
+3. .claude/skills/geomatik-product-vision/SKILL.md
 4. .claude/skills/frontend-design/SKILL.md
 5. .claude/skills/cleanup-geomatik/SKILL.md
 
 ## POINT DE SAUVEGARDE
 ```bash
-git add -A && git commit -m "checkpoint: avant fix cartes noires + refonte panel"
-git checkout -b fix/cartes-noires-panel-expert
+git add -A && git commit -m "checkpoint: avant refonte hiérarchie panel expert"
+git checkout -b fix/panel-expert-hierarchie
 ```
 
-# ============================================================
-# PARTIE A — FIX CRITIQUE : CARTES NOIRES (priorité absolue)
-# ============================================================
-
-Les 2 cartes droites (Impressions + Population) en vue comparée Digital
-ont un fond noir — les tuiles MapLibre ne se chargent pas.
-La carte Ratio à gauche fonctionne.
-
-## Diagnostic obligatoire AVANT de coder
-
-```bash
-# Comment l'ancienne page passait le style aux cartes
-grep -rn "style\|mapStyle\|styleUrl\|cartocdn\|positron\|dark-matter\|openfreemap" \
-  --include="*.tsx" --include="*.ts" \
-  app/map/analyse/digital/_components/SyncMap.tsx
-
-# Comment le nouveau TripleMapView passe le style
-grep -rn "style\|mapStyle\|styleUrl\|cartocdn\|positron\|dark-matter\|openfreemap" \
-  --include="*.tsx" --include="*.ts" \
-  components/digital/TripleMapView.tsx
-
-# Le style de la carte principale (qui fonctionne)
-grep -rn "mapStyle\|STYLE_URL\|style:" --include="*.tsx" --include="*.ts" \
-  app/map/page.tsx lib/map/
-```
-
-## Causes probables (vérifier dans l'ordre)
-1. Le style URL n'est pas passé aux 2e et 3e instances MapLibre
-2. Les cartes sont créées avant que le style soit chargé (timing)
-3. Le composant SyncMap attend un prop style qui n'est plus passé depuis la migration
-4. Les cartes re-render et perdent leur style à cause d'un state cycle
-
-## Fix
-- Comparer prop par prop entre l'ancien SyncMap dans /map/analyse/digital/ et le nouveau
-- Le même style URL que la carte principale doit être passé aux 3 cartes
-- Tester en vue comparée : les 3 cartes doivent avoir des tuiles visibles
-
-Commit : `fix(digital): cartes noires — passer style URL aux 3 instances MapLibre`
+## OBJECTIF
+Les catégories maîtres (PÉRIMÈTRE, DONNÉES TERRAIN, ANALYSES, CAMPAGNES MÉDIA)
+doivent se distinguer FORTEMENT des layers enfants. Actuellement tout se ressemble.
 
 # ============================================================
-# PARTIE B — REFONTE VISUELLE PANEL EXPERT
+# PHASE 1 : RENOMMER + RESTRUCTURER LES CATÉGORIES
 # ============================================================
 
-## CONCEPT : Couleurs par catégorie
+### Renommer "CONTEXTE" → "PÉRIMÈTRE"
+Trouver et remplacer dans FilterPanel.tsx :
+- Le titre "CONTEXTE" ou "Contexte" → "PÉRIMÈTRE"
+- Regrouper dedans : Périmètre global + Régions + Départements + Recherche locale
+- **defaultOpen: false** (fermé par défaut — 90% du temps on touche pas)
+- La couleur catégorie reste var(--cat-context) gris
 
-Chaque catégorie a sa propre couleur. Le dot de la catégorie ET les dots
-des layers enfants utilisent cette couleur. Ça permet de se repérer
-instantanément dans le panel.
+### Supprimer "DONNÉES SOCIO-DÉMO" comme catégorie séparée
+IRIS et Carreaux Filosofi bougent dans DONNÉES TERRAIN.
+C'est des données qu'on affiche sur la carte, comme les POI ou le TMJA.
+Pas besoin d'une catégorie à part pour 2 layers.
 
-### Palette des catégories
+### Structure finale (4 catégories, pas 5) :
 
 ```
-CONTEXTE        → #8a8a8a (gris — structurel, neutre, toujours là)
-DONNÉES TERRAIN → #4ecdc4 (teal — cœur métier OOH, couleur brand)  
-DONNÉES SOCIO   → #5b9bd5 (bleu info — données statistiques)
-CAMPAGNES MÉDIA → #f7b731 (ambre warning — données chaudes, action)
-ANALYSES        → #e8845c (coral — résultats, outputs)
+PÉRIMÈTRE          → gris    var(--cat-context)   → fermé par défaut
+  Périmètre global
+  Régions
+  Départements
+  Recherche locale
+
+DONNÉES TERRAIN    → teal    var(--cat-terrain)    → ouvert par défaut
+  Points d'intérêt (POI)
+  Panneaux OOH et DOOH
+  Arrêts de transport
+  Flux routier (TMJA)
+  Radio FM/DAB+
+  IRIS
+  Carreaux Filosofi
+
+ANALYSES           → coral   var(--cat-analysis)   → fermé par défaut
+  Analyse spatiale
+  Scoring OOH
+  Corrélation IRIS × POI
+  Clustering
+  Couverture
+
+CAMPAGNES MÉDIA    → ambre   var(--cat-media)      → fermé par défaut
+  Campagne digitale
 ```
 
-Ajouter ces tokens dans globals.css :
+Commit : `refactor(panel): 4 catégories — Périmètre, Terrain, Analyses, Campagnes`
+
+# ============================================================
+# PHASE 2 : HEADER CATÉGORIE — BANDEAU COLORÉ DISTINCTIF
+# ============================================================
+
+Modifier CategoryGroup.tsx — le header catégorie doit être VISUELLEMENT
+différent d'un layer enfant. Pas juste un dot de couleur.
+
+### Spec du header catégorie maître :
+
+```css
+/* Le bandeau prend toute la largeur */
+.category-header {
+  background: rgba(var(--cat-color-rgb), 0.06);  /* fond teinté subtil */
+  border-top: 1px solid rgba(var(--cat-color-rgb), 0.12);
+  border-bottom: 1px solid rgba(var(--cat-color-rgb), 0.08);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.category-header:hover {
+  background: rgba(var(--cat-color-rgb), 0.10);
+}
+
+/* Dot catégorie */
+.category-dot {
+  width: 8px;           /* 8px, plus gros que les dots layers (6px) */
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cat-color);
+  flex-shrink: 0;
+}
+
+/* Label catégorie */
+.category-label {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;        /* 600 bold — les layers sont 400 regular */
+  font-size: 11px;
+  color: var(--cat-color);  /* COULEUR de la catégorie, pas blanc/gris */
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Chevron */
+.category-chevron {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  color: var(--cat-color);  /* Même couleur que le label */
+  opacity: 0.5;
+  transition: transform 0.2s;
+}
+```
+
+### Tokens RGB pour les rgba()
+
+Ajouter dans globals.css les versions RGB pour pouvoir faire rgba() :
 ```css
 :root {
   --cat-context: #8a8a8a;
+  --cat-context-rgb: 138, 138, 138;
   --cat-terrain: #4ecdc4;
+  --cat-terrain-rgb: 78, 205, 196;
   --cat-socio: #5b9bd5;
+  --cat-socio-rgb: 91, 155, 213;
   --cat-media: #f7b731;
+  --cat-media-rgb: 247, 183, 49;
   --cat-analysis: #e8845c;
-}
-/* Versions light mode */
-.light {
-  --cat-context: #737373;
-  --cat-terrain: #0d9488;
-  --cat-socio: #2563eb;
-  --cat-media: #d97706;
-  --cat-analysis: #c2410c;
+  --cat-analysis-rgb: 232, 132, 92;
 }
 ```
 
-### Modifier CategoryGroup.tsx
+Et en light mode, mêmes valeurs RGB ajustées.
 
-Le composant reçoit un nouveau prop `color` :
+### Passer la couleur comme prop
+
+CategoryGroup reçoit `color` et `colorRgb` :
 ```typescript
 interface CategoryGroupProps {
   title: string;
-  color?: string;        // NOUVEAU — CSS variable ex: "var(--cat-terrain)"
+  color: string;       // "var(--cat-terrain)"
+  colorRgb: string;    // "var(--cat-terrain-rgb)" pour les rgba()
   defaultOpen?: boolean;
+  collapsible?: boolean; // true par défaut
   children: React.ReactNode;
 }
 ```
 
-Le dot utilise cette couleur au lieu du teal fixe.
-Le header catégorie :
-```
-- background: var(--elevated) (#111 dark, #f0f0f0 light)
-- border-top: 1px solid var(--border-subtle)
-- padding: 10px 14px
-- Dot : 6px × 6px, border-radius 50%, background: props.color
-- Label : Inter 500, 11px, couleur du dot (props.color), uppercase, letter-spacing 0.06em
-- Chevron : 14px, var(--text-tertiary), ml-auto
-```
+Alternative plus simple si rgba avec var() pose problème :
+passer directement les styles inline avec les hex.
 
-Note : le label de catégorie utilise la COULEUR de la catégorie, pas le gris.
-Ça renforce l'identification visuelle.
+Commit : `feat(panel): header catégorie avec bandeau coloré distinctif`
 
-### Modifier LayerSwitch.tsx
+# ============================================================
+# PHASE 3 : LAYERS ENFANTS — INDENT + DISCRÉTION
+# ============================================================
 
-Le dot du layer hérite la couleur de sa catégorie MAIS en version atténuée :
-- Layer inactif : dot en couleur catégorie à 30% opacité
-- Layer actif : dot en couleur catégorie à 100%
+Les layers enfants doivent être visuellement SUBORDONNÉS à leur catégorie.
 
-```typescript
-interface LayerSwitchProps {
-  // ... props existants
-  color?: string;   // NOUVEAU — hérité de la catégorie parente
+### Spec du layer enfant :
+
+```css
+/* Indent par rapport au header catégorie */
+.layer-item {
+  padding: 8px 14px 8px 30px;  /* 30px left = indent 16px sous le dot catégorie */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  transition: background 0.1s;
+}
+
+.layer-item:hover {
+  background: var(--elevated);  /* #111 dark, #f0f0f0 light */
+}
+
+/* Dot layer — plus petit que le dot catégorie */
+.layer-dot {
+  width: 6px;          /* 6px vs 8px pour la catégorie */
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Layer INACTIF */
+.layer-dot--inactive {
+  background: var(--cat-color);
+  opacity: 0.25;
+}
+.layer-name--inactive {
+  color: var(--text-tertiary);  /* #8a8a8a */
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* Layer ACTIF */
+.layer-dot--active {
+  background: var(--cat-color);
+  opacity: 1.0;
+}
+.layer-name--active {
+  color: var(--text-primary);  /* #f0f0f0 */
+  font-size: 13px;
+  font-weight: 500;           /* medium quand actif */
+}
+
+/* Accordéon ouvert — border-left coloré */
+.layer-content {
+  margin-left: 30px;
+  padding: 8px 12px 12px 14px;
+  border-left: 2px solid rgba(var(--cat-color-rgb), 0.25);
+  border-bottom: 0.5px solid var(--border-subtle);
 }
 ```
 
-Styles layer selon état :
-```
-Layer INACTIF (switch off) :
-- Hauteur : 36px
-- Dot : 6px, couleur catégorie opacity 0.3
-- Texte : var(--text-tertiary) #8a8a8a
-- Pas de fond spécial
-- Switch : track var(--border-subtle), thumb var(--text-tertiary)
+### Switch on/off dans les layers
 
-Layer ACTIF (switch on) :
-- Hauteur : 36px (+ accordéon si ouvert)
-- Dot : 6px, couleur catégorie opacity 1.0
-- Texte : var(--text-primary) #f0f0f0
-- Fond léger : rgba(couleur-catégorie, 0.03)
-- Switch : track couleur-catégorie, thumb var(--text-primary)
+Le switch toggle le layer sans ouvrir l'accordéon.
+Le switch actif utilise la couleur de la catégorie :
+```
+Switch INACTIF :
+  track: var(--border-subtle) #1a1a1a
+  thumb: var(--text-tertiary) #8a8a8a
+
+Switch ACTIF :
+  track: var(--cat-color) — teal pour terrain, ambre pour média, etc.
+  thumb: var(--text-primary) #f0f0f0
 ```
 
-### Accordéon déplié — border-left couleur
+Commit : `feat(panel): layers enfants indentés + hiérarchie actif/inactif`
 
-Quand un layer est déplié, le contenu de l'accordéon a un border-left 
-dans la couleur de la catégorie :
-```
-- border-left: 2px solid rgba(couleur-catégorie, 0.3)
-- margin-left: 20px (aligné sous le dot)
-- padding-left: 12px
-```
+# ============================================================
+# PHASE 4 : GAPS ENTRE CATÉGORIES
+# ============================================================
 
-### Appliquer les couleurs dans FilterPanel.tsx
+Ajouter un espace clair entre chaque bloc de catégorie :
 
-```tsx
-<CategoryGroup title="CONTEXTE" color="var(--cat-context)" defaultOpen={true}>
-  {/* Périmètre, Régions, Départements, Recherche locale */}
-</CategoryGroup>
+```css
+.category-group {
+  margin-bottom: 12px;  /* Gap entre catégories */
+}
 
-<CategoryGroup title="DONNÉES TERRAIN" color="var(--cat-terrain)" defaultOpen={true}>
-  <LayerSwitch name="Points d'intérêt" color="var(--cat-terrain)" ...>
-  <LayerSwitch name="Panneaux OOH et DOOH" color="var(--cat-terrain)" ...>
-  <LayerSwitch name="Arrêts de transport" color="var(--cat-terrain)" ...>
-  <LayerSwitch name="Flux routier TMJA" color="var(--cat-terrain)" ...>
-  <LayerSwitch name="Radio FM/DAB+" color="var(--cat-terrain)" ...>
-</CategoryGroup>
-
-<CategoryGroup title="DONNÉES SOCIO-DÉMO" color="var(--cat-socio)" defaultOpen={false}>
-  <LayerSwitch name="IRIS" color="var(--cat-socio)" ...>
-  <LayerSwitch name="Carreaux Filosofi" color="var(--cat-socio)" ...>
-</CategoryGroup>
-
-<CategoryGroup title="CAMPAGNES MÉDIA" color="var(--cat-media)" defaultOpen={false}>
-  <LayerSwitch name="Campagne digitale" color="var(--cat-media)" ...>
-</CategoryGroup>
-
-<CategoryGroup title="ANALYSES" color="var(--cat-analysis)" defaultOpen={false}>
-  <LayerSwitch name="Analyse spatiale" color="var(--cat-analysis)" ...>
-  <LayerSwitch name="Scoring OOH" color="var(--cat-analysis)" ...>
-  {/* etc */}
-</CategoryGroup>
+/* Dernier layer d'une catégorie ouverte : pas de border-bottom 
+   (le gap suffit comme séparateur) */
+.category-group:last-child .layer-item:last-child {
+  border-bottom: none;
+}
 ```
 
-### État par défaut des catégories
-- CONTEXTE : ouvert, non collapsible (toujours visible)
-- DONNÉES TERRAIN : ouvert par défaut
-- DONNÉES SOCIO-DÉMO : fermé par défaut
-- CAMPAGNES MÉDIA : fermé par défaut
-- ANALYSES : fermé par défaut
+Le gap de 12px crée une rupture visuelle nette entre les 4 blocs.
+C'est ce qui fait que le planneur voit 4 zones distinctes, pas une liste.
 
-### Gap entre catégories
-Ajouter `margin-bottom: 8px` après chaque CategoryGroup fermé.
-Ajouter `margin-bottom: 4px` après chaque CategoryGroup ouvert.
-Ça crée des blocs visuels séparés.
+Commit : `feat(panel): gaps 12px entre catégories`
 
-### Boutons CTA restants en orange
-S'il reste des boutons orange (Afficher arrêts, Afficher TMJA), 
-les remplacer par le style teal CTA du DESIGN_SYSTEM :
+# ============================================================
+# PHASE 5 : BOUTONS CTA — DERNIERS ORANGE
+# ============================================================
+
+```bash
+grep -rn "orange\|#f97316\|#ea580c\|#fb923c\|bg-orange\|text-orange" \
+  --include="*.tsx" --include="*.ts" --include="*.css" \
+  components/ app/
+```
+
+Tout remplacer par le style teal CTA DESIGN_SYSTEM :
 ```
 background: transparent
 border: 0.5px solid var(--brand-teal)
 color: var(--brand-teal)
+border-radius: 6px
+padding: 8px 16px
+font: Inter 500, 12px
+width: 100%
+text-align: center
 hover: background rgba(78,205,196,0.1)
 ```
 
-```bash
-grep -rn "orange\|#f97316\|#ea580c\|#fb923c\|bg-orange\|text-orange" \
-  --include="*.tsx" --include="*.ts" --include="*.css"
-```
+Commit : `fix(buttons): zéro orange — tous CTA en teal`
 
 # ============================================================
 # VÉRIFICATION FINALE
 # ============================================================
 
 1. `npm run build` — 0 erreurs
-2. Les 3 cartes Digital ont des tuiles (PAS de fond noir)
-3. Chaque catégorie a sa couleur distincte (gris, teal, bleu, ambre, coral)
-4. Les layers inactifs sont visuellement discrets (dot 30%, texte tertiary)
-5. Les layers actifs sont visuellement clairs (dot 100%, texte primary)
-6. Les accordéons dépliés ont un border-left coloré
-7. Les catégories fermées par défaut sont bien fermées
-8. Il y a un gap visible entre les catégories
-9. AUCUN bouton orange restant
-10. Le panel fonctionne en dark ET light mode
+2. 4 catégories visibles : PÉRIMÈTRE, DONNÉES TERRAIN, ANALYSES, CAMPAGNES MÉDIA
+3. Chaque catégorie a un bandeau de fond coloré subtil (teinté, pas opaque)
+4. Le label de catégorie est en couleur de catégorie (pas blanc/gris)
+5. Les layers enfants sont indentés de 16px sous le header catégorie
+6. Les layers inactifs sont visuellement discrets (dot 25%, texte tertiary)
+7. Les layers actifs sont clairs (dot 100%, texte primary, font medium)
+8. Les accordéons ont un border-left coloré quand ouverts
+9. Gap 12px entre chaque catégorie
+10. PÉRIMÈTRE est fermé par défaut
+11. DONNÉES TERRAIN est ouvert par défaut
+12. ANALYSES et CAMPAGNES MÉDIA sont fermés par défaut
+13. AUCUN bouton orange restant
+14. Fonctionne en dark ET light mode
 
 ## POST-LIVRAISON — CLEANUP OBLIGATOIRE
 1. Lance `@cleanup-geomatik` Partie 2 (lint + types) sur les fichiers modifiés
 2. Lance `@cleanup-geomatik` Partie 3 (sécurité) sur les fichiers modifiés
 3. Rapport : failles sécu + `any` introduits + catch non typés + imports inutilisés
 4. Corrige TOUT avant de considérer la tâche terminée
-5. Commit : `chore(cleanup): lint + types + sécurité post-fix`
-6. Utilise `requesting-code-review` pour générer le résumé
-7. Utilise `timeline-report` pour le rapport chronologique
+5. Commit : `chore(cleanup): lint + types + sécurité post-refonte panel`
+6. Utilise `requesting-code-review` pour le résumé
+7. Utilise `timeline-report` pour le rapport
 
 ## INTERDIT
 - Ne PAS modifier la logique métier des layers
 - Ne PAS modifier /api/isochrone-battle/route.ts ni les fonctions battle_*
-- Ne PAS hardcoder les types de POI ou régies
 - Ne PAS utiliser de violet (#a855f7)
+- Ne PAS hardcoder les types de POI ou régies
 
-Commit final : `feat(panel): couleurs catégories + fix cartes noires + layers actif/inactif`
+Commit final : `feat(panel): hiérarchie visuelle — bandeaux colorés + indent + gaps`
+Tag : `git tag panel-hierarchie-$(date +%Y%m%d)`

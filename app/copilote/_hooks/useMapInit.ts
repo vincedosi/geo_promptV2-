@@ -324,7 +324,7 @@ export function useMapInit(
           'circle-radius': 5,
           'circle-opacity': 0.80,
           'circle-stroke-width': 1.5,
-          'circle-stroke-color': 'var(--bg-primary)',
+          'circle-stroke-color': '#050505',
         },
         layout: { visibility: 'none' },
       });
@@ -368,7 +368,7 @@ export function useMapInit(
           'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 24, 200, 32] as unknown as maplibregl.ExpressionSpecification,
           'circle-opacity': 0.85,
           'circle-stroke-width': 1,
-          'circle-stroke-color': 'var(--bg-primary)',
+          'circle-stroke-color': '#050505',
         },
         layout: { visibility: 'none' },
       });
@@ -383,7 +383,7 @@ export function useMapInit(
           'text-size': 11,
           visibility: 'none',
         },
-        paint: { 'text-color': 'var(--bg-primary)' },
+        paint: { 'text-color': '#050505' },
       });
 
       // Individual points (unclustered)
@@ -408,7 +408,7 @@ export function useMapInit(
           'circle-stroke-width': [
             'match', ['get', 'systeme'], 'DAB+', 1.5, 0.5,
           ] as unknown as maplibregl.ExpressionSpecification,
-          'circle-stroke-color': 'var(--bg-primary)',
+          'circle-stroke-color': '#050505',
           'circle-opacity': 0.9,
         },
         layout: { visibility: 'none' },
@@ -432,7 +432,7 @@ export function useMapInit(
             0.35, 'rgba(78,205,196,0.35)',
             0.6, 'rgba(78,205,196,0.6)',
             0.85, 'rgba(78,205,196,0.85)',
-            1, 'var(--text-primary)',
+            1, '#f0f0f0',
           ] as unknown as maplibregl.ExpressionSpecification,
           'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 11, 1, 14, 0] as unknown as maplibregl.ExpressionSpecification,
         },

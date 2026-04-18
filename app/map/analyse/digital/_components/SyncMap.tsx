@@ -55,7 +55,6 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
 
     map.on('load', () => {
       applyGeomatikStyle(map);
-      console.log(`[SyncMap:${id}] loaded — container: ${containerRef.current?.clientWidth}x${containerRef.current?.clientHeight}`);
 
       map.addSource(`digital-${id}`, {
         type: 'geojson',
@@ -93,16 +92,9 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     mapRef.current = map;
 
     // Resize observer — ensures tiles render when container goes from 0 to real size
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      console.log(`[SyncMap:${id}] resize: ${entry?.contentRect.width}x${entry?.contentRect.height}`);
-      map.resize();
-    });
+    const ro = new ResizeObserver(() => { map.resize(); });
     if (containerRef.current) ro.observe(containerRef.current);
-    map.once('idle', () => {
-      console.log(`[SyncMap:${id}] idle — canvas: ${map.getCanvas().width}x${map.getCanvas().height}`);
-      map.resize();
-    });
+    map.once('idle', () => { map.resize(); });
 
     return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
