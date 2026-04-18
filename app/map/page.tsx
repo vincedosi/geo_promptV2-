@@ -28,6 +28,10 @@ const TripleMapView = dynamic(
   () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
   { ssr: false },
 );
+const DigitalAnalysisPanel = dynamic(
+  () => import('@/app/map/analyse/digital/_components/AnalysisPanel').then(m => ({ default: m.AnalysisPanel })),
+  { ssr: false },
+);
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
@@ -101,6 +105,7 @@ export default function MapPage() {
   const [digitalInverted, setDigitalInverted] = useState(false);
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);
+  const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
   const digitalPercentilesRef = useRef<number[]>([]);
   const digitalCampaignIdRef = useRef<string>('');
 
@@ -1609,10 +1614,12 @@ export default function MapPage() {
         onDigitalClear={() => {
           setDigitalVisible(false);
           setDigitalStats(null);
+          setDigitalAnalysisOpen(false);
           const map = mapRef.current;
           const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
           src?.setData({ type: 'FeatureCollection', features: [] });
         }}
+        onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
       />
       </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
@@ -1898,6 +1905,42 @@ export default function MapPage() {
                 loading={irisDetailLoading}
                 onClose={() => { setSelectedIrisCode(null); setSelectedIrisData(null); }}
               />
+            </div>
+          )}
+
+          {/* Drawer analyse détaillée Digital */}
+          {digitalAnalysisOpen && digitalCampaignIdRef.current && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
+              height: '50%', minHeight: 300,
+              background: 'var(--bg-surface)',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex', flexDirection: 'column',
+              transition: 'transform 0.3s ease',
+            }}>
+              <div style={{
+                padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0,
+              }}>
+                <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Analyse detaillee
+                </span>
+                <button
+                  onClick={() => setDigitalAnalysisOpen(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+                >×</button>
+              </div>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <DigitalAnalysisPanel
+                  campaignId={digitalCampaignIdRef.current}
+                  scale={digitalScale}
+                  popField="population"
+                  selectedMedia={[]}
+                  metric="impressions"
+                  open={digitalAnalysisOpen}
+                  onToggle={() => setDigitalAnalysisOpen(false)}
+                />
+              </div>
             </div>
           )}
         </div>

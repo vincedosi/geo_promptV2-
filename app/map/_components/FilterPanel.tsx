@@ -378,6 +378,7 @@ export interface FilterPanelProps {
   onDigitalInvertChange?: (inverted: boolean) => void;
   digitalScale?: string;
   onDigitalScaleChange?: (scale: string) => void;
+  onOpenDigitalAnalysis?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -560,7 +561,7 @@ export function FilterPanel({
   onRecenterFrance,
   onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
-  digitalScale, onDigitalScaleChange,
+  digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis,
 }: FilterPanelProps) {
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
@@ -3184,12 +3185,22 @@ export function FilterPanel({
                       <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>max</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => onDigitalClear?.()}
-                    style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
-                  >
-                    Masquer
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => onDigitalClear?.()}
+                      style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
+                    >
+                      Masquer
+                    </button>
+                    {onOpenDigitalAnalysis && (
+                      <button
+                        onClick={onOpenDigitalAnalysis}
+                        style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: 'none', color: 'var(--brand-teal)', cursor: 'pointer', transition: 'opacity 0.15s' }}
+                      >
+                        Analyse detaillee →
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
