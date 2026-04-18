@@ -1,92 +1,85 @@
-Réponses à tes questions avant de commencer :
+Lis DESIGN_SYSTEM.md, .claude/skills/geomatik-ux/SKILL.md et .claude/skills/geomatik-product-vision/SKILL.md.
 
+## CONTEXTE
+Sprint 2 (Digital intégré) est livré mais il y a 5 bugs critiques à fixer.
 
+## BUG 1 — Cartes noires (fond noir sans tuiles)
+Les 3 cartes de la vue comparée ont un fond noir — les tuiles MapLibre 
+ne se chargent pas. Probable cause : le style URL n'est pas passé 
+aux instances MapLibre dans TripleMapView.tsx.
 
-1\. ORDRE : Sprint 3 est considéré fait à 80%. Ordre = 0 → 1 → 2 → 4 → 5.
+Diagnostic :
+```bash
+grep -rn "style\|mapStyle\|setStyle\|cartocdn\|positron\|dark-matter" --include="*.tsx" --include="*.ts" components/digital/ app/map/
+```
+Vérifier que TripleMapView.tsx reçoit et applique le même style de carte 
+que la carte principale. Comparer avec l'ancienne page /map/analyse/digital/ 
+qui fonctionnait — le style y était passé comment ?
 
-&#x20;  Ce qui manque du Sprint 3 se fera naturellement pendant Sprint 1.
+## BUG 2 — Cartes qui clignotent
+Les cartes clignotent quand on affiche une campagne. 
+Probable cause : re-render en boucle — un state qui change 
+déclenche un re-fetch qui change le state qui re-render.
 
+Diagnostic :
+- Ajouter un console.log temporaire dans le useEffect qui charge les données
+- Vérifier les deps du useEffect — y a-t-il un objet non-mémoïsé dans les deps ?
+- Vérifier que use-digital-data.ts ne refetch pas en boucle
+- Utilise systematic-debugging pour isoler le cycle
 
+## BUG 3 — Pas de sélecteur de cible (tranche d'âge)
+Dans la section Campagnes Média du panel, il manque le select de cible.
+L'ancienne page Digital avait un select pour choisir la tranche d'âge 
+(15-29 ans, 25-49 ans, Ensemble, etc.).
 
-2\. SPRINT 0 : Fais d'abord le diagnostic des variables CSS existantes.
+Diagnostic :
+```bash
+grep -rn "cible\|target\|tranche\|age_range\|ageRange" --include="*.tsx" app/map/analyse/digital/
+```
+Le composant existe dans l'ancienne page. Il faut l'intégrer dans la 
+section Campagnes Média du FilterPanel, APRÈS le select campagne.
+Les options viennent de DISTINCT sur les données de la campagne sélectionnée.
 
-&#x20;  Adapte le Sprint 0 en fonction de ce qui existe déjà — ne recrée pas 
+## BUG 4 — Impressions pas affichées sur les cartes
+Les choroplèthes ne colorent pas les régions — les données ne sont pas 
+passées aux cartes. Vérifier la chaîne complète :
+1. use-digital-data.ts fetch les données
+2. Les données sont passées à TripleMapView.tsx
+3. TripleMapView applique les sources/layers GeoJSON sur chaque carte
 
-&#x20;  ce qui est là.
+Comparer avec l'ancienne page qui fonctionnait :
+```bash
+diff <(grep -n "source\|addSource\|addLayer\|setData\|geojson" app/map/analyse/digital/_components/SyncMap.tsx) <(grep -n "source\|addSource\|addLayer" components/digital/TripleMapView.tsx)
+```
 
+## BUG 5 — Bouton toggle thème manquant
+Le ThemeToggle.tsx existe (Sprint 0) mais il n'est pas visible dans le header.
+Vérifier :
+```bash
+grep -rn "ThemeToggle\|theme-toggle\|themeToggle" --include="*.tsx" app/layout.tsx components/
+```
+S'assurer qu'il est importé et rendu dans le header, à côté du sélecteur 
+d'organisation.
 
+## ORDRE DE CORRECTION
+1. D'abord le fond de carte noir (sans ça on voit rien)
+2. Puis les données/impressions (sans ça les cartes sont vides)
+3. Puis le sélecteur de cible (sans ça on peut pas filtrer)
+4. Puis le clignotement (UX)
+5. Puis le bouton thème (cosmétique)
 
-3\. SPRINT 1 — STATE MANAGEMENT : Utilise Zustand (pas Context, pas props drilling).
+## MÉTHODE
+Pour chaque bug :
+1. Diagnostic avec les commandes grep ci-dessus
+2. Comparer avec l'ancienne page /map/analyse/digital/ QUI FONCTIONNAIT
+3. Le fix doit rétablir le même comportement, pas réinventer
+4. Commit séparé par bug : fix(digital): [description]
 
-&#x20;  Crée un store `useLayerStore` avec les états regroupés par catégorie :
+## POST-LIVRAISON — CLEANUP OBLIGATOIRE
+1. Lance @cleanup-geomatik Partie 2 + 3 sur les fichiers modifiés
+2. npm run build — 0 erreurs
+3. Commit : chore(cleanup): post-fix digital bugs
 
-&#x20;  - terrainLayers (panneaux, poi, transport, tmja, radio)
-
-&#x20;  - socioLayers (iris, carreaux)
-
-&#x20;  - mediaLayers (digital)
-
-&#x20;  - analysisLayers (scoring, correlation, clustering, couverture)
-
-&#x20;  Les callbacks carte (onDirectOOH, onToggleRadio, etc.) restent en props 
-
-&#x20;  depuis map/page.tsx — le store gère l'état UI du panel, pas les actions carte.
-
-&#x20;  
-
-&#x20;  Pour casser les 3300 lignes : un composant par catégorie.
-
-&#x20;  - components/map/layers/ContextSection.tsx
-
-&#x20;  - components/map/layers/TerrainSection.tsx
-
-&#x20;  - components/map/layers/SocioSection.tsx
-
-&#x20;  - components/map/layers/MediaSection.tsx
-
-&#x20;  - components/map/layers/AnalysisSection.tsx
-
-&#x20;  Chaque section importe les LayerSwitch et les composants de contenu existants.
-
-
-
-4\. SPRINT 2 : Le bon chemin est /map/analyse/digital/ (pas app/digital/).
-
-&#x20;  SyncMap.tsx et use-digital-data.ts sont déjà bien extraits.
-
-
-
-5\. SPRINT 4 — OBJET C : Migrer progressivement vers CSS variables.
-
-&#x20;  L'objet C peut rester comme mapping intermédiaire mais chaque valeur 
-
-&#x20;  doit pointer vers var(--xxx), plus de hex brut.
-
-
-
-6\. SPECS VISUELLES : Lis .claude/skills/geomatik-product-vision/SKILL.md 
-
-&#x20;  section 3 (Layer Manager) — c'est la spec du layout cible.
-
-&#x20;  Le design system DESIGN\_SYSTEM.md couvre les tokens.
-
-&#x20;  Pas de maquettes Figma — les specs textuelles font foi.
-
-
-
-7\. RÉTROCOMPATIBILITÉ : Les pages admin (sidebar Administration/Système) 
-
-&#x20;  ne sont PAS impactées par les sprints 0-2. Elles gardent leur layout.
-
-&#x20;  Le Sprint 4 (thème) les affectera — on verra à ce moment.
-
-
-
-8\. TESTS : npm run build + npm run lint sont le minimum.
-
-&#x20;  Pas de tests visuels/snapshot pour l'instant — validation manuelle.
-
-
-
-Commence par Sprint 0. Lance `make-plan` et soumets-moi le plan.
-
+## INTERDIT
+- Ne PAS modifier /api/isochrone-battle/route.ts ni les fonctions battle_*
+- Ne PAS réécrire TripleMapView ou SyncMap from scratch — fixer, pas refaire
