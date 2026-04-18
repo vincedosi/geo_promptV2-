@@ -84,7 +84,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
       if (selectedMedia.length > 0) url += `&media=${selectedMedia.join(',')}`;
       if (parentType && parentCode) url += `&parent_type=${parentType}&parent_code=${encodeURIComponent(parentCode)}`;
       console.log(`[Breakdown] fetching: ${url}`);
-      const res = await fetch(url);
+      const res = await adminFetch(url);
       if (res.ok) {
         const data = await res.json();
         console.log(`[Breakdown] agg=${agg} parent=${parentType ?? '-'}/${parentCode ?? '-'} rows=${data.length} first_nom=${data[0]?.nom ?? 'N/A'}`);
