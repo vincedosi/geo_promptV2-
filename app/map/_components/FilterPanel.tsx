@@ -1777,11 +1777,11 @@ export function FilterPanel({
 
               {/* Bouton toujours visible */}
               <button
-                style={{ ...primaryBtn('#76b7b2', false) }}
+                style={{ ...primaryBtn(C.teal, false) }}
                 onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
               >
                 {selectedOOH.length > 0
-                  ? `AFFICHER — ${selectedOOH.length} RÉGIE${selectedOOH.length > 1 ? 'S' : ''}`
+                  ? `Afficher — ${selectedOOH.length} régie${selectedOOH.length > 1 ? 's' : ''}`
                   : 'Afficher tous les panneaux'}
               </button>
               </div>
@@ -1830,7 +1830,7 @@ export function FilterPanel({
               </div>
 
               <button
-                style={primaryBtn('#38bdf8', transportLoading || !onLoadTransport)}
+                style={primaryBtn(C.teal, transportLoading || !onLoadTransport)}
                 disabled={transportLoading || !onLoadTransport}
                 onClick={async () => {
                   setTransportLoading(true);
@@ -1858,7 +1858,7 @@ export function FilterPanel({
                 {[
                   { color: '#4292C6', label: '< 5 000 véh/j' },
                   { color: '#f6d543', label: '5 000 – 15 000 véh/j' },
-                  { color: '#f97316', label: '15 000 – 40 000 véh/j' },
+                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j' },
                   { color: '#ef4444', label: '> 40 000 véh/j' },
                 ].map(({ color, label }) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1870,7 +1870,7 @@ export function FilterPanel({
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  style={{ ...primaryBtn('#f97316', tmjaLoading || !onLoadTMJA), flex: 1 }}
+                  style={{ ...primaryBtn(C.teal, tmjaLoading || !onLoadTMJA), flex: 1 }}
                   disabled={tmjaLoading || !onLoadTMJA}
                   onClick={async () => {
                     setTmjaLoading(true);
@@ -1878,14 +1878,14 @@ export function FilterPanel({
                     finally { setTmjaLoading(false); }
                   }}
                 >
-                  {tmjaLoading ? 'CHARGEMENT…' : tmjaVisible ? '↻ Actualiser' : 'Afficher TMJA'}
+                  {tmjaLoading ? 'Chargement...' : tmjaVisible ? 'Actualiser' : 'Afficher TMJA'}
                 </button>
                 {tmjaVisible && (
                   <button
                     style={pill(false, C.muted)}
                     onClick={onClearTMJA}
                     title="Masquer le flux routier"
-                  >MASQUER</button>
+                  >Masquer</button>
                 )}
               </div>
               <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
@@ -1897,16 +1897,9 @@ export function FilterPanel({
 
             {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)', padding: '10px 14px', margin: '0 -16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-                <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>Radio FM/DAB+</span>
-                {radioCount !== undefined && radioCount > 0 && (
-                  <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--brand-teal)', background: 'rgba(78,205,196,0.1)', border: '0.5px solid rgba(78,205,196,0.2)', borderRadius: 4, padding: '1px 6px' }}>
-                    {radioCount.toLocaleString('fr-FR')}
-                  </span>
-                )}
-                {radioLoading && <span style={{ fontSize: 9, color: C.textDim, fontFamily: fMono }}>chargement...</span>}
-              </div>
+              <FilterSectionHeader label="Radio FM/DAB+" sectionKey="radio" open={sectionsOpen.radio !== false} onToggle={() => toggleSection('radio')} count={radioCount} searchTerm={filterSearch} />
+              {sectionsOpen.radio !== false && (
+              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
 
               {/* Selected radio banner */}
               {radioSelectedNom && (
@@ -2089,6 +2082,8 @@ export function FilterPanel({
               <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
                 Source : ANFR data.gouv.fr
               </div>
+              </div>
+              )}{/* fin collapsible radio */}
             </div>
 
           </div>
