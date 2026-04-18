@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 
 interface CategoryGroupProps {
   title: string;
+  color?: string;
   defaultOpen?: boolean;
   collapsible?: boolean;
   children: ReactNode;
@@ -14,6 +15,7 @@ const STORAGE_PREFIX = 'geomatik-cat-';
 
 export function CategoryGroup({
   title,
+  color = 'var(--brand-teal)',
   defaultOpen = true,
   collapsible = true,
   children,
@@ -52,7 +54,7 @@ export function CategoryGroup({
   };
 
   return (
-    <div>
+    <div style={{ marginBottom: open ? 4 : 8 }}>
       {/* Header bandeau */}
       <div
         onClick={toggle}
@@ -69,13 +71,13 @@ export function CategoryGroup({
       >
         <div style={{
           width: 6, height: 6, borderRadius: '50%',
-          background: 'var(--brand-teal)', flexShrink: 0,
+          background: color, flexShrink: 0,
         }} />
         <span style={{
           fontFamily: "'Inter', system-ui, sans-serif",
           fontWeight: 500,
           fontSize: 11,
-          color: 'var(--text-tertiary)',
+          color: color,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
           flex: 1,

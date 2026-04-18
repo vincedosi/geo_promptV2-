@@ -1403,7 +1403,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Contexte" defaultOpen={true} collapsible={false}>
+        <CategoryGroup title="Contexte" color="var(--cat-context)" defaultOpen={true} collapsible={false}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
@@ -1523,7 +1523,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — DONNÉES TERRAIN (ex-POI)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Données terrain" defaultOpen={true}>
+        <CategoryGroup title="Données terrain" color="var(--cat-terrain)" defaultOpen={true}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
@@ -2058,7 +2058,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — ANALYSES (ex-Analyse)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Analyses" defaultOpen={false}>
+        <CategoryGroup title="Analyses" color="var(--cat-analysis)" defaultOpen={false}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
@@ -3069,7 +3069,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — CAMPAGNES MÉDIA
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Campagnes média" defaultOpen={false}>
+        <CategoryGroup title="Campagnes média" color="var(--cat-media)" defaultOpen={false}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Campaign selector */}
