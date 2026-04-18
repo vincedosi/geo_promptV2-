@@ -24,6 +24,10 @@ const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
   { ssr: false },
 );
+const TripleMapView = dynamic(
+  () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
+  { ssr: false },
+);
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
@@ -95,7 +99,8 @@ export default function MapPage() {
   const [digitalStats, setDigitalStats] = useState<{ total_impressions: number; zones_count: number; campaign_name: string } | null>(null);
   const [digitalPalette, setDigitalPalette] = useState('teal');
   const [digitalInverted, setDigitalInverted] = useState(false);
-  const [digitalScale, setDigitalScale] = useState('cp');
+  const [digitalScale, setDigitalScale] = useState('region');
+  const [digitalCompareView, setDigitalCompareView] = useState(true);
   const digitalPercentilesRef = useRef<number[]>([]);
   const digitalCampaignIdRef = useRef<string>('');
 
@@ -1674,6 +1679,47 @@ export default function MapPage() {
           >
             {mapFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
           </button>
+
+          {/* Toggle vue comparée / fusionnée — visible uniquement quand Digital actif */}
+          {digitalVisible && (
+            <div style={{
+              position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 25,
+              display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden',
+              border: '0.5px solid var(--border-default)',
+              background: 'var(--bg-surface)',
+            }}>
+              {[
+                { id: true, label: 'Vue comparee' },
+                { id: false, label: 'Vue fusionnee' },
+              ].map(opt => (
+                <button
+                  key={String(opt.id)}
+                  onClick={() => setDigitalCompareView(opt.id)}
+                  style={{
+                    padding: '6px 14px', border: 'none', cursor: 'pointer',
+                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+                    background: digitalCompareView === opt.id ? 'rgba(78,205,196,0.12)' : 'transparent',
+                    color: digitalCompareView === opt.id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Triple map view — visible when Digital active + vue comparée */}
+          {digitalVisible && digitalCompareView && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 15 }}>
+              <TripleMapView
+                campaignId={digitalCampaignIdRef.current}
+                scale={digitalScale}
+                popField="population"
+                metric="impressions"
+              />
+            </div>
+          )}
 
       <MapPanel
         mapContainerRef={mapContainerRef}
