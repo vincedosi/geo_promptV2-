@@ -93,7 +93,9 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
 
     // Resize observer — ensures tiles render when container goes from 0 to real size
     const ro = new ResizeObserver(() => { map.resize(); });
-    ro.observe(containerRef.current);
+    if (containerRef.current) ro.observe(containerRef.current);
+    // Force resize after initial style load to handle race conditions
+    map.once('idle', () => { map.resize(); });
 
     return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
