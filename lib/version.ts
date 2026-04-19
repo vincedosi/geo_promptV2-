@@ -8,7 +8,7 @@
  */
 
 export const APP_NAME    = 'GEO.Prompt';
-export const APP_VERSION = '7.6.0';
+export const APP_VERSION = '7.7.0';
 export const BUILD_DATE  = '2026-04-19';
 
 // Fichier PMTiles IRIS hébergé sur GitHub Releases (196 MB > limite Supabase Storage 50 MB)
