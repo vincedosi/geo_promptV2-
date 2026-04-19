@@ -438,7 +438,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
             color: open ? '#000' : 'var(--brand-teal)',
             padding: '5px 10px', borderRadius: 2, cursor: 'pointer',
             fontSize: 10, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif",
-            display: 'block', marginLeft: 'auto', transition: 'all 0.2s ease',
+            display: 'block', marginLeft: 'auto', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
           }}
         >
           {open ? 'Fermer scoring' : 'Scoring OOH'}
@@ -450,12 +450,12 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
           ? {
               background: 'var(--bg-surface)', borderRadius: 2,
               display: 'flex', flexDirection: 'column', maxHeight: '60vh', width: '100%',
-              animation: 'scoreFadeIn 0.3s ease-out',
+              animation: 'scoreFadeIn 300ms var(--ease-out)',
             }
           : {
               marginTop: 4, background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
               borderRadius: 2, width: 288, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)',
-              animation: 'scoreFadeIn 0.3s ease-out',
+              animation: 'scoreFadeIn 300ms var(--ease-out)',
             }
         }>
           {/* ─── Header ──────────────────────────────────────────────── */}
@@ -471,13 +471,13 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                 value={ville} onChange={e => setVille(e.target.value)}
                 onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                 onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 10, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
+                style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 10, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 300ms var(--ease-out)', outline: 'none' }}
                 placeholder="Ville"
               />
               <button onClick={() => loadPanneaux()} disabled={loading}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-default)', color: 'var(--brand-teal)', padding: '3px 7px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                style={{ background: 'var(--border-subtle)', border: '1px solid var(--border-default)', color: 'var(--brand-teal)', padding: '3px 7px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                 {loading ? '...' : 'Reload'}
               </button>
             </div>
@@ -493,7 +493,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                   }}
                   onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                  style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 5px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 0.3s ease', outline: 'none' }}
+                  style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 5px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', transition: 'border-color 300ms var(--ease-out)', outline: 'none' }}
                 >
                   {profiles.map(p => (
                     <option key={p.id} value={p.id}>
@@ -504,7 +504,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                 <button onClick={startEdit}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                  style={{ background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0, transition: 'all 0.2s ease' }}>
+                  style={{ background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                   Edit
                 </button>
               </div>
@@ -524,7 +524,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                   onChange={e => setEditProfile({ ...editProfile, nom: e.target.value })}
                   onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                  style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', marginBottom: 6, boxSizing: 'border-box', transition: 'border-color 0.3s ease', outline: 'none' }}
+                  style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-default)', color: '#ccc', padding: '3px 6px', fontSize: 9, borderRadius: 2, fontFamily: 'inherit', marginBottom: 6, boxSizing: 'border-box', transition: 'border-color 300ms var(--ease-out)', outline: 'none' }}
                   placeholder="Nom du profil"
                 />
                 {/* Critères */}
@@ -566,11 +566,11 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
                 {/* Boutons save/cancel */}
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button onClick={cancelEdit}
-                    style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                    style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                     Annuler
                   </button>
                   <button onClick={saveProfile} disabled={savingProfile}
-                    style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--brand-teal)', color: 'var(--brand-teal)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                    style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--brand-teal)', color: 'var(--brand-teal)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                     {savingProfile ? '...' : 'Sauvegarder'}
                   </button>
                 </div>
@@ -582,13 +582,13 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
               <button onClick={() => computeScores(['proximity'])} disabled={computing}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                 {computing ? '...' : 'Calc proximite'}
               </button>
               <button onClick={() => computeScores(['proximity', 'isochrone'])} disabled={computing}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--success)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+                style={{ flex: 1, background: 'var(--bg-level-2)', border: '1px solid var(--border-default)', color: 'var(--success)', padding: '4px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
                 {computing ? '...' : 'Calc + ISO'}
               </button>
             </div>
@@ -607,7 +607,7 @@ export function ScoringPanel({ mapRef, mapReady, onFlyTo, onScoreComputed, inlin
               style={{ flex: 2, accentColor: 'var(--brand-teal)', cursor: 'pointer' }} />
             <button
               onClick={() => { const next = !isoVisible; setIsoVisible(next); if (next && isoData.length === 0) loadIsochrones(); }}
-              style={{ background: isoVisible ? 'var(--bg-level-2)' : 'var(--bg-surface)', border: `1px solid ${isoVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`, color: isoVisible ? 'var(--brand-teal)' : 'var(--text-tertiary)', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'all 0.2s ease' }}>
+              style={{ background: isoVisible ? 'var(--bg-level-2)' : 'var(--bg-surface)', border: `1px solid ${isoVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`, color: isoVisible ? 'var(--brand-teal)' : 'var(--text-tertiary)', padding: '3px 6px', borderRadius: 2, cursor: 'pointer', fontSize: 9, fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)' }}>
               ISO
             </button>
           </div>

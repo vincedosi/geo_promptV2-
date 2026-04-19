@@ -90,7 +90,7 @@ function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
           height: '100%',
           background: scoreColor(value),
           borderRadius: 2,
-          transition: 'width 0.2s ease',
+          transition: 'width 200ms linear',
         }} />
       </div>
       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: scoreColor(value), minWidth: 28, textAlign: 'right' }}>
@@ -197,7 +197,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--brand-teal)',
       }}>
-        <span style={{ animation: 'pulse 1.5s infinite' }}>chargement données {ville}…</span>
+        <span style={{ animation: 'pulse 1.5s linear infinite' }}>chargement données {ville}…</span>
       </div>
     );
   }
@@ -234,7 +234,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
       flex: 1, overflowY: 'auto', padding: '20px 24px 40px',
       display: 'flex', flexDirection: 'column', gap: 24,
       fontFamily: 'Inter, sans-serif',
-      animation: 'dashFadeIn 0.3s ease',
+      animation: 'dashFadeIn 300ms var(--ease-out)',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
@@ -411,7 +411,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
                 background: 'transparent', border: '1px solid var(--border-subtle)',
                 borderRadius: 2, padding: '10px 12px',
                 cursor: 'pointer', textAlign: 'left',
-                transition: 'border-color 0.2s ease',
+                transition: 'border-color 200ms var(--ease-out)',
               }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-teal)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
@@ -468,7 +468,7 @@ export function StudyDashboard({ ville, onPanneauClick }: Props) {
             <div style={{ fontSize: 9, fontFamily: "'Inter', sans-serif", color: 'var(--text-secondary)', letterSpacing: 0.5, paddingLeft: 8, borderLeft: '2px solid rgba(78,205,196,0.25)' }}>
               Analyse IA — Mistral
               {analysisLoading && (
-                <span style={{ marginLeft: 8, color: 'var(--brand-teal)', animation: 'pulse 1.5s infinite' }}>▶ en cours</span>
+                <span style={{ marginLeft: 8, color: 'var(--brand-teal)', animation: 'pulse 1.5s linear infinite' }}>▶ en cours</span>
               )}
             </div>
             {!analysisLoading && analysisText && (

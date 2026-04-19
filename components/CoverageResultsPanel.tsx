@@ -443,7 +443,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
       background: 'var(--bg-surface)', borderLeft: '0.5px solid var(--border-subtle)',
       display: 'flex', flexDirection: 'column',
       transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-      transition: 'transform 0.2s ease',
+      transition: 'transform 200ms var(--ease-out)',
       pointerEvents: isOpen ? 'auto' : 'none',
     } as React.CSSProperties}>
 
@@ -526,7 +526,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             fontSize:       12,
             flexShrink:     0,
             lineHeight:     1,
-            transition:     'border-color 0.2s ease, color 0.2s ease',
+            transition:     'border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
           }}
         >
           ✕
@@ -755,7 +755,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                 borderRadius: 2,
                 background: 'var(--brand-teal)',
                 width:      progress ? `${Math.round((progress.current / progress.total) * 100)}%` : '0%',
-                transition: 'width 0.2s ease',
+                transition: 'width 200ms linear',
               }} />
             </div>
             {/* Skeleton only when no data yet */}
@@ -769,7 +769,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
                       background:     'var(--bg-level-2)',
                       borderRadius:   4,
                       marginBottom:   12,
-                      animation:      'covPulse 1.5s ease-in-out infinite',
+                      animation:      'covPulse 1.5s linear infinite',
                       animationDelay: `${i * 0.15}s`,
                     }}
                   />
@@ -962,7 +962,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
           from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        .cov-row-stagger { animation: covFadeIn 0.2s ease both; }
+        .cov-row-stagger { animation: covFadeIn 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
         @media (prefers-reduced-motion: reduce) {
           .cov-row-stagger { animation: none; }
           * { transition-duration: 0s !important; animation-duration: 0s !important; }
@@ -1111,7 +1111,7 @@ function HBarChart({
                 x={CHART_PAD.left} y={y + 4}
                 width={w} height={ROW_H - 8}
                 rx={2} fill={color}
-                style={{ cursor: 'default', transition: 'width 0.2s ease' }}
+                style={{ cursor: 'default', transition: 'width 200ms linear' }}
                 onMouseMove={e => onHover({ x: e.clientX, y: e.clientY, text: `${d.label} — ${d.value.toLocaleString('fr-FR')} hab` })}
                 onMouseLeave={() => onHover(null)}
               />

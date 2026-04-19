@@ -64,7 +64,7 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
       background: done ? C.greenDim : active ? C.accentDim : 'transparent',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: fMono, fontSize: 10, color: done ? C.green : active ? C.accent : C.muted,
-      flexShrink: 0, transition: 'all 0.2s ease',
+      flexShrink: 0, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
     }}>
       {done ? '✓' : n}
     </div>
@@ -245,7 +245,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
           {[1, 2, 3, 4].map(n => (
             <React.Fragment key={n}>
               <StepDot n={n} active={step === n} done={step > n} />
-              {n < 4 && <div style={{ width: 12, height: 1, background: step > n ? C.green : C.border, transition: 'background 0.2s ease' }} />}
+              {n < 4 && <div style={{ width: 12, height: 1, background: step > n ? C.green : C.border, transition: 'background-color 180ms var(--ease-out)' }} />}
             </React.Fragment>
           ))}
         </div>
@@ -276,7 +276,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                       padding: '8px 11px', borderRadius: 2, cursor: 'pointer',
                       background: sel ? C.accentDim : C.bgInput,
                       border: `1px solid ${sel ? C.accent : C.border}`,
-                      transition: 'all 0.2s ease',
+                      transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
@@ -327,13 +327,13 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                   style={{
                     width: 36, height: 18, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
                     background: metropolitaine ? C.accent : C.border,
-                    position: 'relative', transition: 'background 0.2s ease',
+                    position: 'relative', transition: 'background-color 180ms var(--ease-out)',
                   }}
                 >
                   <div style={{
                     position: 'absolute', top: 2, left: metropolitaine ? 20 : 2,
                     width: 14, height: 14, borderRadius: 1,
-                    background: '#fff', transition: 'left 0.2s ease',
+                    background: '#fff', transition: 'left 220ms cubic-bezier(0.32, 0.72, 0, 1)',
                   }} />
                 </div>
                 <span style={{ fontSize: 11, color: C.text }}>France métropolitaine uniquement</span>
@@ -362,7 +362,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     padding: '7px 11px', borderRadius: 2, cursor: 'pointer',
                     background: sel ? C.accentDim : C.bgInput,
                     border: `1px solid ${sel ? C.accent : C.border}`,
-                    transition: 'all 0.2s ease',
+                    transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{
@@ -566,7 +566,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                     width: 80, padding: '7px 10px', borderRadius: 2,
                     background: C.bgInput, border: `1px solid ${duration < 5 || duration > 120 ? C.red : C.border}`,
                     color: C.text, fontFamily: fMono, fontSize: 13,
-                    outline: 'none', transition: 'border-color 0.2s ease',
+                    outline: 'none', transition: 'border-color 200ms var(--ease-out)',
                   }}
                 />
                 <span style={{ fontSize: 10, color: C.muted }}>min (5 – 120)</span>
@@ -609,13 +609,13 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                 style={{
                   width: 30, height: 16, borderRadius: 2, flexShrink: 0,
                   background: dryRun ? C.amber : C.border,
-                  position: 'relative', transition: 'background 0.2s ease', cursor: 'pointer',
+                  position: 'relative', transition: 'background-color 180ms var(--ease-out)', cursor: 'pointer',
                 }}
               >
                 <div style={{
                   position: 'absolute', top: 1, left: dryRun ? 15 : 1,
                   width: 14, height: 14, borderRadius: 1,
-                  background: '#fff', transition: 'left 0.2s ease',
+                  background: '#fff', transition: 'left 220ms cubic-bezier(0.32, 0.72, 0, 1)',
                 }} />
               </div>
               <span style={{ fontSize: 10, color: dryRun ? C.amber : C.muted }}>

@@ -83,7 +83,7 @@ function BarRow({ col, raw }: { col: typeof IRIS_DB_COLUMNS[number]; raw: unknow
             width: `${pct}%`,
             background: pct > 60 ? C.accent : pct > 30 ? C.green : 'var(--brand-teal)',
             borderRadius: 2,
-            transition: 'width 0.4s ease',
+            transition: 'width 400ms linear',
           }} />
         </div>
       )}
@@ -185,7 +185,7 @@ export function IrisDetailPanel({ data, loading, onClose }: Props) {
               width: 24, height: 24, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: 2, marginLeft: 8,
-              transition: 'color 0.15s, border-color 0.15s',
+              transition: 'color 150ms var(--ease-hover), border-color 150ms var(--ease-hover)',
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = C.text; (e.currentTarget as HTMLButtonElement).style.borderColor = C.dim; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = C.dim;  (e.currentTarget as HTMLButtonElement).style.borderColor = C.border; }}

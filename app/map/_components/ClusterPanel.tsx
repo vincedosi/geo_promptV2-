@@ -340,7 +340,7 @@ export function ClusterPanel({
     background: active ? `rgba(${hexRgb(color)},0.12)` : 'none',
     border: `1px solid ${active ? color : C.border}`,
     color: active ? color : C.muted,
-    borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s ease',
+    borderRadius: 2, cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
   });
 
   // ── Empty / loading state ─────────────────────────────────────────────────
@@ -361,7 +361,7 @@ export function ClusterPanel({
           </div>
           {loading ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, animation: 'clPulse 1s infinite' }} />
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, animation: 'clPulse 1s linear infinite' }} />
               <span style={{ fontFamily: fMono, fontSize: 10, color: C.accent }}>Chargement...</span>
             </div>
           ) : (
@@ -451,7 +451,7 @@ export function ClusterPanel({
               background: duration === d ? 'rgba(78,205,196,0.14)' : 'none',
               border: `1px solid ${duration === d ? C.accent : C.border}`,
               color: duration === d ? C.accent : C.muted,
-              transition: 'all 0.2s ease',
+              transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
             }}>{d} min</button>
           ))}
           {loading && <span style={{ fontFamily: fMono, fontSize: 8, color: C.accent, alignSelf: 'center', marginLeft: 4 }}>...</span>}
@@ -479,7 +479,7 @@ export function ClusterPanel({
             cursor: 'pointer',
             fontFamily: fLabel, fontSize: 6.5, letterSpacing: '0.1em',
             color: section === s.id ? C.accent : C.muted,
-            transition: 'all 0.2s ease',
+            transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
           }}>
             {s.label}
           </button>
@@ -587,7 +587,7 @@ export function ClusterPanel({
                     padding: '7px 10px', background: C.bgInput,
                     border: `1px solid ${filterCluster === Number(cid) ? cl.color : C.border}`,
                     borderRadius: 2, cursor: 'pointer', width: '100%', textAlign: 'left',
-                    transition: 'border-color 0.2s ease',
+                    transition: 'border-color 200ms var(--ease-out)',
                   }}>
                     <span style={{ width: 9, height: 9, borderRadius: 1, background: cl.color, flexShrink: 0, display: 'inline-block' }} />
                     <span style={{ flex: 1, fontFamily: fMono, fontSize: 9, color: C.text, lineHeight: 1.3 }}>{cl.label}</span>
@@ -636,7 +636,7 @@ export function ClusterPanel({
                   padding: '6px 8px', background: C.bgInput,
                   border: `1px solid ${C.border}`, borderRadius: 2,
                   cursor: 'pointer', width: '100%', textAlign: 'left',
-                  transition: 'border-color 0.2s ease',
+                  transition: 'border-color 200ms var(--ease-out)',
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 1, background: row.cluster_color, flexShrink: 0, display: 'inline-block' }} />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -819,7 +819,7 @@ function CompareDurationsView({
               background: active ? `rgba(${hexRgb(col)},0.12)` : 'none',
               border: `1px solid ${active ? col : C.border}`,
               color: active ? col : C.muted,
-              transition: 'all 0.2s ease',
+              transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
             }}>
               {d} min {d === currentDuration ? '★' : ''}
             </button>
@@ -1017,7 +1017,7 @@ function CompareView({
                   <div style={{
                     height: '100%', width: `${barW}%`,
                     background: d.delta > 0 ? '#3dffa0' : '#f87171',
-                    borderRadius: 1, transition: 'width 0.2s ease',
+                    borderRadius: 1, transition: 'width 200ms linear',
                   }} />
                 </div>
               </div>

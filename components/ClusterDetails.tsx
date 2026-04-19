@@ -125,7 +125,7 @@ function TabBar({ active, onChange }: { active: TabId; onChange: (t: TabId) => v
             fontFamily: fInter, fontSize: 12,
             color:        isActive ? C.accent : C.dim,
             borderBottom: isActive ? `2px solid ${C.accent}` : '2px solid transparent',
-            transition: 'color 0.15s', whiteSpace: 'nowrap',
+            transition: 'color 150ms var(--ease-hover), border-color 150ms var(--ease-hover)', whiteSpace: 'nowrap',
           }}>
             {t.label}
           </button>

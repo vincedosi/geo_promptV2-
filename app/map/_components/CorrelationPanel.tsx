@@ -75,7 +75,7 @@ const metricSelectStyle: React.CSSProperties = {
   padding: '6px 8px',
   cursor: 'pointer',
   outline: 'none',
-  transition: 'border-color 0.3s ease',
+  transition: 'border-color 300ms var(--ease-out)',
 };
 
 const handleSelectFocus = (e: React.FocusEvent<HTMLSelectElement>) => {
@@ -510,7 +510,7 @@ function CorrelationResultsPanel({
           zIndex: 9999,
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none',
-          transition: 'opacity 200ms ease',
+          transition: 'opacity 200ms var(--ease-out)',
         }}
       />
 
@@ -522,7 +522,7 @@ function CorrelationResultsPanel({
         borderLeft: `0.5px solid var(--border-subtle)`,
         zIndex: 10000,
         transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.2s ease',
+        transition: 'transform 200ms var(--ease-out)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
@@ -552,7 +552,7 @@ function CorrelationResultsPanel({
               color: C.muted, fontFamily: fMono, fontSize: 14,
               width: 28, height: 28, borderRadius: 2, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, transition: 'all 0.2s ease',
+              flexShrink: 0, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
             }}
           >
             ✕
@@ -563,7 +563,7 @@ function CorrelationResultsPanel({
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
 
           {stats && corr ? (
-            <div style={{ animation: 'corrFadeIn 0.3s ease-out' }}>
+            <div style={{ animation: 'corrFadeIn 300ms var(--ease-out)' }}>
               {/* ── Score + Stats grid ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
 
@@ -674,7 +674,7 @@ function CorrelationResultsPanel({
                     fontSize: 9, color: C.muted,
                     display: 'inline-block',
                     transform: methodOpen ? 'rotate(90deg)' : 'none',
-                    transition: 'transform 0.2s ease',
+                    transition: 'transform 200ms var(--ease-out)',
                   }}>▶</span>
                   <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: C.muted }}>
                     Comprendre ces resultats
@@ -745,7 +745,7 @@ function CorrelationResultsPanel({
                   color: residualsActive ? C.green : C.text,
                   fontFamily: fInter, fontSize: 10, fontWeight: 500,
                   cursor: residualsLoading ? 'not-allowed' : 'pointer',
-                  marginBottom: 8, transition: 'all 0.2s ease',
+                  marginBottom: 8, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                 }}
               >
                 {residualsLoading
@@ -776,7 +776,7 @@ function CorrelationResultsPanel({
                   fontFamily: fInter, fontSize: 10, fontWeight: 500,
                   cursor: aiLoading ? 'wait' : 'pointer',
                   marginBottom: aiAnalysis || aiError ? 10 : 0,
-                  transition: 'all 0.2s ease',
+                  transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                 }}
               >
                 {aiLoading ? 'Mistral analyse...' : 'Analyser avec Mistral AI'}
@@ -804,7 +804,7 @@ function CorrelationResultsPanel({
                       fontSize: 9, color: '#f59e0b',
                       display: 'inline-block',
                       transform: aiOpen ? 'rotate(90deg)' : 'none',
-                      transition: 'transform 0.2s ease',
+                      transition: 'transform 200ms var(--ease-out)',
                     }}>▶</span>
                     <span style={{ fontFamily: fInter, fontSize: 9, fontWeight: 500, color: '#f59e0b' }}>
                       Analyse Mistral AI
@@ -1237,7 +1237,7 @@ export function CorrelationPanel({
                   background: mode === m ? C.accent : 'transparent',
                   color: mode === m ? '#000' : C.muted,
                   fontFamily: fInter, fontSize: 9, fontWeight: 500,
-                  cursor: 'pointer', transition: 'all 0.2s ease',
+                  cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                   borderRight: m === 'iris_poi' ? `1px solid ${C.border}` : 'none',
                 }}
               >
@@ -1265,7 +1265,7 @@ export function CorrelationPanel({
                     color: selectedPOI === cat.key ? C.accent : C.muted,
                     fontFamily: fMono, fontSize: 9, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 4,
-                    transition: 'all 0.2s ease',
+                    transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                   }}
                 >
                   <span>{cat.icon}</span>
@@ -1374,7 +1374,7 @@ export function CorrelationPanel({
               border: 'none', color: '#000', fontFamily: fInter,
               fontSize: 10, fontWeight: 600,
               cursor: computing || !canCompute ? 'not-allowed' : 'pointer',
-              opacity: !canCompute ? 0.4 : 1, transition: 'all 0.2s ease',
+              opacity: !canCompute ? 0.4 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
             }}
           >
             {computing ? '...' : 'Calculer'}
