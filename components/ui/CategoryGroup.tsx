@@ -70,7 +70,7 @@ export function CategoryGroup({
           gap: 8,
           cursor: collapsible ? 'pointer' : 'default',
           userSelect: 'none',
-          transition: 'background 0.15s',
+          transition: 'background-color 150ms var(--ease-hover)',
         }}
         onMouseEnter={collapsible ? e => { e.currentTarget.style.background = `rgba(${colorRgb}, 0.10)`; } : undefined}
         onMouseLeave={collapsible ? e => { e.currentTarget.style.background = `rgba(${colorRgb}, 0.06)`; } : undefined}
@@ -95,7 +95,7 @@ export function CategoryGroup({
             color: color,
             opacity: 0.5,
             flexShrink: 0,
-            transition: 'transform 0.2s ease',
+            transition: 'transform 200ms var(--ease-out)',
             transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
           }} />
         )}
@@ -106,7 +106,7 @@ export function CategoryGroup({
         ref={contentRef}
         style={{
           overflow: 'hidden',
-          transition: 'height 0.2s ease',
+          transition: 'height 240ms cubic-bezier(0.32, 0.72, 0, 1)',
           height: !collapsible ? undefined : height,
         }}
       >

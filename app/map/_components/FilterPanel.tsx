@@ -89,7 +89,7 @@ function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: 
           width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
           padding: '6px 10px', fontSize: 11, color: 'var(--text-primary)', outline: 'none',
           fontFamily: "'Inter', system-ui, sans-serif",
-          transition: 'border-color 0.15s',
+          transition: 'border-color 150ms var(--ease-hover)',
         }}
         onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; if (results.length) setShow(true); }}
         onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; setTimeout(() => setShow(false), 200); }}
@@ -105,7 +105,7 @@ function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: 
               display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none',
               textAlign: 'left', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)',
               fontFamily: "'Inter', system-ui, sans-serif",
-              transition: 'background 0.1s',
+              transition: 'background-color 150ms var(--ease-hover)',
             }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -187,7 +187,7 @@ function FilterSectionHeader({
       )}
       <ChevronDown size={14} style={{
         color: 'var(--text-tertiary)', flexShrink: 0,
-        transition: 'transform 0.2s ease',
+        transition: 'transform 200ms var(--ease-out)',
         transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
       }} />
     </div>
@@ -442,7 +442,7 @@ function MultiDropdown({
           padding: '8px 11px', background: C.bgInput,
           border: `0.5px solid ${open ? 'var(--border-hover)' : C.border}`, borderRadius: 4,
           cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
-          transition: 'all 0.2s ease',
+          transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
@@ -463,7 +463,7 @@ function MultiDropdown({
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
           background: 'var(--bg-level-2)', border: `0.5px solid var(--border-default)`, borderTop: 'none',
           borderRadius: '0 0 4px 4px', maxHeight: 260, display: 'flex', flexDirection: 'column',
-          animation: 'fpDropIn 0.15s ease-out',
+          animation: 'fpDropIn 180ms var(--ease-out)',
         }}>
           {/* Search bar */}
           {showSearch && (
@@ -1167,7 +1167,7 @@ export function FilterPanel({
     fontFamily: fInter, fontSize: 11, padding: '5px 9px',
     background: active ? `rgba(${hexToRgb(color)},0.12)` : C.bgInput,
     border: `0.5px solid ${active ? color : C.border}`, borderRadius: 4,
-    color: active ? color : C.textDim, cursor: 'pointer', transition: 'all 0.2s ease', flexShrink: 0 as const,
+    color: active ? color : C.textDim, cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)', flexShrink: 0 as const,
   });
 
   const primaryBtn = (color: string, disabled = false) => ({
@@ -1176,7 +1176,7 @@ export function FilterPanel({
     background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.10)`,
     border: `0.5px solid ${disabled ? C.border : color}`, borderRadius: 4,
     color: disabled ? C.textDim : color, cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1, transition: 'all 0.2s ease',
+    opacity: disabled ? 0.55 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
   });
 
   const labelStyle = {
@@ -1188,7 +1188,7 @@ export function FilterPanel({
     fontFamily: fInter, fontSize: 13, background: C.bgInput,
     border: `0.5px solid ${C.border}`, borderRadius: 4,
     color: C.text, padding: '7px 10px', outline: 'none', width: '100%',
-    transition: 'border-color 0.3s ease',
+    transition: 'border-color 300ms var(--ease-out)',
   };
 
   const inputFocusHandlers = {
@@ -1214,7 +1214,7 @@ export function FilterPanel({
           position: 'absolute', top: 0, right: 0, width: 8, height: '100%',
           cursor: 'col-resize', zIndex: 50, background: 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'background 0.15s',
+          transition: 'background-color 150ms var(--ease-hover)',
         }}
         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
@@ -1229,7 +1229,7 @@ export function FilterPanel({
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}
       {error && (
-        <div style={{ padding: '6px 14px', background: 'rgba(248,113,113,0.07)', borderBottom: `1px solid rgba(248,113,113,0.2)`, fontFamily: fMono, fontSize: 10, color: C.red, flexShrink: 0, animation: 'fpErrorIn 0.2s ease-out' }}>
+        <div style={{ padding: '6px 14px', background: 'rgba(248,113,113,0.07)', borderBottom: `1px solid rgba(248,113,113,0.2)`, fontFamily: fMono, fontSize: 10, color: C.red, flexShrink: 0, animation: 'fpErrorIn 200ms var(--ease-out)' }}>
           ! {error}
         </div>
       )}
@@ -1238,7 +1238,7 @@ export function FilterPanel({
           <div style={{
             height: '100%', width: '40%',
             background: battleLoading ? C.red : C.green,
-            animation: 'fpSlide 1.2s ease-in-out infinite',
+            animation: 'fpSlide 1.2s linear infinite',
           }} />
         </div>
       )}
@@ -1250,7 +1250,7 @@ export function FilterPanel({
         background: 'none', borderBottom: `0.5px solid ${C.border}`,
         color: C.textDim, textDecoration: 'none',
         fontFamily: fInter, fontSize: 12,
-        transition: 'all 0.2s ease',
+        transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
       }}
         onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.text; (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-level-2)'; }}
         onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = C.textDim; (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}
@@ -1271,12 +1271,12 @@ export function FilterPanel({
               flex: 1, padding: '12px 6px 10px', position: 'relative',
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer', transition: 'color 0.2s ease',
+              cursor: 'pointer', transition: 'color 180ms var(--ease-out)',
             }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 180ms var(--ease-out)' }}>
                 Geo.Prompt
               </div>
               {/* Sliding underline */}
@@ -1285,7 +1285,7 @@ export function FilterPanel({
                 width: active ? '100%' : '0%',
                 height: 2, background: 'var(--brand-teal)',
                 transform: 'translateX(-50%)',
-                transition: 'width 0.25s ease',
+                transition: 'width 250ms var(--ease-out)',
               }} />
             </button>
           );
@@ -1298,23 +1298,23 @@ export function FilterPanel({
               flex: 1, padding: '12px 6px 10px', position: 'relative',
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer', transition: 'color 0.2s ease',
+              cursor: 'pointer', transition: 'color 180ms var(--ease-out)',
             }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-surface)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
             >
-              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 0.2s ease' }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: active ? 'var(--text-primary)' : C.textDim, transition: 'color 180ms var(--ease-out)' }}>
                 Expert
               </div>
               {EXPERT_BADGE > 0 && (
-                <div style={{ position: 'absolute', top: 7, right: 10, width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)', transition: 'opacity 0.2s ease' }} />
+                <div style={{ position: 'absolute', top: 7, right: 10, width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-teal)', transition: 'opacity 200ms var(--ease-out)' }} />
               )}
               <span style={{
                 position: 'absolute', bottom: 0, left: '50%',
                 width: active ? '100%' : '0%',
                 height: 2, background: 'var(--brand-teal)',
                 transform: 'translateX(-50%)',
-                transition: 'width 0.25s ease',
+                transition: 'width 250ms var(--ease-out)',
               }} />
             </button>
           );
@@ -1352,7 +1352,7 @@ export function FilterPanel({
                 style={{
                   width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
                   padding: '6px 28px 6px 30px', fontSize: 12, color: 'var(--text-primary)',
-                  fontFamily: fInter, outline: 'none', transition: 'border-color 0.15s',
+                  fontFamily: fInter, outline: 'none', transition: 'border-color 150ms var(--ease-hover)',
                 }}
                 onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; }}
                 onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
@@ -1375,7 +1375,7 @@ export function FilterPanel({
               <button onClick={collapseAll} style={{
                 background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '3px 8px',
                 fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter,
-                transition: 'all 0.15s',
+                transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
               }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'none'; }}
@@ -1385,7 +1385,7 @@ export function FilterPanel({
               <button onClick={expandAll} style={{
                 background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '3px 8px',
                 fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter,
-                transition: 'all 0.15s',
+                transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
               }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'none'; }}
@@ -1411,7 +1411,7 @@ export function FilterPanel({
             <div>
               <FilterSectionHeader label="Périmètre global" sectionKey="perimetre" open={sectionsOpen.perimetre !== false} onToggle={() => toggleSection('perimetre')} count={scope ? 1 : 0} searchTerm={filterSearch} />
               {sectionsOpen.perimetre !== false && (
-              <div style={{ marginBottom: 12, transition: 'opacity 0.15s', animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ marginBottom: 12, transition: 'opacity 150ms var(--ease-hover)', animation: 'fadeIn 200ms var(--ease-out)' }}>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button style={{ ...pill(scope === 'metro', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('metro')}>
                   France Metro
@@ -1430,7 +1430,7 @@ export function FilterPanel({
             <div>
               <FilterSectionHeader label="Régions" sectionKey="regions" open={sectionsOpen.regions !== false} onToggle={() => toggleSection('regions')} count={selectedRegions.length} searchTerm={filterSearch} />
               {sectionsOpen.regions !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                 <button
                   onClick={() => {
@@ -1460,7 +1460,7 @@ export function FilterPanel({
             <div>
               <FilterSectionHeader label="Départements" sectionKey="departements" open={sectionsOpen.departements !== false} onToggle={() => toggleSection('departements')} count={selectedDepts.length} searchTerm={filterSearch} />
               {sectionsOpen.departements !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
               <MultiDropdown
                 label="Tous les départements"
                 items={availableDepts.map(d => ({ id: d.code, label: `${d.code} — ${d.nom}` }))}
@@ -1483,7 +1483,7 @@ export function FilterPanel({
             <div>
               <FilterSectionHeader label="Recherche locale" sectionKey="recherche" open={sectionsOpen.recherche !== false} onToggle={() => toggleSection('recherche')} count={(ville ? 1 : 0) + (codePostal ? 1 : 0)} searchTerm={filterSearch} />
               {sectionsOpen.recherche !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
@@ -1530,7 +1530,7 @@ export function FilterPanel({
             <div style={{ paddingBottom: 4 }}>
               <FilterSectionHeader label="Points d'intérêt (POI)" sectionKey="poi" open={sectionsOpen.poi !== false} onToggle={() => toggleSection('poi')} count={selectedPOI.length} tooltipKey="poi" searchTerm={filterSearch} />
               {sectionsOpen.poi !== false && (
-              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
             <div>
               <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>
@@ -1689,7 +1689,7 @@ export function FilterPanel({
                     borderRadius: 4, cursor: 'pointer',
                     fontFamily: fInter, fontSize: 12,
                     color: densityMode ? 'var(--text-primary)' : C.textDim,
-                    whiteSpace: 'nowrap', transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                   }}
                 >
                   {densityMode ? '◉ Densité' : '◎ Densité'}
@@ -1705,7 +1705,7 @@ export function FilterPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FilterSectionHeader label="Panneaux OOH et DOOH" sectionKey="ooh" open={sectionsOpen.ooh !== false} onToggle={() => toggleSection('ooh')} count={selectedOOH.length} searchTerm={filterSearch} />
               {sectionsOpen.ooh !== false && (
-              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
 
               {/* Info stock */}
               <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
@@ -1758,7 +1758,7 @@ export function FilterPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FilterSectionHeader label="Arrêts de transport en commun" sectionKey="transport" open={sectionsOpen.transport !== false} onToggle={() => toggleSection('transport')} count={selectedTransportTypes.length} searchTerm={filterSearch} />
               {sectionsOpen.transport !== false && (
-              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
 
               {/* Sélection du type */}
               <div>
@@ -1814,7 +1814,7 @@ export function FilterPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FilterSectionHeader label="Flux routier (TMJA)" sectionKey="tmja" open={sectionsOpen.tmja !== false} onToggle={() => toggleSection('tmja')} count={tmjaVisible ? 1 : 0} tooltipKey="tmja" searchTerm={filterSearch} />
               {sectionsOpen.tmja !== false && (
-              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
 
               {/* Légende couleurs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1865,7 +1865,7 @@ export function FilterPanel({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FilterSectionHeader label="Radio FM/DAB+" sectionKey="radio" open={sectionsOpen.radio !== false} onToggle={() => toggleSection('radio')} count={radioCount} searchTerm={filterSearch} />
               {sectionsOpen.radio !== false && (
-              <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
 
               {/* Selected radio banner */}
               {radioSelectedNom && (
@@ -1879,7 +1879,7 @@ export function FilterPanel({
                   </span>
                   <button onClick={onClearRadioSelection} style={{
                     background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer',
-                    fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 0.15s',
+                    fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 150ms var(--ease-hover)',
                   }}
                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
@@ -1893,7 +1893,7 @@ export function FilterPanel({
                   onClick={onToggleRadio}
                   style={{
                     flex: 1, padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                    fontFamily: fInter, cursor: 'pointer', transition: 'all 0.15s',
+                    fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
                     background: radioVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
                     border: `0.5px solid ${radioVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                     color: radioVisible ? 'var(--brand-teal)' : C.textSec,
@@ -1955,7 +1955,7 @@ export function FilterPanel({
                           background: radioSystemeFilter === opt.value ? 'rgba(78,205,196,0.1)' : 'transparent',
                           border: `0.5px solid ${radioSystemeFilter === opt.value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                           color: radioSystemeFilter === opt.value ? 'var(--brand-teal)' : C.textDim,
-                          cursor: 'pointer', transition: 'all 0.15s',
+                          cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
                         }}>
                           {opt.label}
                         </button>
@@ -1983,7 +1983,7 @@ export function FilterPanel({
                           {['var(--brand-teal)', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
                             <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
                               width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid var(--text-primary)' : '1px solid var(--border-hover)',
-                              cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
+                              cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', flexShrink: 0,
                             }} />
                           ))}
                           <input type="color" value={radioCoverageColor ?? 'var(--brand-teal)'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
@@ -2034,7 +2034,7 @@ export function FilterPanel({
                     <button onClick={onRecenterFrance} style={{
                       background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 6,
                       padding: '5px 12px', fontSize: 10, color: C.textDim, cursor: 'pointer',
-                      fontFamily: fInter, transition: 'all 0.15s', width: '100%',
+                      fontFamily: fInter, transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', width: '100%',
                     }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.textDim; }}
@@ -2067,7 +2067,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -2245,7 +2245,7 @@ export function FilterPanel({
                                 height: '100%', borderRadius: 2,
                                 width: `${Math.round((v2CacheStatus.cached_combos / Math.max(v2CacheStatus.total_combos, 1)) * 100)}%`,
                                 background: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : '#22d3ee',
-                                transition: 'width 0.4s ease',
+                                transition: 'width 400ms linear',
                               }} />
                             </div>
                             <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
@@ -2310,7 +2310,7 @@ export function FilterPanel({
                               height: '100%', borderRadius: 2,
                               width: `${v2FillPct}%`,
                               background: v2FillPct === 100 ? C.green : C.amber,
-                              transition: 'width 0.4s ease',
+                              transition: 'width 400ms linear',
                             }} />
                           </div>
                           {/* Sous-stats */}
@@ -2330,7 +2330,7 @@ export function FilterPanel({
                       {battleV2Loading && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            <span style={{ color: C.textSec, animation: 'fpBlink 1s ease-in-out infinite' }}>
+                            <span style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>
                               Bataille V2 — PostGIS ST_Difference...
                             </span>
                           </div>
@@ -2364,7 +2364,7 @@ export function FilterPanel({
                                    : C.textDim,
                             }}>{line}</div>
                           ))}
-                          {(battleV2Loading || v2Filling) && <div style={{ color: C.textSec, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>}
+                          {(battleV2Loading || v2Filling) && <div style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>▌</div>}
                         </div>
                       )}
 
@@ -2436,7 +2436,7 @@ export function FilterPanel({
                               height: '100%', borderRadius: 2,
                               width: `${Math.round((orsCacheStatus.cached_combos / Math.max(orsCacheStatus.total_combos, 1)) * 100)}%`,
                               background: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.red,
-                              transition: 'width 0.4s ease',
+                              transition: 'width 400ms linear',
                             }} />
                           </div>
                           <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
@@ -2486,7 +2486,7 @@ export function FilterPanel({
                                   height: '100%',
                                   width: `${battleProgress}%`,
                                   background: battleProgress === 100 ? C.green : C.textSec,
-                                  transition: 'width 0.4s ease',
+                                  transition: 'width 400ms linear',
                                   borderRadius: 2,
                                 }} />
                               </div>
@@ -2509,7 +2509,7 @@ export function FilterPanel({
                               }}>{line}</div>
                             ))}
                             {battleLoading && (
-                              <div style={{ color: C.textDim, animation: 'fpBlink 1s ease-in-out infinite' }}>▌</div>
+                              <div style={{ color: C.textDim, animation: 'fpBlink 1s linear infinite' }}>▌</div>
                             )}
                           </div>
                         </div>
@@ -2568,7 +2568,7 @@ export function FilterPanel({
                               height: '100%',
                               width: `${battleApplyPct}%`,
                               background: battleApplyPct === 100 ? C.green : C.textSec,
-                              transition: 'width 0.4s ease, background 0.2s ease',
+                              transition: 'width 400ms linear, background-color 180ms var(--ease-out)',
                             }} />
                           </div>
                         )}
@@ -2593,7 +2593,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -2623,7 +2623,7 @@ export function FilterPanel({
                               padding: '10px 12px',
                               marginBottom: 6,
                               cursor: 'pointer',
-                              transition: 'border-color 0.2s ease',
+                              transition: 'border-color 200ms var(--ease-out)',
                             }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-teal-30)')}
                             onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
@@ -2666,7 +2666,7 @@ export function FilterPanel({
                       fontSize: 12,
                       fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'background 0.2s ease',
+                      transition: 'background-color 180ms var(--ease-out)',
                     }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(78,205,196,0.1)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
@@ -2715,7 +2715,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -2841,7 +2841,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -2985,7 +2985,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -3015,7 +3015,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -3042,7 +3042,7 @@ export function FilterPanel({
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.2s ease',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
               }}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
@@ -3130,7 +3130,7 @@ export function FilterPanel({
                         border: `0.5px solid ${digitalScale === s.id ? 'var(--brand-teal)' : C.border}`,
                         borderRadius: 4, cursor: 'pointer',
                         color: digitalScale === s.id ? 'var(--brand-teal)' : C.textSec,
-                        transition: 'all 0.2s',
+                        transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                       }}
                     >
                       {s.label}
@@ -3152,7 +3152,7 @@ export function FilterPanel({
                         width: 28, height: 16, borderRadius: 3, cursor: 'pointer', padding: 0,
                         background: `linear-gradient(to right, ${p.stops.join(', ')})`,
                         border: `1.5px solid ${digitalPalette === p.id ? 'var(--text-primary)' : 'transparent'}`,
-                        transition: 'border 0.15s',
+                        transition: 'border-color 150ms var(--ease-hover)',
                       }}
                     />
                   ))}
@@ -3180,7 +3180,7 @@ export function FilterPanel({
                   border: `0.5px solid ${digitalVisible ? 'var(--brand-teal)' : C.border}`, borderRadius: 6,
                   color: digitalVisible ? 'var(--brand-teal)' : C.text,
                   cursor: !digitalSelectedCampaign ? 'not-allowed' : 'pointer',
-                  opacity: !digitalSelectedCampaign ? 0.5 : 1, transition: 'all 0.2s',
+                  opacity: !digitalSelectedCampaign ? 0.5 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
                 }}
               >
                 {digitalLoading ? 'Chargement...' : digitalVisible ? 'Impressions affichées' : 'Afficher les impressions'}
@@ -3222,7 +3222,7 @@ export function FilterPanel({
                     {onOpenDigitalAnalysis && (
                       <button
                         onClick={onOpenDigitalAnalysis}
-                        style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: 'none', color: 'var(--brand-teal)', cursor: 'pointer', transition: 'opacity 0.15s' }}
+                        style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: 'none', color: 'var(--brand-teal)', cursor: 'pointer', transition: 'opacity 150ms var(--ease-hover)' }}
                       >
                         Analyse detaillee →
                       </button>
@@ -3247,7 +3247,7 @@ export function FilterPanel({
           style={{
             flex: 1, padding: '8px', fontFamily: fInter, fontSize: 13,
             background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 4,
-            color: C.textDim, cursor: 'pointer', transition: 'all 0.2s ease',
+            color: C.textDim, cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.text; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; }}
@@ -3280,9 +3280,7 @@ export function FilterPanel({
           to   { opacity: 1; transform: translateY(0); }
         }
         .fp-tab { overflow: visible !important; }
-        @media (prefers-reduced-motion: reduce) {
-          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-        }
+        /* Reduced-motion handled globally in globals.css — keeps opacity/color, strips transforms */
       `}</style>
 
       {/* Cluster results overlay */}

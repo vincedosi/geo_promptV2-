@@ -55,7 +55,7 @@ export function LayerSwitch({
         gap: 8,
         padding: '8px 14px 8px 30px',
         minHeight: 36,
-        transition: 'background 0.1s',
+        transition: 'background-color 150ms var(--ease-hover)',
       }}>
         {/* Dot indicator */}
         <div style={{
@@ -63,7 +63,7 @@ export function LayerSwitch({
           background: color,
           opacity: active ? 1 : 0.25,
           flexShrink: 0,
-          transition: 'opacity 0.2s ease',
+          transition: 'opacity 200ms var(--ease-out)',
         }} />
 
         {/* Icon (optional) */}
@@ -83,7 +83,7 @@ export function LayerSwitch({
             color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
             flex: 1,
             cursor: children ? 'pointer' : 'default',
-            transition: 'color 0.15s ease',
+            transition: 'color 150ms var(--ease-hover)',
           }}
         >
           {name}
@@ -109,6 +109,9 @@ export function LayerSwitch({
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onToggle(); }}
+          onPointerDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+          onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+          onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
           aria-label={`${active ? 'Masquer' : 'Afficher'} ${name}`}
           style={{
             width: 32, height: 18,
@@ -119,7 +122,7 @@ export function LayerSwitch({
             flexShrink: 0,
             position: 'relative',
             background: active ? color : 'var(--border-subtle)',
-            transition: 'background 0.2s ease',
+            transition: 'background-color 200ms var(--ease-out), transform 160ms var(--ease-out)',
           }}
         >
           <span style={{
@@ -128,7 +131,7 @@ export function LayerSwitch({
             width: 14, height: 14,
             borderRadius: '50%',
             background: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
-            transition: 'left 0.2s ease, background 0.2s ease',
+            transition: 'left 220ms cubic-bezier(0.32, 0.72, 0, 1), background-color 200ms var(--ease-out)',
           }} />
         </button>
       </div>
@@ -139,7 +142,7 @@ export function LayerSwitch({
           ref={contentRef}
           style={{
             overflow: 'hidden',
-            transition: 'height 0.2s ease',
+            transition: 'height 240ms cubic-bezier(0.32, 0.72, 0, 1)',
             height,
           }}
         >
