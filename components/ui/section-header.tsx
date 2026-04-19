@@ -78,7 +78,7 @@ export function SectionHeader({
             fontSize: 10, color: 'var(--text-tertiary)',
             cursor: 'pointer', padding: '0 4px',
             fontFamily: "'Inter', system-ui, sans-serif",
-            transition: 'color 0.15s',
+            transition: 'color 150ms var(--ease-hover)',
           }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
@@ -93,7 +93,7 @@ export function SectionHeader({
           size={14}
           style={{
             color: 'var(--text-tertiary)',
-            transition: 'transform 0.2s ease',
+            transition: 'transform 200ms var(--ease-out)',
             transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
             flexShrink: 0,
           }}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 
 interface ConfirmModalProps {
@@ -26,6 +26,8 @@ export function ConfirmModal({
   variant = 'default',
   loading = false,
 }: ConfirmModalProps) {
+  const [entered, setEntered] = useState(false)
+
   // Escape key to close
   useEffect(() => {
     if (!open) return
@@ -36,6 +38,13 @@ export function ConfirmModal({
     return () => window.removeEventListener('keydown', handler)
   }, [open, loading, onClose])
 
+  // Enter state (next frame so transition runs)
+  useEffect(() => {
+    if (!open) { setEntered(false); return }
+    const raf = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(raf)
+  }, [open])
+
   if (!open) return null
 
   const isDanger = variant === 'danger'
@@ -45,10 +54,11 @@ export function ConfirmModal({
       onClick={e => { if (e.target === e.currentTarget && !loading) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        background: 'rgba(5,5,5,0.85)',
-        backdropFilter: 'blur(4px)',
+        background: entered ? 'rgba(5,5,5,0.85)' : 'rgba(5,5,5,0)',
+        backdropFilter: entered ? 'blur(4px)' : 'blur(0px)',
+        WebkitBackdropFilter: entered ? 'blur(4px)' : 'blur(0px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        animation: 'confirm-overlay-in 0.15s ease-out',
+        transition: 'background-color 220ms cubic-bezier(0.23, 1, 0.32, 1), backdrop-filter 220ms cubic-bezier(0.23, 1, 0.32, 1), -webkit-backdrop-filter 220ms cubic-bezier(0.23, 1, 0.32, 1)',
       }}
     >
       <div
@@ -59,7 +69,9 @@ export function ConfirmModal({
           maxWidth: 420,
           width: 'calc(100% - 32px)',
           padding: '24px',
-          animation: 'confirm-card-in 0.2s ease-out',
+          opacity: entered ? 1 : 0,
+          transform: entered ? 'scale(1)' : 'scale(0.96)',
+          transition: 'opacity 240ms cubic-bezier(0.23, 1, 0.32, 1), transform 240ms cubic-bezier(0.23, 1, 0.32, 1)',
         }}
       >
         {/* Header */}
@@ -96,6 +108,9 @@ export function ConfirmModal({
           <button
             onClick={onClose}
             disabled={loading}
+            onPointerDown={e => { if (!loading) e.currentTarget.style.transform = 'scale(0.97)' }}
+            onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+            onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
             style={{
               background: 'transparent',
               border: '0.5px solid var(--border-default)',
@@ -106,7 +121,8 @@ export function ConfirmModal({
               color: 'var(--text-secondary)',
               cursor: 'pointer',
               fontFamily: "'Inter', system-ui, sans-serif",
-              transition: 'all 0.15s ease',
+              transition:
+                'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), transform 160ms var(--ease-out)',
             }}
             onMouseEnter={e => {
               e.currentTarget.style.borderColor = 'var(--border-hover)'
@@ -124,6 +140,9 @@ export function ConfirmModal({
           <button
             onClick={onConfirm}
             disabled={loading}
+            onPointerDown={e => { if (!loading) e.currentTarget.style.transform = 'scale(0.97)' }}
+            onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+            onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
             style={{
               background: isDanger ? 'var(--danger)' : 'var(--text-primary)',
               border: 'none',
@@ -135,7 +154,8 @@ export function ConfirmModal({
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.5 : 1,
               fontFamily: "'Inter', system-ui, sans-serif",
-              transition: 'all 0.15s ease',
+              transition:
+                'opacity 150ms var(--ease-hover), transform 160ms var(--ease-out)',
             }}
             onMouseEnter={e => {
               if (!loading) e.currentTarget.style.opacity = '0.85'
@@ -148,17 +168,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-
-      <style>{`
-        @keyframes confirm-overlay-in {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes confirm-card-in {
-          from { opacity: 0; transform: scale(0.95); }
-          to   { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
     </div>
   )
 }

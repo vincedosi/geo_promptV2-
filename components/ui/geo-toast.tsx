@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
 import { X, Check, AlertTriangle, Info } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -13,6 +13,7 @@ interface Toast {
   message?: string
   variant: ToastVariant
   createdAt: number
+  exiting?: boolean
 }
 
 interface ToastAPI {
@@ -51,8 +52,17 @@ const MAX_VISIBLE = 3
 function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
   const v = VARIANTS[t.variant]
   const [progress, setProgress] = useState(100)
+  const [mounted, setMounted] = useState(false)
+
+  // Transition-based entry (interruptible if a new toast arrives mid-anim).
+  // Emil: keyframes restart from zero on interruption — CSS transitions retarget.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   useEffect(() => {
+    if (t.exiting) return
     const start = t.createdAt
     const tick = () => {
       const elapsed = Date.now() - start
@@ -62,7 +72,9 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
     }
     const raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [t.createdAt])
+  }, [t.createdAt, t.exiting])
+
+  const visible = mounted && !t.exiting
 
   return (
     <div
@@ -75,7 +87,9 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
         minWidth: 280,
         maxWidth: 380,
         overflow: 'hidden',
-        animation: 'toast-slide-in 0.3s ease-out',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateX(0) scale(1)' : 'translateX(100%) scale(0.97)',
+        transition: 'opacity 260ms cubic-bezier(0.23, 1, 0.32, 1), transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
       }}
     >
       <div style={{ padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -131,18 +145,29 @@ function ToastCard({ t, onDismiss }: { t: Toast; onDismiss: () => void }) {
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 let toastId = 0
+const EXIT_MS = 280
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+
+  const hardRemove = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
+
+  const dismiss = useCallback((id: number) => {
+    // Flag exiting → CSS transition plays → actual removal after EXIT_MS
+    setToasts(prev => prev.map(t => (t.id === id ? { ...t, exiting: true } : t)))
+    setTimeout(() => hardRemove(id), EXIT_MS)
+  }, [hardRemove])
 
   const push = useCallback((title: string, message: string | undefined, variant: ToastVariant) => {
     const id = ++toastId
     const now = Date.now()
     setToasts(prev => [...prev.slice(-(MAX_VISIBLE - 1)), { id, title, message, variant, createdAt: now }])
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, DURATION)
-  }, [])
+    const tid = setTimeout(() => dismiss(id), DURATION)
+    timersRef.current.set(id, tid)
+  }, [dismiss])
 
   const toast: ToastAPI = {
     success: useCallback((title: string, message?: string) => push(title, message, 'success'), [push]),
@@ -150,10 +175,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     warning: useCallback((title: string, message?: string) => push(title, message, 'warning'), [push]),
     info:    useCallback((title: string, message?: string) => push(title, message, 'info'), [push]),
   }
-
-  const dismiss = useCallback((id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
 
   return (
     <ToastContext.Provider value={{ toast }}>
@@ -171,13 +192,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <ToastCard key={t.id} t={t} onDismiss={() => dismiss(t.id)} />
         ))}
       </div>
-
-      <style>{`
-        @keyframes toast-slide-in {
-          from { opacity: 0; transform: translateX(100%); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
     </ToastContext.Provider>
   )
 }
