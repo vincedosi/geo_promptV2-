@@ -101,7 +101,7 @@ export const SessionBadge = memo(function SessionBadge() {
             padding: '5px 10px', cursor: showOrgDropdown ? 'pointer' : 'default',
             background: orgDropdownOpen ? 'var(--bg-level-2)' : 'transparent',
             border: `0.5px solid ${orgDropdownOpen ? 'var(--border-default)' : 'transparent'}`,
-            borderRadius: 6, transition: 'all 0.15s',
+            borderRadius: 6, transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
           }}
           onMouseEnter={e => { if (showOrgDropdown) e.currentTarget.style.background = 'var(--bg-level-2)'; }}
           onMouseLeave={e => { if (!orgDropdownOpen) e.currentTarget.style.background = 'transparent'; }}
@@ -178,12 +178,12 @@ export const SessionBadge = memo(function SessionBadge() {
             padding: '5px 10px', cursor: 'pointer',
             background: menuOpen ? 'var(--bg-level-2)' : 'transparent',
             border: `0.5px solid ${menuOpen ? 'var(--border-default)' : 'transparent'}`,
-            borderRadius: 6, transition: 'all 0.15s',
+            borderRadius: 6, transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
           onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
         >
-          <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isLoading ? 'var(--warning)' : 'var(--success)', animation: isLoading ? 'sbPulse 1s ease-in-out infinite' : 'none' }} />
+          <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isLoading ? 'var(--warning)' : 'var(--success)', animation: isLoading ? 'sbPulse 1s linear infinite' : 'none' }} />
           <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {isLoading ? '…' : displayEmail}
           </span>
@@ -209,7 +209,7 @@ export const SessionBadge = memo(function SessionBadge() {
               style={{
                 width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 4,
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', transition: 'all 0.1s',
+                fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', transition: 'color 150ms var(--ease-hover)',
               }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(255,87,87,0.06)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}

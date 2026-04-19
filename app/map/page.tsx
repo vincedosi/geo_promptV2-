@@ -1697,7 +1697,7 @@ export default function MapPage() {
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-secondary)', transition: 'all 0.15s ease',
+              color: 'var(--text-secondary)', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
@@ -1725,7 +1725,7 @@ export default function MapPage() {
                     fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
                     background: digitalCompareView === opt.id ? 'rgba(78,205,196,0.12)' : 'transparent',
                     color: digitalCompareView === opt.id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
-                    transition: 'all 0.15s',
+                    transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
                   }}
                 >
                   {opt.label}
