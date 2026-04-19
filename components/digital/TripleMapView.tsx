@@ -32,7 +32,7 @@ function PalettePicker({ palettes, selected, onChange }: PalPickerProps) {
           width: 18, height: 10, borderRadius: 2, cursor: 'pointer', padding: 0,
           background: `linear-gradient(to right, ${p.stops.join(', ')})`,
           border: `1.5px solid ${selected === p.id ? 'var(--text-primary)' : 'transparent'}`,
-          transition: 'border 0.1s',
+          transition: 'border-color 150ms var(--ease-hover)',
         }} />
       ))}
     </div>

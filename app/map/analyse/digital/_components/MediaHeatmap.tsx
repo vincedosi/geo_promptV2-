@@ -295,7 +295,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
             position: 'absolute', inset: 0, zIndex: 50,
             background: '#0a0a0f',
             display: 'flex', flexDirection: 'column',
-            animation: 'heatmapFadeIn 200ms ease-out',
+            animation: 'heatmapFadeIn 200ms var(--ease-out)',
           }}
           role="dialog"
           aria-modal="true"

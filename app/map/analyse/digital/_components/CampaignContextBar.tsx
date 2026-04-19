@@ -70,7 +70,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
             background: metric === id ? 'rgba(78,205,196,0.12)' : 'transparent',
             border: 'none', borderRadius: 3,
             color: metric === id ? 'var(--brand-teal)' : '#8a8a8a',
-            transition: 'all 0.15s',
+            transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
           }}>{label}</button>
         ))}
       </div>
@@ -79,7 +79,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
       <button onClick={onOpenAnalysis} style={{
         padding: '5px 12px', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
         background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.3)',
-        borderRadius: 6, color: 'var(--brand-teal)', transition: 'all 0.15s',
+        borderRadius: 6, color: 'var(--brand-teal)', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
       }}
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.15)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.08)'; }}

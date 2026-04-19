@@ -49,7 +49,7 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
             flex: 1, padding: '7px 0', fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
             background: tab === id ? 'var(--bg-level-2)' : 'transparent',
             border: 'none', borderBottom: tab === id ? '2px solid var(--brand-teal)' : '2px solid transparent',
-            color: tab === id ? color : 'var(--text-tertiary)', transition: 'all 0.15s',
+            color: tab === id ? color : 'var(--text-tertiary)', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
           }}>{label} ({(tab === id ? filtered : data.filter(d => id === 'over' ? d.ecart > 0 : d.ecart < 0)).length})</button>
         ))}
       </div>

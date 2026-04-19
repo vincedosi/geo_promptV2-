@@ -63,21 +63,21 @@ function RailNode({ icon, label, value, done, active, onClick }: {
         border: `2px solid ${done || active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: active ? '0 0 0 4px rgba(78,205,196,0.12)' : 'none',
-        transition: 'all 0.2s',
+        transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out)',
         position: 'relative',
       }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-teal)'; e.currentTarget.style.transform = 'scale(1.08)'; }}
         onMouseLeave={e => { e.currentTarget.style.borderColor = done || active ? 'var(--brand-teal)' : 'var(--border-default)'; e.currentTarget.style.transform = 'scale(1)'; }}
       >
         {icon}
-        {active && <span style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1px solid rgba(78,205,196,0.08)', animation: 'rrPulse 2s ease-out infinite' }} />}
+        {active && <span style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1px solid rgba(78,205,196,0.08)', animation: 'rrPulse 2s linear infinite' }} />}
       </button>
       <span style={{ fontFamily: fInter, fontSize: 9, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
       <button onClick={onClick} style={{
         fontFamily: fInter, fontSize: 12, fontWeight: 500, color: done ? 'var(--text-primary)' : '#8a8a8a',
         background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        transition: 'color 0.15s',
+        transition: 'color 150ms var(--ease-hover)',
       }}
         onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
         onMouseLeave={e => { e.currentTarget.style.color = done ? 'var(--text-primary)' : '#8a8a8a'; }}
@@ -93,7 +93,7 @@ function Track({ fill }: { fill: 'done' | 'current' | 'future' }) {
   return (
     <div style={{ flex: 1, height: 40, display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1, marginTop: -28 }}>
       <div style={{ width: '100%', height: 2, background: 'var(--border-subtle)', borderRadius: 1, position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', borderRadius: 1, width: w, background: 'linear-gradient(90deg, #4ecdc4, rgba(78,205,196,0.3))', transition: 'width 0.4s ease' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', borderRadius: 1, width: w, background: 'linear-gradient(90deg, #4ecdc4, rgba(78,205,196,0.3))', transition: 'width 400ms linear' }} />
       </div>
     </div>
   );
@@ -120,7 +120,7 @@ function RadioOption({ selected, label, sub, onClick }: { selected: boolean; lab
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6,
       background: selected ? 'var(--overlay, #181818)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-      transition: 'background 0.1s',
+      transition: 'background-color 150ms var(--ease-hover)',
     }}
       onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--overlay, #181818)'; }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}

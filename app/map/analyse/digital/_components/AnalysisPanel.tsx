@@ -148,7 +148,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', fontFamily: fInter, fontSize: 12 }}>
             <button
               onClick={() => setDrillPath([])}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.4)', fontFamily: fInter, fontSize: 12, transition: 'color 0.15s' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.4)', fontFamily: fInter, fontSize: 12, transition: 'color 150ms var(--ease-hover)' }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
             >France</button>
@@ -164,7 +164,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                       padding: 0, fontFamily: fInter, fontSize: 12,
                       color: isLast ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.4)',
                       fontWeight: isLast ? 500 : 400,
-                      transition: 'color 0.15s',
+                      transition: 'color 150ms var(--ease-hover)',
                     }}
                     onMouseEnter={e => { if (!isLast) e.currentTarget.style.color = 'var(--brand-teal)'; }}
                     onMouseLeave={e => { if (!isLast) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}

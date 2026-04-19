@@ -164,7 +164,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
     fontFamily: fInter,
     fontSize: 11,
     cursor: 'pointer',
-    transition: 'all 0.15s',
+    transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
   });
 
   const inputStyle: CSSProperties = {
@@ -332,7 +332,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
             fontWeight: 500,
             cursor: validation || loading ? 'not-allowed' : 'pointer',
             opacity: validation || loading ? 0.5 : 1,
-            transition: 'all 0.15s',
+            transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -374,7 +374,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
                   width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
                   background: COLORS.accent,
                   borderRadius: 2,
-                  transition: 'width 0.3s ease',
+                  transition: 'width 300ms linear',
                 }}
               />
             </div>

@@ -34,7 +34,7 @@ export function CampaignCard({ campaign: c, onClick }: CampaignCardProps) {
       border: '0.5px solid rgba(255,255,255,0.08)',
       borderRadius: 8, textAlign: 'left',
       display: 'flex', alignItems: 'center', gap: 12,
-      transition: 'all 0.15s',
+      transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover), transform 160ms var(--ease-out)',
     }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.4)'; e.currentTarget.style.background = 'rgba(78,205,196,0.04)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
