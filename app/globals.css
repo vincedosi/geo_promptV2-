@@ -59,6 +59,19 @@
 
     --sidebar-width: 240px;
 
+    /* ── Motion tokens (Emil Kowalski curves) ─────────────────────────── */
+    --ease-out:     cubic-bezier(0.23, 1, 0.32, 1);     /* strong ease-out for UI entry/press */
+    --ease-in-out:  cubic-bezier(0.77, 0, 0.175, 1);    /* strong ease-in-out for on-screen movement */
+    --ease-drawer:  cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer curve */
+    --ease-hover:   ease;                               /* hover/color changes only */
+
+    --duration-press:   160ms;  /* button press feedback */
+    --duration-hover:   150ms;  /* hover transitions */
+    --duration-tooltip: 150ms;  /* tooltips, small popovers */
+    --duration-popover: 200ms;  /* dropdowns, popovers */
+    --duration-modal:   250ms;  /* modals */
+    --duration-drawer:  300ms;  /* drawers, large overlays */
+
     /* Category colors */
     --cat-context: #8a8a8a;
     --cat-context-rgb: 138, 138, 138;
@@ -161,7 +174,7 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
 }
 
 ::selection {
@@ -243,7 +256,7 @@ body {
   background: var(--bg-surface);
   border: 0.5px solid var(--border-subtle);
   border-radius: 6px;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--duration-hover) var(--ease-hover);
 }
 
 .g-card:hover {
@@ -318,7 +331,7 @@ body {
   font-size: 13px;
   padding: 8px 12px;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--duration-hover) var(--ease-hover);
   resize: none;
 }
 
@@ -341,10 +354,19 @@ body {
   font-family: 'Inter', sans-serif;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--duration-hover) var(--ease-hover),
+    border-color var(--duration-hover) var(--ease-hover),
+    color var(--duration-hover) var(--ease-hover),
+    opacity var(--duration-hover) var(--ease-hover),
+    transform var(--duration-press) var(--ease-out);
   outline: none;
   text-decoration: none;
   border: none;
+}
+
+.g-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .g-btn:disabled {
@@ -475,7 +497,7 @@ body {
   border: 0.5px solid var(--border-subtle);
   border-radius: 6px;
   padding: 16px 20px;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--duration-hover) var(--ease-hover);
 }
 
 .stat-card:hover {
@@ -586,7 +608,7 @@ body {
   height: 100%;
   background: var(--text-primary);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 300ms linear;
 }
 
 /* ─── Row ───────────────────────────────────────────────────────────────────── */
@@ -596,7 +618,9 @@ body {
   border: 0.5px solid var(--border-subtle);
   border-radius: 6px;
   padding: 16px 20px;
-  transition: border-color 0.15s ease;
+  transition:
+    border-color var(--duration-hover) var(--ease-hover),
+    background-color var(--duration-hover) var(--ease-hover);
 }
 
 .g-row:hover {
@@ -614,8 +638,15 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  transition: all 0.15s ease;
+  transition:
+    border-color var(--duration-hover) var(--ease-hover),
+    background-color var(--duration-hover) var(--ease-hover),
+    transform var(--duration-press) var(--ease-out);
   background: var(--bg-level-2);
+}
+
+.g-radio-card:active {
+  transform: scale(0.985);
 }
 
 .g-radio-card:hover {
@@ -644,7 +675,7 @@ details > summary {
 details > summary::before {
   content: '▶';
   font-size: 8px;
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-popover) var(--ease-out);
   color: var(--text-tertiary);
 }
 
@@ -666,7 +697,7 @@ details > summary::-webkit-details-marker {
 .geo-skeleton {
   background: linear-gradient(90deg, var(--bg-level-2) 25%, var(--bg-level-3) 50%, var(--bg-level-2) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.5s linear infinite;
   border-radius: 4px;
 }
 
@@ -694,7 +725,7 @@ details > summary::-webkit-details-marker {
 }
 
 .page-transition-enter {
-  animation: page-enter 0.3s ease-out;
+  animation: page-enter 300ms var(--ease-out);
 }
 
 @keyframes slideUp {
@@ -742,12 +773,18 @@ details > summary::-webkit-details-marker {
 
 /* ─── MapLibre popup overrides ──────────────────────────────────────────────── */
 
+@keyframes popup-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 .maplibregl-popup-content {
   background: var(--bg-surface) !important;
   border: 0.5px solid var(--border-default) !important;
   padding: 0 !important;
   border-radius: 6px !important;
-  animation: fadeIn 0.15s ease-out !important;
+  animation: popup-in 180ms var(--ease-out) !important;
+  transform-origin: bottom center;
 }
 
 .maplibregl-popup-tip {
@@ -760,12 +797,23 @@ details > summary::-webkit-details-marker {
 }
 
 /* ─── Reduced motion ────────────────────────────────────────────────────────── */
+/* Emil: reduce motion ≠ no motion. Keep opacity/color transitions (comprehension),
+   remove transform-based movement (motion sickness). */
 
 @media (prefers-reduced-motion: reduce) {
   *,
+  *::before,
+  *::after {
+    animation-duration: 200ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Strip transform/position motion, keep opacity/color */
+  *,
   .topbar-tab span {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+    transition-duration: 150ms !important;
   }
 }
 
@@ -777,7 +825,15 @@ details > summary::-webkit-details-marker {
 }
 
 /* ─── Interactive elements — global transition ──────────────────────────────── */
+/* Emil: never `transition: all` — triggers layout thrash on unrelated properties.
+   Specify only what actually changes on hover/focus. */
 
 button, a, input, select, textarea, [role="button"] {
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--duration-hover) var(--ease-hover),
+    border-color var(--duration-hover) var(--ease-hover),
+    color var(--duration-hover) var(--ease-hover),
+    opacity var(--duration-hover) var(--ease-hover),
+    box-shadow var(--duration-hover) var(--ease-hover),
+    transform var(--duration-press) var(--ease-out);
 }

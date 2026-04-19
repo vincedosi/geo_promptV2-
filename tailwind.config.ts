@@ -95,9 +95,19 @@ const config: Config = {
       },
       transitionDuration: {
         DEFAULT: '150ms',
+        press:   '160ms',
+        hover:   '150ms',
+        tooltip: '150ms',
+        popover: '200ms',
+        modal:   '250ms',
+        drawer:  '300ms',
       },
       transitionTimingFunction: {
-        DEFAULT: 'ease',
+        // Emil Kowalski curves — override weak defaults
+        DEFAULT:  'ease',
+        out:      'cubic-bezier(0.23, 1, 0.32, 1)',
+        'in-out': 'cubic-bezier(0.77, 0, 0.175, 1)',
+        drawer:   'cubic-bezier(0.32, 0.72, 0, 1)',
       },
     },
   },
