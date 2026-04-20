@@ -10,6 +10,7 @@ const fMono = "'JetBrains Mono', monospace";
 interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
 interface MediaItem { media: string; total_impressions: number; }
 export interface GeographySet { id: string; name: string; nb_zones: number; source_type: string; }
+export interface CustomZoneOption { id: string; name: string; source_type: string; feature_count_iris: number; feature_count_cp: number; }
 
 interface RailroadPipelineProps {
   // Data
@@ -17,6 +18,7 @@ interface RailroadPipelineProps {
   popFields: { value: string; label: string }[];
   mediaList: string[];
   geographySets?: GeographySet[];
+  customZones?: CustomZoneOption[];
   // Selected values
   selectedCampaign: string;
   selectedPopField: string;
@@ -24,6 +26,7 @@ interface RailroadPipelineProps {
   selectedMedia: string[];
   selectedLayout: string;
   selectedGeographySetId?: string | null;
+  selectedCustomZoneId?: string | null;
   // Meteo overlay (independant du scale)
   isMeteoActive?: boolean;
   // Callbacks
@@ -33,6 +36,7 @@ interface RailroadPipelineProps {
   onMediaChange: (media: string[]) => void;
   onLayoutChange: (layout: string) => void;
   onGeographySetChange?: (setId: string | null) => void;
+  onCustomZoneChange?: (zoneId: string | null) => void;
   onMeteoClick?: () => void;
   // Stats
   zonesCount: number;
@@ -167,10 +171,10 @@ const IconFocus = ({ color }: { color: string }) => <svg width="18" height="18" 
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function RailroadPipeline({
-  campaigns, popFields, mediaList, geographySets = [],
-  selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout, selectedGeographySetId,
+  campaigns, popFields, mediaList, geographySets = [], customZones = [],
+  selectedCampaign, selectedPopField, selectedScale, selectedMedia, selectedLayout, selectedGeographySetId, selectedCustomZoneId,
   isMeteoActive = false,
-  onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange, onGeographySetChange,
+  onCampaignChange, onPopFieldChange, onScaleChange, onMediaChange, onLayoutChange, onGeographySetChange, onCustomZoneChange,
   onMeteoClick,
   zonesCount, totalImpressions, metric = 'impressions', loading,
 }: RailroadPipelineProps) {
@@ -192,9 +196,11 @@ export function RailroadPipeline({
   const campName = campaigns.find(c => c.id === selectedCampaign)?.name ?? '—';
   const popLabel = popFields.find(f => f.value === selectedPopField)?.label ?? selectedPopField;
   const activeGeoSet = geographySets.find(g => g.id === selectedGeographySetId) ?? null;
+  const activeCustomZone = customZones.find(z => z.id === selectedCustomZoneId) ?? null;
   const scaleLabelBase = selectedScale === 'cp' ? 'CP'
     : selectedScale === 'departement' ? 'Dept'
-    : selectedScale === 'zones' ? (activeGeoSet?.name ?? 'Zones')
+    : selectedScale === 'zones' ? (activeGeoSet?.name ?? 'Zones isochrones')
+    : selectedScale === 'custom_zone' ? (activeCustomZone?.name ?? 'Zones perso')
     : 'Regions';
   const scaleLabel = isMeteoActive ? `${scaleLabelBase} + Meteo` : scaleLabelBase;
   const mediaLabel = selectedMedia.length === 0 ? `Toutes (${mediaList.length})` : `${selectedMedia.length}/${mediaList.length}`;
@@ -253,19 +259,27 @@ export function RailroadPipeline({
               { id: 'region', label: 'Regions' },
               { id: 'departement', label: 'Departements' },
               { id: 'cp', label: 'Codes postaux' },
-              { id: 'zones', label: 'Zones personnalisees' },
-            ].map(s => (
-              <RadioOption
-                key={s.id}
-                selected={selectedScale === s.id}
-                label={s.label}
-                sub={s.id === 'zones' ? `${geographySets.length} jeu${geographySets.length > 1 ? 'x' : ''} disponible${geographySets.length > 1 ? 's' : ''}` : undefined}
-                onClick={() => {
-                  onScaleChange(s.id);
-                  if (s.id !== 'zones') setActivePopover(null);
-                }}
-              />
-            ))}
+              { id: 'zones', label: 'Zones isochrones' },
+              { id: 'custom_zone', label: 'Zones personnalisees' },
+            ].map(s => {
+              const sub = s.id === 'zones'
+                ? `${geographySets.length} jeu${geographySets.length > 1 ? 'x' : ''} disponible${geographySets.length > 1 ? 's' : ''}`
+                : s.id === 'custom_zone'
+                ? `${customZones.length} zone${customZones.length > 1 ? 's' : ''} dans le workspace`
+                : undefined;
+              return (
+                <RadioOption
+                  key={s.id}
+                  selected={selectedScale === s.id}
+                  label={s.label}
+                  sub={sub}
+                  onClick={() => {
+                    onScaleChange(s.id);
+                    if (s.id !== 'zones' && s.id !== 'custom_zone') setActivePopover(null);
+                  }}
+                />
+              );
+            })}
             {selectedScale === 'zones' && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
                 <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.08em' }}>
@@ -284,6 +298,29 @@ export function RailroadPipeline({
                       label={g.name}
                       sub={`${g.nb_zones} zones · ${g.source_type}`}
                       onClick={() => { onGeographySetChange?.(g.id); setActivePopover(null); }}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+            {selectedScale === 'custom_zone' && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '0.5px solid #1a1a1a' }}>
+                <div style={{ padding: '4px 10px 6px', fontFamily: fInter, fontSize: 9, color: 'var(--text-tertiary)', letterSpacing: '0.08em' }}>
+                  ZONE DU WORKSPACE
+                </div>
+                {customZones.length === 0 ? (
+                  <div style={{ padding: '8px 10px', fontFamily: fInter, fontSize: 11, color: '#8a8a8a', lineHeight: 1.4 }}>
+                    Aucune zone personnalisee.<br />
+                    Creez-en depuis <span style={{ color: 'var(--brand-teal)' }}>/map/custom-geo</span>.
+                  </div>
+                ) : (
+                  customZones.map(z => (
+                    <RadioOption
+                      key={z.id}
+                      selected={selectedCustomZoneId === z.id}
+                      label={z.name}
+                      sub={`${z.feature_count_iris} IRIS · ${z.feature_count_cp} CP · ${z.source_type}`}
+                      onClick={() => { onCustomZoneChange?.(z.id); setActivePopover(null); }}
                     />
                   ))
                 )}

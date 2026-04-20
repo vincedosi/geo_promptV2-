@@ -52,6 +52,7 @@ interface DigitalData {
     media?: string[],
     metric?: 'impressions' | 'unique',
     geographySetId?: string | null,
+    customZoneId?: string | null,
   ) => Promise<void>;
   fetchMeteo: (scale: MeteoScale, params: MeteoParams) => Promise<void>;
   clearMeteo: () => void;
@@ -86,6 +87,7 @@ export function useDigitalData(): DigitalData {
     media?: string[],
     metric?: 'impressions' | 'unique',
     geographySetId?: string | null,
+    customZoneId?: string | null,
   ) => {
     if (!campaignId) return;
     abortRef.current?.abort();
@@ -96,7 +98,7 @@ export function useDigitalData(): DigitalData {
       const pf = popField || 'population';
       const m = metric === 'unique' ? 'unique' : 'impressions';
 
-      // Mode "Zones" : appel de l'endpoint dedie geography
+      // Mode "Zones isochrones" (legacy geography_sets issus du copilote/battle)
       if (scale === 'zones') {
         console.log('[digital-data] fetchMap scale=zones setId=', geographySetId);
         if (!geographySetId) {
@@ -112,6 +114,27 @@ export function useDigitalData(): DigitalData {
         }
         const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: GeographySummary | null };
         console.log('[digital-data] zones features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
+        setGeojson(data.geojson);
+        setGeographySummary(data.summary);
+        return;
+      }
+
+      // Mode "Zones personnalisees" (galerie /map/custom-geo)
+      if (scale === 'custom_zone') {
+        console.log('[digital-data] fetchMap scale=custom_zone zoneId=', customZoneId);
+        if (!customZoneId) {
+          setGeojson({ type: 'FeatureCollection', features: [] });
+          setGeographySummary(null);
+          return;
+        }
+        const url = `/api/digital/${campaignId}/custom-zone/${customZoneId}?pop_field=${pf}&metric=${m}`;
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+        const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: GeographySummary | null };
+        console.log('[digital-data] custom_zone features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
         setGeojson(data.geojson);
         setGeographySummary(data.summary);
         return;
