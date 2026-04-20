@@ -13,7 +13,7 @@ interface MapLegendProps {
 
 export function MapLegend({ title, stops, minLabel, midLabel, maxLabel }: MapLegendProps) {
   return (
-    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderTop: '0.5px solid #1a1a1a' }}>
+    <div style={{ padding: '8px 12px', background: 'var(--bg-surface)', borderTop: '0.5px solid var(--border-subtle)' }}>
       <div style={{ fontFamily: fInter, fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>{title}</div>
       <div style={{ height: 8, borderRadius: 3, background: `linear-gradient(to right, ${stops.join(', ')})` }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>

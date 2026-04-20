@@ -6,6 +6,7 @@ import { MapLegend } from '@/app/map/analyse/digital/_components/MapLegend';
 import { useDigitalData } from '@/app/map/analyse/digital/_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from '@/app/map/analyse/digital/_lib/palettes';
 import { adminFetch } from '@/lib/admin-fetch';
+import { useTheme } from '@/lib/theme/ThemeProvider';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -101,6 +102,7 @@ interface TripleMapViewProps {
 }
 
 export function TripleMapView({ campaignId, scale, popField, metric, selectedMedia }: TripleMapViewProps) {
+  const { theme } = useTheme();
   const { geojson, geojsonLoading, fetchMap } = useDigitalData();
 
   // Stable ref for selectedMedia to avoid useEffect re-trigger on array identity change
@@ -162,7 +164,7 @@ export function TripleMapView({ campaignId, scale, popField, metric, selectedMed
         <div style={{
           position: 'absolute', inset: 0, zIndex: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(5,5,5,0.7)',
+          background: theme === 'dark' ? 'rgba(5,5,5,0.7)' : 'rgba(255,255,255,0.7)',
           fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)',
         }}>
           Chargement des donnees...

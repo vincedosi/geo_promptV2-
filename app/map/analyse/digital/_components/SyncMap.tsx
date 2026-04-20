@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { useTheme } from '@/lib/theme/ThemeProvider';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const FRANCE_CENTER: [number, number] = [2.5, 46.5];
@@ -36,6 +37,10 @@ function fmtNum(n: unknown): string {
 }
 
 export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset = 0, hideAdminBoundaries = false, showFeatureHover = false, metricLabel = 'Impressions' }: SyncMapProps) {
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const isSyncing = useRef(false);
@@ -54,7 +59,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     });
 
     map.on('load', () => {
-      applyGeomatikStyle(map);
+      applyGeomatikStyle(map, themeRef.current);
 
       map.addSource(`digital-${id}`, {
         type: 'geojson',
@@ -98,6 +103,15 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
 
     return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-apply basemap style on theme toggle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const reapply = () => applyGeomatikStyle(map, theme);
+    if (map.isStyleLoaded()) reapply();
+    else map.once('load', reapply);
+  }, [theme]);
 
   // Update GeoJSON data
   useEffect(() => {
@@ -238,26 +252,26 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       const hasMeteo = p.meteo_value !== undefined && p.meteo_value !== null;
 
       if (hasImpressions) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${fmtNum(p.impressions)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${fmtNum(p.impressions)}</span></div>`);
       }
       if (hasPop) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>`);
       }
       if (hasRatio) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${Number(p.ratio).toFixed(1)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${Number(p.ratio).toFixed(1)}</span></div>`);
       }
       if (hasMeteo) {
         const mv = Number(p.meteo_value);
         const mu = p.meteo_unit ? String(p.meteo_unit) : '';
         const ml = p.meteo_label ? `<div style="color:var(--text-tertiary);font-size:10px;margin-top:2px">${String(p.meteo_label)}</div>` : '';
         const sep = lines.length > 0
-          ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid #1a1a1a"></div>'
+          ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border-subtle)"></div>'
           : '';
-        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#8a8a8a">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:#4ecdc4">${mv.toFixed(1)} ${mu}</span></div>${ml}`);
+        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${mv.toFixed(1)} ${mu}</span></div>${ml}`);
       }
 
       const html = `
-        <div style="font-family:'Inter',sans-serif;color:#f0f0f0;font-size:11px;line-height:1.5;min-width:160px">
+        <div style="font-family:'Inter',sans-serif;color:var(--text-primary);font-size:11px;line-height:1.5;min-width:160px">
           <div style="font-weight:500;font-size:12px;margin-bottom:4px">${nom}${label}</div>
           ${lines.join('')}
         </div>`;

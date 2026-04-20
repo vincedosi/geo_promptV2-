@@ -6,6 +6,7 @@ import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import { Protocol } from 'pmtiles';
 import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
 import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 
@@ -82,6 +83,10 @@ export function useMapInit(
   onBillboardSelect?: (billboard: SelectedBillboard) => void,
   mapStyleUrl?: string,
 ) {
+  const { theme } = useTheme();
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
   const [mapReady, setMapReady] = useState(false);
   const mapContainerRef  = useRef<HTMLDivElement>(null);
   const mapRef           = useRef<maplibregl.Map | null>(null);
@@ -171,9 +176,9 @@ export function useMapInit(
         try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
       }
 
-      // ── Apply GEOMATIK dark style overrides if selected ─────────────────
+      // ── Apply GEOMATIK style overrides if selected (theme-aware) ────────
       if (mapStyleUrl?.includes('geomatik') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'))) {
-        applyGeomatikStyle(map);
+        applyGeomatikStyle(map, themeRef.current);
       }
 
       // ── Heatmap densité POI (large zoom) ─────────────────────────────────
@@ -910,6 +915,19 @@ export function useMapInit(
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyleUrl]);
+
+  // ── Re-apply GEOMATIK overrides on theme toggle (only when geomatik style) ─
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const isGeomatik =
+      mapStyleUrl?.includes('geomatik') ||
+      (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'));
+    if (!isGeomatik) return;
+    const reapply = () => applyGeomatikStyle(map, theme);
+    if (map.isStyleLoaded()) reapply();
+    else map.once('load', reapply);
+  }, [theme, mapStyleUrl]);
 
   return {
     mapContainerRef,
