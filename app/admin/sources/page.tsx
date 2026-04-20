@@ -8,6 +8,8 @@ import type { CampaignListItem, CampaignImportEvent, CampaignImportReport } from
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CustomZonesTab } from './_components/CustomZonesTab';
+import { CustomZonesStatsCard } from './_components/CustomZonesTab/CustomZonesStatsCard';
 
 // ── IRIS stats types ──────────────────────────────────────────────────────────
 interface IrisStats {
@@ -144,7 +146,7 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio' | 'dsp' | 'zones'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio' | 'dsp' | 'zones_iso' | 'custom_zones'>('all');
   const [radioStats, setRadioStats] = useState<{ total_emetteurs: number; emetteurs_fm: number; emetteurs_dab: number; total_radios: number } | null>(null);
 
   // DSP campaigns
@@ -605,7 +607,7 @@ export default function SourcesPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'zones') fetchZones();
+    if (activeTab === 'zones_iso') fetchZones();
   }, [activeTab, fetchZones]);
 
   useEffect(() => {
@@ -910,7 +912,8 @@ export default function SourcesPage() {
           { key: 'transport', label: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, color: '#22c55e' },
           { key: 'radio',     label: `Radio (${radioStats ? fmtK(radioStats.total_emetteurs) : '…'})`,    color: C.accent },
           { key: 'dsp',       label: `DSP (${dspCampaigns.length || '…'})`,                                color: C.warn },
-          { key: 'zones',     label: `Zones perso (${zones.length || '…'})`,                               color: C.blue },
+          { key: 'zones_iso',    label: `Zones iso (${zones.length || '…'})`,                                 color: C.blue },
+          { key: 'custom_zones', label: `Zones perso`,                                                         color: 'var(--brand-teal)' },
         ];
         return (
           <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
@@ -942,7 +945,7 @@ export default function SourcesPage() {
 
       {/* ── All Tab — KPI Cards ──────────────────────────────────────────────── */}
       {activeTab === 'all' && sourcesStats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 20 }}>
           {[
             { label: 'Panneaux OOH', value: sourcesStats.ooh.total.toLocaleString('fr-FR'), sub: `${sourcesStats.ooh.nb_villes} villes · ${(sourcesStats.ooh.regies ?? []).length} régies`, color: C.warn, tab: 'panneaux' as const },
             { label: 'POI', value: sourcesStats.poi.total.toLocaleString('fr-FR'), sub: `lycées, CIRFA, autres`, color: 'var(--brand-teal)', tab: 'poi' as const },
@@ -963,6 +966,7 @@ export default function SourcesPage() {
               <div style={{ fontFamily: fontInter, fontSize: 10, color: C.muted }}>{sub}</div>
             </button>
           ))}
+          <CustomZonesStatsCard onClick={() => { setActiveTab('custom_zones'); setSelectedSource(null); }} />
         </div>
       )}
 
@@ -2666,7 +2670,9 @@ export default function SourcesPage() {
       })()}
 
       {/* ── Custom zones tab (geography_sets) ── */}
-      {activeTab === 'zones' && (() => {
+      {activeTab === 'custom_zones' && <CustomZonesTab />}
+
+      {activeTab === 'zones_iso' && (() => {
         const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
         const fmtN = (n: number) => n.toLocaleString('fr-FR');
         const cardSt = { background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 2 };
