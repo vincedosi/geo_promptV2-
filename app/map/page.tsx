@@ -1383,6 +1383,7 @@ export default function MapPage() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)' }}>
       <CaptureLayers
+        mapRef={mapRef}
         battleCacheKey={battleCacheKey}
         clusterGeoJSON={clusterGeoJSON}
         clustersVisible={clustersVisible}
@@ -1390,6 +1391,12 @@ export default function MapPage() {
         radioSelectedNom={radioSelectedNom}
         radioCoverageMode={radioCoverageMode}
         selectedIrisCode={selectedIrisCode}
+        voronoiVisible={mapLayers.voronoiVisible}
+        voronoiCategory={mapLayers.voronoiCategory}
+        carreauxVisible={mapLayers.carreauxVisible}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        tmjaGeoJSON={tmjaGeoJSON}
       />
       <div style={{
         transition: 'margin-left 0.3s ease, opacity 0.3s ease',

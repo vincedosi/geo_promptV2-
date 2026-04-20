@@ -403,6 +403,45 @@ export default function DigitalTripleMapPage() {
       features_count: geojson?.features.length ?? 0,
     },
   });
+
+  // ── Custom geo capture : meteo (wrap autour de get_admin_filter_geometry) ──
+  // La meteo est agregee par zones admin existantes ; on envoie scale + codes
+  // et on enrichit les metadata cote route API avec variable/stats/timestamp.
+  const meteoScaleForCapture: 'region' | 'departement' | 'cp' | null =
+    digitalScaleForCapture; // meme scale que la choroplèthe
+  const getMeteoGeom = useCallback(async (): Promise<ContributedGeometry> => {
+    if (!meteoData || !meteoMeta || !meteoScaleForCapture) return null;
+    const codes = Object.keys(meteoData).filter(Boolean).slice(0, 10000);
+    if (codes.length === 0) return null;
+    const res = await adminFetch('/api/custom-geo/source/meteo', {
+      method: 'POST',
+      body: JSON.stringify({
+        scale: meteoScaleForCapture,
+        codes,
+        variable: meteoMeta.variable,
+        timestamp: meteoParams ? `${meteoParams.startDate}_${meteoParams.endDate}` : null,
+        stats: meteoMeta.stats
+          ? { min: meteoMeta.stats.min, max: meteoMeta.stats.max, mean: meteoMeta.stats.mean }
+          : null,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data?.geometry ?? null) as ContributedGeometry;
+  }, [meteoData, meteoMeta, meteoScaleForCapture, meteoParams]);
+
+  useCustomGeoLayer({
+    id: 'digital-meteo-grid',
+    sourceType: 'meteo_grid',
+    label: meteoMeta ? `Meteo ${meteoMeta.variable}` : 'Meteo',
+    enabled: !!meteoData && !!meteoMeta && !!meteoScaleForCapture,
+    getGeometry: getMeteoGeom,
+    metadata: {
+      variable: meteoMeta?.variable ?? null,
+      scale: meteoScaleForCapture,
+      zones_count: meteoData ? Object.keys(meteoData).length : 0,
+    },
+  });
   const metricLabelLong = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
 
   // Expression de fill et stops pour la 3eme carte en mode meteo.
