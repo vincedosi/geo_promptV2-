@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
+import { CustomGeoCaptureProvider } from "@/lib/custom-geo/CustomGeoCaptureContext";
+import { CustomGeoCaptureButton } from "@/components/custom-geo/CustomGeoCaptureButton";
 
 export default function MapLayout({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useSession();
@@ -35,5 +37,10 @@ export default function MapLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <CustomGeoCaptureProvider>
+      {children}
+      <CustomGeoCaptureButton />
+    </CustomGeoCaptureProvider>
+  );
 }

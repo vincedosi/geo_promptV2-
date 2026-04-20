@@ -31,3 +31,14 @@ export interface CustomGeoZoneGeometry {
 }
 
 export type CustomGeoExportFormat = 'csv_cp' | 'csv_iris' | 'geojson';
+
+export type CaptureTransformation = 'union' | 'convex_hull' | 'envelope' | 'raw';
+
+export interface ContributedLayer {
+  id: string;
+  sourceType: string;
+  label: string;
+  getGeometry: () => GeoJSON.Geometry | GeoJSON.Geometry[] | null;
+  metadata?: Record<string, unknown>;
+  enabled: boolean;
+}
