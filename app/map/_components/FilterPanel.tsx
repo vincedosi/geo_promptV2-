@@ -15,6 +15,8 @@ import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { ScoringPanel } from './ScoringPanel';
 import type { CampaignListItem } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
+import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
+import type { ContributedGeometry } from '@/types/custom-geo';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
 const CorrelationPanel = dynamic(
@@ -752,6 +754,36 @@ export function FilterPanel({
   const [selectedDepts,   setSelectedDepts]   = useState<string[]>([]);
   const [ville,           setVille]           = useState('');
   const [codePostal,      setCodePostal]      = useState('');
+
+  // ── Custom geo capture : branchement filtre admin actif ───────────────────
+  // Priorite : depts (plus precis) > regions. 1 seul scale a la fois.
+  const adminScale: 'region' | 'departement' | null =
+    selectedDepts.length > 0 ? 'departement' :
+    selectedRegions.length > 0 ? 'region' : null;
+  const adminCodes = adminScale === 'departement' ? selectedDepts : adminScale === 'region' ? selectedRegions : [];
+  const getAdminGeom = useCallback(async (): Promise<ContributedGeometry> => {
+    if (!adminScale || adminCodes.length === 0) return null;
+    const res = await adminFetch('/api/custom-geo/source/admin', {
+      method: 'POST',
+      body: JSON.stringify({ scale: adminScale, codes: adminCodes }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data?.geometry ?? null) as ContributedGeometry;
+  }, [adminScale, adminCodes]);
+
+  useCustomGeoLayer({
+    id: 'map-admin-filter',
+    sourceType: 'admin_filter',
+    label: adminScale === 'departement'
+      ? `Departements (${adminCodes.join(', ')})`
+      : adminScale === 'region'
+      ? `Regions (${adminCodes.length})`
+      : 'Filtre territorial',
+    enabled: adminScale !== null && adminCodes.length > 0,
+    getGeometry: getAdminGeom,
+    metadata: { scale: adminScale, codes: adminCodes },
+  });
 
   // ── Audience state ────────────────────────────────────────────────────────
 

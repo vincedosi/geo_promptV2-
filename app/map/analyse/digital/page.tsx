@@ -13,6 +13,8 @@ import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useSession } from '@/lib/auth-client';
+import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
+import type { ContributedGeometry } from '@/types/custom-geo';
 import type { MeteoParams, MeteoScale } from '@/lib/meteo/types';
 import { METEO_LABEL } from '@/lib/meteo/types';
 import { buildColorExpression as buildMeteoColorExpression, METEO_PALETTES } from '@/lib/meteo/palettes';
@@ -361,6 +363,46 @@ export default function DigitalTripleMapPage() {
   // Modes "single-feature" : zones isochrones (geography_set) OU zones custom (galerie).
   // Dans les 2 cas, la carte affiche une géométrie sélectionnée au lieu d'une choroplèthe.
   const isZones = scale === 'zones' || scale === 'custom_zone';
+
+  // ── Custom geo capture : zone digital active (scale admin uniquement) ────
+  // Pour zones/custom_zone, la geom est deja capturable directement via les routes
+  // de consommation existantes. Ici on branche uniquement scale admin (region/dept/cp).
+  const digitalScaleForCapture: 'region' | 'departement' | 'cp' | null =
+    scale === 'region' || scale === 'departement' || scale === 'cp' ? scale : null;
+  const getDigitalZoneGeom = useCallback(async (): Promise<ContributedGeometry> => {
+    if (!digitalScaleForCapture || !campaignId) return null;
+    const codes = geojson?.features
+      ?.map(f => String(f.properties?.code ?? ''))
+      .filter(Boolean)
+      .slice(0, 10000) ?? null;
+    const res = await adminFetch('/api/custom-geo/source/digital', {
+      method: 'POST',
+      body: JSON.stringify({
+        campaign_id: campaignId,
+        scale: digitalScaleForCapture,
+        codes: codes && codes.length > 0 ? codes : null,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data?.geometry ?? null) as ContributedGeometry;
+  }, [digitalScaleForCapture, campaignId, geojson]);
+
+  useCustomGeoLayer({
+    id: 'digital-active-zone',
+    sourceType: 'digital_analysis',
+    label: digitalScaleForCapture
+      ? `Analyse ${digitalScaleForCapture} (${geojson?.features.length ?? 0} zones)`
+      : 'Analyse digital',
+    enabled: !!digitalScaleForCapture && !!campaignId && !!geojson && geojson.features.length > 0,
+    getGeometry: getDigitalZoneGeom,
+    metadata: {
+      campaign_id: campaignId,
+      scale: digitalScaleForCapture,
+      metric,
+      features_count: geojson?.features.length ?? 0,
+    },
+  });
   const metricLabelLong = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
 
   // Expression de fill et stops pour la 3eme carte en mode meteo.

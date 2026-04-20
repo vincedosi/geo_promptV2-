@@ -34,11 +34,18 @@ export type CustomGeoExportFormat = 'csv_cp' | 'csv_iris' | 'geojson';
 
 export type CaptureTransformation = 'union' | 'convex_hull' | 'envelope' | 'raw';
 
+export type ContributedGeometry = GeoJSON.Geometry | GeoJSON.Geometry[] | null;
+
 export interface ContributedLayer {
   id: string;
   sourceType: string;
   label: string;
-  getGeometry: () => GeoJSON.Geometry | GeoJSON.Geometry[] | null;
+  /**
+   * Appele uniquement au moment de la capture. Peut etre async si le module
+   * recupere sa geometrie via une RPC / API (cas des modules avec geometrie
+   * cote serveur : battle, clusters, radio coverage, admin filter, etc.).
+   */
+  getGeometry: () => ContributedGeometry | Promise<ContributedGeometry>;
   metadata?: Record<string, unknown>;
   enabled: boolean;
 }

@@ -8,12 +8,13 @@
  */
 import { useEffect } from 'react';
 import { useCustomGeoCaptureContext } from './CustomGeoCaptureContext';
+import type { ContributedGeometry } from '@/types/custom-geo';
 
 export interface UseCustomGeoLayerOptions {
   id: string;
   sourceType: string;
   label: string;
-  getGeometry: () => GeoJSON.Geometry | GeoJSON.Geometry[] | null;
+  getGeometry: () => ContributedGeometry | Promise<ContributedGeometry>;
   metadata?: Record<string, unknown>;
   enabled?: boolean;
 }

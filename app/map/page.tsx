@@ -20,6 +20,7 @@ import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
+import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -95,7 +96,7 @@ export default function MapPage() {
   const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
   const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
   const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
-  const [radioCoverageColor, setRadioCoverageColor] = useState('var(--brand-teal)');
+  const [radioCoverageColor, setRadioCoverageColor] = useState('#4ecdc4');
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
@@ -1381,6 +1382,15 @@ export default function MapPage() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)' }}>
+      <CaptureLayers
+        battleCacheKey={battleCacheKey}
+        clusterGeoJSON={clusterGeoJSON}
+        clustersVisible={clustersVisible}
+        radioSelectedId={radioSelectedId}
+        radioSelectedNom={radioSelectedNom}
+        radioCoverageMode={radioCoverageMode}
+        selectedIrisCode={selectedIrisCode}
+      />
       <div style={{
         transition: 'margin-left 0.3s ease, opacity 0.3s ease',
         marginLeft: mapFullscreen ? '-100%' : 0,

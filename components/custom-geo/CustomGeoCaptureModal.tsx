@@ -3,16 +3,18 @@
 /**
  * GEOMATIK — Modal de capture custom-geo.
  *
- * Au mount : collecte les géométries de tous les layers contributifs enabled.
- * Preview texte (option V1) : nb layers / transformation / bbox.
- * Submit : POST /api/custom-geo/capture → zone créée + IRIS/CP résolus.
+ * Au mount : resolve en parallele les getGeometry() de tous les layers enabled
+ * (peut etre sync ou async, ex: appel RPC). Pendant ce resolve, affiche un loader.
+ * Erreurs partielles non-bloquantes : les layers OK restent utilisables.
+ *
+ * Submit : POST /api/custom-geo/capture avec les geometries resolues.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import { useSession } from '@/lib/auth-client';
 import { adminFetch } from '@/lib/admin-fetch';
-import type { CaptureTransformation, ContributedLayer } from '@/types/custom-geo';
+import type { CaptureTransformation, ContributedGeometry, ContributedLayer } from '@/types/custom-geo';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -24,6 +26,7 @@ interface Props {
 interface CollectedLayer {
   layer: ContributedLayer;
   geometries: GeoJSON.Geometry[];
+  error?: string;
 }
 
 const TRANSFORMATION_OPTIONS: Array<{ value: CaptureTransformation; label: string; sub: string }> = [
@@ -33,12 +36,11 @@ const TRANSFORMATION_OPTIONS: Array<{ value: CaptureTransformation; label: strin
   { value: 'raw',         label: 'Geometrie brute',    sub: 'Sans transformation' },
 ];
 
-function flattenGeometry(g: GeoJSON.Geometry | GeoJSON.Geometry[] | null): GeoJSON.Geometry[] {
+function flattenGeometry(g: ContributedGeometry): GeoJSON.Geometry[] {
   if (!g) return [];
   return Array.isArray(g) ? g : [g];
 }
 
-// Bbox simple côté client sur l'ensemble des coordonnées plates.
 function computeBbox(geometries: GeoJSON.Geometry[]): [number, number, number, number] | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const walk = (coord: unknown): void => {
@@ -70,20 +72,49 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ countIris: number; countCp: number } | null>(null);
 
-  // Snapshot des layers + géométries au mount du modal. Pas rafraîchi (sinon l'user
-  // verrait les valeurs changer sous ses yeux pendant qu'il tape le nom).
-  const collectedRef = useRef<CollectedLayer[] | null>(null);
-  if (collectedRef.current === null) {
-    collectedRef.current = getAllEnabledLayers().map(l => ({
-      layer: l,
-      geometries: flattenGeometry(l.getGeometry()),
-    }));
-  }
-  const collected = collectedRef.current;
+  // Resolve async des geometries au mount.
+  const [resolving, setResolving] = useState(true);
+  const [collected, setCollected] = useState<CollectedLayer[]>([]);
+  const resolveLaunchedRef = useRef(false);
+
+  useEffect(() => {
+    if (resolveLaunchedRef.current) return;
+    resolveLaunchedRef.current = true;
+    const layers = getAllEnabledLayers();
+    (async () => {
+      const results = await Promise.all(
+        layers.map(async (layer): Promise<CollectedLayer> => {
+          try {
+            const g = await Promise.resolve(layer.getGeometry());
+            const flat = flattenGeometry(g);
+            return { layer, geometries: flat };
+          } catch (err: unknown) {
+            return {
+              layer,
+              geometries: [],
+              error: err instanceof Error ? err.message : 'Erreur inconnue',
+            };
+          }
+        }),
+      );
+      setCollected(results);
+      setResolving(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const validCollected = useMemo(
+    () => collected.filter(c => !c.error && c.geometries.length > 0),
+    [collected],
+  );
+  const failedCollected = useMemo(
+    () => collected.filter(c => c.error || c.geometries.length === 0),
+    [collected],
+  );
 
   const allGeometries = useMemo(
-    () => collected.flatMap(c => c.geometries),
-    [collected],
+    () => validCollected.flatMap(c => c.geometries),
+    [validCollected],
   );
   const bbox = useMemo(() => computeBbox(allGeometries), [allGeometries]);
   const totalVertices = useMemo(() => {
@@ -98,22 +129,21 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
   }, [allGeometries]);
 
   const hasData = allGeometries.length > 0;
-  const canSubmit = !!name.trim() && hasData && !!orgId && !saving && !success;
+  const canSubmit = !!name.trim() && hasData && !!orgId && !saving && !success && !resolving;
 
-  const sourceType = collected.length === 1 ? collected[0].layer.sourceType : 'composite';
+  const sourceType = validCollected.length === 1 ? validCollected[0].layer.sourceType : 'composite';
 
   const handleSave = useCallback(async () => {
     if (!canSubmit) return;
     setSaving(true);
     setError(null);
     try {
-      const contributingLayers = collected.map(c => ({
+      const contributingLayers = validCollected.map(c => ({
         id: c.layer.id,
         source_type: c.layer.sourceType,
         label: c.layer.label,
         metadata: c.layer.metadata ?? {},
       }));
-
       const res = await adminFetch('/api/custom-geo/capture', {
         method: 'POST',
         body: JSON.stringify({
@@ -138,9 +168,8 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [canSubmit, name, description, orgId, sourceType, allGeometries, transformation, collected, onClose]);
+  }, [canSubmit, name, description, orgId, sourceType, allGeometries, transformation, validCollected, onClose]);
 
-  // Escape to close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose(); };
     window.addEventListener('keydown', handler);
@@ -183,20 +212,51 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
 
         {/* Body */}
         <div style={{ padding: 20, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Preview (option B : texte compact) */}
-          <div style={{
-            padding: 12,
-            background: 'var(--bg-level-2)',
-            border: '0.5px solid var(--border-subtle)',
-            borderRadius: 4,
-            fontFamily: fMono, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8,
-          }}>
-            <div><span style={{ color: 'var(--text-tertiary)' }}>Layers</span> : {collected.length} · <span style={{ color: 'var(--text-tertiary)' }}>Vertices</span> : {totalVertices.toLocaleString('fr-FR')}</div>
-            <div><span style={{ color: 'var(--text-tertiary)' }}>Transformation</span> : {transformation}</div>
-            <div><span style={{ color: 'var(--text-tertiary)' }}>Bbox</span> : {bbox ? `${bbox[0].toFixed(3)}, ${bbox[1].toFixed(3)} → ${bbox[2].toFixed(3)}, ${bbox[3].toFixed(3)}` : '—'}</div>
-          </div>
+          {/* Resolve loader */}
+          {resolving && (
+            <div style={{
+              padding: 16,
+              background: 'var(--bg-level-2)',
+              border: '0.5px solid var(--border-subtle)',
+              borderRadius: 4,
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)',
+            }}>
+              <Loader2 size={14} style={{ color: 'var(--brand-teal)', animation: 'spin 1s linear infinite' }} />
+              Recuperation des geometries...
+            </div>
+          )}
 
-          {/* Sélecteur de transformation */}
+          {/* Preview texte */}
+          {!resolving && (
+            <div style={{
+              padding: 12,
+              background: 'var(--bg-level-2)',
+              border: '0.5px solid var(--border-subtle)',
+              borderRadius: 4,
+              fontFamily: fMono, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8,
+            }}>
+              <div><span style={{ color: 'var(--text-tertiary)' }}>Layers</span> : {validCollected.length} · <span style={{ color: 'var(--text-tertiary)' }}>Vertices</span> : {totalVertices.toLocaleString('fr-FR')}</div>
+              <div><span style={{ color: 'var(--text-tertiary)' }}>Transformation</span> : {transformation}</div>
+              <div><span style={{ color: 'var(--text-tertiary)' }}>Bbox</span> : {bbox ? `${bbox[0].toFixed(3)}, ${bbox[1].toFixed(3)} → ${bbox[2].toFixed(3)}, ${bbox[3].toFixed(3)}` : '—'}</div>
+            </div>
+          )}
+
+          {/* Erreurs partielles (layers echoues) */}
+          {!resolving && failedCollected.length > 0 && (
+            <div style={{
+              padding: '8px 12px', borderRadius: 4,
+              background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.25)', color: 'var(--warning)',
+              fontFamily: fInter, fontSize: 11, lineHeight: 1.5,
+            }}>
+              {failedCollected.length} layer{failedCollected.length > 1 ? 's' : ''} non capture{failedCollected.length > 1 ? 's' : ''} :
+              <div style={{ marginTop: 4, fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
+                {failedCollected.map(c => `${c.layer.label} (${c.error ?? 'pas de geometrie'})`).join(' · ')}
+              </div>
+            </div>
+          )}
+
+          {/* Selecteur transformation */}
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Transformation
@@ -237,13 +297,13 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
           {/* Liste layers */}
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Layers inclus ({collected.length})
+              Layers inclus ({validCollected.length})
             </div>
-            {collected.length === 0 ? (
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 8 }}>Aucun layer contributif actif.</div>
+            {!resolving && validCollected.length === 0 ? (
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: 8 }}>Aucun layer contributif exploitable.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {collected.map(c => (
+                {validCollected.map(c => (
                   <div key={c.layer.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '6px 10px', borderRadius: 4,
@@ -363,7 +423,7 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
               cursor: canSubmit ? 'pointer' : 'not-allowed',
             }}
           >
-            {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+            {saving ? 'Sauvegarde...' : resolving ? 'Chargement...' : 'Sauvegarder'}
           </button>
         </div>
       </div>
