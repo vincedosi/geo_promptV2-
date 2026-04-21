@@ -42,6 +42,7 @@ import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
+import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -1386,6 +1387,80 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
+  // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
+  const chatSlotContent = (
+    <ChatPanel
+      containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
+      hideHeader={true}
+      messages={chat.messages}
+      isLoading={chat.isLoading}
+      input={chat.input}
+      setInput={chat.setInput}
+      handleSubmit={chat.handleSubmit}
+      handleKeyDown={chat.handleKeyDown}
+      sendMessage={chat.sendMessage}
+      messagesEndRef={chat.messagesEndRef}
+      rateLimitCooldown={rateLimit.rateLimitCooldown}
+      cancelCooldown={rateLimit.cancelCooldown}
+      error={error}
+      showSavePanel={savedMaps.showSavePanel}
+      showLoadPanel={savedMaps.showLoadPanel}
+      setShowSavePanel={savedMaps.setShowSavePanel}
+      setShowLoadPanel={savedMaps.setShowLoadPanel}
+      saveName={savedMaps.saveName}
+      setSaveName={savedMaps.setSaveName}
+      saveLoading={savedMaps.saveLoading}
+      saveError={savedMaps.saveError}
+      setSaveError={savedMaps.setSaveError}
+      savedMaps={savedMaps.savedMaps}
+      saveCurrentMap={savedMaps.saveCurrentMap}
+      loadSavedMaps={savedMaps.loadSavedMaps}
+      loadMap={savedMaps.loadMap}
+      deleteMap={savedMaps.deleteMap}
+      zoneData={zoneData}
+      provider={providerSelector.provider}
+      setProvider={providerSelector.setProvider}
+      providerStatus={providerSelector.providerStatus}
+      statusLoading={providerSelector.statusLoading}
+      refreshProviderStatus={providerSelector.refreshStatus}
+      sessionTokens={chat.sessionTokens}
+      onFlyTo={handleFlyTo}
+      onHighlightIris={(codeIris: string | null) => {
+        const map = mapRef.current;
+        if (!map || !mapReady) return;
+        if (!codeIris) {
+          try { map.setFilter('iris-fill',   null); } catch { /* ok */ }
+          try { map.setFilter('iris-border', null); } catch { /* ok */ }
+          if (!mapLayers.irisVisible) {
+            try { map.setLayoutProperty('iris-fill',   'visibility', 'none'); } catch { /* ok */ }
+            try { map.setLayoutProperty('iris-border', 'visibility', 'none'); } catch { /* ok */ }
+          }
+        } else {
+          const filter: maplibregl.FilterSpecification = ['==', ['get', 'code_iris'], codeIris];
+          try { map.setLayoutProperty('iris-fill',   'visibility', 'visible'); } catch { /* ok */ }
+          try { map.setLayoutProperty('iris-border', 'visibility', 'visible'); } catch { /* ok */ }
+          try { map.setFilter('iris-fill',   filter); } catch { /* ok */ }
+          try { map.setFilter('iris-border', filter); } catch { /* ok */ }
+          const idleTimeout = setTimeout(() => map.off('idle', onIdle), 5000);
+          const onIdle = () => {
+            clearTimeout(idleTimeout);
+            try {
+              const features = map.queryRenderedFeatures(undefined, {
+                layers: ['iris-fill'],
+                filter: filter as maplibregl.FilterSpecification,
+              });
+              if (!features.length) {
+                setError('Cet IRIS n\'est pas disponible à ce niveau de zoom');
+                setTimeout(() => setError(null), 3000);
+              }
+            } catch { /* ok — layer peut ne pas exister encore */ }
+          };
+          map.once('idle', onIdle);
+        }
+      }}
+    />
+  );
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: 48 }}>
       <IconBar
@@ -1414,10 +1489,13 @@ export default function MapPage() {
           }
           onClose={() => setActiveOverlay(null)}
         >
-          <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif" }}>
-            Placeholder pour <code style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--brand-teal)' }}>{activeOverlay}</code>.
-            Contenu migré en Phase 4.
-          </div>
+          {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
+          {activeOverlay !== 'ai' && (
+            <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif" }}>
+              Placeholder pour <code style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--brand-teal)' }}>{activeOverlay}</code>.
+              Contenu migré en Phase 4 suivante.
+            </div>
+          )}
         </OverlayPanel>
       )}
       <CaptureLayers
@@ -1445,82 +1523,7 @@ export default function MapPage() {
         overflow: 'hidden',
       }}>
       <FilterPanel
-        chatSlot={
-          <ChatPanel
-            containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
-            hideHeader={true}
-            messages={chat.messages}
-            isLoading={chat.isLoading}
-            input={chat.input}
-            setInput={chat.setInput}
-            handleSubmit={chat.handleSubmit}
-            handleKeyDown={chat.handleKeyDown}
-            sendMessage={chat.sendMessage}
-            messagesEndRef={chat.messagesEndRef}
-            rateLimitCooldown={rateLimit.rateLimitCooldown}
-            cancelCooldown={rateLimit.cancelCooldown}
-            error={error}
-            showSavePanel={savedMaps.showSavePanel}
-            showLoadPanel={savedMaps.showLoadPanel}
-            setShowSavePanel={savedMaps.setShowSavePanel}
-            setShowLoadPanel={savedMaps.setShowLoadPanel}
-            saveName={savedMaps.saveName}
-            setSaveName={savedMaps.setSaveName}
-            saveLoading={savedMaps.saveLoading}
-            saveError={savedMaps.saveError}
-            setSaveError={savedMaps.setSaveError}
-            savedMaps={savedMaps.savedMaps}
-            saveCurrentMap={savedMaps.saveCurrentMap}
-            loadSavedMaps={savedMaps.loadSavedMaps}
-            loadMap={savedMaps.loadMap}
-            deleteMap={savedMaps.deleteMap}
-            zoneData={zoneData}
-            provider={providerSelector.provider}
-            setProvider={providerSelector.setProvider}
-            providerStatus={providerSelector.providerStatus}
-            statusLoading={providerSelector.statusLoading}
-            refreshProviderStatus={providerSelector.refreshStatus}
-            sessionTokens={chat.sessionTokens}
-            onFlyTo={handleFlyTo}
-            onHighlightIris={(codeIris: string | null) => {
-              const map = mapRef.current;
-              if (!map || !mapReady) return;
-              if (!codeIris) {
-                // Retirer le filtre de highlight
-                try { map.setFilter('iris-fill',   null); } catch { /* ok */ }
-                try { map.setFilter('iris-border', null); } catch { /* ok */ }
-                // Ne masquer les layers QUE si la choroplèthe IRIS n'est pas ouverte
-                if (!mapLayers.irisVisible) {
-                  try { map.setLayoutProperty('iris-fill',   'visibility', 'none'); } catch { /* ok */ }
-                  try { map.setLayoutProperty('iris-border', 'visibility', 'none'); } catch { /* ok */ }
-                }
-              } else {
-                const filter: maplibregl.FilterSpecification = ['==', ['get', 'code_iris'], codeIris];
-                try { map.setLayoutProperty('iris-fill',   'visibility', 'visible'); } catch { /* ok */ }
-                try { map.setLayoutProperty('iris-border', 'visibility', 'visible'); } catch { /* ok */ }
-                try { map.setFilter('iris-fill',   filter); } catch { /* ok */ }
-                try { map.setFilter('iris-border', filter); } catch { /* ok */ }
-                // Vérifier après stabilisation de la carte (tuiles chargées + caméra stable)
-                // map.once('idle') est plus fiable que 'render' : évite les faux négatifs pendant l'animation de vol
-                const idleTimeout = setTimeout(() => map.off('idle', onIdle), 5000);
-                const onIdle = () => {
-                  clearTimeout(idleTimeout);
-                  try {
-                    const features = map.queryRenderedFeatures(undefined, {
-                      layers: ['iris-fill'],
-                      filter: filter as maplibregl.FilterSpecification,
-                    });
-                    if (!features.length) {
-                      setError('Cet IRIS n\'est pas disponible à ce niveau de zoom');
-                      setTimeout(() => setError(null), 3000);
-                    }
-                  } catch { /* ok — layer peut ne pas exister encore */ }
-                };
-                map.once('idle', onIdle);
-              }
-            }}
-          />
-        }
+        chatSlot={activeOverlay === 'ai' ? null : chatSlotContent}
         sendMessage={chat.sendMessage}
         onDirectOOH={handleDirectOOH}
         onDirectSearch={handleDirectSearch}
