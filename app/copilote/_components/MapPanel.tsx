@@ -76,10 +76,14 @@ const C = {
 const fontMono = "'JetBrains Mono', 'Fira Code', monospace";
 const fontInter = "'Inter', system-ui, sans-serif";
 
+// Overlays carte : utilisent --bg-surface theme-aware (opaque pour lisibilite
+// garantie en light mode). backdrop-filter ajoute un voile vitre sur la carte.
 const badgeBase: React.CSSProperties = {
   position: 'absolute',
   zIndex: 10,
-  background: 'rgba(10,10,10,0.92)',
+  background: 'var(--bg-surface)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
   border: '0.5px solid var(--border-subtle)',
   borderRadius: 4,
   padding: '6px 10px',
@@ -96,7 +100,9 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  background: active ? `${activeColor}18` : 'rgba(10,10,10,0.88)',
+  background: active ? `${activeColor}18` : 'var(--bg-surface)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
   border: `0.5px solid ${active ? activeColor + '80' : 'var(--border-subtle)'}`,
   borderRadius: 4,
   padding: '6px 10px',
