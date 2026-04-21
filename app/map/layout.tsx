@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { CustomGeoCaptureProvider } from "@/lib/custom-geo/CustomGeoCaptureContext";
-import { CustomGeoCaptureButton } from "@/components/custom-geo/CustomGeoCaptureButton";
+// CustomGeoCaptureButton flottant supprimé — l'action est maintenant dans SettingsOverlay
+// (overlay Réglages depuis la nouvelle IconBar).
 
 export default function MapLayout({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useSession();
@@ -40,7 +41,6 @@ export default function MapLayout({ children }: { children: React.ReactNode }) {
   return (
     <CustomGeoCaptureProvider>
       {children}
-      <CustomGeoCaptureButton />
     </CustomGeoCaptureProvider>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,9 +13,12 @@ import {
   Activity,
   Database,
   Users,
+  Save as SaveIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { COLORS, FONTS } from './_shared/styles';
+import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
+import { CustomGeoCaptureModal } from '@/components/custom-geo/CustomGeoCaptureModal';
 
 export interface SettingsOverlayProps {
   mapStyles: { id: string; label: string; url: string }[];
@@ -60,6 +64,9 @@ export function SettingsOverlay({
   saveLoading,
 }: SettingsOverlayProps) {
   const router = useRouter();
+  const { layerCount } = useCustomGeoCaptureContext();
+  const [customGeoModalOpen, setCustomGeoModalOpen] = useState(false);
+  const customGeoDisabled = layerCount === 0;
 
   return (
     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 20, fontFamily: FONTS.inter }}>
@@ -94,33 +101,75 @@ export function SettingsOverlay({
         </div>
       </section>
 
-      {/* Vue */}
+      {/* Vues sauvegardées */}
       <section>
-        <h4 style={sectionTitleStyle}>Vue</h4>
-        <button
-          type="button"
-          onClick={onSaveCurrentView}
-          disabled={saveLoading}
-          style={{
-            width: '100%',
-            background: 'transparent',
-            border: '0.5px solid var(--brand-teal)',
-            color: 'var(--brand-teal)',
-            borderRadius: 6,
-            padding: '8px 16px',
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: saveLoading ? 'wait' : 'pointer',
-            opacity: saveLoading ? 0.6 : 1,
-            fontFamily: FONTS.inter,
-            transition: 'background-color 150ms var(--ease-hover)',
-          }}
-          onMouseEnter={e => { if (!saveLoading) e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-        >
-          {saveLoading ? 'Sauvegarde…' : 'Sauvegarder la vue actuelle'}
-        </button>
+        <h4 style={sectionTitleStyle}>Vues sauvegardées</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onSaveCurrentView}
+            disabled={saveLoading}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: '0.5px solid var(--brand-teal)',
+              color: 'var(--brand-teal)',
+              borderRadius: 6,
+              padding: '8px 16px',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: saveLoading ? 'wait' : 'pointer',
+              opacity: saveLoading ? 0.6 : 1,
+              fontFamily: FONTS.inter,
+              transition: 'background-color 150ms var(--ease-hover)',
+            }}
+            onMouseEnter={e => { if (!saveLoading) e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            {saveLoading ? 'Sauvegarde…' : 'Sauvegarder la vue actuelle'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomGeoModalOpen(true)}
+            disabled={customGeoDisabled}
+            title={customGeoDisabled ? 'Aucune zone à capturer (active au moins un layer terrain)' : 'Capturer la vue comme zone custom'}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: `0.5px solid ${customGeoDisabled ? COLORS.borderDefault : 'var(--brand-teal)'}`,
+              color: customGeoDisabled ? COLORS.textTertiary : 'var(--brand-teal)',
+              borderRadius: 6,
+              padding: '8px 16px',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: customGeoDisabled ? 'not-allowed' : 'pointer',
+              opacity: customGeoDisabled ? 0.5 : 1,
+              fontFamily: FONTS.inter,
+              transition: 'background-color 150ms var(--ease-hover)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={e => { if (!customGeoDisabled) e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <SaveIcon size={14} strokeWidth={1.5} />
+            Capturer zone custom
+            {layerCount > 0 && (
+              <span style={{
+                marginLeft: 'auto',
+                minWidth: 18, height: 18, padding: '0 5px',
+                borderRadius: 9, background: 'var(--brand-teal)',
+                color: '#050505', fontFamily: FONTS.mono,
+                fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{layerCount}</span>
+            )}
+          </button>
+        </div>
       </section>
+      {customGeoModalOpen && <CustomGeoCaptureModal onClose={() => setCustomGeoModalOpen(false)} />}
 
       {/* Apparence */}
       <section>
