@@ -585,7 +585,7 @@ export function FilterPanel({
   const [filterSearch, setFilterSearch] = useState('');
 
   // ── UX: Collapsible sections with localStorage memory ─────────────────────
-  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja'] as const;
+  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'radio'] as const;
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
     // En mode overlay, tous les accordéons fermés par défaut — l'utilisateur
     // clique sur le nom pour déplier le layer qu'il veut. Pas de persistance.
