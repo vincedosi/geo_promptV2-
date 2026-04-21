@@ -311,6 +311,9 @@ function MobileSidebarTrigger({ pathname }: { pathname: string }) {
 
 export default function AppSidebar() {
   const pathname = usePathname()
+  if (pathname?.startsWith('/map')) {
+    return null
+  }
 
   return (
     <>

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import AppSidebar from '@/components/AppSidebar'
-import { SessionBadge } from '@/components/SessionBadge'
 import { ToastProvider } from '@/components/ui/geo-toast'
 import { SplashScreen } from '@/components/ui/SplashScreen'
 import { ThemeProvider } from '@/lib/theme/ThemeProvider'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { MainPadding } from '@/components/layout/MainPadding'
+import { TopRightChrome } from '@/components/layout/TopRightChrome'
 
 export const metadata: Metadata = {
   title: 'GEOMATIK — Geospatial intelligence',
@@ -49,26 +49,8 @@ export default function RootLayout({
           <SplashScreen minDuration={2000} />
           <ToastProvider>
             <AppSidebar />
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                right: 0,
-                zIndex: 200,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-              }}
-            >
-              <ThemeToggle />
-              <SessionBadge />
-            </div>
-            <main className="md:pl-[240px] min-h-screen">
-              <div className="p-8">
-                {children}
-              </div>
-            </main>
+            <TopRightChrome />
+            <MainPadding>{children}</MainPadding>
           </ToastProvider>
         </ThemeProvider>
       </body>
