@@ -63,7 +63,7 @@ function computeBbox(geometries: GeoJSON.Geometry[]): [number, number, number, n
 export function CustomGeoCaptureModal({ onClose }: Props) {
   const { getAllEnabledLayers } = useCustomGeoCaptureContext();
   const { session } = useSession();
-  const orgId = (session as { org_id?: string } | null)?.org_id ?? '';
+  const orgId = session?.user?.organizationId ?? '';
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

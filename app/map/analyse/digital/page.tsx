@@ -120,7 +120,7 @@ export default function DigitalTripleMapPage() {
 
   const searchParams = useSearchParams();
   const { session } = useSession();
-  const orgId = (session as { org_id?: string } | null)?.org_id ?? '';
+  const orgId = session?.user?.organizationId ?? '';
 
   const [campaignId, setCampaignId] = useState('');
   const [scale, setScale] = useState('region');
