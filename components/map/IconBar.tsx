@@ -133,6 +133,7 @@ function IconButton({ item, active, showLabel, studyBadge, onClick }: IconButton
         type="button"
         onClick={onClick}
         title={item.label}
+        aria-pressed={active}
         style={{
           width: 40,
           height: showLabel ? 44 : 40,
@@ -204,11 +205,10 @@ function IconButton({ item, active, showLabel, studyBadge, onClick }: IconButton
         {showLabel && (
           <span
             style={{
-              fontSize: 8,
+              fontSize: 9,
               fontFamily: "'Inter', system-ui, sans-serif",
               fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
+              letterSpacing: '0.01em',
               lineHeight: 1,
               color: 'inherit',
             }}
