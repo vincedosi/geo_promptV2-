@@ -3286,6 +3286,29 @@ export function FilterPanel({
                 onFlyTo={onFlyTo ?? (() => {})}
                 onScoreComputed={onScoreComputed}
               />
+              {/* CTA Étude : visible uniquement quand un scoring a été calculé + overlay mode */}
+              {studyVille && onOpenStudy && isOverlayMode && (
+                <button
+                  type="button"
+                  onClick={onOpenStudy}
+                  style={{
+                    width: '100%', marginTop: 10,
+                    background: 'transparent',
+                    border: '0.5px solid var(--brand-teal)',
+                    color: 'var(--brand-teal)',
+                    borderRadius: 6, padding: '8px 12px',
+                    fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'background-color 150ms var(--ease-hover)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  Ouvrir l&apos;étude de ville →
+                  <span style={{ fontFamily: fMono, fontSize: 10, opacity: 0.8 }}>{studyVille}</span>
+                </button>
+              )}
             </div>
             )}
 

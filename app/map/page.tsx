@@ -72,7 +72,14 @@ function normToColor(norm: number, inverted = false): string {
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
-  const [activeTab,   setActiveTab]   = useState<'map' | 'study'>('map');
+  const [activeStudy, setActiveStudy] = useState(false);
+  const handleOpenStudy = useCallback(() => {
+    setActiveStudy(true);
+    setActiveOverlay(null);
+  }, []);
+  const handleCloseStudy = useCallback(() => {
+    setActiveStudy(false);
+  }, []);
   const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
   const handleOverlayToggle = useCallback((id: OverlayId) => {
@@ -1658,6 +1665,7 @@ export default function MapPage() {
               digitalPopField={digitalPopField}
               onDigitalPopFieldChange={setDigitalPopField}
               studyVille={studyVille}
+              onOpenStudy={handleOpenStudy}
             />
           )}
           {activeOverlay === 'settings' && (
@@ -1687,54 +1695,31 @@ export default function MapPage() {
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         tmjaGeoJSON={tmjaGeoJSON}
       />
-      {/* ── Right panel: tabs Carte / Étude ── */}
+      {/* ── Right panel: map + optional StudyDashboard (tab bar Carte/Étude supprimé) ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Tab bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 0,
-          background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border-subtle)',
-          padding: '0 16px', height: 36, flexShrink: 0, zIndex: 10,
-          position: 'relative',
-        }}>
-          {(['map', 'study'] as const).map(tab => {
-            const active = activeTab === tab;
-            return (
-              <button key={tab} onClick={() => setActiveTab(tab)} className="topbar-tab" style={{
-                padding: '0 18px', height: '100%', position: 'relative',
-                background: 'transparent',
-                border: 'none',
-                color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
-                letterSpacing: '0.01em', cursor: 'pointer',
-                transition: 'color 0.2s ease',
-              }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
-              >
-                {tab === 'map' ? 'Carte' : 'Étude'}
-                {tab === 'study' && studyVille && (
-                  <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--brand-teal)', fontFamily: "'JetBrains Mono','Fira Mono',monospace" }}>{studyVille}</span>
-                )}
-                {/* Underline that grows from center */}
-                <span style={{
-                  position: 'absolute', bottom: 0, left: '50%',
-                  width: active ? '100%' : '0%',
-                  height: 2, background: 'var(--brand-teal)',
-                  transform: 'translateX(-50%)',
-                  transition: 'width 0.25s ease',
-                }} />
-              </button>
-            );
-          })}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ThemeToggle />
-            <SessionBadge />
-          </div>
-        </div>
+        {/* Bouton "← Retour à la carte" (visible uniquement en mode Étude) */}
+        {activeStudy && (
+          <button
+            type="button"
+            onClick={handleCloseStudy}
+            style={{
+              position: 'fixed', top: 12, left: 60, zIndex: 50,
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
+              color: 'var(--text-secondary)', borderRadius: 6, padding: '6px 12px',
+              fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            ← Retour à la carte
+          </button>
+        )}
 
-        {/* Map area — kept mounted, hidden when study tab active */}
-        <div style={{ flex: 1, position: 'relative', display: activeTab === 'map' ? 'flex' : 'none' }}>
+        {/* Map area — masquée quand activeStudy est true */}
+        <div style={{ flex: 1, position: 'relative', display: !activeStudy ? 'flex' : 'none' }}>
 
           {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay */}
           <button
@@ -2031,12 +2016,12 @@ export default function MapPage() {
         </div>
 
         {/* Study dashboard — lazy, affiché quand onglet Étude */}
-        {activeTab === 'study' && (
+        {activeStudy && (
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
             <StudyDashboard
               ville={studyVille}
               onPanneauClick={(lat, lng) => {
-                setActiveTab('map');
+                setActiveStudy(false);
                 setTimeout(() => handleFlyTo(lat, lng, 17), 80);
               }}
             />
