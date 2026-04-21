@@ -10,11 +10,20 @@ import { createAdminClient } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
 
+const AdminScopeSchema = z
+  .object({
+    scale: z.enum(['region', 'departement', 'cp', 'ville']),
+    codes: z.array(z.string()).min(1).max(500),
+  })
+  .nullable()
+  .optional();
+
 const BodySchema = z.object({
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
   buffer_meters: z.number().int().min(50).max(2000).default(250),
   min_tmja: z.number().int().min(0).max(1000000).default(0),
   limit: z.number().int().min(1).max(50000).default(10000),
+  admin_scope: AdminScopeSchema,
 });
 
 export async function POST(request: NextRequest) {
@@ -35,6 +44,7 @@ export async function POST(request: NextRequest) {
     p_buffer_meters: parsed.data.buffer_meters,
     p_min_tmja: parsed.data.min_tmja,
     p_limit: parsed.data.limit,
+    p_admin_scope: parsed.data.admin_scope ?? null,
   });
   if (error) {
     console.error('[custom-geo/source/tmja]', error.message);

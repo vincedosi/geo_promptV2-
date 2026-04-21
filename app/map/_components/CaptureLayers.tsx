@@ -20,6 +20,7 @@ import { useCallback, useRef } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
+import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import type { ClusterGeoJSON } from './ClusterPanel';
 
@@ -87,6 +88,9 @@ export function CaptureLayers({
   carreauxSelectedBucket,
   tmjaGeoJSON,
 }: Props) {
+  // getActiveScope est ref-based donc stable (pas de re-render quand le scope change).
+  // On le lit a chaque getGeometry() pour avoir la valeur courante.
+  const { getActiveScope } = useCustomGeoCaptureContext();
   // ── Battle isochrone ──────────────────────────────────────────────────
   const getBattleGeom = useCallback((): Promise<ContributedGeometry> => {
     if (!battleCacheKey) return Promise.resolve(null);
@@ -152,13 +156,20 @@ export function CaptureLayers({
   });
 
   // ── Voronoi (mode standard V1 — TODO V2 mode routier) ────────────────
+  // Limitation V1 : get_voronoi_by_category accepte UN seul code par filtre.
+  // Si le scope a >1 codes (multi-selection), on passe null pour ce filtre.
   const getVoronoiGeom = useCallback((): Promise<ContributedGeometry> => {
     if (!voronoiCategory) return Promise.resolve(null);
+    const scope = getActiveScope();
+    const monoCode = scope?.codes.length === 1 ? scope.codes[0] : null;
     return fetchGeometryFromRoute('/api/custom-geo/source/voronoi', {
       category: voronoiCategory,
       metropolitaine: true,
+      filtre_region: scope?.scale === 'region' ? monoCode : null,
+      filtre_departement: scope?.scale === 'departement' ? monoCode : null,
+      filtre_ville: scope?.scale === 'ville' ? monoCode : null,
     });
-  }, [voronoiCategory]);
+  }, [voronoiCategory, getActiveScope]);
 
   useCustomGeoLayer({
     id: 'map-voronoi-cells',
@@ -166,10 +177,14 @@ export function CaptureLayers({
     label: voronoiCategory ? `Voronoi ${voronoiCategory}` : 'Voronoi',
     enabled: voronoiVisible && !!voronoiCategory,
     getGeometry: getVoronoiGeom,
-    metadata: { category: voronoiCategory, mode: 'standard' },
+    metadata: {
+      category: voronoiCategory,
+      mode: 'standard',
+      admin_scope: getActiveScope(),
+    },
   });
 
-  // ── Carreaux Filosofi (bbox + indicateur ; bucket applique en metadata) ──
+  // ── Carreaux Filosofi (scope > bbox) ──────────────────────────────────
   const getCarreauxGeom = useCallback((): Promise<ContributedGeometry> => {
     const bbox = readBbox(mapRef);
     if (!bbox || !carreauxIndicateur) return Promise.resolve(null);
@@ -179,8 +194,9 @@ export function CaptureLayers({
       zoom_level: Math.max(7, Math.min(18, Math.round(zoom))),
       indicateur: carreauxIndicateur,
       max_rows: 5000,
+      admin_scope: getActiveScope(),
     });
-  }, [mapRef, carreauxIndicateur]);
+  }, [mapRef, carreauxIndicateur, getActiveScope]);
 
   useCustomGeoLayer({
     id: 'map-carreaux-filosofi',
@@ -191,10 +207,11 @@ export function CaptureLayers({
     metadata: {
       indicateur: carreauxIndicateur,
       selected_bucket: carreauxSelectedBucket,
+      admin_scope: getActiveScope(),
     },
   });
 
-  // ── TMJA (buffer 250m serveur-side) ──────────────────────────────────
+  // ── TMJA (scope > bbox, buffer 250m serveur-side) ────────────────────
   const tmjaFeaturesRef = useRef<number>(0);
   tmjaFeaturesRef.current = tmjaGeoJSON?.features.length ?? 0;
 
@@ -205,8 +222,9 @@ export function CaptureLayers({
       bbox,
       buffer_meters: 250,
       min_tmja: 0,
+      admin_scope: getActiveScope(),
     });
-  }, [mapRef]);
+  }, [mapRef, getActiveScope]);
 
   useCustomGeoLayer({
     id: 'map-tmja-routes',
@@ -217,6 +235,7 @@ export function CaptureLayers({
     metadata: {
       buffer_meters: 250,
       features_count: tmjaGeoJSON?.features.length ?? 0,
+      admin_scope: getActiveScope(),
     },
   });
 

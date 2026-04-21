@@ -16,6 +16,7 @@ import { ScoringPanel } from './ScoringPanel';
 import type { CampaignListItem } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
+import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import dynamic from 'next/dynamic';
 import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
@@ -784,6 +785,19 @@ export function FilterPanel({
     getGeometry: getAdminGeom,
     metadata: { scale: adminScale, codes: adminCodes },
   });
+
+  // Scope global : declare le filtre territorial comme scope actif pour les
+  // autres modules spatiaux (Carreaux/TMJA/Voronoi). Si l'user a un filtre
+  // dept ou region, leur capture sera prioritairement scopee dessus.
+  const { setActiveScope } = useCustomGeoCaptureContext();
+  useEffect(() => {
+    if (adminScale && adminCodes.length > 0) {
+      const scope: AdminScope = { scale: adminScale, codes: adminCodes };
+      setActiveScope(scope);
+    } else {
+      setActiveScope(null);
+    }
+  }, [adminScale, adminCodes, setActiveScope]);
 
   // ── Audience state ────────────────────────────────────────────────────────
 

@@ -11,6 +11,14 @@ import { createAdminClient } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
 
+const AdminScopeSchema = z
+  .object({
+    scale: z.enum(['region', 'departement', 'cp', 'ville']),
+    codes: z.array(z.string()).min(1).max(500),
+  })
+  .nullable()
+  .optional();
+
 const BodySchema = z.object({
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
   zoom_level: z.number().int().min(7).max(18).default(10),
@@ -18,6 +26,7 @@ const BodySchema = z.object({
   max_rows: z.number().int().min(1).max(20000).default(5000),
   value_min: z.number().nullable().optional(),
   value_max: z.number().nullable().optional(),
+  admin_scope: AdminScopeSchema,
 });
 
 export async function POST(request: NextRequest) {
@@ -40,6 +49,7 @@ export async function POST(request: NextRequest) {
     p_max_rows: parsed.data.max_rows,
     p_value_min: parsed.data.value_min ?? null,
     p_value_max: parsed.data.value_max ?? null,
+    p_admin_scope: parsed.data.admin_scope ?? null,
   });
   if (error) {
     console.error('[custom-geo/source/carreaux]', error.message);
