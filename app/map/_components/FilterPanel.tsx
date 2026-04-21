@@ -1602,7 +1602,7 @@ export function FilterPanel({
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'perimeter') && (
-        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
+        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
@@ -1753,7 +1753,7 @@ export function FilterPanel({
             CATÉGORIE — DONNÉES TERRAIN (ex-POI)
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'terrain') && (
-        <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode}>
+        <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
@@ -2290,7 +2290,7 @@ export function FilterPanel({
             CATÉGORIE — ANALYSES (ex-Analyse)
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'analyses') && (
-        <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
+        <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
@@ -3326,7 +3326,7 @@ export function FilterPanel({
             CATÉGORIE — CAMPAGNES MÉDIA
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'campaigns') && (
-        <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
+        <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Campaign selector */}

@@ -9,6 +9,9 @@ interface CategoryGroupProps {
   colorRgb?: string;
   defaultOpen?: boolean;
   collapsible?: boolean;
+  /** Si true, ne rend pas le header (dot+titre+chevron). Utile quand le composant
+   *  est rendu dans un overlay qui a déjà son propre header. */
+  hideHeader?: boolean;
   children: ReactNode;
 }
 
@@ -20,6 +23,7 @@ export function CategoryGroup({
   colorRgb = '78, 205, 196',
   defaultOpen = true,
   collapsible = true,
+  hideHeader = false,
   children,
 }: CategoryGroupProps) {
   const [open, setOpen] = useState(() => {
@@ -56,8 +60,10 @@ export function CategoryGroup({
   };
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      {/* Header bandeau — fond teinté par la couleur catégorie */}
+    <div style={{ marginBottom: hideHeader ? 0 : 12 }}>
+      {/* Header bandeau — fond teinté par la couleur catégorie. Masqué si
+          hideHeader (overlay a déjà son propre header) */}
+      {!hideHeader && (
       <div
         onClick={toggle}
         style={{
@@ -100,6 +106,7 @@ export function CategoryGroup({
           }} />
         )}
       </div>
+      )}
 
       {/* Collapsible body */}
       <div
