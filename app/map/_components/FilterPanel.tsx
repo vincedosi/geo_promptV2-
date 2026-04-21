@@ -834,8 +834,10 @@ export function FilterPanel({
       const worldRing: number[][] = [
         [-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85],
       ];
-      // Aplatissement des rings du MultiPolygon en trous successifs du polygone monde.
-      const holes: number[][][] = territoryGeom.coordinates.flatMap(poly => poly);
+      // Extraire UNIQUEMENT le ring exterieur de chaque sous-polygone du MultiPolygon.
+      // On jette les trous internes du territoire (sinon artefacts noirs : flatMap les
+      // inclurait comme "trous du trou" → portions visibles a l'interieur du masque).
+      const holes: number[][][] = territoryGeom.coordinates.map(polygon => polygon[0]);
       const maskFeature: GeoJSON.Feature<GeoJSON.Polygon> = {
         type: 'Feature',
         properties: {},
