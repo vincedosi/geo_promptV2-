@@ -828,43 +828,53 @@ export function FilterPanel({
     const cacheKey = `${adminScale}::${adminCodes.slice().sort().join(',')}`;
     let cancelled = false;
 
+    // Reorder : place le mask juste sous le premier layer de type symbol (labels).
+    // Resultat : mask au-dessus des data layers (carreaux/POI/voronoi/IRIS) →
+    // ils sont clippes visuellement par le mask hors-territoire. Mais reste sous
+    // les labels villes/pays → labels lisibles.
+    const reorderMask = () => {
+      try {
+        const layers = map.getStyle()?.layers ?? [];
+        const firstSymbol = layers.find(l =>
+          l.type === 'symbol' && l.id !== 'territory-mask-fill' && l.id !== 'territory-mask-border'
+        );
+        const beforeId = firstSymbol?.id;
+        if (map.getLayer('territory-mask-fill')) {
+          map.moveLayer('territory-mask-fill', beforeId);
+        }
+        if (map.getLayer('territory-mask-border')) {
+          map.moveLayer('territory-mask-border', beforeId);
+        }
+      } catch { /* race condition pendant style swap, ignorer */ }
+    };
+
     const applyMask = (territoryGeom: GeoJSON.MultiPolygon) => {
       if (cancelled) return;
       cleanup();
-      // Ring monde : sens antihoraire (CCW) en latitude 84.999 pour eviter les
-      // artefacts de projection aux poles (Mercator). Ordre haut-gauche →
-      // haut-droite → bas-droite → bas-gauche → retour = CCW pour MapLibre.
+      // Ring monde : sens antihoraire (CCW) lat 84.999 pour eviter artefacts Mercator.
       const worldRing: number[][] = [
         [-180, 84.999], [180, 84.999], [180, -84.999], [-180, -84.999], [-180, 84.999],
       ];
-      // Ring exterieur de chaque sous-polygone uniquement (pas les trous internes).
       const holes: number[][][] = territoryGeom.coordinates.map(polygon => polygon[0]);
       const maskFeature: GeoJSON.Feature<GeoJSON.Polygon> = {
-        type: 'Feature',
-        properties: {},
+        type: 'Feature', properties: {},
         geometry: { type: 'Polygon', coordinates: [worldRing, ...holes] },
       };
       const territoryFeature: GeoJSON.Feature<GeoJSON.MultiPolygon> = {
-        type: 'Feature',
-        properties: {},
-        geometry: territoryGeom,
+        type: 'Feature', properties: {}, geometry: territoryGeom,
       };
       const fc: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: [maskFeature, territoryFeature],
+        type: 'FeatureCollection', features: [maskFeature, territoryFeature],
       };
       try {
         map.addSource('territory-mask', { type: 'geojson', data: fc });
-        // Fill mask (polygone monde avec trous). Ajoute en haut → passe au-dessus
-        // des data layers (carreaux, POI, voronoi) qui sont ainsi clippes visuellement.
         map.addLayer({
           id: 'territory-mask-fill',
           type: 'fill',
           source: 'territory-mask',
           filter: ['==', ['geometry-type'], 'Polygon'],
-          paint: { 'fill-color': '#000000', 'fill-opacity': 0.70 },
+          paint: { 'fill-color': '#000000', 'fill-opacity': 0.75 },
         });
-        // Bordure teal autour du territoire (territoire = 2e feature MultiPolygon)
         map.addLayer({
           id: 'territory-mask-border',
           type: 'line',
@@ -872,26 +882,26 @@ export function FilterPanel({
           filter: ['==', ['geometry-type'], 'MultiPolygon'],
           paint: { 'line-color': '#4ecdc4', 'line-width': 3 },
         });
-        // Remonter les labels (symbol layers du fond de carte) au-dessus du mask
-        // pour qu'ils restent lisibles. On scanne tous les layers de type symbol.
-        try {
-          const allLayers = map.getStyle().layers ?? [];
-          for (const layer of allLayers) {
-            if (layer.type === 'symbol' && layer.id !== 'territory-mask-fill' && layer.id !== 'territory-mask-border') {
-              try { map.moveLayer(layer.id); } catch { /* layer deja au sommet ou invalide */ }
-            }
-          }
-        } catch { /* noop */ }
+        reorderMask();
       } catch (err) {
         console.warn('[territory-mask] add layer failed', err);
       }
     };
 
+    // Re-reorder a chaque ajout de layer (carreaux, IRIS, etc.) qui passerait
+    // automatiquement au-dessus du mask sinon. styledata = trigger MapLibre
+    // pour tout changement structurel du style.
+    map.on('styledata', reorderMask);
+
     // Cache hit : re-applique direct
     if (territoryMaskCacheRef.current && territoryMaskCacheRef.current.key === cacheKey) {
       const cached = territoryMaskCacheRef.current.geom;
       if (cached) applyMask(cached);
-      return cleanup;
+      return () => {
+        cancelled = true;
+        try { map.off('styledata', reorderMask); } catch { /* noop */ }
+        cleanup();
+      };
     }
 
     // Sinon fetch
@@ -906,9 +916,13 @@ export function FilterPanel({
         territoryMaskCacheRef.current = { key: cacheKey, geom };
         if (geom) applyMask(geom);
       })
-      .catch(() => { /* silent : laisse la carte en mode normal */ });
+      .catch(() => { /* silent */ });
 
-    return () => { cancelled = true; cleanup(); };
+    return () => {
+      cancelled = true;
+      try { map.off('styledata', reorderMask); } catch { /* noop */ }
+      cleanup();
+    };
   }, [territoryMaskEnabled, adminScale, adminCodes, mainMapRef]);
 
   // ── Audience state ────────────────────────────────────────────────────────
