@@ -555,30 +555,9 @@ export function ChatPanel({
         style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}
       >
 
-        {/* Empty state */}
-        {messages.length === 0 && smartMessages.length === 0 && (
-          <div style={{ padding: '40px 8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {[
-                { text: 'Lycées et CIRFA à Brest' },
-                { text: 'Lycées à Brest + où vivent les 18-24 ans' },
-                { text: "Zone piétonne 5 min autour des lycées à Brest" },
-                { text: 'Zone 15 min voiture autour des CIRFA de Lyon' },
-              ].map(({ text }, index) => (
-                <button key={text} onClick={() => sendMessage(text)} style={{
-                  background: 'transparent', border: `0.5px solid ${C.border}`, borderRadius: 4,
-                  padding: '9px 14px', color: C.textSec, cursor: 'pointer', fontSize: 11,
-                  textAlign: 'left', transition: 'border-color 0.2s ease, color 0.2s ease',
-                  animation: `cardStagger 0.4s ease-out ${0.1 + index * 0.06}s both`,
-                  fontFamily: fontInter, fontWeight: 300, letterSpacing: '0.03em',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-teal-30)'; e.currentTarget.style.background = 'var(--bg-level-3)'; e.currentTarget.style.color = C.text; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textSec; }}
-                >{text}</button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Empty state supprimé — l'overlay AI affiche directement le chat
+            sans landing screen. Les suggestions peuvent être ajoutées plus
+            tard comme chips compacts sous l'input (non sous forme de cards). */}
 
         {/* Flux unifié */}
         {allItems.map(item => {
