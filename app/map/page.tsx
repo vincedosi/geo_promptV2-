@@ -41,6 +41,7 @@ import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
+import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -1392,6 +1393,33 @@ export default function MapPage() {
         onItemClick={handleOverlayToggle}
         studyAvailable={!!studyVille}
       />
+      {activeOverlay && (
+        <OverlayPanel
+          category={activeOverlay}
+          title={
+            activeOverlay === 'ai' ? 'geo.prompt' :
+            activeOverlay === 'perimeter' ? 'Périmètre' :
+            activeOverlay === 'terrain' ? 'Données terrain' :
+            activeOverlay === 'analyses' ? 'Analyses' :
+            activeOverlay === 'campaigns' ? 'Campagnes média' :
+            'Réglages'
+          }
+          dotColor={
+            activeOverlay === 'ai' ? 'var(--brand-teal)' :
+            activeOverlay === 'perimeter' ? 'var(--cat-context)' :
+            activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
+            activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
+            activeOverlay === 'campaigns' ? 'var(--cat-media)' :
+            'var(--text-tertiary)'
+          }
+          onClose={() => setActiveOverlay(null)}
+        >
+          <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif" }}>
+            Placeholder pour <code style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--brand-teal)' }}>{activeOverlay}</code>.
+            Contenu migré en Phase 4.
+          </div>
+        </OverlayPanel>
+      )}
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
