@@ -60,7 +60,7 @@
     --sidebar-width: 240px;
 
     /* Overlay flottant (IconBar overlay) — semi-transparent pour laisser voir la carte */
-    --card-overlay: rgba(10, 10, 10, 0.95);
+    --card-overlay: rgba(10, 10, 10, 0.92);
 
     /* ── Motion tokens (Emil Kowalski curves) ─────────────────────────── */
     --ease-out:     cubic-bezier(0.23, 1, 0.32, 1);     /* strong ease-out for UI entry/press */
@@ -140,7 +140,7 @@
     --info:    #3a78c0;
 
     /* Overlay flottant (light) */
-    --card-overlay: rgba(248, 248, 248, 0.95);
+    --card-overlay: rgba(248, 248, 248, 0.90);
 
     /* Category colors (light) */
     --cat-context: #737373;

@@ -73,9 +73,9 @@ export function OverlayPanel({
         left: 56, // 48 IconBar + 8 gap
         width,
         maxHeight: 'calc(100vh - 24px)',
-        background: 'var(--card-overlay, rgba(10, 10, 10, 0.95))',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         border: '0.5px solid var(--border-default, #262626)',
         borderRadius: 12,
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
