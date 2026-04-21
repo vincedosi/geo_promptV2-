@@ -43,6 +43,7 @@ import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
+import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -1659,9 +1660,13 @@ export default function MapPage() {
             />
           )}
           {activeOverlay === 'settings' && (
-            <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif" }}>
-              Réglages — fond de carte, thème et navigation seront ajoutés en Task 4.7.
-            </div>
+            <SettingsOverlay
+              mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
+              currentMapStyleUrl={mapStyleUrl}
+              onMapStyleChange={handleMapStyleChange}
+              onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
+              saveLoading={savedMaps.saveLoading}
+            />
           )}
         </OverlayPanel>
       )}
