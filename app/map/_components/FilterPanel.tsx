@@ -587,6 +587,9 @@ export function FilterPanel({
   // ── UX: Collapsible sections with localStorage memory ─────────────────────
   const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja'] as const;
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
+    // En mode overlay, tous les accordéons fermés par défaut — l'utilisateur
+    // clique sur le nom pour déplier le layer qu'il veut. Pas de persistance.
+    if (isOverlayMode) return Object.fromEntries(SECTION_KEYS.map(k => [k, false]));
     if (typeof window === 'undefined') return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
     try {
       const saved = localStorage.getItem('geomatik-filter-sections');
@@ -597,7 +600,10 @@ export function FilterPanel({
   const toggleSection = (key: string) => {
     setSectionsOpen(prev => {
       const next = { ...prev, [key]: !prev[key] };
-      try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+      // Pas de persistance en mode overlay pour ne pas polluer l'état full-panel
+      if (!isOverlayMode) {
+        try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+      }
       return next;
     });
   };
