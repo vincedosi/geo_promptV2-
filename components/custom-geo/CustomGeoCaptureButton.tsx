@@ -7,7 +7,7 @@
  * Affiche un badge avec le compteur de layers enabled.
  */
 import { useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import { CustomGeoCaptureModal } from './CustomGeoCaptureModal';
 
@@ -25,7 +25,7 @@ export function CustomGeoCaptureButton() {
         title={disabled ? 'Aucune zone a capturer' : 'Sauvegarder la vue comme zone custom'}
         style={{
           position: 'fixed',
-          bottom: 24,
+          top: 24,
           right: 24,
           // /map utilise un overlay zIndex 9999 ; on doit passer au-dessus.
           zIndex: 10000,
@@ -45,7 +45,7 @@ export function CustomGeoCaptureButton() {
         onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = 'scale(1.05)'; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
       >
-        <MapPin size={20} />
+        <Save size={20} />
         {layerCount > 0 && (
           <span style={{
             position: 'absolute',

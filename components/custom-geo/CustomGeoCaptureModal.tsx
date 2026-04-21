@@ -181,19 +181,21 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
       onClick={() => !saving && onClose()}
       style={{
         position: 'fixed', inset: 0, zIndex: 10001,
-        background: 'rgba(0,0,0,0.7)',
+        // Backdrop adaptatif theme — moins opaque en light, plus en dark
+        background: 'var(--overlay-backdrop, rgba(0,0,0,0.5))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#111111',
-          border: '0.5px solid var(--border-subtle)',
+          background: 'var(--bg-surface)',
+          border: '0.5px solid var(--border-default)',
           borderRadius: 10,
           width: '100%', maxWidth: 560, maxHeight: '90vh',
           display: 'flex', flexDirection: 'column',
           fontFamily: fInter, color: 'var(--text-primary)',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
         }}
       >
         {/* Header */}
