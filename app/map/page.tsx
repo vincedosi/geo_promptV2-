@@ -1490,10 +1490,177 @@ export default function MapPage() {
           onClose={() => setActiveOverlay(null)}
         >
           {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {activeOverlay !== 'ai' && (
+          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
+            <FilterPanel
+              visibleCategory={activeOverlay}
+              chatSlot={null}
+              sendMessage={chat.sendMessage}
+              onDirectOOH={handleDirectOOH}
+              onDirectSearch={handleDirectSearch}
+              onDirectBattle={handleDirectBattle}
+              onDirectBattleV2={handleDirectBattleV2}
+              onFillIsochroneCache={handleFillIsochroneCache}
+              onApplyBattle={handleApplyBattle}
+              isLoading={chat.isLoading}
+              error={error}
+              zoneData={zoneData}
+              voronoiVisible={mapLayers.voronoiVisible}
+              setVoronoiVisible={mapLayers.setVoronoiVisible}
+              battleVisible={mapLayers.battleVisible}
+              setBattleVisible={mapLayers.setBattleVisible}
+              battleOuterFillVisible={mapLayers.battleOuterFillVisible}
+              setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
+              isochroneVisible={mapLayers.isochroneVisible}
+              setIsochroneVisible={mapLayers.setIsochroneVisible}
+              setShowSavePanel={savedMaps.setShowSavePanel}
+              battleFeatures={battleFeatures}
+              battlePois={battlePois}
+              battleCacheKey={battleCacheKey}
+              densityMode={densityMode}
+              onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
+              onPOIStylesChange={setPoiStyles}
+              clusterGeoJSON={clusterGeoJSON}
+              clustersVisible={clustersVisible}
+              clusterLoading={clusterLoading}
+              clusterDuration={clusterDuration}
+              onToggleClusters={handleToggleClusters}
+              onLoadClusters={handleToggleClusters}
+              onClusterDurationChange={handleClusterDurationChange}
+              onFlyTo={handleFlyTo}
+              onFitBounds={handleFitBounds}
+              onWizardHighlight={handleWizardHighlight}
+              onWizardClose={() => setWizardHighlightGeoJSON(null)}
+              carreauxVisible={mapLayers.carreauxVisible}
+              carreauxLoaded={mapLayers.carreauxLoaded}
+              carreauxIndicateur={mapLayers.carreauxIndicateur}
+              carreauxPalette={mapLayers.carreauxPalette}
+              carreauxOpacity={mapLayers.carreauxOpacity}
+              carreauxRange={mapLayers.carreauxRange}
+              carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+              setCarreauxVisible={mapLayers.setCarreauxVisible}
+              setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+              setCarreauxPalette={mapLayers.setCarreauxPalette}
+              setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+              setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+              irisVisible={mapLayers.irisVisible}
+              irisIndicateur={mapLayers.irisIndicateur}
+              irisPalette={mapLayers.irisPalette}
+              irisOpacity={mapLayers.irisOpacity}
+              irisStats={mapLayers.irisStats}
+              irisTrueOnly={mapLayers.irisTrueOnly}
+              setIrisVisible={mapLayers.setIrisVisible}
+              setIrisIndicateur={mapLayers.setIrisIndicateur}
+              setIrisPalette={mapLayers.setIrisPalette}
+              setIrisOpacity={mapLayers.setIrisOpacity}
+              setIrisTrueOnly={mapLayers.setIrisTrueOnly}
+              scoringMapRef={mapRef}
+              scoringMapReady={mapReady}
+              mainMapRef={mapRef}
+              onScoreComputed={(v) => setStudyVille(v)}
+              onLoadTransport={handleLoadTransport}
+              onLoadTMJA={handleLoadTMJA}
+              tmjaVisible={!!tmjaGeoJSON}
+              onClearTMJA={() => setTmjaGeoJSON(null)}
+              radioVisible={radioVisible}
+              onToggleRadio={() => setRadioVisible(v => !v)}
+              radioHeatmapMode={radioHeatmapMode}
+              onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+              radioCoverageMode={radioCoverageMode}
+              onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+              radioLoading={radioLoading}
+              radioSystemeFilter={radioSystemeFilter}
+              onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
+              onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+              radioCount={radioGeoJSON?.features.length ?? 0}
+              radioSelectedNom={radioSelectedNom}
+              onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+              radioCoverageColor={radioCoverageColor}
+              onRadioCoverageColorChange={setRadioCoverageColor}
+              radioCoverageOpacity={radioCoverageOpacity}
+              onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+              radioBorderWidth={radioBorderWidth}
+              onRadioBorderWidthChange={setRadioBorderWidth}
+              radioPointSize={radioPointSize}
+              onRadioPointSizeChange={setRadioPointSize}
+              onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
+              correlationParams={correlationParams}
+              onShowResiduals={handleShowResiduals}
+              digitalVisible={digitalVisible}
+              digitalLoading={digitalLoading}
+              digitalStats={digitalStats}
+              digitalPalette={digitalPalette}
+              onDigitalPaletteChange={setDigitalPalette}
+              digitalInverted={digitalInverted}
+              onDigitalInvertChange={setDigitalInverted}
+              digitalScale={digitalScale}
+              onDigitalScaleChange={setDigitalScale}
+              onDigitalShowImpressions={async (campaignId: string) => {
+                if (!campaignId) return;
+                digitalCampaignIdRef.current = campaignId;
+                setDigitalCampaignId(campaignId);
+                setDigitalLoading(true);
+                mapLayers.setIrisVisible(false);
+                try {
+                  const map = mapRef.current;
+                  if (!map) return;
+                  const res = await adminFetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const fc = await res.json() as GeoJSON.FeatureCollection;
+                  const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+                  if (src) src.setData(fc);
+                  const values = fc.features
+                    .map(f => Number(f.properties?.impressions) || 0)
+                    .filter(v => v > 0)
+                    .sort((a, b) => a - b);
+                  if (values.length > 0) {
+                    const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
+                    digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
+                  } else {
+                    digitalPercentilesRef.current = [0, 1, 10, 100, 1000, 10000];
+                  }
+                  const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
+                  const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
+                  const pts = digitalPercentilesRef.current;
+                  const pairs: (string | number)[] = [];
+                  for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
+                    pairs.push(pts[i], stops[i]);
+                  }
+                  map.setPaintProperty('digital-cp-fill', 'fill-color', [
+                    'case',
+                    ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
+                    ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
+                  ]);
+                  map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
+                  const totalImp = values.reduce((a, b) => a + b, 0);
+                  const campRes = await adminFetch('/api/digital/campaigns');
+                  const camps = campRes.ok ? await campRes.json() : [];
+                  const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
+                  setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
+                  setDigitalVisible(true);
+                } catch (err: unknown) {
+                  console.error('[digital]', err);
+                } finally {
+                  setDigitalLoading(false);
+                }
+              }}
+              onDigitalClear={() => {
+                setDigitalVisible(false);
+                setDigitalStats(null);
+                setDigitalAnalysisOpen(false);
+                setDigitalCampaignId('');
+                const map = mapRef.current;
+                const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
+                src?.setData({ type: 'FeatureCollection', features: [] });
+              }}
+              onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
+              digitalPopField={digitalPopField}
+              onDigitalPopFieldChange={setDigitalPopField}
+              studyVille={studyVille}
+            />
+          )}
+          {activeOverlay === 'settings' && (
             <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif" }}>
-              Placeholder pour <code style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--brand-teal)' }}>{activeOverlay}</code>.
-              Contenu migré en Phase 4 suivante.
+              Réglages — fond de carte, thème et navigation seront ajoutés en Task 4.7.
             </div>
           )}
         </OverlayPanel>
@@ -1514,190 +1681,6 @@ export default function MapPage() {
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         tmjaGeoJSON={tmjaGeoJSON}
       />
-      <div style={{
-        transition: 'margin-left 0.3s ease, opacity 0.3s ease',
-        marginLeft: mapFullscreen ? '-100%' : 0,
-        opacity: mapFullscreen ? 0 : 1,
-        flexShrink: 0,
-        pointerEvents: mapFullscreen ? 'none' : 'auto',
-        overflow: 'hidden',
-      }}>
-      <FilterPanel
-        chatSlot={activeOverlay === 'ai' ? null : chatSlotContent}
-        sendMessage={chat.sendMessage}
-        onDirectOOH={handleDirectOOH}
-        onDirectSearch={handleDirectSearch}
-        onDirectBattle={handleDirectBattle}
-        onDirectBattleV2={handleDirectBattleV2}
-        onFillIsochroneCache={handleFillIsochroneCache}
-        onApplyBattle={handleApplyBattle}
-        isLoading={chat.isLoading}
-        error={error}
-        zoneData={zoneData}
-        voronoiVisible={mapLayers.voronoiVisible}
-        setVoronoiVisible={mapLayers.setVoronoiVisible}
-        battleVisible={mapLayers.battleVisible}
-        setBattleVisible={mapLayers.setBattleVisible}
-        battleOuterFillVisible={mapLayers.battleOuterFillVisible}
-        setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
-        isochroneVisible={mapLayers.isochroneVisible}
-        setIsochroneVisible={mapLayers.setIsochroneVisible}
-        setShowSavePanel={savedMaps.setShowSavePanel}
-        battleFeatures={battleFeatures}
-        battlePois={battlePois}
-        battleCacheKey={battleCacheKey}
-        densityMode={densityMode}
-        onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
-        onPOIStylesChange={setPoiStyles}
-        clusterGeoJSON={clusterGeoJSON}
-        clustersVisible={clustersVisible}
-        clusterLoading={clusterLoading}
-        clusterDuration={clusterDuration}
-        onToggleClusters={handleToggleClusters}
-        onLoadClusters={handleToggleClusters}
-        onClusterDurationChange={handleClusterDurationChange}
-        onFlyTo={handleFlyTo}
-        onFitBounds={handleFitBounds}
-        onWizardHighlight={handleWizardHighlight}
-        onWizardClose={() => setWizardHighlightGeoJSON(null)}
-        carreauxVisible={mapLayers.carreauxVisible}
-        carreauxLoaded={mapLayers.carreauxLoaded}
-        carreauxIndicateur={mapLayers.carreauxIndicateur}
-        carreauxPalette={mapLayers.carreauxPalette}
-        carreauxOpacity={mapLayers.carreauxOpacity}
-        carreauxRange={mapLayers.carreauxRange}
-        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
-        setCarreauxVisible={mapLayers.setCarreauxVisible}
-        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
-        setCarreauxPalette={mapLayers.setCarreauxPalette}
-        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
-        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
-        irisVisible={mapLayers.irisVisible}
-        irisIndicateur={mapLayers.irisIndicateur}
-        irisPalette={mapLayers.irisPalette}
-        irisOpacity={mapLayers.irisOpacity}
-        irisStats={mapLayers.irisStats}
-        irisTrueOnly={mapLayers.irisTrueOnly}
-        setIrisVisible={mapLayers.setIrisVisible}
-        setIrisIndicateur={mapLayers.setIrisIndicateur}
-        setIrisPalette={mapLayers.setIrisPalette}
-        setIrisOpacity={mapLayers.setIrisOpacity}
-        setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-        scoringMapRef={mapRef}
-        scoringMapReady={mapReady}
-        mainMapRef={mapRef}
-        onScoreComputed={(v) => setStudyVille(v)}
-        onLoadTransport={handleLoadTransport}
-        onLoadTMJA={handleLoadTMJA}
-        tmjaVisible={!!tmjaGeoJSON}
-        onClearTMJA={() => setTmjaGeoJSON(null)}
-        radioVisible={radioVisible}
-        onToggleRadio={() => setRadioVisible(v => !v)}
-        radioHeatmapMode={radioHeatmapMode}
-        onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
-        radioCoverageMode={radioCoverageMode}
-        onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
-        radioLoading={radioLoading}
-        radioSystemeFilter={radioSystemeFilter}
-        onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
-        onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
-        radioCount={radioGeoJSON?.features.length ?? 0}
-        radioSelectedNom={radioSelectedNom}
-        onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
-        radioCoverageColor={radioCoverageColor}
-        onRadioCoverageColorChange={setRadioCoverageColor}
-        radioCoverageOpacity={radioCoverageOpacity}
-        onRadioCoverageOpacityChange={setRadioCoverageOpacity}
-        radioBorderWidth={radioBorderWidth}
-        onRadioBorderWidthChange={setRadioBorderWidth}
-        radioPointSize={radioPointSize}
-        onRadioPointSizeChange={setRadioPointSize}
-        onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-        correlationParams={correlationParams}
-        onShowResiduals={handleShowResiduals}
-        digitalVisible={digitalVisible}
-        digitalLoading={digitalLoading}
-        digitalStats={digitalStats}
-        digitalPalette={digitalPalette}
-        onDigitalPaletteChange={setDigitalPalette}
-        digitalInverted={digitalInverted}
-        onDigitalInvertChange={setDigitalInverted}
-        digitalScale={digitalScale}
-        onDigitalScaleChange={setDigitalScale}
-        onDigitalShowImpressions={async (campaignId: string) => {
-          if (!campaignId) return;
-          digitalCampaignIdRef.current = campaignId;
-          setDigitalCampaignId(campaignId);
-          setDigitalLoading(true);
-          mapLayers.setIrisVisible(false);
-          try {
-            const map = mapRef.current;
-            if (!map) return;
-
-            // Always load all of France (metro + DOM)
-            const res = await adminFetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const fc = await res.json() as GeoJSON.FeatureCollection;
-
-            const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
-            if (src) src.setData(fc);
-
-            // Compute percentiles for palette
-            const values = fc.features
-              .map(f => Number(f.properties?.impressions) || 0)
-              .filter(v => v > 0)
-              .sort((a, b) => a - b);
-
-            if (values.length > 0) {
-              const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
-              digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
-            } else {
-              digitalPercentilesRef.current = [0, 1, 10, 100, 1000, 10000];
-            }
-
-            // Apply palette
-            const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
-            const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
-            const pts = digitalPercentilesRef.current;
-            const pairs: (string | number)[] = [];
-            for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
-              pairs.push(pts[i], stops[i]);
-            }
-            map.setPaintProperty('digital-cp-fill', 'fill-color', [
-              'case',
-              ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
-              ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
-            ]);
-            map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
-
-            const totalImp = values.reduce((a, b) => a + b, 0);
-            // Get campaign name
-            const campRes = await adminFetch('/api/digital/campaigns');
-            const camps = campRes.ok ? await campRes.json() : [];
-            const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
-
-            setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
-            setDigitalVisible(true);
-          } catch (err: unknown) {
-            console.error('[digital]', err);
-          } finally {
-            setDigitalLoading(false);
-          }
-        }}
-        onDigitalClear={() => {
-          setDigitalVisible(false);
-          setDigitalStats(null);
-          setDigitalAnalysisOpen(false);
-          setDigitalCampaignId('');
-          const map = mapRef.current;
-          const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
-          src?.setData({ type: 'FeatureCollection', features: [] });
-        }}
-        onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
-        digitalPopField={digitalPopField}
-        onDigitalPopFieldChange={setDigitalPopField}
-      />
-      </div>{/* end fullscreen wrapper */}
       {/* ── Right panel: tabs Carte / Étude ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 

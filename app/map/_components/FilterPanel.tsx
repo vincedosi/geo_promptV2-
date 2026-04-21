@@ -386,6 +386,13 @@ export interface FilterPanelProps {
   onOpenDigitalAnalysis?: () => void;
   digitalPopField?: string;
   onDigitalPopFieldChange?: (field: string) => void;
+  /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
+   *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
+  visibleCategory?: 'perimeter' | 'terrain' | 'analyses' | 'campaigns';
+  /** Ouverture d'une étude de ville (CTA dans section Scoring, overlay Analyses) */
+  onOpenStudy?: () => void;
+  /** Ville courante de l'étude (affichée dans le CTA si set) */
+  studyVille?: string | null;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -570,7 +577,9 @@ export function FilterPanel({
   onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
+  visibleCategory, onOpenStudy, studyVille,
 }: FilterPanelProps) {
+  const isOverlayMode = !!visibleCategory;
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
   const [filterSearch, setFilterSearch] = useState('');
@@ -1372,13 +1381,19 @@ export function FilterPanel({
   const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0) + (clusterGeoJSON ? 1 : 0);
 
   return (
-    <div style={{
+    <div style={isOverlayMode ? {
+      width: '100%', height: '100%',
+      background: 'transparent',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      position: 'relative',
+    } : {
       width: panelWidth, minWidth: 260, height: '100%',
       background: C.bgPanel, borderRight: `0.5px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       position: 'relative', flexShrink: 0,
     }}>
-      {/* ── Resize handle with dots indicator ── */}
+      {/* ── Resize handle with dots indicator (masqué en mode overlay) ── */}
+      {!isOverlayMode && (
       <div
         onMouseDown={onResizeMouseDown}
         onDoubleClick={() => setPanelWidth(prev => prev > 400 ? 320 : 560)}
@@ -1397,6 +1412,7 @@ export function FilterPanel({
           <div style={{ width: 2, height: 2, borderRadius: '50%', background: 'var(--text-tertiary)' }} />
         </div>
       </div>
+      )}
 
 
       {/* ── Error / loading bar ───────────────────────────────────────────── */}
@@ -1415,7 +1431,8 @@ export function FilterPanel({
         </div>
       )}
 
-      {/* ── Bouton HOME ───────────────────────────────────────────────────── */}
+      {/* ── Bouton HOME (masqué en mode overlay) ──────────────────────────── */}
+      {!isOverlayMode && (
       <a href="/dashboard" style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '9px 14px', flexShrink: 0,
@@ -1432,8 +1449,10 @@ export function FilterPanel({
         </svg>
         Home
       </a>
+      )}
 
-      {/* ── Tab navigation (2 onglets maîtres) ──────────────────────────── */}
+      {/* ── Tab navigation (masquée en mode overlay) ─────────────────────── */}
+      {!isOverlayMode && (
       <div style={{ display: 'flex', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.bgPanel, position: 'relative' }}>
         {/* GEO.PROMPT */}
         {(() => {
@@ -1492,6 +1511,7 @@ export function FilterPanel({
           );
         })()}
       </div>
+      )}
 
       {/* Sous-onglets Expert supprimés — tout en panel unique scrollable */}
 
@@ -1501,7 +1521,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             ONGLET MAÎTRE 1 — GEO.PROMPT (chat IA)
         ════════════════════════════════════════ */}
-        {activeTab === 'geoprompt' && (
+        {activeTab === 'geoprompt' && !isOverlayMode && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
             {chatSlot}
           </div>
@@ -1510,8 +1530,8 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             ONGLET MAÎTRE 2 — EXPERT (sous-onglets)
         ════════════════════════════════════════ */}
-        {/* ── Search + Quick actions (Expert tab only) ── */}
-        {activeTab === 'expert' && (
+        {/* ── Search + Quick actions (Expert tab only — masqué en mode overlay) ── */}
+        {activeTab === 'expert' && !isOverlayMode && (
           <div style={{ padding: '8px 12px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Search input */}
             <div style={{ position: 'relative' }}>
@@ -1569,13 +1589,14 @@ export function FilterPanel({
         )}
 
         {/* ── Scrollable wrapper pour territoire + poi + analyse ── */}
-        {activeTab === 'expert' && (
-        <div className="filter-panel-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {(activeTab === 'expert' || isOverlayMode) && (
+        <div className="filter-panel-scroll" style={{ flex: 1, overflowY: isOverlayMode ? 'visible' : 'auto', minHeight: 0 }}>
 
         {/* ════════════════════════════════════════
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={false}>
+        {(!visibleCategory || visibleCategory === 'perimeter') && (
+        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Scope global */}
@@ -1720,11 +1741,13 @@ export function FilterPanel({
 
           </div>
         </CategoryGroup>
+        )}
 
         {/* ════════════════════════════════════════
             CATÉGORIE — DONNÉES TERRAIN (ex-POI)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true}>
+        {(!visibleCategory || visibleCategory === 'terrain') && (
+        <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── Section : Points d'intérêt ─────────────────────────────── */}
@@ -2255,11 +2278,13 @@ export function FilterPanel({
 
           </div>
         </CategoryGroup>
+        )}
 
         {/* ════════════════════════════════════════
             CATÉGORIE — ANALYSES (ex-Analyse)
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={false}>
+        {(!visibleCategory || visibleCategory === 'analyses') && (
+        <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
@@ -3266,11 +3291,13 @@ export function FilterPanel({
 
           </div>
         </CategoryGroup>
+        )}
 
         {/* ════════════════════════════════════════
             CATÉGORIE — CAMPAGNES MÉDIA
         ════════════════════════════════════════ */}
-        <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={false}>
+        {(!visibleCategory || visibleCategory === 'campaigns') && (
+        <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Campaign selector */}
@@ -3434,14 +3461,15 @@ export function FilterPanel({
 
           </div>
         </CategoryGroup>
+        )}
 
         </div>
         )}
 
       </div>
 
-      {/* ── Footer actions ────────────────────────────────────────────────── */}
-      {activeTab !== 'geoprompt' && (
+      {/* ── Footer actions (masqué en mode overlay) ──────────────────────── */}
+      {activeTab !== 'geoprompt' && !isOverlayMode && (
       <div style={{ borderTop: `0.5px solid ${C.border}`, padding: '10px 14px', display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={() => setShowSavePanel(true)}
