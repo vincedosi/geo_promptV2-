@@ -180,7 +180,7 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
     <div
       onClick={() => !saving && onClose()}
       style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
+        position: 'fixed', inset: 0, zIndex: 10001,
         background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}

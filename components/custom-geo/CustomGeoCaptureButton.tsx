@@ -27,7 +27,8 @@ export function CustomGeoCaptureButton() {
           position: 'fixed',
           bottom: 24,
           right: 24,
-          zIndex: 1000,
+          // /map utilise un overlay zIndex 9999 ; on doit passer au-dessus.
+          zIndex: 10000,
           width: 48,
           height: 48,
           borderRadius: '50%',
