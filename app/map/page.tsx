@@ -73,7 +73,7 @@ export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [activeTab,   setActiveTab]   = useState<'map' | 'study'>('map');
-  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
   const handleOverlayToggle = useCallback((id: OverlayId) => {
     setActiveOverlay(prev => prev === id ? null : id);
@@ -150,14 +150,14 @@ export default function MapPage() {
   const [irisDetailLoading,  setIrisDetailLoading]  = useState(false);
   const irisClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
 
-  // ── Fullscreen keyboard shortcut (Escape to exit) ──────────────────────────
+  // ── Esc : si IconBar masquée, la ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && mapFullscreen) { setMapFullscreen(false); e.preventDefault(); }
+      if (e.key === 'Escape' && iconBarHidden) { setIconBarHidden(false); e.preventDefault(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mapFullscreen]);
+  }, [iconBarHidden]);
 
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
@@ -1463,10 +1463,11 @@ export default function MapPage() {
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: 48 }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: iconBarHidden ? 0 : 48, transition: 'padding-left 200ms var(--ease-out)' }}>
       <IconBar
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}
+        hidden={iconBarHidden}
         studyAvailable={!!studyVille}
       />
       {activeOverlay && (
@@ -1735,12 +1736,13 @@ export default function MapPage() {
         {/* Map area — kept mounted, hidden when study tab active */}
         <div style={{ flex: 1, position: 'relative', display: activeTab === 'map' ? 'flex' : 'none' }}>
 
-          {/* Fullscreen toggle button */}
+          {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay */}
           <button
-            onClick={() => setMapFullscreen(f => !f)}
-            title={mapFullscreen ? 'Quitter le plein écran (Escape)' : 'Carte plein écran'}
+            onClick={() => setIconBarHidden(h => !h)}
+            title={iconBarHidden ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
+            aria-pressed={iconBarHidden}
             style={{
-              position: 'absolute', top: 10, right: 10, zIndex: 20,
+              position: 'fixed', top: 10, right: 10, zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1749,7 +1751,7 @@ export default function MapPage() {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            {mapFullscreen ? <Minimize2 size={16} strokeWidth={1.5} /> : <Maximize2 size={16} strokeWidth={1.5} />}
+            {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
 
           {/* Toggle vue comparée / fusionnée — visible uniquement quand Digital actif */}
