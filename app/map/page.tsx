@@ -40,6 +40,7 @@ import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
+import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -70,6 +71,10 @@ export default function MapPage() {
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [activeTab,   setActiveTab]   = useState<'map' | 'study'>('map');
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
+  const handleOverlayToggle = useCallback((id: OverlayId) => {
+    setActiveOverlay(prev => prev === id ? null : id);
+  }, []);
   const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
@@ -1381,7 +1386,12 @@ export default function MapPage() {
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: 48 }}>
+      <IconBar
+        activeItem={activeOverlay}
+        onItemClick={handleOverlayToggle}
+        studyAvailable={!!studyVille}
+      />
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
