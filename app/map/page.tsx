@@ -1544,6 +1544,7 @@ export default function MapPage() {
         setIrisTrueOnly={mapLayers.setIrisTrueOnly}
         scoringMapRef={mapRef}
         scoringMapReady={mapReady}
+        mainMapRef={mapRef}
         onScoreComputed={(v) => setStudyVille(v)}
         onLoadTransport={handleLoadTransport}
         onLoadTMJA={handleLoadTMJA}

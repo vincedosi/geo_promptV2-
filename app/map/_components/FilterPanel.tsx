@@ -331,6 +331,8 @@ export interface FilterPanelProps {
   scoringMapRef?:       React.MutableRefObject<MaplibreMap | null>;
   scoringMapReady?:     boolean;
   onScoreComputed?:     (ville: string) => void;
+  // Reference vers la carte principale (pour territory mask layer)
+  mainMapRef?:          React.MutableRefObject<MaplibreMap | null>;
   // Transport & TMJA
   onLoadTransport?:     (types: string[]) => Promise<void>;
   onLoadTMJA?:          () => Promise<void>;
@@ -550,6 +552,7 @@ export function FilterPanel({
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
   scoringMapRef, scoringMapReady, onScoreComputed,
+  mainMapRef,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
@@ -798,6 +801,101 @@ export function FilterPanel({
       setActiveScope(null);
     }
   }, [adminScale, adminCodes, setActiveScope]);
+
+  // ── Mode "Afficher uniquement le territoire filtre" ─────────────────────
+  // Toggle qui ajoute un layer mask sur la carte : assombrit tout sauf le
+  // territoire selectionne. L'user voit exactement ce qui sera capture.
+  const [territoryMaskEnabled, setTerritoryMaskEnabled] = useState(false);
+  const territoryMaskCacheRef = useRef<{ key: string; geom: GeoJSON.MultiPolygon | null } | null>(null);
+
+  useEffect(() => {
+    const map = mainMapRef?.current;
+    if (!map) return;
+
+    const cleanup = () => {
+      try {
+        if (map.getLayer('territory-mask-fill')) map.removeLayer('territory-mask-fill');
+        if (map.getLayer('territory-mask-border')) map.removeLayer('territory-mask-border');
+        if (map.getSource('territory-mask')) map.removeSource('territory-mask');
+      } catch { /* noop */ }
+    };
+
+    if (!territoryMaskEnabled || !adminScale || adminCodes.length === 0) {
+      cleanup();
+      return;
+    }
+
+    const cacheKey = `${adminScale}::${adminCodes.slice().sort().join(',')}`;
+    let cancelled = false;
+
+    const applyMask = (territoryGeom: GeoJSON.MultiPolygon) => {
+      if (cancelled) return;
+      cleanup();
+      const worldRing: number[][] = [
+        [-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85],
+      ];
+      // Aplatissement des rings du MultiPolygon en trous successifs du polygone monde.
+      const holes: number[][][] = territoryGeom.coordinates.flatMap(poly => poly);
+      const maskFeature: GeoJSON.Feature<GeoJSON.Polygon> = {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Polygon', coordinates: [worldRing, ...holes] },
+      };
+      const territoryFeature: GeoJSON.Feature<GeoJSON.MultiPolygon> = {
+        type: 'Feature',
+        properties: {},
+        geometry: territoryGeom,
+      };
+      const fc: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [maskFeature, territoryFeature],
+      };
+      try {
+        map.addSource('territory-mask', { type: 'geojson', data: fc });
+        // Premier layer : fill mask (le polygone avec holes)
+        map.addLayer({
+          id: 'territory-mask-fill',
+          type: 'fill',
+          source: 'territory-mask',
+          filter: ['==', ['geometry-type'], 'Polygon'],
+          paint: { 'fill-color': '#000000', 'fill-opacity': 0.55 },
+        });
+        // Bordure teal autour du territoire (la 2e feature, MultiPolygon)
+        map.addLayer({
+          id: 'territory-mask-border',
+          type: 'line',
+          source: 'territory-mask',
+          filter: ['==', ['geometry-type'], 'MultiPolygon'],
+          paint: { 'line-color': '#4ecdc4', 'line-width': 2 },
+        });
+      } catch (err) {
+        console.warn('[territory-mask] add layer failed', err);
+      }
+    };
+
+    // Cache hit : re-applique direct
+    if (territoryMaskCacheRef.current && territoryMaskCacheRef.current.key === cacheKey) {
+      const cached = territoryMaskCacheRef.current.geom;
+      if (cached) applyMask(cached);
+      return cleanup;
+    }
+
+    // Sinon fetch
+    adminFetch('/api/map/territory-mask', {
+      method: 'POST',
+      body: JSON.stringify({ scale: adminScale, codes: adminCodes }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { geometry: GeoJSON.MultiPolygon | null } | null) => {
+        if (cancelled) return;
+        const geom = data?.geometry ?? null;
+        territoryMaskCacheRef.current = { key: cacheKey, geom };
+        if (geom) applyMask(geom);
+      })
+      .catch(() => { /* silent : laisse la carte en mode normal */ });
+
+    return () => { cancelled = true; cleanup(); };
+  }, [territoryMaskEnabled, adminScale, adminCodes, mainMapRef]);
 
   // ── Audience state ────────────────────────────────────────────────────────
 
@@ -1560,6 +1658,35 @@ export function FilterPanel({
                 >
                   ✕ Réinitialiser
                 </button>
+              </div>
+            )}
+
+            {/* Toggle territory mask : visible quand un filtre admin est actif */}
+            {adminScale !== null && adminCodes.length > 0 && (
+              <div style={{
+                padding: '10px 12px',
+                background: 'rgba(78,205,196,0.08)',
+                borderLeft: '2px solid var(--brand-teal)',
+                borderRadius: '0 4px 4px 0',
+              }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={territoryMaskEnabled}
+                    onChange={e => setTerritoryMaskEnabled(e.target.checked)}
+                    style={{ accentColor: 'var(--brand-teal)' }}
+                  />
+                  <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
+                    Afficher uniquement le territoire
+                  </span>
+                </label>
+                <p style={{ margin: '6px 0 0 22px', fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
+                  {adminScale === 'departement'
+                    ? 'Masque tout hors des départements selectionnes.'
+                    : adminScale === 'region'
+                    ? 'Masque tout hors des regions selectionnees.'
+                    : 'Masque tout hors du territoire selectionne.'}
+                </p>
               </div>
             )}
 
