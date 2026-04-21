@@ -831,12 +831,13 @@ export function FilterPanel({
     const applyMask = (territoryGeom: GeoJSON.MultiPolygon) => {
       if (cancelled) return;
       cleanup();
+      // Ring monde : sens antihoraire (CCW) en latitude 84.999 pour eviter les
+      // artefacts de projection aux poles (Mercator). Ordre haut-gauche →
+      // haut-droite → bas-droite → bas-gauche → retour = CCW pour MapLibre.
       const worldRing: number[][] = [
-        [-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85],
+        [-180, 84.999], [180, 84.999], [180, -84.999], [-180, -84.999], [-180, 84.999],
       ];
-      // Extraire UNIQUEMENT le ring exterieur de chaque sous-polygone du MultiPolygon.
-      // On jette les trous internes du territoire (sinon artefacts noirs : flatMap les
-      // inclurait comme "trous du trou" → portions visibles a l'interieur du masque).
+      // Ring exterieur de chaque sous-polygone uniquement (pas les trous internes).
       const holes: number[][][] = territoryGeom.coordinates.map(polygon => polygon[0]);
       const maskFeature: GeoJSON.Feature<GeoJSON.Polygon> = {
         type: 'Feature',
@@ -854,22 +855,33 @@ export function FilterPanel({
       };
       try {
         map.addSource('territory-mask', { type: 'geojson', data: fc });
-        // Premier layer : fill mask (le polygone avec holes)
+        // Fill mask (polygone monde avec trous). Ajoute en haut → passe au-dessus
+        // des data layers (carreaux, POI, voronoi) qui sont ainsi clippes visuellement.
         map.addLayer({
           id: 'territory-mask-fill',
           type: 'fill',
           source: 'territory-mask',
           filter: ['==', ['geometry-type'], 'Polygon'],
-          paint: { 'fill-color': '#000000', 'fill-opacity': 0.55 },
+          paint: { 'fill-color': '#000000', 'fill-opacity': 0.70 },
         });
-        // Bordure teal autour du territoire (la 2e feature, MultiPolygon)
+        // Bordure teal autour du territoire (territoire = 2e feature MultiPolygon)
         map.addLayer({
           id: 'territory-mask-border',
           type: 'line',
           source: 'territory-mask',
           filter: ['==', ['geometry-type'], 'MultiPolygon'],
-          paint: { 'line-color': '#4ecdc4', 'line-width': 2 },
+          paint: { 'line-color': '#4ecdc4', 'line-width': 3 },
         });
+        // Remonter les labels (symbol layers du fond de carte) au-dessus du mask
+        // pour qu'ils restent lisibles. On scanne tous les layers de type symbol.
+        try {
+          const allLayers = map.getStyle().layers ?? [];
+          for (const layer of allLayers) {
+            if (layer.type === 'symbol' && layer.id !== 'territory-mask-fill' && layer.id !== 'territory-mask-border') {
+              try { map.moveLayer(layer.id); } catch { /* layer deja au sommet ou invalide */ }
+            }
+          }
+        } catch { /* noop */ }
       } catch (err) {
         console.warn('[territory-mask] add layer failed', err);
       }
