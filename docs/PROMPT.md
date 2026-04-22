@@ -1,491 +1,268 @@
-# GEOMATIK — Custom Geo Zones / Étape 2 : Module galerie `/map/custom-geo` (V2)
-
-> Réfère-toi à `CLAUDE.md` et `DESIGN_SYSTEM.md` à la racine avant de commencer.
+# FIX — Résultats analyses : revenir au volet gauche
 
 ## SKILLS OBLIGATOIRES
+@verification-before-completion @executing-plans @systematic-debugging @smart-explore @finishing-a-development-branch @writing-plans @brainstorming @dispatching-parallel-agents @receiving-code-review @requesting-code-review @subagent-driven-development @test-driven-development @using-git-worktrees @using-superpowers @writing-skills @do @make-plan @mem-search @timeline-report @frontend-design
 
-@verification-before-completion @executing-plans @systematic-debugging @smart-explore @finishing-a-development-branch @writing-plans @brainstorming @dispatching-parallel-agents @receiving-code-review @requesting-code-review @subagent-driven-development @test-driven-development @using-git-worktrees @using-superpowers @writing-skills @do @make-plan @mem-search @timeline-report @frontend-design @geomatik-metier @supabase-geomatik
+## LECTURE PRÉALABLE
+1. DESIGN_SYSTEM.md
+2. .claude/skills/geomatik-ux/SKILL.md
+3. .claude/skills/geomatik-product-vision/SKILL.md
+4. .claude/skills/cleanup-geomatik/SKILL.md
 
----
+## POINT DE SAUVEGARDE
+```bash
+git add -A && git commit -m "checkpoint: avant fix résultats analyses volet gauche"
+git checkout -b fix/analyses-results-panel
+```
 
-## ⚠️ INFOS CRITIQUES — LIRE EN PREMIER
+## CONTEXTE — LE PROBLÈME
 
-### Backend déjà prêt
+Avant la refonte, les résultats des analyses (Clustering, Couverture, 
+Scoring, Corrélation, etc.) s'affichaient dans un VOLET À GAUCHE 
+dédié — un panel de résultats qui prenait la place du FilterPanel 
+quand une analyse était lancée.
 
-**Les 2 RPC nécessaires à l'Étape 2 ont déjà été créées, testées et sécurisées.** Tu n'as pas à les recréer. Tu les appelles simplement via `supabase.rpc(...)` dans les routes API.
+Maintenant, avec le système d'overlays, ces résultats sont coincés 
+dans les overlays de 280px. C'est une régression :
+- Les résultats d'analyse sont riches (tableaux, charts, listes)
+- Un overlay de 280px est trop étroit pour ça
+- Le workflow était : lancer l'analyse depuis le panel → les résultats 
+  REMPLACENT le panel → la carte montre la visualisation
 
-**RPC 1 : `get_custom_geo_zones_stats(p_org_id uuid) → jsonb`**
+## OBJECTIF — SÉPARER CONTRÔLES vs RÉSULTATS
 
-Shape du retour (testée, stable) :
-```json
-{
-  "total": 3,
-  "total_iris": 1931,
-  "total_cp": 239,
-  "most_recent_at": "2026-04-19T09:51:07.454531+00:00",
-  "by_source_type": [
-    { "source_type": "iris_selection", "count": 1 },
-    { "source_type": "meteo_forecast", "count": 1 },
-    { "source_type": "radio_coverage", "count": 1 }
-  ]
+Les overlays servent à CONFIGURER et LANCER les analyses.
+Les RÉSULTATS s'affichent dans un volet gauche dédié (comme avant).
+
+### Overlay Analyses = contrôles uniquement
+- Boutons pour lancer Scoring, Clustering, Couverture, Corrélation
+- Paramètres de configuration (s'il y en a)
+- PAS de résultats
+
+### Volet résultats = panel gauche quand une analyse est terminée
+- Quand une analyse est calculée, un panel de résultats slide depuis la gauche
+- Ce panel est à côté de la barre d'icônes (left: 48px)
+- Il affiche les résultats complets (tableaux, charts, stats)
+- Largeur : 360-400px (plus large qu'un overlay, adapté aux tableaux)
+- Bouton "× Fermer" ou "← Retour carte" pour le masquer
+- La carte se compresse pour faire de la place (comme l'ancien FilterPanel)
+
+## PHASE 1 : DIAGNOSTIC
+
+```bash
+# Comment les résultats étaient affichés AVANT la refonte
+# Chercher les composants de résultats
+grep -rn "ClusterResult\|ClusterPanel\|CoverageResult\|CoveragePanel\|ScoringResult\|ScoringPanel\|CorrelationResult" \
+  --include="*.tsx" components/ app/map/
+
+# Chercher l'ancien mécanisme de "remplacement" du panel
+grep -rn "activeView\|activePanel\|showResults\|resultsPanel\|studyMode" \
+  --include="*.tsx" app/map/page.tsx app/map/_components/
+
+# Le state qui pilotait l'affichage des résultats
+grep -rn "isCluster\|isCoverage\|isScoring\|isCorrelation\|showCluster\|showCoverage" \
+  --include="*.tsx" app/map/page.tsx
+```
+
+Utilise smart-explore pour comprendre l'ancien mécanisme.
+Fais un make-plan avant de coder.
+
+## PHASE 2 : CRÉER LE COMPOSANT ResultsPanel
+
+Créer `components/map/ResultsPanel.tsx`
+
+C'est un panel fixe (pas un overlay flottant) qui affiche les résultats.
+
+```typescript
+interface ResultsPanelProps {
+  title: string;           // "Résultats clustering", "Couverture", etc.
+  onClose: () => void;     // Fermer le panel
+  children: React.ReactNode; // Le contenu des résultats
 }
 ```
 
-Cas edge org vide testé : retourne `{ total: 0, total_iris: 0, total_cp: 0, most_recent_at: null, by_source_type: [] }`.
+### Style :
+```css
+.results-panel {
+  position: fixed;
+  left: 48px;                    /* après la barre d'icônes */
+  top: var(--header-height);     /* sous le header */
+  width: 380px;
+  height: calc(100vh - var(--header-height));
+  background: var(--card);       /* opaque, PAS transparent */
+  border-right: 0.5px solid var(--border-default);
+  z-index: 35;                   /* entre IconBar (30) et Overlay (40) */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
 
-**RPC 2 : `list_custom_geo_source_types(p_org_id uuid) → jsonb`**
+.results-panel-header {
+  padding: 16px;
+  border-bottom: 0.5px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
 
-Shape :
-```json
-{ "source_types": ["iris_selection", "meteo_forecast", "radio_coverage"] }
+.results-panel-header .title {
+  font: Inter 500 14px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.results-panel-header .close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.results-panel-header .close-btn:hover {
+  background: var(--elevated);
+  color: var(--text-primary);
+}
+
+.results-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
 ```
 
-Cas edge org vide : `{ "source_types": [] }`.
+### Animation d'entrée :
+```css
+/* Slide depuis la gauche */
+transform: translateX(-100%);
+transition: transform 200ms ease;
 
-Sécurité : `SECURITY INVOKER`, RLS appliquée automatiquement via `get_user_org()`. Grants : `authenticated` + `service_role` uniquement. Pas d'`anon`.
-
-### Rappel sécurité
-
-**Problème découvert en Étape 1** : Claude Code avait laissé les grants `EXECUTE` à `anon` sur les RPC. Un superviseur a corrigé via migration `custom_geo_revoke_anon_from_rpcs`.
-
-**Pour cette étape** : si tu crées une nouvelle RPC (à éviter, les 2 ci-dessus suffisent), applique toujours :
-```sql
-REVOKE EXECUTE ON FUNCTION public.<nom>(<args>) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.<nom>(<args>) TO authenticated;
+/* Ouvert */
+transform: translateX(0);
 ```
 
----
+### Comportement avec la carte :
+Quand le ResultsPanel est ouvert, la carte se décale :
+```css
+.map-container {
+  margin-left: 48px;  /* normal : juste l'icon bar */
+}
 
-## CONTEXTE
-
-L'Étape 1 (fondations Custom Geo Zones) a livré :
-- Tables `custom_geo_zones` + `custom_geo_zone_codes`
-- RPC `create_custom_geo_zone`, `resolve_custom_geo_zone_codes`, `get_custom_geo_zone_feature`, `get_custom_geo_zones_stats`, `list_custom_geo_source_types`
-- 7 routes API sous `/api/custom-geo/*`
-- Composant `<SaveAsCustomZoneButton />` (standalone)
-
-**Cette étape (Étape 2) construit l'interface utilisateur de gestion des zones custom.** C'est le cœur de la UX : la page où l'user voit toutes ses zones sauvegardées, les inspecte sur carte, les renomme, les supprime, les exporte, et les réutilise.
-
-L'intégration dans `/map/analyse/digital` est une Étape 3 séparée.
-
----
-
-## PRINCIPE UX
-
-**C'est une page de galerie, pas un tableau administratif.**
-
-L'user doit voir ses zones visuellement (preview carte inline) et pouvoir les manipuler. Rendu plus "Figma / Linear" que "phpMyAdmin" — visuel, dense, efficace.
-
-Structure 3 panneaux :
-1. **Sidebar gauche (260px)** : filtres `source_type` + stats + recherche textuelle
-2. **Grille centrale (flex-1)** : cards des zones avec mini-preview carte, nom, compteurs IRIS/CP, date
-3. **Panneau droit (480px, optionnel)** : détail d'une zone avec carte plein écran + actions
-
-Route : `/map/custom-geo`
-
-Ajout d'un lien dans la navigation principale `/map` (à côté de `analyse/digital`).
-
----
-
-## PHASE 0 — RECONNAISSANCE
-
-```bash
-# Structure /map existante
-ls app/map/
-cat app/map/layout.tsx 2>/dev/null || echo "pas de layout"
-
-# Comment /map/analyse/digital est structuré (server/client/hooks)
-ls app/map/analyse/ 2>/dev/null
-cat app/map/analyse/digital/page.tsx 2>/dev/null | head -50
-
-# Navigation existante
-grep -rn "GenesisNav\|MapNav" components/ app/ --include="*.tsx" | head -10
-
-# Style MapLibre utilisé
-grep -rn "geomatik-style\|MapContainer" lib/ components/ app/ --include="*.ts" --include="*.tsx" | head -10
-
-# Helper auth SSR pour page server component
-grep -rn "requireAuthPage\|getServerUser\|getCurrentUser" lib/ --include="*.ts" | head -10
+.map-container.results-open {
+  margin-left: calc(48px + 380px);  /* icon bar + results panel */
+  transition: margin-left 200ms ease;
+}
 ```
 
-**STOP. Partage-moi :**
-1. Layout `/map` (composant nav partagé ?)
-2. Structure de `/map/analyse/digital/page.tsx` (server/client, hooks principaux)
-3. Composant MapLibre utilisé (`MapContainer`, `MapPanel`, `Map` ?) + le fichier de style (`geomatik-style.ts` ?)
-4. Helper auth côté server component (si différent de `requireAuth()` qui est côté API)
-5. Existence d'un composant mini-preview carte réutilisable
+## PHASE 3 : CÂBLER LES RÉSULTATS D'ANALYSES
 
-Attends validation avant Phase 1.
+### State dans page.tsx :
+```typescript
+const [activeResults, setActiveResults] = useState<{
+  type: 'clustering' | 'coverage' | 'scoring' | 'correlation' | null;
+  data: any;  // les résultats de l'analyse
+} | null>(null);
+```
 
----
+### Quand une analyse termine :
+1. Les résultats arrivent (callback existant)
+2. `setActiveResults({ type: 'clustering', data: results })`
+3. Le ResultsPanel s'affiche avec le bon contenu
+4. L'overlay Analyses se FERME automatiquement (les contrôles ne sont plus nécessaires)
 
-## PHASE 1 — ROUTES API
+### Quand l'utilisateur ferme les résultats :
+1. `setActiveResults(null)`
+2. Le ResultsPanel se ferme
+3. La carte reprend sa taille plein écran
 
-**Deux routes, chacune est un wrapper minimal autour des RPC existantes.**
+### Mapping résultats → composants :
+Chaque type d'analyse a son composant de résultats (qui existait AVANT) :
 
-### 1.1 — `GET /api/custom-geo/stats`
-
-Fichier : `app/api/custom-geo/stats/route.ts`
-
-```ts
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { requireAuth } from '@/lib/api/middleware';
-import { createClient } from '@/lib/supabase/server'; // adapter
-
-const QuerySchema = z.object({
-  org_id: z.string().uuid(),
-});
-
-export async function GET(request: NextRequest) {
-  try {
-    await requireAuth(request);
-    const { searchParams } = new URL(request.url);
-    const parsed = QuerySchema.safeParse({ org_id: searchParams.get('org_id') });
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'invalid_query' }, { status: 400 });
-    }
-
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc('get_custom_geo_zones_stats', {
-      p_org_id: parsed.data.org_id,
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json(data);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'unknown_error';
-    return NextResponse.json({ error: message }, { status: 500 });
+```tsx
+function ResultsContent({ type, data }) {
+  switch (type) {
+    case 'clustering':
+      return <ClusteringResults data={data} />;
+    case 'coverage':
+      return <CoverageResults data={data} />;
+    case 'scoring':
+      return <ScoringResults data={data} />;
+    case 'correlation':
+      return <CorrelationResults data={data} />;
+    default:
+      return null;
   }
 }
 ```
 
-### 1.2 — `GET /api/custom-geo/source-types`
-
-Même pattern, appelle `list_custom_geo_source_types`.
-
-**C'est tout pour le backend.** Pas de RPC à créer. Pas de SQL à écrire.
-
----
-
-## PHASE 2 — PAGE `/map/custom-geo`
-
-### 2.1 — Structure fichiers
-
-```
-app/map/custom-geo/
-├── page.tsx                         # Server component léger (auth + org_id)
-├── CustomGeoPageClient.tsx          # Client orchestrateur
-├── _components/
-│   ├── ZonesSidebar.tsx             # Filtres + stats
-│   ├── ZonesGrid.tsx                # Grille de cards
-│   ├── ZoneCard.tsx                 # Card avec mini-preview
-│   ├── ZoneDetailPanel.tsx          # Slide-in droite
-│   ├── ZoneMapPreview.tsx           # Mini-carte non-interactive
-│   ├── ZoneFullMap.tsx              # Carte interactive détail
-│   ├── ZoneActionsMenu.tsx          # Dropdown ⋮
-│   ├── ZoneRenameDialog.tsx         # Modal renommage
-│   ├── ZoneDeleteDialog.tsx         # Confirmation suppression
-│   └── EmptyState.tsx
-└── _hooks/
-    ├── useZonesList.ts              # GET /list + refresh
-    ├── useZoneDetail.ts             # GET /[id] + /geometry
-    ├── useZonesStats.ts             # GET /stats
-    ├── useSourceTypes.ts            # GET /source-types
-    └── useZoneActions.ts            # rename / delete / export
+Retrouver les composants de résultats existants :
+```bash
+grep -rn "Cluster\|Coverage\|Scoring\|Correlation" --include="*.tsx" \
+  app/map/_components/ components/map/ | grep -i "result\|panel\|detail"
 ```
 
-### 2.2 — `page.tsx`
-
-```tsx
-import { redirect } from 'next/navigation';
-import { requireAuthPage } from '@/lib/api/middleware'; // adapter selon ce qui existe
-import { CustomGeoPageClient } from './CustomGeoPageClient';
-
-export default async function CustomGeoPage() {
-  const user = await requireAuthPage();
-  if (!user?.org_id) redirect('/dashboard');
-  return <CustomGeoPageClient orgId={user.org_id} />;
-}
-```
-
-### 2.3 — `CustomGeoPageClient.tsx`
-
-Orchestre 3 panneaux. State global :
-- `sourceTypeFilter: string | null`
-- `searchQuery: string` (debounce 200ms sur le hook)
-- `selectedZoneId: string | null`
-
-Layout Tailwind (DESIGN_SYSTEM.md — dark minimal, flat, pas de gradient/ombre) :
-
-```
-┌───────────┬─────────────────────────────┬─────────────────────┐
-│  Sidebar  │       Grid centrale         │  Detail panel       │
-│  260px    │  flex-1, scrollable         │  480px (optionnel)  │
-│           │                             │                     │
-│  Filters  │  Grid 3 colonnes de cards   │  Full map + actions │
-│  Stats    │  Responsive : 2 puis 1      │  Slide-in droite    │
-└───────────┴─────────────────────────────┴─────────────────────┘
-```
-
-### 2.4 — `ZonesSidebar.tsx`
-
-```
-Zones personnalisées
-─────────────────────
-12 zones   4 287 IRIS   892 CP
-─────────────────────
-Type de source
-○ Tous (12)
-○ radio_coverage (3)
-○ meteo_forecast (2)
-○ iris_selection (4)
-○ manual_draw (3)
-─────────────────────
-🔍 Rechercher…
-```
-
-- Stats en haut via `useZonesStats()`
-- Liste `source_type` dynamique via `useSourceTypes()` (avec compteurs dérivés de `stats.by_source_type`)
-- Labels `source_type` : afficher **la clé technique telle quelle** en JetBrains Mono (principe GEOMATIK)
-- Recherche : input avec icône, clear au focus
-
-### 2.5 — `ZonesGrid.tsx` + `ZoneCard.tsx`
-
-Card (300px large) :
-
-```
-┌────────────────────────────────┐
-│ [Mini-preview carte 300x160]   │  ← ZoneMapPreview
-├────────────────────────────────┤
-│ Zone Scoop Lyon           ⋮    │
-│ radio_coverage                 │  ← JetBrains Mono, teal
-│                                │
-│ 1 247 IRIS  •  284 CP          │
-│ Créé le 19 avril               │
-└────────────────────────────────┘
-```
-
-Hover : teal border (`#4ecdc4`), cursor pointer.
-Clic card → `selectedZoneId = zone.id` → ouvre panneau détail.
-Clic menu ⋮ → dropdown (Renommer, Exporter CSV CP, Exporter CSV IRIS, Exporter GeoJSON, Supprimer).
-
-### 2.6 — `ZoneMapPreview.tsx`
-
-**Mini-carte MapLibre non-interactive** pour éviter la charge navigateur.
-
-```tsx
-interface Props {
-  zoneId: string;
-  bbox: [number, number, number, number]; // minLon, minLat, maxLon, maxLat depuis /list
-}
-```
-
-Au montage :
-1. Init MapLibre avec `geomatik-style` dark + `interactive: false`
-2. Fetch `/api/custom-geo/[zoneId]/geometry`
-3. Layers : fill teal semi-transparent (`#4ecdc4` @ 30%) + line teal (`#4ecdc4` @ 80%)
-4. `fitBounds(bbox, { padding: 20, animate: false })`
-
-Skeleton gris 300×160 pendant le fetch.
-
-**Limitation perf** : max ~12-15 MapLibre simultanées. Si la grille dépasse, implémente une simple virtualisation (seules les cards dans le viewport + buffer 1 écran rendent la carte ; les autres affichent un placeholder).
-
-### 2.7 — `ZoneDetailPanel.tsx`
-
-Slide-in droite (480px), bouton ✕ pour fermer. Contenu :
-
-```
-┌─────────────────────────────────────┐
-│ Zone Scoop Lyon                 ✕  │
-├─────────────────────────────────────┤
-│ [Carte MapLibre interactive 100%]   │
-├─────────────────────────────────────┤
-│ Source         radio_coverage       │
-│ IRIS           1 247                │
-│ Codes postaux  284                  │
-│ Créé le        19 avril 2026, 14:32 │
-│ Par            [user email]         │
-├─────────────────────────────────────┤
-│ Métadonnées source (JSON)           │
-│ { "radio_id": "scoop-lyon",         │
-│   "frequency": 94.3 }               │
-├─────────────────────────────────────┤
-│ [Renommer]  [Exporter ▼]            │
-│ [Utiliser dans Digital]             │
-│ [Supprimer] (rouge, en bas)         │
-└─────────────────────────────────────┘
-```
-
-**"Utiliser dans Digital"** : `router.push('/map/analyse/digital?customZone=' + zoneId)`. L'Étape 3 gérera la préselection côté Digital.
-
-**Export** : dropdown → déclenche `window.location.href = /api/custom-geo/[id]/export?format=...` ou `<a href download>`.
-
-**Renommer** : ouvre `ZoneRenameDialog` (champs `name` + `description`, appel `PATCH /api/custom-geo/[id]`, refresh liste).
-
-**Supprimer** : `ZoneDeleteDialog` avec confirmation (bouton rouge, cursor-not-allowed pendant loading, toast succès).
-
-### 2.8 — `ZoneFullMap.tsx`
-
-Carte MapLibre interactive. Charge géométrie via `/api/custom-geo/[id]/geometry`, ajoute layers fill + line teal, `fitBounds`. Contrôles : zoom +/-, recenter, plein écran optionnel.
-
-### 2.9 — `EmptyState.tsx`
-
-```
-Pas encore de zone personnalisée
-
-Sauvegardez vos premières zones depuis :
-• Le module radio
-• Les isochrones
-• La sélection d'IRIS
-• Le dessin libre
-
-[Découvrir les modules →]
-```
-
----
-
-## PHASE 3 — HOOKS
-
-### 3.1 — `useZonesList.ts`
-
-```ts
-export function useZonesList(params: {
-  orgId: string;
-  sourceType?: string | null;
-  searchQuery?: string;
-}) {
-  // Fetch /api/custom-geo/list?org_id=...&source_type=...&q=...
-  // Debounce searchQuery 200ms
-  // Retour : { zones, loading, error, refetch }
-}
-```
-
-### 3.2 — `useZoneDetail.ts`
-
-```ts
-export function useZoneDetail(zoneId: string | null) {
-  // Si zoneId null → ne fetch pas
-  // Sinon fetch /[id] + /geometry en parallèle avec Promise.all
-  // Retour : { zone, geometry, loading, error }
-}
-```
-
-### 3.3 — `useZonesStats.ts`
-
-```ts
-export function useZonesStats(orgId: string) {
-  // Fetch /api/custom-geo/stats?org_id=...
-  // Retour : { stats, loading, refetch }
-}
-```
-
-### 3.4 — `useSourceTypes.ts`
-
-```ts
-export function useSourceTypes(orgId: string) {
-  // Fetch /api/custom-geo/source-types?org_id=...
-  // Retour : { sourceTypes: string[], loading }
-}
-```
-
-### 3.5 — `useZoneActions.ts`
-
-```ts
-export function useZoneActions(onSuccess?: () => void) {
-  return {
-    rename: async (id: string, name: string, description?: string) => { ... },
-    remove: async (id: string) => { ... },
-    exportZone: (id: string, format: CustomGeoExportFormat) => { ... }, // trigger download
-  };
-}
-```
-
----
-
-## PHASE 4 — NAVIGATION
-
-Ajouter un lien "Zones personnalisées" dans la nav principale (fichier à identifier en Phase 0). Icône SVG inline 16×16 teal (un marqueur géo dans un carré arrondi fait l'affaire).
-
----
-
-## PHASE 5 — TESTS MANUELS
-
-1. Créer 3-4 zones test via la page dev `/dev/test-save-zone` (ou un script SQL si besoin) avec différents `source_type`
-2. `/map/custom-geo` → grille affiche les cards avec mini-preview
-3. Filtrer par `source_type` → grille filtrée
-4. Rechercher par nom → filtre appliqué
-5. Clic card → panneau détail s'ouvre, carte charge, stats affichées
-6. Renommer une zone → nom mis à jour
-7. Exporter CSV IRIS → fichier téléchargé avec les bons codes
-8. Supprimer une zone → disparaît de la grille
-9. Responsive : grille passe 3 → 2 → 1 colonne selon largeur
-
----
-
-## CONTRAINTES
-
-**Performance :**
-- Max 12-15 MapLibre simultanées visibles (virtualisation si plus)
-- Preview carte : `interactive: false` obligatoire
-- Ne pas fetch `geometry` dans `/list` (bbox suffit)
-
-**Fichiers interdits :**
-- `/app/api/isochrone-battle/route.ts`
-- Fonctions PostGIS `battle_*`
-
-**Principes GEOMATIK :**
-- `source_type` listés dynamiquement via RPC, JAMAIS en dur
-- Aucun libellé humain hardcodé pour les `source_type` (affiche la clé technique en mono)
-- Stats dynamiques via `get_custom_geo_zones_stats`
-
-**Design System :**
-- Dark Minimal (Linear/Vercel/Raycast)
-- Inter + JetBrains Mono (mono pour codes techniques, dates ISO, IDs)
-- Teal `#4ecdc4` unique accent
-- Flat (pas de gradient / shadow / glow)
-- Sentence case partout
-- Section headers fond `#111111` + bande teal dot pattern
-
-**Sécurité :**
-- `requireAuth(request)` systématique côté routes API
-- `requireAuthPage()` côté page server component (selon nom exact trouvé Phase 0)
-- Aucun `any` en TS, Zod sur toute entrée user
-
-**Commit atomique :** `feat(custom-geo): module galerie /map/custom-geo`
-
----
-
-## POST-LIVRAISON
-
-Après le dernier commit, lance @cleanup-geomatik Partie 2 + Partie 3 sur les fichiers modifiés uniquement. Rapport rapide : failles sécu + any introduits + catch non typés. Corrige avant de considérer la tâche terminée.
-
----
-
-## LIVRABLES ATTENDUS
-
-1. `app/api/custom-geo/stats/route.ts` (GET, wrapper RPC)
-2. `app/api/custom-geo/source-types/route.ts` (GET, wrapper RPC)
-3. `app/map/custom-geo/page.tsx`
-4. `app/map/custom-geo/CustomGeoPageClient.tsx`
-5. 10 composants sous `_components/`
-6. 5 hooks sous `_hooks/`
-7. Entrée nav principale ajoutée
-8. `lib/version.ts` (bump 7.6.0 → 7.7.0)
-
----
-
-## RAPPEL — ordre d'exécution
-
-1. Phase 0 (reco layout `/map`, composants, nav) → **STOP**
-2. Phase 1 (2 routes API wrapper RPC)
-3. Phase 2 (page + 10 composants)
-4. Phase 3 (5 hooks)
-5. Phase 4 (nav)
-6. Phase 5 (tests manuels — remonte-moi : nb zones testées, perfs mini-cartes, bugs)
-7. Cleanup
-
-**Récap final attendu :** screenshot ou description de la page en état "3 zones créées, filtre appliqué", temps de chargement initial, bundle size du module.
+## PHASE 4 : MODIFIER L'OVERLAY ANALYSES
+
+L'overlay Analyses ne contient plus les résultats. Il contient :
+- Les boutons pour LANCER chaque analyse
+- Les paramètres de configuration (si applicable)
+- Un indicateur quand une analyse est en cours (loading)
+- Un lien "Voir les résultats →" si des résultats existent déjà
+
+Quand une analyse est lancée depuis l'overlay :
+1. L'overlay affiche un loading
+2. L'analyse se calcule
+3. Quand terminé : l'overlay se ferme, le ResultsPanel s'ouvre
+
+Si l'utilisateur a déjà des résultats et rouvre l'overlay :
+- Afficher un badge "Résultats disponibles" sur chaque analyse calculée
+- Bouton "Voir les résultats →" qui ferme l'overlay et ouvre le ResultsPanel
+
+## PHASE 5 : COHÉRENCE AVEC L'ÉTUDE DE VILLE
+
+Le StudyDashboard (étude de ville après scoring) fonctionne déjà en plein écran
+(feat livré dans icon-bar-overlay, CTA dans overlay Analyses).
+
+Le ResultsPanel est pour les résultats INTERMÉDIAIRES (clustering, couverture).
+L'étude de ville est le résultat FINAL après scoring.
+
+Hiérarchie :
+1. Overlay Analyses → lancer les analyses (contrôles)
+2. ResultsPanel → résultats intermédiaires (clustering, couverture, corrélation)
+3. StudyDashboard → résultat final (étude de ville après scoring)
+
+## PHASE 6 : VÉRIFICATION
+
+1. `npm run build` — 0 erreurs nouvelles
+2. Overlay Analyses : contient UNIQUEMENT les boutons de lancement, PAS de résultats
+3. Lancer Clustering → overlay se ferme → ResultsPanel s'ouvre avec les résultats
+4. Lancer Couverture → idem
+5. Lancer Scoring → résultats dans ResultsPanel, CTA "Étude de ville" → StudyDashboard
+6. Lancer Corrélation → idem ResultsPanel
+7. Fermer ResultsPanel → carte reprend plein écran
+8. La carte se compresse proprement quand le ResultsPanel est ouvert
+9. Rouvrir overlay Analyses → badge "Résultats disponibles" visible
+10. Tout fonctionne en dark ET light mode
+
+## POST-LIVRAISON — CLEANUP OBLIGATOIRE
+1. Lance `@cleanup-geomatik` Partie 2 (lint + types) sur les fichiers modifiés
+2. Lance `@cleanup-geomatik` Partie 3 (sécurité) sur les fichiers modifiés
+3. Rapport : failles sécu + `any` introduits + catch non typés + imports inutilisés
+4. Corrige TOUT avant de considérer la tâche terminée
+5. Commit : `chore(cleanup): lint + types + sécurité post-fix résultats`
+6. Utilise `requesting-code-review` pour le résumé
+7. Utilise `timeline-report` pour le rapport
+
+## INTERDIT
+- Ne PAS modifier les overlays (sauf l'overlay Analyses pour retirer les résultats)
+- Ne PAS modifier la logique de calcul des analyses
+- Ne PAS modifier /api/isochrone-battle/route.ts ni les fonctions battle_*
+- Ne PAS réécrire les composants de résultats — les RÉUTILISER tels quels
+
+Commit final : `fix(analyses): résultats dans volet gauche — overlays = contrôles uniquement`
+Tag : `git tag fix-results-panel-$(date +%Y%m%d)`
