@@ -404,6 +404,10 @@ export interface FilterPanelProps {
     correlation?: boolean;
     scoring?: boolean;
   };
+  /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
+   *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
+  selectedPOI?: string[];
+  onSelectedPOIChange?: (poi: string[]) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -590,6 +594,7 @@ export function FilterPanel({
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
   visibleCategory, onOpenStudy, studyVille,
   onOpenAnalysisResults, availableResults,
+  selectedPOI: selectedPOIProp, onSelectedPOIChange,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
   const useAnalysisCTAs = isOverlayMode && !!onOpenAnalysisResults;
@@ -956,7 +961,17 @@ export function FilterPanel({
   // ── Audience state ────────────────────────────────────────────────────────
 
   // ── Analyses state ────────────────────────────────────────────────────────
-  const [selectedPOI,   setSelectedPOI]   = useState<string[]>([]);
+  // POI sélection : controlled si props fournies (lift à page.tsx pour persistance
+  // overlay close→reopen), sinon fallback uncontrolled.
+  const [internalSelectedPOI, setInternalSelectedPOI] = useState<string[]>([]);
+  const selectedPOI = selectedPOIProp ?? internalSelectedPOI;
+  const setSelectedPOI = useCallback((next: string[] | ((prev: string[]) => string[])) => {
+    const value = typeof next === 'function'
+      ? (next as (prev: string[]) => string[])(selectedPOI)
+      : next;
+    if (onSelectedPOIChange) onSelectedPOIChange(value);
+    else setInternalSelectedPOI(value);
+  }, [selectedPOI, onSelectedPOIChange]);
 
   useEffect(() => {
     for (const poi of selectedPOI) fetchPoiNatures(poi);

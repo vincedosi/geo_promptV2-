@@ -45,8 +45,8 @@ import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { ResultsPanel, type ResultsPanelType, RESULTS_PANEL_WIDTH } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
-const ClusterPanel = dynamic(
-  () => import('@/app/map/_components/ClusterPanel').then(m => ({ default: m.ClusterPanel })),
+const ClusteringResultsContent = dynamic(
+  () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
   { ssr: false },
 );
 const CoverageResultsPanel = dynamic(
@@ -106,6 +106,9 @@ export default function MapPage() {
   // ── Results panel (volet gauche pour les analyses) ──
   const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
   const [coverageReady, setCoverageReady] = useState(false);
+  // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
+  // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
+  const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
   const handleOpenAnalysisResults = useCallback((type: ResultsPanelType) => {
     setActiveResults(type);
     setActiveOverlay(null);
@@ -1704,6 +1707,8 @@ export default function MapPage() {
               onOpenStudy={handleOpenStudy}
               onOpenAnalysisResults={handleOpenAnalysisResults}
               availableResults={availableResults}
+              selectedPOI={selectedPOI}
+              onSelectedPOIChange={setSelectedPOI}
             />
           )}
           {activeOverlay === 'settings' && (
@@ -1730,21 +1735,19 @@ export default function MapPage() {
           onClose={handleCloseResults}
         >
           {activeResults === 'clustering' && (
-            <div style={{ padding: 16 }}>
-              <ClusterPanel
-                geojson={clusterGeoJSON ?? null}
-                visible={clustersVisible}
-                loading={clusterLoading}
-                duration={clusterDuration}
-                onToggle={handleToggleClusters}
-                onLoad={handleToggleClusters}
-                onDurationChange={handleClusterDurationChange}
-                onFlyTo={handleFlyTo}
-                onFitBounds={handleFitBounds}
-                onWizardHighlight={handleWizardHighlight}
-                onWizardClose={() => setWizardHighlightGeoJSON(null)}
-              />
-            </div>
+            <ClusteringResultsContent
+              geojson={clusterGeoJSON ?? null}
+              visible={clustersVisible}
+              loading={clusterLoading}
+              duration={clusterDuration}
+              onToggle={handleToggleClusters}
+              onLoad={handleToggleClusters}
+              onDurationChange={handleClusterDurationChange}
+              onFlyTo={handleFlyTo}
+              onFitBounds={handleFitBounds}
+              onWizardHighlight={handleWizardHighlight}
+              onWizardClose={() => setWizardHighlightGeoJSON(null)}
+            />
           )}
           {activeResults === 'coverage' && (
             <div style={{ padding: 16 }}>

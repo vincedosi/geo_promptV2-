@@ -72,7 +72,7 @@ export function IconBar({
         left: 0,
         bottom: 0,
         width: 48,
-        background: 'var(--card, #0a0a0a)',
+        background: 'var(--bg-surface)',
         borderRight: '0.5px solid var(--border-subtle, #1a1a1a)',
         zIndex: 30,
         display: 'flex',
@@ -151,7 +151,7 @@ function IconButton({ item, active, showLabel, studyBadge, onClick }: IconButton
           color: active || isAI ? item.colorVar : 'var(--text-tertiary, #666666)',
         }}
         onMouseEnter={e => {
-          if (!active) e.currentTarget.style.background = 'var(--elevated, #111111)';
+          if (!active) e.currentTarget.style.background = 'var(--bg-level-2)';
         }}
         onMouseLeave={e => {
           if (!active) e.currentTarget.style.background = 'transparent';
