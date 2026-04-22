@@ -393,6 +393,17 @@ export interface FilterPanelProps {
   onOpenStudy?: () => void;
   /** Ville courante de l'étude (affichée dans le CTA si set) */
   studyVille?: string | null;
+  /** Ouvre le panel résultats d'analyse à gauche de la carte. Quand fourni en mode overlay,
+   *  les 4 analyses lourdes (clustering / couverture / corrélation / scoring) deviennent
+   *  des cartes CTA et leur contenu lourd vit dans le ResultsPanel externe. */
+  onOpenAnalysisResults?: (type: 'clustering' | 'coverage' | 'correlation' | 'scoring') => void;
+  /** Indique pour chaque analyse si un résultat est déjà calculé (badge "Résultats disponibles"). */
+  availableResults?: {
+    clustering?: boolean;
+    coverage?: boolean;
+    correlation?: boolean;
+    scoring?: boolean;
+  };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -578,8 +589,10 @@ export function FilterPanel({
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
   visibleCategory, onOpenStudy, studyVille,
+  onOpenAnalysisResults, availableResults,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
+  const useAnalysisCTAs = isOverlayMode && !!onOpenAnalysisResults;
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
   const [filterSearch, setFilterSearch] = useState('');
@@ -2293,6 +2306,68 @@ export function FilterPanel({
         <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
+            {/* ── CTA cards (overlay mode) : ouvrent le ResultsPanel à gauche ── */}
+            {useAnalysisCTAs && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 16px', borderBottom: `0.5px solid ${C.border}` }}>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2, textTransform: 'none' }}>
+                  Lancer une analyse
+                </div>
+                {([
+                  { type: 'clustering',  label: 'Clustering',              desc: 'K-means POI × Filosofi par durée d\'exposition.' },
+                  { type: 'coverage',    label: 'Couverture démographique', desc: 'Population dans les isochrones, par palier.' },
+                  { type: 'correlation', label: 'Corrélation IRIS × POI',  desc: 'Croise la métrique IRIS avec la densité POI.' },
+                  { type: 'scoring',     label: 'Scoring OOH',             desc: 'Score paramétrique par panneau.' },
+                ] as const).map(card => {
+                  const isReady = !!availableResults?.[card.type];
+                  return (
+                    <button
+                      key={card.type}
+                      type="button"
+                      onClick={() => onOpenAnalysisResults?.(card.type)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                        textAlign: 'left', padding: '10px 12px',
+                        background: 'var(--bg-level-2)',
+                        border: `0.5px solid ${isReady ? 'var(--brand-teal-30, rgba(78,205,196,0.3))' : C.border}`,
+                        borderRadius: 6, cursor: 'pointer',
+                        transition: 'border-color 180ms var(--ease-out), background-color 180ms var(--ease-out)',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'var(--brand-teal)';
+                        e.currentTarget.style.background = 'rgba(78,205,196,0.06)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = isReady ? 'var(--brand-teal-30, rgba(78,205,196,0.3))' : C.border;
+                        e.currentTarget.style.background = 'var(--bg-level-2)';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--cat-analysis)', flexShrink: 0 }} />
+                        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: C.text, flex: 1 }}>
+                          {card.label}
+                        </span>
+                        {isReady && (
+                          <span style={{
+                            fontFamily: fMono, fontSize: 9,
+                            color: 'var(--brand-teal)',
+                            background: 'rgba(78,205,196,0.1)',
+                            border: '0.5px solid rgba(78,205,196,0.3)',
+                            padding: '1px 6px', borderRadius: 3,
+                          }}>
+                            Résultats disponibles
+                          </span>
+                        )}
+                        <span style={{ color: C.textDim, fontSize: 12, fontFamily: fInter }}>→</span>
+                      </div>
+                      <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, lineHeight: 1.4, paddingLeft: 14 }}>
+                        {card.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('spatiale')}
@@ -2819,7 +2894,8 @@ export function FilterPanel({
             </div>
             )}
 
-            {/* ── Accordéon : CLUSTERING ──────────────────────────────────── */}
+            {!useAnalysisCTAs && (<>
+            {/* ── Accordéon : CLUSTERING (overlay → CTA card) ─────────────── */}
             <button
               onClick={() => toggleAnalyse('clustering')}
               style={{
@@ -2940,6 +3016,7 @@ export function FilterPanel({
               )}
             </div>
             )}
+            </>)}
 
             {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
             <button
@@ -3211,7 +3288,8 @@ export function FilterPanel({
             </div>
             )}
 
-            {/* ── Accordéon : COUVERTURE ──────────────────────────────────── */}
+            {!useAnalysisCTAs && (<>
+            {/* ── Accordéon : COUVERTURE (overlay → CTA card) ──────────────── */}
             <button
               onClick={() => toggleAnalyse('couverture')}
               style={{
@@ -3240,8 +3318,10 @@ export function FilterPanel({
               />
             </div>
             )}
+            </>)}
 
-            {/* ── Accordéon : CORRÉLATION IRIS × POI ──────────────────── */}
+            {!useAnalysisCTAs && (<>
+            {/* ── Accordéon : CORRÉLATION IRIS × POI (overlay → CTA card) ─── */}
             <button
               onClick={() => toggleAnalyse('correlation')}
               style={{
@@ -3267,8 +3347,10 @@ export function FilterPanel({
               />
             </div>
             )}
+            </>)}
 
-            {/* ── Accordéon : SCORING OOH ─────────────────────────────── */}
+            {!useAnalysisCTAs && (<>
+            {/* ── Accordéon : SCORING OOH (overlay → CTA card) ─────────────── */}
             <button
               onClick={() => toggleAnalyse('scoring')}
               style={{
@@ -3317,6 +3399,7 @@ export function FilterPanel({
               )}
             </div>
             )}
+            </>)}
 
           </div>
         </CategoryGroup>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -42,8 +42,25 @@ import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
+import { ResultsPanel, type ResultsPanelType, RESULTS_PANEL_WIDTH } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
+const ClusterPanel = dynamic(
+  () => import('@/app/map/_components/ClusterPanel').then(m => ({ default: m.ClusterPanel })),
+  { ssr: false },
+);
+const CoverageResultsPanel = dynamic(
+  () => import('@/components/CoverageResultsPanel').then(m => ({ default: m.CoverageResultsPanel })),
+  { ssr: false },
+);
+const CorrelationPanelDyn = dynamic(
+  () => import('@/app/map/_components/CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
+  { ssr: false },
+);
+const ScoringPanel = dynamic(
+  () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
+  { ssr: false },
+);
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -76,6 +93,7 @@ export default function MapPage() {
   const handleOpenStudy = useCallback(() => {
     setActiveStudy(true);
     setActiveOverlay(null);
+    setActiveResults(null);
   }, []);
   const handleCloseStudy = useCallback(() => {
     setActiveStudy(false);
@@ -84,6 +102,16 @@ export default function MapPage() {
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
   const handleOverlayToggle = useCallback((id: OverlayId) => {
     setActiveOverlay(prev => prev === id ? null : id);
+  }, []);
+  // ── Results panel (volet gauche pour les analyses) ──
+  const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
+  const [coverageReady, setCoverageReady] = useState(false);
+  const handleOpenAnalysisResults = useCallback((type: ResultsPanelType) => {
+    setActiveResults(type);
+    setActiveOverlay(null);
+  }, []);
+  const handleCloseResults = useCallback(() => {
+    setActiveResults(null);
   }, []);
   const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
@@ -1395,6 +1423,14 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
+  // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
+  const availableResults = useMemo(() => ({
+    clustering:  !!clusterGeoJSON,
+    coverage:    coverageReady,
+    correlation: !!residualsMeta,
+    scoring:     !!studyVille,
+  }), [clusterGeoJSON, coverageReady, residualsMeta, studyVille]);
+
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
     <ChatPanel
@@ -1470,7 +1506,7 @@ export default function MapPage() {
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: iconBarHidden ? 0 : 48, transition: 'padding-left 200ms var(--ease-out)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: (iconBarHidden ? 0 : 48) + (activeResults ? RESULTS_PANEL_WIDTH : 0), transition: 'padding-left 200ms var(--ease-out)' }}>
       <IconBar
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}
@@ -1666,6 +1702,8 @@ export default function MapPage() {
               onDigitalPopFieldChange={setDigitalPopField}
               studyVille={studyVille}
               onOpenStudy={handleOpenStudy}
+              onOpenAnalysisResults={handleOpenAnalysisResults}
+              availableResults={availableResults}
             />
           )}
           {activeOverlay === 'settings' && (
@@ -1678,6 +1716,90 @@ export default function MapPage() {
             />
           )}
         </OverlayPanel>
+      )}
+      {activeResults && (
+        <ResultsPanel
+          type={activeResults}
+          title={
+            activeResults === 'clustering'  ? 'Résultats — clustering' :
+            activeResults === 'coverage'    ? 'Résultats — couverture démographique' :
+            activeResults === 'correlation' ? 'Résultats — corrélation IRIS × POI' :
+                                              'Résultats — scoring OOH'
+          }
+          dotColor="var(--cat-analysis)"
+          onClose={handleCloseResults}
+        >
+          {activeResults === 'clustering' && (
+            <div style={{ padding: 16 }}>
+              <ClusterPanel
+                geojson={clusterGeoJSON ?? null}
+                visible={clustersVisible}
+                loading={clusterLoading}
+                duration={clusterDuration}
+                onToggle={handleToggleClusters}
+                onLoad={handleToggleClusters}
+                onDurationChange={handleClusterDurationChange}
+                onFlyTo={handleFlyTo}
+                onFitBounds={handleFitBounds}
+                onWizardHighlight={handleWizardHighlight}
+                onWizardClose={() => setWizardHighlightGeoJSON(null)}
+              />
+            </div>
+          )}
+          {activeResults === 'coverage' && (
+            <div style={{ padding: 16 }}>
+              <CoverageResultsPanel
+                inline
+                battleFeatures={battleFeatures}
+                pois={battlePois}
+                battleCacheKey={battleCacheKey ?? undefined}
+                onResultsReady={(s) => setCoverageReady(s.length > 0)}
+              />
+            </div>
+          )}
+          {activeResults === 'correlation' && (
+            <div style={{ padding: 16 }}>
+              <CorrelationPanelDyn
+                onFlyTo={handleFlyTo}
+                params={correlationParams ?? null}
+                onShowResiduals={handleShowResiduals}
+              />
+            </div>
+          )}
+          {activeResults === 'scoring' && (
+            <div style={{ padding: 16 }}>
+              <ScoringPanel
+                inline
+                mapRef={mapRef}
+                mapReady={mapReady}
+                onFlyTo={handleFlyTo}
+                onScoreComputed={(v) => setStudyVille(v)}
+              />
+              {studyVille && (
+                <button
+                  type="button"
+                  onClick={handleOpenStudy}
+                  style={{
+                    width: '100%', marginTop: 12,
+                    background: 'transparent',
+                    border: '0.5px solid var(--brand-teal)',
+                    color: 'var(--brand-teal)',
+                    borderRadius: 6, padding: '10px 12px',
+                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'background-color 150ms var(--ease-hover)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  Ouvrir l&apos;étude de ville →
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, opacity: 0.8 }}>{studyVille}</span>
+                </button>
+              )}
+            </div>
+          )}
+        </ResultsPanel>
       )}
       <CaptureLayers
         mapRef={mapRef}
