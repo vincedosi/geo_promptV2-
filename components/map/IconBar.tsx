@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bot, MapPin, Layers, BarChart3, Megaphone, Settings, Home } from 'lucide-react';
+import { Bot, MapPin, Layers, BarChart3, Megaphone, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'analyses' | 'campaigns' | 'settings';
 
 interface IconBarItem {
-  id: OverlayId | 'home';
+  id: OverlayId;
   label: string;
   icon: LucideIcon;
   colorVar: string;
@@ -18,9 +17,8 @@ interface IconBarItem {
 }
 
 const ICON_BAR_ITEMS: IconBarItem[] = [
-  { id: 'home', label: 'Home', icon: Home, colorVar: 'var(--text-tertiary)', rgb: '102,102,102' },
-  { id: 'ai', label: 'geo.prompt', icon: Bot, colorVar: 'var(--brand-teal)', rgb: '78,205,196', separator: true },
-  { id: 'perimeter', label: 'Périmètre', icon: MapPin, colorVar: 'var(--cat-context, #8a8a8a)', rgb: '138,138,138' },
+  { id: 'ai', label: 'geo.prompt', icon: Bot, colorVar: 'var(--brand-teal)', rgb: '78,205,196' },
+  { id: 'perimeter', label: 'Périmètre', icon: MapPin, colorVar: 'var(--cat-context, #8a8a8a)', rgb: '138,138,138', separator: true },
   { id: 'terrain', label: 'Terrain', icon: Layers, colorVar: 'var(--cat-terrain, #4ecdc4)', rgb: '78,205,196' },
   { id: 'analyses', label: 'Analyses', icon: BarChart3, colorVar: 'var(--cat-analysis, #e8845c)', rgb: '232,132,92' },
   { id: 'campaigns', label: 'Campagnes', icon: Megaphone, colorVar: 'var(--cat-media, #f7b731)', rgb: '247,183,49' },
@@ -42,8 +40,6 @@ export function IconBar({
   studyAvailable = false,
   showLabels = true,
 }: IconBarProps) {
-  const router = useRouter();
-
   // Shortcut "/" ouvre AI overlay (si focus pas dans input)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -91,13 +87,7 @@ export function IconBar({
           active={activeItem === item.id}
           showLabel={showLabels}
           studyBadge={item.id === 'analyses' && studyAvailable}
-          onClick={() => {
-            if (item.id === 'home') {
-              router.push('/dashboard');
-              return;
-            }
-            onItemClick(item.id as OverlayId);
-          }}
+          onClick={() => onItemClick(item.id)}
         />
       ))}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
@@ -107,7 +97,7 @@ export function IconBar({
             item={item}
             active={activeItem === item.id}
             showLabel={showLabels}
-            onClick={() => onItemClick(item.id as OverlayId)}
+            onClick={() => onItemClick(item.id)}
           />
         ))}
       </div>

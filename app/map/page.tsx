@@ -37,7 +37,6 @@ const DigitalAnalysisPanel = dynamic(
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
-import { WelcomeOverlay }  from '@/app/copilote/_components/WelcomeOverlay';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
@@ -1075,6 +1074,7 @@ export default function MapPage() {
           durations:          params.durations,
           filtre_ville:       params.filtre_ville    ?? null,
           filtre_regions:     params.filtre_regions  ?? null,
+          filtre_depts:       params.filtre_depts    ?? null,
           metropolitaine:     params.metropolitaine,
           force_recalculate:  params.force_recalculate ?? false,
         }),
@@ -1235,6 +1235,7 @@ export default function MapPage() {
           durations:         params.durations,
           filtre_ville:      params.filtre_ville   ?? null,
           filtre_regions:    params.filtre_regions ?? null,
+          filtre_depts:      params.filtre_depts   ?? null,
           metropolitaine:    params.metropolitaine,
           force_recalculate: false,
         }),
@@ -2076,8 +2077,7 @@ export default function MapPage() {
 
           {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
 
-          {/* Welcome overlay — affiché au premier chargement, par-dessus la carte */}
-          <WelcomeOverlay sendMessage={chat.sendMessage} />
+          {/* WelcomeOverlay retiré : l'utilisateur arrive directement sur la carte */}
 
           {/* IRIS detail panel — overlay à droite sur la carte */}
           {(selectedIrisData || irisDetailLoading) && (

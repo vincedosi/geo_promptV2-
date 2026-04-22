@@ -58,11 +58,14 @@ export async function POST(req: NextRequest) {
       metropolitaine?: boolean;
       filtre_ville?:   string;
       filtre_regions?: string[];
+      filtre_depts?:   string[];
     };
 
-    const { category, paliers, filtre_ville, filtre_regions } = body;
+    const { category, paliers, filtre_ville, filtre_regions, filtre_depts } = body;
     const mode           = body.mode ?? 'drive';
     const metropolitaine = body.metropolitaine ?? true;
+    const deptFilter     = Array.isArray(filtre_depts) && filtre_depts.length > 0
+      ? filtre_depts.map(String) : null;
 
     if (!category || !paliers?.length) {
       return NextResponse.json({ error: 'category et paliers requis' }, { status: 400 });
@@ -79,10 +82,11 @@ export async function POST(req: NextRequest) {
     const regionNorms = regions ? regions.map(r => normStr(REGION_ID_TO_NAME[r] ?? r)) : null;
 
     let q = supabase.from('poi_france')
-      .select('id, nom, region')
+      .select('id, nom, region, departement')
       .ilike('categorie', category);
     if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
     if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
+    if (deptFilter)     q = q.in('departement', deptFilter);
 
     const { data: rawRows, error: poiErr } = await q.limit(MAX_POIS);
     if (poiErr) {

@@ -186,10 +186,16 @@ export async function POST(req: NextRequest) {
     metropolitaine    = true,
     filtre_ville      = null,
     filtre_regions    = null,
+    filtre_depts      = null,
     force_recalculate = false,
     max_minutes       = 120,
     durations         = null,
   } = body as Record<string, unknown>;
+
+  // Filtre département : array de codes (ex: ['75', '92', '93'])
+  const deptFilter = Array.isArray(filtre_depts) && (filtre_depts as string[]).length > 0
+    ? (filtre_depts as string[]).map(String)
+    : null;
 
   const MODE_NORMALIZE: Record<string, string> = {
     drive: 'drive', 'driving-car': 'drive',
@@ -223,7 +229,8 @@ export async function POST(req: NextRequest) {
         const regionKey      = Array.isArray(filtre_regions) && (filtre_regions as string[]).length > 0
           ? [...(filtre_regions as string[])].sort().join('+')
           : metropolitaine ? 'metro' : 'all';
-        const battleCacheKey = `battle_full__${normKey(String(category))}__${normKey(normalizedMode)}__${BATTLE_LEVELS.join('-')}min__${regionKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
+        const deptKey        = deptFilter ? `__d${[...deptFilter].sort().join('-')}` : '';
+        const battleCacheKey = `battle_full__${normKey(String(category))}__${normKey(normalizedMode)}__${BATTLE_LEVELS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
 
         if (!force_recalculate) {
           const { data: cached } = await supabase
@@ -252,10 +259,11 @@ export async function POST(req: NextRequest) {
         const regionNorms = regions ? regions.map(r => normStr(REGION_ID_TO_NAME[r] ?? r)) : null;
 
         let q = supabase.from('poi_france')
-          .select('id, nom, lat, lng, categorie, adresse, ville, region')
+          .select('id, nom, lat, lng, categorie, adresse, ville, region, departement')
           .ilike('categorie', category);
         if (metropolitaine) q = q.gte('lng', -5.5).lte('lng', 9.6).gte('lat', 41.3).lte('lat', 51.1);
         if (filtre_ville)   q = q.ilike('ville', `%${filtre_ville}%`);
+        if (deptFilter)     q = q.in('departement', deptFilter);
 
         const { data: rawRows, error: poiErr } = await q.limit(MAX_POIS_BATTLE);
         if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }

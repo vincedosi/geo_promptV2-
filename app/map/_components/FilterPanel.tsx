@@ -239,6 +239,7 @@ export interface DirectBattleParams {
   durations: number[];
   filtre_ville?: string;
   filtre_regions?: string[];
+  filtre_depts?: string[];
   metropolitaine: boolean;
   force_recalculate?: boolean;
 }
@@ -248,6 +249,7 @@ export interface DirectBattleV2Params {
   mode: string;
   filtre_ville?: string;
   filtre_regions?: string[];
+  filtre_depts?: string[];
   metropolitaine: boolean;
   paliers: number[];
   force_battle?: boolean;
@@ -260,6 +262,7 @@ export interface FillIsochroneCacheParams {
   durations: number[];
   filtre_ville?: string;
   filtre_regions?: string[];
+  filtre_depts?: string[];
   metropolitaine: boolean;
 }
 
@@ -1138,6 +1141,7 @@ export function FilterPanel({
     filtre_ville:   ville || undefined,
     filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
                       ? selectedRegions : undefined,
+    filtre_depts:   selectedDepts.length > 0 ? selectedDepts : undefined,
   });
 
   const handleCheckV2 = async () => {
@@ -1195,6 +1199,7 @@ export function FilterPanel({
           max_minutes:    Math.max(...battleV2Paliers),
           filtre_ville:   ville || undefined,
           filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length) ? selectedRegions : undefined,
+          filtre_depts:   selectedDepts.length > 0 ? selectedDepts : undefined,
           metropolitaine: !selectedRegions.includes('dom'),
         },
         (msg: string) => {
@@ -1270,6 +1275,7 @@ export function FilterPanel({
       // Quand toutes les régions sont sélectionnées = pas de filtre (évite les mismatches DB)
       filtre_regions:    (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
                            ? selectedRegions : undefined,
+      filtre_depts:      selectedDepts.length > 0 ? selectedDepts : undefined,
       metropolitaine:    !selectedRegions.includes('dom'),
       force_recalculate: force,
     };
@@ -1358,6 +1364,7 @@ export function FilterPanel({
           filtre_ville:    ville || undefined,
           filtre_regions:  (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
                              ? selectedRegions : undefined,
+          filtre_depts:    selectedDepts.length > 0 ? selectedDepts : undefined,
           metropolitaine:  !selectedRegions.includes('dom'),
           paliers:         [...battleV2Paliers].sort((a, b) => a - b),
           force_battle:    force,
