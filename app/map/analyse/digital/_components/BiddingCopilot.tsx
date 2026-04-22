@@ -188,18 +188,20 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                   border: '0.5px solid var(--brand-teal-30)', display: 'flex', alignItems: 'center',
                   justifyContent: 'center', flexShrink: 0, fontFamily: fMono, fontSize: 10, color: 'var(--brand-teal)', fontWeight: 600,
                 }}>G</div>
-                <div style={{ fontFamily: fInter, fontSize: 12, lineHeight: 1.6, color: '#d0d0d0', whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontFamily: fInter, fontSize: 13, lineHeight: 1.65, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                   {msg.content.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
                     part.startsWith('**') && part.endsWith('**')
-                      ? <strong key={j} style={{ color: 'var(--brand-teal)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
+                      ? <strong key={j} style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
                       : <span key={j}>{part}</span>
                   )}
                 </div>
               </div>
             ) : (
               <div style={{
-                background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px',
-                fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)', maxWidth: '85%', lineHeight: 1.5,
+                background: 'var(--bg-level-2)',
+                border: '0.5px solid var(--border-subtle)',
+                borderRadius: 8, padding: '8px 12px',
+                fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)', maxWidth: '85%', lineHeight: 1.5,
               }}>{msg.content}</div>
             )}
           </div>
@@ -248,10 +250,13 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
           placeholder="Decrivez votre objectif d'optimisation..."
           rows={1}
           style={{
-            flex: 1, background: 'var(--bg-surface)', border: '0.5px solid rgba(255,255,255,0.1)',
-            borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)',
+            flex: 1, background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
+            borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: 'var(--text-primary)',
             outline: 'none', resize: 'none', minHeight: 34, maxHeight: 120,
+            transition: 'border-color var(--duration-hover) var(--ease-hover)',
           }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'var(--brand-teal)'; }}
+          onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
           disabled={loading}
         />
         <button
@@ -367,7 +372,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                   return (
                     <tr key={s.code} style={{ borderBottom: '0.5px solid #111111' }}>
                       <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-secondary)' }}>
-                        <span style={{ color: '#8a8a8a', marginRight: 4 }}>{s.code}</span>{s.nom}
+                        <span style={{ color: 'var(--text-tertiary)', marginRight: 4 }}>{s.code}</span>{s.nom}
                       </td>
                       <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>
                         {s.ratio_avant.toFixed(2)}
@@ -377,7 +382,7 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
                       </td>
                       <td style={{
                         padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, fontWeight: 600,
-                        color: improving ? '#3dffa0' : '#ff5757',
+                        color: improving ? 'var(--success)' : 'var(--danger)',
                       }}>
                         {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%
                       </td>
