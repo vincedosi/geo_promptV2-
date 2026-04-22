@@ -855,6 +855,19 @@ details > summary::-webkit-details-marker {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Morph inter-catégories : déclenché quand l'utilisateur passe d'un overlay
+   à un autre (Périmètre → Analyses) sans fermer/rouvrir. Anime juste un
+   "settle" sans démonter le contenu (préserve l'état lifté du FilterPanel). */
+@keyframes overlayCategoryMorph {
+  0%   { opacity: 0.35; transform: scale(0.985); filter: blur(2px); }
+  60%  { opacity: 1;    transform: scale(1.005); filter: blur(0); }
+  100% { opacity: 1;    transform: scale(1);     filter: blur(0); }
+}
+@keyframes overlayHeaderMorph {
+  0%   { opacity: 0; transform: translateY(-3px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 /* Stagger utility — applique un délai progressif aux enfants directs.
    Usage : <ul class="stagger-children">…</ul> */
 .stagger-children > * {

@@ -31,8 +31,26 @@ export function ResultsPanel({
   width,
 }: ResultsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const prevTypeRef = useRef(type);
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Morph quand l'utilisateur switch d'analyse (Clustering → Couverture)
+  // sans fermer le panel — feedback visuel sans démontage du contenu.
+  useEffect(() => {
+    if (prevTypeRef.current === type) return;
+    prevTypeRef.current = type;
+    for (const el of [headerRef.current, bodyRef.current]) {
+      if (!el) continue;
+      el.style.animation = 'none';
+      void el.offsetHeight;
+      el.style.animation = el === headerRef.current
+        ? 'overlayHeaderMorph 200ms var(--ease-out) both'
+        : 'overlayCategoryMorph 280ms var(--ease-spring) both';
+    }
+  }, [type]);
 
   // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
   const handleClose = useCallback(() => {
@@ -88,6 +106,7 @@ export function ResultsPanel({
       }}
     >
       <div
+        ref={headerRef}
         style={{
           padding: '14px 16px 12px',
           borderBottom: '0.5px solid var(--border-subtle)',
@@ -105,6 +124,8 @@ export function ResultsPanel({
             borderRadius: '50%',
             background: dotColor,
             flexShrink: 0,
+            transition: 'background-color var(--duration-popover, 200ms) var(--ease-spring)',
+            willChange: 'background-color',
           }}
         />
         <span
@@ -158,6 +179,7 @@ export function ResultsPanel({
       </div>
 
       <div
+        ref={bodyRef}
         style={{
           flex: 1,
           overflowY: 'auto',

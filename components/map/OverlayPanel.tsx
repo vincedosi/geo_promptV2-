@@ -30,8 +30,27 @@ export function OverlayPanel({
   width = 280,
 }: OverlayPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const prevCategoryRef = useRef(category);
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Morph inter-catégories : quand l'utilisateur switch d'overlay (Périmètre →
+  // Analyses) sans fermer, on re-trigger une mini-animation sur header+body
+  // pour donner du feedback visuel (sans démonter les enfants → état préservé).
+  useEffect(() => {
+    if (prevCategoryRef.current === category) return;
+    prevCategoryRef.current = category;
+    for (const el of [headerRef.current, bodyRef.current]) {
+      if (!el) continue;
+      el.style.animation = 'none';
+      void el.offsetHeight; // force reflow
+      el.style.animation = el === headerRef.current
+        ? 'overlayHeaderMorph 200ms var(--ease-out) both'
+        : 'overlayCategoryMorph 280ms var(--ease-spring) both';
+    }
+  }, [category]);
 
   // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
   const handleClose = useCallback(() => {
@@ -105,6 +124,7 @@ export function OverlayPanel({
     >
       {/* Header */}
       <div
+        ref={headerRef}
         style={{
           padding: '14px 16px 12px',
           borderBottom: '0.5px solid var(--border-subtle, #1a1a1a)',
@@ -121,6 +141,9 @@ export function OverlayPanel({
             borderRadius: '50%',
             background: dotColor,
             flexShrink: 0,
+            // Morph couleur du dot quand la catégorie change (smooth)
+            transition: 'background-color var(--duration-popover, 200ms) var(--ease-spring)',
+            willChange: 'background-color',
           }}
         />
         <span
@@ -157,6 +180,7 @@ export function OverlayPanel({
 
       {/* Body scrollable */}
       <div
+        ref={bodyRef}
         style={{
           flex: 1,
           overflowY: 'auto',
