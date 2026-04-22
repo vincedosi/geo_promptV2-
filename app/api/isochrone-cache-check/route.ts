@@ -64,8 +64,22 @@ export async function POST(req: NextRequest) {
     const { category, paliers, filtre_ville, filtre_regions, filtre_depts } = body;
     const mode           = body.mode ?? 'drive';
     const metropolitaine = body.metropolitaine ?? true;
-    const deptFilter     = Array.isArray(filtre_depts) && filtre_depts.length > 0
+    // Étendu pour gérer les 2 formats hétérogènes en DB ('03'↔'3', '2A'↔'20A')
+    const deptCanonical  = Array.isArray(filtre_depts) && filtre_depts.length > 0
       ? filtre_depts.map(String) : null;
+    const deptFilter = deptCanonical ? (() => {
+      const out = new Set<string>();
+      for (const c of deptCanonical) {
+        out.add(c);
+        if (/^0[1-9]$/.test(c))      out.add(c.slice(1));
+        else if (/^[1-9]$/.test(c))  out.add('0' + c);
+        if (c === '2A')              out.add('20A');
+        else if (c === '20A')        out.add('2A');
+        if (c === '2B')              out.add('20B');
+        else if (c === '20B')        out.add('2B');
+      }
+      return [...out];
+    })() : null;
 
     if (!category || !paliers?.length) {
       return NextResponse.json({ error: 'category et paliers requis' }, { status: 400 });

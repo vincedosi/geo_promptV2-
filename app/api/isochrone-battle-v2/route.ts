@@ -49,6 +49,24 @@ const REGION_ID_TO_NAME: Record<string, string> = {
   dom: 'DROM',
 };
 
+/**
+ * Étend les codes département pour matcher les 2 formats hétérogènes en DB
+ * (CIRFA: '3', '20A' / BMW: '03', '2B' — incohérences d'imports historiques).
+ */
+function expandDeptCodes(codes: string[]): string[] {
+  const out = new Set<string>();
+  for (const c of codes) {
+    out.add(c);
+    if (/^0[1-9]$/.test(c))      out.add(c.slice(1));
+    else if (/^[1-9]$/.test(c))  out.add('0' + c);
+    if (c === '2A')              out.add('20A');
+    else if (c === '20A')        out.add('2A');
+    if (c === '2B')              out.add('20B');
+    else if (c === '20B')        out.add('2B');
+  }
+  return [...out];
+}
+
 function normKey(s: string): string {
   return s
     .toLowerCase()
@@ -83,8 +101,11 @@ export async function POST(req: NextRequest) {
     force_battle,
   } = parsed.data;
 
-  const deptFilter = Array.isArray(filtre_depts) && filtre_depts.length > 0
+  // deptCodesCanonical = format ALL_DEPTS reçu (cache key déterministe)
+  // deptFilter = étendu pour matcher les 2 formats hétérogènes en DB
+  const deptCodesCanonical = Array.isArray(filtre_depts) && filtre_depts.length > 0
     ? filtre_depts.map(String) : null;
+  const deptFilter = deptCodesCanonical ? expandDeptCodes(deptCodesCanonical) : null;
 
   const MODE_NORMALIZE: Record<string, string> = {
     drive: 'drive', 'driving-car': 'drive',
@@ -110,7 +131,7 @@ export async function POST(req: NextRequest) {
         const regions     = Array.isArray(filtre_regions) && (filtre_regions as string[]).length > 0
           ? (filtre_regions as string[]) : null;
         const regionKey   = regions ? [...regions].sort().join('+') : metropolitaine ? 'metro' : 'all';
-        const deptKey     = deptFilter ? `__d${[...deptFilter].sort().join('-')}` : '';
+        const deptKey     = deptCodesCanonical ? `__d${[...deptCodesCanonical].sort().join('-')}` : '';
         const battleCacheKey = `battle_v2_full__${normKey(String(category))}__${normKey(normalizedMode)}__${PALIERS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
 
         if (!force_battle) {

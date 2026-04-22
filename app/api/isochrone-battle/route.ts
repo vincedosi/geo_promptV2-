@@ -70,6 +70,29 @@ function makeSemaphore(n: number) {
 }
 
 // ── Normalisation des clés de cache ──────────────────────────────────────────
+/**
+ * Étend une liste de codes département pour matcher les variantes de format
+ * présentes dans poi_france.departement (incohérences d'import historiques) :
+ *   - '01'..'09' → ajoute aussi '1'..'9' (sans padding, format CIRFA)
+ *   - '2A' → ajoute aussi '20A' (format Corse INSEE legacy)
+ *   - '2B' → ajoute aussi '20B'
+ *   - '1'..'9' (déjà sans padding) → ajoute aussi '01'..'09'
+ *   - '20A' → ajoute aussi '2A' ; '20B' → ajoute aussi '2B'
+ */
+function expandDeptCodes(codes: string[]): string[] {
+  const out = new Set<string>();
+  for (const c of codes) {
+    out.add(c);
+    if (/^0[1-9]$/.test(c))      out.add(c.slice(1));            // '03' → '3'
+    else if (/^[1-9]$/.test(c))  out.add('0' + c);               // '3' → '03'
+    if (c === '2A')              out.add('20A');
+    else if (c === '20A')        out.add('2A');
+    if (c === '2B')              out.add('20B');
+    else if (c === '20B')        out.add('2B');
+  }
+  return [...out];
+}
+
 function normKey(s: string): string {
   return s
     .toLowerCase()
@@ -193,9 +216,13 @@ export async function POST(req: NextRequest) {
   } = body as Record<string, unknown>;
 
   // Filtre département : array de codes (ex: ['75', '92', '93'])
-  const deptFilter = Array.isArray(filtre_depts) && (filtre_depts as string[]).length > 0
+  // deptCodesCanonical = format ALL_DEPTS reçu (utilisé pour le cache key, déterministe)
+  // deptFilter        = étendu pour matcher les 2 formats incohérents en DB
+  //                     ('03'↔'3', '2A'↔'20A' — historique des imports)
+  const deptCodesCanonical = Array.isArray(filtre_depts) && (filtre_depts as string[]).length > 0
     ? (filtre_depts as string[]).map(String)
     : null;
+  const deptFilter = deptCodesCanonical ? expandDeptCodes(deptCodesCanonical) : null;
 
   const MODE_NORMALIZE: Record<string, string> = {
     drive: 'drive', 'driving-car': 'drive',
@@ -229,7 +256,7 @@ export async function POST(req: NextRequest) {
         const regionKey      = Array.isArray(filtre_regions) && (filtre_regions as string[]).length > 0
           ? [...(filtre_regions as string[])].sort().join('+')
           : metropolitaine ? 'metro' : 'all';
-        const deptKey        = deptFilter ? `__d${[...deptFilter].sort().join('-')}` : '';
+        const deptKey        = deptCodesCanonical ? `__d${[...deptCodesCanonical].sort().join('-')}` : '';
         const battleCacheKey = `battle_full__${normKey(String(category))}__${normKey(normalizedMode)}__${BATTLE_LEVELS.join('-')}min__${regionKey}${deptKey}${filtre_ville ? '__' + normKey(String(filtre_ville)) : ''}`;
 
         if (!force_recalculate) {
