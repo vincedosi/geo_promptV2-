@@ -411,6 +411,16 @@ export interface FilterPanelProps {
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];
   onSelectedPOIChange?: (poi: string[]) => void;
+  /** Périmètre territorial (controlled, même pattern que selectedPOI).
+   *  Persistent entre fermeture/réouverture des overlays. */
+  selectedDepts?: string[];
+  onSelectedDeptsChange?: (depts: string[]) => void;
+  selectedRegions?: string[];
+  onSelectedRegionsChange?: (regions: string[]) => void;
+  ville?: string;
+  onVilleChange?: (ville: string) => void;
+  scope?: 'metro' | 'all' | null;
+  onScopeChange?: (scope: 'metro' | 'all' | null) => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -598,6 +608,10 @@ export function FilterPanel({
   visibleCategory, onOpenStudy, studyVille,
   onOpenAnalysisResults, availableResults,
   selectedPOI: selectedPOIProp, onSelectedPOIChange,
+  selectedDepts:   selectedDeptsProp,   onSelectedDeptsChange,
+  selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
+  ville:           villeProp,           onVilleChange,
+  scope:           scopeProp,           onScopeChange,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
   const useAnalysisCTAs = isOverlayMode && !!onOpenAnalysisResults;
@@ -789,10 +803,42 @@ export function FilterPanel({
   }, [analyseOpen.clustering]);
 
   // ── Territoire state ──────────────────────────────────────────────────────
-  const [scope,           setScope]           = useState<'metro' | 'all' | null>(null);
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
-  const [selectedDepts,   setSelectedDepts]   = useState<string[]>([]);
-  const [ville,           setVille]           = useState('');
+  // Controlled si props fournies (lift à page.tsx pour persistance entre
+  // fermeture/réouverture des overlays — les analyses doivent voir les
+  // filtres territoriaux courants), sinon fallback uncontrolled.
+  const [internalScope,           setInternalScope]           = useState<'metro' | 'all' | null>(null);
+  const [internalSelectedRegions, setInternalSelectedRegions] = useState<string[]>([]);
+  const [internalSelectedDepts,   setInternalSelectedDepts]   = useState<string[]>([]);
+  const [internalVille,           setInternalVille]           = useState('');
+
+  const scope           = scopeProp           !== undefined ? scopeProp           : internalScope;
+  const selectedRegions = selectedRegionsProp !== undefined ? selectedRegionsProp : internalSelectedRegions;
+  const selectedDepts   = selectedDeptsProp   !== undefined ? selectedDeptsProp   : internalSelectedDepts;
+  const ville           = villeProp           !== undefined ? villeProp           : internalVille;
+
+  const setScope = useCallback((next: 'metro' | 'all' | null | ((prev: 'metro' | 'all' | null) => 'metro' | 'all' | null)) => {
+    const value = typeof next === 'function' ? (next as (p: 'metro' | 'all' | null) => 'metro' | 'all' | null)(scope) : next;
+    if (onScopeChange) onScopeChange(value);
+    else setInternalScope(value);
+  }, [scope, onScopeChange]);
+
+  const setSelectedRegions = useCallback((next: string[] | ((prev: string[]) => string[])) => {
+    const value = typeof next === 'function' ? (next as (p: string[]) => string[])(selectedRegions) : next;
+    if (onSelectedRegionsChange) onSelectedRegionsChange(value);
+    else setInternalSelectedRegions(value);
+  }, [selectedRegions, onSelectedRegionsChange]);
+
+  const setSelectedDepts = useCallback((next: string[] | ((prev: string[]) => string[])) => {
+    const value = typeof next === 'function' ? (next as (p: string[]) => string[])(selectedDepts) : next;
+    if (onSelectedDeptsChange) onSelectedDeptsChange(value);
+    else setInternalSelectedDepts(value);
+  }, [selectedDepts, onSelectedDeptsChange]);
+
+  const setVille = useCallback((next: string | ((prev: string) => string)) => {
+    const value = typeof next === 'function' ? (next as (p: string) => string)(ville) : next;
+    if (onVilleChange) onVilleChange(value);
+    else setInternalVille(value);
+  }, [ville, onVilleChange]);
   const [codePostal,      setCodePostal]      = useState('');
 
   // ── Custom geo capture : branchement filtre admin actif ───────────────────

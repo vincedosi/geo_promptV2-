@@ -108,6 +108,12 @@ export default function MapPage() {
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
+  // Périmètre territorial : même lift (filtre dept/région doit survivre au cycle
+  // mount/unmount des overlays — sinon Bataille V2 ignore le filtre user)
+  const [perimeterScope,           setPerimeterScope]           = useState<'metro' | 'all' | null>(null);
+  const [perimeterSelectedRegions, setPerimeterSelectedRegions] = useState<string[]>([]);
+  const [perimeterSelectedDepts,   setPerimeterSelectedDepts]   = useState<string[]>([]);
+  const [perimeterVille,           setPerimeterVille]           = useState('');
   const handleOpenAnalysisResults = useCallback((type: ResultsPanelType) => {
     setActiveResults(type);
     setActiveOverlay(null);
@@ -1710,6 +1716,14 @@ export default function MapPage() {
               availableResults={availableResults}
               selectedPOI={selectedPOI}
               onSelectedPOIChange={setSelectedPOI}
+              selectedDepts={perimeterSelectedDepts}
+              onSelectedDeptsChange={setPerimeterSelectedDepts}
+              selectedRegions={perimeterSelectedRegions}
+              onSelectedRegionsChange={setPerimeterSelectedRegions}
+              ville={perimeterVille}
+              onVilleChange={setPerimeterVille}
+              scope={perimeterScope}
+              onScopeChange={setPerimeterScope}
             />
           )}
           {activeOverlay === 'settings' && (
