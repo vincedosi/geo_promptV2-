@@ -160,7 +160,17 @@ export default function MapPage() {
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);
   const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
+  const [digitalAnalysisClosing, setDigitalAnalysisClosing] = useState(false);
   const [digitalAnalysisSize, setDigitalAnalysisSize] = useState<'half' | 'full'>('half');
+  const closeDigitalAnalysis = useCallback(() => {
+    if (digitalAnalysisClosing) return;
+    setDigitalAnalysisClosing(true);
+    setTimeout(() => {
+      setDigitalAnalysisOpen(false);
+      setDigitalAnalysisSize('half');
+      setDigitalAnalysisClosing(false);
+    }, 200);
+  }, [digitalAnalysisClosing]);
   const [digitalCampaignId, setDigitalCampaignId] = useState('');
   const [digitalPopField, setDigitalPopField] = useState('population');
 
@@ -2108,16 +2118,23 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* Drawer analyse détaillée Digital */}
+          {/* Drawer analyse détaillée Digital — slide depuis le bas, exit direct */}
           {digitalAnalysisOpen && digitalCampaignId && (
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
-              height: digitalAnalysisSize === 'full' ? '100%' : '50%', minHeight: 300,
-              background: 'var(--bg-surface)',
-              borderTop: '1px solid var(--border-default)',
-              display: 'flex', flexDirection: 'column',
-              transition: 'height 0.3s ease',
-            }}>
+            <div
+              data-state={digitalAnalysisClosing ? 'closing' : 'open'}
+              style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
+                height: digitalAnalysisSize === 'full' ? '100%' : '50%', minHeight: 300,
+                background: 'var(--bg-surface)',
+                borderTop: '0.5px solid var(--border-default)',
+                boxShadow: '0 -4px 18px rgba(0, 0, 0, 0.18)',
+                display: 'flex', flexDirection: 'column',
+                willChange: 'transform, opacity, height',
+                animation: digitalAnalysisClosing
+                  ? 'drawerSlideOutBottom var(--duration-exit) var(--ease-exit) both'
+                  : 'drawerSlideInBottom var(--duration-enter) var(--ease-spring) both',
+                transition: 'height var(--duration-enter) var(--ease-spring)',
+              }}>
               <div style={{
                 padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0,
@@ -2129,15 +2146,22 @@ export default function MapPage() {
                   <button
                     onClick={() => setDigitalAnalysisSize(s => s === 'half' ? 'full' : 'half')}
                     title={digitalAnalysisSize === 'full' ? 'Reduire' : 'Plein ecran'}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px', display: 'flex', transition: 'color 0.15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: 4, transition: 'color var(--duration-hover) var(--ease-hover), background-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
+                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                   >
                     {digitalAnalysisSize === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                   </button>
                   <button
-                    onClick={() => { setDigitalAnalysisOpen(false); setDigitalAnalysisSize('half'); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+                    onClick={closeDigitalAnalysis}
+                    aria-label="Fermer"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 18, padding: '0 6px', lineHeight: 1, borderRadius: 4, transition: 'color var(--duration-hover) var(--ease-hover), background-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
+                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                   >×</button>
                 </div>
               </div>
@@ -2149,7 +2173,7 @@ export default function MapPage() {
                   selectedMedia={[]}
                   metric="impressions"
                   open={digitalAnalysisOpen}
-                  onToggle={() => setDigitalAnalysisOpen(false)}
+                  onToggle={closeDigitalAnalysis}
                 />
               </div>
             </div>

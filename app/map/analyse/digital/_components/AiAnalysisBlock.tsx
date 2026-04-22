@@ -64,10 +64,16 @@ export function AiAnalysisBlock({ campaignId, indicator, kpi, breakdown, onCompl
           </div>
         )}
         {analysis && (
-          <div style={{ fontFamily: fInter, fontSize: 12, lineHeight: 1.7, color: '#e0e0e0', whiteSpace: 'pre-wrap' }}>
+          <div style={{
+            fontFamily: fInter, fontSize: 13, lineHeight: 1.7,
+            // var(--text-secondary) : themed (b0b0b0 dark, 525252 light) — DESIGN_SYSTEM
+            color: 'var(--text-secondary)',
+            whiteSpace: 'pre-wrap',
+            animation: 'staggerFadeIn var(--duration-enter) var(--ease-spring) both',
+          }}>
             {analysis.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
               part.startsWith('**') && part.endsWith('**')
-                ? <strong key={i} style={{ color: 'var(--brand-teal)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
+                ? <strong key={i} style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{part.slice(2, -2)}</strong>
                 : <span key={i}>{part}</span>
             )}
           </div>

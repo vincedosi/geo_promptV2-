@@ -643,11 +643,17 @@ export default function DigitalTripleMapPage() {
               </div>
             )}
 
-            {/* Analysis overlay */}
+            {/* Analysis overlay — modale fullscreen avec entrée bouncy / exit direct */}
             <div style={{
               position: 'absolute', inset: 0, zIndex: 40, background: 'var(--bg-surface)',
-              opacity: analysisOpen ? 1 : 0, pointerEvents: analysisOpen ? 'auto' : 'none',
-              transition: 'opacity 0.3s ease',
+              opacity: analysisOpen ? 1 : 0,
+              transform: analysisOpen ? 'scale(1) translateY(0)' : 'scale(0.97) translateY(16px)',
+              transformOrigin: 'center',
+              pointerEvents: analysisOpen ? 'auto' : 'none',
+              willChange: 'transform, opacity',
+              transition: analysisOpen
+                ? 'opacity var(--duration-enter) var(--ease-spring), transform var(--duration-enter) var(--ease-spring)'
+                : 'opacity var(--duration-exit) var(--ease-exit), transform var(--duration-exit) var(--ease-exit)',
               display: 'flex', flexDirection: 'column',
             }}>
               <AnalysisPanel
