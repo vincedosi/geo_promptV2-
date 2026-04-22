@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
-import { Maximize2, ArrowUpDown, X } from 'lucide-react';
+import { Maximize2, ArrowUpDown, X, Minus, Plus } from 'lucide-react';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -31,10 +31,10 @@ interface MediaHeatmapProps {
   onCellClick?: (media: string, zoneCode: string) => void;
 }
 
-function getContrastText(r: number, g: number, b: number): string {
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.45 ? 'var(--border-subtle)' : 'var(--text-primary)';
-}
+// Texte blanc sur les cellules (saturées rouge/bleu ET neutres) avec text-shadow
+// pour rester lisible sur fond clair (mode light, cellules pâles).
+const CELL_TEXT_COLOR = '#ffffff';
+const CELL_TEXT_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 0, 0, 0.4)';
 
 function ecartColor(ecart: number, maxAbs: number): string {
   if (maxAbs === 0) return '#1a1a2e';
@@ -65,6 +65,13 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [transposed, setTransposed] = useState(false);
+  // Ajustement utilisateur largeur/hauteur cellule (en px). null = utilise la
+  // valeur par défaut calculée selon la vue (compact/expanded).
+  const [cellWidthAdjust,  setCellWidthAdjust]  = useState<number | null>(null);
+  const [cellHeightAdjust, setCellHeightAdjust] = useState<number | null>(null);
+  const adjustWidth  = (delta: number) => setCellWidthAdjust(w  => Math.max(20, Math.min(120, (w  ?? 40) + delta)));
+  const adjustHeight = (delta: number) => setCellHeightAdjust(h => Math.max(18, Math.min(120, (h ?? 38) + delta)));
+  const resetSizes = () => { setCellWidthAdjust(null); setCellHeightAdjust(null); };
 
   const impLabel = metric === 'unique' ? 'Imp. uniques' : 'Imp.';
 
@@ -118,7 +125,8 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
 
   interface GridOptions {
     sticky: boolean;
-    cellSize: number;
+    cellWidth: number;
+    cellHeight: number;
     firstColWidth: number;
     colHeaderHeight: number;
     cellFontSize: number;
@@ -129,7 +137,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
   }
 
   const renderGrid = (opts: GridOptions) => {
-    const { sticky, cellSize, firstColWidth, colHeaderHeight, cellFontSize, labelFontSize, colLabelFontSize, showCellValue, bodyBg } = opts;
+    const { sticky, cellWidth, cellHeight, firstColWidth, colHeaderHeight, cellFontSize, labelFontSize, colLabelFontSize, showCellValue, bodyBg } = opts;
     const cornerStyle: React.CSSProperties = sticky
       ? { position: 'sticky', top: 0, left: 0, zIndex: 3, background: bodyBg, width: firstColWidth, height: colHeaderHeight }
       : { width: firstColWidth, height: colHeaderHeight };
@@ -154,9 +162,9 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
     return (
       <div style={{
         display: 'grid',
-        gridTemplateColumns: `${firstColWidth}px repeat(${colItems.length}, ${cellSize}px)`,
+        gridTemplateColumns: `${firstColWidth}px repeat(${colItems.length}, ${cellWidth}px)`,
         gap: 1,
-        minWidth: firstColWidth + colItems.length * (cellSize + 1),
+        minWidth: firstColWidth + colItems.length * (cellWidth + 1),
       }}>
         <div style={cornerStyle} />
         {colItems.map(c => (
@@ -171,11 +179,6 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
               const cell = getCell(row.key, col.key);
               const ecart = cell?.ecart ?? 0;
               const bgColor = cell ? ecartColor(ecart, maxAbs) : 'var(--bg-level-2)';
-              let textColor = 'var(--text-primary)';
-              if (cell && showCellValue) {
-                const m = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                if (m) textColor = getContrastText(Number(m[1]), Number(m[2]), Number(m[3]));
-              }
               const media = transposed ? col.key : row.key;
               const zoneCode = transposed ? row.key : col.key;
               return (
@@ -185,11 +188,14 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
                   onMouseLeave={() => setHoveredCell(null)}
                   onClick={() => cell && onCellClick?.(media, zoneCode)}
                   style={{
-                    width: cellSize, height: cellSize - 2, borderRadius: 2,
+                    width: cellWidth, height: cellHeight, borderRadius: 2,
                     background: bgColor,
                     cursor: cell ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: fMono, fontSize: showCellValue ? cellFontSize : 0, color: textColor,
+                    fontFamily: fMono, fontSize: showCellValue ? cellFontSize : 0,
+                    fontWeight: 600,
+                    color: CELL_TEXT_COLOR,
+                    textShadow: showCellValue && cell ? CELL_TEXT_SHADOW : 'none',
                   }}
                 >
                   {showCellValue && cell ? (ecart > 0 ? '+' : '') + ecart.toFixed(1) : ''}
@@ -224,22 +230,31 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
     </div>
   );
 
-  const compactCellSize = !verticalColLabels ? 40 : 24;
+  const compactDefaultW = !verticalColLabels ? 40 : 24;
+  const compactDefaultH = compactDefaultW - 2;
+  const compactWidth  = cellWidthAdjust  ?? compactDefaultW;
+  const compactHeight = cellHeightAdjust ?? compactDefaultH;
   const compactOpts: GridOptions = {
     sticky: false,
-    cellSize: compactCellSize,
+    cellWidth:  compactWidth,
+    cellHeight: compactHeight,
     firstColWidth: 140,
     colHeaderHeight: verticalColLabels ? 60 : 22,
     cellFontSize: 9,
     labelFontSize: 10,
     colLabelFontSize: verticalColLabels ? 8 : 10,
-    showCellValue: compactCellSize >= 28,
+    showCellValue: compactWidth >= 28,
     bodyBg: 'var(--bg-primary)',
   };
 
+  const overlayDefaultW = 40;
+  const overlayDefaultH = 38;
+  const overlayWidth  = cellWidthAdjust  ?? overlayDefaultW;
+  const overlayHeight = cellHeightAdjust ?? overlayDefaultH;
   const overlayOpts: GridOptions = {
     sticky: true,
-    cellSize: 40,
+    cellWidth:  overlayWidth,
+    cellHeight: overlayHeight,
     firstColWidth: 180,
     colHeaderHeight: verticalColLabels ? 80 : 28,
     cellFontSize: 12,
@@ -249,13 +264,59 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
     bodyBg: 'var(--bg-surface)',
   };
 
+  // ── Contrôles W/H : composant inline réutilisé dans header compact + overlay ──
+  const sizeControls = (compact: boolean) => {
+    const fontSize = compact ? 10 : 11;
+    const iconSize = compact ? 10 : 12;
+    const w = compact ? compactWidth  : overlayWidth;
+    const h = compact ? compactHeight : overlayHeight;
+    const sizeBtn: React.CSSProperties = {
+      width: compact ? 18 : 22, height: compact ? 18 : 22,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      background: 'transparent', border: '0.5px solid var(--border-default)',
+      borderRadius: 4, color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0,
+      transition: 'color var(--duration-hover) var(--ease-hover), border-color var(--duration-hover) var(--ease-hover)',
+    };
+    const labelStyle: React.CSSProperties = {
+      fontFamily: fMono, fontSize, color: 'var(--text-tertiary)', minWidth: 16, textAlign: 'center',
+    };
+    return (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontFamily: fInter, fontSize: fontSize - 1, color: 'var(--text-tertiary)' }} title="Largeur">W</span>
+        <button type="button" style={sizeBtn} onClick={() => adjustWidth(-4)} aria-label="Réduire largeur"><Minus size={iconSize} /></button>
+        <span style={labelStyle}>{w}</span>
+        <button type="button" style={sizeBtn} onClick={() => adjustWidth(+4)} aria-label="Augmenter largeur"><Plus size={iconSize} /></button>
+        <span style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
+        <span style={{ fontFamily: fInter, fontSize: fontSize - 1, color: 'var(--text-tertiary)' }} title="Hauteur">H</span>
+        <button type="button" style={sizeBtn} onClick={() => adjustHeight(-4)} aria-label="Réduire hauteur"><Minus size={iconSize} /></button>
+        <span style={labelStyle}>{h}</span>
+        <button type="button" style={sizeBtn} onClick={() => adjustHeight(+4)} aria-label="Augmenter hauteur"><Plus size={iconSize} /></button>
+        {(cellWidthAdjust !== null || cellHeightAdjust !== null) && (
+          <button
+            type="button"
+            onClick={resetSizes}
+            title="Réinitialiser"
+            style={{
+              ...sizeBtn,
+              width: 'auto', padding: '0 6px',
+              fontFamily: fMono, fontSize: fontSize - 1,
+            }}
+          >
+            reset
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <div style={{ background: 'var(--bg-primary)', borderRadius: 4, border: '0.5px solid var(--border-subtle)', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--border-subtle)' }}>
+        <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--border-subtle)', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>Regies x geographie</span>
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {sizeControls(true)}
             <button
               type="button"
               onClick={() => setTransposed(v => !v)}
@@ -263,7 +324,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
               style={{
                 ...iconBtnStyle,
                 borderColor: transposed ? 'var(--brand-teal)' : 'var(--border-subtle)',
-                color: transposed ? 'var(--brand-teal)' : '#8a8a8a',
+                color: transposed ? 'var(--brand-teal)' : 'var(--text-tertiary)',
               }}
             >
               <ArrowUpDown size={12} />
@@ -312,7 +373,8 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
             <span style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)' }}>
               Regies x geographie
             </span>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {sizeControls(false)}
               <button
                 type="button"
                 onClick={() => setTransposed(v => !v)}
