@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
+import { ChevronLeft } from 'lucide-react';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 
 const ClusterPanel = dynamic(
   () => import('@/app/map/_components/ClusterPanel').then(m => ({ default: m.ClusterPanel })),
+  { ssr: false },
+);
+
+const ClusterDetails = dynamic(
+  () => import('@/components/ClusterDetails').then(m => ({ default: m.ClusterDetails })),
   { ssr: false },
 );
 
@@ -54,6 +59,37 @@ export function ClusteringResultsContent(props: Props) {
       .finally(() => setLoadingModels(false));
   }, [refreshKey]);
 
+  // ── Vue : détails d'un modèle existant (clic sur card) ──────────────────
+  if (selectedVersion !== null) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <button
+          type="button"
+          onClick={() => setSelectedVersion(null)}
+          style={{
+            background: 'none', border: 'none',
+            padding: '10px 16px',
+            borderBottom: '0.5px solid var(--border-subtle)',
+            cursor: 'pointer',
+            fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)',
+            display: 'flex', alignItems: 'center', gap: 6,
+            flexShrink: 0,
+            transition: 'color 150ms var(--ease-hover, ease)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          <ChevronLeft size={14} strokeWidth={1.5} />
+          Liste des modèles
+        </button>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <ClusterDetails version={selectedVersion} onClose={() => setSelectedVersion(null)} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Vue : wizard (création nouveau clustering) ──────────────────────────
   if (showWizard) {
     return (
       <div style={{ padding: 12 }}>
@@ -63,12 +99,16 @@ export function ClusteringResultsContent(props: Props) {
           style={{
             background: 'none', border: 'none',
             padding: '6px 8px', cursor: 'pointer',
-            fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)',
+            fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)',
             display: 'flex', alignItems: 'center', gap: 4,
             marginBottom: 8,
+            transition: 'color 150ms var(--ease-hover, ease)',
           }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
-          ← Liste des modèles
+          <ChevronLeft size={14} strokeWidth={1.5} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+          {' '}Liste des modèles
         </button>
         <ClusterPanel {...props} />
       </div>
@@ -165,12 +205,6 @@ export function ClusteringResultsContent(props: Props) {
         + Nouveau clustering
       </button>
 
-      {selectedVersion !== null && (
-        <ClusterResultsOverlay
-          version={selectedVersion}
-          onClose={() => setSelectedVersion(null)}
-        />
-      )}
     </div>
   );
 }

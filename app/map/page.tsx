@@ -42,7 +42,7 @@ import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { ResultsPanel, type ResultsPanelType, RESULTS_PANEL_WIDTH } from '@/components/map/ResultsPanel';
+import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 const ClusteringResultsContent = dynamic(
@@ -1509,7 +1509,7 @@ export default function MapPage() {
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: (iconBarHidden ? 0 : 48) + (activeResults ? RESULTS_PANEL_WIDTH : 0), transition: 'padding-left 200ms var(--ease-out)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: iconBarHidden ? 0 : 48, transition: 'padding-left 200ms var(--ease-out)' }}>
       <IconBar
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}

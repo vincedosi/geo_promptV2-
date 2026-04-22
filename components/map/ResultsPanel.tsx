@@ -14,7 +14,10 @@ interface ResultsPanelProps {
   width?: number;
 }
 
-export const RESULTS_PANEL_WIDTH = 380;
+/** Largeur "naturelle" du panel à droite. Conservée pour rétrocompat avec
+ *  d'anciens consommateurs qui voudraient compresser la carte. Le panel
+ *  flotte au-dessus de la carte sans la pousser. */
+export const RESULTS_PANEL_WIDTH = 720;
 
 export function ResultsPanel({
   type,
@@ -22,7 +25,7 @@ export function ResultsPanel({
   dotColor = 'var(--cat-analysis)',
   onClose,
   children,
-  width = RESULTS_PANEL_WIDTH,
+  width,
 }: ResultsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -43,6 +46,9 @@ export function ResultsPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Largeur fluide : explicitée par le parent OU clamp 720px / 65vw par défaut
+  const widthValue = width !== undefined ? width : 'min(900px, 65vw)';
+
   return (
     <div
       ref={ref}
@@ -53,18 +59,19 @@ export function ResultsPanel({
       style={{
         position: 'fixed',
         top: 0,
-        left: 48,
-        width,
+        right: 0,
+        width: widthValue,
+        minWidth: 480,
         height: '100vh',
         background: 'var(--bg-surface)',
-        borderRight: '0.5px solid var(--border-default)',
+        borderLeft: '0.5px solid var(--border-default)',
         zIndex: 35,
         display: 'flex',
         flexDirection: 'column',
-        transform: mounted ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 200ms var(--ease-out, ease)',
+        transform: mounted ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 240ms var(--ease-out, ease)',
         overflow: 'hidden',
-        boxShadow: '4px 0 16px rgba(0, 0, 0, 0.18)',
+        boxShadow: '-4px 0 18px rgba(0, 0, 0, 0.22)',
       }}
     >
       <div
