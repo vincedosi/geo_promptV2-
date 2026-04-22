@@ -1961,9 +1961,11 @@ export default function MapPage() {
           {residualsMeta && (
             <div style={{
               position: 'absolute', bottom: 44, left: 12, zIndex: 100,
-              background: 'rgba(5,5,5,0.92)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 2,
+              background: 'var(--card-overlay)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '0.5px solid var(--border-default)',
+              borderRadius: 4,
               padding: '10px 12px',
               minWidth: 200,
               fontFamily: "'JetBrains Mono','Fira Mono',monospace",

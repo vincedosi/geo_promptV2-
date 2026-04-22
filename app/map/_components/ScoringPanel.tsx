@@ -138,7 +138,7 @@ function buildPopupHtml(p: ScoredPanneau, rank: number, profile: ScoringProfile 
   const maxScore = profile?.profil?.total_max ?? 100;
 
   const bar = (val: number, max: number) =>
-    `<div style="background:#1a1a1a;border-radius:2px;height:4px;width:100%;margin-top:2px">` +
+    `<div style="background:var(--border-subtle, #1a1a1a);border-radius:2px;height:4px;width:100%;margin-top:2px">` +
     `<div style="background:${col};height:4px;width:${pct(val, max)}%;border-radius:2px"></div></div>`;
 
   let criteriaHtml = '';

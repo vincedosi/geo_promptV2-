@@ -501,12 +501,12 @@ function CorrelationResultsPanel({
 
   return createPortal(
     <>
-      {/* Backdrop */}
+      {/* Backdrop — alpha noir universel : visible sur dark ET light theme */}
       <div
         onClick={handleClose}
         style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(5,5,5,0.65)',
+          background: 'rgba(0, 0, 0, 0.4)',
           zIndex: 9999,
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none',

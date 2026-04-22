@@ -23,12 +23,12 @@ export function ClusterResultsOverlay({ version, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop — semi-transparent, click to close */}
+      {/* Backdrop — semi-transparent, click to close (alpha noir universel dark/light) */}
       <div
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(5,5,5,0.4)',
+          background: 'rgba(0, 0, 0, 0.4)',
           zIndex: 8000,
           animation: 'croFadeIn 200ms var(--ease-out)',
         }}

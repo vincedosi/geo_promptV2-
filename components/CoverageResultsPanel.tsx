@@ -477,8 +477,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             fontFamily:   "'JetBrains Mono', monospace",
             fontSize:     10,
             color:        'var(--success)',
-            background:   '#081a10',
-            border:       '0.5px solid #14532d',
+            background:   'rgba(61, 255, 160, 0.10)',
+            border:       '0.5px solid rgba(61, 255, 160, 0.35)',
             borderRadius: 2,
             padding:      '2px 7px',
             flexShrink:   0,
@@ -630,7 +630,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
               key={m.key}
               onClick={() => setDisplayMetric(m.key)}
               style={{
-                background:    displayMetric === m.key ? '#0d1a0d' : 'none',
+                background:    displayMetric === m.key ? 'rgba(61, 255, 160, 0.12)' : 'none',
                 border:        `0.5px solid ${displayMetric === m.key ? 'var(--success)' : 'var(--border-default)'}`,
                 color:         displayMetric === m.key ? 'var(--success)' : 'var(--text-tertiary)',
                 fontFamily:    "'JetBrains Mono', monospace",

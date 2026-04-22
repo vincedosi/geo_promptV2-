@@ -222,7 +222,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 600,
-      background: 'rgba(5,5,5,0.96)',
+      background: 'var(--bg-surface)',
       display: 'flex', flexDirection: 'column',
       fontFamily: fMono,
     }}>
@@ -678,8 +678,8 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                 {jobLog && (
                   <pre style={{
                     margin: 0, padding: '8px 10px', borderRadius: 2,
-                    background: '#020205', border: `1px solid ${C.border}`,
-                    fontSize: 9, color: '#aaa', lineHeight: 1.6,
+                    background: 'var(--bg-primary)', border: `1px solid ${C.border}`,
+                    fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.6,
                     maxHeight: 220, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
                     fontFamily: fMono,
                   }}>
