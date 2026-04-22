@@ -53,8 +53,8 @@ function fmt(n: number): string {
 
 const iconBtnStyle: React.CSSProperties = {
   width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  background: 'transparent', border: '0.5px solid #1a1a1a', borderRadius: 4,
-  color: '#8a8a8a', cursor: 'pointer', padding: 0,
+  background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 4,
+  color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0,
 };
 
 const iconBtnLargeStyle: React.CSSProperties = {
@@ -204,7 +204,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
 
   const tooltip = hoveredCell && (
     <div style={{
-      padding: '8px 10px', borderTop: '0.5px solid #1a1a1a', background: 'var(--bg-surface)',
+      padding: '8px 10px', borderTop: '0.5px solid var(--border-subtle)', background: 'var(--bg-surface)',
       fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
       display: 'flex', gap: 12, flexWrap: 'wrap',
     }}>
@@ -219,7 +219,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
 
   const legend = (
     <div style={{ padding: '4px 10px 6px', display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid #111111' }}>
-      <div style={{ width: 80, height: 6, borderRadius: 2, background: 'linear-gradient(to right, #3B82F6, #1a1a2e, #EF4444)' }} />
+      <div style={{ width: 80, height: 6, borderRadius: 2, background: 'linear-gradient(to right, #3B82F6, var(--bg-level-2), #EF4444)' }} />
       <span style={{ fontFamily: fMono, fontSize: 10, color: '#8a8a8a' }}>sous-servi → sur-servi</span>
     </div>
   );
@@ -246,14 +246,14 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
     labelFontSize: 12,
     colLabelFontSize: verticalColLabels ? 10 : 12,
     showCellValue: true,
-    bodyBg: '#0a0a0f',
+    bodyBg: 'var(--bg-surface)',
   };
 
   return (
     <>
-      <div style={{ background: 'var(--bg-primary)', borderRadius: 4, border: '0.5px solid #1a1a1a', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-primary)', borderRadius: 4, border: '0.5px solid var(--border-subtle)', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid #1a1a1a' }}>
+        <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '0.5px solid var(--border-subtle)' }}>
           <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>Regies x geographie</span>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
@@ -293,7 +293,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
         <div
           style={{
             position: 'absolute', inset: 0, zIndex: 50,
-            background: '#0a0a0f',
+            background: 'var(--bg-surface)',
             display: 'flex', flexDirection: 'column',
             animation: 'heatmapFadeIn 200ms var(--ease-out)',
           }}
@@ -307,7 +307,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
           <div style={{
             flexShrink: 0, padding: '16px 24px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '0.5px solid #1a1a1a',
+            borderBottom: '0.5px solid var(--border-subtle)',
           }}>
             <span style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)' }}>
               Regies x geographie
@@ -346,7 +346,7 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
           </div>
 
           {/* Overlay body */}
-          <div style={{ flex: 1, overflow: 'auto', padding: 16, background: '#0a0a0f' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--bg-surface)' }}>
             {renderGrid(overlayOpts)}
           </div>
 

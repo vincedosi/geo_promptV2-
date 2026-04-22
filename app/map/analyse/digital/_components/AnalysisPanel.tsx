@@ -148,26 +148,26 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', fontFamily: fInter, fontSize: 12 }}>
             <button
               onClick={() => setDrillPath([])}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.4)', fontFamily: fInter, fontSize: 12, transition: 'color 150ms var(--ease-hover)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-tertiary)', fontFamily: fInter, fontSize: 12, transition: 'color 150ms var(--ease-hover)' }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
             >France</button>
             {drillPath.map((level, i) => {
               const isLast = i === drillPath.length - 1;
               return (
                 <span key={level.type + level.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.2)' }}>›</span>
+                  <span style={{ color: 'var(--text-tertiary)', opacity: 0.5 }}>›</span>
                   <button
                     onClick={() => setDrillPath(drillPath.slice(0, i + 1))}
                     style={{
                       background: 'none', border: 'none', cursor: isLast ? 'default' : 'pointer',
                       padding: 0, fontFamily: fInter, fontSize: 12,
-                      color: isLast ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.4)',
+                      color: isLast ? 'var(--text-primary)' : 'var(--text-tertiary)',
                       fontWeight: isLast ? 500 : 400,
                       transition: 'color 150ms var(--ease-hover)',
                     }}
                     onMouseEnter={e => { if (!isLast) e.currentTarget.style.color = 'var(--brand-teal)'; }}
-                    onMouseLeave={e => { if (!isLast) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+                    onMouseLeave={e => { if (!isLast) e.currentTarget.style.color = 'var(--text-tertiary)'; }}
                   >{level.nom}</button>
                 </span>
               );
@@ -219,7 +219,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
         )}
         <button onClick={onToggle} style={{
           padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: 'pointer',
-          background: 'rgba(255,255,255,0.05)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+          background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
           color: 'var(--text-secondary)', alignSelf: 'center',
         }}>Fermer analyse</button>
       </div>

@@ -335,8 +335,8 @@ export function BiddingCopilot({ campaignId, campaignName, indicator, breakdown,
             )}
           </div>
           <pre style={{
-            margin: 0, padding: '14px 16px', background: '#0d0d14', fontFamily: fMono, fontSize: 11,
-            lineHeight: 1.5, color: '#d0d0d0', overflowX: 'auto', maxHeight: 260,
+            margin: 0, padding: '14px 16px', background: 'var(--bg-primary)', fontFamily: fMono, fontSize: 11,
+            lineHeight: 1.5, color: 'var(--text-secondary)', overflowX: 'auto', maxHeight: 260,
           }}>{activeCode ?? '(pas de code disponible pour cette regie)'}</pre>
         </div>
       )}

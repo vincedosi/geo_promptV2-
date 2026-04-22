@@ -645,7 +645,7 @@ export default function DigitalTripleMapPage() {
 
             {/* Analysis overlay */}
             <div style={{
-              position: 'absolute', inset: 0, zIndex: 40, background: '#0a0a0f',
+              position: 'absolute', inset: 0, zIndex: 40, background: 'var(--bg-surface)',
               opacity: analysisOpen ? 1 : 0, pointerEvents: analysisOpen ? 'auto' : 'none',
               transition: 'opacity 0.3s ease',
               display: 'flex', flexDirection: 'column',
