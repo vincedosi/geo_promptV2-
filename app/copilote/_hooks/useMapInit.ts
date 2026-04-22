@@ -137,14 +137,16 @@ export function useMapInit(
       'left:10px',
       'z-index:10',
       'pointer-events:none',
-      'background:rgba(5,5,5,0.82)',
-      'border:0.5px solid #262626',
+      'background:var(--card-overlay)',
+      'backdrop-filter:blur(8px)',
+      '-webkit-backdrop-filter:blur(8px)',
+      'border:0.5px solid var(--border-default)',
       'color:var(--text-secondary)',
       'font-family:JetBrains Mono,monospace',
       'font-size:11px',
       'letter-spacing:0.05em',
       'padding:3px 8px',
-      'border-radius:2px',
+      'border-radius:4px',
     ].join(';');
     const updateZoomBadge = () => {
       const z = map.getZoom();
@@ -491,12 +493,12 @@ export function useMapInit(
             <div style="font-size:14px;font-weight:600;color:${nom ? 'var(--text-primary)' : 'var(--text-tertiary)'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
             ${nom ? `<div style="color:var(--text-secondary);font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
             ${groupe ? `<div style="color:var(--text-tertiary);font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
-            <div style="border-top:0.5px solid #1a1a1a;margin:4px 0;padding-top:4px">
+            <div style="border-top:0.5px solid var(--border-subtle, #1a1a1a);margin:4px 0;padding-top:4px">
               <div style="color:var(--text-secondary);font-size:11px">${freqDisplay}</div>
               ${pw ? `<div style="color:var(--text-tertiary);font-size:11px">Puissance : ${pw}</div>` : ''}
               ${cov ? `<div style="color:var(--text-tertiary);font-size:11px">Couverture : ${cov}</div>` : ''}
               <div style="color:var(--text-tertiary);font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
-              ${p.exploitant ? `<div style="color:#444444;font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
+              ${p.exploitant ? `<div style="color:var(--text-tertiary);font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
             </div>
           </div>`)
           .addTo(map);
