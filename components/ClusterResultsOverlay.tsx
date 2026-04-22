@@ -23,17 +23,20 @@ export function ClusterResultsOverlay({ version, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop — semi-transparent, click to close (alpha noir universel dark/light) */}
+      {/* Backdrop avec blur léger sur le contenu en arrière-plan (PROMPT spec) */}
       <div
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(var(--backdrop-blur, 4px))',
+          WebkitBackdropFilter: 'blur(var(--backdrop-blur, 4px))',
           zIndex: 8000,
-          animation: 'croFadeIn 200ms var(--ease-out)',
+          willChange: 'opacity, backdrop-filter',
+          animation: 'backdropFadeIn var(--duration-enter) var(--ease-spring) both',
         }}
       />
-      {/* Overlay panel */}
+      {/* Overlay panel — drawer pattern droite */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: 'min(900px, 65vw)',
@@ -43,24 +46,11 @@ export function ClusterResultsOverlay({ version, onClose }: Props) {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        animation: 'croSlideIn 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+        willChange: 'transform, opacity',
+        animation: 'drawerSlideInRight var(--duration-enter) var(--ease-spring) both',
       }}>
         <ClusterDetails version={version} onClose={onClose} />
       </div>
-
-      <style>{`
-        @keyframes croFadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes croSlideIn {
-          from { opacity: 0; transform: translateX(32px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          * { animation-duration: 0s !important; }
-        }
-      `}</style>
     </>
   );
 }

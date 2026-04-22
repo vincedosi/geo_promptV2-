@@ -144,7 +144,7 @@ export function ClusteringResultsContent(props: Props) {
       )}
 
       {!loadingModels && models.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {models.map(m => {
             const silColor = m.silhouette_score >= 0.5 ? 'var(--success)' : m.silhouette_score >= 0.3 ? 'var(--warning)' : 'var(--danger)';
             const dateStr  = new Date(m.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });

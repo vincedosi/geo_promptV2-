@@ -2376,7 +2376,7 @@ export function FilterPanel({
 
             {/* ── CTA cards (overlay mode) : ouvrent le ResultsPanel à gauche ── */}
             {useAnalysisCTAs && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 16px', borderBottom: `0.5px solid ${C.border}` }}>
+              <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 16px', borderBottom: `0.5px solid ${C.border}` }}>
                 <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2, textTransform: 'none' }}>
                   Lancer une analyse
                 </div>

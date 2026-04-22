@@ -501,20 +501,25 @@ function CorrelationResultsPanel({
 
   return createPortal(
     <>
-      {/* Backdrop — alpha noir universel : visible sur dark ET light theme */}
+      {/* Backdrop avec blur — PROMPT spec (4px sur le contenu en arrière-plan) */}
       <div
         onClick={handleClose}
         style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: isOpen ? 'blur(var(--backdrop-blur, 4px))' : 'blur(0)',
+          WebkitBackdropFilter: isOpen ? 'blur(var(--backdrop-blur, 4px))' : 'blur(0)',
           zIndex: 9999,
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none',
-          transition: 'opacity 200ms var(--ease-out)',
+          willChange: 'opacity, backdrop-filter',
+          transition: isOpen
+            ? 'opacity var(--duration-enter) var(--ease-spring), backdrop-filter var(--duration-enter) var(--ease-spring)'
+            : 'opacity var(--duration-exit) var(--ease-exit), backdrop-filter var(--duration-exit) var(--ease-exit)',
         }}
       />
 
-      {/* Slide-over panel */}
+      {/* Slide-over panel — drawer droite, entry bouncy / exit direct */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: 'clamp(550px, 50vw, 680px)',
@@ -522,9 +527,12 @@ function CorrelationResultsPanel({
         borderLeft: `0.5px solid var(--border-subtle)`,
         zIndex: 10000,
         transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 200ms var(--ease-out)',
+        transition: isOpen
+          ? 'transform var(--duration-enter) var(--ease-spring)'
+          : 'transform var(--duration-exit) var(--ease-exit)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
+        willChange: 'transform',
       }}>
 
         {/* ── Header ── */}

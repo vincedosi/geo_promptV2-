@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 export type ResultsPanelType = 'clustering' | 'coverage' | 'scoring' | 'correlation';
@@ -19,6 +19,9 @@ interface ResultsPanelProps {
  *  flotte au-dessus de la carte sans la pousser. */
 export const RESULTS_PANEL_WIDTH = 720;
 
+/** Doit matcher --duration-exit dans globals.css. Délai DOM avant unmount. */
+const EXIT_DURATION_MS = 200;
+
 export function ResultsPanel({
   type,
   title,
@@ -28,23 +31,30 @@ export function ResultsPanel({
   width,
 }: ResultsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(id);
+  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
+  const handleClose = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => onClose(), EXIT_DURATION_MS);
+  }, [closing, onClose]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        handleClose();
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [handleClose]);
 
   // Largeur fluide : explicitée par le parent OU clamp 720px / 65vw par défaut
   const widthValue = width !== undefined ? width : 'min(900px, 65vw)';
@@ -54,6 +64,7 @@ export function ResultsPanel({
       ref={ref}
       className="results-panel"
       data-type={type}
+      data-state={closing ? 'closing' : 'open'}
       role="complementary"
       aria-label={title}
       style={{
@@ -68,10 +79,12 @@ export function ResultsPanel({
         zIndex: 35,
         display: 'flex',
         flexDirection: 'column',
-        transform: mounted ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 240ms var(--ease-out, ease)',
         overflow: 'hidden',
         boxShadow: '-4px 0 18px rgba(0, 0, 0, 0.22)',
+        willChange: 'transform, opacity',
+        animation: closing
+          ? 'drawerSlideOutRight var(--duration-exit) var(--ease-exit) both'
+          : 'drawerSlideInRight var(--duration-enter) var(--ease-spring) both',
       }}
     >
       <div
@@ -108,7 +121,7 @@ export function ResultsPanel({
         </span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Fermer le panel des résultats"
           title="Fermer (Échap)"
           style={{
@@ -124,7 +137,7 @@ export function ResultsPanel({
             fontFamily: "'Inter', system-ui, sans-serif",
             fontSize: 12,
             fontWeight: 500,
-            transition: 'background-color 150ms var(--ease-hover, ease), color 150ms var(--ease-hover, ease), border-color 150ms var(--ease-hover, ease)',
+            transition: 'background-color var(--duration-hover) var(--ease-hover), color var(--duration-hover) var(--ease-hover), border-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.background = 'var(--bg-primary)';
@@ -136,6 +149,8 @@ export function ResultsPanel({
             e.currentTarget.style.color = 'var(--text-secondary)';
             e.currentTarget.style.borderColor = 'var(--border-default)';
           }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
         >
           <X size={14} strokeWidth={1.75} />
           Fermer

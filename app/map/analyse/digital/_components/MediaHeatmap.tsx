@@ -295,13 +295,13 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
             position: 'absolute', inset: 0, zIndex: 50,
             background: 'var(--bg-surface)',
             display: 'flex', flexDirection: 'column',
-            animation: 'heatmapFadeIn 200ms var(--ease-out)',
+            willChange: 'transform, opacity',
+            animation: 'modalScaleIn var(--duration-enter) var(--ease-spring) both',
           }}
           role="dialog"
           aria-modal="true"
           aria-label="Heatmap Regies x geographie"
         >
-          <style>{`@keyframes heatmapFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
 
           {/* Overlay header */}
           <div style={{

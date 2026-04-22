@@ -225,6 +225,8 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
       background: 'var(--bg-surface)',
       display: 'flex', flexDirection: 'column',
       fontFamily: fMono,
+      willChange: 'transform, opacity',
+      animation: 'modalScaleIn var(--duration-enter) var(--ease-spring) both',
     }}>
       {/* Header */}
       <div style={{

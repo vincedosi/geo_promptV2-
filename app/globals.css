@@ -68,6 +68,14 @@
     --ease-drawer:  cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer curve */
     --ease-hover:   ease;                               /* hover/color changes only */
 
+    /* ── Choreography tokens (PROMPT spec — overlays/drawers/modals) ─── */
+    --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);  /* entry with subtle bounce */
+    --ease-exit:    cubic-bezier(0.32, 0, 0.67, 0);     /* direct exit (acceleration) */
+    --duration-enter: 280ms;                             /* snappy entry */
+    --duration-exit:  200ms;                             /* faster exit */
+    --stagger-step:   50ms;                              /* delay between staggered children */
+    --backdrop-blur:  4px;                               /* drawer backdrop blur */
+
     --duration-press:   160ms;  /* button press feedback */
     --duration-hover:   150ms;  /* hover transitions */
     --duration-tooltip: 150ms;  /* tooltips, small popovers */
@@ -802,6 +810,67 @@ details > summary::-webkit-details-marker {
   overflow: visible !important;
 }
 
+/* ─── Choreography keyframes (PROMPT spec) ───────────────────────────────────
+   Pattern : entry bouncy (cubic-bezier(0.34,1.56,0.64,1)) + exit direct.
+   data-state="open|closing" pilote l'animation, le composant garde le DOM
+   monté pendant la sortie via un setTimeout (durée = --duration-exit).
+   Les composants utilisent ces keyframes via :
+     animation: drawerSlideInRight var(--duration-enter) var(--ease-spring)
+              both;
+*/
+@keyframes drawerSlideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes drawerSlideOutRight {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(100%); }
+}
+@keyframes drawerSlideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes drawerSlideOutLeft {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-12px); }
+}
+@keyframes modalScaleIn {
+  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes modalScaleOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.97) translateY(8px); }
+}
+@keyframes backdropFadeIn {
+  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+  to   { opacity: 1; backdrop-filter: blur(var(--backdrop-blur)); -webkit-backdrop-filter: blur(var(--backdrop-blur)); }
+}
+@keyframes backdropFadeOut {
+  from { opacity: 1; backdrop-filter: blur(var(--backdrop-blur)); -webkit-backdrop-filter: blur(var(--backdrop-blur)); }
+  to   { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+}
+@keyframes staggerFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger utility — applique un délai progressif aux enfants directs.
+   Usage : <ul class="stagger-children">…</ul> */
+.stagger-children > * {
+  opacity: 0;
+  animation: staggerFadeIn var(--duration-enter) var(--ease-spring) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: calc(var(--stagger-step) * 0); }
+.stagger-children > *:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+.stagger-children > *:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+.stagger-children > *:nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+.stagger-children > *:nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+.stagger-children > *:nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
+.stagger-children > *:nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
+.stagger-children > *:nth-child(8) { animation-delay: calc(var(--stagger-step) * 7); }
+.stagger-children > *:nth-child(n+9) { animation-delay: calc(var(--stagger-step) * 8); }
+
 /* ─── Reduced motion ────────────────────────────────────────────────────────── */
 /* Emil: reduce motion ≠ no motion. Keep opacity/color transitions (comprehension),
    remove transform-based movement (motion sickness). */
@@ -820,6 +889,22 @@ details > summary::-webkit-details-marker {
   .topbar-tab span {
     transition-property: opacity, color, background-color, border-color, fill, stroke !important;
     transition-duration: 150ms !important;
+  }
+
+  /* Override transform-based keyframes (drawers / modales) → fade-only.
+     Préserve la compréhension des transitions d'état sans déclencher de
+     mouvement (préventif vs motion sickness). PROMPT spec respectée. */
+  .overlay-panel[data-state],
+  .results-panel[data-state] {
+    animation: fadeIn 200ms ease both !important;
+  }
+  .overlay-panel[data-state="closing"],
+  .results-panel[data-state="closing"] {
+    animation: fadeIn 200ms ease reverse both !important;
+  }
+  .stagger-children > * {
+    animation: fadeIn 200ms ease both !important;
+    animation-delay: 0 !important;
   }
 }
 

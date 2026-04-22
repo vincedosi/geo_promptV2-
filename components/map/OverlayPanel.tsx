@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import type { OverlayId } from './IconBar';
 
@@ -14,6 +14,13 @@ interface OverlayPanelProps {
   width?: number;
 }
 
+/**
+ * Durée de l'animation de sortie (doit matcher --duration-exit dans globals.css).
+ * On retient l'élément monté pendant cette durée pour permettre l'animation
+ * out → unmount, conformément à la spec PROMPT.
+ */
+const EXIT_DURATION_MS = 200;
+
 export function OverlayPanel({
   category,
   title,
@@ -23,12 +30,18 @@ export function OverlayPanel({
   width = 280,
 }: OverlayPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Animation entrée : on démarre invisible, puis on passe visible au tick suivant
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(id);
+  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
+  const handleClose = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => onClose(), EXIT_DURATION_MS);
+  }, [closing, onClose]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
   // Esc ferme l'overlay
@@ -36,12 +49,12 @@ export function OverlayPanel({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        handleClose();
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [handleClose]);
 
   // Click-outside : ferme si le clic est hors de l'overlay ET hors de l'IconBar
   useEffect(() => {
@@ -50,7 +63,7 @@ export function OverlayPanel({
       if (!target) return;
       if (target.closest('.overlay-panel')) return;
       if (target.closest('.icon-bar')) return;
-      onClose();
+      handleClose();
     }
     // Décaler d'un tick pour ne pas catcher le clic d'ouverture
     const t = setTimeout(() => window.addEventListener('mousedown', onClick), 0);
@@ -58,13 +71,14 @@ export function OverlayPanel({
       clearTimeout(t);
       window.removeEventListener('mousedown', onClick);
     };
-  }, [onClose]);
+  }, [handleClose]);
 
   return (
     <div
       ref={ref}
       className="overlay-panel"
       data-category={category}
+      data-state={closing ? 'closing' : 'open'}
       role="dialog"
       aria-label={title}
       style={{
@@ -74,18 +88,19 @@ export function OverlayPanel({
         width,
         maxHeight: 'calc(100vh - 24px)',
         background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(var(--backdrop-blur, 4px))',
+        WebkitBackdropFilter: 'blur(var(--backdrop-blur, 4px))',
         border: '0.5px solid var(--border-default, #262626)',
         borderRadius: 12,
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
         zIndex: 40,
         display: 'flex',
         flexDirection: 'column',
-        opacity: mounted ? 1 : 0,
-        transform: mounted ? 'translateX(0)' : 'translateX(-8px)',
-        transition: 'opacity 150ms var(--ease-out, ease), transform 150ms var(--ease-out, ease)',
         overflow: 'hidden',
+        willChange: 'transform, opacity',
+        animation: closing
+          ? 'drawerSlideOutLeft var(--duration-exit) var(--ease-exit) both'
+          : 'drawerSlideInLeft var(--duration-enter) var(--ease-spring) both',
       }}
     >
       {/* Header */}
@@ -121,7 +136,7 @@ export function OverlayPanel({
         </span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Fermer"
           style={{
             background: 'transparent',
@@ -131,7 +146,7 @@ export function OverlayPanel({
             display: 'flex',
             alignItems: 'center',
             color: 'var(--text-tertiary, #666666)',
-            transition: 'color 150ms var(--ease-hover, ease)',
+            transition: 'color var(--duration-hover, 150ms) var(--ease-hover, ease)',
           }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary, #f0f0f0)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary, #666666)'; }}
