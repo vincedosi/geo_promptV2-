@@ -110,27 +110,35 @@ export function ResultsPanel({
           type="button"
           onClick={onClose}
           aria-label="Fermer le panel des résultats"
+          title="Fermer (Échap)"
           style={{
             background: 'transparent',
-            border: 'none',
+            border: '0.5px solid var(--border-default)',
             cursor: 'pointer',
-            padding: 4,
+            padding: '6px 12px',
             display: 'flex',
             alignItems: 'center',
-            color: 'var(--text-tertiary)',
-            borderRadius: 4,
-            transition: 'background-color 150ms var(--ease-hover, ease), color 150ms var(--ease-hover, ease)',
+            gap: 6,
+            color: 'var(--text-secondary)',
+            borderRadius: 6,
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontSize: 12,
+            fontWeight: 500,
+            transition: 'background-color 150ms var(--ease-hover, ease), color 150ms var(--ease-hover, ease), border-color 150ms var(--ease-hover, ease)',
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.background = 'var(--bg-level-2)';
+            e.currentTarget.style.background = 'var(--bg-primary)';
             e.currentTarget.style.color = 'var(--text-primary)';
+            e.currentTarget.style.borderColor = 'var(--border-hover)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-tertiary)';
+            e.currentTarget.style.color = 'var(--text-secondary)';
+            e.currentTarget.style.borderColor = 'var(--border-default)';
           }}
         >
-          <X size={16} strokeWidth={1.5} />
+          <X size={14} strokeWidth={1.75} />
+          Fermer
         </button>
       </div>
 
