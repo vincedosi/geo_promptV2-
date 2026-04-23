@@ -200,14 +200,19 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
 
   if (!open) return null;
 
-  // ─── KPI band config ───────────────────────────────────────────────────────
-  const kpiItems = [
-    { label: 'Impressions',   value: fmtNum(animImp),         Icon: Eye,         color: 'var(--text-primary)' },
-    { label: 'Pop. cible',    value: fmtNum(animPop),         Icon: Users,       color: 'var(--text-primary)' },
-    { label: 'Ratio moy.',    value: fmtRatio(animRatio),     Icon: TrendingUp,  color: 'var(--text-primary)' },
-    { label: 'Couverture',    value: fmtPct(animCouv),        Icon: Globe,       color: 'var(--success)' },
-    { label: 'Top 10% CP',    value: fmtPct(animTop10) + ' imp.', Icon: Award,   color: 'var(--brand-teal)' },
-    { label: 'Score qualité', value: `${Math.round(animScore)}/100`, Icon: Star, color: scoreColor(qualityScore) },
+  // ─── KPI band config — chaque accent porte un sens sémantique ─────────────
+  // Couleurs tenues : teal (perf/measure), success (couverture), analysis
+  // (concentration), score dynamique. Le reste reste neutre.
+  const kpiItems: Array<{
+    label: string; value: string; Icon: typeof Eye;
+    accent: string; accentRgb: string;
+  }> = [
+    { label: 'Impressions',   value: fmtNum(animImp),                accent: 'var(--brand-teal)',   accentRgb: '78,205,196',  Icon: Eye },
+    { label: 'Pop. cible',    value: fmtNum(animPop),                accent: 'var(--cat-context)',  accentRgb: '138,138,138', Icon: Users },
+    { label: 'Ratio moy.',    value: fmtRatio(animRatio),            accent: 'var(--brand-teal)',   accentRgb: '78,205,196',  Icon: TrendingUp },
+    { label: 'Couverture',    value: fmtPct(animCouv),               accent: 'var(--success)',      accentRgb: '61,255,160',  Icon: Globe },
+    { label: 'Top 10% CP',    value: fmtPct(animTop10) + ' imp.',    accent: 'var(--cat-analysis)', accentRgb: '232,132,92',  Icon: Award },
+    { label: 'Score qualité', value: `${Math.round(animScore)}/100`, accent: scoreColor(qualityScore), accentRgb: qualityScore >= 75 ? '61,255,160' : qualityScore >= 50 ? '247,183,49' : '255,87,87', Icon: Star },
   ];
 
   const tabs: Array<{ id: TabId; label: string; Icon: typeof Activity }> = [
@@ -275,48 +280,90 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
         )}
       </div>
 
-      {/* ═════ KPI band (count-up animé) ═════ */}
+      {/* ═════ KPI band — cards compartimentées avec accent couleur tenu ═════ */}
       <div style={{
-        flexShrink: 0, padding: '14px 24px',
+        flexShrink: 0, padding: '16px 24px',
         borderBottom: '0.5px solid var(--border-subtle)',
-        background: 'var(--bg-level-2)',
-        display: 'flex', gap: 32, overflowX: 'auto',
+        background: 'var(--bg-primary)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 10,
       }}>
-        {kpiItems.map(({ label, value, Icon, color }) => (
-          <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 100, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Icon size={11} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+        {kpiItems.map(({ label, value, Icon, accent, accentRgb }) => (
+          <div
+            key={label}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 14px',
+              background: 'var(--bg-surface)',
+              border: '0.5px solid var(--border-subtle)',
+              borderTop: `2px solid rgba(${accentRgb}, 0.6)`,
+              borderRadius: 8,
+              transition: 'border-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)',
+              cursor: 'default',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = `rgba(${accentRgb}, 0.4)`; e.currentTarget.style.borderTopColor = accent; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderTopColor = `rgba(${accentRgb}, 0.6)`; }}
+          >
+            <div style={{
+              width: 32, height: 32, borderRadius: 7, flexShrink: 0,
+              background: `rgba(${accentRgb}, 0.10)`,
+              border: `0.5px solid rgba(${accentRgb}, 0.25)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: accent,
+            }}>
+              <Icon size={14} strokeWidth={1.75} />
             </div>
-            <span style={{ fontFamily: fInter, fontSize: 22, fontWeight: 500, color, letterSpacing: '-0.01em', lineHeight: 1.2 }}>{value}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+              <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+              <span style={{ fontFamily: fInter, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 1 }}>{value}</span>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* ═════ Tabs nav ═════ */}
+      {/* ═════ Tabs nav — pills compartimentées ═════ */}
       <div style={{
-        flexShrink: 0, padding: '0 24px',
+        flexShrink: 0, padding: '12px 24px 0',
+        background: 'var(--bg-primary)',
+        display: 'flex', gap: 6,
         borderBottom: '0.5px solid var(--border-subtle)',
-        display: 'flex', gap: 4,
       }}>
-        {tabs.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '10px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              background: 'transparent', border: 'none',
-              borderBottom: activeTab === id ? '2px solid var(--brand-teal)' : '2px solid transparent',
-              color: activeTab === id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
-              transition: 'color var(--duration-hover) var(--ease-hover), border-color var(--duration-hover) var(--ease-hover)',
-              marginBottom: -1,
-            }}
-          >
-            <Icon size={13} strokeWidth={1.75} />
-            {label}
-          </button>
-        ))}
+        {tabs.map(({ id, label, Icon }) => {
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              aria-pressed={active}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '8px 14px 10px', fontFamily: fInter, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                background: active ? 'var(--bg-surface)' : 'transparent',
+                border: '0.5px solid',
+                borderColor: active ? 'var(--border-default)' : 'transparent',
+                borderBottomColor: active ? 'var(--bg-surface)' : 'transparent',
+                borderRadius: '8px 8px 0 0',
+                color: active ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+                marginBottom: -0.5,
+                transition: 'color var(--duration-hover) var(--ease-hover), background-color var(--duration-hover) var(--ease-hover), border-color var(--duration-hover) var(--ease-hover)',
+                position: 'relative',
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; } }}
+            >
+              <Icon size={13} strokeWidth={1.75} />
+              {label}
+              {active && (
+                <span style={{
+                  position: 'absolute', bottom: -1, left: 12, right: 12, height: 2,
+                  background: 'var(--brand-teal)',
+                  borderRadius: '2px 2px 0 0',
+                }} />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ═════ Tabs content ═════ */}
@@ -380,29 +427,80 @@ interface DiagnosticTabProps {
 }
 function DiagnosticTab({ breakdownData, currentAggregation, metric, handleBarClick, heatmapData, heatmapLoading, heatmapAgg, executiveSummary }: DiagnosticTabProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16 }}>
-        <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
-          <BreakdownChart data={breakdownData} aggregation={currentAggregation} metric={metric} onBarClick={handleBarClick} />
-        </div>
-        <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
-          <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} />
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+      {/* Résumé exécutif en haut — accent teal, plus visible */}
       {executiveSummary && (
         <div style={{
-          padding: '14px 18px', borderRadius: 8,
-          background: 'rgba(78,205,196,0.04)',
-          borderLeft: '3px solid var(--brand-teal)',
-          fontFamily: fInter, fontSize: 13, lineHeight: 1.65, color: 'var(--text-secondary)',
+          padding: '16px 20px', borderRadius: 10,
+          background: 'linear-gradient(135deg, rgba(78,205,196,0.08), rgba(78,205,196,0.02))',
+          border: '0.5px solid rgba(78,205,196,0.25)',
+          display: 'flex', gap: 14, alignItems: 'flex-start',
           animation: 'staggerFadeIn var(--duration-enter) var(--ease-spring) both',
         }}>
-          <div style={{ fontFamily: fInter, fontSize: 10.5, fontWeight: 600, color: 'var(--brand-teal)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-            Lecture rapide
+          <div style={{
+            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+            background: 'rgba(78,205,196,0.15)',
+            border: '0.5px solid rgba(78,205,196,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--brand-teal)',
+          }}>
+            <Activity size={16} strokeWidth={2} />
           </div>
-          {executiveSummary}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: fInter, fontSize: 10.5, fontWeight: 600, color: 'var(--brand-teal)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+              Lecture rapide
+            </div>
+            <div style={{ fontFamily: fInter, fontSize: 13.5, lineHeight: 1.65, color: 'var(--text-primary)' }}>
+              {executiveSummary}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* 2 cards graphique + heatmap */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16 }}>
+        <SectionCard title="Écart impressions vs population" subtitle="Distribution par zone — clic pour drilldown" accentRgb="78,205,196">
+          <BreakdownChart data={breakdownData} aggregation={currentAggregation} metric={metric} onBarClick={handleBarClick} />
+        </SectionCard>
+        <SectionCard title="Régies × géographie" subtitle="Heatmap divergente sur l'écart" accentRgb="232,132,92">
+          <MediaHeatmap data={heatmapData} loading={heatmapLoading} aggregation={heatmapAgg} metric={metric} />
+        </SectionCard>
+      </div>
+    </div>
+  );
+}
+
+// ─── SectionCard helper réutilisable ───────────────────────────────────────────
+function SectionCard({ title, subtitle, accentRgb, children }: { title: string; subtitle?: string; accentRgb: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--bg-level-2)',
+      border: '0.5px solid var(--border-subtle)',
+      borderRadius: 10,
+      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{
+        padding: '11px 16px',
+        borderBottom: '0.5px solid var(--border-subtle)',
+        background: 'var(--bg-primary)',
+        display: 'flex', alignItems: 'center', gap: 9,
+      }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: `rgb(${accentRgb})`,
+          boxShadow: `0 0 0 2px rgba(${accentRgb},0.18)`,
+          flexShrink: 0,
+        }} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+          <span style={{ fontFamily: fInter, fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.005em' }}>{title}</span>
+          {subtitle && <span style={{ fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 1 }}>{subtitle}</span>}
+        </div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -422,34 +520,63 @@ interface RecommandationsTabProps {
 }
 function RecommandationsTab({ breakdownData, currentAggregation, metric, handleBarClick, copilotEnabled, onEnableCopilot, campaignId, indicator }: RecommandationsTabProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <SectionCard title="Sur-servis & sous-servis" subtitle="Tri par écart absolu — clic pour drilldown sur la carte" accentRgb="91,155,213">
         <ActionListTable data={breakdownData} metric={metric} aggregation={currentAggregation} onRowClick={handleBarClick} />
-      </div>
-      <div style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+      </SectionCard>
+
+      <SectionCard title="Recommandation bidding" subtitle="Coefficients calculés depuis l'écart pop/imp" accentRgb="247,183,49">
         <BiddingRecommendation data={breakdownData} aggregation={currentAggregation} />
-      </div>
+      </SectionCard>
 
       {!copilotEnabled && (
-        <button
-          type="button"
-          onClick={onEnableCopilot}
-          style={{
-            padding: '12px 20px', fontFamily: fInter, fontSize: 13, fontWeight: 500,
-            background: 'var(--brand-teal)', color: 'var(--bg-primary)',
-            border: 'none', borderRadius: 8, cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            alignSelf: 'flex-start',
-            willChange: 'transform',
-            transition: 'transform var(--duration-press) var(--ease-out), background-color var(--duration-hover) var(--ease-hover)',
-          }}
-          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-        >
-          <Sparkles size={14} strokeWidth={1.75} />
-          Appliquer les coefficients (Copilote bidding)
-        </button>
+        <div style={{
+          padding: '18px 22px', borderRadius: 10,
+          background: 'linear-gradient(135deg, rgba(78,205,196,0.10), rgba(78,205,196,0.02))',
+          border: '0.5px solid rgba(78,205,196,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 240 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+              background: 'rgba(78,205,196,0.18)',
+              border: '0.5px solid rgba(78,205,196,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--brand-teal)',
+            }}>
+              <Sparkles size={17} strokeWidth={2} />
+            </div>
+            <div>
+              <div style={{ fontFamily: fInter, fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
+                Aller plus loin avec le Copilote bidding
+              </div>
+              <div style={{ fontFamily: fInter, fontSize: 11.5, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                Discutez avec Gemini pour générer automatiquement votre code DV360/Adform et une simulation avant/après.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onEnableCopilot}
+            style={{
+              padding: '10px 18px', fontFamily: fInter, fontSize: 12.5, fontWeight: 600,
+              background: 'var(--brand-teal)', color: 'var(--bg-primary)',
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              flexShrink: 0,
+              willChange: 'transform',
+              boxShadow: '0 2px 10px rgba(78,205,196,0.25)',
+              transition: 'transform var(--duration-press) var(--ease-out), box-shadow var(--duration-hover) var(--ease-hover)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(78,205,196,0.4)'; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(78,205,196,0.25)'; e.currentTarget.style.transform = 'scale(1)'; }}
+            onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+            onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+          >
+            Activer le copilote
+            <span style={{ fontSize: 14, lineHeight: 1 }}>→</span>
+          </button>
+        </div>
       )}
 
       {copilotEnabled && (
@@ -457,13 +584,15 @@ function RecommandationsTab({ breakdownData, currentAggregation, metric, handleB
           animation: 'modalScaleIn var(--duration-enter) var(--ease-spring) both',
           willChange: 'transform, opacity',
         }}>
-          <BiddingCopilot
-            campaignId={campaignId}
-            indicator={indicator}
-            breakdown={breakdownData}
-            metric={metric}
-            aggregation={currentAggregation}
-          />
+          <SectionCard title="Copilote bidding" subtitle="Conversation avec Gemini — coefficients & code généré" accentRgb="78,205,196">
+            <BiddingCopilot
+              campaignId={campaignId}
+              indicator={indicator}
+              breakdown={breakdownData}
+              metric={metric}
+              aggregation={currentAggregation}
+            />
+          </SectionCard>
         </div>
       )}
     </div>
@@ -483,48 +612,87 @@ interface IATabProps {
 function IATab({ qualityScore, campaignId, indicator, kpi, breakdown }: IATabProps) {
   const animScore = useCountUp(qualityScore, 800);
   const color = scoreColor(qualityScore);
+  const colorRgb = qualityScore >= 75 ? '61,255,160' : qualityScore >= 50 ? '247,183,49' : '255,87,87';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-      {/* Score card animé */}
+      {/* ═════ Score card prominent — gradient subtil + ring autour du nombre ═════ */}
       <div style={{
-        padding: '20px 24px', borderRadius: 10,
-        background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)',
+        padding: '24px 28px', borderRadius: 12,
+        background: `linear-gradient(135deg, rgba(${colorRgb},0.10), rgba(${colorRgb},0.02))`,
+        border: `0.5px solid rgba(${colorRgb},0.25)`,
+        borderTop: `3px solid ${color}`,
+        display: 'flex', alignItems: 'center', gap: 24,
+        animation: 'staggerFadeIn var(--duration-enter) var(--ease-spring) both',
       }}>
-        <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-          Score de qualité géographique
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontFamily: fInter, fontSize: 36, fontWeight: 500, color, letterSpacing: '-0.02em', lineHeight: 1 }}>
-            {Math.round(animScore)}
-          </span>
-          <span style={{ fontFamily: fMono, fontSize: 14, color: 'var(--text-tertiary)' }}>/100</span>
-        </div>
-        {/* Progress bar */}
-        <div style={{
-          height: 6, borderRadius: 3, background: 'var(--bg-primary)', overflow: 'hidden',
-          border: '0.5px solid var(--border-subtle)',
-        }}>
+        {/* Score circulaire visuellement marquant */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
           <div style={{
-            width: `${animScore}%`, height: '100%',
-            background: color, borderRadius: 3,
-            transition: 'width var(--duration-hover) var(--ease-out)',
-            willChange: 'width',
-          }} />
+            width: 96, height: 96, borderRadius: '50%',
+            background: `conic-gradient(${color} 0% ${animScore}%, rgba(${colorRgb},0.15) ${animScore}% 100%)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background var(--duration-hover) var(--ease-out)',
+          }}>
+            <div style={{
+              width: 78, height: 78, borderRadius: '50%',
+              background: 'var(--bg-surface)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              border: `0.5px solid rgba(${colorRgb},0.3)`,
+            }}>
+              <span style={{ fontFamily: fInter, fontSize: 28, fontWeight: 600, color, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {Math.round(animScore)}
+              </span>
+              <span style={{ fontFamily: fMono, fontSize: 9.5, color: 'var(--text-tertiary)', marginTop: 2 }}>/ 100</span>
+            </div>
+          </div>
         </div>
-        <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.55 }}>
-          {scoreMessage(qualityScore)}
+
+        {/* Titre + message */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Star size={14} strokeWidth={2} style={{ color }} />
+            <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Score de qualité géographique
+            </span>
+          </div>
+          <div style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: 6 }}>
+            {scoreMessage(qualityScore)}
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
+            <ScoreLegend label="0-49" color="var(--danger)" active={qualityScore < 50} />
+            <ScoreLegend label="50-74" color="var(--warning)" active={qualityScore >= 50 && qualityScore < 75} />
+            <ScoreLegend label="75-100" color="var(--success)" active={qualityScore >= 75} />
+          </div>
         </div>
       </div>
 
-      {/* Analyse IA (bloc existant) */}
-      <AiAnalysisBlock
-        campaignId={campaignId}
-        indicator={indicator}
-        kpi={kpi}
-        breakdown={breakdown}
-      />
+      {/* ═════ Bloc Analyse IA (existant, dans un SectionCard) ═════ */}
+      <SectionCard title="Diagnostic IA" subtitle="Analyse Gemini sur la distribution géographique" accentRgb="78,205,196">
+        <div style={{ padding: 0 }}>
+          <AiAnalysisBlock
+            campaignId={campaignId}
+            indicator={indicator}
+            kpi={kpi}
+            breakdown={breakdown}
+          />
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+function ScoreLegend({ label, color, active }: { label: string; color: string; active: boolean }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      opacity: active ? 1 : 0.45,
+      transition: 'opacity var(--duration-hover) var(--ease-hover)',
+    }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={{ fontFamily: fMono, fontSize: 10.5, color: active ? 'var(--text-primary)' : 'var(--text-tertiary)', fontWeight: active ? 600 : 400 }}>
+        {label}
+      </span>
     </div>
   );
 }
