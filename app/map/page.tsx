@@ -31,7 +31,7 @@ const TripleMapView = dynamic(
   { ssr: false },
 );
 const DigitalAnalysisPanel = dynamic(
-  () => import('@/app/map/analyse/digital/_components/AnalysisPanel').then(m => ({ default: m.AnalysisPanel })),
+  () => import('@/components/digital/AnalysisPanelSwitch').then(m => ({ default: m.AnalysisPanelSwitch })),
   { ssr: false },
 );
 import type { ZoneData, BattleResult } from '@/types/spatial';

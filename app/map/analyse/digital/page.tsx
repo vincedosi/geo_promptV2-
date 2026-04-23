@@ -8,7 +8,7 @@ import { RailroadPipeline, type GeographySet, type CustomZoneOption } from './_c
 import { MeteoGeoPanel } from './_components/MeteoGeoPanel';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
-import { AnalysisPanel } from './_components/AnalysisPanel';
+import { AnalysisPanelSwitch as AnalysisPanel } from '@/components/digital/AnalysisPanelSwitch';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { adminFetch } from '@/lib/admin-fetch';
