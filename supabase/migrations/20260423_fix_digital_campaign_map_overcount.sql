@@ -1,0 +1,39 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 20260423_fix_digital_campaign_map_overcount.sql
+--
+-- Bug : get_digital_campaign_map() sur-comptait massivement les impressions
+--       et la population (×26 sur la dernière campagne testée).
+--
+-- Cause racine :
+--   La requête originale chaînait les JOIN dans un seul SELECT :
+--     ref_regions × ref_dept × postal_code_commune × iris × dsp_campaign_data
+--   →  iris a N lignes par commune (un IRIS = un quartier)
+--   →  dsp_campaign_data a M lignes par CP (selon date/media)
+--   Le SUM(dcd.tracked_ads) était donc multiplié par N × M par groupe.
+--
+-- Validation avant fix (campagne f60c8e59-…) :
+--   - Vrai SUM(tracked_ads)             : 86 949 839
+--   - get_digital_analysis_breakdown    : 85 855 617  ✓ (CTE séparées)
+--   - get_digital_campaign_map (region) : 2 260 300 795  ❌ (×26)
+--
+-- Fix : réécriture avec CTE séparées (pattern de _breakdown) :
+--   - imp  = SUM(tracked_ads) GROUP BY zone
+--   - pop  = SUM(population) GROUP BY zone (sur iris seul, sans cross-join)
+--   - geo  = nom + géométrie filtrés par bbox
+--   - JOIN final geo LEFT JOIN imp LEFT JOIN pop USING(zone)
+--
+-- Pour le scale='cp' : chaque IRIS attribué à UN seul code postal
+--   (MIN code_postal) pour éviter le double-comptage des communes ayant
+--   plusieurs CP.
+--
+-- Validation après fix :
+--   - region/dept/cp     : 83 681 122  ✓ (-3.8% vs vrai = CP/DOM hors bbox métro)
+--   - pop region/dept    : 38 626 029  ✓ (vs 40 443 988 vrai — DOM exclus)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- (Le corps de la fonction a été appliqué via MCP apply_migration —
+-- nom de migration : fix_digital_campaign_map_overcount_v2.
+-- Voir l'historique Supabase pour le code complet, ou get_functiondef.)
+
+-- Pour ré-appliquer en local (npx supabase db reset / push) :
+SELECT pg_get_functiondef('public.get_digital_campaign_map'::regproc);
