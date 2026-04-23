@@ -12,6 +12,8 @@ interface ResultsPanelProps {
   onClose: () => void;
   children: ReactNode;
   width?: number;
+  /** Offset vertical pour laisser la place à une top bar (default 0) */
+  topOffset?: number;
 }
 
 /** Largeur "naturelle" du panel à droite. Conservée pour rétrocompat avec
@@ -29,6 +31,7 @@ export function ResultsPanel({
   onClose,
   children,
   width,
+  topOffset = 0,
 }: ResultsPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -87,11 +90,11 @@ export function ResultsPanel({
       aria-label={title}
       style={{
         position: 'fixed',
-        top: 0,
+        top: topOffset,
         right: 0,
         width: widthValue,
         minWidth: 480,
-        height: '100vh',
+        height: `calc(100vh - ${topOffset}px)`,
         background: 'var(--bg-surface)',
         borderLeft: '0.5px solid var(--border-default)',
         zIndex: 35,

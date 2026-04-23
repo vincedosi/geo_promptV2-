@@ -12,6 +12,8 @@ interface OverlayPanelProps {
   children: ReactNode;
   /** Largeur (default 280) */
   width?: number;
+  /** Offset vertical pour laisser la place à une top bar (default 0) */
+  topOffset?: number;
 }
 
 /**
@@ -28,6 +30,7 @@ export function OverlayPanel({
   onClose,
   children,
   width = 280,
+  topOffset = 0,
 }: OverlayPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -102,10 +105,10 @@ export function OverlayPanel({
       aria-label={title}
       style={{
         position: 'fixed',
-        top: 12,
+        top: 12 + topOffset,
         left: 56, // 48 IconBar + 8 gap
         width,
-        maxHeight: 'calc(100vh - 24px)',
+        maxHeight: `calc(100vh - 24px - ${topOffset}px)`,
         background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
         backdropFilter: 'blur(var(--backdrop-blur, 4px))',
         WebkitBackdropFilter: 'blur(var(--backdrop-blur, 4px))',

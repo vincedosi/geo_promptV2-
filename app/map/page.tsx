@@ -40,6 +40,7 @@ import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
+import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
@@ -1526,7 +1527,13 @@ export default function MapPage() {
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)', paddingLeft: iconBarHidden ? 0 : 48, transition: 'padding-left 200ms var(--ease-out)' }}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)',
+      paddingLeft: iconBarHidden ? 0 : 48,
+      paddingTop: iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT,
+      transition: 'padding-left 200ms var(--ease-out), padding-top 200ms var(--ease-out)',
+    }}>
+      {!iconBarHidden && <MapTopBar />}
       <IconBar
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}
@@ -1535,6 +1542,7 @@ export default function MapPage() {
       />
       {activeOverlay && (
         <OverlayPanel
+          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           category={activeOverlay}
           title={
             activeOverlay === 'ai' ? 'geo.prompt' :
@@ -1749,6 +1757,7 @@ export default function MapPage() {
       )}
       {activeResults && (
         <ResultsPanel
+          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           type={activeResults}
           title={
             activeResults === 'clustering'  ? 'Résultats — clustering' :
