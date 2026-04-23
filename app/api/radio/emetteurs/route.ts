@@ -29,11 +29,17 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
+  // Cap supérieur pour le mode "coverage" (fetch global sans bbox) :
+  // 11 836 émetteurs en base + marge de croissance. Le RPC tronque déjà
+  // côté DB si nécessaire — pas de risque I/O.
+  const limitParam = Number(p.get('limit') ?? 15000);
+  const safeLimit  = Math.min(Math.max(1, isNaN(limitParam) ? 15000 : limitParam), 20000);
+
   const { data, error } = await supabase.rpc('get_radio_emetteurs_geojson', {
     p_bbox: bbox ?? null,
     p_systeme: systeme ?? null,
     p_radio_id: radioId ?? null,
-    p_limit: 10000,
+    p_limit: safeLimit,
     p_radio_ids: radioIds ?? null,
     p_exclude_categories: excludeCats ?? null,
   });

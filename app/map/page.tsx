@@ -667,10 +667,17 @@ export default function MapPage() {
     try {
       const params = new URLSearchParams();
       if (radioSelectedId) {
-        // When a specific radio is selected, load ALL its emitters (no bbox)
+        // Une radio précise sélectionnée → tous ses émetteurs (sans bbox)
         params.set('radio_id', radioSelectedId);
+      } else if (radioCoverageMode) {
+        // Mode couverture (cercles) → fetch GLOBAL sans bbox.
+        // Sinon les cercles disparaissent au zoom in : un émetteur dont le
+        // centre sort du viewport perd son cercle alors que sa couverture
+        // (rayon jusqu'à 54km) intersecte encore la zone visible.
+        // 11k émetteurs ≈ 3-5MB GeoJSON, MapLibre gère sans souci.
+        params.set('limit', '15000');
       } else {
-        // Otherwise use bbox
+        // Mode clusters/heatmap → fetch viewport bbox (rapide, dynamique)
         const b = map.getBounds();
         params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
       }
@@ -704,7 +711,7 @@ export default function MapPage() {
     } finally {
       setRadioLoading(false);
     }
-  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCategories]);
+  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCategories, radioCoverageMode]);
 
   // Sync radio GeoJSON → map source + layer visibility
   useEffect(() => {
@@ -765,10 +772,11 @@ export default function MapPage() {
     if (!radioVisible || !mapReady) return;
     handleLoadRadio();
 
-    // If a specific radio is selected, load once and don't reload on move
-    if (radioSelectedId) return;
+    // Une radio précise OU mode couverture global → load once, pas de re-fetch
+    // sur moveend (sinon la couverture clignote au zoom).
+    if (radioSelectedId || radioCoverageMode) return;
 
-    // Global view: reload on moveend with debounce + bbox change check
+    // Mode clusters/heatmap : reload on moveend avec debounce + check bbox
     const map = mapRef.current;
     if (!map) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -784,7 +792,7 @@ export default function MapPage() {
     };
     map.on('moveend', debouncedMove);
     return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
-  }, [radioVisible, mapReady, radioSelectedId, handleLoadRadio]);
+  }, [radioVisible, mapReady, radioSelectedId, radioCoverageMode, handleLoadRadio]);
 
   // Generate coverage circles client-side when coverage mode is active
   useEffect(() => {
