@@ -638,12 +638,20 @@ export default function MapPage() {
   };
 
   // ── Radio filter options — fetch lazy (au 1er toggle radio) ───────────────
+  // L'API renvoie {categories, groupes, radios_with_emetteurs} ; on transforme
+  // au shape attendu par FilterPanel : {categories, radios}.
   useEffect(() => {
     if (!radioVisible || radioFilterOptions) return;
     let aborted = false;
     adminFetch('/api/radio/filter-options')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (!aborted && data) setRadioFilterOptions(data); })
+      .then((data: { categories?: Array<{ value: string; label: string }>; radios_with_emetteurs?: Array<{ id: string; nom: string; cat: string | null }> } | null) => {
+        if (aborted || !data) return;
+        setRadioFilterOptions({
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          radios:     Array.isArray(data.radios_with_emetteurs) ? data.radios_with_emetteurs : [],
+        });
+      })
       .catch(() => {});
     return () => { aborted = true; };
   }, [radioVisible, radioFilterOptions]);

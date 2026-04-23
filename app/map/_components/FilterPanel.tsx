@@ -2227,13 +2227,16 @@ export function FilterPanel({
                     <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
                   </div>
 
-                  {/* Multi-radio filter */}
-                  {radioFilterOptions && radioFilterOptions.radios.length > 0 && (
+                  {/* Multi-radio filter — searchable, multi-select */}
+                  {Array.isArray(radioFilterOptions?.radios) && radioFilterOptions!.radios.length > 0 && (
                     <div>
-                      <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Filtrer par radios</div>
+                      <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                        Filtrer par radios
+                        <span style={{ color: C.textDim, marginLeft: 4, fontFamily: fMono }}>({radioFilterOptions!.radios.length})</span>
+                      </div>
                       <MultiDropdown
-                        label="Selectionner des radios..."
-                        items={radioFilterOptions.radios.map(r => ({ id: r.id, label: `${r.nom}${r.cat ? ` (${r.cat})` : ''}` }))}
+                        label="Sélectionner des radios..."
+                        items={radioFilterOptions!.radios.map(r => ({ id: r.id, label: `${r.nom}${r.cat ? ` (${r.cat})` : ''}` }))}
                         selected={radioFilterIds ?? []}
                         onChange={ids => onRadioFilterIdsChange?.(ids)}
                         searchable
