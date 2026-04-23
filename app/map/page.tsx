@@ -144,6 +144,13 @@ export default function MapPage() {
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
   const [radioCoverageMode,  setRadioCoverageMode]  = useState(false);
   const [radioGeoJSON,       setRadioGeoJSON]       = useState<GeoJSON.FeatureCollection | null>(null);
+  // Filtres multi-radios (dropdown searchable) + exclusions catégories
+  const [radioFilterIds,         setRadioFilterIds]         = useState<string[]>([]);
+  const [radioExcludeCategories, setRadioExcludeCategories] = useState<string[]>([]);
+  const [radioFilterOptions,     setRadioFilterOptions]     = useState<{
+    radios: Array<{ id: string; nom: string; cat: string | null }>;
+    categories: Array<{ value: string; label: string }>;
+  } | null>(null);
   const [radioLoading,       setRadioLoading]       = useState(false);
   const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
   const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
@@ -630,6 +637,17 @@ export default function MapPage() {
     setTmjaGeoJSON(data);
   };
 
+  // ── Radio filter options — fetch lazy (au 1er toggle radio) ───────────────
+  useEffect(() => {
+    if (!radioVisible || radioFilterOptions) return;
+    let aborted = false;
+    adminFetch('/api/radio/filter-options')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!aborted && data) setRadioFilterOptions(data); })
+      .catch(() => {});
+    return () => { aborted = true; };
+  }, [radioVisible, radioFilterOptions]);
+
   // ── Radio émetteurs — fetch + sync ─────────────────────────────────────────
   const handleLoadRadio = useCallback(async () => {
     const map = mapRef.current;
@@ -649,6 +667,9 @@ export default function MapPage() {
         params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
       }
       if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
+      // Multi-radios filter (dropdown searchable) + exclusions catégories
+      if (radioFilterIds.length > 0)         params.set('radio_ids', radioFilterIds.join(','));
+      if (radioExcludeCategories.length > 0) params.set('exclude_categories', radioExcludeCategories.join(','));
       const res = await adminFetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
       if (!res.ok) return;
       const data: GeoJSON.FeatureCollection = await res.json();
@@ -675,7 +696,7 @@ export default function MapPage() {
     } finally {
       setRadioLoading(false);
     }
-  }, [mapReady, radioSystemeFilter, radioSelectedId]);
+  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCategories]);
 
   // Sync radio GeoJSON → map source + layer visibility
   useEffect(() => {
@@ -1647,6 +1668,11 @@ export default function MapPage() {
               radioCount={radioGeoJSON?.features.length ?? 0}
               radioSelectedNom={radioSelectedNom}
               onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+              radioFilterOptions={radioFilterOptions}
+              radioFilterIds={radioFilterIds}
+              onRadioFilterIdsChange={setRadioFilterIds}
+              radioExcludeCategories={radioExcludeCategories}
+              onRadioExcludeCategoriesChange={setRadioExcludeCategories}
               radioCoverageColor={radioCoverageColor}
               onRadioCoverageColorChange={setRadioCoverageColor}
               radioCoverageOpacity={radioCoverageOpacity}
