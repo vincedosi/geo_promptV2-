@@ -1726,6 +1726,8 @@ export default function MapPage() {
                 src?.setData({ type: 'FeatureCollection', features: [] });
               }}
               onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
+              digitalCompareView={digitalCompareView}
+              onDigitalCompareViewChange={setDigitalCompareView}
               digitalPopField={digitalPopField}
               onDigitalPopFieldChange={setDigitalPopField}
               studyVille={studyVille}
@@ -1906,34 +1908,7 @@ export default function MapPage() {
             {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
 
-          {/* Toggle vue comparée / fusionnée — visible uniquement quand Digital actif */}
-          {digitalVisible && (
-            <div style={{
-              position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 25,
-              display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden',
-              border: '0.5px solid var(--border-default)',
-              background: 'var(--bg-surface)',
-            }}>
-              {[
-                { id: true, label: 'Vue comparee' },
-                { id: false, label: 'Vue fusionnee' },
-              ].map(opt => (
-                <button
-                  key={String(opt.id)}
-                  onClick={() => setDigitalCompareView(opt.id)}
-                  style={{
-                    padding: '6px 14px', border: 'none', cursor: 'pointer',
-                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
-                    background: digitalCompareView === opt.id ? 'rgba(78,205,196,0.12)' : 'transparent',
-                    color: digitalCompareView === opt.id ? 'var(--brand-teal)' : 'var(--text-tertiary)',
-                    transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Toggle Vue comparée / fusionnée déplacé dans l'overlay Campagnes média (FilterPanel) */}
 
           {/* Triple map view — visible when Digital active + vue comparée */}
           {digitalVisible && digitalCompareView && digitalCampaignId && (

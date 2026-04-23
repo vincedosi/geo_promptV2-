@@ -376,6 +376,9 @@ export interface FilterPanelProps {
 
   // Digital (DSP impressions choropleth)
   onDigitalShowImpressions?: (campaignId: string) => void;
+  /** Toggle vue comparée (3 cartes) / fusionnée (1 carte). Default true. */
+  digitalCompareView?: boolean;
+  onDigitalCompareViewChange?: (compare: boolean) => void;
   onDigitalClear?: () => void;
   digitalVisible?: boolean;
   digitalLoading?: boolean;
@@ -603,6 +606,7 @@ export function FilterPanel({
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
   onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
+  digitalCompareView, onDigitalCompareViewChange,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
   visibleCategory, onOpenStudy, studyVille,
@@ -3635,6 +3639,55 @@ export function FilterPanel({
                         Analyse detaillee →
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Toggle Vue comparée / fusionnée — visible quand digital actif ── */}
+              {digitalVisible && onDigitalCompareViewChange && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4,
+                  padding: '12px', background: 'var(--bg-level-2)', border: `0.5px solid ${C.border}`, borderRadius: 6,
+                }}>
+                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Mode d&apos;affichage
+                  </div>
+                  <div style={{
+                    display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden',
+                    border: '0.5px solid var(--border-default)', background: 'var(--bg-surface)',
+                  }}>
+                    {[
+                      { id: true,  label: 'Vue comparée',  desc: '3 cartes côte à côte' },
+                      { id: false, label: 'Vue fusionnée', desc: '1 carte choroplèthe' },
+                    ].map(opt => {
+                      const active = digitalCompareView === opt.id;
+                      return (
+                        <button
+                          key={String(opt.id)}
+                          type="button"
+                          onClick={() => onDigitalCompareViewChange(opt.id)}
+                          aria-pressed={active}
+                          title={opt.desc}
+                          style={{
+                            flex: 1, padding: '8px 10px', border: 'none', cursor: 'pointer',
+                            fontFamily: fInter, fontSize: 11.5, fontWeight: 500,
+                            background: active ? 'rgba(78,205,196,0.12)' : 'transparent',
+                            color: active ? 'var(--brand-teal)' : C.textDim,
+                            borderLeft: opt.id === false ? '0.5px solid var(--border-default)' : 'none',
+                            transition: 'background-color var(--duration-hover) var(--ease-hover), color var(--duration-hover) var(--ease-hover)',
+                          }}
+                          onMouseEnter={e => { if (!active) e.currentTarget.style.color = C.textSec; }}
+                          onMouseLeave={e => { if (!active) e.currentTarget.style.color = C.textDim; }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontFamily: fInter, fontSize: 10.5, color: C.textDim, lineHeight: 1.45 }}>
+                    {digitalCompareView
+                      ? '3 cartes synchronisées : ratio (focus), impressions, population.'
+                      : 'Choroplèthe unique sur la carte principale, superposable.'}
                   </div>
                 </div>
               )}

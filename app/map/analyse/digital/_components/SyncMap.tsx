@@ -9,6 +9,9 @@ import { useTheme } from '@/lib/theme/ThemeProvider';
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const FRANCE_CENTER: [number, number] = [2.5, 46.5];
 const FRANCE_ZOOM = 5.2;
+// Bounds France métropolitaine pour fitBounds (centre la France quel que soit
+// le ratio d'aspect du conteneur — utile pour les sous-cartes du TripleMapView).
+const FRANCE_BOUNDS: [[number, number], [number, number]] = [[-5.5, 41.3], [9.6, 51.1]];
 
 interface SyncMapProps {
   id: string;
@@ -56,6 +59,15 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       center: FRANCE_CENTER,
       zoom: FRANCE_ZOOM,
       attributionControl: false,
+    });
+
+    // Centrage France via fitBounds — garantit que la métropole reste cadrée
+    // quel que soit le ratio d'aspect du conteneur (cartes de TripleMapView
+    // peuvent être étroites/hautes ou larges/basses).
+    map.once('load', () => {
+      try {
+        map.fitBounds(FRANCE_BOUNDS, { padding: 24, animate: false });
+      } catch { /* ok */ }
     });
 
     map.on('load', () => {
