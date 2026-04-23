@@ -806,6 +806,28 @@ details > summary::-webkit-details-marker {
   border-bottom-color: var(--bg-surface) !important;
 }
 
+/* ─── MapLibre attribution ────────────────────────────────────────────────────
+   Conserve l'attribution textuelle (OpenFreeMap, OpenStreetMap) pour la
+   conformité licence mais supprime le bouton "i" et bloque l'expansion au
+   hover/clic. Le texte reste visible en permanence, rendu très discret. */
+.maplibregl-ctrl-attrib-button {
+  display: none !important;
+}
+.maplibregl-ctrl-attrib {
+  pointer-events: none !important;
+  background: transparent !important;
+  padding: 1px 6px !important;
+  font-size: 9px !important;
+  opacity: 0.5 !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--text-tertiary) !important;
+  text-decoration: none !important;
+}
+.maplibregl-ctrl-attrib-inner {
+  color: var(--text-tertiary) !important;
+}
+
 .topbar-tab {
   overflow: visible !important;
 }

@@ -1857,18 +1857,21 @@ export default function MapPage() {
       {/* ── Right panel: map + optional StudyDashboard (tab bar Carte/Étude supprimé) ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Bouton "← Retour à la carte" (visible uniquement en mode Étude) */}
+        {/* Bouton "← Retour à la carte" (visible uniquement en mode Étude)
+           Descend sous la MapTopBar quand elle est affichée pour ne pas la chevaucher. */}
         {activeStudy && (
           <button
             type="button"
             onClick={handleCloseStudy}
             style={{
-              position: 'fixed', top: 12, left: 60, zIndex: 50,
+              position: 'fixed',
+              top: iconBarHidden ? 12 : MAP_TOPBAR_HEIGHT + 10,
+              left: 60, zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               color: 'var(--text-secondary)', borderRadius: 6, padding: '6px 12px',
               fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
@@ -1880,17 +1883,22 @@ export default function MapPage() {
         {/* Map area — masquée quand activeStudy est true */}
         <div style={{ flex: 1, position: 'relative', display: !activeStudy ? 'flex' : 'none' }}>
 
-          {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay */}
+          {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay
+             Le bouton descend sous la MapTopBar quand elle est affichée. */}
           <button
             onClick={() => setIconBarHidden(h => !h)}
             title={iconBarHidden ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
             aria-pressed={iconBarHidden}
             style={{
-              position: 'fixed', top: 10, right: 10, zIndex: 50,
+              position: 'fixed',
+              top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
+              right: 10,
+              zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-secondary)', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
+              color: 'var(--text-secondary)',
+              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
