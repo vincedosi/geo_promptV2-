@@ -2,7 +2,7 @@
 
 import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Eye, Users, TrendingUp, Globe, Award, Star, Activity, Lightbulb, Sparkles } from 'lucide-react';
+import { Eye, Users, TrendingUp, Globe, Award, Star, Activity, Lightbulb, Sparkles, Info } from 'lucide-react';
 import { BreakdownChart } from '@/app/map/analyse/digital/_components/BreakdownChart';
 import { MediaHeatmap } from '@/app/map/analyse/digital/_components/MediaHeatmap';
 import { ActionListTable } from '@/app/map/analyse/digital/_components/ActionListTable';
@@ -95,6 +95,72 @@ function scoreMessage(score: number): string {
   if (score >= 75) return 'Distribution équilibrée — campagne bien calibrée.';
   if (score >= 50) return 'Distribution correcte mais optimisation possible.';
   return 'Distribution déséquilibrée — recalibrage recommandé.';
+}
+
+// ─── Définitions des KPI (tooltips au survol) ─────────────────────────────────
+// Centralisé ici pour cohérence : si tu vois ce label dans la KPI band et
+// dans l'IA tab, le texte explicatif est strictement identique.
+const KPI_DEFINITIONS: Record<string, string> = {
+  'Impressions':   'Nombre total de diffusions enregistrées sur la zone analysée. Source : table dsp_campaign_data.',
+  'Pop. cible':    'Population correspondant à l\'indicateur sélectionné (Population, 25-49 ans, etc.) sur la zone analysée. Source : carreaux Filosofi INSEE.',
+  'Ratio moy.':    'Impressions / Population × 1000. Représente l\'intensité moyenne de diffusion par millier d\'individus de la cible.',
+  'Couverture':    'Pourcentage de zones (régions / départements / codes postaux) avec au moins 1 impression. 100% = présence partout.',
+  'Top 10% CP':    'Part des impressions concentrées dans les 10 % de zones les plus exposées. Plus c\'est élevé, plus la campagne est concentrée.',
+  'Score qualité': 'Score heuristique 0-100 basé sur l\'écart entre la distribution réelle et une distribution équilibrée. Formule : 100 − max(0, concentration_top10 − 10). Une distribution étalée donne un score élevé.',
+};
+// Le score de l'onglet IA est strictement le même que la KPI "Score qualité" —
+// on partage donc la même définition pour éviter la confusion utilisateur.
+const SCORE_GEO_DEFINITION = KPI_DEFINITIONS['Score qualité'];
+
+// ─── Tooltip helper (CSS-only, popover absolute) ──────────────────────────────
+function InfoTooltip({ text, side = 'bottom' }: { text: string; side?: 'top' | 'bottom' }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="kpi-info-trigger">
+      <Info
+        size={11}
+        strokeWidth={2}
+        style={{
+          color: 'var(--text-tertiary)', cursor: 'help', flexShrink: 0,
+          transition: 'color var(--duration-hover) var(--ease-hover)',
+        }}
+      />
+      <span
+        role="tooltip"
+        style={{
+          position: 'absolute',
+          [side]: 'calc(100% + 8px)',
+          left: '50%', transform: 'translateX(-50%)',
+          width: 240, padding: '10px 12px',
+          background: 'var(--bg-surface)',
+          border: '0.5px solid var(--border-default)',
+          borderRadius: 6,
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.18)',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          fontSize: 11.5, lineHeight: 1.55,
+          color: 'var(--text-secondary)',
+          opacity: 0, pointerEvents: 'none',
+          transition: 'opacity var(--duration-hover) var(--ease-hover), transform var(--duration-hover) var(--ease-hover)',
+          zIndex: 100,
+          whiteSpace: 'normal',
+          textTransform: 'none',
+          letterSpacing: 'normal',
+          fontWeight: 400,
+        }}
+        className="kpi-info-bubble"
+      >
+        {text}
+      </span>
+      <style jsx>{`
+        .kpi-info-trigger:hover :global(.kpi-info-bubble) {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .kpi-info-trigger:hover :global(svg) {
+          color: var(--brand-teal);
+        }
+      `}</style>
+    </span>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,37 +355,43 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: 10,
       }}>
-        {kpiItems.map(({ label, value, Icon, accent, accentRgb }) => (
-          <div
-            key={label}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '12px 14px',
-              background: 'var(--bg-surface)',
-              border: '0.5px solid var(--border-subtle)',
-              borderTop: `2px solid rgba(${accentRgb}, 0.6)`,
-              borderRadius: 8,
-              transition: 'border-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)',
-              cursor: 'default',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = `rgba(${accentRgb}, 0.4)`; e.currentTarget.style.borderTopColor = accent; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderTopColor = `rgba(${accentRgb}, 0.6)`; }}
-          >
-            <div style={{
-              width: 32, height: 32, borderRadius: 7, flexShrink: 0,
-              background: `rgba(${accentRgb}, 0.10)`,
-              border: `0.5px solid rgba(${accentRgb}, 0.25)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: accent,
-            }}>
-              <Icon size={14} strokeWidth={1.75} />
+        {kpiItems.map(({ label, value, Icon, accent, accentRgb }) => {
+          const definition = KPI_DEFINITIONS[label];
+          return (
+            <div
+              key={label}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px',
+                background: 'var(--bg-surface)',
+                border: '0.5px solid var(--border-subtle)',
+                borderTop: `2px solid rgba(${accentRgb}, 0.6)`,
+                borderRadius: 8,
+                transition: 'border-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)',
+                cursor: 'default',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `rgba(${accentRgb}, 0.4)`; e.currentTarget.style.borderTopColor = accent; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderTopColor = `rgba(${accentRgb}, 0.6)`; }}
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: 7, flexShrink: 0,
+                background: `rgba(${accentRgb}, 0.10)`,
+                border: `0.5px solid rgba(${accentRgb}, 0.25)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: accent,
+              }}>
+                <Icon size={14} strokeWidth={1.75} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                  {definition && <InfoTooltip text={definition} side="bottom" />}
+                </div>
+                <span style={{ fontFamily: fInter, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 1 }}>{value}</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-              <span style={{ fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-              <span style={{ fontFamily: fInter, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 1 }}>{value}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ═════ Tabs nav — pills compartimentées ═════ */}
@@ -399,6 +471,7 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
             {activeTab === 'ia' && (
               <IATab
                 qualityScore={qualityScore}
+                animScore={animScore}
                 campaignId={campaignId}
                 indicator={popField}
                 kpi={{ totalImpressions: totalImp, totalPop, ratioMoyen, couverturePct, concentrationTop10 }}
@@ -603,14 +676,19 @@ function RecommandationsTab({ breakdownData, currentAggregation, metric, handleB
 // Tab IA
 // ═══════════════════════════════════════════════════════════════════════════════
 interface IATabProps {
+  /** Valeur cible (0-100) — pour la couleur, le donut, le message */
   qualityScore: number;
+  /** Valeur ANIMÉE en cours — partagée avec la KPI band du parent.
+   *  Garantit que les 2 affichages du score restent strictement synchronisés
+   *  (évite l'ancien bug 82 vs 55 dû à 2 useCountUp parallèles à durées
+   *  différentes). */
+  animScore: number;
   campaignId: string;
   indicator: string;
   kpi: { totalImpressions: number; totalPop: number; ratioMoyen: number; couverturePct: number; concentrationTop10: number };
   breakdown: BreakdownRow[];
 }
-function IATab({ qualityScore, campaignId, indicator, kpi, breakdown }: IATabProps) {
-  const animScore = useCountUp(qualityScore, 800);
+function IATab({ qualityScore, animScore, campaignId, indicator, kpi, breakdown }: IATabProps) {
   const color = scoreColor(qualityScore);
   const colorRgb = qualityScore >= 75 ? '61,255,160' : qualityScore >= 50 ? '247,183,49' : '255,87,87';
 
@@ -654,6 +732,10 @@ function IATab({ qualityScore, campaignId, indicator, kpi, breakdown }: IATabPro
             <Star size={14} strokeWidth={2} style={{ color }} />
             <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Score de qualité géographique
+            </span>
+            <InfoTooltip text={SCORE_GEO_DEFINITION} side="bottom" />
+            <span style={{ fontFamily: fInter, fontSize: 9.5, color: 'var(--text-tertiary)', padding: '1px 6px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-subtle)', borderRadius: 3, marginLeft: 'auto' }}>
+              identique au KPI &laquo;&nbsp;Score qualité&nbsp;&raquo;
             </span>
           </div>
           <div style={{ fontFamily: fInter, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: 6 }}>
