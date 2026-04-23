@@ -2,6 +2,7 @@
 
 import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Eye, Users, TrendingUp, Globe, Award, Star, Activity, Lightbulb, Sparkles, Info } from 'lucide-react';
 import { BreakdownChart } from '@/app/map/analyse/digital/_components/BreakdownChart';
 import { MediaHeatmap } from '@/app/map/analyse/digital/_components/MediaHeatmap';
@@ -112,54 +113,86 @@ const KPI_DEFINITIONS: Record<string, string> = {
 // on partage donc la même définition pour éviter la confusion utilisateur.
 const SCORE_GEO_DEFINITION = KPI_DEFINITIONS['Score qualité'];
 
-// ─── Tooltip helper (CSS-only, popover absolute) ──────────────────────────────
+// ─── Tooltip helper — state-driven (fiable, échappe les conteneurs overflow) ──
 function InfoTooltip({ text, side = 'bottom' }: { text: string; side?: 'top' | 'bottom' }) {
+  const [hover, setHover] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Calcule la position absolute via document.body coordinates pour échapper
+  // tout ancestor avec overflow: hidden / auto (le panel d'analyse en a un)
+  useEffect(() => {
+    if (!hover || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const tooltipWidth = 260;
+    const tooltipApproxHeight = 90;
+    const margin = 8;
+    let left = r.left + r.width / 2 - tooltipWidth / 2;
+    // Clamp horizontalement à la viewport
+    if (left < margin) left = margin;
+    if (left + tooltipWidth > window.innerWidth - margin) left = window.innerWidth - tooltipWidth - margin;
+    // Position verticale : sous le trigger sauf si pas la place
+    let top = r.bottom + margin;
+    const willOverflowBottom = top + tooltipApproxHeight > window.innerHeight - margin;
+    if (side === 'top' || willOverflowBottom) top = r.top - tooltipApproxHeight - margin;
+    setCoords({ top, left });
+  }, [hover, side]);
+
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="kpi-info-trigger">
-      <Info
-        size={11}
-        strokeWidth={2}
-        style={{
-          color: 'var(--text-tertiary)', cursor: 'help', flexShrink: 0,
-          transition: 'color var(--duration-hover) var(--ease-hover)',
-        }}
-      />
+    <>
       <span
-        role="tooltip"
+        ref={triggerRef}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        tabIndex={0}
+        aria-label="Plus d'informations"
         style={{
-          position: 'absolute',
-          [side]: 'calc(100% + 8px)',
-          left: '50%', transform: 'translateX(-50%)',
-          width: 240, padding: '10px 12px',
-          background: 'var(--bg-surface)',
-          border: '0.5px solid var(--border-default)',
-          borderRadius: 6,
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.18)',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: 11.5, lineHeight: 1.55,
-          color: 'var(--text-secondary)',
-          opacity: 0, pointerEvents: 'none',
-          transition: 'opacity var(--duration-hover) var(--ease-hover), transform var(--duration-hover) var(--ease-hover)',
-          zIndex: 100,
-          whiteSpace: 'normal',
-          textTransform: 'none',
-          letterSpacing: 'normal',
-          fontWeight: 400,
+          display: 'inline-flex', alignItems: 'center',
+          cursor: 'help', outline: 'none',
         }}
-        className="kpi-info-bubble"
       >
-        {text}
+        <Info
+          size={12}
+          strokeWidth={2}
+          style={{
+            color: hover ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+            flexShrink: 0,
+            transition: 'color var(--duration-hover) var(--ease-hover)',
+          }}
+        />
       </span>
-      <style jsx>{`
-        .kpi-info-trigger:hover :global(.kpi-info-bubble) {
-          opacity: 1;
-          pointer-events: auto;
-        }
-        .kpi-info-trigger:hover :global(svg) {
-          color: var(--brand-teal);
-        }
-      `}</style>
-    </span>
+      {/* Portal vers document.body pour échapper overflow ancestors */}
+      {mounted && hover && coords && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            width: 260, padding: '10px 12px',
+            background: 'var(--bg-surface)',
+            border: '0.5px solid var(--border-default)',
+            borderRadius: 6,
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25)',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontSize: 11.5, lineHeight: 1.55,
+            color: 'var(--text-secondary)',
+            zIndex: 10000,
+            whiteSpace: 'normal',
+            pointerEvents: 'none',
+            animation: 'staggerFadeIn 150ms var(--ease-spring) both',
+          }}
+        >
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
