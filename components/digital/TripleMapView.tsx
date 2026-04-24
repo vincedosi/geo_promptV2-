@@ -7,17 +7,16 @@ import { useDigitalData } from '@/app/map/analyse/digital/_lib/use-digital-data'
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from '@/app/map/analyse/digital/_lib/palettes';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useTheme } from '@/lib/theme/ThemeProvider';
+import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-const POP_LABELS: Record<string, string> = {
-  population: 'totale', pop_0_14: '0-14 ans', pop_15_29: '15-29 ans',
-  pop_30_44: '30-44 ans', pop_45_59: '45-59 ans', pop_60_74: '60-74 ans',
-  pop_75_plus: '75+ ans', nb_menages: 'menages', nb_csp_cadre: 'CSP+ cadres',
-  nb_csp_employe: 'employes', nb_csp_ouvrier: 'ouvriers', nb_diplome_sup: 'diplome sup.',
-  rev_median: 'revenu median', taux_chomage: '% chomage', taux_pauvrete: '% pauvrete',
-};
+// POP_LABELS généré dynamiquement depuis IRIS_DB_COLUMNS — source unique
+// entre l'accordéon IRIS et la section Campagnes média.
+const POP_LABELS: Record<string, string> = Object.fromEntries(
+  IRIS_DB_COLUMNS.map(c => [c.name, c.label]),
+);
 
 interface PalPickerProps {
   palettes: { id: string; stops: string[] }[];

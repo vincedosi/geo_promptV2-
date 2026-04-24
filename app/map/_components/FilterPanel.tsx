@@ -3504,7 +3504,10 @@ export function FilterPanel({
                 </select>
               </div>
 
-              {/* Population target selector */}
+              {/* Population target selector — aligné sur IRIS_DB_COLUMNS
+                 (même source que l'accordéon IRIS). Les booleans
+                 (is_true_iris) et métadonnées sont exclus. Groupés par
+                 optgroup pour une lisibilité identique à l'onglet IRIS. */}
               <div>
                 <div style={labelStyle}>Cible population</div>
                 <select
@@ -3512,18 +3515,27 @@ export function FilterPanel({
                   onChange={e => setDigitalPopField(e.target.value)}
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
-                  {[
-                    { value: 'population', label: 'Ensemble' },
-                    { value: 'pop_15_29', label: '15-29 ans' },
-                    { value: 'pop_25_49', label: '25-49 ans' },
-                    { value: 'pop_30_44', label: '30-44 ans' },
-                    { value: 'pop_45_59', label: '45-59 ans' },
-                    { value: 'pop_60_74', label: '60-74 ans' },
-                    { value: 'nb_menages', label: 'Menages' },
-                    { value: 'rev_median', label: 'Revenu median' },
-                  ].map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                  {(() => {
+                    const choroplethable = IRIS_DB_COLUMNS
+                      .filter(c => c.type !== 'boolean' && c.group !== 'Métadonnées');
+                    // Ordre des groupes identique à celui de l'onglet IRIS
+                    const groupOrder = ['Population', 'Âge', 'Revenus', 'Diplômes', 'CSP', 'Emploi', 'Logement', 'Mobilité', 'Familles'] as const;
+                    const byGroup = new Map<string, typeof choroplethable>();
+                    for (const col of choroplethable) {
+                      if (!byGroup.has(col.group)) byGroup.set(col.group, []);
+                      byGroup.get(col.group)!.push(col);
+                    }
+                    const ordered = groupOrder
+                      .map(g => ({ group: g, cols: byGroup.get(g) ?? [] }))
+                      .filter(g => g.cols.length > 0);
+                    return ordered.map(g => (
+                      <optgroup key={g.group} label={g.group} style={{ color: C.textDim }}>
+                        {g.cols.map(col => (
+                          <option key={col.name} value={col.name}>{col.label}</option>
+                        ))}
+                      </optgroup>
+                    ));
+                  })()}
                 </select>
               </div>
 
