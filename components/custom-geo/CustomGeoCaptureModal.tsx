@@ -14,7 +14,22 @@ import { Loader2, X } from 'lucide-react';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import { useSession } from '@/lib/auth-client';
 import { adminFetch } from '@/lib/admin-fetch';
+import { useToast } from '@/components/ui/geo-toast';
 import type { CaptureTransformation, ContributedGeometry, ContributedLayer } from '@/types/custom-geo';
+
+/** Temps max de résolution d'une géométrie avant de la marquer en erreur. */
+const GETGEOMETRY_TIMEOUT_MS = 10_000;
+
+/** Wrappe une promise avec un timeout — rejette si la promise pend trop. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout ${ms}ms — ${label}`)), ms);
+    promise.then(
+      v => { clearTimeout(t); resolve(v); },
+      e => { clearTimeout(t); reject(e); },
+    );
+  });
+}
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -63,6 +78,7 @@ function computeBbox(geometries: GeoJSON.Geometry[]): [number, number, number, n
 export function CustomGeoCaptureModal({ onClose }: Props) {
   const { getAllEnabledLayers } = useCustomGeoCaptureContext();
   const { session } = useSession();
+  const { toast } = useToast();
   const orgId = session?.user?.organizationId ?? '';
 
   const [name, setName] = useState('');
@@ -85,8 +101,19 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
       const results = await Promise.all(
         layers.map(async (layer): Promise<CollectedLayer> => {
           try {
-            const g = await Promise.resolve(layer.getGeometry());
+            // Timeout 10s par layer — évite que Promise.all pend
+            // indéfiniment si un getGeometry() ne settle jamais.
+            // Chaque layer est isolé : un timeout n'affecte que ce layer,
+            // les autres restent utilisables pour la capture.
+            const g = await withTimeout(
+              Promise.resolve(layer.getGeometry()),
+              GETGEOMETRY_TIMEOUT_MS,
+              layer.label || layer.sourceType,
+            );
             const flat = flattenGeometry(g);
+            if (flat.length === 0) {
+              return { layer, geometries: [], error: 'Aucune géométrie retournée' };
+            }
             return { layer, geometries: flat };
           } catch (err: unknown) {
             return {
@@ -99,6 +126,22 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
       );
       setCollected(results);
       setResolving(false);
+
+      // Toast warning non-bloquant si des layers ont échoué — l'user peut
+      // continuer avec les layers valides restants (cf. validCollected).
+      const failed = results.filter(r => r.error || r.geometries.length === 0);
+      if (failed.length > 0 && failed.length < results.length) {
+        const labels = failed.map(f => f.layer.label || f.layer.sourceType).join(', ');
+        toast.warning(
+          `${failed.length} layer${failed.length > 1 ? 's' : ''} indisponible${failed.length > 1 ? 's' : ''}`,
+          `Capture possible avec les autres. Non récupérés : ${labels}.`,
+        );
+      } else if (failed.length === results.length && results.length > 0) {
+        toast.warning(
+          'Aucune géométrie récupérée',
+          'Tous les layers ont échoué ou sont vides. Vérifie les données affichées sur la carte.',
+        );
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
