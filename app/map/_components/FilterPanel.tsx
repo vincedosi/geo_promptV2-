@@ -198,10 +198,12 @@ function FilterSectionHeader({
 }
 
 // ─── Données géographiques ─────────────────────────────────────────────────────
-import {
-  REGIONS_ADMIN as REGIONS, ALL_DEPTS,
-  ISO_MODES, ISO_DURATIONS,
-} from '@/lib/geo/france-admin';
+// REGIONS et ALL_DEPTS sont maintenant fetch dynamiquement depuis ref_regions
+// / ref_departements via useRefGeo() → les codes envoyés à Supabase sont les
+// vrais codes INSEE ('53' Bretagne, '84' ARA, etc.) et non plus des ids
+// alphabétiques applicatifs ('bre', 'ara') qui ne matchaient aucune RPC.
+import { ISO_MODES, ISO_DURATIONS } from '@/lib/geo/france-admin';
+import { useRefGeo } from '@/lib/geo/use-ref-geo';
 
 interface ClusterModelSummary {
   version: number;
@@ -845,8 +847,18 @@ export function FilterPanel({
   }, [ville, onVilleChange]);
   const [codePostal,      setCodePostal]      = useState('');
 
+  // ── Données géographiques DB (ref_regions / ref_departements) ─────────────
+  // Source unique de vérité : codes INSEE ('53' Bretagne, '84' ARA, etc.).
+  // Pendant le 1er mount (fetch en cours), les listes sont vides — loading
+  // propre, la MultiDropdown affiche "Aucun résultat" jusqu'au cache hit.
+  const { data: refGeo, allDepts: REF_ALL_DEPTS } = useRefGeo();
+  const REF_REGIONS = refGeo?.regions ?? [];
+
   // ── Custom geo capture : branchement filtre admin actif ───────────────────
   // Priorite : depts (plus precis) > regions. 1 seul scale a la fois.
+  // Les valeurs dans selectedRegions / selectedDepts sont les VRAIS codes
+  // INSEE (ref_regions.code_region / ref_departements.code_dept) — on les
+  // envoie tels quels aux RPCs territory-mask / capture.
   const adminScale: 'region' | 'departement' | null =
     selectedDepts.length > 0 ? 'departement' :
     selectedRegions.length > 0 ? 'region' : null;
@@ -1072,15 +1084,22 @@ export function FilterPanel({
   const [orsChecking,     setOrsChecking]     = useState(false);
 
   // ── Geographic cascade ────────────────────────────────────────────────────
+  // Cascade : si des régions sont sélectionnées, on limite les départements
+  // aux depts de ces régions. Sinon tous les départements (attention : tant
+  // que refGeo n'est pas chargé, REF_ALL_DEPTS est [] → la liste apparaît
+  // vide le temps du 1er fetch, puis se remplit au cache hit).
   const availableDepts = useMemo(() =>
-    selectedRegions.length === 0 ? ALL_DEPTS
-      : REGIONS.filter(r => selectedRegions.includes(r.id)).flatMap(r => r.depts),
-    [selectedRegions],
+    selectedRegions.length === 0 ? REF_ALL_DEPTS
+      : REF_REGIONS.filter(r => selectedRegions.includes(r.code_region)).flatMap(r => r.depts),
+    [selectedRegions, REF_ALL_DEPTS, REF_REGIONS],
   );
   useEffect(() => {
-    const ids = availableDepts.map(d => d.code);
-    setSelectedDepts(prev => prev.filter(d => ids.includes(d)));
-  }, [availableDepts]);
+    // Ne jamais purger la sélection si la cascade n'est pas encore chargée
+    // (sinon on perd la sélection user pendant le 1er fetch).
+    if (availableDepts.length === 0 && REF_ALL_DEPTS.length === 0) return;
+    const codes = availableDepts.map(d => d.code_dept);
+    setSelectedDepts(prev => prev.filter(d => codes.includes(d)));
+  }, [availableDepts, REF_ALL_DEPTS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectScope = (s: 'metro' | 'all') => {
     setScope(prev => prev === s ? null : s);
@@ -1091,16 +1110,16 @@ export function FilterPanel({
   const buildTerritoire = (): string => {
     if (ville.trim()) return `à ${ville.trim()}${codePostal ? ` (${codePostal})` : ''}`;
     if (selectedDepts.length === 1) {
-      const d = ALL_DEPTS.find(x => x.code === selectedDepts[0]);
-      return `dans le département ${selectedDepts[0]}${d ? ` — ${d.nom}` : ''}`;
+      const d = REF_ALL_DEPTS.find(x => x.code_dept === selectedDepts[0]);
+      return `dans le département ${selectedDepts[0]}${d ? ` — ${d.nom_dept}` : ''}`;
     }
     if (selectedDepts.length > 1) return `dans les départements ${selectedDepts.join(', ')}`;
     if (selectedRegions.length === 1) {
-      const r = REGIONS.find(x => x.id === selectedRegions[0]);
-      return `en ${r?.nom ?? selectedRegions[0]}`;
+      const r = REF_REGIONS.find(x => x.code_region === selectedRegions[0]);
+      return `en ${r?.nom_region ?? selectedRegions[0]}`;
     }
     if (selectedRegions.length > 1) {
-      const names = selectedRegions.map(id => REGIONS.find(r => r.id === id)?.nom ?? id);
+      const names = selectedRegions.map(code => REF_REGIONS.find(r => r.code_region === code)?.nom_region ?? code);
       return `en ${names.join(' et ')}`;
     }
     if (scope === 'metro') return 'de France métropolitaine';
@@ -1189,7 +1208,7 @@ export function FilterPanel({
     paliers,
     metropolitaine: !selectedRegions.includes('dom'),
     filtre_ville:   ville || undefined,
-    filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+    filtre_regions: (selectedRegions.length > 0 && (REF_REGIONS.length === 0 || selectedRegions.length < REF_REGIONS.length))
                       ? selectedRegions : undefined,
     filtre_depts:   selectedDepts.length > 0 ? selectedDepts : undefined,
   });
@@ -1248,7 +1267,7 @@ export function FilterPanel({
           durations:      [...battleV2Paliers].sort((a, b) => a - b),
           max_minutes:    Math.max(...battleV2Paliers),
           filtre_ville:   ville || undefined,
-          filtre_regions: (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length) ? selectedRegions : undefined,
+          filtre_regions: (selectedRegions.length > 0 && (REF_REGIONS.length === 0 || selectedRegions.length < REF_REGIONS.length)) ? selectedRegions : undefined,
           filtre_depts:   selectedDepts.length > 0 ? selectedDepts : undefined,
           metropolitaine: !selectedRegions.includes('dom'),
         },
@@ -1323,7 +1342,7 @@ export function FilterPanel({
       durations:         [...isoDurations].sort((a, b) => a - b),
       filtre_ville:      ville || undefined,
       // Quand toutes les régions sont sélectionnées = pas de filtre (évite les mismatches DB)
-      filtre_regions:    (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+      filtre_regions:    (selectedRegions.length > 0 && (REF_REGIONS.length === 0 || selectedRegions.length < REF_REGIONS.length))
                            ? selectedRegions : undefined,
       filtre_depts:      selectedDepts.length > 0 ? selectedDepts : undefined,
       metropolitaine:    !selectedRegions.includes('dom'),
@@ -1332,7 +1351,7 @@ export function FilterPanel({
     console.log('[FilterPanel] handleBattle → direct API', params);
     const territoireLabel = params.filtre_ville
       ?? (selectedDepts.length > 0 ? `${selectedDepts.length} dept(s)` : null)
-      ?? (selectedRegions.length > 0 ? selectedRegions.map(id => REGIONS.find(r => r.id === id)?.nom ?? id).join(' + ') : null)
+      ?? (selectedRegions.length > 0 ? selectedRegions.map(code => REF_REGIONS.find(r => r.code_region === code)?.nom_region ?? code).join(' + ') : null)
       ?? 'France métropolitaine';
     setBattleProgress(0);
     setBattleTotal(0);
@@ -1412,7 +1431,7 @@ export function FilterPanel({
           category:        selectedPOI[0],
           mode:            transportMode,
           filtre_ville:    ville || undefined,
-          filtre_regions:  (selectedRegions.length > 0 && selectedRegions.length < REGIONS.length)
+          filtre_regions:  (selectedRegions.length > 0 && (REF_REGIONS.length === 0 || selectedRegions.length < REF_REGIONS.length))
                              ? selectedRegions : undefined,
           filtre_depts:    selectedDepts.length > 0 ? selectedDepts : undefined,
           metropolitaine:  !selectedRegions.includes('dom'),
@@ -1718,21 +1737,21 @@ export function FilterPanel({
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                 <button
                   onClick={() => {
-                    const allIds = REGIONS.map(r => r.id);
-                    const allSelected = selectedRegions.length === REGIONS.length;
-                    setSelectedRegions(allSelected ? [] : allIds);
+                    const allCodes = REF_REGIONS.map(r => r.code_region);
+                    const allSelected = REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length;
+                    setSelectedRegions(allSelected ? [] : allCodes);
                     setScope(null);
                   }}
-                  style={{ fontFamily: fInter, fontSize: 11, color: selectedRegions.length === REGIONS.length ? C.red : C.textSec, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  style={{ fontFamily: fInter, fontSize: 11, color: REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? C.red : C.textSec, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
-                  {selectedRegions.length === REGIONS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                  {REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
                 </button>
               </div>
               <MultiDropdown
-                label="Toutes les régions"
-                items={REGIONS.map(r => ({ id: r.id, label: r.nom }))}
+                label={REF_REGIONS.length === 0 ? 'Chargement…' : 'Toutes les régions'}
+                items={REF_REGIONS.map(r => ({ id: r.code_region, label: r.nom_region }))}
                 selected={selectedRegions}
-                onChange={ids => { setSelectedRegions(ids); if (ids.length > 0) setScope(null); }}
+                onChange={codes => { setSelectedRegions(codes); if (codes.length > 0) setScope(null); }}
               />
               </div>
               )}
@@ -1746,10 +1765,10 @@ export function FilterPanel({
               {sectionsOpen.departements !== false && (
               <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
               <MultiDropdown
-                label="Tous les départements"
-                items={availableDepts.map(d => ({ id: d.code, label: `${d.code} — ${d.nom}` }))}
+                label={availableDepts.length === 0 ? 'Chargement…' : 'Tous les départements'}
+                items={availableDepts.map(d => ({ id: d.code_dept, label: `${d.code_dept} — ${d.nom_dept}` }))}
                 selected={selectedDepts}
-                onChange={ids => { setSelectedDepts(ids); if (ids.length > 0) setScope(null); }}
+                onChange={codes => { setSelectedDepts(codes); if (codes.length > 0) setScope(null); }}
                 searchable
               />
               {selectedRegions.length === 0 && (

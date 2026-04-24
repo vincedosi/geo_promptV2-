@@ -39,26 +39,12 @@ async function getOrgSourceIds(
   return sources?.map((s: { id: string }) => s.id) ?? [];
 }
 
-// Mapping FilterPanel region IDs → noms DB
-const REGION_ID_TO_NAME: Record<string, string> = {
-  ara: 'Auvergne-Rhone-Alpes',
-  bfc: 'Bourgogne-Franche-Comte',
-  bre: 'Bretagne',
-  cvl: 'Centre-Val de Loire',
-  cor: 'Corse',
-  ges: 'Grand Est',
-  hdf: 'Hauts-de-France',
-  idf: 'Ile-de-France',
-  nor: 'Normandie',
-  naq: 'Nouvelle-Aquitaine',
-  occ: 'Occitanie',
-  pdl: 'Pays de la Loire',
-  pac: 'Provence-Alpes-Cote d\'Azur',
-  dom: 'DROM',
-};
+import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 
 // Codes départements DROM (exclus en mode France métro)
 const DROM_CODES = ['971', '972', '973', '974', '976'];
+// Codes région INSEE des DOM (pour détection "sélection DROM" par le user)
+const DROM_REGION_CODES = new Set(['01', '02', '03', '04', '06']);
 
 const SELECT_COLS = 'id, nom, lat, lng, categorie, sous_categorie, adresse, ville, region, departement';
 const PAGE_SIZE   = 1000;
@@ -178,11 +164,14 @@ export async function POST(req: NextRequest) {
 
       // 2. Par région(s) — JS filter (ilike Postgres ne normalise pas les accents)
       if (regions?.length > 0) {
-        const regionNorms = regions.map(id => normStr(REGION_ID_TO_NAME[id] ?? id));
-        const hasDom = regions.includes('dom');
-        const regionFilter = (p: any) => {
-          if (hasDom && DROM_CODES.includes(String(p.departement))) return true;
-          const pNorm = normStr(p.region ?? '');
+        // Map code_region INSEE → nom_region depuis ref_regions (cache module)
+        const regionNames = await getRegionNameMap(supabase);
+        const regionNorms = regions.map((code: string) => normStr(regionNames.get(code) ?? code));
+        // Détection "DROM sélectionné" : au moins une des régions est un DOM
+        const hasDrom = regions.some((code: string) => DROM_REGION_CODES.has(code));
+        const regionFilter = (p: { departement?: unknown; region?: unknown }) => {
+          if (hasDrom && DROM_CODES.includes(String(p.departement))) return true;
+          const pNorm = normStr(typeof p.region === 'string' ? p.region : '');
           if (!pNorm) return false; // pas de région renseignée → n'appartient à aucune région
           return regionNorms.some(rn => pNorm.includes(rn) || rn.includes(pNorm));
         };
@@ -235,14 +224,18 @@ export async function POST(req: NextRequest) {
     if (ville?.trim()) locationLabel = ville.trim();
     else if (depts?.length === 1) locationLabel = `Département ${depts[0]}`;
     else if (depts?.length > 1) locationLabel = `${depts.length} départements`;
-    else if (regions?.length === 1) locationLabel = REGION_ID_TO_NAME[regions[0]] ?? regions[0];
+    else if (regions?.length === 1) {
+      const regionNames = await getRegionNameMap(supabase);
+      locationLabel = regionNames.get(regions[0]) ?? regions[0];
+    }
     else if (regions?.length > 1) locationLabel = `${regions.length} régions`;
     else if (scope === 'metro') locationLabel = 'France métropolitaine';
     else if (scope === 'all')   locationLabel = 'France entière';
 
+    const zoneRegionName = regions?.[0] ? (await getRegionNameMap(supabase)).get(regions[0]) ?? regions[0] : null;
     const zoneData: ZoneData = {
       ville:           locationLabel,
-      region:          regions?.[0] ? REGION_ID_TO_NAME[regions[0]] : null,
+      region:          zoneRegionName,
       departement:     depts?.[0] ?? null,
       categorie_poi:   poi_types[0] ?? null,
       rayon_metres:    null,

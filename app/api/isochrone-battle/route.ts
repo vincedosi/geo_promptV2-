@@ -25,23 +25,7 @@ import {
   ORS_PROFILES,
   type PoiRow,
 } from '@/lib/isochrones/fetcher';
-
-const REGION_ID_TO_NAME: Record<string, string> = {
-  ara: 'Auvergne-Rhone-Alpes',
-  bfc: 'Bourgogne-Franche-Comte',
-  bre: 'Bretagne',
-  cvl: 'Centre-Val de Loire',
-  cor: 'Corse',
-  ges: 'Grand Est',
-  hdf: 'Hauts-de-France',
-  idf: 'Ile-de-France',
-  nor: 'Normandie',
-  naq: 'Nouvelle-Aquitaine',
-  occ: 'Occitanie',
-  pdl: 'Pays de la Loire',
-  pac: 'Provence-Alpes-Cote d\'Azur',
-  dom: 'DROM',
-};
+import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 
 export const maxDuration  = 300;
 const ALL_LEVELS          = [10, 30, 60, 90, 120, 150, 180] as const;
@@ -283,7 +267,11 @@ export async function POST(req: NextRequest) {
 
         const regions     = Array.isArray(filtre_regions) && (filtre_regions as string[]).length > 0
           ? (filtre_regions as string[]) : null;
-        const regionNorms = regions ? regions.map(r => normStr(REGION_ID_TO_NAME[r] ?? r)) : null;
+        // Map code_region INSEE → nom_region depuis ref_regions (cache module)
+        const regionNames = regions ? await getRegionNameMap(supabase) : null;
+        const regionNorms = regions && regionNames
+          ? regions.map(r => normStr(regionNames.get(r) ?? r))
+          : null;
 
         let q = supabase.from('poi_france')
           .select('id, nom, lat, lng, categorie, adresse, ville, region, departement')

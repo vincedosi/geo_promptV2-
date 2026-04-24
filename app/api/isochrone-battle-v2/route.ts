@@ -32,22 +32,11 @@ const battleV2Schema = z.object({
   force_battle:   z.boolean().default(false),
 });
 
-const REGION_ID_TO_NAME: Record<string, string> = {
-  ara: 'Auvergne-Rhone-Alpes',
-  bfc: 'Bourgogne-Franche-Comte',
-  bre: 'Bretagne',
-  cvl: 'Centre-Val de Loire',
-  cor: 'Corse',
-  ges: 'Grand Est',
-  hdf: 'Hauts-de-France',
-  idf: 'Ile-de-France',
-  nor: 'Normandie',
-  naq: 'Nouvelle-Aquitaine',
-  occ: 'Occitanie',
-  pdl: 'Pays de la Loire',
-  pac: "Provence-Alpes-Cote d'Azur",
-  dom: 'DROM',
-};
+// Map code_region INSEE → nom_region depuis ref_regions (cache module).
+// Remplace l'ancien REGION_ID_TO_NAME hardcodé par des codes alpha ('ara',
+// 'bre') qui ne matchaient pas le code_region INSEE envoyé par FilterPanel
+// (refonte dynamique via ref_regions).
+import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 
 /**
  * Étend les codes département pour matcher les 2 formats hétérogènes en DB
@@ -153,7 +142,10 @@ export async function POST(req: NextRequest) {
         }
 
         // ── 1. Charger les POIs ────────────────────────────────────────────
-        const regionNorms = regions ? regions.map(r => normStr(REGION_ID_TO_NAME[r] ?? r)) : null;
+        const regionNames = regions ? await getRegionNameMap(supabase) : null;
+        const regionNorms = regions && regionNames
+          ? regions.map(r => normStr(regionNames.get(r) ?? r))
+          : null;
 
         let q = supabase.from('poi_france')
           .select('id, nom, lat, lng, categorie, adresse, ville, region, departement')
