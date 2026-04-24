@@ -1,0 +1,32 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 20260424_fix_get_tile_carreaux_z10_z12.sql
+--
+-- Bug user : "quand j'affiche des carreaux filosofi entre zoom 10 et zoom 12
+--            je n'ai aucun carreau ; sur les autres zoom c'est ok".
+--
+-- Cause racine :
+--   get_tile(z, x, y) avait 4 branches de zoom :
+--     z 6-7  → carreaux_5km       (22 058 rows ✓)
+--     z 8-9  → carreaux_2km       (122 018 rows ✓)
+--     z 10-12 → carreaux_1km      (0 rows — JAMAIS PEUPLÉE)
+--     z >= 13 → carreaux_filosofi (2 298 582 rows ✓)
+--   → MVT vide pour z 10-12, aucun carreau rendu côté map.
+--
+-- Fix : basculer directement sur carreaux_filosofi (200m natifs) dès z >= 10.
+--       La table carreaux_1km reste vide — le RPC ne l'interroge plus, elle
+--       peut être populée plus tard (script populate_carreaux_1km.ts) sans
+--       re-casser le rendu.
+--
+-- Validation Paris (densité max France) :
+--   z 10 : 428 KB par tuile (~100 KB gzippé) — limite haute acceptable
+--   z 11 :  98 KB — léger
+--   z 12 :  21 KB — très léger
+--   z 13 :  10 KB — inchangé
+--
+-- Bump CARREAUX_TILE_VERSION (lib/version.ts) 11 → 12 pour invalider
+-- tous les caches navigateur / tiles.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Migration appliquée via MCP apply_migration — voir historique Supabase.
+-- Pour ré-appliquer localement :
+SELECT pg_get_functiondef('public.get_tile'::regproc);

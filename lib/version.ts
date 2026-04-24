@@ -19,4 +19,4 @@ export const BUILD_DATE  = '2026-04-21';
 export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
-export const CARREAUX_TILE_VERSION = 11;
+export const CARREAUX_TILE_VERSION = 12;
