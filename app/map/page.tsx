@@ -163,7 +163,10 @@ export default function MapPage() {
   const [digitalVisible, setDigitalVisible] = useState(false);
   const [digitalLoading, setDigitalLoading] = useState(false);
   const [digitalStats, setDigitalStats] = useState<{ total_impressions: number; zones_count: number; campaign_name: string } | null>(null);
-  const [digitalPalette, setDigitalPalette] = useState('teal');
+  // 'plasma' par défaut pour la vue fusionnée (cohérent avec TripleMapView
+  // en vue comparée). Picker retiré de l'overlay Campagnes — les 3 cartes
+  // de la vue comparée ont leur propre picker en header.
+  const [digitalPalette, setDigitalPalette] = useState('plasma');
   const [digitalInverted, setDigitalInverted] = useState(false);
   const [digitalScale, setDigitalScale] = useState('region');
   const [digitalCompareView, setDigitalCompareView] = useState(true);

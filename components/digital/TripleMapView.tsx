@@ -109,11 +109,13 @@ export function TripleMapView({ campaignId, scale, popField, metric, selectedMed
   mediaRef.current = selectedMedia ?? [];
 
   // Palette state per map
-  const [impPalette, setImpPalette] = useState('teal');
+  // Default plasma pour les 3 cartes (vue comparée). Ajustable via le picker
+  // en header de chaque carte si l'user veut diversifier.
+  const [impPalette, setImpPalette] = useState('plasma');
   const [impInverted, setImpInverted] = useState(false);
-  const [popPalette, setPopPalette] = useState('bleu');
+  const [popPalette, setPopPalette] = useState('plasma');
   const [popInverted, setPopInverted] = useState(false);
-  const [ratioPalette, setRatioPalette] = useState('ratio');
+  const [ratioPalette, setRatioPalette] = useState('plasma');
   const [ratioInverted, setRatioInverted] = useState(false);
 
   // Sync state

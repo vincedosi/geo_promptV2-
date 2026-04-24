@@ -3566,36 +3566,10 @@ export function FilterPanel({
                 </div>
               </div>
 
-              {/* Palette selector */}
-              <div>
-                <div style={labelStyle}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {DIGITAL_PALETTES.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => onDigitalPaletteChange?.(p.id)}
-                      title={p.label}
-                      style={{
-                        width: 28, height: 16, borderRadius: 3, cursor: 'pointer', padding: 0,
-                        background: `linear-gradient(to right, ${p.stops.join(', ')})`,
-                        border: `1.5px solid ${digitalPalette === p.id ? 'var(--text-primary)' : 'transparent'}`,
-                        transition: 'border-color 150ms var(--ease-hover)',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Invert toggle */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, fontFamily: fInter, color: C.textSec }}>
-                <input
-                  type="checkbox"
-                  checked={digitalInverted ?? false}
-                  onChange={e => onDigitalInvertChange?.(e.target.checked)}
-                  style={{ accentColor: 'var(--brand-teal)' }}
-                />
-                Inverser la palette
-              </label>
+              {/* Palette selector + invert toggle retirés — les palettes sont
+                 maintenant gérées par carte dans la vue comparée (plasma par
+                 défaut pour les 3 cartes, ajustable via le picker en header
+                 de chaque carte). */}
 
               {/* Show impressions button */}
               <button
