@@ -7,9 +7,14 @@
  * Affiche un badge avec le compteur de layers enabled.
  */
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Save } from 'lucide-react';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
-import { CustomGeoCaptureModal } from './CustomGeoCaptureModal';
+
+const CustomGeoCaptureModal = dynamic(
+  () => import('./CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal })),
+  { ssr: false, loading: () => null }
+);
 
 export function CustomGeoCaptureButton() {
   const { layerCount } = useCustomGeoCaptureContext();

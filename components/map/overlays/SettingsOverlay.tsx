@@ -17,8 +17,13 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { COLORS, FONTS } from './_shared/styles';
+import dynamic from 'next/dynamic';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
-import { CustomGeoCaptureModal } from '@/components/custom-geo/CustomGeoCaptureModal';
+
+const CustomGeoCaptureModal = dynamic(
+  () => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal })),
+  { ssr: false, loading: () => null }
+);
 
 export interface SettingsOverlayProps {
   mapStyles: { id: string; label: string; url: string }[];

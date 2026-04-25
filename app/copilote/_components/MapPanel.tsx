@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
 import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
-import { SaveGeographyModal } from './SaveGeographyModal';
+
+const SaveGeographyModal = dynamic(
+  () => import('./SaveGeographyModal').then((m) => ({ default: m.SaveGeographyModal })),
+  { ssr: false, loading: () => null }
+);
 
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;

@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { ClusterDetails } from '@/components/ClusterDetails';
+import dynamic from 'next/dynamic';
+
+const ClusterDetails = dynamic(
+  () => import('@/components/ClusterDetails').then((m) => ({ default: m.ClusterDetails })),
+  { ssr: false, loading: () => null }
+);
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono  = "'JetBrains Mono', monospace";
