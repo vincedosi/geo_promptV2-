@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('[carreaux/dynamic] RPC error:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Erreur de chargement' }, { status: 500 });
     }
 
     const rows = (data ?? []) as {

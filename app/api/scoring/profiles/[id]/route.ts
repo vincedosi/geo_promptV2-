@@ -1,13 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
+const PutBodySchema = z.object({
+  nom: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(2000).optional(),
+  profil: z.record(z.unknown()).optional(),
+  is_template: z.boolean().optional(),
+});
+
+function canRead(
+  profile: { id: string; role: string; organization_id: string | null },
+  row: { organization_id: string | null; is_template: boolean }
+): boolean {
+  if (profile.role === 'super_admin') return true;
+  if (row.is_template) return true;
+  return !!row.organization_id && row.organization_id === profile.organization_id;
+}
+
+function canWrite(
+  profile: { id: string; role: string; organization_id: string | null },
+  row: { organization_id: string | null; is_template: boolean }
+): boolean {
+  if (profile.role === 'super_admin') return true;
+  if (row.is_template) return false;
+  return !!row.organization_id && row.organization_id === profile.organization_id;
+}
+
 // GET /api/scoring/profiles/[id]
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -17,9 +47,12 @@ export async function GET(
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!canRead(profile, data)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     return NextResponse.json({ profile: data });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (err) {
+    console.error('[scoring/profiles/[id]] GET error:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
@@ -28,27 +61,30 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
+
   try {
-    const body = await req.json() as {
-      nom?: string;
-      description?: string;
-      profil?: Record<string, unknown>;
-      is_template?: boolean;
-    };
+    const raw = await req.json().catch(() => null);
+    const parsed = PutBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Body invalide', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
 
     const supabase = createAdminClient();
 
-    // Empêcher la modification des templates via cette route (utiliser is_template=false uniquement)
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchErr } = await supabase
       .from('scoring_profiles')
-      .select('is_template')
+      .select('organization_id, is_template')
       .eq('id', params.id)
       .single();
 
-    if (existing?.is_template && body.profil) {
-      // Autoriser la modification des templates en admin (pas de restriction ici — la protection
-      // sera côté UI)
-    }
+    if (fetchErr || !existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!canWrite(profile, existing)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { data, error } = await supabase
       .from('scoring_profiles')
@@ -56,36 +92,47 @@ export async function PUT(
         ...(body.nom         !== undefined && { nom: body.nom }),
         ...(body.description !== undefined && { description: body.description }),
         ...(body.profil      !== undefined && { profil: body.profil }),
-        ...(body.is_template !== undefined && { is_template: body.is_template }),
+        ...(body.is_template !== undefined && profile.role === 'super_admin' && { is_template: body.is_template }),
       })
       .eq('id', params.id)
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[scoring/profiles/[id]] PUT error:', error.message);
+      return NextResponse.json({ error: 'Erreur de modification' }, { status: 500 });
+    }
     return NextResponse.json({ profile: data });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (err) {
+    console.error('[scoring/profiles/[id]] PUT exception:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // DELETE /api/scoring/profiles/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
+
   try {
     const supabase = createAdminClient();
 
-    // Refuser la suppression des templates
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchErr } = await supabase
       .from('scoring_profiles')
-      .select('is_template')
+      .select('organization_id, is_template')
       .eq('id', params.id)
       .single();
 
-    if (existing?.is_template) {
+    if (fetchErr || !existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    if (existing.is_template && profile.role !== 'super_admin') {
       return NextResponse.json({ error: 'Les templates ne peuvent pas être supprimés' }, { status: 403 });
+    }
+    if (!canWrite(profile, existing)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { error } = await supabase
@@ -93,9 +140,13 @@ export async function DELETE(
       .delete()
       .eq('id', params.id);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[scoring/profiles/[id]] DELETE error:', error.message);
+      return NextResponse.json({ error: 'Erreur de suppression' }, { status: 500 });
+    }
     return NextResponse.json({ deleted: params.id });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (err) {
+    console.error('[scoring/profiles/[id]] DELETE exception:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

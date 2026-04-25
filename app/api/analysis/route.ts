@@ -65,6 +65,7 @@ Sois concis, factuel, orienté action. Format markdown. Pas d'emojis.`;
 
     return result.toTextStreamResponse();
   } catch (err: unknown) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[api/analysis]', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
   }
 }

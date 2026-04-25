@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+
   const { id } = params;
   const supabase = createAdminClient();
 
@@ -17,7 +21,15 @@ export async function GET(
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? 'Introuvable' }, { status: 404 });
+    return NextResponse.json({ error: 'Introuvable' }, { status: 404 });
+  }
+
+  if (profile.role !== 'super_admin') {
+    const ownsByUser = data.user_id && data.user_id === profile.id;
+    const ownsByOrg = data.organization_id && data.organization_id === profile.organization_id;
+    if (!ownsByUser && !ownsByOrg) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   return NextResponse.json(data);

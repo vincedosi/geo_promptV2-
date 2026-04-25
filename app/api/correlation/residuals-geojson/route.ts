@@ -31,11 +31,15 @@ export async function POST(request: Request) {
       p_simplify_tolerance: tolerance,
     });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error('[correlation/residuals-geojson] RPC error:', error.message);
+      return NextResponse.json({ error: 'Erreur de chargement' }, { status: 500 });
+    }
 
     return NextResponse.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[correlation/residuals-geojson]', message);
+    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
   }
 }

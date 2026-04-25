@@ -45,6 +45,26 @@ export async function GET(
   const metric = searchParams.get('metric') === 'unique' ? 'unique' : 'impressions';
 
   const supabase = createAdminClient();
+
+  if (profile.role !== 'super_admin') {
+    if (!profile.organization_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const { count, error: linkErr } = await supabase
+      .from('campaign_organizations')
+      .select('campaign_id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('organization_id', profile.organization_id);
+
+    if (linkErr) {
+      console.error('[digital/geography] org check error:', linkErr.message);
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    }
+    if (!count) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   const { data, error } = await supabase.rpc('get_digital_geography_map', {
     p_campaign_id: campaignId,
     p_set_id: setId,
@@ -54,7 +74,7 @@ export async function GET(
 
   if (error) {
     console.error('[digital/geography]', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 
   let parsed: GeographyResult;

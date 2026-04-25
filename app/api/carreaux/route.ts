@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[api/carreaux POST] rpc error:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Erreur de chargement carreaux' }, { status: 500 });
     }
 
     console.log('[api/carreaux POST] rows returned:', data?.length ?? 0);
@@ -86,6 +86,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('[api/carreaux POST] ERREUR:', errMsg);
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
   }
 }

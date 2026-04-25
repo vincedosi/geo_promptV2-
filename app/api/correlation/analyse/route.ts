@@ -4,8 +4,11 @@
  * Body : { stats, mode, metricLabel, poiLabel, metricXLabel?, metricYLabel? }
  */
 import { NextResponse } from 'next/server';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:corr' });
 
 interface CorrelationStats {
   r:         number;
@@ -20,6 +23,9 @@ interface CorrelationStats {
 }
 
 export async function POST(request: Request) {
+  const { ok, retrySec } = await limiter(getClientKey(request));
+  if (!ok) return rateLimitResponse(retrySec);
+
   try {
     const body = await request.json() as {
       stats:         CorrelationStats;

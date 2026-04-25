@@ -34,6 +34,10 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Source non trouvee' }, { status: 404 });
     }
 
+    if (profile.role !== 'super_admin' && data.organization_id && data.organization_id !== profile.organization_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
     // Count linked rows
     const [poiResult, panneauxResult] = await Promise.all([
       supabase.from('poi_france').select('id', { count: 'exact', head: true }).eq('data_source_id', id),
@@ -112,15 +116,19 @@ export async function DELETE(
     const supabase = createAdminClient();
     const { id } = params;
 
-    // Fetch source details to know the type
+    // Fetch source details to know the type + check ownership
     const { data: sourceData, error: sourceFetchErr } = await supabase
       .from('data_sources')
-      .select('type, geo_config')
+      .select('type, geo_config, organization_id')
       .eq('id', id)
       .single();
 
     if (sourceFetchErr || !sourceData) {
       return NextResponse.json({ success: false, error: 'Source non trouvée' }, { status: 404 });
+    }
+
+    if (profile.role !== 'super_admin' && sourceData.organization_id && sourceData.organization_id !== profile.organization_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
     let deletedPoi = 0;

@@ -6,12 +6,18 @@
 
 import { NextResponse } from 'next/server';
 import { orchestrate }  from '@/lib/smart-prompt/orchestrator';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export const maxDuration = 30;
 
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:smart' });
+
 export async function POST(req: Request) {
+  const { ok, retrySec } = await limiter(getClientKey(req));
+  if (!ok) return rateLimitResponse(retrySec);
+
   try {
     const body = await req.json() as { message?: string };
 
@@ -25,6 +31,6 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erreur interne';
     console.error('[api/smart-prompt]', msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
   }
 }

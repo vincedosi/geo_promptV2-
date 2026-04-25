@@ -4,6 +4,7 @@
  * Parses file, batch-inserts into dsp_campaign_data, triggers IRIS matching.
  */
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { parseCampaignFile } from '@/lib/campaigns/parser';
@@ -13,23 +14,61 @@ export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 50;
 
+const DSP_SOURCES = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'] as const;
+
+const ImportFieldsSchema = z.object({
+  dsp_source: z.enum(DSP_SOURCES).default('adform'),
+  campaign_name: z.string().trim().max(200).optional().nullable(),
+  column_mapping: z.string().max(20000).optional().nullable(),
+  organization_id: z.string().uuid().optional().nullable(),
+});
+
+function badRequest(message: string, details?: unknown) {
+  return new Response(JSON.stringify({ error: message, details }), {
+    status: 400,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export async function POST(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   // ── Parse formData BEFORE creating the stream ─────────────────────
   const formData = await request.formData();
-  const file = formData.get('file') as File | null;
-  const dspSource = (formData.get('dsp_source') as string) || 'adform';
-  const campaignNameOverride = formData.get('campaign_name') as string | null;
-  const customMappingRaw = formData.get('column_mapping') as string | null;
-  const organizationId = (formData.get('organization_id') as string) || profile.organization_id || '00000000-0000-0000-0000-000000000001';
+  const file = formData.get('file');
+  if (!(file instanceof File)) {
+    return badRequest('Fichier manquant');
+  }
 
-  if (!file) {
-    return new Response(JSON.stringify({ error: 'Fichier manquant' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  const parsedFields = ImportFieldsSchema.safeParse({
+    dsp_source: formData.get('dsp_source') ?? undefined,
+    campaign_name: formData.get('campaign_name'),
+    column_mapping: formData.get('column_mapping'),
+    organization_id: formData.get('organization_id'),
+  });
+
+  if (!parsedFields.success) {
+    return badRequest('Paramètres invalides', parsedFields.error.flatten());
+  }
+
+  const dspSource = parsedFields.data.dsp_source;
+  const campaignNameOverride = parsedFields.data.campaign_name ?? null;
+  const customMappingRaw = parsedFields.data.column_mapping ?? null;
+  const requestedOrgId = parsedFields.data.organization_id ?? null;
+
+  // organization_id : super_admin peut viser n'importe quelle org ; sinon forcer celle du profil
+  let organizationId: string;
+  if (requestedOrgId) {
+    if (profile.role !== 'super_admin' && requestedOrgId !== profile.organization_id) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: organization_id hors scope' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    organizationId = requestedOrgId;
+  } else {
+    organizationId = profile.organization_id || '00000000-0000-0000-0000-000000000001';
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

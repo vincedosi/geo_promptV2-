@@ -8,8 +8,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+const limiter = createRateLimiter({ max: 3, window: '60 s', prefix: 'geo:rl:dig-ai' });
 
 export async function POST(
   request: NextRequest,
@@ -17,6 +20,10 @@ export async function POST(
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
+
   const { campaignId } = await params;
   const body = await request.json();
   const { indicator, medias, kpi, breakdown, heatmap_summary } = body;
