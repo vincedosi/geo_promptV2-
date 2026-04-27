@@ -163,8 +163,8 @@ export function CarreauxPMTilesLayer({
   // Fix 6 — ref pour cleanup du listener error
   const errorHandlerRef = useRef<((ev: maplibregl.ErrorEvent) => void) | null>(null);
 
-  useEffect(() => { indicatorRef.current = indicator; }, [indicator]);
-  useEffect(() => { visibleRef.current = visible; },    [visible]);
+  useEffect(() => { indicatorRef.current  = indicator;  }, [indicator]);
+  useEffect(() => { visibleRef.current    = visible;    }, [visible]);
 
   // ── Recoloration dynamique ─────────────────────────────────────────────────
   const updateColors = useCallback((map: maplibregl.Map) => {

@@ -98,49 +98,58 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
     resolveLaunchedRef.current = true;
     const layers = getAllEnabledLayers();
     (async () => {
-      const results = await Promise.all(
-        layers.map(async (layer): Promise<CollectedLayer> => {
-          try {
-            // Timeout 10s par layer — évite que Promise.all pend
-            // indéfiniment si un getGeometry() ne settle jamais.
-            // Chaque layer est isolé : un timeout n'affecte que ce layer,
-            // les autres restent utilisables pour la capture.
-            const g = await withTimeout(
-              Promise.resolve(layer.getGeometry()),
-              GETGEOMETRY_TIMEOUT_MS,
-              layer.label || layer.sourceType,
-            );
-            const flat = flattenGeometry(g);
-            if (flat.length === 0) {
-              return { layer, geometries: [], error: 'Aucune géométrie retournée' };
+      let results: CollectedLayer[] = [];
+      try {
+        results = await Promise.all(
+          layers.map(async (layer): Promise<CollectedLayer> => {
+            try {
+              // Timeout 10s par layer — évite que Promise.all pend
+              // indéfiniment si un getGeometry() ne settle jamais.
+              // Chaque layer est isolé : un timeout n'affecte que ce layer,
+              // les autres restent utilisables pour la capture.
+              const g = await withTimeout(
+                Promise.resolve(layer.getGeometry()),
+                GETGEOMETRY_TIMEOUT_MS,
+                layer.label || layer.sourceType,
+              );
+              const flat = flattenGeometry(g);
+              if (flat.length === 0) {
+                return { layer, geometries: [], error: 'Aucune géométrie retournée' };
+              }
+              return { layer, geometries: flat };
+            } catch (err: unknown) {
+              return {
+                layer,
+                geometries: [],
+                error: err instanceof Error ? err.message : 'Erreur inconnue',
+              };
             }
-            return { layer, geometries: flat };
-          } catch (err: unknown) {
-            return {
-              layer,
-              geometries: [],
-              error: err instanceof Error ? err.message : 'Erreur inconnue',
-            };
-          }
-        }),
-      );
-      setCollected(results);
-      setResolving(false);
+          }),
+        );
+        setCollected(results);
 
-      // Toast warning non-bloquant si des layers ont échoué — l'user peut
-      // continuer avec les layers valides restants (cf. validCollected).
-      const failed = results.filter(r => r.error || r.geometries.length === 0);
-      if (failed.length > 0 && failed.length < results.length) {
-        const labels = failed.map(f => f.layer.label || f.layer.sourceType).join(', ');
-        toast.warning(
-          `${failed.length} layer${failed.length > 1 ? 's' : ''} indisponible${failed.length > 1 ? 's' : ''}`,
-          `Capture possible avec les autres. Non récupérés : ${labels}.`,
-        );
-      } else if (failed.length === results.length && results.length > 0) {
-        toast.warning(
-          'Aucune géométrie récupérée',
-          'Tous les layers ont échoué ou sont vides. Vérifie les données affichées sur la carte.',
-        );
+        // Toast warning non-bloquant si des layers ont échoué — l'user peut
+        // continuer avec les layers valides restants (cf. validCollected).
+        const failed = results.filter(r => r.error || r.geometries.length === 0);
+        if (failed.length > 0 && failed.length < results.length) {
+          const labels = failed.map(f => f.layer.label || f.layer.sourceType).join(', ');
+          toast.warning(
+            `${failed.length} layer${failed.length > 1 ? 's' : ''} indisponible${failed.length > 1 ? 's' : ''}`,
+            `Capture possible avec les autres. Non récupérés : ${labels}.`,
+          );
+        } else if (failed.length === results.length && results.length > 0) {
+          toast.warning(
+            'Toutes les géométries ont échoué',
+            'Réessayez ou réduisez la zone. Aucune sauvegarde possible.',
+          );
+        }
+      } catch (err: unknown) {
+        // Si Promise.all jette malgré le try/catch par layer (ex: oom), on log
+        // et on laisse collected vide — canSubmit restera false, message clair.
+        console.error('[CustomGeoCaptureModal] resolve geometries failed', err);
+      } finally {
+        // Garantit le déblocage du bouton/UI même en cas d'erreur fatale.
+        setResolving(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -425,6 +434,14 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
           </div>
 
           {/* Errors / success */}
+          {!orgId && (
+            <div style={{
+              padding: '8px 12px', borderRadius: 4, fontSize: 12,
+              background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)', color: 'var(--warning)',
+            }}>
+              Organisation non configurée — contactez votre administrateur pour attacher votre compte à une organisation avant de sauvegarder.
+            </div>
+          )}
           {error && (
             <div style={{
               padding: '8px 12px', borderRadius: 4, fontSize: 12,

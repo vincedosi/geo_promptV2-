@@ -628,9 +628,13 @@ export function FilterPanel({
   // ── UX: Collapsible sections with localStorage memory ─────────────────────
   const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'radio'] as const;
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
-    // En mode overlay, tous les accordéons fermés par défaut — l'utilisateur
-    // clique sur le nom pour déplier le layer qu'il veut. Pas de persistance.
-    if (isOverlayMode) return Object.fromEntries(SECTION_KEYS.map(k => [k, false]));
+    // En mode overlay, sections territoriales (périmètre / régions / départements)
+    // ouvertes par défaut — le user doit pouvoir filtrer la zone AVANT d'afficher
+    // les POI, sinon la carte charge toute la France. Autres sections fermées.
+    if (isOverlayMode) {
+      const TERRITORY_OPEN = new Set(['perimetre', 'regions', 'departements']);
+      return Object.fromEntries(SECTION_KEYS.map(k => [k, TERRITORY_OPEN.has(k)]));
+    }
     if (typeof window === 'undefined') return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
     try {
       const saved = localStorage.getItem('geomatik-filter-sections');
@@ -988,8 +992,10 @@ export function FilterPanel({
 
     // Re-reorder a chaque ajout de layer (carreaux, IRIS, etc.) qui passerait
     // automatiquement au-dessus du mask sinon. styledata = trigger MapLibre
-    // pour tout changement structurel du style.
-    map.on('styledata', reorderMask);
+    // pour tout changement structurel du style. sourcedata = trigger pour
+    // chaque tuile MVT chargee tardivement dans une source existante.
+    map.on('styledata',  reorderMask);
+    map.on('sourcedata', reorderMask);
 
     // Cache hit : re-applique direct
     if (territoryMaskCacheRef.current && territoryMaskCacheRef.current.key === cacheKey) {
@@ -997,7 +1003,8 @@ export function FilterPanel({
       if (cached) applyMask(cached);
       return () => {
         cancelled = true;
-        try { map.off('styledata', reorderMask); } catch { /* noop */ }
+        try { map.off('styledata',  reorderMask); } catch { /* noop */ }
+        try { map.off('sourcedata', reorderMask); } catch { /* noop */ }
         cleanup();
       };
     }
@@ -1018,7 +1025,8 @@ export function FilterPanel({
 
     return () => {
       cancelled = true;
-      try { map.off('styledata', reorderMask); } catch { /* noop */ }
+      try { map.off('styledata',  reorderMask); } catch { /* noop */ }
+      try { map.off('sourcedata', reorderMask); } catch { /* noop */ }
       cleanup();
     };
   }, [territoryMaskEnabled, adminScale, adminCodes, mainMapRef]);
