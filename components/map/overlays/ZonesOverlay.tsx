@@ -362,7 +362,7 @@ function ZoneCard({
   return (
     <div style={{
       padding: 10,
-      background: '#111111',
+      background: 'var(--bg-level-2)',
       border: `0.5px solid ${loaded ? loaded.color : 'var(--border-subtle)'}`,
       borderRadius: 8,
       display: 'flex', flexDirection: 'column', gap: 6,
