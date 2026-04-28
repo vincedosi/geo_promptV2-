@@ -7,7 +7,6 @@ import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CampaignListItem, CampaignImportEvent, CampaignImportReport, DspCampaignData } from '@/types/campaign';
-import type { ParsedCampaignRow } from '@/lib/campaigns/parser';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -22,7 +21,7 @@ const C = {
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-const DSP_SOURCES = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'] as const;
+interface DspSourceOption { value: string; label: string; }
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
@@ -53,7 +52,9 @@ interface PreviewData {
   date_end: string | null;
   total_tracked_ads: number;
   errors: string[];
-  sample_rows: ParsedCampaignRow[];
+  // Le serveur retourne désormais des rows flat (core+metrics+dimensions
+  // mergés) ; la table d'aperçu lit row[col] où col = nom du target_field.
+  sample_rows: Record<string, unknown>[];
   detected_columns?: string[];
 }
 
@@ -283,6 +284,7 @@ export default function CampaignsPage() {
   // Upload state
   const [importFile, setImportFile] = useState<File | null>(null);
   const [dspSource, setDspSource] = useState<string>('adform');
+  const [dspOptions, setDspOptions] = useState<DspSourceOption[]>([]);
   const [campaignName, setCampaignName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -333,6 +335,21 @@ export default function CampaignsPage() {
     adminFetch('/api/admin/organizations')
       .then(r => r.ok ? r.json() : { organizations: [] })
       .then(d => setOrgs(Array.isArray(d) ? d : (d.organizations ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // Load DSP sources for the import modal dropdown (driven by dsp_source_mappings)
+  useEffect(() => {
+    adminFetch('/api/admin/dsp-sources')
+      .then(r => r.ok ? r.json() : { sources: [] })
+      .then((d: { sources?: DspSourceOption[] }) => {
+        const opts = d.sources ?? [];
+        setDspOptions(opts);
+        if (opts.length > 0 && !opts.some(o => o.value === 'adform')) {
+          // Adform absent : pivote vers le premier DSP dispo
+          setDspSource(opts[0].value);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -645,7 +662,9 @@ export default function CampaignsPage() {
                   <label style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, display: 'block', marginBottom: 6 }}>Source DSP</label>
                   <select value={dspSource} onChange={(e) => setDspSource(e.target.value)}
                     style={{ width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: C.text, outline: 'none' }}>
-                    {DSP_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {dspOptions.length === 0
+                      ? <option value="">Aucun DSP configuré</option>
+                      : dspOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 {orgs.length > 1 && (

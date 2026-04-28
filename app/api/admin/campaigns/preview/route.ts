@@ -1,11 +1,18 @@
 /**
  * GENESIS — POST /api/admin/campaigns/preview
  * Parse a DSP file and return mapped columns + sample rows WITHOUT inserting.
+ *
+ * Backed by lib/dsp-mapping/* — mappings dynamiques depuis dsp_source_mappings.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import { parseCampaignFile } from '@/lib/campaigns/parser';
-import { getMappingForSource, autoDetectMapping } from '@/lib/campaigns/column-mappings';
+import { loadMappings } from '@/lib/dsp-mapping/loader';
+import { parseFile, readHeaders } from '@/lib/dsp-mapping/parser';
+import { validateCsvHeaders } from '@/lib/dsp-mapping/validator';
+import {
+  MissingRequiredColumnError,
+  NoMappingsFoundError,
+} from '@/lib/dsp-mapping/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
-  const dspSource = (formData.get('dsp_source') as string) || 'adform';
+  const dspSource = ((formData.get('dsp_source') as string) || 'adform').toLowerCase();
 
   if (!file) {
     return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 });
@@ -25,56 +32,77 @@ export async function POST(request: NextRequest) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const parsed = parseCampaignFile(buffer, file.name, dspSource);
+    const fileHeaders = readHeaders(buffer, file.name);
 
-    // Column mapping used (auto-detect first, fallback to DSP source)
-    const rawHeaders = parsed.rows.length > 0 ? Object.keys(parsed.rows[0]) : [];
-    // Re-read the file to get raw headers before mapping
-    const Papa = await import('papaparse');
-    const XLSX = await import('xlsx');
-    const isXlsx = /\.xlsx?$/i.test(file.name);
-    let fileHeaders: string[] = [];
-    if (isXlsx) {
-      const wb = XLSX.read(buffer, { type: 'buffer' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      if (ws) {
-        const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '', raw: false });
-        fileHeaders = rows.length > 0 ? Object.keys(rows[0]) : [];
-      }
-    } else {
-      let text = buffer.toString('utf-8');
-      if (text.includes('\ufffd')) text = buffer.toString('latin1');
-      const result = Papa.default.parse<Record<string, string>>(text, { header: true, preview: 1, transformHeader: (h: string) => h.trim() });
-      fileHeaders = result.meta.fields ?? [];
-    }
-    const mapping = autoDetectMapping(fileHeaders) ?? getMappingForSource(dspSource);
-    const columnMapping = Object.entries(mapping).map(([source, target]) => ({
-      source_column: source,
-      db_field: target,
+    const mappings = await loadMappings(dspSource);
+    const validation = validateCsvHeaders(fileHeaders, mappings);
+
+    const parsed = parseFile(buffer, file.name, mappings);
+
+    // Flatten ParsedRow {core, metrics, dimensions} pour compat UI : la table
+    // d'aperçu affiche `row[col]` (col = nom de target_field), pas la structure.
+    const flatRows = parsed.rows.map((p) => ({
+      ...p.dimensions,
+      ...p.metrics,
+      ...p.core,
     }));
 
-    // Sample rows (first N)
-    const sampleRows = parsed.rows.slice(0, PREVIEW_ROWS);
+    const columnMapping = mappings
+      .filter((m) =>
+        fileHeaders.some(
+          (h) => h.toLowerCase().trim() === m.sourceColumn.toLowerCase().trim(),
+        ),
+      )
+      .map((m) => ({
+        source_column: m.sourceColumn,
+        db_field: m.targetField,
+        target_location: m.targetLocation,
+        is_required: m.isRequired,
+      }));
 
     return NextResponse.json({
       file_name: file.name,
       dsp_source: dspSource,
       column_mapping: columnMapping,
       file_headers: fileHeaders,
-      total_rows: parsed.rows.length,
-      campaign_name: parsed.campaign_name,
+      missing_required: validation.missingRequired,
+      unknown_columns: validation.unknownColumns,
+      total_rows: parsed.totalRows,
+      campaign_name: parsed.campaignName,
       countries: parsed.countries,
-      date_start: parsed.date_start,
-      date_end: parsed.date_end,
-      total_tracked_ads: parsed.total_tracked_ads,
-      errors: parsed.errors.slice(0, 10),
-      sample_rows: sampleRows,
-      detected_columns: parsed.detected_columns,
+      date_start: parsed.dateStart,
+      date_end: parsed.dateEnd,
+      total_tracked_ads: parsed.totalTrackedAds,
+      total_unique_impressions: parsed.totalUniqueImpressions,
+      total_impressions: parsed.totalImpressions,
+      errors: parsed.validationErrors.slice(0, 10),
+      sample_rows: flatRows.slice(0, PREVIEW_ROWS),
+      detected_columns: columnMapping.map((c) => c.db_field),
     });
   } catch (err: unknown) {
+    if (err instanceof NoMappingsFoundError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: 'no_mappings_found',
+          dsp_source: err.dspSource,
+        },
+        { status: 400 },
+      );
+    }
+    if (err instanceof MissingRequiredColumnError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: 'missing_required_columns',
+          missing: err.missingColumns,
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: `Erreur parsing : ${err instanceof Error ? err.message : String(err)}` },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

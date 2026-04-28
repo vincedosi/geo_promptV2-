@@ -1,25 +1,31 @@
 /**
  * GENESIS — POST /api/admin/campaigns/import
  * Import DSP campaign file (CSV/XLSX) with SSE streaming progress.
+ *
+ * Backed by lib/dsp-mapping/* — mappings dynamiques (zéro hardcode DSP).
  * Parses file, batch-inserts into dsp_campaign_data, triggers IRIS matching.
  */
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import { parseCampaignFile } from '@/lib/campaigns/parser';
+import { loadMappings } from '@/lib/dsp-mapping/loader';
+import { parseFile } from '@/lib/dsp-mapping/parser';
+import {
+  MissingRequiredColumnError,
+  NoMappingsFoundError,
+} from '@/lib/dsp-mapping/types';
 import type { CampaignImportEvent } from '@/types/campaign';
 
 export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 50;
 
-const DSP_SOURCES = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'] as const;
-
 const ImportFieldsSchema = z.object({
-  dsp_source: z.enum(DSP_SOURCES).default('adform'),
+  // Plus d'enum hardcodé : on accepte n'importe quelle string ; loadMappings()
+  // tranchera (NoMappingsFoundError si pas de mapping en base).
+  dsp_source: z.string().trim().min(1).max(50).default('adform'),
   campaign_name: z.string().trim().max(200).optional().nullable(),
-  column_mapping: z.string().max(20000).optional().nullable(),
   organization_id: z.string().uuid().optional().nullable(),
 });
 
@@ -28,6 +34,28 @@ function badRequest(message: string, details?: unknown) {
     status: 400,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+interface InsertRow {
+  campaign_id: string;
+  date: string | null;
+  city: string | null;
+  country: string;
+  postal_code: string | null;
+  region: string | null;
+  dma_region: string | null;
+  tracked_ads: number;
+  media: string | null;
+  unique_impressions: number;
+  impressions: number | null;
+  clicks: number | null;
+  spend: number | null;
+  metrics: Record<string, unknown>;
+  dsp_source: string;
+}
+
+function buildAggKey(row: InsertRow): string {
+  return `${row.date ?? ''}|${row.postal_code ?? ''}|${row.city ?? ''}|${row.media ?? ''}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -44,7 +72,6 @@ export async function POST(request: NextRequest) {
   const parsedFields = ImportFieldsSchema.safeParse({
     dsp_source: formData.get('dsp_source') ?? undefined,
     campaign_name: formData.get('campaign_name'),
-    column_mapping: formData.get('column_mapping'),
     organization_id: formData.get('organization_id'),
   });
 
@@ -52,9 +79,8 @@ export async function POST(request: NextRequest) {
     return badRequest('Paramètres invalides', parsedFields.error.flatten());
   }
 
-  const dspSource = parsedFields.data.dsp_source;
+  const dspSource = parsedFields.data.dsp_source.toLowerCase();
   const campaignNameOverride = parsedFields.data.campaign_name ?? null;
-  const customMappingRaw = parsedFields.data.column_mapping ?? null;
   const requestedOrgId = parsedFields.data.organization_id ?? null;
 
   // organization_id : super_admin peut viser n'importe quelle org ; sinon forcer celle du profil
@@ -63,12 +89,25 @@ export async function POST(request: NextRequest) {
     if (profile.role !== 'super_admin' && requestedOrgId !== profile.organization_id) {
       return new Response(
         JSON.stringify({ error: 'Forbidden: organization_id hors scope' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
+        { status: 403, headers: { 'Content-Type': 'application/json' } },
       );
     }
     organizationId = requestedOrgId;
   } else {
     organizationId = profile.organization_id || '00000000-0000-0000-0000-000000000001';
+  }
+
+  // ── Charger les mappings AVANT le stream pour échouer net si DSP inconnu ──
+  let mappings;
+  try {
+    mappings = await loadMappings(dspSource);
+  } catch (err) {
+    if (err instanceof NoMappingsFoundError) {
+      return badRequest(err.message, { code: 'no_mappings_found', dsp_source: err.dspSource });
+    }
+    return badRequest(
+      `Erreur chargement mappings : ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -85,20 +124,32 @@ export async function POST(request: NextRequest) {
       try {
         send({ type: 'parsing', message: `Parsing ${fileName}…` });
 
-        let customMapping: Record<string, string> | null = null;
-        if (customMappingRaw) {
-          try { customMapping = JSON.parse(customMappingRaw); } catch { /* ignore */ }
+        let parsed;
+        try {
+          parsed = parseFile(buffer, fileName, mappings);
+        } catch (err) {
+          if (err instanceof MissingRequiredColumnError) {
+            send({
+              type: 'error',
+              message: `Colonnes requises manquantes : ${err.missingColumns.join(', ')}`,
+            });
+            controller.close();
+            return;
+          }
+          throw err;
         }
-        const parsed = parseCampaignFile(buffer, fileName, dspSource, customMapping);
 
-        if (parsed.errors.length > 0 && parsed.rows.length === 0) {
-          send({ type: 'error', message: `Aucune ligne valide. Erreurs : ${parsed.errors.slice(0, 5).join('; ')}` });
+        if (parsed.validationErrors.length > 0 && parsed.totalRows === 0) {
+          send({
+            type: 'error',
+            message: `Aucune ligne valide. Erreurs : ${parsed.validationErrors.slice(0, 5).join('; ')}`,
+          });
           controller.close();
           return;
         }
 
-        const campaignName = campaignNameOverride?.trim() || parsed.campaign_name;
-        const totalRows = parsed.rows.length;
+        const campaignName = campaignNameOverride?.trim() || parsed.campaignName;
+        const totalRows = parsed.totalRows;
 
         send({
           type: 'progress',
@@ -116,10 +167,10 @@ export async function POST(request: NextRequest) {
             name: campaignName,
             dsp_source: dspSource,
             advertiser: null,
-            date_start: parsed.date_start,
-            date_end: parsed.date_end,
-            total_tracked_ads: parsed.total_tracked_ads,
-            total_unique_impressions: parsed.total_unique_impressions,
+            date_start: parsed.dateStart,
+            date_end: parsed.dateEnd,
+            total_tracked_ads: parsed.totalTrackedAds,
+            total_unique_impressions: parsed.totalUniqueImpressions,
             countries: parsed.countries,
             created_by: profile.id,
             organization_id: organizationId,
@@ -140,36 +191,60 @@ export async function POST(request: NextRequest) {
           .from('campaign_organizations')
           .upsert(
             { campaign_id: campaignId, organization_id: organizationId, added_by: profile.id },
-            { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true }
+            { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true },
           );
 
-        // ── Pre-aggregate duplicates (same date+postal_code+city) ────
-        const aggMap = new Map<string, {
-          campaign_id: string; date: string | null; city: string | null;
-          country: string; postal_code: string | null; region: string | null;
-          dma_region: string | null; tracked_ads: number; media: string | null;
-          unique_impressions: number;
-        }>();
+        // ── Construire les rows DB depuis ParsedRow ─────────────────────
+        const insertRows: InsertRow[] = parsed.rows.map((p) => ({
+          campaign_id: campaignId,
+          date: (p.core.date as string | undefined) ?? null,
+          city: (p.dimensions.city as string | undefined) ?? null,
+          country: (p.core.country as string | undefined) ?? (p.dimensions.country as string | undefined) ?? '',
+          postal_code: (p.core.postal_code as string | undefined) ?? null,
+          region: (p.dimensions.region as string | undefined) ?? null,
+          dma_region: (p.dimensions.dma_region as string | undefined) ?? null,
+          tracked_ads: (p.core.tracked_ads as number | undefined) ?? 0,
+          media: (p.dimensions.media as string | undefined) ?? null,
+          unique_impressions: (p.core.unique_impressions as number | undefined) ?? 0,
+          impressions: (p.core.impressions as number | undefined) ?? null,
+          clicks: (p.core.clicks as number | undefined) ?? null,
+          spend: (p.core.spend as number | undefined) ?? null,
+          metrics: p.metrics,
+          dsp_source: dspSource,
+        }));
 
-        for (const r of parsed.rows) {
-          const key = `${r.date}|${r.postal_code}|${r.city}|${r.media ?? ''}`;
+        // ── Pre-aggregate duplicates (same date+postal_code+city+media) ──
+        // On agrège tracked_ads, unique_impressions, impressions, clicks et
+        // les clés numériques de metrics. Les autres champs prennent la
+        // première valeur rencontrée (déterministe : ordre du CSV).
+        const aggMap = new Map<string, InsertRow>();
+
+        for (const r of insertRows) {
+          const key = buildAggKey(r);
           const existing = aggMap.get(key);
           if (existing) {
             existing.tracked_ads += r.tracked_ads;
             existing.unique_impressions += r.unique_impressions;
+            if (r.impressions !== null) {
+              existing.impressions = (existing.impressions ?? 0) + r.impressions;
+            }
+            if (r.clicks !== null) {
+              existing.clicks = (existing.clicks ?? 0) + r.clicks;
+            }
+            if (r.spend !== null) {
+              existing.spend = (existing.spend ?? 0) + r.spend;
+            }
+            // Merge metrics : sum si numérique, override sinon (cas rare)
+            for (const [mk, mv] of Object.entries(r.metrics)) {
+              if (typeof mv === 'number') {
+                const cur = existing.metrics[mk];
+                existing.metrics[mk] = (typeof cur === 'number' ? cur : 0) + mv;
+              } else if (existing.metrics[mk] === undefined) {
+                existing.metrics[mk] = mv;
+              }
+            }
           } else {
-            aggMap.set(key, {
-              campaign_id: campaignId,
-              date: r.date,
-              city: r.city,
-              country: r.country,
-              postal_code: r.postal_code,
-              region: r.region,
-              dma_region: r.dma_region,
-              tracked_ads: r.tracked_ads,
-              media: r.media,
-              unique_impressions: r.unique_impressions,
-            });
+            aggMap.set(key, { ...r, metrics: { ...r.metrics } });
           }
         }
 
@@ -233,7 +308,7 @@ export async function POST(request: NextRequest) {
           const { data: matchResult, error: matchErr } = await supabase
             .rpc('match_campaign_postal_to_iris', { p_campaign_id: campaignId });
 
-          const matched = matchErr ? 0 : (matchResult as number) ?? 0;
+          const matched = matchErr ? 0 : ((matchResult as number) ?? 0);
 
           send({
             type: 'matching',
@@ -266,7 +341,10 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (err: unknown) {
-        send({ type: 'error', message: `Erreur inattendue : ${err instanceof Error ? err.message : String(err)}` });
+        send({
+          type: 'error',
+          message: `Erreur inattendue : ${err instanceof Error ? err.message : String(err)}`,
+        });
       } finally {
         controller.close();
       }
