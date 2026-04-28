@@ -17,8 +17,8 @@ interface CampaignContextBarProps {
   totalImpressions: number;
   zonesCount: number;
   concentrationTop10: number;
-  metric: 'impressions' | 'unique';
-  onMetricChange: (m: 'impressions' | 'unique') => void;
+  metric: string;
+  onMetricChange: (m: string) => void;
   onOpenAnalysis: () => void;
   inZonePct?: number | null;
   inZoneImpressions?: number | null;

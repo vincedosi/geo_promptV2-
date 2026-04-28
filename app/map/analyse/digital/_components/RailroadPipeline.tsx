@@ -41,7 +41,7 @@ interface RailroadPipelineProps {
   // Stats
   zonesCount: number;
   totalImpressions: number;
-  metric?: 'impressions' | 'unique';
+  metric?: string;
   loading: boolean;
 }
 

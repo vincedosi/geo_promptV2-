@@ -33,11 +33,29 @@ export async function GET(
   const popField = searchParams.get('pop_field') || 'population';
   const mediaStr = searchParams.get('media');
   const media = mediaStr ? mediaStr.split(',').filter(Boolean) : null;
-  const metricRaw = searchParams.get('metric');
-  const metric = metricRaw === 'unique' ? 'unique' : 'impressions';
+  // Toujours via RPC v2 (paramétrée par metric_field arbitraire).
+  // Aliasing pour rétrocompat URL bookmark / toggle legacy CampaignContextBar :
+  //   - 'impressions'/'' (default) → tracked_ads SI campagne Adform, sinon 'impressions'
+  //   - 'unique'                   → unique_impressions
+  // Pour les autres DSP (TTD/DV360/...), 'impressions' reste la vraie colonne native.
+  const metricRaw = (searchParams.get('metric') ?? '').trim();
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase.rpc('get_digital_campaign_map', {
+  let metricField = metricRaw || 'tracked_ads';
+  if (metricRaw === 'unique') {
+    metricField = 'unique_impressions';
+  } else if (metricRaw === 'impressions' || metricRaw === '') {
+    // Détecter Adform pour aliaser 'impressions' → 'tracked_ads' (legacy alias)
+    const { data: camp } = await supabase
+      .from('dsp_campaigns')
+      .select('dsp_source')
+      .eq('id', campaignId)
+      .single();
+    if (camp?.dsp_source === 'adform') metricField = 'tracked_ads';
+    else metricField = 'impressions';
+  }
+
+  const { data, error } = await supabase.rpc('get_digital_geography_map_v2', {
     p_campaign_id: campaignId,
     p_scale: scale,
     p_pop_field: popField,
@@ -46,7 +64,7 @@ export async function GET(
     p_bbox_ymin: ymin,
     p_bbox_xmax: xmax,
     p_bbox_ymax: ymax,
-    p_metric: metric,
+    p_metric_field: metricField,
   });
 
   if (error) {

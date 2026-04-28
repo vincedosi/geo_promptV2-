@@ -27,7 +27,7 @@ interface MediaHeatmapProps {
   data: HeatmapData | null;
   loading: boolean;
   aggregation: string;
-  metric?: 'impressions' | 'unique';
+  metric?: string;
   onCellClick?: (media: string, zoneCode: string) => void;
 }
 

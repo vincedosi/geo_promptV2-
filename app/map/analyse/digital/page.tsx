@@ -12,6 +12,7 @@ import { AnalysisPanelSwitch as AnalysisPanel } from '@/components/digital/Analy
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
 import { KpiCardsDsp } from './_components/KpiCardsDsp';
+import { KpiSelector } from './_components/KpiSelector';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useSession } from '@/lib/auth-client';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
@@ -128,7 +129,9 @@ export default function DigitalTripleMapPage() {
   const [popField, setPopField] = useState('population');
   const [layout, setLayout] = useState<LayoutMode>('focus-ratio');
   const [analysisOpen, setAnalysisOpen] = useState(false);
-  const [metric, setMetric] = useState<'impressions' | 'unique'>('impressions');
+  // KPI sélectionné — state local. Le KpiSelector et le toggle legacy
+  // CampaignContextBar appellent setMetric directement (controlled).
+  const [metric, setMetric] = useState<string>('impressions');
   const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
   const [geographySetId, setGeographySetId] = useState<string | null>(null);
   const [customZones, setCustomZones] = useState<CustomZoneOption[]>([]);
@@ -257,6 +260,15 @@ export default function DigitalTripleMapPage() {
     setCustomZoneId(zoneId);
     if (campaignId && scale === 'custom_zone') fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, geographySetId, zoneId);
   }, [campaignId, scale, popField, selectedMedia, metric, geographySetId, fetchMap]);
+
+  // Re-fetch quand le KPI sélectionné change (KpiSelector URL-bound). Les
+  // autres handlers (scale/popField/media/zone) gèrent leur propre fetch ;
+  // celui-ci comble le cas où seul `?metric=` change.
+  useEffect(() => {
+    if (!campaignId) return;
+    fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId, customZoneId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metric]);
 
   // Meteo : toggle du panel ET du mode overlay.
   // Clic quand inactif → ouvre le panel. Clic quand actif → sort du mode meteo.
@@ -590,6 +602,23 @@ export default function DigitalTripleMapPage() {
             inZonePct={isZones ? geographySummary?.pct_in_zone ?? null : null}
             inZoneImpressions={isZones ? geographySummary?.in_zone_impressions ?? null : null}
           />
+
+          {/* Sélecteur de KPI global — chantier A3.1.
+              Drive la choroplèthe (RPC v2), la heatmap (RPC v2), le breakdown
+              (RPC v2) et les cards via le state `metric` partagé. */}
+          {campaignId && (
+            <div style={{
+              padding: '6px 12px', display: 'flex', justifyContent: 'flex-end',
+              borderBottom: '0.5px solid var(--border-subtle)', background: 'var(--bg-surface)',
+            }}>
+              <KpiSelector
+                campaignId={campaignId}
+                value={metric}
+                onChange={setMetric}
+                hideIfSingle
+              />
+            </div>
+          )}
 
           {/* Cards KPI multi-source — chantier A3.
               Driven par dsp_metrics_registry. Affiche dynamiquement les KPIs

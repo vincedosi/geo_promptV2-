@@ -47,7 +47,7 @@ interface BiddingChatBody {
     indicator: string;
     breakdown: BreakdownItem[];
     medias?: MediaItem[];
-    metric: 'impressions' | 'unique';
+    metric: string;
     aggregation: 'region' | 'dept' | 'cp';
   };
 }

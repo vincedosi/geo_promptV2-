@@ -30,7 +30,7 @@ interface AnalysisPanelProps {
   scale: string;
   popField: string;
   selectedMedia: string[];
-  metric: 'impressions' | 'unique';
+  metric: string;
   frequency?: number | null;
   open: boolean;
   onToggle: () => void;

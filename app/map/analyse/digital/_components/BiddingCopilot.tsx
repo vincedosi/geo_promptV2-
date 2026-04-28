@@ -41,7 +41,7 @@ interface BiddingCopilotProps {
   campaignName?: string;
   indicator: string;
   breakdown: BreakdownRow[];
-  metric: 'impressions' | 'unique';
+  metric: string;
   aggregation: 'region' | 'dept' | 'cp';
 }
 

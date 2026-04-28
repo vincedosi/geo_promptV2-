@@ -50,7 +50,7 @@ interface DigitalData {
     scale: string,
     popField?: string,
     media?: string[],
-    metric?: 'impressions' | 'unique',
+    metric?: string,
     geographySetId?: string | null,
     customZoneId?: string | null,
   ) => Promise<void>;
@@ -85,7 +85,7 @@ export function useDigitalData(): DigitalData {
     scale: string,
     popField?: string,
     media?: string[],
-    metric?: 'impressions' | 'unique',
+    metric?: string,
     geographySetId?: string | null,
     customZoneId?: string | null,
   ) => {
@@ -96,7 +96,11 @@ export function useDigitalData(): DigitalData {
     setGeojsonLoading(true);
     try {
       const pf = popField || 'population';
-      const m = metric === 'unique' ? 'unique' : 'impressions';
+      // metric peut être : un alias legacy ('impressions'/'unique') OU un
+      // field de dsp_metrics_registry (tracked_ads, impressions, clicks, leads...).
+      // La route API /api/digital/[id]/map résout le bon field selon le DSP
+      // (Adform alias 'impressions' → tracked_ads ; TTD impressions = colonne native).
+      const m = metric ? encodeURIComponent(metric) : 'impressions';
 
       // Mode "Zones isochrones" (legacy geography_sets issus du copilote/battle)
       if (scale === 'zones') {

@@ -18,7 +18,7 @@ interface BreakdownRow {
 interface BreakdownChartProps {
   data: BreakdownRow[];
   aggregation: string;
-  metric?: 'impressions' | 'unique';
+  metric?: string;
   onBarClick?: (code: string) => void;
 }
 

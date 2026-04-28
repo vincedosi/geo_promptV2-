@@ -34,13 +34,18 @@ export async function GET(
   if (type === 'heatmap') {
     const aggregation = searchParams.get('aggregation') || 'region';
     const indicator = searchParams.get('indicator') || 'population';
-    const metricRaw = searchParams.get('metric');
-    const metric = metricRaw === 'unique' ? 'unique' : 'impressions';
-    const { data, error } = await supabase.rpc('get_digital_media_heatmap', {
+    const metricRaw = (searchParams.get('metric') ?? '').trim();
+    let metricField = metricRaw || 'tracked_ads';
+    if (metricRaw === 'unique') metricField = 'unique_impressions';
+    else if (metricRaw === 'impressions' || metricRaw === '') {
+      const { data: camp } = await supabase.from('dsp_campaigns').select('dsp_source').eq('id', campaignId).single();
+      metricField = camp?.dsp_source === 'adform' ? 'tracked_ads' : 'impressions';
+    }
+    const { data, error } = await supabase.rpc('get_digital_media_heatmap_v2', {
       p_campaign_id: campaignId,
       p_aggregation: aggregation,
       p_indicator: indicator,
-      p_metric: metric,
+      p_metric_field: metricField,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const result = typeof data === 'string' ? JSON.parse(data) : (data ?? {});
@@ -61,22 +66,27 @@ export async function GET(
   const media = mediaStr ? mediaStr.split(',').filter(Boolean) : null;
   const limit = parseInt(searchParams.get('limit') || '100', 10);
   const popMin = parseFloat(searchParams.get('pop_min') || '0') || 0;
-  const metricRaw = searchParams.get('metric');
-  const metric = metricRaw === 'unique' ? 'unique' : 'impressions';
+  const metricRaw = (searchParams.get('metric') ?? '').trim();
+  let metricField = metricRaw || 'tracked_ads';
+  if (metricRaw === 'unique') metricField = 'unique_impressions';
+  else if (metricRaw === 'impressions' || metricRaw === '') {
+    const { data: camp } = await supabase.from('dsp_campaigns').select('dsp_source').eq('id', campaignId).single();
+    metricField = camp?.dsp_source === 'adform' ? 'tracked_ads' : 'impressions';
+  }
 
   // Drill-down parent filter : restrict to depts of a region, or CPs of a dept
   const parentTypeRaw = searchParams.get('parent_type');
   const parentType = parentTypeRaw === 'region' || parentTypeRaw === 'dept' ? parentTypeRaw : null;
   const parentCode = parentType ? searchParams.get('parent_code') : null;
 
-  const { data, error } = await supabase.rpc('get_digital_analysis_breakdown', {
+  const { data, error } = await supabase.rpc('get_digital_analysis_breakdown_v2', {
     p_campaign_id: campaignId,
     p_aggregation: aggregation,
     p_indicator: indicator,
     p_media: media,
     p_limit: limit,
     p_pop_min: popMin,
-    p_metric: metric,
+    p_metric_field: metricField,
     p_parent_type: parentType,
     p_parent_code: parentCode,
   });

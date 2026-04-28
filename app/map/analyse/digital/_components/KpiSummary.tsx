@@ -16,7 +16,7 @@ interface KpiSummaryProps {
   ratioMoyen: number;
   couverturePct: number;
   concentrationTop10: number;
-  metric?: 'impressions' | 'unique';
+  metric?: string;
   frequency?: number | null;
 }
 

@@ -96,7 +96,7 @@ interface TripleMapViewProps {
   campaignId: string;
   scale: string;
   popField: string;
-  metric: 'impressions' | 'unique';
+  metric: string;
   selectedMedia?: string[];
 }
 

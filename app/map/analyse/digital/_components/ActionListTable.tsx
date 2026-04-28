@@ -17,7 +17,7 @@ interface ActionRow {
 
 interface ActionListTableProps {
   data: ActionRow[];
-  metric?: 'impressions' | 'unique';
+  metric?: string;
   aggregation?: 'region' | 'dept' | 'cp';
   onRowClick?: (code: string) => void;
 }

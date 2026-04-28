@@ -32,7 +32,7 @@ export interface AnalyseV2Props {
   scale: string;
   popField: string;
   selectedMedia: string[];
-  metric: 'impressions' | 'unique';
+  metric: string;
   frequency?: number | null;
   open: boolean;
   onToggle: () => void;
@@ -524,7 +524,7 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
 interface DiagnosticTabProps {
   breakdownData: BreakdownRow[];
   currentAggregation: 'region' | 'dept' | 'cp';
-  metric: 'impressions' | 'unique';
+  metric: string;
   handleBarClick: (code: string) => void;
   heatmapData: HeatmapData | null;
   heatmapLoading: boolean;
@@ -617,7 +617,7 @@ function SectionCard({ title, subtitle, accentRgb, children }: { title: string; 
 interface RecommandationsTabProps {
   breakdownData: BreakdownRow[];
   currentAggregation: 'region' | 'dept' | 'cp';
-  metric: 'impressions' | 'unique';
+  metric: string;
   handleBarClick: (code: string) => void;
   copilotEnabled: boolean;
   onEnableCopilot: () => void;
