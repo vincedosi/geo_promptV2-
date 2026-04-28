@@ -46,6 +46,13 @@ export function createAdminClient() {
 
   return createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // Next.js patche `fetch` et applique son Data Cache aux appels sortants.
+    // Sans cette surcharge, supabase-js retourne des `profiles.organization_id`
+    // périmés après un UPDATE (bug switch-org : la POST écrit en DB mais
+    // les GET suivants relisent la version cachée). On force `no-store`.
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+    },
   });
 }
 

@@ -49,7 +49,10 @@ export const SessionBadge = memo(function SessionBadge() {
     if (!session || orgsFetched) return;
     const token = session.id;
     if (!token) return;
-    fetch('/api/user/organizations', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/user/organizations?_=${Date.now()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return;
@@ -72,6 +75,7 @@ export const SessionBadge = memo(function SessionBadge() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` },
         body: JSON.stringify({ organization_id: orgId }),
+        cache: 'no-store',
       });
       if (res.ok) {
         setActiveOrgId(orgId);
