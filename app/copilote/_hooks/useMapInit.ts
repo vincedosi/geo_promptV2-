@@ -166,6 +166,15 @@ export function useMapInit(
 
     map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
+    // ── Resize observer ─────────────────────────────────────────────────────
+    // /map est rendu dans un layout flex où le container peut être plus petit
+    // que sa taille finale au moment du `new Map(...)` (icon bar / overlays
+    // qui apparaissent juste après le mount). Sans resize() la carte reste
+    // tronquée à la taille initiale. Pattern repris de SyncMap.
+    const ro = new ResizeObserver(() => { map.resize(); });
+    ro.observe(mapContainerRef.current);
+    map.once('idle', () => { map.resize(); });
+
     // Collect cleanup callbacks from load-time listener registrations
     const cleanupFns: (() => void)[] = [];
 
@@ -902,6 +911,7 @@ export function useMapInit(
     mapRef.current = map;
     return () => {
       setMapReady(false);
+      ro.disconnect();
       // Remove pre-load listeners
       map.off('zoom', updateZoomBadge);
       map.off('moveend', drawCircles);
