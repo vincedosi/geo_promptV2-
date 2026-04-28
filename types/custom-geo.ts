@@ -1,3 +1,48 @@
+/**
+ * Stats agrégées calculées au moment de la capture sur les carreaux INSEE 200m
+ * intersectant la zone. Exploitable pour DSP bidding (volume audience, ciblage).
+ * Si `skipped: true`, la zone dépassait 5000 km² (cap I/O).
+ */
+export interface AudienceStats {
+  computed_at: string;
+  area_km2: number;
+  carreaux_count?: number;
+  skipped?: boolean;
+  reason?: string;
+  population?: {
+    total: number;
+    density_per_km2: number;
+    by_age: {
+      '0_17': number;
+      '18_24': number;
+      '25_39': number;
+      '40_54': number;
+      '55_64': number;
+      '65_79': number;
+      '80_plus': number;
+    };
+  };
+  menages?: {
+    total: number;
+    '1_personne': number;
+    '5_plus': number;
+    proprietaires: number;
+    monoparentales: number;
+    pauvres: number;
+  };
+  logements?: {
+    maisons: number;
+    collectifs: number;
+    sociaux: number;
+    avant_1945: number;
+    '1945_1970': number;
+    '1970_1990': number;
+    apres_1990: number;
+    surface_moyenne_m2: number;
+  };
+  revenu_median_par_uc?: number;
+}
+
 export interface CustomGeoZoneSummary {
   id: string;
   name: string;
@@ -9,12 +54,18 @@ export interface CustomGeoZoneSummary {
   bbox: [number, number, number, number] | null;
   created_at: string;
   created_by: string | null;
+  /** Codes département INSEE résolus (issus de custom_geo_zone_codes, code_type='dept') */
+  dept_codes?: string[];
+  /** Codes région INSEE résolus (issus de custom_geo_zone_codes, code_type='region') */
+  region_codes?: string[];
 }
 
 export interface CustomGeoZoneFull extends CustomGeoZoneSummary {
   org_id: string;
   resolved_at: string | null;
   updated_at: string;
+  audience_stats: AudienceStats | Record<string, never>;
+  audience_computed_at: string | null;
 }
 
 export interface CustomGeoZoneGeometry {

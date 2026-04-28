@@ -8,8 +8,8 @@
  */
 
 export const APP_NAME    = 'GEO.Prompt';
-export const APP_VERSION = '7.15.1';
-export const BUILD_DATE  = '2026-04-21';
+export const APP_VERSION = '7.16.0';
+export const BUILD_DATE  = '2026-04-28';
 
 // Fichier PMTiles IRIS hébergé sur GitHub Releases (196 MB > limite Supabase Storage 50 MB)
 // Les valeurs démographiques sont injectées dynamiquement depuis la DB via setFeatureState
@@ -19,4 +19,6 @@ export const BUILD_DATE  = '2026-04-21';
 export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
-export const CARREAUX_TILE_VERSION = 12;
+// v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)
+//       pour filtre territorial client-side (setFilter) sans refetch.
+export const CARREAUX_TILE_VERSION = 13;

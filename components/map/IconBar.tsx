@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Bot, MapPin, Layers, BarChart3, Megaphone, Settings } from 'lucide-react';
+import { Bot, MapPin, Layers, BarChart3, Megaphone, Settings, Bookmark } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'analyses' | 'campaigns' | 'settings';
+export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'analyses' | 'campaigns' | 'zones' | 'settings';
 
 interface IconBarItem {
   id: OverlayId;
@@ -22,6 +22,7 @@ const ICON_BAR_ITEMS: IconBarItem[] = [
   { id: 'terrain', label: 'Terrain', icon: Layers, colorVar: 'var(--cat-terrain, #4ecdc4)', rgb: '78,205,196' },
   { id: 'analyses', label: 'Analyses', icon: BarChart3, colorVar: 'var(--cat-analysis, #e8845c)', rgb: '232,132,92' },
   { id: 'campaigns', label: 'Campagnes', icon: Megaphone, colorVar: 'var(--cat-media, #f7b731)', rgb: '247,183,49' },
+  { id: 'zones', label: 'Zones', icon: Bookmark, colorVar: 'var(--brand-teal, #4ecdc4)', rgb: '78,205,196' },
   { id: 'settings', label: 'Réglages', icon: Settings, colorVar: 'var(--text-tertiary)', rgb: '102,102,102', position: 'bottom' },
 ];
 

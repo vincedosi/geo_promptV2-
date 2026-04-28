@@ -45,6 +45,7 @@ import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
+import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 const ClusteringResultsContent = dynamic(
   () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
   { ssr: false },
@@ -1590,6 +1591,7 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'Données terrain' :
             activeOverlay === 'analyses' ? 'Analyses' :
             activeOverlay === 'campaigns' ? 'Campagnes média' :
+            activeOverlay === 'zones' ? 'Zones sauvegardées' :
             'Réglages'
           }
           dotColor={
@@ -1598,6 +1600,7 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
             activeOverlay === 'campaigns' ? 'var(--cat-media)' :
+            activeOverlay === 'zones' ? 'var(--brand-teal)' :
             'var(--text-tertiary)'
           }
           onClose={() => setActiveOverlay(null)}
@@ -1790,6 +1793,9 @@ export default function MapPage() {
               scope={perimeterScope}
               onScopeChange={setPerimeterScope}
             />
+          )}
+          {activeOverlay === 'zones' && (
+            <ZonesOverlay mapRef={mapRef} />
           )}
           {activeOverlay === 'settings' && (
             <SettingsOverlay
