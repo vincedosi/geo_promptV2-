@@ -11,6 +11,7 @@ import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from
 import { AnalysisPanelSwitch as AnalysisPanel } from '@/components/digital/AnalysisPanelSwitch';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
+import { KpiCardsDsp } from './_components/KpiCardsDsp';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useSession } from '@/lib/auth-client';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
@@ -589,6 +590,12 @@ export default function DigitalTripleMapPage() {
             inZonePct={isZones ? geographySummary?.pct_in_zone ?? null : null}
             inZoneImpressions={isZones ? geographySummary?.in_zone_impressions ?? null : null}
           />
+
+          {/* Cards KPI multi-source — chantier A3.
+              Driven par dsp_metrics_registry. Affiche dynamiquement les KPIs
+              réellement remplis pour la campagne (Adform legacy : tracked_ads/
+              unique_impressions ; TTD : impressions/clicks/spend/leads/…). */}
+          {campaignId && <KpiCardsDsp campaignId={campaignId} />}
         </>
       )}
 
