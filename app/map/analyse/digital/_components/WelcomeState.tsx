@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { CampaignCard } from './CampaignCard';
+import { adminFetch } from '@/lib/admin-fetch';
 
 const fInter = "'Inter', sans-serif";
 
@@ -18,6 +20,24 @@ interface WelcomeStateProps {
 }
 
 export function WelcomeState({ campaigns, loading, onSelect }: WelcomeStateProps) {
+  // Map campaign_id → execution_mode des stratégies actives. Une seule fetch
+  // pour la liste, partagée sur toutes les cards.
+  const [strategyByCampaign, setStrategyByCampaign] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    adminFetch('/api/bidding/strategies', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { strategies: [] })
+      .then(d => {
+        if (cancelled) return;
+        const m = new Map<string, string>();
+        for (const s of (d.strategies ?? []) as Array<{ campaign_id: string; execution_mode: string }>) {
+          if (!m.has(s.campaign_id)) m.set(s.campaign_id, s.execution_mode);
+        }
+        setStrategyByCampaign(m);
+      })
+      .catch(() => { /* silent */ });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div style={{
       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -50,7 +70,12 @@ export function WelcomeState({ campaigns, loading, onSelect }: WelcomeStateProps
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left' }}>
             {campaigns.map(c => (
-              <CampaignCard key={c.id} campaign={c} onClick={() => onSelect(c.id)} />
+              <CampaignCard
+                key={c.id}
+                campaign={c}
+                onClick={() => onSelect(c.id)}
+                mlMode={strategyByCampaign.get(c.id) ?? null}
+              />
             ))}
           </div>
         )}

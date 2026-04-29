@@ -71,9 +71,38 @@ export default function CustomBiddingListPage() {
         )}
 
         {strategies !== null && strategies.length === 0 && (
-          <div style={{ padding: 40, background: 'var(--bg-card, #0a0a0a)', border: '0.5px solid var(--border-subtle, #1a1a1a)', borderRadius: 8, textAlign: 'center', color: 'var(--text-secondary, #a0a0a0)', fontSize: 13 }}>
-            Aucune stratégie active.<br />
-            Créer une stratégie depuis le module Campagne média.
+          <div
+            style={{
+              padding: '48px 32px', background: 'var(--bg-card, #0a0a0a)',
+              border: '0.5px solid var(--border-subtle, #1a1a1a)',
+              borderRadius: 8, textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+            }}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ecdc4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 3l1.9 5.8L20 11l-5.8 1.9L12 19l-1.9-6.1L4 11l6.1-2.2z" />
+                <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
+              </svg>
+            </div>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--text-primary, #f0f0f0)' }}>
+              Aucune stratégie de Custom Bidding active
+            </h2>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #a0a0a0)', maxWidth: 460, lineHeight: 1.6 }}>
+              Custom Bidding optimise vos campagnes DSP en temps réel via machine learning.
+              Pour activer une stratégie, ouvrez une campagne DSP éligible (TTD, DV360…) et
+              cliquez sur « Activer Custom Bidding ».
+            </p>
+            <Link
+              href="/map?layer=digital"
+              style={{
+                marginTop: 8, padding: '8px 16px', fontSize: 12, fontFamily: fInter, fontWeight: 500,
+                background: 'transparent', color: 'var(--brand-teal, #4ecdc4)',
+                border: '0.5px solid var(--brand-teal, #4ecdc4)', borderRadius: 6, textDecoration: 'none',
+              }}
+            >
+              Voir les campagnes
+            </Link>
           </div>
         )}
 

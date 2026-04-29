@@ -20,9 +20,11 @@ function fmt(n: number): string {
 interface CampaignCardProps {
   campaign: Campaign;
   onClick: () => void;
+  /** Mode d'exécution de la stratégie ML active sur cette campagne. null si aucune. */
+  mlMode?: string | null;
 }
 
-export function CampaignCard({ campaign: c, onClick }: CampaignCardProps) {
+export function CampaignCard({ campaign: c, onClick, mlMode }: CampaignCardProps) {
   const period = c.date_start && c.date_end && c.date_start !== '1970-01-01'
     ? `${c.date_start} → ${c.date_end}`
     : null;
@@ -40,8 +42,27 @@ export function CampaignCard({ campaign: c, onClick }: CampaignCardProps) {
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: fInter, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
-          {c.name}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <div style={{ fontFamily: fInter, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+            {c.name}
+          </div>
+          {mlMode && (
+            <span
+              title={`Custom Bidding actif (mode: ${mlMode})`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                fontFamily: fMono, fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                background: 'rgba(78,205,196,0.12)', border: '0.5px solid rgba(78,205,196,0.4)',
+                color: 'var(--brand-teal, #4ecdc4)',
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l1.9 5.8L20 11l-5.8 1.9L12 19l-1.9-6.1L4 11l6.1-2.2z" />
+                <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
+              </svg>
+              ML
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{
