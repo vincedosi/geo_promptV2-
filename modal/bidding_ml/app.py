@@ -28,6 +28,7 @@ image = (
         "pandas>=2.0",
         "numpy>=1.24",
         "pydantic>=2.0",
+        "fastapi[standard]",
     )
     .add_local_dir(
         local_path="modal/bidding_ml",
