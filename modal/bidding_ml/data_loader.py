@@ -35,7 +35,13 @@ def paginate_select(query_builder, page_size: int = 1000) -> list[dict[str, Any]
 
 
 def load_strategy(client: Client, strategy_id: str) -> dict[str, Any] | None:
-    """Charge une stratégie + son objective associé."""
+    """Charge une stratégie + son objective associé + le flag is_demo de la campagne.
+
+    Le flag `bidding_strategies.is_demo` peut être différent de
+    `dsp_campaigns.is_demo`. C'est ce dernier qui détermine si on entraîne
+    sur tout l'historique (campagne démo) ou sur une fenêtre récente
+    (vraies campagnes en cours). Exposé via la clé `campaign_is_demo`.
+    """
     resp = (
         client.table("bidding_strategies")
         .select("id,name,campaign_id,algorithm_code,objective_code,execution_mode,config,is_demo")
@@ -54,7 +60,19 @@ def load_strategy(client: Client, strategy_id: str) -> dict[str, Any] | None:
         .execute()
     )
     obj = obj_resp.data[0] if obj_resp.data else {}
-    return {**strat, **{f"objective_{k}": v for k, v in obj.items()}}
+    camp_resp = (
+        client.table("dsp_campaigns")
+        .select("is_demo")
+        .eq("id", strat["campaign_id"])
+        .limit(1)
+        .execute()
+    )
+    campaign_is_demo = bool(camp_resp.data[0]["is_demo"]) if camp_resp.data else False
+    return {
+        **strat,
+        **{f"objective_{k}": v for k, v in obj.items()},
+        "campaign_is_demo": campaign_is_demo,
+    }
 
 
 def load_active_model(client: Client, strategy_id: str) -> dict[str, Any] | None:
@@ -83,31 +101,39 @@ def load_algorithm_meta(client: Client, code: str) -> dict[str, Any] | None:
 
 
 def load_recent_data(
-    client: Client, campaign_id: str, days: int = 7
+    client: Client, campaign_id: str, days: int = 7, is_demo: bool = False
 ) -> list[dict[str, Any]]:
-    """Charge les rows dsp_campaign_data des N derniers jours pour cette campagne.
+    """Charge les rows dsp_campaign_data pour cette campagne.
+
+    - `is_demo=False` : filtre sur les `days` derniers jours (vraies campagnes
+      en cours, où "récent" = pertinent pour le bidding live).
+    - `is_demo=True`  : pas de filtre temporel, on charge tout l'historique
+      du dataset démo (figé dans le passé, ex. mars 2026 — un filtre date
+      basé sur `today` retournerait 0 ligne).
 
     Retourne une liste de dicts avec les champs nécessaires au build_context()
     (postal_code, country, date, impressions, clicks, spend, leads, visits,
     bid_requests, bid_won, tier).
     """
-    since = (date.today() - timedelta(days=days)).isoformat()
-    rows = paginate_select(
+    query = (
         client.table("dsp_campaign_data")
         .select("date,postal_code,country,media,impressions,clicks,spend,metrics")
         .eq("campaign_id", campaign_id)
-        .gte("date", since)
-        .order("date")
-        .order("postal_code")
     )
-    return rows
+    if not is_demo:
+        since = (date.today() - timedelta(days=days)).isoformat()
+        query = query.gte("date", since)
+    return paginate_select(query.order("date").order("postal_code"))
 
 
 def load_training_data(
-    client: Client, campaign_id: str, days_back: int = 30
+    client: Client, campaign_id: str, days_back: int = 30, is_demo: bool = False
 ) -> list[dict[str, Any]]:
-    """Charge la fenêtre d'entraînement (par défaut 30j) pour /train."""
-    return load_recent_data(client, campaign_id, days=days_back)
+    """Charge la fenêtre d'entraînement (par défaut 30j) pour /train.
+
+    Si `is_demo=True`, charge tout l'historique de la campagne (pas de filtre).
+    """
+    return load_recent_data(client, campaign_id, days=days_back, is_demo=is_demo)
 
 
 def load_recent_daily_state(

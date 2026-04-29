@@ -115,7 +115,8 @@ def predict(request_data: dict) -> dict:
     algo = load_algo_from_state(model_state)
 
     days = int(request_data.get("days", 7))
-    rows = load_recent_data(client, strategy["campaign_id"], days=days)
+    is_demo = bool(strategy.get("campaign_is_demo"))
+    rows = load_recent_data(client, strategy["campaign_id"], days=days, is_demo=is_demo)
     if not rows:
         return {
             "strategy_id": strategy_id,
@@ -196,7 +197,10 @@ def train(request_data: dict) -> dict:
             "status": 400,
         }
 
-    rows = load_training_data(client, strategy["campaign_id"], days_back=days_back)
+    is_demo = bool(strategy.get("campaign_is_demo"))
+    rows = load_training_data(
+        client, strategy["campaign_id"], days_back=days_back, is_demo=is_demo,
+    )
     if not rows:
         return {"error": "Aucune donnée d'entraînement disponible", "status": 400}
 
