@@ -1,26 +1,40 @@
-"""Persistance des résultats benchmark en base."""
+"""Persistance des résultats benchmark via le client Supabase HTTPS."""
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
+
+from supabase import Client
 
 
 MODEL_VERSION_PREFIX = "0.1.0-benchmark-"
 
 
-def reset_models_for_strategy(conn, strategy_id: str) -> None:
-    """Mark all existing models for this strategy as inactive (re-run safe)."""
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE adaptive_model_state SET is_active = false, retired_at = NOW() "
-            "WHERE strategy_id = %s AND is_active = true",
-            (strategy_id,),
-        )
+def _now_iso() -> str:
+    """Timestamp ISO UTC pour les colonnes timestamptz."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _jsonable(obj: Any) -> Any:
+    """Round-trip via json.dumps pour rendre n'importe quel objet JSON-safe.
+
+    Nécessaire parce que supabase-py sérialise via httpx (json strict), donc
+    les date/datetime/numpy types lèvent TypeError sans cette pré-conversion.
+    Sémantique équivalente à `json.dumps(..., default=str)`.
+    """
+    return json.loads(json.dumps(obj, default=str))
+
+
+def reset_models_for_strategy(client: Client, strategy_id: str) -> None:
+    """Marque tous les modèles is_active=true de cette stratégie comme retirés."""
+    client.table("adaptive_model_state").update(
+        {"is_active": False, "retired_at": _now_iso()}
+    ).eq("strategy_id", strategy_id).eq("is_active", True).execute()
 
 
 def upsert_model_state(
-    conn,
+    client: Client,
     strategy_id: str,
     algo_code: str,
     config_schema: dict[str, Any],
@@ -28,55 +42,54 @@ def upsert_model_state(
     performance_metrics: dict[str, Any],
     train_window: tuple[date, date],
 ) -> str:
-    """Insert (or replace) un row adaptive_model_state pour cet algo.
+    """Insert (ou remplace) un row adaptive_model_state pour cet algo.
 
-    Retourne l'`id` (UUID) du row créé/mis à jour. Le partial unique index
+    Stratégie : DELETE de la version précédente (re-run safe), puis INSERT.
+    Retourne l'`id` (UUID) du row créé. Le partial unique index
     `idx_ams_one_active` garantit qu'un seul `is_active=true` est possible
-    par stratégie.
+    par stratégie (le promote_winner se fait dans un second temps).
     """
     version = f"{MODEL_VERSION_PREFIX}{algo_code}"
-    with conn.cursor() as cur:
-        # Cleanup éventuelle row précédente même version (re-run)
-        cur.execute(
-            "DELETE FROM adaptive_model_state "
-            "WHERE strategy_id = %s AND model_version = %s",
-            (strategy_id, version),
+
+    # Cleanup éventuelle row précédente même version (re-run)
+    client.table("adaptive_model_state").delete().eq(
+        "strategy_id", strategy_id
+    ).eq("model_version", version).execute()
+
+    payload = {
+        "strategy_id": strategy_id,
+        "algorithm_code": algo_code,
+        "model_version": version,
+        "parameters": _jsonable(state),
+        "hyperparameters": _jsonable(config_schema or {}),
+        "training_window_start": train_window[0].isoformat(),
+        "training_window_end": train_window[1].isoformat(),
+        "performance_metrics": _jsonable(performance_metrics),
+        "is_active": False,
+        "trained_at": _now_iso(),
+    }
+
+    response = (
+        client.table("adaptive_model_state")
+        .insert(payload)
+        .execute()
+    )
+    if not response.data:
+        raise RuntimeError(
+            f"INSERT adaptive_model_state n'a rien retourné (algo={algo_code})."
         )
-        cur.execute(
-            """
-            INSERT INTO adaptive_model_state
-              (strategy_id, algorithm_code, model_version,
-               parameters, hyperparameters,
-               training_window_start, training_window_end,
-               performance_metrics,
-               is_active, trained_at)
-            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s::jsonb, false, NOW())
-            RETURNING id
-            """,
-            (
-                strategy_id, algo_code, version,
-                json.dumps(state, default=str),
-                json.dumps(config_schema or {}, default=str),
-                train_window[0], train_window[1],
-                json.dumps(performance_metrics, default=str),
-            ),
-        )
-        row = cur.fetchone()
-        return str(row[0])
+    return str(response.data[0]["id"])
 
 
-def promote_winner(conn, strategy_id: str, model_id: str) -> None:
-    """Mark the given model as `is_active=true`."""
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE adaptive_model_state SET is_active = true, promoted_at = NOW() "
-            "WHERE id = %s AND strategy_id = %s",
-            (model_id, strategy_id),
-        )
+def promote_winner(client: Client, strategy_id: str, model_id: str) -> None:
+    """Marque le modèle donné comme `is_active=true`."""
+    client.table("adaptive_model_state").update(
+        {"is_active": True, "promoted_at": _now_iso()}
+    ).eq("id", model_id).eq("strategy_id", strategy_id).execute()
 
 
 def insert_simulation_summary(
-    conn,
+    client: Client,
     strategy_id: str,
     name: str,
     parameters: dict[str, Any],
@@ -86,33 +99,27 @@ def insert_simulation_summary(
     by_tier: dict[str, Any],
 ) -> str:
     """Insert le résumé global du benchmark dans bidding_simulations."""
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO bidding_simulations
-              (strategy_id, name, parameters,
-               baseline_metrics, simulated_metrics, delta, zone_results,
-               status, started_at, completed_at)
-            VALUES (%s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb,
-                    'completed', NOW(), NOW())
-            RETURNING id
-            """,
-            (
-                strategy_id, name,
-                json.dumps(parameters, default=str),
-                json.dumps(baseline, default=str),
-                json.dumps(winner, default=str),
-                json.dumps(delta, default=str),
-                json.dumps(by_tier, default=str),
-            ),
-        )
-        return str(cur.fetchone()[0])
+    now = _now_iso()
+    payload = {
+        "strategy_id": strategy_id,
+        "name": name,
+        "parameters": _jsonable(parameters),
+        "baseline_metrics": _jsonable(baseline),
+        "simulated_metrics": _jsonable(winner),
+        "delta": _jsonable(delta),
+        "zone_results": _jsonable(by_tier),
+        "status": "completed",
+        "started_at": now,
+        "completed_at": now,
+    }
+    response = client.table("bidding_simulations").insert(payload).execute()
+    if not response.data:
+        raise RuntimeError("INSERT bidding_simulations n'a rien retourné.")
+    return str(response.data[0]["id"])
 
 
-def update_strategy_winner(conn, strategy_id: str, winner_code: str) -> None:
+def update_strategy_winner(client: Client, strategy_id: str, winner_code: str) -> None:
     """Update bidding_strategies.algorithm_code to the winner if changed."""
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE bidding_strategies SET algorithm_code = %s WHERE id = %s",
-            (winner_code, strategy_id),
-        )
+    client.table("bidding_strategies").update(
+        {"algorithm_code": winner_code}
+    ).eq("id", strategy_id).execute()

@@ -9,10 +9,12 @@ gagnant qui sera productisé en A4.3.
 ## Section 1 — Prérequis
 
 - **Python 3.10+** (testé 3.13)
-- **Accès Supabase** : DATABASE_URL en lecture/écriture sur le projet
-  `vkkdbygwbrxyogqosten`
-- **IP whitelistée** si Network restrictions activées (Supabase Dashboard →
-  Settings → Database → Network restrictions)
+- **Accès Supabase** : `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+  pour le projet `vkkdbygwbrxyogqosten` (déjà présents dans `.env.local`
+  racine pour Next.js)
+- **HTTPS sortant vers `*.supabase.co`** ouvert (port 443) — c'est le seul
+  port utilisé. Plus de dépendance aux ports postgres 5432/6543, donc plus
+  de souci de firewall corporate.
 
 ---
 
@@ -22,35 +24,32 @@ Le benchmark lit **`.env.local` à la racine du projet** (source de vérité
 unique, partagée avec Next.js). Il NE faut PAS créer un `.env` dans
 `scripts/benchmarking/`.
 
-Vérifier que la variable suivante est présente dans `.env.local` à la racine :
+**Aucune modification de `.env.local` n'est nécessaire** : le benchmark
+réutilise les variables déjà consommées par l'app Next.js GEOMATIK :
 
-| Variable       | Description                              | Exemple                                                                                        | Comment l'obtenir |
-|----------------|------------------------------------------|------------------------------------------------------------------------------------------------|--------------------|
-| `DATABASE_URL` | URL postgres direct connection           | `postgresql://postgres:PWD@db.vkkdbygwbrxyogqosten.supabase.co:5432/postgres`                  | Supabase → Settings → Database → Connection string → URI → **Direct connection** |
+| Variable                       | Description                                | Source                                                                                       |
+|--------------------------------|--------------------------------------------|----------------------------------------------------------------------------------------------|
+| `NEXT_PUBLIC_SUPABASE_URL`     | URL du projet Supabase                     | déjà dans `.env.local` (utilisée par Next.js)                                                |
+| `SUPABASE_SERVICE_ROLE_KEY`    | Clé `service_role` (INSERT/UPDATE)         | déjà dans `.env.local`, sinon Supabase Dashboard → Settings → API → **service_role** key     |
 
-Variables alternatives lues si `DATABASE_URL` absent :
-- `POSTGRES_URL` (convention Vercel)
-- `SUPABASE_DB_URL` (alternative)
+Variable alternative lue si `NEXT_PUBLIC_SUPABASE_URL` absent :
+- `SUPABASE_URL` (même valeur, sans le préfixe Next.js)
 
-### ⚠️ Caractères spéciaux dans le password
+### ⚠️ `service_role_key` obligatoire (pas `anon_key`)
 
-Si le password contient `@`, `#`, `&`, `/`, etc., il faut **URL-encoder** ces
-caractères dans la chaîne de connexion :
+Le benchmark fait des `INSERT`/`UPDATE` sur `adaptive_model_state` et
+`bidding_simulations`. La `anon_key` est bloquée par les policies RLS — il
+faut impérativement la `service_role` key (préfixée `eyJhbGciOiJIUzI1NiI...`
+et > 100 caractères, claim `"role":"service_role"` dans le payload JWT).
 
-| Char | Encodage |
-|------|----------|
-| `@`  | `%40`    |
-| `#`  | `%23`    |
-| `&`  | `%26`    |
-| `/`  | `%2F`    |
-| `*`  | `%2A`    |
-| `[`  | `%5B`    |
-| `]`  | `%5D`    |
+### Pourquoi HTTPS et plus postgres direct
 
-Exemple : si le password est `My@Pass#123` :
-```
-DATABASE_URL=postgresql://postgres:My%40Pass%23123@db.vkkdbygwbrxyogqosten.supabase.co:5432/postgres
-```
+Cette approche passe par **HTTPS port 443**, donc fonctionne derrière les
+firewalls corporate qui bloquent les ports postgres direct (5432) et pooler
+(6543). C'est exactement le même chemin réseau que `npm run dev` chez Vince :
+si l'app Next.js tourne, le benchmark Python tournera aussi.
+
+`DATABASE_URL` (legacy psycopg2) n'est **plus utilisée** par le benchmark.
 
 ---
 
@@ -82,7 +81,7 @@ python test_connection.py
 
 Doit afficher 3 ✅ :
 ```
-[test] Connexion à Supabase...
+[test] Connexion à Supabase via HTTPS...
 ✅ Connexion DB OK
 ✅ 5 algos enabled en base
 ✅ 4078 lignes de dataset démo accessibles
@@ -101,7 +100,7 @@ python benchmark_bidding_algos.py
 
 Durée : **~5 minutes**. Sortie attendue (extrait) :
 ```
-[benchmark] DATABASE_URL set: True
+[benchmark] Supabase URL set: True | service_role key set: True
 [benchmark] 5 algos enabled, dataset = 4078 rows
 [benchmark] strategy: Pitch Demo — Maximize Leads (Hoeffding) (objective=maximize_leads)
 [benchmark] train: 2026-03-01→2026-03-21 (2856 rows)
@@ -145,60 +144,55 @@ WHERE campaign_id IN (SELECT id FROM dsp_campaigns WHERE is_demo = false);
 
 ## Section 7 — Troubleshooting
 
-### Cas A — `tenant/user not found`
+### Cas A — `EnvironmentError: Aucune URL Supabase trouvée`
 
+**Cause** : `NEXT_PUBLIC_SUPABASE_URL` absent de `.env.local` racine.
+
+**Solution** — vérifier la présence de la variable :
+```powershell
+findstr /N "NEXT_PUBLIC_SUPABASE_URL" ..\..\.env.local
 ```
-Erreur Supabase : tenant/user non trouvé.
-Tu utilises probablement le pooler avec un mauvais format d'username.
-```
-
-**Cause** : tu utilises le pooler (`aws-0-eu-west-3.pooler.supabase.com`)
-avec un mauvais format d'username.
-
-**Solution** : bascule sur la **Direct connection** :
-- host : `db.vkkdbygwbrxyogqosten.supabase.co`
-- port : `5432`
-- user : `postgres` (sans suffixe `.<ref>`)
-- DB : `postgres`
-
-Récupérer la string complète depuis Supabase Dashboard → Settings → Database
-→ Connection string → URI → onglet **Direct connection**.
+Si absente, l'ajouter (URL du projet Supabase, format
+`https://<ref>.supabase.co`).
 
 ---
 
-### Cas B — `Connection timed out` / `could not connect to server` / `could not translate host name`
+### Cas B — `EnvironmentError: SUPABASE_SERVICE_ROLE_KEY manquante`
 
-```
-Connexion DB en timeout / DNS / network.
-```
+**Cause** : la variable n'est pas dans `.env.local` racine, ou tu as collé
+par erreur la `anon_key`.
 
-**Cause 1** — IP non whitelistée. **Solution** :
-- Récupère ton IP publique : https://www.whatismyip.com/
-- Supabase Dashboard → Settings → Database → Network restrictions → Add IP
-
-**Cause 2** — Firewall corporate Dentsu bloque le port 5432. **Solution** :
-bascule sur le **transaction pooler** (port 6543 souvent ouvert) :
-```
-DATABASE_URL=postgresql://postgres.vkkdbygwbrxyogqosten:PWD@aws-0-eu-west-3.pooler.supabase.com:6543/postgres
-```
-
-**Cause 3** — VPN d'entreprise filtre les connexions DB. **Solution** : se
-déconnecter du VPN ou utiliser un partage de connexion mobile.
+**Solution** :
+1. Supabase Dashboard → Settings → API → **service_role** (pas `anon`)
+2. Copier la clé complète (commence par `eyJhbGciOiJIUzI1NiI...`, > 100 chars)
+3. Ajouter dans `.env.local` :
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+   ```
 
 ---
 
-### Cas C — `password authentication failed`
+### Cas C — `httpx.ConnectError` / `Network error` / DNS
 
+**Cause** — improbable car ton Next.js marche déjà via HTTPS Supabase. Si ça
+arrive :
+- vérifier que `npm run dev` fonctionne (preuve que HTTPS Supabase passe)
+- désactiver temporairement le VPN d'entreprise
+- lancer le benchmark depuis un autre réseau (hotspot mobile)
+
+---
+
+### Cas D — `permission denied` ou erreur RLS policy
+
+**Cause** : tu utilises probablement la `anon_key` au lieu de la
+`service_role_key`. La `anon_key` est bloquée par les policies RLS sur
+`adaptive_model_state` et `bidding_simulations`.
+
+**Solution** — vérifier le claim JWT :
+```powershell
+python -c "import os; from dotenv import load_dotenv; from pathlib import Path; load_dotenv(Path('../../.env.local')); k = os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''); print('Has service_role key:', 'service_role' in k or len(k) > 100)"
 ```
-Erreur d'authentification DB.
-```
-
-**Cause 1** — URL-encoding manquant pour les caractères spéciaux du password.
-**Solution** : encoder selon la table de la section 2.
-
-**Cause 2** — Password reset depuis le dashboard. **Solution** :
-- Supabase Dashboard → Settings → Database → Reset database password
-- Mettre à jour `DATABASE_URL` dans `.env.local`
+Si `False`, repasser par le Cas B.
 
 ---
 
@@ -221,10 +215,10 @@ Les fichiers `.env`, `.venv/`, `__pycache__/` sont déjà gitignorés.
 ```
 benchmarking/
 ├── README.md                       # ce fichier
-├── requirements.txt                # river, psycopg2-binary, pandas, numpy, matplotlib, python-dotenv
+├── requirements.txt                # supabase, pandas, numpy, matplotlib, python-dotenv, river
 ├── benchmark_bidding_algos.py      # entrée orchestratrice
 ├── test_connection.py              # vérification pré-run (3 ✅)
-├── data_loader.py                  # load_env() + get_conn() diagnostique + SELECT
+├── data_loader.py                  # load_env() + get_client() HTTPS + SELECT paginé
 ├── metrics.py                      # simulation linéaire + lift + drift robustness
 ├── persistence.py                  # INSERT adaptive_model_state + bidding_simulations
 ├── reporting.py                    # Markdown + matplotlib PNGs

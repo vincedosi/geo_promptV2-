@@ -1,4 +1,4 @@
-"""Charge dataset démo + algos + objectif depuis Supabase."""
+"""Charge dataset démo + algos + objectif depuis Supabase via le JS Client (HTTPS)."""
 from __future__ import annotations
 
 import os
@@ -7,9 +7,8 @@ from typing import Any
 from datetime import date
 
 import pandas as pd
-import psycopg2
-import psycopg2.extras
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 
 # Source de vérité unique : .env.local à la racine du projet (convention Next.js).
@@ -57,124 +56,161 @@ def infer_tier(postal_code: str) -> str:
     return "rural"
 
 
-def get_conn() -> psycopg2.extensions.connection:
-    """Connexion psycopg2 robuste avec messages diagnostiques.
+def get_client() -> Client:
+    """Retourne un client Supabase authentifié avec la service_role_key.
 
-    Lit DATABASE_URL / POSTGRES_URL / SUPABASE_DB_URL depuis l'environnement
-    (chargé depuis .env.local racine via load_env()). Timeout 10s pour éviter
-    d'attendre 5 min sur un firewall.
+    Utilise les vars NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+    déjà présentes dans .env.local pour Next.js.
+
+    Cette approche utilise HTTPS (port 443), donc fonctionne derrière les
+    firewalls corporate qui bloquent les ports postgres (5432, 6543).
     """
     load_env()
-    db_url = (
-        os.environ.get("DATABASE_URL")
-        or os.environ.get("POSTGRES_URL")
-        or os.environ.get("SUPABASE_DB_URL")
+    url = (
+        os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+        or os.environ.get("SUPABASE_URL")
     )
-    if not db_url:
+    if not url:
         raise EnvironmentError(
-            "Aucune URL de connexion DB trouvée dans .env.local. "
-            "Ajoute DATABASE_URL=postgresql://postgres:PWD@db.<ref>.supabase.co:5432/postgres "
-            "dans .env.local (Direct connection). "
+            "Aucune URL Supabase trouvée. "
+            "Vérifie que NEXT_PUBLIC_SUPABASE_URL est dans .env.local racine. "
             "Voir scripts/benchmarking/README.md section 'Configuration env'."
         )
 
-    try:
-        return psycopg2.connect(db_url, connect_timeout=10)
-    except psycopg2.OperationalError as exc:
-        msg = str(exc).lower()
-        if ("tenant" in msg) or ("user" in msg and "not found" in msg):
-            raise ConnectionError(
-                "Erreur Supabase : tenant/user non trouvé.\n"
-                "Tu utilises probablement le pooler avec un mauvais format d'username.\n"
-                "→ Bascule sur la 'Direct connection' depuis le dashboard Supabase :\n"
-                "   Settings → Database → Connection string → URI → Direct connection.\n"
-                "   (host=db.<ref>.supabase.co:5432, username=postgres, sans suffixe)\n"
-                f"\nDétail technique :\n{exc}"
-            ) from exc
-        if ("timed out" in msg) or ("could not connect" in msg) or ("could not translate" in msg):
-            raise ConnectionError(
-                "Connexion DB en timeout / DNS / network.\n"
-                "Causes possibles :\n"
-                "  1. IP non whitelistée → Supabase Dashboard → Settings → Database → Network restrictions\n"
-                "  2. Firewall Dentsu bloque le port 5432 → essayer le transaction pooler port 6543\n"
-                "     (host=aws-0-eu-west-3.pooler.supabase.com, username=postgres.<ref>)\n"
-                "  3. VPN d'entreprise filtre les connexions DB → se déconnecter du VPN\n"
-                f"\nDétail technique :\n{exc}"
-            ) from exc
-        if "password" in msg or "authentication" in msg:
-            raise ConnectionError(
-                "Erreur d'authentification DB.\n"
-                "Causes possibles :\n"
-                "  1. Mot de passe DB incorrect dans DATABASE_URL\n"
-                "  2. Caractères spéciaux non URL-encodés (encoder @=%40, #=%23, &=%26, /=%2F, etc.)\n"
-                "  3. Mot de passe a été reset depuis le dashboard Supabase\n"
-                f"\nDétail technique :\n{exc}"
-            ) from exc
-        raise ConnectionError(
-            f"Erreur de connexion DB inconnue. Vérifie DATABASE_URL.\n\nDétail :\n{exc}"
-        ) from exc
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not key:
+        raise EnvironmentError(
+            "SUPABASE_SERVICE_ROLE_KEY manquante dans .env.local. "
+            "Cette clé est nécessaire pour INSERT/UPDATE sur adaptive_model_state. "
+            "Récupère-la dans Supabase Dashboard → Settings → API → service_role key."
+        )
+
+    return create_client(url, key)
 
 
-def load_algorithms(conn) -> list[dict[str, Any]]:
+def paginate_select(query_builder, page_size: int = 1000) -> list[dict[str, Any]]:
+    """Récupère TOUS les résultats en paginant via .range(start, end).
+
+    Nécessaire car supabase-py limite à 1000 rows par appel par défaut. Le
+    dataset démo fait 4078 lignes, donc on doit boucler.
+    """
+    all_rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = query_builder.range(offset, offset + page_size - 1).execute()
+        rows = response.data or []
+        if not rows:
+            break
+        all_rows.extend(rows)
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return all_rows
+
+
+def load_algorithms(client: Client) -> list[dict[str, Any]]:
     """Retourne la liste des algos `is_enabled=true` ordonnés par display_order."""
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(
-            """
-            SELECT code, display_name, family, library, config_schema, is_baseline
-            FROM bidding_algorithms
-            WHERE is_enabled = true
-            ORDER BY display_order
-            """
+    response = (
+        client.table("bidding_algorithms")
+        .select("code,display_name,family,library,config_schema,is_baseline")
+        .eq("is_enabled", True)
+        .order("display_order")
+        .execute()
+    )
+    return list(response.data or [])
+
+
+def load_demo_strategy(client: Client) -> dict[str, Any]:
+    """Charge la stratégie démo (et son objective) depuis la base.
+
+    Note : supabase-py ne supporte pas les JOIN inline natifs. On fait deux
+    requêtes : d'abord la stratégie, puis l'objective associé.
+    """
+    strat_resp = (
+        client.table("bidding_strategies")
+        .select("id,name,campaign_id,objective_code,algorithm_code,created_at")
+        .eq("is_demo", True)
+        .order("created_at")
+        .limit(1)
+        .execute()
+    )
+    if not strat_resp.data:
+        raise RuntimeError("Aucune stratégie démo trouvée (is_demo=true).")
+    strat = strat_resp.data[0]
+
+    obj_resp = (
+        client.table("bidding_objectives")
+        .select("optimization_direction,formula,required_metrics")
+        .eq("code", strat["objective_code"])
+        .limit(1)
+        .execute()
+    )
+    if not obj_resp.data:
+        raise RuntimeError(
+            f"Objective '{strat['objective_code']}' introuvable pour la stratégie démo."
         )
-        return [dict(row) for row in cur.fetchall()]
+    obj = obj_resp.data[0]
+
+    # Conserve la même surface qu'avant le refacto.
+    return {
+        "id": strat["id"],
+        "name": strat["name"],
+        "campaign_id": strat["campaign_id"],
+        "objective_code": strat["objective_code"],
+        "algorithm_code": strat["algorithm_code"],
+        "optimization_direction": obj["optimization_direction"],
+        "formula": obj["formula"],
+        "required_metrics": obj["required_metrics"],
+    }
 
 
-def load_demo_strategy(conn) -> dict[str, Any]:
-    """Charge la stratégie démo (et son objective) depuis la base."""
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(
-            """
-            SELECT bs.id, bs.name, bs.campaign_id, bs.objective_code, bs.algorithm_code,
-                   bo.optimization_direction, bo.formula, bo.required_metrics
-            FROM bidding_strategies bs
-            JOIN bidding_objectives bo ON bo.code = bs.objective_code
-            WHERE bs.is_demo = true
-            ORDER BY bs.created_at
-            LIMIT 1
-            """
-        )
-        row = cur.fetchone()
-        if not row:
-            raise RuntimeError("Aucune stratégie démo trouvée (is_demo=true).")
-        return dict(row)
+def load_demo_dataset(client: Client, campaign_id: str) -> pd.DataFrame:
+    """Charge le dataset démo (~4078 lignes) en DataFrame trié par date+CP.
 
-
-def load_demo_dataset(conn, campaign_id: str) -> pd.DataFrame:
-    """Charge le dataset démo (4078 lignes) en DataFrame trié par date+CP."""
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(
-            """
-            SELECT date, postal_code, country, media,
-                   impressions, clicks, spend,
-                   COALESCE((metrics->>'leads')::int, 0)                AS leads,
-                   COALESCE((metrics->>'visits')::int, 0)               AS visits,
-                   COALESCE((metrics->>'viewable_impressions')::bigint, 0) AS viewable_impressions,
-                   COALESCE((metrics->>'bid_requests')::bigint, 0)      AS bid_requests,
-                   COALESCE((metrics->>'bid_won')::bigint, 0)           AS bid_won,
-                   COALESCE(metrics->>'tier', '')                       AS tier_raw
-            FROM dsp_campaign_data
-            WHERE campaign_id = %s
-            ORDER BY date, postal_code
-            """,
-            (campaign_id,),
-        )
-        rows = [dict(r) for r in cur.fetchall()]
-
-    df = pd.DataFrame(rows)
-    if df.empty:
+    supabase-py renvoie déjà les colonnes JSONB (`metrics`) sous forme de
+    dict Python. On extrait les sous-champs en pandas plutôt qu'en SQL.
+    """
+    rows = paginate_select(
+        client.table("dsp_campaign_data")
+        .select("date,postal_code,country,media,impressions,clicks,spend,metrics")
+        .eq("campaign_id", campaign_id)
+        .order("date")
+        .order("postal_code")
+    )
+    if not rows:
         raise RuntimeError(f"Dataset démo vide pour campaign_id={campaign_id}")
 
-    # Normalisations
+    df = pd.DataFrame(rows)
+
+    # Extraction JSONB → colonnes scalaires (équivalent de COALESCE((metrics->>...)::int, 0))
+    def _jsonb_int(metrics: Any, key: str) -> int:
+        if not isinstance(metrics, dict):
+            return 0
+        v = metrics.get(key)
+        if v is None or v == "":
+            return 0
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return 0
+
+    def _jsonb_str(metrics: Any, key: str) -> str:
+        if not isinstance(metrics, dict):
+            return ""
+        v = metrics.get(key)
+        return "" if v is None else str(v)
+
+    df["leads"] = df["metrics"].apply(lambda m: _jsonb_int(m, "leads"))
+    df["visits"] = df["metrics"].apply(lambda m: _jsonb_int(m, "visits"))
+    df["viewable_impressions"] = df["metrics"].apply(
+        lambda m: _jsonb_int(m, "viewable_impressions")
+    )
+    df["bid_requests"] = df["metrics"].apply(lambda m: _jsonb_int(m, "bid_requests"))
+    df["bid_won"] = df["metrics"].apply(lambda m: _jsonb_int(m, "bid_won"))
+    df["tier_raw"] = df["metrics"].apply(lambda m: _jsonb_str(m, "tier"))
+    df.drop(columns=["metrics"], inplace=True)
+
+    # Normalisations (typage strict, alignées sur la version précédente)
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["impressions"] = df["impressions"].astype("int64")
     df["clicks"] = df["clicks"].astype("int64")
