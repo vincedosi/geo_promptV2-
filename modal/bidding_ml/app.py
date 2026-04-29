@@ -81,7 +81,7 @@ def _row_reward(row: dict[str, Any]) -> float:
 # ─── Endpoint /predict ──────────────────────────────────────────────────────
 
 @app.function(image=image, secrets=[supabase_secret], timeout=120)
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def predict(request_data: dict) -> dict:
     import sys
     sys.path.insert(0, "/root")
@@ -166,7 +166,7 @@ def predict(request_data: dict) -> dict:
 # ─── Endpoint /train ────────────────────────────────────────────────────────
 
 @app.function(image=image, secrets=[supabase_secret], timeout=600)
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def train(request_data: dict) -> dict:
     import sys
     sys.path.insert(0, "/root")
@@ -249,7 +249,7 @@ def train(request_data: dict) -> dict:
 # ─── Endpoint /detect-drift ─────────────────────────────────────────────────
 
 @app.function(image=image, secrets=[supabase_secret], timeout=180)
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def detect_drift(request_data: dict) -> dict:
     import sys
     sys.path.insert(0, "/root")
