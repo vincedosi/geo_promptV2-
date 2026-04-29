@@ -193,6 +193,7 @@ export default function MapPage() {
       setDigitalVisible(true);
     }
   }, [searchParams]);
+
   const digitalPercentilesRef = useRef<number[]>([]);
   const digitalCampaignIdRef = useRef<string>('');
 
@@ -940,6 +941,81 @@ export default function MapPage() {
   savedMaps.applyVoronoiRef.current    = mapLayers.applyVoronoi;
   savedMaps.loadCarreauxRef.current    = mapLayers.loadCarreauxFromAI;
   savedMaps.setMessagesRef.current     = chat.setMessages;
+
+  // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
+  // Le polygon de la zone alimente le slot battleFeatures pour que Coverage,
+  // Corrélation et autres analyses puissent l'exploiter exactement comme une
+  // bataille d'isochrones (groupe unique, palier=1). Attend mapReady pour
+  // s'assurer que la source MapLibre `battle-rings` est créée.
+  const customZoneLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const zoneId = searchParams.get('customZone');
+    if (!zoneId || !mapReady) return;
+    if (customZoneLoadedRef.current === zoneId) return;
+    customZoneLoadedRef.current = zoneId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await adminFetch(`/api/custom-geo/${zoneId}/geometry`);
+        if (!res.ok) {
+          console.warn('[map] customZone load failed', res.status);
+          return;
+        }
+        const feature = await res.json() as {
+          type: 'Feature';
+          geometry: GeoJSON.MultiPolygon | GeoJSON.Polygon;
+          properties: { id: string; name: string };
+        };
+        if (cancelled || !feature?.geometry) return;
+        const polys: GeoJSON.Position[][][] = feature.geometry.type === 'MultiPolygon'
+          ? feature.geometry.coordinates
+          : feature.geometry.type === 'Polygon'
+          ? [feature.geometry.coordinates]
+          : [];
+        const cid = feature.properties.id;
+        const nom = feature.properties.name ?? 'Zone personnalisée';
+        const bf: GeoJSON.Feature[] = polys.length === 0
+          ? [{
+              type: 'Feature',
+              geometry: feature.geometry,
+              properties: { id: cid, cirfa_id: cid, nom, palier: 1 },
+            }]
+          : polys.map((coords, i) => ({
+              type: 'Feature' as const,
+              geometry: { type: 'Polygon', coordinates: coords } as GeoJSON.Polygon,
+              properties: { id: cid, cirfa_id: cid, nom, palier: 1, _idx: i },
+            }));
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+        for (const ring of polys) {
+          for (const lr of ring) {
+            for (const [lng, lat] of lr) {
+              if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+              if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+            }
+          }
+        }
+        const hasBbox = Number.isFinite(minLng);
+        const center = hasBbox
+          ? { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 }
+          : { lat: 46.5, lng: 2.5 };
+        setBattleFeatures(bf);
+        setBattlePois([{ id: cid, nom, categorie: 'custom_geo_zone', ...center }]);
+        setBattleCacheKey(`cg__${cid}`);
+        mapLayers.applyIsochroneBattle(
+          { type: 'FeatureCollection', features: bf },
+          null,
+          'custom_geo_zone',
+          [{ id: cid, nom, ...center }],
+        );
+        if (hasBbox && mapRef.current) {
+          mapRef.current.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 60, duration: 1000 });
+        }
+      } catch (e) {
+        console.error('[map] customZone load error', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Markers + flyTo ────────────────────────────────────────────────────────
   useEffect(() => {

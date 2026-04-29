@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { useZoneDetail } from '../_hooks/useZoneDetail';
 import { ZoneRenameDialog } from './ZoneRenameDialog';
 import { ZoneDeleteDialog } from './ZoneDeleteDialog';
+import { ZoneAudienceStats } from './ZoneAudienceStats';
 import type { CustomGeoExportFormat } from '@/types/custom-geo';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -73,7 +74,16 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
           </tbody>
         </table>
 
-        {/* Metadata */}
+        {/* Audience capturée — stats démographiques pour DSP bidding */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Audience capturée</span>
+          </div>
+          <ZoneAudienceStats stats={zone.audience_stats} computedAt={zone.audience_computed_at} />
+        </div>
+
+        {/* Metadata source */}
         {Object.keys(zone.source_metadata).length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
@@ -99,6 +109,12 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
             ))}
           </div>
 
+          <button
+            onClick={() => router.push(`/map?customZone=${zoneId}`)}
+            style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
+          >
+            Utiliser dans la carte
+          </button>
           <button
             onClick={() => router.push(`/map/analyse/digital?customZone=${zoneId}`)}
             style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
