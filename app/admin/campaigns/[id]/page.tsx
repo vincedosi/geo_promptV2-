@@ -66,6 +66,24 @@ export default function CampaignDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<'pays' | 'regions' | 'departements' | 'donnees'>('pays');
+  const [strategyId, setStrategyId] = useState<string | null>(null);
+
+  // Stratégie de bidding rattachée à cette campagne (si elle existe).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    adminFetch('/api/bidding/strategies', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { strategies: [] })
+      .then(d => {
+        if (cancelled) return;
+        const match = (d.strategies ?? []).find(
+          (s: { campaign_id: string }) => s.campaign_id === id,
+        );
+        setStrategyId(match?.id ?? null);
+      })
+      .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [id]);
 
   const fetchDetail = useCallback(async (p: number) => {
     setLoading(true);
@@ -154,16 +172,32 @@ export default function CampaignDetailPage() {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          style={{
-            background: C.redDim, border: `0.5px solid rgba(255,87,87,0.2)`,
-            borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12,
-            color: C.red, cursor: 'pointer',
-          }}
-        >
-          Supprimer
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {strategyId ? (
+            <button
+              onClick={() => router.push(`/custom-bidding/${strategyId}`)}
+              style={{
+                background: 'transparent',
+                border: '0.5px solid var(--brand-teal, #4ecdc4)',
+                color: 'var(--brand-teal, #4ecdc4)',
+                borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Voir la stratégie
+            </button>
+          ) : null}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              background: C.redDim, border: `0.5px solid rgba(255,87,87,0.2)`,
+              borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12,
+              color: C.red, cursor: 'pointer',
+            }}
+          >
+            Supprimer
+          </button>
+        </div>
       </div>
 
       {/* KPI cards */}
