@@ -8,7 +8,6 @@ import { ActionListTable } from './ActionListTable';
 import { MediaHeatmap } from './MediaHeatmap';
 import { AiAnalysisBlock } from './AiAnalysisBlock';
 import { BiddingRecommendation } from './BiddingRecommendation';
-import { BiddingCopilot } from './BiddingCopilot';
 
 const fInter = "'Inter', sans-serif";
 
@@ -46,14 +45,10 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [drillPath, setDrillPath] = useState<DrillLevel[]>([]);
-  const [aiAnalysisDone, setAiAnalysisDone] = useState(false);
-  const [copilotEnabled, setCopilotEnabled] = useState(false);
 
-  // Reset drill-down + progressive reveal when campaign changes
+  // Reset drill-down quand la campagne change
   useEffect(() => {
     setDrillPath([]);
-    setAiAnalysisDone(false);
-    setCopilotEnabled(false);
   }, [campaignId]);
 
   const inDrillDown = drillPath.length > 0;
@@ -266,66 +261,8 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
                 indicator={popField}
                 kpi={{ totalImpressions: totalImp, totalPop, ratioMoyen, couverturePct: breakdownData.length > 0 ? 100 : 0, concentrationTop10 }}
                 breakdown={breakdownData}
-                onComplete={() => setAiAnalysisDone(true)}
               />
             </div>
-
-            {/* Full width: Copilot CTA — only after AI analysis is done */}
-            {aiAnalysisDone && !copilotEnabled && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{
-                  background: 'linear-gradient(90deg, rgba(78,205,196,0.06), rgba(78,205,196,0.02))',
-                  border: '0.5px solid rgba(78,205,196,0.3)',
-                  borderRadius: 8,
-                  padding: '18px 22px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 20,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8,
-                      background: 'rgba(78,205,196,0.12)',
-                      border: '0.5px solid rgba(78,205,196,0.4)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: fInter, fontSize: 14, fontWeight: 600, color: 'var(--brand-teal)',
-                    }}>⚡</div>
-                    <div>
-                      <div style={{ fontFamily: fInter, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-                        Aller plus loin avec le Copilote Bidding
-                      </div>
-                      <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        Discutez avec Gemini en langage naturel pour generer automatiquement vos coefficients, le code DV360/Adform et une simulation avant/apres.
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setCopilotEnabled(true)}
-                    style={{
-                      padding: '10px 20px',
-                      fontFamily: fInter, fontSize: 12, fontWeight: 500,
-                      background: 'var(--brand-teal)', color: 'var(--bg-primary)',
-                      border: 'none', borderRadius: 6, cursor: 'pointer',
-                      whiteSpace: 'nowrap', flexShrink: 0,
-                    }}
-                  >Activer le copilote →</button>
-                </div>
-              </div>
-            )}
-
-            {/* Full width: Bidding Copilot — rendered only after user activates it */}
-            {copilotEnabled && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <BiddingCopilot
-                  campaignId={campaignId}
-                  indicator={popField}
-                  breakdown={breakdownData}
-                  metric={metric}
-                  aggregation={currentAggregation}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>

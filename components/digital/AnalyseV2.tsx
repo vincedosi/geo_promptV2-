@@ -8,7 +8,6 @@ import { BreakdownChart } from '@/app/map/analyse/digital/_components/BreakdownC
 import { MediaHeatmap } from '@/app/map/analyse/digital/_components/MediaHeatmap';
 import { ActionListTable } from '@/app/map/analyse/digital/_components/ActionListTable';
 import { BiddingRecommendation } from '@/app/map/analyse/digital/_components/BiddingRecommendation';
-import { BiddingCopilot } from '@/app/map/analyse/digital/_components/BiddingCopilot';
 import { AiAnalysisBlock } from '@/app/map/analyse/digital/_components/AiAnalysisBlock';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -209,11 +208,9 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [drillPath, setDrillPath] = useState<DrillLevel[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('diagnostic');
-  const [copilotEnabled, setCopilotEnabled] = useState(false);
 
   useEffect(() => {
     setDrillPath([]);
-    setCopilotEnabled(false);
   }, [campaignId]);
 
   const inDrillDown = drillPath.length > 0;
@@ -495,10 +492,6 @@ export function AnalyseV2({ campaignId, scale, popField, selectedMedia, metric, 
                 currentAggregation={currentAggregation}
                 metric={metric}
                 handleBarClick={handleBarClick}
-                copilotEnabled={copilotEnabled}
-                onEnableCopilot={() => setCopilotEnabled(true)}
-                campaignId={campaignId}
-                indicator={popField}
               />
             )}
             {activeTab === 'ia' && (
@@ -619,12 +612,8 @@ interface RecommandationsTabProps {
   currentAggregation: 'region' | 'dept' | 'cp';
   metric: string;
   handleBarClick: (code: string) => void;
-  copilotEnabled: boolean;
-  onEnableCopilot: () => void;
-  campaignId: string;
-  indicator: string;
 }
-function RecommandationsTab({ breakdownData, currentAggregation, metric, handleBarClick, copilotEnabled, onEnableCopilot, campaignId, indicator }: RecommandationsTabProps) {
+function RecommandationsTab({ breakdownData, currentAggregation, metric, handleBarClick }: RecommandationsTabProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <SectionCard title="Sur-servis & sous-servis" subtitle="Tri par écart absolu — clic pour drilldown sur la carte" accentRgb="91,155,213">
@@ -634,73 +623,6 @@ function RecommandationsTab({ breakdownData, currentAggregation, metric, handleB
       <SectionCard title="Recommandation bidding" subtitle="Coefficients calculés depuis l'écart pop/imp" accentRgb="247,183,49">
         <BiddingRecommendation data={breakdownData} aggregation={currentAggregation} />
       </SectionCard>
-
-      {!copilotEnabled && (
-        <div style={{
-          padding: '18px 22px', borderRadius: 10,
-          background: 'linear-gradient(135deg, rgba(78,205,196,0.10), rgba(78,205,196,0.02))',
-          border: '0.5px solid rgba(78,205,196,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 240 }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 9, flexShrink: 0,
-              background: 'rgba(78,205,196,0.18)',
-              border: '0.5px solid rgba(78,205,196,0.4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--brand-teal)',
-            }}>
-              <Sparkles size={17} strokeWidth={2} />
-            </div>
-            <div>
-              <div style={{ fontFamily: fInter, fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-                Aller plus loin avec le Copilote bidding
-              </div>
-              <div style={{ fontFamily: fInter, fontSize: 11.5, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-                Discutez avec Gemini pour générer automatiquement votre code DV360/Adform et une simulation avant/après.
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onEnableCopilot}
-            style={{
-              padding: '10px 18px', fontFamily: fInter, fontSize: 12.5, fontWeight: 600,
-              background: 'var(--brand-teal)', color: 'var(--bg-primary)',
-              border: 'none', borderRadius: 8, cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              flexShrink: 0,
-              willChange: 'transform',
-              boxShadow: '0 2px 10px rgba(78,205,196,0.25)',
-              transition: 'transform var(--duration-press) var(--ease-out), box-shadow var(--duration-hover) var(--ease-hover)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(78,205,196,0.4)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(78,205,196,0.25)'; e.currentTarget.style.transform = 'scale(1)'; }}
-            onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-            onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-          >
-            Activer le copilote
-            <span style={{ fontSize: 14, lineHeight: 1 }}>→</span>
-          </button>
-        </div>
-      )}
-
-      {copilotEnabled && (
-        <div style={{
-          animation: 'modalScaleIn var(--duration-enter) var(--ease-spring) both',
-          willChange: 'transform, opacity',
-        }}>
-          <SectionCard title="Copilote bidding" subtitle="Conversation avec Gemini — coefficients & code généré" accentRgb="78,205,196">
-            <BiddingCopilot
-              campaignId={campaignId}
-              indicator={indicator}
-              breakdown={breakdownData}
-              metric={metric}
-              aggregation={currentAggregation}
-            />
-          </SectionCard>
-        </div>
-      )}
     </div>
   );
 }
