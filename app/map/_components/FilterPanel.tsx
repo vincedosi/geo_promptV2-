@@ -1,5 +1,29 @@
 'use client';
 
+/**
+ * @file FilterPanel.tsx — composant central de filtrage GEOMATIK (carte /map)
+ * @size ~3789 lignes (cf docs/known_tech_debt.md — refactor planifié, non
+ *       splitté en A4.6.2 par décision produit pour réduire le risque pitch)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + types globaux           (≈ 1-140)
+ *   2. Helpers locaux + constantes       (≈ 141-280)
+ *   3. Props + interfaces FilterPanel    (≈ 281-550)
+ *   4. State management (useState/useRef) (≈ 551-900)
+ *   5. Custom geo capture hooks          (≈ 901-1050)
+ *   6. POI handlers + isochrones         (≈ 1051-1500)
+ *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
+ *   8. Voronoi + clustering              (≈ 1901-2200)
+ *   9. Coverage + corrélation            (≈ 2201-2700)
+ *  10. Scoring OOH                       (≈ 2701-3000)
+ *  11. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
+ *
+ * @maintainers Pour étendre ce fichier sans le faire grossir :
+ *   - NE PAS ajouter de nouveau gros bloc — extraire vers _components/
+ *   - Préférer un nouveau composant plutôt qu'un n-ième handler ici
+ *   - Lire docs/known_tech_debt.md avant tout refactor structurel
+ */
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Search, X, ChevronDown, HelpCircle } from 'lucide-react';
 import { CategoryGroup } from '@/components/ui/CategoryGroup';

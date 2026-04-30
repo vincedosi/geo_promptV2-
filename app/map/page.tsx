@@ -1,5 +1,27 @@
 'use client';
 
+/**
+ * @file app/map/page.tsx — page principale carte GEOMATIK
+ * @size ~2329 lignes (cf docs/known_tech_debt.md — refactor planifié,
+ *       non splitté en A4.6.2 par décision produit pour réduire le risque pitch)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + dynamic loaders         (≈ 1-90)
+ *   2. Helpers (esc, normToColor, …)     (≈ 91-230)
+ *   3. State management (~70 useState)   (≈ 231-450)
+ *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
+ *   5. POI / battle / voronoi handlers   (≈ 701-1300)
+ *   6. Cluster + radio + meteo handlers  (≈ 1301-1600)
+ *   7. Render JSX (IconBar + OverlayPanel + ResultsPanel + StudyDashboard) (≈ 1601-2329)
+ *
+ * @maintainers Pour étendre ce fichier :
+ *   - NE PAS ajouter d'autres `useState` au top — extraire dans un hook
+ *     dédié (ex: useBattleState(), useRadioState())
+ *   - Les overlays (IconBar items) sont déjà bien isolés dans
+ *     `components/map/overlays/`
+ *   - Lire docs/known_tech_debt.md avant refactor structurel
+ */
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';

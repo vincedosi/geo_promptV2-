@@ -1,5 +1,25 @@
 'use client';
 
+/**
+ * @file app/admin/sources/page.tsx — back-office gestion des Data Sources
+ * @size ~2831 lignes (cf docs/known_tech_debt.md — refactor planifié,
+ *       non splitté en A4.6.2 par décision produit)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + types Source / Filter   (≈ 1-200)
+ *   2. State management + fetch hooks    (≈ 201-600)
+ *   3. CRUD handlers (create/update/delete/export) (≈ 601-1100)
+ *   4. Tab "Liste sources"               (≈ 1101-1500)
+ *   5. Tab "Détail source" (carte + stats) (≈ 1501-2100)
+ *   6. Tab "Imports" (historique)        (≈ 2101-2400)
+ *   7. Render principal + tabs orchestrator (≈ 2401-2831)
+ *
+ * @maintainers Pour étendre ce fichier :
+ *   - Extraire chaque tab dans son propre composant `_components/<Tab>.tsx`
+ *   - Les handlers CRUD pourraient bouger dans `_lib/sources-actions.ts`
+ *   - Lire docs/known_tech_debt.md avant refactor structurel
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { adminFetch } from '@/lib/admin-fetch';
