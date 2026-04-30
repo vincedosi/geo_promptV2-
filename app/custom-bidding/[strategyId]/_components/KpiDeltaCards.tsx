@@ -53,9 +53,9 @@ export function KpiDeltaCards({ kpis, primaryMetric = 'leads', loading }: Props)
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 12,
-        padding: 16,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gap: 8,
+        padding: 12,
         opacity: loading ? 0.5 : 1,
         transition: 'opacity 120ms',
       }}
@@ -64,25 +64,25 @@ export function KpiDeltaCards({ kpis, primaryMetric = 'leads', loading }: Props)
         <div
           key={i}
           style={{
-            padding: '14px 16px',
-            background: 'var(--bg-card, #0a0a0a)',
-            border: '0.5px solid var(--border-subtle, #1a1a1a)',
+            padding: '12px 14px',
+            background: 'rgba(255,255,255,0.03)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
             borderRadius: 8,
           }}
         >
-          <div style={{ fontSize: 10, fontFamily: fInter, color: 'var(--text-tertiary, #666)', textTransform: 'lowercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, fontFamily: fInter, color: 'var(--text-tertiary)', textTransform: 'lowercase', letterSpacing: '0.04em', marginBottom: 6 }}>
             {c.label}
           </div>
           <div
             style={{
-              fontSize: 22, fontFamily: c.mono ? fMono : fInter, fontWeight: 500,
-              color: c.mainColor ?? 'var(--text-primary, #f0f0f0)',
+              fontSize: 20, fontFamily: c.mono ? fMono : fInter, fontWeight: 500,
+              color: c.mainColor ?? 'var(--text-primary)',
               lineHeight: 1.1,
             }}
           >
             {c.main}
           </div>
-          <div style={{ fontSize: 11, fontFamily: fMono, color: 'var(--text-tertiary, #666)', marginTop: 4 }}>
+          <div style={{ fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary)', marginTop: 4 }}>
             {c.sub}
           </div>
         </div>

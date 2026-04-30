@@ -37,17 +37,17 @@ function CustomTooltip({ active, label, payload }: { active?: boolean; label?: s
 
 export function ComparisonTimeline({ daily, currentDate, driftDates = [] }: Props) {
   return (
-    <div style={{ padding: '0 16px 16px' }}>
+    <div style={{ padding: '8px 12px 16px' }}>
       <div
         style={{
-          background: 'var(--bg-card, #0a0a0a)',
-          border: '0.5px solid var(--border-subtle, #1a1a1a)',
-          borderRadius: 8, padding: 16,
+          background: 'rgba(255,255,255,0.03)',
+          border: '0.5px solid rgba(255,255,255,0.08)',
+          borderRadius: 8, padding: 14,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal, #4ecdc4)' }} />
-          <h2 style={{ margin: 0, fontSize: 12, fontWeight: 500, fontFamily: fInter, color: 'var(--text-primary, #f0f0f0)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)' }} />
+          <h2 style={{ margin: 0, fontSize: 11, fontWeight: 500, fontFamily: fInter, color: 'var(--text-primary)' }}>
             Leads par jour
           </h2>
           <Legend color="#a0a0a0" label="réel" />
@@ -55,7 +55,7 @@ export function ComparisonTimeline({ daily, currentDate, driftDates = [] }: Prop
           {driftDates.length > 0 && <Legend color="#ff5757" label={`${driftDates.length} drift event${driftDates.length > 1 ? 's' : ''}`} dashed />}
         </div>
 
-        <div style={{ width: '100%', height: 240 }}>
+        <div style={{ width: '100%', height: 180 }}>
           <ResponsiveContainer>
             <LineChart data={daily} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
               <XAxis

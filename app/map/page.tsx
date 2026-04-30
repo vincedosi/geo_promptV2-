@@ -1662,6 +1662,7 @@ export default function MapPage() {
         <OverlayPanel
           topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           category={activeOverlay}
+          width={activeOverlay === 'pilotage' ? 820 : undefined}
           title={
             activeOverlay === 'ai' ? 'geo.prompt' :
             activeOverlay === 'perimeter' ? 'Périmètre' :

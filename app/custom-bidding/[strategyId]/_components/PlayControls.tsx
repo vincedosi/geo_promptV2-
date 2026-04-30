@@ -49,11 +49,11 @@ export function PlayControls({ dates, currentIndex, driftDates = [], onIndexChan
   return (
     <div
       style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '12px 16px',
-        background: 'var(--bg-card, #0a0a0a)',
-        border: '0.5px solid var(--border-subtle, #1a1a1a)',
-        borderRadius: 8, margin: '0 16px 8px',
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 14px',
+        background: 'rgba(255,255,255,0.03)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        borderRadius: 8, margin: '0 12px 8px', flexWrap: 'wrap',
       }}
     >
       <button

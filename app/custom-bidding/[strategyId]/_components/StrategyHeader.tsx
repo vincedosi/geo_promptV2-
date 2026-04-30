@@ -80,29 +80,27 @@ export function StrategyHeader({
     <header
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-        padding: '14px 20px',
-        background: 'var(--bg-card, #0a0a0a)',
-        borderBottom: '0.5px solid var(--border-subtle, #1a1a1a)',
-        fontFamily: fInter,
+        padding: '12px 16px',
+        borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+        fontFamily: fInter, flexWrap: 'wrap',
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal, #4ecdc4)', flexShrink: 0 }} />
-          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--text-primary, #f0f0f0)' }}>{campaignName}</h1>
+      <div style={{ minWidth: 0, flex: '1 1 280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h1 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{campaignName}</h1>
           {isDemo && (
             <span style={{ fontSize: 10, fontFamily: fMono, padding: '2px 8px', borderRadius: 4, background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.3)', color: '#f7b731' }}>
               demo data
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary, #a0a0a0)', marginTop: 4 }}>
-          {strategyName} · <span style={{ fontFamily: fMono, color: 'var(--text-tertiary, #666)' }}>{algorithmCode}</span>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {strategyName} · <span style={{ fontFamily: fMono, color: 'var(--text-tertiary)' }}>{algorithmCode}</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 4, padding: 2, background: 'var(--bg-level-2, #111)', border: '0.5px solid var(--border-default, #262626)', borderRadius: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 2, padding: 2, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6 }}>
           {MODES.map(m => {
             const active = mode === m;
             return (
@@ -111,9 +109,9 @@ export function StrategyHeader({
                 disabled={busy !== null}
                 onClick={() => updateMode(m)}
                 style={{
-                  padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
-                  background: active ? 'var(--brand-teal, #4ecdc4)' : 'transparent',
-                  color: active ? '#050505' : 'var(--text-secondary, #a0a0a0)',
+                  padding: '5px 9px', fontSize: 10, fontFamily: fInter, fontWeight: 500,
+                  background: active ? 'var(--brand-teal)' : 'transparent',
+                  color: active ? '#050505' : 'var(--text-secondary)',
                   border: 'none', borderRadius: 4,
                   cursor: busy !== null ? 'not-allowed' : 'pointer',
                   opacity: busy !== null && busy !== 'mode' ? 0.5 : 1,
@@ -125,22 +123,22 @@ export function StrategyHeader({
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
           <ActionButton
-            label="Lancer l'algo"
+            label="Lancer"
             running={busy === 'predict'}
             disabled={busy !== null}
             primary
             onClick={() => callBidding('predict', 'predict')}
           />
           <ActionButton
-            label="Ré-entraîner"
+            label="Train"
             running={busy === 'train'}
             disabled={busy !== null}
             onClick={() => callBidding('train', 'train')}
           />
           <ActionButton
-            label="Détecter drifts"
+            label="Drifts"
             running={busy === 'drift'}
             disabled={busy !== null}
             onClick={() => callBidding('detect-drift', 'detect-drift')}
@@ -151,12 +149,12 @@ export function StrategyHeader({
       {feedback && (
         <div
           style={{
-            position: 'absolute', top: 56, right: 24, zIndex: 5,
-            padding: '8px 12px', fontSize: 11, fontFamily: fMono,
+            flexBasis: '100%',
+            padding: '6px 10px', fontSize: 11, fontFamily: fMono,
             background: feedback.kind === 'ok' ? 'rgba(61,255,160,0.08)' : 'rgba(255,87,87,0.08)',
             border: `0.5px solid ${feedback.kind === 'ok' ? 'rgba(61,255,160,0.3)' : 'rgba(255,87,87,0.3)'}`,
             color: feedback.kind === 'ok' ? '#3dffa0' : '#ff5757',
-            borderRadius: 6, maxWidth: 420,
+            borderRadius: 6,
           }}
         >
           {feedback.msg}
@@ -172,11 +170,11 @@ function ActionButton({ label, running, disabled, onClick, primary }: { label: s
       disabled={disabled}
       onClick={onClick}
       style={{
-        padding: '8px 14px', fontSize: 12, fontFamily: fInter, fontWeight: 500,
-        background: primary ? 'var(--brand-teal, #4ecdc4)' : 'transparent',
-        color: primary ? '#050505' : 'var(--brand-teal, #4ecdc4)',
-        border: primary ? 'none' : '0.5px solid var(--brand-teal, #4ecdc4)',
-        borderRadius: 6,
+        padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+        background: primary ? 'var(--brand-teal)' : 'transparent',
+        color: primary ? '#050505' : 'var(--brand-teal)',
+        border: primary ? 'none' : '0.5px solid var(--brand-teal)',
+        borderRadius: 6, whiteSpace: 'nowrap',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled && !running ? 0.5 : 1,
       }}

@@ -113,7 +113,7 @@ export function PilotageOverlay() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary, #050505)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <StrategyPicker
         strategies={strategies}
         selectedId={selectedId}
@@ -123,7 +123,7 @@ export function PilotageOverlay() {
         {selectedId ? (
           <StrategyDetail key={selectedId} strategyId={selectedId} />
         ) : (
-          <div style={{ padding: 20, fontSize: 12, fontFamily: fMono, color: 'var(--text-tertiary, #666)' }}>
+          <div style={{ padding: 20, fontSize: 12, fontFamily: fMono, color: 'var(--text-tertiary)' }}>
             Sélectionner une stratégie pour afficher le détail.
           </div>
         )}
@@ -142,9 +142,8 @@ function StrategyPicker({
   return (
     <div style={{
       display: 'flex', flexWrap: 'wrap', gap: 6,
-      padding: '10px 14px',
-      background: 'var(--bg-card, #0a0a0a)',
-      borderBottom: '0.5px solid var(--border-subtle, #1a1a1a)',
+      padding: '10px 12px',
+      borderBottom: '0.5px solid rgba(255,255,255,0.08)',
     }}>
       {strategies.map(s => {
         const active = s.id === selectedId;
@@ -156,11 +155,11 @@ function StrategyPicker({
             title={`${s.dsp_campaigns?.name ?? ''} · ${s.name}`}
             style={{
               padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
-              background: active ? 'rgba(78,205,196,0.08)' : 'transparent',
-              color: active ? 'var(--brand-teal, #4ecdc4)' : 'var(--text-secondary, #a0a0a0)',
-              border: `0.5px solid ${active ? 'var(--brand-teal, #4ecdc4)' : 'var(--border-default, #262626)'}`,
+              background: active ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.03)',
+              color: active ? 'var(--brand-teal)' : 'var(--text-secondary)',
+              border: `0.5px solid ${active ? 'var(--brand-teal)' : 'rgba(255,255,255,0.08)'}`,
               borderRadius: 6, cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
+              display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
             }}
           >
             <span>{s.dsp_campaigns?.name ?? s.name}</span>
@@ -325,9 +324,9 @@ function StrategyDetail({ strategyId }: { strategyId: string }) {
         driftDates={driftDates}
       />
 
-      <div style={{ padding: '14px 18px', fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary, #666)', borderTop: '0.5px solid var(--border-subtle, #1a1a1a)' }}>
+      <div style={{ padding: '12px 14px', fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary)', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
         Modèle de simulation linéaire (x_sim = x_real × bid_multiplier). Algorithme actif :
-        {' '}<span style={{ color: 'var(--text-secondary, #a0a0a0)' }}>{meta.active_model?.model_version ?? meta.strategy.algorithm_code}</span>
+        {' '}<span style={{ color: 'var(--text-secondary)' }}>{meta.active_model?.model_version ?? meta.strategy.algorithm_code}</span>
       </div>
     </div>
   );

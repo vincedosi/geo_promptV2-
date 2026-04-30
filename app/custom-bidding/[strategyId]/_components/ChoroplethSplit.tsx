@@ -80,30 +80,30 @@ export function ChoroplethSplit({ geojson, metric, currentDate }: Props) {
   }, [geojson]);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 16px', height: 520 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '0 12px', height: 360 }}>
       {(['real', 'sim'] as const).map(side => (
         <div
           key={side}
           style={{
             display: 'flex', flexDirection: 'column',
-            background: 'var(--bg-card, #0a0a0a)',
-            border: '0.5px solid var(--border-subtle, #1a1a1a)',
+            background: 'rgba(255,255,255,0.03)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
             borderRadius: 8, overflow: 'hidden',
           }}
         >
           <div
             style={{
-              padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
-              borderBottom: '0.5px solid var(--border-subtle, #1a1a1a)',
-              background: 'var(--bg-level-2, #111)',
+              padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+              borderBottom: '0.5px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.02)',
             }}
           >
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: side === 'sim' ? 'var(--brand-teal, #4ecdc4)' : 'var(--text-tertiary, #666)' }} />
-            <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary, #f0f0f0)' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: side === 'sim' ? 'var(--brand-teal)' : 'var(--text-tertiary)' }} />
+            <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>
               {TITLES[side]}
             </span>
             {currentDate && (
-              <span style={{ marginLeft: 'auto', fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary, #666)' }}>
+              <span style={{ marginLeft: 'auto', fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
                 {currentDate}
               </span>
             )}
