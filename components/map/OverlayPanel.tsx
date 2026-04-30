@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 import type { OverlayId } from './IconBar';
 
 interface OverlayPanelProps {
@@ -14,6 +14,8 @@ interface OverlayPanelProps {
   width?: number;
   /** Offset vertical pour laisser la place à une top bar (default 0) */
   topOffset?: number;
+  /** Affiche un bouton Maximize / Minimize qui passe l'overlay en quasi-fullscreen */
+  expandable?: boolean;
 }
 
 /**
@@ -31,12 +33,14 @@ export function OverlayPanel({
   children,
   width = 280,
   topOffset = 0,
+  expandable = false,
 }: OverlayPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const prevCategoryRef = useRef(category);
   const [closing, setClosing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Morph inter-catégories : quand l'utilisateur switch d'overlay (Périmètre →
@@ -107,7 +111,8 @@ export function OverlayPanel({
         position: 'fixed',
         top: 12 + topOffset,
         left: 56, // 48 IconBar + 8 gap
-        width,
+        width: expanded ? 'calc(100vw - 80px)' : width,
+        maxWidth: expanded ? 'calc(100vw - 80px)' : undefined,
         maxHeight: `calc(100vh - 24px - ${topOffset}px)`,
         background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
         backdropFilter: 'blur(var(--backdrop-blur, 4px))',
@@ -160,6 +165,28 @@ export function OverlayPanel({
         >
           {title}
         </span>
+        {expandable && (
+          <button
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+            aria-label={expanded ? 'Réduire' : 'Agrandir'}
+            title={expanded ? 'Réduire' : 'Agrandir'}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'flex',
+              alignItems: 'center',
+              color: 'var(--text-tertiary, #666666)',
+              transition: 'color var(--duration-hover, 150ms) var(--ease-hover, ease)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-teal, #4ecdc4)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary, #666666)'; }}
+          >
+            {expanded ? <Minimize2 size={15} strokeWidth={1.5} /> : <Maximize2 size={15} strokeWidth={1.5} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleClose}
