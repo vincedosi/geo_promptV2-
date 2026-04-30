@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -46,6 +46,7 @@ import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPan
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
+import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
 const ClusteringResultsContent = dynamic(
   () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
   { ssr: false },
@@ -101,15 +102,9 @@ export default function MapPage() {
   }, []);
   const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
-  const router = useRouter();
   const handleOverlayToggle = useCallback((id: OverlayId) => {
-    // 'pilotage' n'ouvre pas un overlay : navigation directe vers /custom-bidding
-    if (id === 'pilotage') {
-      router.push('/custom-bidding');
-      return;
-    }
     setActiveOverlay(prev => prev === id ? null : id);
-  }, [router]);
+  }, []);
   // ── Results panel (volet gauche pour les analyses) ──
   const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
   const [coverageReady, setCoverageReady] = useState(false);
@@ -1673,6 +1668,7 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'Données terrain' :
             activeOverlay === 'analyses' ? 'Analyses' :
             activeOverlay === 'campaigns' ? 'Campagnes média' :
+            activeOverlay === 'pilotage' ? 'Pilotage ML' :
             activeOverlay === 'zones' ? 'Zones sauvegardées' :
             'Réglages'
           }
@@ -1682,6 +1678,7 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
             activeOverlay === 'campaigns' ? 'var(--cat-media)' :
+            activeOverlay === 'pilotage' ? 'var(--brand-teal)' :
             activeOverlay === 'zones' ? 'var(--brand-teal)' :
             'var(--text-tertiary)'
           }
@@ -1875,6 +1872,9 @@ export default function MapPage() {
               scope={perimeterScope}
               onScopeChange={setPerimeterScope}
             />
+          )}
+          {activeOverlay === 'pilotage' && (
+            <PilotageOverlay />
           )}
           {activeOverlay === 'zones' && (
             <ZonesOverlay mapRef={mapRef} />
