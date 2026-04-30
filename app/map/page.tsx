@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -101,9 +101,15 @@ export default function MapPage() {
   }, []);
   const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
+  const router = useRouter();
   const handleOverlayToggle = useCallback((id: OverlayId) => {
+    // 'pilotage' n'ouvre pas un overlay : navigation directe vers /custom-bidding
+    if (id === 'pilotage') {
+      router.push('/custom-bidding');
+      return;
+    }
     setActiveOverlay(prev => prev === id ? null : id);
-  }, []);
+  }, [router]);
   // ── Results panel (volet gauche pour les analyses) ──
   const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
   const [coverageReady, setCoverageReady] = useState(false);
@@ -1970,6 +1976,8 @@ export default function MapPage() {
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
+        battleFeatures={battleFeatures}
+        battlePois={battlePois}
         clusterGeoJSON={clusterGeoJSON}
         clustersVisible={clustersVisible}
         radioSelectedId={radioSelectedId}
