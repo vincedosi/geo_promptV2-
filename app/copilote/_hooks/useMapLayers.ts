@@ -146,8 +146,8 @@ export function useMapLayers({
       ? baseFilter
       : ['all', baseFilter, ['!=', ['get', 'palier'], 0]];
     try {
-      map.setFilter('battle-fill',      outerFilter as any);
-      map.setFilter('battle-ring-line', outerFilter as any);
+      map.setFilter('battle-fill',      outerFilter as unknown as maplibregl.FilterSpecification);
+      map.setFilter('battle-ring-line', outerFilter as unknown as maplibregl.FilterSpecification);
     } catch { /* layer pas encore prêt */ }
   }, [battleOuterFillVisible, mapReady, mapRef]);
 
@@ -163,8 +163,8 @@ export function useMapLayers({
       ],
     ];
     try {
-      map.setFilter('battle-fill',      filter as any);
-      map.setFilter('battle-ring-line', filter as any);
+      map.setFilter('battle-fill',      filter as unknown as maplibregl.FilterSpecification);
+      map.setFilter('battle-ring-line', filter as unknown as maplibregl.FilterSpecification);
     } catch { /* layer pas encore prêt */ }
   }, [battleMaxPalier, mapReady, mapRef]);
 

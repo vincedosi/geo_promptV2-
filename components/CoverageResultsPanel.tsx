@@ -269,6 +269,7 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
             const event = JSON.parse(line) as {
               type: 'start' | 'progress' | 'poi_result' | 'error_partial' | 'complete';
               total?: number; current?: number; poi?: string;
+              message?: string;
               data?: { group_id: string; coverage: number; nom: string };
               results?: { group_id: string; coverage: number; nom: string }[];
             };
@@ -280,8 +281,8 @@ export function CoverageResultsPanel({ isOpen, onClose, inline = false, battleFe
               setComputedMetrics(new Map(allResults));
             } else if (event.type === 'error_partial') {
               setFailedCount(c => c + 1);
-              setFirstErr(prev => prev ?? (event as any).message ?? null);
-              if ((event as any).poi) setFailedGroups(prev => new Set([...prev, (event as any).poi]));
+              setFirstErr(prev => prev ?? event.message ?? null);
+              if (event.poi) setFailedGroups(prev => new Set([...prev, event.poi as string]));
             } else if (event.type === 'complete' && event.results) {
               for (const r of event.results) currentCovMap.set(r.group_id, r.coverage);
               allResults.set(metric, new Map(currentCovMap));

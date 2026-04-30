@@ -32,7 +32,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Aucun panneau trouvé' }, { status: 404 });
     }
 
-    const pois = data.map((p: any) => ({
+    interface OohRow {
+      id: string;
+      regie?: string | null;
+      type_panneau?: string | null;
+      adresse?: string | null;
+      ville?: string | null;
+      lat: number | string;
+      lng: number | string;
+      nb_faces?: number | null;
+      metadata?: Record<string, unknown> | null;
+    }
+    const pois = (data as OohRow[]).map((p) => ({
       id: p.id,
       nom: p.regie ? `${p.regie}${p.type_panneau ? ` — ${p.type_panneau}` : ''}` : 'Panneau OOH',
       lat: Number(p.lat),
@@ -45,8 +56,8 @@ export async function POST(req: NextRequest) {
 
     // Centroïde
     const coordonnees = {
-      lat: pois.reduce((s: number, p: any) => s + p.lat, 0) / pois.length,
-      lng: pois.reduce((s: number, p: any) => s + p.lng, 0) / pois.length,
+      lat: pois.reduce((s, p) => s + p.lat, 0) / pois.length,
+      lng: pois.reduce((s, p) => s + p.lng, 0) / pois.length,
     };
 
     const categories: Record<string, number> = { panneaux: pois.length };

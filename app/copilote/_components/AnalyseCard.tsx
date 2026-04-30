@@ -413,9 +413,8 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
                 dataKey="cible"
                 radius={[2, 2, 0, 0]}
                 cursor="pointer"
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                onClick={(data: any) => {
-                  const code = data?.code_iris as string | undefined;
+                onClick={(data: unknown) => {
+                  const code = (data as { code_iris?: string } | undefined)?.code_iris;
                   if (code) handleIrisClick(code);
                 }}
               >

@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const values: Record<string, number> = {};
-  for (const row of data ?? []) {
-    const v = (row as Record<string, unknown>)[col];
+  for (const row of (data ?? []) as unknown as Array<Record<string, unknown>>) {
+    const v = row[col];
     if (v !== null && v !== undefined) values[row.code_iris as string] = Number(v);
   }
 

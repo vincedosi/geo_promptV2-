@@ -94,7 +94,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Erreur chargement POIs : ${poiErr.message}` }, { status: 500 });
     }
 
-    const pois = (rawRows ?? []).filter((p: any) => {
+    interface PoiRowSlim {
+      id: string | number;
+      nom?: string | null;
+      region?: string | null;
+      departement?: string | null;
+    }
+    const pois = ((rawRows ?? []) as PoiRowSlim[]).filter((p) => {
       if (!regionNorms) return true;
       const pNorm = normStr(p.region ?? '');
       return regionNorms.some((rn: string) => pNorm.includes(rn) || rn.includes(pNorm));
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Lookup cache — toutes les clés en une passe (chunked) ─────────────
-    const allKeys = pois.flatMap((p: any) =>
+    const allKeys = pois.flatMap((p) =>
       paliers.map((l: number) => perPoiCacheKey(category, String(p.id), l, mode)),
     );
 
@@ -134,7 +140,7 @@ export async function POST(req: NextRequest) {
     const missing_list: { id: string; nom: string; paliers_missing: number[] }[] = [];
     let cached_pois  = 0;
 
-    for (const p of pois as any[]) {
+    for (const p of pois) {
       const paliersMissing = paliers.filter(
         (l: number) => !cachedKeys.has(perPoiCacheKey(category, String(p.id), l, mode)),
       );

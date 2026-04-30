@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
 
           // ── 1. Update colonnes core (UPDATE uniquement — pas d'INSERT, évite NOT NULL) ──
           const coreError = await retryUpsert(
-            () => adminClient.rpc('update_iris_core_batch', { p_rows: coreBatch }),
+            async () => adminClient.rpc('update_iris_core_batch', { p_rows: coreBatch }),
             MAX_RETRIES,
             500,
           );

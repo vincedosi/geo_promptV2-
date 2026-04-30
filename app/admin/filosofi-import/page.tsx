@@ -2,10 +2,17 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
-// @ts-ignore — hyparquet has no TypeScript type definitions (no @types/hyparquet package)
 import { parquetRead, parquetMetadata } from 'hyparquet';
 import { decompress } from 'fzstd';
 import proj4 from 'proj4';
+
+// ─── Types externes (libs sans @types) ───────────────────────────────────────
+/** Geometry GeoJSON minimaliste (Polygon ou MultiPolygon des fichiers SHP) */
+type ShpGeometry =
+  | { type: 'Polygon';      coordinates: number[][][] }
+  | { type: 'MultiPolygon'; coordinates: number[][][][] }
+  | null
+  | undefined;
 
 // Projections INSEE (Lambert 93 + LAEA Europe)
 proj4.defs('EPSG:2154', '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
@@ -52,13 +59,13 @@ interface FileInfo {
   millesime:  string;
   fileType:   FileType;
   dbfMeta?:   DbfMeta;
-  shpGeoms?:  any[];  // GeoJSON geometry objects indexés par ligne
+  shpGeoms?:  ShpGeometry[];  // GeoJSON geometry objects indexés par ligne
   shpSrcProj?: string; // 'EPSG:3035' | 'EPSG:2154'
 }
 
 // ─── Conversion GeoJSON geometry → WKT WGS84 ─────────────────────────────────
 
-function geomToWKT(geom: any, srcProj: string): string | null {
+function geomToWKT(geom: ShpGeometry, srcProj: string): string | null {
   if (!geom) return null;
   const reproject = ([x, y]: number[]) => {
     const [lon, lat] = proj4(srcProj, 'WGS84', [x, y]);
@@ -75,12 +82,18 @@ function geomToWKT(geom: any, srcProj: string): string | null {
   return null;
 }
 
-function detectProj(geoms: any[]): string {
+function detectProj(geoms: ShpGeometry[]): string {
   // Détecte EPSG:3035 ou EPSG:2154 selon l'ordre de grandeur des coords
-  const first = geoms.find(g => g?.coordinates?.[0]?.[0]);
+  const first = geoms.find((g): g is NonNullable<ShpGeometry> => {
+    if (!g) return false;
+    const c = (g as { coordinates: unknown }).coordinates as unknown;
+    return Array.isArray(c) && Array.isArray((c as unknown[])[0]);
+  });
   if (!first) return 'EPSG:3035';
-  const [x] = first.coordinates[0][0];
-  return x > 2_000_000 ? 'EPSG:3035' : 'EPSG:2154';
+  // Polygon: coordinates[0][0] = first ring first point [x, y]
+  const ring0 = (first.coordinates as number[][][])[0];
+  const x = ring0?.[0]?.[0];
+  return x !== undefined && x > 2_000_000 ? 'EPSG:3035' : 'EPSG:2154';
 }
 
 const fmtNum = (n: number) => n.toLocaleString('fr-FR');
@@ -218,12 +231,12 @@ function StepUpload({ onLoaded, addLog }: {
         setProgress(30);
         log('Parsing géométries SHP (298 Mo — environ 30-60 sec)...');
         await new Promise(r => setTimeout(r, 50)); // flush UI avant parsing lourd
-        // @ts-ignore — shpjs dynamic import: the package types don't expose parseShp on the default export
+        // @ts-expect-error reason: shpjs dynamic import exposes parseShp via runtime module shape (no @types definition)
         const shpjsMod = await import('shpjs');
         // shpjs exporte parseShp(buffer) → GeoJSON geometry[]
         const parseShp = shpjsMod.parseShp ?? shpjsMod.default?.parseShp;
         if (!parseShp) throw new Error('shpjs.parseShp introuvable');
-        const shpGeoms: any[] = parseShp(shpBuffer);
+        const shpGeoms: ShpGeometry[] = parseShp(shpBuffer);
         setProgress(60);
         const srcProj = detectProj(shpGeoms);
         log(`SHP OK — ${shpGeoms.length.toLocaleString('fr-FR')} géométries, projection détectée : ${srcProj}`);
@@ -263,10 +276,10 @@ function StepUpload({ onLoaded, addLog }: {
         // ── Mode Parquet ─────────────────────────────────────────────────────
         log(`Mode Parquet — lecture ${parqFile.name} (${(parqFile.size / 1024 / 1024).toFixed(1)} Mo)...`);
         const buffer = await parqFile.arrayBuffer();
-        const meta   = parquetMetadata(buffer);
+        const meta = parquetMetadata(buffer) as { schema: Array<{ name: string; num_children?: number | null }>; num_rows: number | bigint };
         const columns: string[] = meta.schema
-          .filter((s: any) => s.num_children === undefined || s.num_children === null)
-          .map((s: any) => s.name)
+          .filter((s) => s.num_children === undefined || s.num_children === null)
+          .map((s) => s.name)
           .filter((n: string) => n !== 'schema');
         const rowCount = Number(meta.num_rows);
         log(`Parquet — ${rowCount.toLocaleString('fr-FR')} lignes, ${columns.length} colonnes`);
@@ -274,9 +287,9 @@ function StepUpload({ onLoaded, addLog }: {
         let sampleRow: Record<string, unknown> = {};
         await parquetRead({
           file: buffer,
-          compressors: { ZSTD: (d: any) => decompress(d) },
+          compressors: { ZSTD: (d: Uint8Array) => decompress(d) },
           rowStart: 0, rowEnd: 1,
-          onComplete: (rawRows: any[]) => {
+          onComplete: (rawRows: unknown[][]) => {
             if (rawRows[0]) columns.forEach((col, idx) => { sampleRow[col] = rawRows[0][idx]; });
           },
         });
@@ -509,9 +522,9 @@ function StepImport({ info, idcarCol, selectedCols, resolution, millesime, addLo
           const rows: Record<string, unknown>[] = [];
           parquetRead({
             file: info.buffer,
-            compressors: { ZSTD: (d: any) => decompress(d) },
+            compressors: { ZSTD: (d: Uint8Array) => decompress(d) },
             rowStart: startRow, rowEnd: endRow,
-            onComplete: (rawRows: any[]) => {
+            onComplete: (rawRows: unknown[][]) => {
               for (const row of rawRows) {
                 const obj: Record<string, unknown> = {};
                 selectedCols.forEach(col => {

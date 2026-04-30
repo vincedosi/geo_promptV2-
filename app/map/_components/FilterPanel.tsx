@@ -19,7 +19,7 @@ import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import dynamic from 'next/dynamic';
-import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
+import type { CorrelationParams, ResidualsMeta, ResidualData } from './CorrelationPanel';
 const CorrelationPanel = dynamic(
   () => import('./CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
   { ssr: false },
@@ -345,8 +345,7 @@ export interface FilterPanelProps {
   onClearTMJA?:         () => void;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onShowResiduals?:     (geojson: any, meta?: ResidualsMeta) => void;
+  onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
   // Radio
   radioVisible?:          boolean;
   onToggleRadio?:         () => void;

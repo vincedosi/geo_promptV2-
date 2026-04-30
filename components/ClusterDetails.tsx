@@ -155,7 +155,23 @@ function Panel({ title, children, fullWidth }: {
 }
 
 // ─── Recharts custom tooltip (dark) ──────────────────────────────────────────
-function DarkTooltip({ active, payload, label, formatter }: any) {
+interface TooltipPayloadItem {
+  name?: string;
+  value?: number | string;
+  color?: string;
+  [key: string]: unknown;
+}
+// Formatter is intentionally loosely typed: callers pass functions accepting (number, string)
+// or (number) only. We don't want to force every caller to widen its signature.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RechartsFormatter = (value: any, name: any, item: any) => React.ReactNode;
+interface DarkTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string | number;
+  formatter?: RechartsFormatter;
+}
+function DarkTooltip({ active, payload, label, formatter }: DarkTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -163,7 +179,7 @@ function DarkTooltip({ active, payload, label, formatter }: any) {
       padding: '8px 12px', fontFamily: fMono, fontSize: 10,
     }}>
       {label && <div style={{ color: C.muted, marginBottom: 4, fontSize: 9 }}>{label}</div>}
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i: number) => (
         <div key={i} style={{ color: p.color ?? C.text, display: 'flex', gap: 8 }}>
           <span style={{ color: C.muted }}>{p.name}:</span>
           <span>{formatter ? formatter(p.value, p.name, p) : p.value}</span>

@@ -56,7 +56,8 @@ export async function analyserZone(
   const poisMap  = new Map<string, PoiRow>();
 
   // Applique le filtre org (data_source_id) si l'org a des sources restreintes
-  function applyOrgFilter(q: any) {
+  // Generic typing: passes through any Supabase query builder while preserving its chaining type.
+  function applyOrgFilter<Q extends { in: (col: string, vals: readonly string[]) => Q }>(q: Q): Q {
     if (orgSourceIds !== null) q = q.in('data_source_id', orgSourceIds);
     return q;
   }

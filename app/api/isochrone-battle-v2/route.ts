@@ -127,7 +127,12 @@ export async function POST(req: NextRequest) {
           const { data: cached } = await supabase
             .from('isochrones_cache').select('geojson').eq('cache_key', battleCacheKey).single();
           if (cached?.geojson) {
-            const c = cached.geojson as any;
+            interface BattleCachePayload {
+              battleGeoJSON?: { features?: unknown[] } | null;
+              battleBorders?: unknown;
+              poisForMap?: unknown[];
+            }
+            const c = cached.geojson as BattleCachePayload;
             send({ type: 'result', data: {
               battleGeoJSON: c.battleGeoJSON,
               battleBorders: c.battleBorders ?? null,

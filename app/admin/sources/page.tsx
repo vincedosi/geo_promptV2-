@@ -539,10 +539,11 @@ export default function SourcesPage() {
       const res = await fetch('/api/correlation/categories');
       const data = await res.json();
       if (Array.isArray(data)) {
+        type CorrelationCategory = { key: string; sigma_km: number | null; label?: string | null };
         setSigmaConfig(
-          data
-            .filter((c: any) => c.sigma_km != null)
-            .map((c: any) => ({ categorie: c.key, sigma_km: c.sigma_km, description: c.label ?? null }))
+          (data as CorrelationCategory[])
+            .filter((c) => c.sigma_km != null)
+            .map((c) => ({ categorie: c.key, sigma_km: c.sigma_km as number, description: c.label ?? null }))
         );
       }
     } catch (e: unknown) { console.error('[sigma-config] fetch error:', e); }

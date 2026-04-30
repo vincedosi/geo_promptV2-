@@ -28,8 +28,8 @@ export async function getDistinctCategories(): Promise<string[]> {
   // Sur index, chaque requête est instantanée (~5ms). Avec ~15 catégories → ~15 requêtes.
   let lastSeen = '';
   for (let i = 0; i < 100; i++) {
-    let data: any[] | null = null;
-    let error: any = null;
+    let data: { categorie: string }[] | null = null;
+    let error: { message?: string } | null = null;
     // Retry jusqu'à 3× si erreur schema cache (cold start Supabase PostgREST)
     for (let attempt = 0; attempt < 3; attempt++) {
       ({ data, error } = await supabase

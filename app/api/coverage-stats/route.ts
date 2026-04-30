@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       const keyToGroupId = new Map([...cacheKeyMap.entries()].map(([gid, ck]) => [ck, gid]));
       for (const row of rows) {
         const gid = keyToGroupId.get(row.cache_key);
-        if (gid) cacheHitMap.set(gid, (row.geojson as any)?.coverage ?? 0);
+        if (gid) cacheHitMap.set(gid, (row.geojson as { coverage?: number } | null)?.coverage ?? 0);
       }
     }
     console.log(`[coverage-stats] Cache: ${cacheHitMap.size}/${perPoiGroups.length} POIs en cache`);

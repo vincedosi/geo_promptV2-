@@ -525,8 +525,7 @@ export default function MapPage() {
 
     const inverted = residualInvertedRef.current;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
     for (const d of data) {
       matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
     }
@@ -541,8 +540,7 @@ export default function MapPage() {
         'source-layer': 'iris',
         minzoom: 2,
         paint: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          'fill-color':   matchExpr as any,
+          'fill-color':   matchExpr as unknown as maplibregl.ExpressionSpecification,
           'fill-opacity': residualOpacity,
         },
       }, 'iris-border');
@@ -605,13 +603,12 @@ export default function MapPage() {
     residualInvertedRef.current = inverted;
     const map = mapRef.current;
     if (!map?.getLayer('iris-residuals-fill') || !residualLookupRef.current.size) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
     residualLookupRef.current.forEach((r, code) => {
       matchExpr.push(code, normToColor(r.norm, inverted));
     });
     matchExpr.push('transparent');
-    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr);
+    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr as unknown as maplibregl.ExpressionSpecification);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charger arrêts de transport pour la vue courante ───────────────────────
@@ -1273,16 +1270,19 @@ export default function MapPage() {
     // Afficher les isochrones bruts (rings) — couvre cache hit et ORS path.
     // La bataille (ST_Difference) n'est déclenchée que sur clic du bouton BATAILLE.
     if (battleData!.battleGeoJSON?.features?.length > 0) {
-      const rawRings = (battleData!.battleGeoJSON.features as any[])
-        .filter((f: any) => f?.geometry)
-        .map((f: any) => ({
-          cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
-          nom:      String(f.properties?.nom ?? ''),
-          lat:      Number(f.properties?.lat ?? 0),
-          lng:      Number(f.properties?.lng ?? 0),
-          palier:   Number(f.properties?.palier ?? 0),
-          geojson:  f.geometry,
-        }));
+      const rawRings = (battleData!.battleGeoJSON.features as GeoJSON.Feature[])
+        .filter((f) => !!f?.geometry)
+        .map((f) => {
+          const props = (f.properties ?? {}) as Record<string, unknown>;
+          return {
+            cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+            nom:      String(props.nom ?? ''),
+            lat:      Number(props.lat ?? 0),
+            lng:      Number(props.lng ?? 0),
+            palier:   Number(props.palier ?? 0),
+            geojson:  f.geometry as object,
+          };
+        });
       mapLayers.clearBattlePartialRings();
       mapLayers.addBattlePartialRings(rawRings);
       setBattleFeatures(battleData!.battleGeoJSON.features);
@@ -1291,8 +1291,8 @@ export default function MapPage() {
     let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = battleData!.poisForMap ?? [];
     if (poisForMap.length === 0 && battleData!.battleGeoJSON?.features?.length > 0) {
       const poisSeen = new Set<string>();
-      for (const f of battleData!.battleGeoJSON.features as any[]) {
-        const p = f?.properties ?? {};
+      for (const f of battleData!.battleGeoJSON.features as GeoJSON.Feature[]) {
+        const p = (f?.properties ?? {}) as Record<string, unknown>;
         const cid = String(p.cirfa_id ?? p.id ?? '');
         const lat = Number(p.lat), lng = Number(p.lng);
         if (cid && !poisSeen.has(cid) && !isNaN(lat) && !isNaN(lng) && lat && lng) {
@@ -1303,10 +1303,11 @@ export default function MapPage() {
     }
     if (battleData!.battleCacheKey) setBattleCacheKey(battleData!.battleCacheKey);
     if (poisForMap.length > 0) {
-      setBattlePois(poisForMap as any[]);
+      const poisAsPOI: POI[] = poisForMap.map(p => ({ ...p, categorie: p.categorie ?? params.category }));
+      setBattlePois(poisAsPOI);
       setZoneData({
         coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
-        pois: poisForMap as any[],
+        pois: poisAsPOI,
         nb_pois: poisForMap.length,
         categories: { [params.category]: poisForMap.length },
         couleur_overrides: {},
@@ -1340,16 +1341,22 @@ export default function MapPage() {
     const geometry  = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
     const poiGroups = [...groupMap.entries()].map(([id, { nom, geoms }]) => ({ id, nom, geometries: geoms }));
     // Convertir les ring features en RingEntry pour le bouton BATAILLE (Phase 2)
-    const battleRings = (battleData!.battleGeoJSON?.features ?? [])
-      .filter((f: any) => f?.properties?.feature_type === 'ring' && f?.geometry)
-      .map((f: any) => ({
-        cirfa_id: String(f.properties.cirfa_id ?? f.properties.id ?? ''),
-        nom:      String(f.properties.nom ?? ''),
-        lat:      Number(f.properties.lat ?? 0),
-        lng:      Number(f.properties.lng ?? 0),
-        palier:   Number(f.properties.palier ?? 0),
-        geojson:  JSON.stringify(f.geometry),
-      }));
+    const battleRings = ((battleData!.battleGeoJSON?.features ?? []) as GeoJSON.Feature[])
+      .filter((f) => {
+        const ft = (f?.properties as Record<string, unknown> | null)?.feature_type;
+        return ft === 'ring' && !!f?.geometry;
+      })
+      .map((f) => {
+        const props = (f.properties ?? {}) as Record<string, unknown>;
+        return {
+          cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+          nom:      String(props.nom ?? ''),
+          lat:      Number(props.lat ?? 0),
+          lng:      Number(props.lng ?? 0),
+          palier:   Number(props.palier ?? 0),
+          geojson:  JSON.stringify(f.geometry),
+        };
+      });
     return { geometry, nb_pois: battleData!.nb_pois ?? 0, poiGroups, battleRings };
   };
 
@@ -1390,35 +1397,42 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: any;
-          try { evt = JSON.parse(line); } catch { continue; }
+          let evt: Record<string, unknown>;
+          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
           if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue').slice(0, 200));
-          if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
-            mapLayers.addBattlePartialRings(evt.rings);
-            onProgress?.(`> ◆ +${evt.rings.length} isochrones sur la carte`);
+          if (evt.type === 'partial_rings' && Array.isArray(evt.rings) && evt.rings.length > 0) {
+            mapLayers.addBattlePartialRings(evt.rings as Parameters<typeof mapLayers.addBattlePartialRings>[0]);
+            onProgress?.(`> ◆ +${(evt.rings as unknown[]).length} isochrones sur la carte`);
           } else if (evt.type === 'pois_loaded') {
             onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
           } else if (evt.type === 'progress') {
             if (evt.status === 'bataille_postgis') {
               onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
             } else {
-              const pct    = Math.round((evt.completed / evt.total) * 100);
-              const errInfo = evt.err > 0 ? ` (${evt.err} erreurs ORS)` : '';
-              onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%${errInfo}`);
+              const completed = Number(evt.completed ?? 0);
+              const total = Number(evt.total ?? 1);
+              const pct    = Math.round((completed / total) * 100);
+              const errCount = Number(evt.err ?? 0);
+              const errInfo = errCount > 0 ? ` (${errCount} erreurs ORS)` : '';
+              onProgress?.(`> ${completed}/${total} POIs traités — ${pct}%${errInfo}`);
             }
           }
           // result: on affiche juste les rings finaux si disponibles (pas de setZoneData)
-          if (evt.type === 'result' && evt.data?.battleGeoJSON?.features?.length > 0) {
-            const rawRings = (evt.data.battleGeoJSON.features as any[])
-              .filter((f: any) => f?.geometry)
-              .map((f: any) => ({
-                cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
-                nom:      String(f.properties?.nom ?? ''),
-                lat:      Number(f.properties?.lat ?? 0),
-                lng:      Number(f.properties?.lng ?? 0),
-                palier:   Number(f.properties?.palier ?? 0),
-                geojson:  f.geometry,
-              }));
+          const evtData = evt.data as { battleGeoJSON?: { features?: GeoJSON.Feature[] } } | undefined;
+          if (evt.type === 'result' && evtData?.battleGeoJSON?.features && evtData.battleGeoJSON.features.length > 0) {
+            const rawRings = (evtData.battleGeoJSON.features as GeoJSON.Feature[])
+              .filter((f) => !!f?.geometry)
+              .map((f) => {
+                const props = (f.properties ?? {}) as Record<string, unknown>;
+                return {
+                  cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+                  nom:      String(props.nom ?? ''),
+                  lat:      Number(props.lat ?? 0),
+                  lng:      Number(props.lng ?? 0),
+                  palier:   Number(props.palier ?? 0),
+                  geojson:  f.geometry as object,
+                };
+              });
             mapLayers.clearBattlePartialRings();
             mapLayers.addBattlePartialRings(rawRings);
           }
@@ -1468,21 +1482,22 @@ export default function MapPage() {
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         if (!line.trim()) continue;
-        let evt: any;
-        try { evt = JSON.parse(line); } catch { continue; }
+        let evt: Record<string, unknown>;
+        try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
         if (evt.type === 'error') {
           setError(`Bataille — ${evt.message}`);
-          throw new Error(evt.message);
+          throw new Error(String(evt.message ?? 'Erreur inconnue'));
         }
         if (evt.type === 'progress') {
-          onProgress?.(evt.message, PCT[evt.step] ?? 50);
+          onProgress?.(String(evt.message ?? ''), PCT[String(evt.step ?? '')] ?? 50);
         }
         if (evt.type === 'result') {
-          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', evt.battleGeoJSON?.features?.length);
+          const battleGeo = evt.battleGeoJSON as { features?: GeoJSON.Feature[] } | undefined;
+          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', battleGeo?.features?.length);
           onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
-          if (evt.battleGeoJSON?.features?.length > 0) {
-            mapLayers.applyIsochroneBattle(evt.battleGeoJSON, evt.battleBorders ?? null, category, poisForMap);
-            setBattleFeatures(evt.battleGeoJSON.features);
+          if (battleGeo?.features && battleGeo.features.length > 0) {
+            mapLayers.applyIsochroneBattle(battleGeo as { type: string; features: GeoJSON.Feature[] }, (evt.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null, category, poisForMap);
+            setBattleFeatures(battleGeo.features);
           }
         }
       }
@@ -1509,7 +1524,12 @@ export default function MapPage() {
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let data: any;
+      type BattleV2Result = {
+        error?: string;
+        battleGeoJSON?: { type: string; features: GeoJSON.Feature[] };
+        poisForMap?: POI[];
+      };
+      let data: BattleV2Result | undefined;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1518,10 +1538,10 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: any;
-          try { evt = JSON.parse(line); } catch { continue; }
-          if (evt.type === 'error') throw new Error(evt.message ?? 'Erreur inconnue');
-          if (evt.type === 'result') { data = evt.data; continue; }
+          let evt: Record<string, unknown>;
+          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
+          if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue'));
+          if (evt.type === 'result') { data = evt.data as BattleV2Result; continue; }
           if (evt.type === 'warning') onProgress?.(`> ! ${evt.message}`);
           else if (evt.type === 'pois_loaded')  onProgress?.(`> ${evt.total} POIs chargés`);
           else if (evt.type === 'rings_loaded') onProgress?.(`> ${evt.count} anneaux en cache (${evt.missing} manquants)`);
@@ -1533,7 +1553,7 @@ export default function MapPage() {
       if (data.error) throw new Error(data.error);
 
       // Afficher le résultat sur la carte
-      if (data.battleGeoJSON?.features?.length > 0) {
+      if (data.battleGeoJSON?.features && data.battleGeoJSON.features.length > 0) {
         mapLayers.applyIsochroneBattle(data.battleGeoJSON, null, params.category, data.poisForMap);
         setBattleFeatures(data.battleGeoJSON.features);
       }

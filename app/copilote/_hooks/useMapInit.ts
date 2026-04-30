@@ -117,7 +117,7 @@ export function useMapInit(
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: (mapStyleUrl ?? MAP_STYLE) as any,
+      style: mapStyleUrl ?? MAP_STYLE,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
     });
