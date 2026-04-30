@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { adminFetch } from '@/lib/admin-fetch';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -143,6 +144,31 @@ export function StrategyHeader({
             disabled={busy !== null}
             onClick={() => callBidding('detect-drift', 'detect-drift')}
           />
+        </div>
+
+        <div style={{ display: 'flex', gap: 4, marginLeft: 8, paddingLeft: 8, borderLeft: '0.5px solid rgba(255,255,255,0.08)' }}>
+          <Link
+            href={`/strategies/${strategyId}/edit`}
+            style={{
+              padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+              background: 'transparent', color: 'var(--text-secondary)',
+              border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+              textDecoration: 'none', whiteSpace: 'nowrap',
+            }}
+          >
+            Éditer
+          </Link>
+          <Link
+            href={`/strategies/${strategyId}/history`}
+            style={{
+              padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+              background: 'transparent', color: 'var(--text-tertiary)',
+              border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+              textDecoration: 'none', whiteSpace: 'nowrap',
+            }}
+          >
+            Historique
+          </Link>
         </div>
       </div>
 
