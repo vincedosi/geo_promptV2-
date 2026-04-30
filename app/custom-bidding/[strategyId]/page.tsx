@@ -13,6 +13,8 @@ import { KpiDeltaCards } from './_components/KpiDeltaCards';
 import { PlayControls } from './_components/PlayControls';
 import { ChoroplethSplit } from './_components/ChoroplethSplit';
 import { ComparisonTimeline } from './_components/ComparisonTimeline';
+import { useAgent } from '@/app/_components/agent';
+import { Sparkles } from 'lucide-react';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -224,10 +226,88 @@ export default function CustomBiddingDetailPage() {
         driftDates={driftDates}
       />
 
+      {drifts.length > 0 && (
+        <DriftEventsList drifts={drifts} strategyId={strategyId as string} />
+      )}
+
       <footer style={{ padding: '20px 24px', fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary, #666)', borderTop: '0.5px solid var(--border-subtle, #1a1a1a)', marginTop: 16 }}>
         Modèle de simulation linéaire (x_sim = x_real × bid_multiplier). Approximation contrefactuelle — cf docs A4.2.
         Algorithme actif : <span style={{ color: 'var(--text-secondary, #a0a0a0)' }}>{meta.active_model?.model_version ?? meta.strategy.algorithm_code}</span>
       </footer>
     </div>
+  );
+}
+
+const SEV_COLORS: Record<DriftEvent['severity'], string> = {
+  low: '#5b9bd5',
+  medium: '#f7b731',
+  high: '#ff5757',
+};
+
+function DriftEventsList({ drifts, strategyId }: { drifts: DriftEvent[]; strategyId: string }) {
+  const agent = useAgent();
+  const sorted = [...drifts].sort((a, b) =>
+    a.detected_at < b.detected_at ? 1 : -1,
+  );
+  return (
+    <section style={{ padding: '0 16px 16px' }}>
+      <div style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '0.5px solid rgba(255,255,255,0.08)',
+        borderRadius: 8, padding: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <Sparkles size={12} style={{ color: 'var(--brand-teal, #4ecdc4)' }} />
+          <h2 style={{ margin: 0, fontSize: 12, fontFamily: fInter, fontWeight: 500, color: 'var(--text-primary, #f0f0f0)' }}>
+            Drift events ({drifts.length})
+          </h2>
+          <span style={{ fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary, #666)' }}>
+            cliquer « Analyser » pour ouvrir GeoAgent
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {sorted.map(d => (
+            <div
+              key={d.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '0.5px solid rgba(255,255,255,0.06)',
+                borderRadius: 6,
+              }}
+            >
+              <span style={{
+                fontFamily: fMono, fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                background: `${SEV_COLORS[d.severity]}1a`,
+                border: `0.5px solid ${SEV_COLORS[d.severity]}40`,
+                color: SEV_COLORS[d.severity],
+              }}>{d.severity}</span>
+              <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary, #666)' }}>
+                {isoDate(d.detected_at)}
+              </span>
+              <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary, #a0a0a0)' }}>
+                {d.drift_type} · {d.postal_code ?? 'global'}
+              </span>
+              <span style={{ flex: 1, fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary, #a0a0a0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {d.description ?? ''}
+              </span>
+              <button
+                onClick={() => agent.open({ drift_event_id: d.id, strategy_id: strategyId })}
+                style={{
+                  padding: '4px 10px', fontFamily: fInter, fontSize: 10, fontWeight: 500,
+                  background: 'rgba(78,205,196,0.08)', color: 'var(--brand-teal, #4ecdc4)',
+                  border: '0.5px solid var(--brand-teal, #4ecdc4)',
+                  borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Sparkles size={10} />
+                Analyser
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

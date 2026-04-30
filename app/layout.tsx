@@ -6,6 +6,7 @@ import { SplashScreen } from '@/components/ui/SplashScreen'
 import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 import { MainPadding } from '@/components/layout/MainPadding'
 import { TopRightChrome } from '@/components/layout/TopRightChrome'
+import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
 
 export const metadata: Metadata = {
   title: 'GEOMATIK — Geospatial intelligence',
@@ -48,9 +49,13 @@ export default function RootLayout({
         <ThemeProvider>
           <SplashScreen minDuration={2000} />
           <ToastProvider>
-            <AppSidebar />
-            <TopRightChrome />
-            <MainPadding>{children}</MainPadding>
+            <AgentProvider>
+              <AppSidebar />
+              <TopRightChrome />
+              <MainPadding>{children}</MainPadding>
+              <AgentTrigger />
+              <AgentPanel />
+            </AgentProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>
