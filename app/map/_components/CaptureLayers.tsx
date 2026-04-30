@@ -16,19 +16,32 @@
  *   - carreaux-filosofi    : RPC get_carreaux_capture_geometry (bbox + indicateur)
  *   - tmja-routes          : RPC get_tmja_capture_geometry (bbox + buffer 250m)
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
+import type { POI } from '@/types/poi';
 import type { ClusterGeoJSON } from './ClusterPanel';
+
+/** POI light embarqué dans la metadata du layer battle pour le mode "N zones individuelles". */
+export interface BattlePoiMeta {
+  poi_id: string;
+  poi_name: string;
+  lat: number;
+  lng: number;
+}
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
 
   // Battle isochrone
   battleCacheKey: string | null;
+  /** Features ring du battle_full (1 par POI x palier), pour extraction par POI. */
+  battleFeatures?: GeoJSON.Feature[];
+  /** Liste des POI du battle (id, nom, lat, lng, categorie). */
+  battlePois?: POI[];
 
   // Cluster POI (capture directe client-side)
   clusterGeoJSON: ClusterGeoJSON | null;
@@ -75,6 +88,8 @@ function readBbox(mapRef: React.MutableRefObject<MaplibreMap | null>): [number, 
 export function CaptureLayers({
   mapRef,
   battleCacheKey,
+  battleFeatures,
+  battlePois,
   clusterGeoJSON,
   clustersVisible,
   radioSelectedId,
@@ -97,13 +112,58 @@ export function CaptureLayers({
     return fetchGeometryFromRoute('/api/custom-geo/source/battle', { cache_keys: [battleCacheKey] });
   }, [battleCacheKey]);
 
+  // Liste POI dérivée pour la metadata. Source primaire : battlePois (POI[] hydraté
+  // par /map/page.tsx). Fallback : extraction depuis battleFeatures.properties si
+  // battlePois est vide (caches v3 sans poisForMap).
+  const poisMeta = useMemo<BattlePoiMeta[]>(() => {
+    if (battlePois && battlePois.length > 0) {
+      return battlePois.map(p => ({ poi_id: p.id, poi_name: p.nom, lat: p.lat, lng: p.lng }));
+    }
+    if (!battleFeatures || battleFeatures.length === 0) return [];
+    const seen = new Map<string, BattlePoiMeta>();
+    for (const f of battleFeatures) {
+      const props = (f.properties ?? {}) as Record<string, unknown>;
+      const id = String(props.id ?? props.cirfa_id ?? '');
+      if (!id || seen.has(id)) continue;
+      const lat = Number(props.lat);
+      const lng = Number(props.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      seen.set(id, { poi_id: id, poi_name: String(props.nom ?? id), lat, lng });
+    }
+    return Array.from(seen.values());
+  }, [battlePois, battleFeatures]);
+
+  // Catégorie + mode déduits — categorie depuis le 1er POI, mode parsé depuis cache_key
+  // (format `battle_full__<cat>__<mode>__...`). Sert à nommer les zones individuelles.
+  const battleCategory = useMemo<string | null>(() => {
+    if (battlePois && battlePois[0]?.categorie) return battlePois[0].categorie;
+    return null;
+  }, [battlePois]);
+
+  const battleMode = useMemo<string | null>(() => {
+    if (!battleCacheKey) return null;
+    const parts = battleCacheKey.split('__');
+    return parts.length >= 3 ? parts[2] : null;
+  }, [battleCacheKey]);
+
   useCustomGeoLayer({
     id: 'map-battle-isochrone',
     sourceType: 'isochrone_battle',
-    label: 'Battle isochrones',
+    label: poisMeta.length > 1
+      ? `Battle isochrones (${poisMeta.length} POI)`
+      : 'Battle isochrones',
     enabled: !!battleCacheKey,
     getGeometry: getBattleGeom,
-    metadata: { cache_key: battleCacheKey },
+    metadata: {
+      cache_key: battleCacheKey,
+      poi_count: poisMeta.length,
+      pois: poisMeta,
+      // battle_features sert au modal pour extraire la géométrie d'un POI
+      // (filter par properties.id puis union des paliers côté client).
+      battle_features: battleFeatures ?? [],
+      category: battleCategory,
+      mode: battleMode,
+    },
   });
 
   // ── Cluster POI (direct) ─────────────────────────────────────────────
@@ -185,15 +245,22 @@ export function CaptureLayers({
   });
 
   // ── Carreaux Filosofi (scope > bbox) ──────────────────────────────────
+  // zoom_level forcé à 14 : le RPC get_carreaux_by_zoom prend alors la branche
+  // "carreaux 200m natifs avec LIMIT" (rapide, GIST + LIMIT direct) au lieu de
+  // la branche zoom 8-13 (CTE regex sur idcar + GROUP BY sur tous les carreaux
+  // de la bbox = >20s sur bbox urbaine). La capture veut la précision 200m,
+  // donc la branche native est aussi la plus appropriée fonctionnellement.
   const getCarreauxGeom = useCallback((): Promise<ContributedGeometry> => {
     const bbox = readBbox(mapRef);
     if (!bbox || !carreauxIndicateur) return Promise.resolve(null);
-    const zoom = mapRef.current?.getZoom() ?? 10;
     return fetchGeometryFromRoute('/api/custom-geo/source/carreaux', {
       bbox,
-      zoom_level: Math.max(7, Math.min(18, Math.round(zoom))),
+      zoom_level: 14,
       indicateur: carreauxIndicateur,
-      max_rows: 5000,
+      // 1500 carreaux 200m = 60km² de couverture, suffisant pour la plupart
+      // des captures. Au-delà la réponse JSONB dépasse 2MB et déclenche le
+      // wrapper de cache fetch Next.js dev qui hang (cf. PROMPT.md logs).
+      max_rows: 1500,
       admin_scope: getActiveScope(),
     });
   }, [mapRef, carreauxIndicateur, getActiveScope]);

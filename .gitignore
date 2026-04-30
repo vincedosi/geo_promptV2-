@@ -43,3 +43,17 @@ public/data/
 
 # Données source volumineuses (INSEE, GTFS, etc.)
 data/
+
+# Python benchmark venv (chantier A4.2)
+scripts/benchmarking/.venv/
+scripts/benchmarking/.env
+scripts/benchmarking/__pycache__/
+scripts/benchmarking/**/__pycache__/
+*.pyc
+
+# Local-only artefacts (logs, screenshots de tests, MCP/skills caches)
+server.log
+.playwright-mcp/
+.claude/skills/agent-browser/
+# Screenshots de tests à la racine (ne touche pas aux PNG versionnés sous docs/assets/)
+/*.png

@@ -10,9 +10,10 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Save } from 'lucide-react';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
+import { retryImport } from '@/lib/dynamic-with-retry';
 
 const CustomGeoCaptureModal = dynamic(
-  () => import('./CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal })),
+  retryImport(() => import('./CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
   { ssr: false, loading: () => null }
 );
 

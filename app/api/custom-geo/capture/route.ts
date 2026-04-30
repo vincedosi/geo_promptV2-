@@ -92,9 +92,11 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Résoudre IRIS + CP
+  // Passe explicitement profile.id : la RPC est SECURITY DEFINER mais auth.uid()
+  // retourne NULL via service_role. Le user a déjà été validé par requireAuth.
   const { data: resolveData, error: resolveError } = await supabase.rpc(
     'resolve_custom_geo_zone_codes',
-    { p_zone_id: zoneId },
+    { p_zone_id: zoneId, p_caller_user_id: profile.id },
   );
 
   if (resolveError) {
@@ -106,9 +108,22 @@ export async function POST(request: NextRequest) {
   }
 
   const resolved = (resolveData ?? {}) as { count_iris?: number; count_cp?: number };
+
+  // 4. Calculer les stats audience (population, ménages, logements, revenus)
+  // Non-bloquant : si le calcul échoue (zone trop large, timeout) on retourne
+  // quand même la zone créée. Les stats peuvent être recalculées plus tard.
+  const { error: statsError } = await supabase.rpc(
+    'compute_zone_audience_stats',
+    { p_zone_id: zoneId, p_caller_user_id: profile.id },
+  );
+  if (statsError) {
+    console.warn('[custom-geo/capture] audience_stats', statsError.message);
+  }
+
   return NextResponse.json({
     zone_id: zoneId,
     count_iris: resolved.count_iris ?? 0,
     count_cp: resolved.count_cp ?? 0,
+    audience_computed: !statsError,
   });
 }

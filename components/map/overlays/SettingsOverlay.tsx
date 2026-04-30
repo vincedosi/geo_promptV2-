@@ -19,9 +19,10 @@ import type { LucideIcon } from 'lucide-react';
 import { COLORS, FONTS } from './_shared/styles';
 import dynamic from 'next/dynamic';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
+import { retryImport } from '@/lib/dynamic-with-retry';
 
 const CustomGeoCaptureModal = dynamic(
-  () => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal })),
+  retryImport(() => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
   { ssr: false, loading: () => null }
 );
 

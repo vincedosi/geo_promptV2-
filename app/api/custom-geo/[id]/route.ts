@@ -18,7 +18,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('custom_geo_zones')
-    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, bbox')
+    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, bbox, audience_stats, audience_computed_at')
     .eq('id', id)
     .single();
 

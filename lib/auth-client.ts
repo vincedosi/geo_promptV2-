@@ -30,6 +30,67 @@ interface Session {
   expiresAt: string;
 }
 
+// ---------- buildSession (sync, métadonnées immédiates) ----------
+// Construit la session avec les infos disponibles dans le JWT (email, metadata).
+// Le profil DB (role, organization_id) est enrichi APRÈS via fetchProfileEnrichment
+// pour éviter de bloquer l'affichage de l'email pendant la requête profiles.
+type SupaSessionLite = {
+  access_token: string;
+  expires_at?: number | null;
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null; email_confirmed_at?: string | null };
+};
+
+function buildSession(supaSession: SupaSessionLite): Session {
+  const u = supaSession.user;
+  const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
+  const metaName = (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? null;
+  const metaRole = (meta.role as string | undefined) ?? null;
+  const metaOrg = (meta.organization_id as string | undefined) ?? null;
+
+  return {
+    id: supaSession.access_token,
+    user: {
+      id: u.id,
+      email: u.email ?? "",
+      name: metaName,
+      role: metaRole ?? "user",
+      emailVerified: !!u.email_confirmed_at,
+      organizationId: metaOrg,
+    },
+    expiresAt: supaSession.expires_at
+      ? new Date(supaSession.expires_at * 1000).toISOString()
+      : new Date(Date.now() + 3600_000).toISOString(),
+  };
+}
+
+// Enrichit la session avec les données DB (role, organization_id, full_name).
+// RLS profiles_select autorise (id = auth.uid()). Si la requête échoue ou est
+// lente, on garde simplement les valeurs du JWT — l'UI ne reste jamais bloquée.
+async function fetchProfileEnrichment(userId: string): Promise<Partial<Session['user']> | null> {
+  try {
+    const sb = getBrowserClient();
+    const { data: profile, error } = await sb
+      .from('profiles')
+      .select('role, organization_id, full_name')
+      .eq('id', userId)
+      .single();
+    if (error) {
+      console.warn('[useSession] profiles fetch error', error);
+      return null;
+    }
+    if (!profile) return null;
+    const p = profile as { role?: string | null; organization_id?: string | null; full_name?: string | null };
+    return {
+      role: p.role ?? undefined,
+      organizationId: p.organization_id ?? undefined,
+      name: p.full_name ?? undefined,
+    };
+  } catch (e) {
+    console.warn('[useSession] profiles fetch exception', e);
+    return null;
+  }
+}
+
 // ---------- useSession ----------
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);
@@ -37,27 +98,31 @@ export function useSession() {
 
   useEffect(() => {
     const sb = getBrowserClient();
+    let cancelled = false;
+
+    // Helper : pose la session immédiatement (email visible) puis enrichit
+    // le profil DB (role, org) en background. Ne bloque jamais isLoading
+    // sur la requête profiles — sinon le badge user reste sur "..." si la
+    // DB est lente ou si profiles_select fail.
+    const applySession = (supaSession: SupaSessionLite) => {
+      const base = buildSession(supaSession);
+      if (!cancelled) {
+        setSession(base);
+        setIsLoading(false);
+      }
+      void fetchProfileEnrichment(supaSession.user.id).then(enrich => {
+        if (cancelled || !enrich) return;
+        setSession(prev => prev ? { ...prev, user: { ...prev.user, ...enrich } } : prev);
+      });
+    };
 
     // Initial check
     sb.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
-        const u = data.session.user;
-        setSession({
-          id: data.session.access_token,
-          user: {
-            id: u.id,
-            email: u.email ?? "",
-            name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
-            role: u.user_metadata?.role ?? u.role ?? "user",
-            emailVerified: !!u.email_confirmed_at,
-            organizationId: u.user_metadata?.organization_id ?? null,
-          },
-          expiresAt: data.session.expires_at
-            ? new Date(data.session.expires_at * 1000).toISOString()
-            : new Date(Date.now() + 3600_000).toISOString(),
-        });
+        applySession(data.session);
+      } else if (!cancelled) {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // Listen for auth changes
@@ -65,28 +130,17 @@ export function useSession() {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_event, supaSession) => {
       if (supaSession?.user) {
-        const u = supaSession.user;
-        setSession({
-          id: supaSession.access_token,
-          user: {
-            id: u.id,
-            email: u.email ?? "",
-            name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
-            role: u.user_metadata?.role ?? u.role ?? "user",
-            emailVerified: !!u.email_confirmed_at,
-            organizationId: u.user_metadata?.organization_id ?? null,
-          },
-          expiresAt: supaSession.expires_at
-            ? new Date(supaSession.expires_at * 1000).toISOString()
-            : new Date(Date.now() + 3600_000).toISOString(),
-        });
-      } else {
+        applySession(supaSession);
+      } else if (!cancelled) {
         setSession(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return { session, isLoading };

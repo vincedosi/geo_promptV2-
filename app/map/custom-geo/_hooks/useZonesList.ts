@@ -19,7 +19,10 @@ export function useZonesList(params: {
       const sp = new URLSearchParams({ org_id: params.orgId });
       if (params.sourceType) sp.set('source_type', params.sourceType);
       if (params.searchQuery) sp.set('q', params.searchQuery);
-      const res = await adminFetch(`/api/custom-geo/list?${sp}`);
+      // Cache-buster timestamp + cache: 'no-store' — court-circuite TOUS les
+      // caches (navigateur, Service Worker, wrapper fetch Next.js).
+      sp.set('_t', String(Date.now()));
+      const res = await adminFetch(`/api/custom-geo/list?${sp}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setZones(data.zones ?? []);
@@ -35,6 +38,13 @@ export function useZonesList(params: {
     debounceRef.current = setTimeout(fetchZones, params.searchQuery ? 200 : 0);
     return () => clearTimeout(debounceRef.current);
   }, [fetchZones, params.searchQuery]);
+
+  // Refetch au retour de focus (user revient sur l'onglet → liste à jour)
+  useEffect(() => {
+    const onFocus = () => fetchZones();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchZones]);
 
   return { zones, loading, error, refetch: fetchZones };
 }

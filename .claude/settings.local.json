@@ -43,7 +43,8 @@
       "Bash(mkdir -p /tmp)",
       "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-test.json','utf8'\\)\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first feature:', JSON.stringify\\(d.geojson?.features?.[0]?.properties\\)\\); }\")",
       "Bash(node -e \"const fs=require\\('fs'\\); const raw=fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-small.json','utf8'\\); if\\(raw.startsWith\\('<'\\)\\){console.log\\('HTML page returned \\(404\\)'\\)} else { const d=JSON.parse\\(raw\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first 3 features:', JSON.stringify\\(d.geojson?.features?.slice\\(0,3\\)?.map\\(f=>f.properties\\)\\)\\); } }\")",
-      "Bash(taskkill //IM node.exe //F)"
+      "Bash(taskkill //IM node.exe //F)",
+      "Bash(claude mcp *)"
     ]
   }
 }

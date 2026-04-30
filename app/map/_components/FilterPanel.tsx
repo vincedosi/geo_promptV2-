@@ -714,10 +714,16 @@ export function FilterPanel({
       }
     } catch { /* ignore */ }
   };
-  const fetchCategories = (forceRefresh = false) => {
+  // Fetch catégories avec retry auto (1 retry après 800ms) — couvre le cas
+  // HMR/restart dev où le 1er appel arrive avant que le serveur soit prêt.
+  // cache: 'no-store' évite que Next.js dev serve une réponse cachée stale.
+  const fetchCategories = (forceRefresh = false, isRetry = false) => {
     setCatsLoading(true);
     setCatsError(null);
-    fetch(forceRefresh ? '/api/map/categories?refresh=1' : '/api/map/categories')
+    fetch(
+      forceRefresh ? '/api/map/categories?refresh=1' : '/api/map/categories',
+      { cache: 'no-store' },
+    )
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -729,11 +735,19 @@ export function FilterPanel({
               ? { id: c, label: c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ') }
               : c
           ));
+          setCatsError(null);
         } else {
           setCatsError(data.error ?? 'Réponse inattendue');
         }
       })
-      .catch((err: Error) => setCatsError(err.message))
+      .catch((err: Error) => {
+        // Retry automatique 1 fois après 800ms si pas déjà un retry
+        if (!isRetry) {
+          setTimeout(() => fetchCategories(forceRefresh, true), 800);
+          return;
+        }
+        setCatsError(err.message);
+      })
       .finally(() => setCatsLoading(false));
   };
   useEffect(() => { fetchCategories(); }, []);
@@ -1886,7 +1900,9 @@ export function FilterPanel({
                   style={{ background: 'none', border: 'none', color: catsLoading ? C.muted : C.textDim, cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
                 >{catsLoading ? '…' : '↻'}</button>
               </div>
-              {catsError && (
+              {/* Affiche l'erreur SEULEMENT si on n'a aucune catégorie chargée
+                  (sinon c'est un refresh raté non bloquant — la liste reste utilisable) */}
+              {catsError && poiTypes.length === 0 && (
                 <div style={{ fontFamily: fMono, fontSize: 10, color: C.red, marginBottom: 4 }}>
                   ! Erreur chargement catégories : {catsError} — <button onClick={() => fetchCategories(true)} style={{ background: 'none', border: 'none', color: C.amber, cursor: 'pointer', fontSize: 10, fontFamily: fMono, padding: 0 }}>réessayer</button>
                 </div>

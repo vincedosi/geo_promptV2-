@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { REGIONS_ADMIN } from '@/lib/geo/france-admin';
+import { useRefGeo } from '@/lib/geo/use-ref-geo';
 import {
   FEATURE_THEMES, FEATURE_PRESETS, FEATURE_LABELS,
   ALL_FEATURES, ALL_THEME_IDS, featureSelectionLabel,
@@ -32,6 +32,8 @@ const fLabel = "'Inter', sans-serif";
 
 // DROM-COM dept codes → excluded when metropolitaine = true
 const DROM_DEPTS = new Set(['971', '972', '973', '974', '975', '976']);
+// DROM-COM region INSEE codes (ref_regions.code_region) → excluded when metropolitaine = true
+const DROM_REGION_CODES = new Set(['01', '02', '03', '04', '06']);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface PoiTypeEntry { type: string; total: number; clustered: number; has_clusters: boolean; }
@@ -82,7 +84,11 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
 
   // Step 2 — Geo filter
   const [metropolitaine,   setMetropolitaine]    = useState(true);
-  const [selectedRegions,  setSelectedRegions]   = useState<string[]>([]);  // region IDs
+  // selectedRegions = codes INSEE (ref_regions.code_region : '53', '76', '84'...)
+  const [selectedRegions,  setSelectedRegions]   = useState<string[]>([]);
+  // Référentiel dynamique régions/départements (cache module-level, 1 fetch)
+  const { data: refGeo } = useRefGeo();
+  const REF_REGIONS = refGeo?.regions ?? [];
 
   // Step 3 — Params
   const [duration,         setDuration]          = useState(60);
@@ -171,9 +177,9 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
   // ── Helpers ──────────────────────────────────────────────────────────────
   function buildDepts(): string[] {
     if (selectedRegions.length === 0) return [];
-    return REGIONS_ADMIN
-      .filter(r => selectedRegions.includes(r.id))
-      .flatMap(r => r.depts.map(d => d.code))
+    return REF_REGIONS
+      .filter(r => selectedRegions.includes(r.code_region))
+      .flatMap(r => r.depts.map(d => d.code_dept))
       .filter(c => !metropolitaine || !DROM_DEPTS.has(c));
   }
 
@@ -356,10 +362,15 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
               Régions — laisser vide = toutes
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {REGIONS_ADMIN.filter(r => metropolitaine ? r.id !== 'dom' : true).map(r => {
-                const sel = selectedRegions.includes(r.id);
+              {REF_REGIONS.length === 0 && (
+                <div style={{ fontSize: 10, color: C.textDim, padding: '8px 0', fontFamily: fLabel }}>
+                  Chargement des régions…
+                </div>
+              )}
+              {REF_REGIONS.filter(r => !metropolitaine || !DROM_REGION_CODES.has(r.code_region)).map(r => {
+                const sel = selectedRegions.includes(r.code_region);
                 return (
-                  <button key={r.id} onClick={() => toggleRegion(r.id)} style={{
+                  <button key={r.code_region} onClick={() => toggleRegion(r.code_region)} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '7px 11px', borderRadius: 2, cursor: 'pointer',
                     background: sel ? C.accentDim : C.bgInput,
@@ -372,7 +383,7 @@ export function ClusteringWizard({ onClose, onJobStarted, onHighlight }: Cluster
                         border: `1px solid ${sel ? C.accent : C.muted}`,
                         background: sel ? C.accent : 'transparent', flexShrink: 0,
                       }} />
-                      <span style={{ fontSize: 11, color: sel ? C.text : C.muted }}>{r.nom}</span>
+                      <span style={{ fontSize: 11, color: sel ? C.text : C.muted }}>{r.nom_region}</span>
                     </div>
                     <span style={{ fontSize: 9, color: C.textDim }}>{r.depts.length} dép.</span>
                   </button>

@@ -9,7 +9,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 15;
+export const maxDuration = 45;
 
 const AdminScopeSchema = z
   .object({

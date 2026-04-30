@@ -17,8 +17,26 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import type { CaptureTransformation, ContributedGeometry, ContributedLayer } from '@/types/custom-geo';
 
+/** Forme attendue dans metadata du layer 'isochrone_battle' (cf. CaptureLayers).
+ *
+ * On enrichit `source_metadata` avec ces infos quand un layer battle est inclus
+ * dans la capture, pour que le Custom Bidding puisse proposer un pilotage par
+ * POI sur une zone fusionnée (1 row custom_geo_zones, géométrie unionée).
+ */
+interface BattleLayerMetadata {
+  cache_key: string | null;
+  poi_count: number;
+  pois: Array<{ poi_id: string; poi_name: string; lat: number; lng: number }>;
+  battle_features: GeoJSON.Feature[];
+  category: string | null;
+  mode: string | null;
+}
+
 /** Temps max de résolution d'une géométrie avant de la marquer en erreur. */
-const GETGEOMETRY_TIMEOUT_MS = 10_000;
+// Timeout client > maxDuration serveur. En dev, Next.js compile la route au
+// 1er appel + intercepte le fetch Supabase pour cache → 1ère req peut prendre
+// 30-40s. En prod, maxDuration=45s côté serveur.
+const GETGEOMETRY_TIMEOUT_MS = 50_000;
 
 /** Wrappe une promise avec un timeout — rejette si la promise pend trop. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -77,7 +95,7 @@ function computeBbox(geometries: GeoJSON.Geometry[]): [number, number, number, n
 
 export function CustomGeoCaptureModal({ onClose }: Props) {
   const { getAllEnabledLayers } = useCustomGeoCaptureContext();
-  const { session } = useSession();
+  const { session, isLoading: sessionLoading } = useSession();
   const { toast } = useToast();
   const orgId = session?.user?.organizationId ?? '';
 
@@ -181,6 +199,18 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
   }, [allGeometries]);
 
   const hasData = allGeometries.length > 0;
+
+  // Layer battle inclus dans la capture ? Sert à enrichir source_metadata avec
+  // la liste des POI (utile au Custom Bidding pour piloter par POI sur une zone
+  // fusionnée). Aucun changement de UX pour l'user — la zone reste 1 row.
+  const battleLayer = useMemo<{ layer: ContributedLayer; meta: BattleLayerMetadata } | null>(() => {
+    const c = validCollected.find(c => c.layer.sourceType === 'isochrone_battle');
+    if (!c) return null;
+    const m = (c.layer.metadata ?? {}) as Partial<BattleLayerMetadata>;
+    if (!Array.isArray(m.pois) || m.pois.length === 0) return null;
+    return { layer: c.layer, meta: m as BattleLayerMetadata };
+  }, [validCollected]);
+
   const canSubmit = !!name.trim() && hasData && !!orgId && !saving && !success && !resolving;
 
   const sourceType = validCollected.length === 1 ? validCollected[0].layer.sourceType : 'composite';
@@ -196,6 +226,28 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
         label: c.layer.label,
         metadata: c.layer.metadata ?? {},
       }));
+
+      // Si un layer battle multi-POI est inclus, on hisse les infos POI au
+      // top-level de source_metadata. Le Custom Bidding (futur) lira
+      // source_metadata.pois[] pour proposer un pilotage par POI sur la zone
+      // fusionnée. battle_features est volumineux (1 feature par POI×palier)
+      // → on l'exclut, seuls poi_id/poi_name/lat/lng sont gardés.
+      const battleEnrichment: Record<string, unknown> = {};
+      if (battleLayer) {
+        const { meta } = battleLayer;
+        const palierSet = new Set<number>();
+        for (const f of meta.battle_features) {
+          const palier = Number((f.properties as Record<string, unknown>)?.palier);
+          if (Number.isFinite(palier)) palierSet.add(palier);
+        }
+        battleEnrichment.cache_key = meta.cache_key;
+        battleEnrichment.category = meta.category;
+        battleEnrichment.mode = meta.mode;
+        battleEnrichment.paliers = Array.from(palierSet).sort((a, b) => a - b);
+        battleEnrichment.poi_count = meta.pois.length;
+        battleEnrichment.pois = meta.pois;
+      }
+
       const res = await adminFetch('/api/custom-geo/capture', {
         method: 'POST',
         body: JSON.stringify({
@@ -203,7 +255,10 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
           description: description.trim() || null,
           org_id: orgId,
           source_type: sourceType,
-          source_metadata: { contributing_layers: contributingLayers },
+          source_metadata: {
+            ...battleEnrichment,
+            contributing_layers: contributingLayers,
+          },
           geometries: allGeometries,
           transformation,
         }),
@@ -220,7 +275,7 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [canSubmit, name, description, orgId, sourceType, allGeometries, transformation, validCollected, onClose]);
+  }, [canSubmit, battleLayer, name, description, orgId, sourceType, allGeometries, transformation, validCollected, onClose]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose(); };
@@ -405,6 +460,32 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
             />
           </div>
 
+          {/* Aperçu POI quand un battle multi-POI est inclus — pour rappeler à l'user
+              que les infos POI seront stockées dans source_metadata pour le Custom Bidding. */}
+          {battleLayer && battleLayer.meta.poi_count > 1 && (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {battleLayer.meta.poi_count} POI inclus dans la zone
+              </div>
+              <div style={{
+                padding: '8px 10px', borderRadius: 4,
+                background: 'var(--bg-level-2)',
+                border: '0.5px solid var(--border-subtle)',
+                fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)',
+                maxHeight: 110, overflowY: 'auto', lineHeight: 1.6,
+              }}>
+                {battleLayer.meta.pois.map(p => (
+                  <div key={p.poi_id}>
+                    → <span style={{ color: 'var(--text-secondary)' }}>{p.poi_name}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-tertiary)' }}>
+                1 seule zone fusionnée — la liste des POI est conservée dans <span style={{ fontFamily: fMono }}>source_metadata.pois</span> pour le pilotage par POI.
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', marginBottom: 6 }}>
@@ -434,7 +515,9 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
           </div>
 
           {/* Errors / success */}
-          {!orgId && (
+          {/* N'affiche le warning org QUE si la session est chargée et qu'org est
+              vraiment absente — évite le faux warning pendant le buildSession async. */}
+          {!sessionLoading && !orgId && (
             <div style={{
               padding: '8px 12px', borderRadius: 4, fontSize: 12,
               background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)', color: 'var(--warning)',

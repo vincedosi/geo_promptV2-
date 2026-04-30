@@ -1,6 +1,7 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Search, X } from 'lucide-react';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -31,7 +32,24 @@ export function ZonesSidebar({ stats, statsLoading, sourceTypeFilter, onSourceTy
       background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       {/* Header */}
-      <div style={{ padding: '20px 16px 12px', borderBottom: '0.5px solid var(--border-subtle)' }}>
+      <div style={{ padding: '16px 16px 12px', borderBottom: '0.5px solid var(--border-subtle)' }}>
+        {/* Retour vers la carte */}
+        <Link
+          href="/map"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 8px', marginLeft: -8, marginBottom: 10,
+            borderRadius: 4, textDecoration: 'none',
+            fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)',
+            transition: 'color 150ms var(--ease-hover), background 150ms var(--ease-hover)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
+        >
+          <ArrowLeft size={12} />
+          Retour à la carte
+        </Link>
+
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12 }}>
           Zones personnalisees
         </div>
