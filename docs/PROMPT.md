@@ -1,106 +1,191 @@
-# Prompt Claude Code — Nettoyage GEOMATIK (one-shot)
+# Prompt Claude Code — Finitions cleanup MAGELIAN (one-shot)
 
-> À coller dans Claude Code depuis `C:\GENESIS\genesis_app` après `git checkout -b chore/cleanup-tech-debt && git commit -am "Backup avant nettoyage"`.
+> À coller dans Claude Code depuis `C:\GENESIS\genesis_app`. Branche en cours : `chore/cleanup-tech-debt`. Pré-requis : commit ou stash propre avant de lancer.
 
 ---
 
 ## Mission
 
-Le projet GEOMATIK a accumulé du code mort, des fichiers expérimentaux abandonnés, des composants dupliqués et de la dette technique après des dizaines d'itérations (IRIS pipeline, PMTiles, multi-agent router, scoring profiles, geodemographic clustering, WebLift, isochrone battle, DSP campaigns).
+Finir les 3 chantiers laissés ouverts par le cleanup précédent (cf. `CLEANUP_REPORT.md`) :
 
-**Objectif :** rendre la base propre et maintenable pour qu'un futur dev puisse reprendre le projet avec **un minimum de friction**. Tu fais le travail **en autonomie complète**, sans me demander de validation intermédiaire. Tu commits au fur et à mesure et tu me rends un rapport final.
+1. **Finition du renommage GEOMATIK → MAGELIAN** (le nouveau nom du projet)
+2. **Page `/admin/filosofi-import`** cassée pré-cleanup → kill ou flag
+3. **Validation des findings Supabase** (drops candidats) → préparation d'un script SQL READ-ONLY de vérification + script de drop prêt-à-coller, **sans aucune exécution destructive**
 
-**Stack :** Next.js 14 (App Router), TypeScript strict, Supabase (PostgreSQL + PostGIS) + RLS, MapLibre GL JS, PMTiles, Vercel AI SDK (Gemini 2.5 Flash / Mistral Small).
+Tu fais le travail **en autonomie complète**. Commits atomiques. Build vert à la fin. Rapport final.
 
 ---
 
-## Règles dures (ZÉRO TOLÉRANCE)
+## Règles dures
 
-**NE JAMAIS TOUCHER :**
-- `app/api/isochrone-battle/route.ts` et toute fonction PostGIS battle (`get_isochrone_battle_v10`, etc.)
-- Les RPC PostGIS de prod : `compute_panneau_scores_v2`, `refresh_ville_stats_chunk`
-- Les migrations dans `supabase/migrations/` (déjà appliquées en prod)
-- Les fichiers de config racine : `next.config.js`, `tsconfig.json`, `package.json` (sauf retrait de dépendances mortes — voir §5)
-- Le scope métier : GEOMATIK est **digital** (DSP, impressions, audience digitale). Ne jamais réintroduire de cadrage OOH/affichage extérieur dans la doc ou les noms.
+**NE JAMAIS :**
+- Exécuter de `DROP TABLE`, `DROP FUNCTION`, `ALTER TABLE ... DROP COLUMN` via le MCP Supabase ou autrement
+- Toucher à `app/api/isochrone-battle/route.ts`, aux RPC battle (`get_isochrone_battle_v10`), à `compute_panneau_scores_v2`, `refresh_ville_stats_chunk`
+- Toucher aux migrations dans `supabase/migrations/`
+- Réintroduire un cadrage OOH/affichage extérieur dans la doc ou les noms
 
 **TOUJOURS :**
-- Travailler en commits atomiques avec messages clairs (`chore(cleanup): remove unused IRIS legacy parser`)
-- Lancer `npm run build` après chaque batch significatif. Si ça casse → rollback immédiat du commit fautif et continue avec le reste.
-- Préserver toutes les fonctionnalités utilisateur actuellement en marche.
+- Commits atomiques avec messages clairs (`refactor(brand): rename GEOMATIK to MAGELIAN`)
+- `npm run build` après chaque batch significatif. Si ça casse → rollback immédiat du commit fautif.
 
 ---
 
-## Le travail à faire
+## Phase 1 — Rename GEOMATIK → MAGELIAN (autonome, destructif côté code only)
 
-### 1. Code mort
+### 1.1 Fichiers résiduels identifiés
 
-Supprimer :
-- Imports inutilisés, variables non assignées, exports jamais consommés (utilise `npx ts-prune` et `npx knip` si dispo)
-- Fonctions / hooks / classes / composants jamais appelés dans le graphe d'imports
-- Routes API (`app/api/**/route.ts`) non référencées par le front (croise avec les `fetch()`, `useSWR`, `useChat`, `adminFetch` côté client)
-- Pages (`app/**/page.tsx`) orphelines qui ne sont plus liées dans la nav ni dans aucun lien interne
-- Branches mortes : `if (false)`, feature flags toujours à la même valeur, code derrière des conditions impossibles
-- Code commenté qui ressemble à de vieux tests / vieilles versions (les commentaires explicatifs **utiles** restent)
+- `lib/map/geomatik-style.ts` → `lib/map/magelian-style.ts` (renomme le fichier + tous ses imports)
+- `public/geomatik-icon.svg` → `public/magelian-icon.svg` (renomme + toutes les références dans le code)
 
-Pour les **fichiers entiers** que tu supprimes, liste-les dans le rapport final avec une ligne d'explication chacun.
+### 1.2 Grep récursif
 
-### 2. Dette technique
+Lance un grep insensible à la casse sur **tout le repo** (hors `node_modules`, `.next`, `.git`, `dist`, `build`) pour les chaînes :
+- `GEOMATIK`, `Geomatik`, `geomatik`
+- Toutes occurrences à remplacer par `MAGELIAN`, `Magelian`, `magelian` respectivement
 
-- Simplifier les fonctions > 80 lignes ou > 4 niveaux d'imbrication
-- Dédupliquer la logique copiée-collée (zones probables : `lib/clustering/`, `lib/import/`, `lib/iris-crawler/`, gestion des erreurs API)
-- Uniformiser :
-  - Nommage des fichiers en kebab-case
-  - Signatures des handlers API et format des erreurs (`ApiError` standardisé depuis `types/api.ts`)
-  - Conventions d'export (default vs named — choisis une convention par type de fichier et applique-la)
-- Tightening TypeScript :
-  - Remplacer les `any` triviaux par des types précis
-  - Supprimer les `// @ts-ignore` / `// @ts-expect-error` qui ne sont plus nécessaires
-  - Vérifier les `"use client"` manquants ou superflus
+Zones à scanner explicitement :
+- Code source : `.ts`, `.tsx`, `.js`, `.jsx`, `.css`, `.scss`
+- Doc : `.md` (incl. `ARCHITECTURE.md`, `README.md`, `DESIGN_SYSTEM.md`, `CLAUDE.md`, `CLEANUP_REPORT.md`)
+- SQL : `.sql` (commentaires uniquement, pas de schéma applicatif)
+- Config : `package.json` (champ `name`, `description`), `next.config.js` (constantes), `manifest.json` si présent
+- HTML/meta : `app/layout.tsx` (title, meta description, OG tags), `app/icon.*`, `app/apple-icon.*`, `public/manifest.webmanifest`
+- Copys UI : labels, placeholders, toasts, alerts, system prompts du copilote (`lib/chat/system-prompt.ts`)
+- Commentaires de code (oui, même les `// GEOMATIK: ...`)
+- Variables d'env documentées dans `.env.example` (préfixes `GEOMATIK_*` éventuels)
 
-### 3. Doublons SQL
+### 1.3 Cas à NE PAS toucher
 
-- Identifier les migrations dans `sql/archive/` qui sont des doublons de celles dans `supabase/migrations/`
-- Garder `sql/archive/` mais nettoyer les vrais doublons exacts si tu en trouves
-- **Ne pas toucher à `supabase/migrations/`**
+- **Tables Supabase** dont le nom contient `geomatik` (changer le nom d'une table en prod = casse) → laisser tel quel, juste flagger dans le rapport
+- **Buckets Supabase Storage** : pareil, flagger sans renommer
+- **Branches Git, tags, anciens commits** : intouchables
+- **Le repo GitHub `vincedosi/geo_promptV2-`** : pas de rename automatique
+- **`CLEANUP_REPORT.md`** historique : tu le laisses tel quel, c'est l'archive
 
-### 4. Documentation & lisibilité
+### 1.4 Livrable Phase 1
 
-- Renommer les variables / fonctions obscures (`data2`, `tmp`, `handleClick3`, `result`, `obj`)
-- Ajouter des **JSDoc courts** (3–5 lignes max) au-dessus :
-  - Des handlers de routes API (params, retour, side effects)
-  - Des fonctions exportées de `lib/` non triviales
-  - Des composants principaux avec leurs props
-- Mettre à jour `ARCHITECTURE.md` si la structure de dossiers a changé suite à ton nettoyage
-- S'assurer que `ARCHITECTURE.md`, `README.md`, `DESIGN_SYSTEM.md`, `CLAUDE.md` ne contiennent **aucune mention OOH/affichage extérieur résiduelle** — tout doit être cadré digital
+Un commit (ou 2-3 max si la diff est massive) : `refactor(brand): finish GEOMATIK to MAGELIAN rename`
 
-### 5. Dépendances mortes
+---
 
-- Lister les packages de `package.json` qui ne sont importés nulle part (utilise `depcheck` ou équivalent)
-- **Désinstaller uniquement** ceux qui sont 100% sûrs (pas un peer dep, pas un loader Next/Webpack implicite). Dans le doute, tu listes mais tu ne désinstalles pas.
+## Phase 2 — Page `/admin/filosofi-import`
 
-### 6. Schéma Supabase (rapport seulement, pas d'action)
+### 2.1 Diagnostic
 
-- Liste dans le rapport final les tables jamais lues/écrites par le code applicatif
-- Liste les colonnes apparemment orphelines des tables actives
-- **Tu ne lances aucune migration de suppression** — c'est juste pour que je décide ensuite
+- Trouve la page (`app/admin/filosofi-import/**`)
+- Identifie l'endpoint qu'elle appelle et qui n'existe pas
+- Vérifie si elle est référencée depuis :
+  - La nav admin
+  - Un autre lien interne (`<Link href="/admin/filosofi-import" ...>`)
+  - Une redirection ou un middleware
+
+### 2.2 Décision automatique
+
+- **Si aucune référence active dans le code** ET **endpoint backend inexistant** : tu **supprimes la page** (et son dossier complet, ses sous-composants si exclusifs, ses imports cassés)
+- **Si référencée quelque part** : tu **ne supprimes pas**, tu ajoutes un `// TODO(filosofi-import): page cassée pré-cleanup, endpoint manquant — décider fix vs remove` au-dessus du composant et tu flagges dans le rapport
+
+### 2.3 Livrable Phase 2
+
+Commit : `chore(admin): remove broken filosofi-import page` ou `chore(admin): flag broken filosofi-import page for decision`
+
+---
+
+## Phase 3 — Validation findings Supabase (READ-ONLY)
+
+### 3.1 Findings à vérifier
+
+Depuis `CLEANUP_REPORT.md` :
+- Tables candidates au drop : `isochrone_carreaux_coverage`, `laposte_hexasmal`
+- RPCs candidates au drop : `get_iris_geojson_by_bbox`, `get_iris_geojson_by_codes`
+
+### 3.2 Vérifications via MCP Supabase (lecture seule)
+
+Pour **chaque table candidate**, exécute via le MCP Supabase :
+
+```sql
+-- 1. Cherche les RPCs/fonctions qui référencent la table
+SELECT n.nspname AS schema, p.proname AS function_name
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE pg_get_functiondef(p.oid) ILIKE '%<TABLE_NAME>%'
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema');
+
+-- 2. Cherche les vues qui référencent la table
+SELECT schemaname, viewname
+FROM pg_views
+WHERE definition ILIKE '%<TABLE_NAME>%'
+  AND schemaname NOT IN ('pg_catalog', 'information_schema');
+
+-- 3. Cherche les triggers liés
+SELECT event_object_schema, event_object_table, trigger_name
+FROM information_schema.triggers
+WHERE event_object_table = '<TABLE_NAME>';
+
+-- 4. Stats d'usage récent (lecture seule)
+SELECT relname, n_live_tup, n_tup_ins, n_tup_upd, n_tup_del, last_vacuum, last_autovacuum
+FROM pg_stat_user_tables
+WHERE relname = '<TABLE_NAME>';
+```
+
+Pour **chaque RPC candidate**, vérifie côté code applicatif (grep récursif TS) :
+```
+supabase.rpc('get_iris_geojson_by_bbox'
+supabase.rpc('get_iris_geojson_by_codes'
+```
+
+### 3.3 Décision
+
+Pour chaque candidat, classe-le dans une de ces 3 catégories :
+- ✅ **SAFE TO DROP** : zéro référence côté SQL (pas de fonction, vue, trigger qui le référence) ET zéro référence côté code
+- ⚠️ **REVIEW NEEDED** : référencé par au moins une RPC/vue → besoin de Vince pour décider
+- ❌ **KEEP** : usage actif détecté (RPC critique, écritures récentes via stats, ou référence côté code TS)
+
+### 3.4 Livrable Phase 3
+
+Génère un fichier `sql/cleanup/DROPS_PROPOSED.sql` à la racine, structuré comme suit :
+
+```sql
+-- =============================================================
+-- DROPS PROPOSÉS APRÈS CLEANUP MAGELIAN
+-- Généré le : <DATE ISO>
+-- À EXÉCUTER MANUELLEMENT après revue par Vincent
+-- Faire un backup Supabase avant !
+-- =============================================================
+
+-- ✅ SAFE TO DROP (0 référence détectée)
+-- <pour chaque item safe>
+-- Justification: <résumé des checks faits>
+DROP TABLE IF EXISTS public.<table_name>;
+-- ou
+DROP FUNCTION IF EXISTS public.<function_name>(<signature>);
+
+-- ⚠️ REVIEW NEEDED (référencé, à confirmer avec Vincent)
+-- <pour chaque item review>
+-- Référencé par : <liste des RPCs/vues qui pointent dessus>
+-- DROP TABLE IF EXISTS public.<table_name>;  -- DÉCOMMENTER UNIQUEMENT APRÈS DÉCISION
+
+-- ❌ KEEP (usage actif détecté, ne pas drop)
+-- <liste avec justification>
+```
+
+**Tu n'exécutes JAMAIS ce script.** Il est livré pour validation manuelle.
+
+Commit : `docs(supabase): prepare drop scripts for cleanup candidates`
 
 ---
 
 ## Livrable final
 
-À la fin, génère un fichier `CLEANUP_REPORT.md` à la racine avec :
+Mets à jour `CLEANUP_REPORT.md` (ou crée `FINISH_REPORT.md` à la racine) avec :
 
-1. **Statistiques** : lignes supprimées, fichiers supprimés, fichiers modifiés, packages retirés
-2. **Liste des fichiers supprimés** (avec raison en une ligne chacun)
-3. **Liste des refactos significatifs** (fichier + nature du changement)
-4. **Liste des dépendances mortes désinstallées**
-5. **Liste des dépendances suspectes non touchées** (à valider avec moi)
-6. **Liste des tables / colonnes Supabase suspectes** (à valider avec moi)
-7. **Build status final** : output de `npm run build` + `npm run lint`
-8. **Liste des commits** créés pendant la session (`git log --oneline chore/cleanup-tech-debt ^main`)
+1. **Phase 1 — Rename** : nb d'occurrences remplacées, fichiers renommés, items flaggés à ne pas renommer (tables/buckets/repo)
+2. **Phase 2 — filosofi-import** : décision prise (suppression / flag) + justification
+3. **Phase 3 — Supabase findings** : tableau des 4 candidats avec leur classification (SAFE / REVIEW / KEEP) + résumé des checks
+4. **Build & lint status** : output de `npm run build` + `npm run lint`
+5. **Liste des commits** créés (`git log --oneline` depuis le dernier commit du cleanup précédent)
+6. **Prochaine action requise par Vincent** : revue de `sql/cleanup/DROPS_PROPOSED.sql` et exécution manuelle après backup Supabase
 
 ---
 
 ## Go
 
-Démarre maintenant. Travaille en autonomie. Commits atomiques. Build vert à la fin. Rapport complet.
+Démarre maintenant. Phase 1 → Phase 2 → Phase 3, dans cet ordre. Build vert à la fin. Aucune exécution destructive sur Supabase.
