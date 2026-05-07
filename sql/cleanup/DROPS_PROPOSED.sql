@@ -62,60 +62,41 @@ DROP FUNCTION IF EXISTS public.get_iris_geojson_by_codes(
 
 
 -- =============================================================
--- ⚠️  REVIEW NEEDED — referencee par d'autres RPCs / code
+-- ❌ DECIDED KEEP — decision Vincent 2026-05
 -- =============================================================
 
 -- ----------- 4. Table : laposte_hexasmal ----------------------
--- Statut : 0 ligne, 0 ecriture, mais referencee par 4 RPCs.
+-- Decision Vincent — 2026-05 : 4 RPCs actives, KEEP. Comment ajoute
+-- sur la table (migration `comment_laposte_hexasmal_keep`) pour eviter
+-- qu'un futur cleanup la reflagge :
 --
--- Detail des references :
+--   COMMENT ON TABLE public.laposte_hexasmal IS
+--     'Referentiel La Poste hexasmal — consomme par
+--      get_digital_cp_iris_detail et 3 autres RPCs (cf.
+--      sql/cleanup/DROPS_PROPOSED.sql). NE PAS DROP sans audit
+--      pg_proc prealable. Audit du 2026-05 : table active.';
+--
+-- Statut : 0 ligne, 0 ecriture (pg_stat_user_tables), mais referencee
+-- par 4 RPCs PostgreSQL :
 --
 --   Fonction PostgreSQL                  | Statut applicatif
 --   -------------------------------------+----------------------------------
---   build_ref_codes_postaux              | Etait appelee par /api/admin/
---                                        | import-laposte (route supprimee
---                                        | dans 66e7c5c). Orphan en code TS.
+--   build_ref_codes_postaux              | Orphan en code TS (route
+--                                        | /api/admin/import-laposte
+--                                        | supprimee dans 66e7c5c)
 --   truncate_laposte_hexasmal            | Idem (orphan en code TS)
 --   update_laposte_centroids             | Idem (orphan en code TS)
---   get_digital_cp_iris_detail           | ⚠️  ENCORE APPELEE par
+--   get_digital_cp_iris_detail           | ENCORE APPELEE par
 --                                        | app/api/digital/[campaignId]/
 --                                        | cp-detail/route.ts:25
 --
--- Decision necessaire :
---
---   Option A — Tout drop (table + 4 RPCs) :
---     necessite de refactorer get_digital_cp_iris_detail pour qu'elle lise
---     dans ref_codes_postaux au lieu de laposte_hexasmal. Un audit visuel
---     dans Supabase SQL Editor confirme que ref_codes_postaux contient
---     les memes infos (code postal -> commune INSEE).
---
---   Option B — Garder la table, drop les 3 write RPCs orphan :
---     conservatrice. Drop build_ref_codes_postaux,
---     truncate_laposte_hexasmal, update_laposte_centroids ;
---     garder get_digital_cp_iris_detail telle quelle ; garder la table.
---     Mais la table reste vide donc la route cp-detail renvoie du vide.
---
---   Option C — Restaurer la pipeline d'import laposte :
---     remettre /api/admin/import-laposte (la route a ete supprimee a tort
---     si la pipeline est encore desiree). Repeupler la table.
---
--- ⛔  Tant que la decision n'est pas prise, NE PAS DROP. Decommenter
--- l'option choisie apres revue.
---
--- DROP TABLE IF EXISTS public.laposte_hexasmal;                                  -- Option A
--- DROP FUNCTION IF EXISTS public.build_ref_codes_postaux();                      -- Option A ou B
--- DROP FUNCTION IF EXISTS public.truncate_laposte_hexasmal();                    -- Option A ou B
--- DROP FUNCTION IF EXISTS public.update_laposte_centroids();                     -- Option A ou B
--- (Pour get_digital_cp_iris_detail : NE PAS DROP, route active ; refactorer
---  uniquement si Option A retenue.)
+-- ⛔  NE PAS DROP. La table est marquee active.
 
 
 -- =============================================================
 -- ❌ KEEP — usage actif detecte (ne PAS drop)
 -- =============================================================
 
--- (Aucun, mais a titre indicatif :)
---
 --  - get_digital_cp_iris_detail :
 --      appelee par app/api/digital/[campaignId]/cp-detail/route.ts ; conserver.
 --
