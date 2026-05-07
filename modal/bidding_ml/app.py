@@ -1,4 +1,4 @@
-"""GEOMATIK Bidding ML — service Modal.
+"""MAGELIAN Bidding ML — service Modal.
 
 Expose 3 endpoints HTTPS pour l'algo actif (Hoeffding Adaptive Tree
 aujourd'hui) :
@@ -36,7 +36,7 @@ image = (
     )
 )
 
-supabase_secret = modal.Secret.from_name("geomatik-supabase")
+supabase_secret = modal.Secret.from_name("magelian-supabase")
 
 
 # ─── Helpers communs (importés au runtime à l'intérieur des handlers) ───────

@@ -5,7 +5,7 @@
 
 ## Résumé exécutif
 
-**GeoAgent** est l'agent IA superviseur de GEOMATIK. Il analyse les drift events détectés par Hoeffding (chantier A4.3), formule des recommandations en français, et selon le niveau d'autonomie configuré, agit ou propose à valider.
+**GeoAgent** est l'agent IA superviseur de MAGELIAN. Il analyse les drift events détectés par Hoeffding (chantier A4.3), formule des recommandations en français, et selon le niveau d'autonomie configuré, agit ou propose à valider.
 
 V1 du chantier : **flow drift→agent→action complet et testable**.
 

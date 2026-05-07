@@ -48,7 +48,7 @@ SELECT tablename FROM pg_tables WHERE schemaname='public' AND rowsecurity=false;
 
 **Résultat : 100% des tables métier ont RLS activé** ✓ (1 seule table sans RLS = `spatial_ref_sys`, table système PostGIS read-only — OK).
 
-Pattern RLS GEOMATIK utilisé partout :
+Pattern RLS MAGELIAN utilisé partout :
 - `get_user_role() = ANY (ARRAY['super_admin','admin'])` pour les writes admin
 - `auth.uid() = user_id` pour les rows owned
 - `service_role` bypass pour les UPSERT serveur (Inngest, Modal, agent)
@@ -120,4 +120,4 @@ La service_role est utilisée uniquement dans :
 | 3 | Compléter `.env.example` (cf P6) | 1h | nul |
 | 4 | Mettre à jour `docs/security_audit_rls.md` | 1h | nul |
 
-**Verdict global** : sécurité GEOMATIK **solide** sur les fondamentaux (RLS 100%, 0 secret en clair, 0 SQL injection, service_role server-only). Le seul gap réel = 40 routes API à éclaircir auth (publiques explicites vs oublis). Pas de risque immédiat — routes RLS-protégées via service_role mais sans rate-limit user-level.
+**Verdict global** : sécurité MAGELIAN **solide** sur les fondamentaux (RLS 100%, 0 secret en clair, 0 SQL injection, service_role server-only). Le seul gap réel = 40 routes API à éclaircir auth (publiques explicites vs oublis). Pas de risque immédiat — routes RLS-protégées via service_role mais sans rate-limit user-level.

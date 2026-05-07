@@ -92,7 +92,7 @@ export default function LoginPage() {
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
             <img
-              src="/geomatik-icon.svg"
+              src="/magelian-icon.svg"
               alt="MAGELIAN"
               width={240}
               style={{ display: 'block' }}

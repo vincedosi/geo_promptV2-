@@ -55,7 +55,7 @@
 6. **Déployer Modal (Custom Bidding ML)**
    ```bash
    modal token set --token-id ak-... --token-secret as-...
-   modal secret create geomatik-supabase \
+   modal secret create magelian-supabase \
      SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
      SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
    modal deploy modal/bidding_ml/app.py

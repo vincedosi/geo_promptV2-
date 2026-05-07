@@ -80,7 +80,7 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
           animation: 'splash-text 0.5s ease-out 0.8s forwards',
         }}>
           <img
-            src="/geomatik-icon.svg"
+            src="/magelian-icon.svg"
             alt="MAGELIAN"
             style={{ height: 24, width: 'auto', display: 'block' }}
           />

@@ -1,4 +1,4 @@
-# Runbook — opérations courantes GEOMATIK
+# Runbook — opérations courantes MAGELIAN
 
 ## Lancer le benchmark Custom Bidding
 

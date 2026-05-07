@@ -5,7 +5,7 @@
 
 ## Résumé
 
-Le module Custom Bidding (livré en A4.4) devient trouvable et activable depuis l'app GEOMATIK :
+Le module Custom Bidding (livré en A4.4) devient trouvable et activable depuis l'app MAGELIAN :
 - Sidebar : entrée "Pilotage ML" (badge ML, icône Sparkles) → `/custom-bidding`
 - Page détail campagne (Module Campagne Média) : barre conditionnelle 3 cas (Adform / DSP sans strat / DSP avec strat)
 - Liste campagnes : badge ML teal sur celles ayant une stratégie active

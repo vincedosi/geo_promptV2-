@@ -107,7 +107,7 @@ genesis_app/
 │   ├── inngest/                # Jobs async (couverture, colonnes derivees)
 │   ├── iris-crawler/           # Crawler INSEE IRIS
 │   ├── isochrones/             # fetcher.ts — ORS batch 5 POIs/appel
-│   ├── map/                    # geomatik-style.ts
+│   ├── map/                    # magelian-style.ts
 │   ├── mcp/                    # datagouv.ts — MCP data.gouv.fr
 │   ├── meteo/                  # aggregation.ts, palettes.ts, types.ts
 │   ├── poi/                    # categories.ts

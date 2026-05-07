@@ -65,7 +65,7 @@ export const DEFAULTS: MapCustomization = {
   is3D: false,
 };
 
-const STORAGE_KEY = 'geomatik:pilotage-ml:customization:v1';
+const STORAGE_KEY = 'magelian:pilotage-ml:customization:v1';
 
 function loadFromStorage(): MapCustomization {
   if (typeof window === 'undefined') return DEFAULTS;

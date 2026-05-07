@@ -1,4 +1,4 @@
-# Inventaire repo GEOMATIK — pré-cleanup A4.6
+# Inventaire repo MAGELIAN — pré-cleanup A4.6
 
 > Date : 2026-04-30
 > Snapshot : main HEAD `980deaf`

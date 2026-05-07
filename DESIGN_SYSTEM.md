@@ -9,8 +9,8 @@
 
 - **Nom** : MAGELIAN
 - **Tagline** : Geospatial intelligence
-- **Logotype** : Wordmark SVG `MAGELIAN` (public/geomatik-icon.svg) — hauteur 18-24px selon contexte
-- **Logo dans le SaaS** : `<img src="/geomatik-icon.svg" alt="MAGELIAN" />` partout (sidebar, splash, topbar, login)
+- **Logotype** : Wordmark SVG `MAGELIAN` (public/magelian-icon.svg) — hauteur 18-24px selon contexte
+- **Logo dans le SaaS** : `<img src="/magelian-icon.svg" alt="MAGELIAN" />` partout (sidebar, splash, topbar, login)
 - **geo.prompt** : Nom de la fonctionnalité copilote IA à l'intérieur de la plateforme
 
 ---
@@ -205,7 +205,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Sidebar
 - Largeur : 240px, position fixed left
 - Background : #0a0a0a, border-right 0.5px solid #1a1a1a
-- Logo MAGELIAN en haut : `<img src="/geomatik-icon.svg" />` (hauteur 18px)
+- Logo MAGELIAN en haut : `<img src="/magelian-icon.svg" />` (hauteur 18px)
 - Items : Inter 400, 13px, #a0a0a0
 - Item actif : background #151515, color #f0f0f0, border-left 2px solid #f0f0f0
 - Sections labels : Inter 400, 11px, #666666, lowercase

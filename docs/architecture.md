@@ -1,4 +1,4 @@
-# Architecture GEOMATIK
+# Architecture MAGELIAN
 
 > Version 7.x · 2026-04-30
 

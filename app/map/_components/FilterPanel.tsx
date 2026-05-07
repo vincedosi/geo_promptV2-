@@ -688,7 +688,7 @@ export function FilterPanel({
       Object.fromEntries(SECTION_KEYS.map(k => [k, !DEFAULT_CLOSED.has(k)]));
     if (typeof window === 'undefined') return allOpen();
     try {
-      const saved = localStorage.getItem('geomatik-filter-sections');
+      const saved = localStorage.getItem('magelian-filter-sections');
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, boolean>;
         // Garantit que les nouvelles sections ajoutées plus tard ont une valeur cohérente.
@@ -716,7 +716,7 @@ export function FilterPanel({
       const next = { ...prev, [key]: !prev[key] };
       // Pas de persistance en mode overlay pour ne pas polluer l'état full-panel
       if (!isOverlayMode) {
-        try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+        try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
       }
       return next;
     });
@@ -724,12 +724,12 @@ export function FilterPanel({
   const collapseAll = () => {
     const next = Object.fromEntries(SECTION_KEYS.map(k => [k, false]));
     setSectionsOpen(next);
-    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
   };
   const expandAll = () => {
     const next = Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
     setSectionsOpen(next);
-    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
   };
 
   // ── Panel resize ──────────────────────────────────────────────────────────

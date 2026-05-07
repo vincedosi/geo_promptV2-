@@ -89,7 +89,7 @@ modal token set --token-id ak-... --token-secret as-...
 ### Étape 2 — Secret Supabase côté Modal
 
 ```bash
-modal secret create geomatik-supabase \
+modal secret create magelian-supabase \
   SUPABASE_URL="https://vkkdbygwbrxyogqosten.supabase.co" \
   SUPABASE_SERVICE_ROLE_KEY="<service_role_key Supabase Dashboard → Settings → API>"
 ```

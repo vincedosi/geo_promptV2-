@@ -39,7 +39,7 @@ export function MapTopBar() {
       {/* ── Logo MAGELIAN ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <img
-          src="/geomatik-icon.svg"
+          src="/magelian-icon.svg"
           alt="MAGELIAN"
           style={{ height: 18, width: 'auto', display: 'block' }}
         />

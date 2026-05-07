@@ -1,8 +1,8 @@
-# Procédure de déploiement GEOMATIK
+# Procédure de déploiement MAGELIAN
 
 ## Vue d'ensemble
 
-GEOMATIK = 3 services à déployer :
+MAGELIAN = 3 services à déployer :
 1. **Frontend Next.js** sur Vercel
 2. **Backend ML** (Python) sur Modal
 3. **DB + Auth** sur Supabase
@@ -65,7 +65,7 @@ Dashboard Supabase → Settings → API :
 ### 2.2 Créer le secret Supabase côté Modal
 
 ```bash
-modal secret create geomatik-supabase \
+modal secret create magelian-supabase \
   SUPABASE_URL="https://<your-ref>.supabase.co" \
   SUPABASE_SERVICE_ROLE_KEY="eyJ..."
 ```

@@ -15,7 +15,7 @@ interface CategoryGroupProps {
   children: ReactNode;
 }
 
-const STORAGE_PREFIX = 'geomatik-cat-';
+const STORAGE_PREFIX = 'magelian-cat-';
 
 export function CategoryGroup({
   title,

@@ -18,7 +18,7 @@ import { FinalReport } from './FinalReport';
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-const STORAGE_KEY = 'geomatik:pilotage-ml:agent-panel-open:v1';
+const STORAGE_KEY = 'magelian:pilotage-ml:agent-panel-open:v1';
 
 type Tab = 'reco' | 'drift' | 'chat' | 'auto' | 'journal' | 'report';
 

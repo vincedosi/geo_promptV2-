@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 
 export type ViewMode = 'simple' | 'expert';
 
-const STORAGE_KEY = 'geomatik:pilotage-ml:view-mode:v1';
+const STORAGE_KEY = 'magelian:pilotage-ml:view-mode:v1';
 
 function loadFromStorage(): ViewMode {
   if (typeof window === 'undefined') return 'simple';

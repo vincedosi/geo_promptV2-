@@ -184,7 +184,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
             <circle cx="14" cy="14" r="2" fill="#4ecdc4" opacity="0.5" />
           </svg>
           <img
-            src="/geomatik-icon.svg"
+            src="/magelian-icon.svg"
             alt="MAGELIAN"
             style={{ height: 18, width: 'auto', display: 'block' }}
           />

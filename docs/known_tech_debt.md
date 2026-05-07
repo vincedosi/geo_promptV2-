@@ -1,4 +1,4 @@
-# Known tech debt — GEOMATIK
+# Known tech debt — MAGELIAN
 
 > Date : 2026-04-30 · Référencé par chantier A4.6.2
 
@@ -36,7 +36,7 @@ isochrone) qui croise plusieurs sections.
 ### `app/admin/sources/page.tsx` — 2831 lignes
 
 **Pourquoi c'est gros** : page back-office qui gère toutes les Data Sources
-GEOMATIK (POI, OOH, panneaux, radio, INSEE, etc.) avec 3 tabs (Liste / Détail /
+MAGELIAN (POI, OOH, panneaux, radio, INSEE, etc.) avec 3 tabs (Liste / Détail /
 Imports) et un CRUD complet par source.
 
 **Risque refactor** : casser le flow d'import / export / suppression d'une

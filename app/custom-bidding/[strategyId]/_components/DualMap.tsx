@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import { Box, Layers } from 'lucide-react';
 import {
@@ -385,7 +385,7 @@ function MapPanel({
     mapRef.current = map;
     map.once('load', () => {
       try { map.fitBounds(FRANCE_BOUNDS, { padding: 18, animate: false }); } catch { /* ok */ }
-      applyGeomatikStyle(map, themeRef.current);
+      applyMagelianStyle(map, themeRef.current);
 
       map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addSource(circleSourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

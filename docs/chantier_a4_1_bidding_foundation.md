@@ -180,7 +180,7 @@ Le champ `drift_type` est libre (`TEXT`) — pas de table de référence. Conven
 | ✅ FK vers `custom_geo_zones` cohérente avec le système Custom Geo Capture existant | OK |
 | ✅ Aucune RPC modifiée (V8 smoke-test) | OK |
 | ✅ Adform legacy strictement intact (V7) | OK |
-| ✅ RLS pattern aligné GEOMATIK (`get_user_role()`) | OK — DO $$ block factorisé |
+| ✅ RLS pattern aligné MAGELIAN (`get_user_role()`) | OK — DO $$ block factorisé |
 | ✅ Trigger `set_updated_at` réutilisé (pas de duplication) | OK sur `bidding_strategies` et `bidding_zone_configs` |
 | ✅ Indexes posés pour les query patterns évidents | OK (campaign FK, status partial, GIN metrics, dates DESC) |
 

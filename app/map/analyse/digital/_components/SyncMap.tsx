@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
@@ -75,7 +75,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
     });
 
     map.on('load', () => {
-      applyGeomatikStyle(map, themeRef.current);
+      applyMagelianStyle(map, themeRef.current);
 
       map.addSource(`digital-${id}`, {
         type: 'geojson',
@@ -124,7 +124,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const reapply = () => applyGeomatikStyle(map, theme);
+    const reapply = () => applyMagelianStyle(map, theme);
     if (map.isStyleLoaded()) reapply();
     else map.once('load', reapply);
   }, [theme]);

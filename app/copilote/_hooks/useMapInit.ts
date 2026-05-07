@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import { Protocol } from 'pmtiles';
 import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
@@ -188,8 +188,8 @@ export function useMapInit(
       }
 
       // ── Apply MAGELIAN style overrides if selected (theme-aware) ────────
-      if (mapStyleUrl?.includes('geomatik') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'))) {
-        applyGeomatikStyle(map, themeRef.current);
+      if (mapStyleUrl?.includes('magelian') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('magelian'))) {
+        applyMagelianStyle(map, themeRef.current);
       }
 
       // ── Heatmap densité POI (large zoom) ─────────────────────────────────
@@ -962,15 +962,15 @@ export function useMapInit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyleUrl]);
 
-  // ── Re-apply MAGELIAN overrides on theme toggle (only when geomatik style) ─
+  // ── Re-apply MAGELIAN overrides on theme toggle (only when magelian style) ─
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const isGeomatik =
-      mapStyleUrl?.includes('geomatik') ||
-      (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'));
-    if (!isGeomatik) return;
-    const reapply = () => applyGeomatikStyle(map, theme);
+    const isMagelian =
+      mapStyleUrl?.includes('magelian') ||
+      (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('magelian'));
+    if (!isMagelian) return;
+    const reapply = () => applyMagelianStyle(map, theme);
     if (map.isStyleLoaded()) reapply();
     else map.once('load', reapply);
   }, [theme, mapStyleUrl]);

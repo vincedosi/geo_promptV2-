@@ -13,9 +13,9 @@ def get_client() -> Client:
     url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not url:
-        raise EnvironmentError("SUPABASE_URL absent (secret Modal 'geomatik-supabase').")
+        raise EnvironmentError("SUPABASE_URL absent (secret Modal 'magelian-supabase').")
     if not key:
-        raise EnvironmentError("SUPABASE_SERVICE_ROLE_KEY absent (secret Modal 'geomatik-supabase').")
+        raise EnvironmentError("SUPABASE_SERVICE_ROLE_KEY absent (secret Modal 'magelian-supabase').")
     return create_client(url, key)
 
 

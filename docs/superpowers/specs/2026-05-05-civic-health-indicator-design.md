@@ -8,7 +8,7 @@
 
 ## 1. Contexte et objectif
 
-GEOMATIK affiche déjà des indicateurs civiques par layer (sous-section "Indicateurs civiques" dans la catégorie **Données terrain** du `FilterPanel`). On ajoute un nouvel indicateur **zone-spécifique** qui montre, pour la commune dont relève l'IRIS sélectionné :
+MAGELIAN affiche déjà des indicateurs civiques par layer (sous-section "Indicateurs civiques" dans la catégorie **Données terrain** du `FilterPanel`). On ajoute un nouvel indicateur **zone-spécifique** qui montre, pour la commune dont relève l'IRIS sélectionné :
 
 1. **Indice ATMO du jour** — qualité de l'air, échelle 1 à 6 (bon → extrêmement mauvais)
 2. **Indice pollen du jour** — risque allergique, échelle 0 à 6, par espèce (ambroisie, armoise, aulne, bouleau, graminées, olivier)
@@ -232,7 +232,7 @@ Fichier migration : `supabase/migrations/20260505_civic_health_cache.sql`. Appli
 }
 ```
 
-**Réponse 400 / 401 / 500** : standard GEOMATIK (`{success:false, error: '...'}`).
+**Réponse 400 / 401 / 500** : standard MAGELIAN (`{success:false, error: '...'}`).
 
 ### Schéma Zod côté serveur
 
@@ -441,7 +441,7 @@ genesis_app/
 
 ---
 
-## 13. Conformité GEOMATIK
+## 13. Conformité MAGELIAN
 
 - [x] DESIGN_SYSTEM respecté (dark minimal, sentence case, dot teal sur titre, pas de gradient/shadow/glow, fonts Inter + JetBrains Mono)
 - [x] Pas de hex en dur (tokens CSS)

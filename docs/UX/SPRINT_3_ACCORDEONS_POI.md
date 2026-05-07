@@ -8,11 +8,11 @@
 ## LECTURE PRÉALABLE — OBLIGATOIRE AVANT TOUTE LIGNE DE CODE
 Lis ces fichiers dans l'ordre :
 1. DESIGN_SYSTEM.md — tokens visuels, composants, règles d'or
-2. .claude/skills/geomatik-product-vision/SKILL.md — architecture UX cible
-3. .claude/skills/geomatik-ux/SKILL.md — règles UX (états, contraste, feedback)
+2. .claude/skills/magelian-product-vision/SKILL.md — architecture UX cible
+3. .claude/skills/magelian-ux/SKILL.md — règles UX (états, contraste, feedback)
 4. .claude/skills/frontend-design/SKILL.md — design visuel et esthétique
-5. .claude/skills/geomatik-metier/SKILL.md — vocabulaire métier OOH/IRIS
-6. .claude/skills/cleanup-geomatik/SKILL.md — règles de cleanup post-dev
+5. .claude/skills/magelian-metier/SKILL.md — vocabulaire métier OOH/IRIS
+6. .claude/skills/cleanup-magelian/SKILL.md — règles de cleanup post-dev
 
 ## STRATÉGIE D'EXÉCUTION — AGENTS
 
@@ -169,8 +169,8 @@ Commit : `fix(colors): suppression totale orange — 0 occurrences`
 
 ## POST-LIVRAISON — CLEANUP OBLIGATOIRE
 Après le dernier commit de code fonctionnel :
-1. Lance `@cleanup-geomatik` Partie 2 (lint + types) sur les fichiers modifiés
-2. Lance `@cleanup-geomatik` Partie 3 (sécurité) sur les fichiers modifiés
+1. Lance `@cleanup-magelian` Partie 2 (lint + types) sur les fichiers modifiés
+2. Lance `@cleanup-magelian` Partie 3 (sécurité) sur les fichiers modifiés
 3. Rapport : failles sécu + `any` introduits + catch non typés + imports inutilisés
 4. Corrige TOUT avant de considérer la tâche terminée
 5. Commit : `chore(cleanup): lint + types + sécurité post-sprint-3`

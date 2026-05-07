@@ -1,4 +1,4 @@
-# Glossaire métier — GEOMATIK
+# Glossaire métier — MAGELIAN
 
 Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/DSP.
 
@@ -18,7 +18,7 @@ Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/
 | **DSP** | Demand-Side Platform — plateforme côté annonceur qui achète des impressions en temps réel. Ex: TTD (The Trade Desk), DV360 (Google), Adform, Meta Ads |
 | **SSP** | Supply-Side Platform — plateforme côté éditeur qui vend ses inventaires |
 | **DMP** | Data Management Platform — gère les segments d'audience |
-| **Adserver** | Ancien modèle (non programmatic) — Adform legacy GEOMATIK |
+| **Adserver** | Ancien modèle (non programmatic) — Adform legacy MAGELIAN |
 | **Planner** | Personne (côté agence) qui pilote la stratégie média d'une campagne |
 | **Annonceur** | Marque qui achète la campagne (ex: Renault) |
 | **Régie** | Vendeur d'espace pub (ex: Mediatransports) — terme français pour SSP/network |
@@ -34,7 +34,7 @@ Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/
 | **Bid request** | Le SSP demande "qui veut bidder sur cette impression ?" |
 | **Bid won** | L'annonceur a gagné l'enchère et l'impression a été délivrée |
 | **Win rate** | bid_won / bid_requests — taux de succès des enchères |
-| **Custom Bidding** | Système GEOMATIK qui ajuste les bid_multipliers par CP/zone via ML (Hoeffding) |
+| **Custom Bidding** | Système MAGELIAN qui ajuste les bid_multipliers par CP/zone via ML (Hoeffding) |
 
 ## Métriques classiques
 
@@ -58,7 +58,7 @@ Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/
 | **ADWIN** | Adaptive Windowing — détecteur de drift utilisé par river / Hoeffding |
 | **Drift event** | Détection d'un drift → row dans `bidding_drift_events` |
 | **Hoeffding Adaptive Tree** | Arbre de décision online qui s'adapte au drift (Domingos & Hulten 2000) |
-| **Reward** | Signal de récompense pour l'algo (GEOMATIK : `leads − (1/12.5) * spend`) |
+| **Reward** | Signal de récompense pour l'algo (MAGELIAN : `leads − (1/12.5) * spend`) |
 | **Lift** | Différence relative entre prédiction et baseline (en %) |
 | **Bandit (LinUCB, Thompson)** | Famille d'algos exploration/exploitation — concurrent de Hoeffding |
 
@@ -73,7 +73,7 @@ Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/
 | **TMJA** | Trafic Moyen Journalier Annuel — comptages routiers |
 | **DROM** | Départements et Régions d'Outre-Mer (Guadeloupe, Martinique, etc.) |
 
-## DSP sources GEOMATIK
+## DSP sources MAGELIAN
 
 | Source | Type | Statut |
 |---|---|---|
@@ -84,7 +84,7 @@ Pour un dev qui prend la main sur le projet sans connaître le métier OOH/DOOH/
 | `amazon_dsp` | DSP Amazon | Supporté côté schema |
 | `other` | Autre | Fallback |
 
-## Acronymes spécifiques GEOMATIK
+## Acronymes spécifiques MAGELIAN
 
 | Sigle | Sens |
 |---|---|

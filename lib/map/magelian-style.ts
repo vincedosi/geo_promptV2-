@@ -11,7 +11,7 @@
 
 import type maplibregl from 'maplibre-gl';
 
-type GeomatikTheme = 'dark' | 'light';
+type MagelianTheme = 'dark' | 'light';
 
 type PaletteShape = {
   background: string;
@@ -33,7 +33,7 @@ type PaletteShape = {
 };
 
 /** Palette switched at runtime based on the active theme */
-const MAGELIAN_PALETTE: Record<GeomatikTheme, PaletteShape> = {
+const MAGELIAN_PALETTE: Record<MagelianTheme, PaletteShape> = {
   dark: {
     background: '#0a0a0a',
     water: '#050505',
@@ -77,9 +77,9 @@ const MAGELIAN_PALETTE: Record<GeomatikTheme, PaletteShape> = {
  * Call inside map.on('load') initially, then again from a useEffect([theme])
  * so the basemap follows the theme toggle.
  */
-export function applyGeomatikStyle(
+export function applyMagelianStyle(
   map: maplibregl.Map,
-  theme: GeomatikTheme = 'dark',
+  theme: MagelianTheme = 'dark',
 ): void {
   const style = map.getStyle();
   if (!style?.layers) return;
@@ -173,4 +173,4 @@ export function applyGeomatikStyle(
   }
 }
 
-export type { GeomatikTheme };
+export type { MagelianTheme };

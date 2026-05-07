@@ -1,4 +1,4 @@
-# Guide contributeur GEOMATIK
+# Guide contributeur MAGELIAN
 
 ## Setup
 

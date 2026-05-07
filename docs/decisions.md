@@ -1,4 +1,4 @@
-# Architecture Decision Records (ADR) — GEOMATIK
+# Architecture Decision Records (ADR) — MAGELIAN
 
 10 décisions structurantes du projet, avec contexte et justification.
 
@@ -29,7 +29,7 @@
 
 **Conséquences** :
 - ✓ Python natif (river, pandas, numpy installables)
-- ✓ Secrets Supabase isolés via `geomatik-supabase` Modal Secret
+- ✓ Secrets Supabase isolés via `magelian-supabase` Modal Secret
 - ⚠️ Une dépendance supplémentaire à monitorer (mais Modal a un bon track record)
 
 ---
@@ -96,11 +96,11 @@
 
 ## ADR-7 — Adform vs DSP : séparation stricte au niveau métier
 
-**Contexte** : Adform est un adserver (legacy GEOMATIK, 4 campagnes en base = TF1 MAR / FEU 2025 / FR MAR / FR AT, 294 135 lignes, 172 056 383 tracked_ads). Les autres DSP (TTD, DV360, Meta...) sont du programmatic real-time bidding et peuvent recevoir des bid_multipliers.
+**Contexte** : Adform est un adserver (legacy MAGELIAN, 4 campagnes en base = TF1 MAR / FEU 2025 / FR MAR / FR AT, 294 135 lignes, 172 056 383 tracked_ads). Les autres DSP (TTD, DV360, Meta...) sont du programmatic real-time bidding et peuvent recevoir des bid_multipliers.
 
 **Décision** : Custom Bidding désactivé sur Adform (UI affiche un message "Custom Bidding nécessite une source DSP" sur les pages campagnes Adform). Pas de RLS bloquante, juste UX-driven.
 
-**Justification** : Adform n'a pas d'API de bid modulation côté GEOMATIK ; pousser des configs là-dessus est du gaspillage. Le filtrage est au niveau `dsp_campaigns.dsp_source = 'adform'` côté UI.
+**Justification** : Adform n'a pas d'API de bid modulation côté MAGELIAN ; pousser des configs là-dessus est du gaspillage. Le filtrage est au niveau `dsp_campaigns.dsp_source = 'adform'` côté UI.
 
 **Conséquences** :
 - ✓ Adform legacy strictement intact à chaque chantier (smoke test SQL systématique)

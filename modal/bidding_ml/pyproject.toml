@@ -1,7 +1,7 @@
 [project]
-name = "geomatik-bidding-ml"
+name = "magelian-bidding-ml"
 version = "0.1.0"
-description = "GEOMATIK Bidding ML service deployed on Modal (Hoeffding Adaptive Tree)"
+description = "MAGELIAN Bidding ML service deployed on Modal (Hoeffding Adaptive Tree)"
 requires-python = ">=3.11"
 dependencies = [
   "modal>=0.66",
