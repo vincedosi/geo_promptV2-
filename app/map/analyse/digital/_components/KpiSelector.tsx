@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Sélecteur global de KPI pour le Module Campagne Média.
+ * MAGELIAN — Sélecteur global de KPI pour le Module Campagne Média.
  *
  * Source de vérité : `useSelectedMetric(campaignId)` (URL query param `?metric=`).
  * Drive la carte / heatmap / breakdown / cards via le KPI sélectionné.

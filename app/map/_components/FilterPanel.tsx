@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @file FilterPanel.tsx — composant central de filtrage GEOMATIK (carte /map)
+ * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
  * @size ~3789 lignes (cf docs/known_tech_debt.md — refactor planifié, non
  *       splitté en A4.6.2 par décision produit pour réduire le risque pitch)
  *
@@ -33,6 +33,7 @@ import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/Co
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
+import { HealthIndicatorCard } from '@/components/donnees-terrain/HealthIndicatorCard';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
@@ -367,6 +368,24 @@ export interface FilterPanelProps {
   onLoadTMJA?:          () => Promise<void>;
   tmjaVisible?:         boolean;
   onClearTMJA?:         () => void;
+  /** Masque les axes < 5 000 véh/j (default true côté parent). */
+  tmjaHideLowTraffic?:  boolean;
+  onToggleTmjaHideLowTraffic?: (next: boolean) => void;
+  // Météo
+  onOpenMeteo?:         () => void;
+  onClearMeteo?:        () => void;
+  meteoVisible?:        boolean;
+  meteoLabel?:          string | null;
+  // Indicateurs civiques (layer choroplèthe par CP)
+  civicVariableCode?:   'abstention_pres_2022' | null;
+  onCivicVariableChange?: (code: 'abstention_pres_2022' | null) => void;
+  /** Callback ouvre le wizard Pilotage ML pré-réglé sur cette variable INSEE. */
+  onPondererCivicVariable?: (code: 'abstention_pres_2022') => void;
+  // Santé environnementale (carte ATMO + pollen pour la commune de l'IRIS sélectionné)
+  /** Code INSEE 5 chars de la commune dont relève l'IRIS sélectionné. */
+  selectedIrisCommuneCode?: string | null;
+  /** Nom de la commune (optionnel, affiché en en-tête de la carte). */
+  selectedIrisCommuneName?: string | null;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
   onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
@@ -617,6 +636,10 @@ export function FilterPanel({
   scoringMapRef, scoringMapReady, onScoreComputed,
   mainMapRef,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
+  tmjaHideLowTraffic = true, onToggleTmjaHideLowTraffic,
+  onOpenMeteo, onClearMeteo, meteoVisible, meteoLabel,
+  civicVariableCode, onCivicVariableChange, onPondererCivicVariable,
+  selectedIrisCommuneCode, selectedIrisCommuneName,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
@@ -649,8 +672,11 @@ export function FilterPanel({
   const [filterSearch, setFilterSearch] = useState('');
 
   // ── UX: Collapsible sections with localStorage memory ─────────────────────
-  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'radio'] as const;
+  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'meteo', 'radio', 'civicHealth'] as const;
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
+    // Sections fermées par défaut : santé environnementale (zone-spécifique,
+    // s'ouvre automatiquement au premier IRIS sélectionné).
+    const DEFAULT_CLOSED = new Set(['civicHealth']);
     // En mode overlay, sections territoriales (périmètre / régions / départements)
     // ouvertes par défaut — le user doit pouvoir filtrer la zone AVANT d'afficher
     // les POI, sinon la carte charge toute la France. Autres sections fermées.
@@ -658,13 +684,33 @@ export function FilterPanel({
       const TERRITORY_OPEN = new Set(['perimetre', 'regions', 'departements']);
       return Object.fromEntries(SECTION_KEYS.map(k => [k, TERRITORY_OPEN.has(k)]));
     }
-    if (typeof window === 'undefined') return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    const allOpen = (): Record<string, boolean> =>
+      Object.fromEntries(SECTION_KEYS.map(k => [k, !DEFAULT_CLOSED.has(k)]));
+    if (typeof window === 'undefined') return allOpen();
     try {
       const saved = localStorage.getItem('geomatik-filter-sections');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, boolean>;
+        // Garantit que les nouvelles sections ajoutées plus tard ont une valeur cohérente.
+        for (const k of SECTION_KEYS) {
+          if (!(k in parsed)) parsed[k] = !DEFAULT_CLOSED.has(k);
+        }
+        return parsed;
+      }
     } catch { /* ignore */ }
-    return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    return allOpen();
   });
+
+  // Auto-déploiement de la section "Santé environnementale" au premier IRIS
+  // sélectionné de la session. Si l'utilisateur la referme après, on respecte
+  // son choix : le ref bloque les ouvertures suivantes.
+  const civicHealthAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (selectedIrisCommuneCode && !civicHealthAutoOpenedRef.current) {
+      civicHealthAutoOpenedRef.current = true;
+      setSectionsOpen(prev => (prev.civicHealth ? prev : { ...prev, civicHealth: true }));
+    }
+  }, [selectedIrisCommuneCode]);
   const toggleSection = (key: string) => {
     setSectionsOpen(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -2203,17 +2249,46 @@ export function FilterPanel({
                   Légende — trafic moyen journalier
                 </div>
                 {[
-                  { color: '#4292C6', label: '< 5 000 véh/j' },
-                  { color: '#f6d543', label: '5 000 – 15 000 véh/j' },
-                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j' },
-                  { color: '#ef4444', label: '> 40 000 véh/j' },
-                ].map(({ color, label }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0 }} />
-                    <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted }}>{label}</span>
-                  </div>
-                ))}
+                  { color: '#4292C6', label: '< 5 000 véh/j', isLow: true },
+                  { color: '#f6d543', label: '5 000 – 15 000 véh/j', isLow: false },
+                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j', isLow: false },
+                  { color: '#ef4444', label: '> 40 000 véh/j', isLow: false },
+                ].map(({ color, label, isLow }) => {
+                  const dimmed = isLow && tmjaHideLowTraffic;
+                  return (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: dimmed ? 0.35 : 1 }}>
+                      <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0, textDecoration: dimmed ? 'line-through' : 'none' }} />
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textDecoration: dimmed ? 'line-through' : 'none' }}>{label}</span>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Toggle : masquer le trafic faible (perf + lisibilité) */}
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: onToggleTmjaHideLowTraffic ? 'pointer' : 'default',
+                  padding: '6px 8px',
+                  background: 'var(--elevated)',
+                  border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 4,
+                }}
+                title="Cache les tronçons à moins de 5 000 véh/j (allège le rendu)"
+              >
+                <input
+                  type="checkbox"
+                  checked={tmjaHideLowTraffic}
+                  onChange={e => onToggleTmjaHideLowTraffic?.(e.target.checked)}
+                  disabled={!onToggleTmjaHideLowTraffic}
+                  style={{ accentColor: 'var(--brand-teal)' }}
+                />
+                <span style={{ fontFamily: fInter, fontSize: 11, color: C.text }}>
+                  Masquer le trafic faible (&lt; 5 000 véh/j)
+                </span>
+              </label>
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
@@ -2241,6 +2316,55 @@ export function FilterPanel({
               </div>
               )}{/* fin collapsible TMJA */}
             </div>
+
+            {/* ── Section : Météo ─────────────────────────────────────────── */}
+            {onOpenMeteo && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <FilterSectionHeader
+                  label="Météo"
+                  sectionKey="meteo"
+                  open={sectionsOpen.meteo !== false}
+                  onToggle={() => toggleSection('meteo')}
+                  count={meteoVisible ? 1 : 0}
+                  searchTerm={filterSearch}
+                />
+                {sectionsOpen.meteo !== false && (
+                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
+                      Données Open-Meteo agrégées par département (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
+                    </div>
+                    {meteoVisible && meteoLabel && (
+                      <div style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        color: 'var(--brand-teal)',
+                        padding: '4px 8px',
+                        background: 'var(--bg-level-2)',
+                        border: '0.5px solid var(--brand-teal)',
+                        borderRadius: 4,
+                        marginBottom: 8,
+                      }}>
+                        {meteoLabel} actif
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
+                        onClick={onOpenMeteo}
+                      >
+                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
+                      </button>
+                      {meteoVisible && (
+                        <button
+                          style={pill(false, C.muted)}
+                          onClick={onClearMeteo}
+                          title="Masquer la couche météo"
+                        >Masquer</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2434,6 +2558,89 @@ export function FilterPanel({
               </div>
               </div>
               )}{/* fin collapsible radio */}
+            </div>
+
+            {/* ── Section : Indicateurs civiques ──────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <FilterSectionHeader
+                label="Indicateurs civiques"
+                sectionKey="civic"
+                open={sectionsOpen.civic !== false}
+                onToggle={() => toggleSection('civic')}
+                count={civicVariableCode ? 1 : 0}
+                searchTerm={filterSearch}
+              />
+              {sectionsOpen.civic !== false && (
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                <div style={{ ...labelStyle, marginBottom: 4 }}>Variable à afficher</div>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={civicVariableCode ?? ''}
+                    onChange={(e) => onCivicVariableChange?.((e.target.value || null) as 'abstention_pres_2022' | null)}
+                    style={{
+                      width: '100%', padding: '8px 28px 8px 11px',
+                      background: C.bgInput,
+                      border: `0.5px solid ${civicVariableCode ? 'var(--brand-teal)' : C.border}`,
+                      borderRadius: 4,
+                      fontFamily: fInter, fontSize: 13,
+                      color: civicVariableCode ? 'var(--brand-teal)' : C.text,
+                      appearance: 'none', cursor: 'pointer', outline: 'none',
+                      transition: 'border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
+                    }}
+                  >
+                    <option value="">— Aucune (layer désactivé) —</option>
+                    <option value="abstention_pres_2022">🗳️ Taux d&apos;abstention (Présidentielle 2022)</option>
+                  </select>
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.textDim, fontSize: 10 }}>▾</span>
+                </div>
+
+                {civicVariableCode === 'abstention_pres_2022' && (
+                  <>
+                    {/* Légende gradient */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                        Légende
+                      </div>
+                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                        {[['#16a34a', 0.5], ['#84cc16', 1], ['#eab308', 1], ['#f97316', 1], ['#dc2626', 1.2], ['#7f1d1d', 0.8]].map(([color, weight], i) => (
+                          <div key={i} style={{ flex: weight as number, background: color as string }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
+                        <span>10% (forte particip.)</span>
+                        <span>30%</span>
+                        <span>60% (forte abst.)</span>
+                      </div>
+                    </div>
+
+                    {/* Source */}
+                    <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                      Source : data.gouv.fr — Ministère de l&apos;Intérieur · 6 186 codes postaux (France métro + DROM)
+                    </div>
+                  </>
+                )}
+              </div>
+              )}{/* fin collapsible civic */}
+            </div>
+
+            {/* ── Section : Santé environnementale (ATMO + pollen) ────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <FilterSectionHeader
+                label="Santé environnementale"
+                sectionKey="civicHealth"
+                open={sectionsOpen.civicHealth === true}
+                onToggle={() => toggleSection('civicHealth')}
+                count={selectedIrisCommuneCode ? 1 : 0}
+                searchTerm={filterSearch}
+              />
+              {sectionsOpen.civicHealth === true && (
+                <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                  <HealthIndicatorCard
+                    codeCommune={selectedIrisCommuneCode ?? null}
+                    nomCommune={selectedIrisCommuneName ?? null}
+                  />
+                </div>
+              )}
             </div>
 
           </div>

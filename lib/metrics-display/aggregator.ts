@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Agrégation de valeurs par campagne / zone pour un KPI donné.
+ * MAGELIAN — Agrégation de valeurs par campagne / zone pour un KPI donné.
  *
  * V1 du chantier A3 : SUM uniquement (cohérent avec le comportement legacy
  * pour `tracked_ads`). Les KPIs dérivés (CTR = clicks/impressions,

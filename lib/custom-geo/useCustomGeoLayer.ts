@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Hook générique de contribution à la capture custom-geo.
+ * MAGELIAN — Hook générique de contribution à la capture custom-geo.
  *
  * Un module qui veut apparaître dans la capture appelle ce hook et fournit
  * son `getGeometry()`. Aucune connaissance de MapLibre / radio / météo / IRIS ici.

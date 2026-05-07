@@ -25,7 +25,7 @@ unique, partagée avec Next.js). Il NE faut PAS créer un `.env` dans
 `scripts/benchmarking/`.
 
 **Aucune modification de `.env.local` n'est nécessaire** : le benchmark
-réutilise les variables déjà consommées par l'app Next.js GEOMATIK :
+réutilise les variables déjà consommées par l'app Next.js MAGELIAN :
 
 | Variable                       | Description                                | Source                                                                                       |
 |--------------------------------|--------------------------------------------|----------------------------------------------------------------------------------------------|

@@ -26,10 +26,10 @@ export function WizardStepper({ currentStep, completedSteps, onStepClick }: Prop
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors border',
                 isActive
-                  ? 'border-[rgba(78,205,196,0.5)] bg-[#111] text-[#f0f0f0]'
+                  ? 'border-accent-teal/50 bg-bg-level-2 text-text-primary'
                   : isDone
-                    ? 'border-[#1a1a1a] bg-[#0a0a0a] text-[#a0a0a0] hover:border-[rgba(78,205,196,0.3)] hover:text-[#f0f0f0]'
-                    : 'border-[#1a1a1a] bg-transparent text-[#666] hover:border-[#333] hover:text-[#a0a0a0]',
+                    ? 'border-border-subtle bg-bg-level-1 text-text-secondary hover:border-accent-teal/30 hover:text-text-primary'
+                    : 'border-border-subtle bg-transparent text-text-tertiary hover:border-border-hover hover:text-text-secondary',
               )}
               aria-current={isActive ? 'step' : undefined}
             >
@@ -37,17 +37,17 @@ export function WizardStepper({ currentStep, completedSteps, onStepClick }: Prop
                 className={cn(
                   'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium',
                   isActive
-                    ? 'bg-[#4ecdc4] text-[#050505]'
+                    ? 'bg-accent-teal text-bg-level-0'
                     : isDone
-                      ? 'bg-[rgba(78,205,196,0.2)] text-[#4ecdc4]'
-                      : 'bg-[#181818] text-[#666]',
+                      ? 'bg-accent-teal/20 text-accent-teal'
+                      : 'bg-bg-level-3 text-text-tertiary',
                 )}
               >
                 {isDone && !isActive ? <Check className="h-3 w-3" /> : step}
               </span>
               <span>{STEP_LABELS_FR[step]}</span>
             </button>
-            {idx < STEPS.length - 1 && <span className="h-px w-6 bg-[#1a1a1a]" />}
+            {idx < STEPS.length - 1 && <span className="h-px w-6 bg-border-subtle" />}
           </div>
         );
       })}

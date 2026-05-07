@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Mapping source_type technique → label utilisateur readable.
+ * MAGELIAN — Mapping source_type technique → label utilisateur readable.
  * Si un type n'est pas dans le mapping, on affiche le source_type brut
  * (en JetBrains Mono côté UI pour signaler que c'est technique).
  */

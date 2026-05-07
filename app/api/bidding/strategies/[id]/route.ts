@@ -103,7 +103,7 @@ export async function GET(
       .maybeSingle(),
     supabase
       .from('bidding_objectives')
-      .select('code,optimization_direction,formula,required_metrics,display_name')
+      .select('code,optimization_direction,formula,required_metrics,display_name,display_name_fr')
       .eq('code', strategy.objective_code)
       .maybeSingle(),
     supabase

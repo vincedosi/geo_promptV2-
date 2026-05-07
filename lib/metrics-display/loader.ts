@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Chargement de `dsp_metrics_registry` + cache mémoire.
+ * MAGELIAN — Chargement de `dsp_metrics_registry` + cache mémoire.
  *
  * Pattern Nano-friendly : 1 round-trip DB par process toutes les 5 minutes,
  * pas par campagne ni par requête. Le registry est petit (≤ 30 lignes

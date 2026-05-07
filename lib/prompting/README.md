@@ -1,4 +1,4 @@
-# lib/prompting — Système de prompting partagé GEOMATIK
+# lib/prompting — Système de prompting partagé MAGELIAN
 
 Extraite du chantier A4.5 (BiddingCopilot → lib partagée). Concentre les
 patterns réutilisables pour toute feature LLM : agent superviseur, chat
@@ -14,7 +14,7 @@ instructions, output schema) des données (variables interpolables).
 import { buildSystemPrompt, formatList } from '@/lib/prompting';
 
 const prompt = buildSystemPrompt({
-  role: "Tu es l'agent IA superviseur de GEOMATIK...",
+  role: "Tu es l'agent IA superviseur de MAGELIAN...",
   sections: [
     { title: 'Contexte campagne', body: `Nom: ${campaign.name}\n...` },
     { title: 'Top sur-servis', body: formatList(top, fmtRow) },

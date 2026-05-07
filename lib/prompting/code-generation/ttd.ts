@@ -2,7 +2,7 @@
  * Pattern 3 — Templates de code generation TTD (The Trade Desk).
  *
  * Nouvelle plateforme cible (cohérence avec A4.3 — la stratégie démo
- * GEOMATIK utilise TTD). TTD attend un payload JSON pour son endpoint
+ * MAGELIAN utilise TTD). TTD attend un payload JSON pour son endpoint
  * "Bid Multiplier" (par "Bid List").
  */
 

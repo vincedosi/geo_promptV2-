@@ -216,6 +216,10 @@ export function OverlayPanel({
           overflowY: 'auto',
           padding: '8px 0',
           minHeight: 0,
+          // display: flex pour que les enfants avec h-full / flex se contraignent
+          // correctement (sinon le contenu déborde la hauteur du body).
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {children}

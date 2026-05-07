@@ -59,7 +59,7 @@ export async function POST(
   const kpiData = kpi || {};
 
   const prompt = `Tu es un analyste geomarketing expert specialise en campagnes digitales programmatiques.
-Tu travailles sur la plateforme GEOMATIK et tu analyses les performances geographiques des campagnes DSP.
+Tu travailles sur la plateforme MAGELIAN et tu analyses les performances geographiques des campagnes DSP.
 
 ## Donnees de la campagne
 

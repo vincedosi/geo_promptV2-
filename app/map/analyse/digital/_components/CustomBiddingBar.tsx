@@ -134,7 +134,7 @@ export function CustomBiddingBar({ campaignId, campaignName, dspSource }: Props)
         >
           <span>💾 Vous avez un brouillon en cours pour cette campagne (step {draft.current_step}/5).</span>
           <button
-            onClick={() => router.push(`/strategies/new?campaign=${campaignId}&draft=${draft.id}`)}
+            onClick={() => router.push(`/map?overlay=pilotage&action=new&campaign=${campaignId}&draft=${draft.id}`)}
             style={{
               padding: '4px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
               background: 'var(--brand-teal, #4ecdc4)', color: '#050505',
@@ -178,7 +178,7 @@ export function CustomBiddingBar({ campaignId, campaignName, dspSource }: Props)
           </div>
         </div>
         <button
-          onClick={() => router.push(`/strategies/new?campaign=${campaignId}`)}
+          onClick={() => router.push(`/map?overlay=pilotage&action=new&campaign=${campaignId}`)}
           style={{
             padding: '8px 14px', fontSize: 12, fontFamily: fInter, fontWeight: 500,
             background: 'transparent', color: 'var(--brand-teal, #4ecdc4)',

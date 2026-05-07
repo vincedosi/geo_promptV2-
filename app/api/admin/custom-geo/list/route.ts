@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API admin /api/admin/custom-geo/list
+ * MAGELIAN — API admin /api/admin/custom-geo/list
  * Liste cross-workspace des custom_geo_zones. super_admin only.
  * Utilise le service role côté serveur pour bypass RLS.
  */

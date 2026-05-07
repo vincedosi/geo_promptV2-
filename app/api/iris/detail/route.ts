@@ -9,7 +9,7 @@ import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 export const dynamic = 'force-dynamic';
 
 const SELECT_COLS = [
-  'code_iris', 'nom_iris', 'code_commune', 'code_dept', 'is_true_iris',
+  'code_iris', 'nom_iris', 'code_commune', 'nom_commune', 'code_dept', 'is_true_iris',
   ...IRIS_DB_COLUMNS.filter(c => c.name !== 'is_true_iris').map(c => c.name),
 ].join(', ');
 

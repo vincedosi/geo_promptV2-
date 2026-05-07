@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Rate limiters partagés.
+ * MAGELIAN — Rate limiters partagés.
  *
  * 1. checkImportRateLimit() — limiteur in-memory simple pour routes d'import admin
  *    (3 req/60s, partage par clé route). Pas multi-instance.

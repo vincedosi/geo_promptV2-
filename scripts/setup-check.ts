@@ -115,7 +115,7 @@ function fmt(r: Result): string {
 
 async function main(): Promise<number> {
   // eslint-disable-next-line no-console
-  console.log('GEOMATIK setup check\n');
+  console.log('MAGELIAN setup check\n');
 
   const envFileResult = await checkEnvFile();
   // eslint-disable-next-line no-console

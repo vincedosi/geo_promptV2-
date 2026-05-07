@@ -23,8 +23,8 @@ export function WizardActions(props: Props) {
   const nextLabel = currentStep === totalSteps ? 'Aperçu' : 'Suivant';
 
   return (
-    <div className="flex items-center justify-between border-t border-[#1a1a1a] px-4 py-3 bg-[#0a0a0a]">
-      <div className="flex items-center gap-3 text-[11px] font-mono text-[#666]">
+    <div className="flex items-center justify-between border-t border-border-subtle px-4 py-3 bg-bg-level-1 shrink-0">
+      <div className="flex items-center gap-3 text-[11px] font-mono text-text-tertiary">
         {isSaving && (
           <span className="flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" /> sauvegarde…
@@ -33,7 +33,7 @@ export function WizardActions(props: Props) {
         {!isSaving && lastSavedAt && (
           <span>brouillon sauvé · {lastSavedAt.toLocaleTimeString('fr-FR')}</span>
         )}
-        {saveError && <span className="text-[#ff5757]">{saveError}</span>}
+        {saveError && <span className="text-geo-danger">{saveError}</span>}
       </div>
 
       <div className="flex items-center gap-2">
@@ -55,7 +55,7 @@ export function WizardActions(props: Props) {
           <Button
             onClick={onActivate}
             disabled={isSubmitting}
-            className="bg-[#4ecdc4] text-[#050505] hover:bg-[#3dbdb5]"
+            className="bg-accent-teal text-bg-level-0 hover:bg-accent-teal-hover"
           >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

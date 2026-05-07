@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/meteo-geo
+ * MAGELIAN — API /api/meteo-geo
  *
  * Météo Open-Meteo agrégée par zones admin (régions, départements, codes postaux).
  * Un point par zone = centroïde pré-calculé dans ref_regions/ref_departements/ref_codes_postaux.

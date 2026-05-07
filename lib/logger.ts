@@ -1,5 +1,5 @@
 /**
- * Logger léger GEOMATIK (chantier A4.6.2 sous-phase B).
+ * Logger léger MAGELIAN (chantier A4.6.2 sous-phase B).
  *
  * Wrapper minimaliste autour de console avec :
  *  - timestamps ISO

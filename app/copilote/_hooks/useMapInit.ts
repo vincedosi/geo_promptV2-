@@ -187,7 +187,7 @@ export function useMapInit(
         try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
       }
 
-      // ── Apply GEOMATIK style overrides if selected (theme-aware) ────────
+      // ── Apply MAGELIAN style overrides if selected (theme-aware) ────────
       if (mapStyleUrl?.includes('geomatik') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'))) {
         applyGeomatikStyle(map, themeRef.current);
       }
@@ -345,15 +345,46 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      // ── TMJA — Comptages routiers (LineStrings colorées par volume) ─────
-      map.addSource('tmja-source', {
+      // ── Météo — Bulles colorées aux centroïdes des zones admin ───────────
+      // Source GeoJSON peuplée dynamiquement via /api/meteo-geo + centroids.
+      // Couleur via expression interpolate sur la palette de la variable.
+      map.addSource('meteo-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
       });
       map.addLayer({
-        id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        id: 'meteo-circles', type: 'circle', source: 'meteo-source',
         paint: {
-          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 8, 2.5, 11, 4] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 6, 8, 10, 11, 16] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'circle-color': '#4ecdc4', // overridé dynamiquement
+          'circle-opacity': 0.78,
+          'circle-stroke-color': 'rgba(0,0,0,0.5)',
+          'circle-stroke-width': 1,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // ── TMJA — Comptages routiers (vector tiles MVT, lazy par viewport) ──
+      // Pipeline calqué sur carreaux/IRIS : tiles servies par /api/tmja-tiles
+      // avec cache mémoire serveur 1h, déduplication, et filtrage adaptatif
+      // par seuil TMJA selon zoom (axes majeurs au low-zoom, dense au high).
+      // Bump ?v= si la fonction get_tmja_tile change pour invalider le cache
+      // navigateur + cache mémoire serveur.
+      map.addSource('tmja-source', {
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tmja-tiles/{z}/{x}/{y}?v=v9`],
+        minzoom: 5,
+        maxzoom: 14,
+      });
+      map.addLayer({
+        id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        'source-layer': 'tmja',
+        paint: {
+          // Low-zoom : traits plus fins pour densité visuelle raisonnable
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            5, 0.6, 7, 1.2, 9, 2, 11, 3.2, 14, 5,
+          ] as unknown as import('maplibre-gl').ExpressionSpecification,
           'line-color': [
             'step', ['get', 'tmja'],
             '#4292C6',   // < 5 000 : bleu
@@ -361,9 +392,12 @@ export function useMapInit(
             15000, '#f97316',  // 15 000–40 000 : orange
             40000, '#ef4444',  // > 40 000 : rouge
           ] as unknown as import('maplibre-gl').ExpressionSpecification,
-          'line-opacity': 0.85,
+          'line-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            5, 0.95, 9, 0.9, 12, 0.8,
+          ] as unknown as import('maplibre-gl').ExpressionSpecification,
         },
-        layout: { visibility: 'none' },
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
       });
 
       // ── Radio émetteurs — clusters + heatmap + couverture ──────────────
@@ -928,7 +962,7 @@ export function useMapInit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyleUrl]);
 
-  // ── Re-apply GEOMATIK overrides on theme toggle (only when geomatik style) ─
+  // ── Re-apply MAGELIAN overrides on theme toggle (only when geomatik style) ─
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;

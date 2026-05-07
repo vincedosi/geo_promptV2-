@@ -110,7 +110,12 @@ export async function POST(request: NextRequest) {
     for (const r of zoneCps ?? []) inZoneSet.add(r.code);
   }
 
-  // Échantillon de CPs depuis dsp_campaign_data
+  // Échantillon mixte :
+  //   • CPs de la zone (TOUS, garantit n_in_zone > 0 même si la campagne DSP
+  //     n'a pas de data dans la zone — sinon biais : "0 CPs in-zone" alors
+  //     qu'on a 132 CPs réels)
+  //   • + CPs de la campagne DSP (jusqu'à sample_size) pour estimer le mix
+  //     in/out réel du trafic à venir
   const { data: cpRows, error: cpErr } = await supabase
     .from('dsp_campaign_data')
     .select('postal_code')
@@ -118,7 +123,9 @@ export async function POST(request: NextRequest) {
     .limit(body.sample_size);
   if (cpErr) return NextResponse.json({ error: cpErr.message }, { status: 500 });
 
-  const uniqueCps = Array.from(new Set((cpRows ?? []).map(r => r.postal_code as string).filter(Boolean)));
+  const fromCampaign = new Set((cpRows ?? []).map(r => r.postal_code as string).filter(Boolean));
+  // Union zone ∪ campagne (garantit que TOUS les CPs in-zone sont représentés)
+  const uniqueCps = Array.from(new Set([...inZoneSet, ...fromCampaign]));
 
   // Calcul multipliers
   type FeatureProps = { postal_code: string; multiplier: number; is_in_zone: boolean };

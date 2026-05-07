@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — MeteoGeoPanel
+ * MAGELIAN — MeteoGeoPanel
  * Panneau flottant de configuration des zones météo Open-Meteo.
  * Apparaît en overlay quand l'utilisateur sélectionne "Zones Météo" dans le
  * sélecteur de Zones personnalisées. Déclenche le fetch via onApply.

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { ObjectiveStep, AttributionModel } from '@/lib/strategy-wizard/types';
+import { ATTRIBUTION_LABELS_FR } from '@/lib/strategy-wizard/types';
 
 interface Props {
   data: ObjectiveStep;
@@ -15,11 +16,33 @@ interface ObjectiveOpt {
   optimization_direction?: string;
 }
 
-const ATTRIB: Array<{ value: AttributionModel; label: string }> = [
-  { value: 'last_click', label: 'Last-click' },
-  { value: 'first_click', label: 'First-click' },
-  { value: 'linear', label: 'Linéaire' },
-];
+const ATTRIB: AttributionModel[] = ['last_click', 'first_click', 'linear'];
+
+/** Traduction FR des display_name renvoyés par /api/bidding/objectives.
+ *  L'API renvoie de l'anglais ("Maximize Impressions") — on l'écrase ici
+ *  pour rester cohérent avec le reste du wizard. */
+const OBJECTIVE_LABELS_FR: Record<string, string> = {
+  maximize_impressions: 'Maximiser les impressions',
+  maximize_viewability: 'Maximiser la visibilité',
+  maximize_ctr:         'Maximiser le CTR',
+  maximize_visits:      'Maximiser les visites',
+  maximize_leads:       'Maximiser les leads',
+  minimize_cpa:         'Minimiser le CPA',
+  minimize_cpc:         'Minimiser le CPC',
+  maximize_roas:        'Maximiser le ROAS',
+};
+
+/** Unité affichée à droite de la cible quantifiée selon l'objectif choisi. */
+const OBJECTIVE_TARGET_UNIT: Record<string, string> = {
+  maximize_impressions: 'impressions',
+  maximize_viewability: '% visibilité',
+  maximize_ctr:         '% CTR',
+  maximize_visits:      'visites',
+  maximize_leads:       'leads',
+  minimize_cpa:         '€ par action',
+  minimize_cpc:         '€ par clic',
+  maximize_roas:        '× ROAS',
+};
 
 export function Step3Objective({ data, onChange }: Props) {
   const set = <K extends keyof ObjectiveStep>(k: K, v: ObjectiveStep[K]) =>
@@ -39,9 +62,18 @@ export function Step3Objective({ data, onChange }: Props) {
     set('kpi_secondary', cur.includes(code) ? cur.filter(c => c !== code) : [...cur, code]);
   };
 
+  const objLabel = (o: ObjectiveOpt) => OBJECTIVE_LABELS_FR[o.code] ?? o.display_name;
+  const targetUnit = useMemo(
+    () => (data.objective_code ? OBJECTIVE_TARGET_UNIT[data.objective_code] : null),
+    [data.objective_code],
+  );
+
   return (
     <div className="grid grid-cols-1 gap-5 max-w-2xl">
-      <Field label="KPI primaire *">
+      <Field
+        label="KPI primaire *"
+        tagline="L'algorithme optimisera prioritairement cette métrique."
+      >
         <select
           value={data.objective_code ?? ''}
           onChange={(e) => set('objective_code', e.target.value || undefined)}
@@ -49,23 +81,34 @@ export function Step3Objective({ data, onChange }: Props) {
         >
           <option value="">— Sélectionner —</option>
           {objectives.map(o => (
-            <option key={o.code} value={o.code}>{o.display_name}</option>
+            <option key={o.code} value={o.code}>{objLabel(o)}</option>
           ))}
         </select>
       </Field>
 
-      <Field label="Cible quantifiée *">
-        <input
-          type="number"
-          step="0.01"
-          value={data.kpi_target ?? ''}
-          onChange={(e) => set('kpi_target', e.target.value === '' ? undefined : parseFloat(e.target.value))}
-          placeholder="12.5"
-          className={inputCls}
-        />
+      <Field
+        label="Cible quantifiée *"
+        tagline="Valeur cible à atteindre pour le KPI primaire."
+      >
+        <div className="flex items-center gap-2 max-w-xs">
+          <input
+            type="number"
+            step="0.01"
+            value={data.kpi_target ?? ''}
+            onChange={(e) => set('kpi_target', e.target.value === '' ? undefined : parseFloat(e.target.value))}
+            placeholder="12.5"
+            className={inputCls + ' flex-1'}
+          />
+          {targetUnit && (
+            <span className="text-[11px] font-mono text-text-tertiary whitespace-nowrap">{targetUnit}</span>
+          )}
+        </div>
       </Field>
 
-      <Field label="KPIs secondaires (à monitorer, optionnel)">
+      <Field
+        label="KPIs secondaires"
+        tagline="Métriques à surveiller en parallèle (optionnel)."
+      >
         <div className="flex flex-wrap gap-2">
           {objectives.filter(o => o.code !== data.objective_code).map(o => {
             const sel = (data.kpi_secondary ?? []).includes(o.code);
@@ -76,31 +119,34 @@ export function Step3Objective({ data, onChange }: Props) {
                 onClick={() => toggleSecondary(o.code)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                   sel
-                    ? 'border-[rgba(78,205,196,0.5)] bg-[#111] text-[#f0f0f0]'
-                    : 'border-[#1a1a1a] bg-[#0a0a0a] text-[#a0a0a0] hover:border-[#333] hover:text-[#f0f0f0]'
+                    ? 'border-accent-teal/50 bg-bg-level-2 text-text-primary'
+                    : 'border-border-subtle bg-bg-level-1 text-text-secondary hover:border-border-hover hover:text-text-primary'
                 }`}
               >
-                {o.display_name}
+                {objLabel(o)}
               </button>
             );
           })}
         </div>
       </Field>
 
-      <Field label="Modèle d'attribution">
+      <Field
+        label="Modèle d'attribution"
+        tagline="Quel touchpoint compte pour 100% de la conversion."
+      >
         <div className="flex gap-2">
           {ATTRIB.map(a => (
             <button
-              key={a.value}
+              key={a}
               type="button"
-              onClick={() => set('attribution_model', a.value)}
+              onClick={() => set('attribution_model', a)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                data.attribution_model === a.value
-                  ? 'border-[rgba(78,205,196,0.5)] bg-[#111] text-[#f0f0f0]'
-                  : 'border-[#1a1a1a] bg-[#0a0a0a] text-[#a0a0a0] hover:border-[#333] hover:text-[#f0f0f0]'
+                data.attribution_model === a
+                  ? 'border-accent-teal/50 bg-bg-level-2 text-text-primary'
+                  : 'border-border-subtle bg-bg-level-1 text-text-secondary hover:border-border-hover hover:text-text-primary'
               }`}
             >
-              {a.label}
+              {ATTRIBUTION_LABELS_FR[a]}
             </button>
           ))}
         </div>
@@ -109,14 +155,15 @@ export function Step3Objective({ data, onChange }: Props) {
   );
 }
 
-const inputCls = 'w-full bg-[#111] border border-[#1a1a1a] rounded-md px-3 py-2 text-sm text-[#f0f0f0] placeholder:text-[#666] focus:outline-none focus:border-[rgba(78,205,196,0.5)]';
+const inputCls = 'w-full bg-bg-level-2 border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-teal/50';
 const selectCls = inputCls;
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, tagline, children }: { label: string; tagline?: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] text-[#666] font-medium">{label}</span>
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] text-text-tertiary font-medium">{label}</span>
+      {tagline && <span className="text-[11px] text-text-tertiary -mt-0.5">{tagline}</span>}
       {children}
-    </label>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GeoBot — GEOMATIK pixel art mascot for geo.prompt
+ * GeoBot — MAGELIAN pixel art mascot for geo.prompt
  *
  * Pure SVG + CSS animations. Zero external libraries.
  * Status-driven: idle | thinking | speaking | done

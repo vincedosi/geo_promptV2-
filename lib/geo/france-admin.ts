@@ -5,7 +5,7 @@
  * ⚠️  RÉGIONS / DÉPARTEMENTS : supprimés de ce fichier — codes INSEE servis
  * dynamiquement depuis ref_regions + ref_departements via /api/ref/geo
  * (lib/geo/use-ref-geo.ts côté client, region-lookup-server.ts côté API).
- * Principe GEOMATIK : rien de hardcodé, tout dynamique.
+ * Principe MAGELIAN : rien de hardcodé, tout dynamique.
  */
 
 export const POI_TYPES = [

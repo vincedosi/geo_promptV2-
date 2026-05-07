@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/digital/[campaignId]/geography/[setId]
+ * MAGELIAN — API /api/digital/[campaignId]/geography/[setId]
  * Croisement campagne DSP × jeu de zones → GeoJSON + summary (pct_in_zone)
  */
 import { NextRequest, NextResponse } from 'next/server';

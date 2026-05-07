@@ -53,8 +53,8 @@ export function Step1Identity({ data, onChange }: Props) {
               onClick={() => set('inventory_type', opt.value)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                 data.inventory_type === opt.value
-                  ? 'border-[rgba(78,205,196,0.5)] bg-[#111] text-[#f0f0f0]'
-                  : 'border-[#1a1a1a] bg-[#0a0a0a] text-[#a0a0a0] hover:border-[#333] hover:text-[#f0f0f0]'
+                  ? 'border-accent-teal/50 bg-bg-level-2 text-text-primary'
+                  : 'border-border-subtle bg-bg-level-1 text-text-secondary hover:border-border-hover hover:text-text-primary'
               }`}
             >
               {opt.label}
@@ -75,12 +75,12 @@ export function Step1Identity({ data, onChange }: Props) {
   );
 }
 
-const inputCls = 'w-full bg-[#111] border border-[#1a1a1a] rounded-md px-3 py-2 text-sm text-[#f0f0f0] placeholder:text-[#666] focus:outline-none focus:border-[rgba(78,205,196,0.5)]';
+const inputCls = 'w-full bg-bg-level-2 border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-teal/50';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] text-[#666] font-medium">{label}</span>
+      <span className="text-[11px] text-text-tertiary font-medium">{label}</span>
       {children}
     </label>
   );

@@ -1,4 +1,4 @@
-# GEOMATIK
+# MAGELIAN
 
 > SaaS B2B de géomarketing OOH/DOOH + Custom Bidding ML pour campagnes DSP. Planification d'affichage extérieur sur données INSEE, ciblage carto temps réel, optimisation algorithmique des bids, agent IA superviseur.
 
@@ -124,3 +124,13 @@ npm run lint             # ESLint
 npx tsc --noEmit         # Type-check
 npx tsx scripts/setup-check.ts  # Vérif config locale
 ```
+
+## Sources de données et licences
+
+Les indicateurs de santé environnementale (qualité de l'air ATMO et pollen) affichés dans la section "Données terrain" sont fournis par **Atmo France et les AASQA** (Associations agréées de surveillance de la qualité de l'air), via l'API Atmo Data v2. Données mises à disposition sous licence **ODbL** (Open Database License). Toute réutilisation publique doit conserver la mention `Source : Atmo France et les AASQA`.
+
+- Site : https://www.atmo-france.org
+- Carte officielle : https://map.atmo-france.org
+- Doc API : https://admindata.atmo-france.org/api/doc/v2
+
+Les autres sources de données géographiques (IRIS INSEE, carreaux Filosofi, abstention présidentielle 2022) suivent leurs licences respectives — voir `docs/glossary.md` et les commentaires de chaque table SQL.

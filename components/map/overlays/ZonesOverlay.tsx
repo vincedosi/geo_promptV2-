@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Overlay "Zones sauvegardées" dans la barre latérale /map.
+ * MAGELIAN — Overlay "Zones sauvegardées" dans la barre latérale /map.
  *
  * Phase 2 : liste + recherche + filtre par source_type, header avec stats.
  * Phase 3 : clic "Afficher" → fetch geometry + addLayer MapLibre teal + fitBounds.

@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/geographies
+ * MAGELIAN — API /api/geographies
  * GET  : liste les geography_sets (filtrés par org utilisateur)
  * POST : sauvegarde un nouveau set depuis isochrones_cache (battle/isochrone)
  */

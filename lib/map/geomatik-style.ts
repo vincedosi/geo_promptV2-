@@ -1,11 +1,11 @@
 /**
- * GEOMATIK map style — theme-aware runtime layer overrides for OpenFreeMap
+ * MAGELIAN map style — theme-aware runtime layer overrides for OpenFreeMap
  *
  * Applied on top of any OpenFreeMap style (Liberty/Bright/Positron)
- * to match the GEOMATIK design system colors, both in dark and light mode.
+ * to match the MAGELIAN design system colors, both in dark and light mode.
  *
  * Why a palette map: the basemap (Positron) is light by default; in light
- * mode we still apply a GEOMATIK-flavored light palette for brand consistency.
+ * mode we still apply a MAGELIAN-flavored light palette for brand consistency.
  * In dark mode we invert the basemap toward near-black surfaces.
  */
 
@@ -33,7 +33,7 @@ type PaletteShape = {
 };
 
 /** Palette switched at runtime based on the active theme */
-const GEOMATIK_PALETTE: Record<GeomatikTheme, PaletteShape> = {
+const MAGELIAN_PALETTE: Record<GeomatikTheme, PaletteShape> = {
   dark: {
     background: '#0a0a0a',
     water: '#050505',
@@ -73,7 +73,7 @@ const GEOMATIK_PALETTE: Record<GeomatikTheme, PaletteShape> = {
 };
 
 /**
- * Apply GEOMATIK theme overrides to all layers of an already-loaded map.
+ * Apply MAGELIAN theme overrides to all layers of an already-loaded map.
  * Call inside map.on('load') initially, then again from a useEffect([theme])
  * so the basemap follows the theme toggle.
  */
@@ -84,7 +84,7 @@ export function applyGeomatikStyle(
   const style = map.getStyle();
   if (!style?.layers) return;
 
-  const palette = GEOMATIK_PALETTE[theme];
+  const palette = MAGELIAN_PALETTE[theme];
 
   for (const layer of style.layers) {
     const id = layer.id.toLowerCase();

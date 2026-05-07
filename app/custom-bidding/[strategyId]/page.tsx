@@ -8,6 +8,7 @@ import {
   aggregateByDate, aggregateByZone, computeGlobalKpis,
   type ComparisonRow, type DailyComparison, type GlobalKpis,
 } from '@/lib/bidding-ml/comparison';
+import { resolvePrimaryMetric } from '@/lib/bidding-ml/metric-labels';
 import { StrategyHeader } from './_components/StrategyHeader';
 import { KpiDeltaCards } from './_components/KpiDeltaCards';
 import { PlayControls } from './_components/PlayControls';
@@ -111,6 +112,13 @@ export default function CustomBiddingDetailPage() {
     return comparisonRows.filter(r => r.date === currentDate);
   }, [comparisonRows, currentDate]);
 
+  // Métrique principale (impressions / clics / leads / spend), résolue depuis
+  // bidding_objectives.required_metrics[0]. Pilote tout le wording UI.
+  const primaryMetric = useMemo(
+    () => resolvePrimaryMetric(meta?.objective?.required_metrics?.[0]),
+    [meta],
+  );
+
   // KPIs globaux : sur TOUTE la fenêtre (pas seulement le jour courant).
   const globalKpis: GlobalKpis = useMemo(() => {
     if (!comparisonRows) return {
@@ -132,26 +140,38 @@ export default function CustomBiddingDetailPage() {
       features: postalGeoJSON.features.map(f => {
         const cp = String(f.properties?.code_postal ?? '');
         const z = byZone.get(cp);
+        const leads_real = z?.leads_real ?? 0;
+        const leads_sim = z?.leads_sim ?? 0;
+        const spend_real = z?.spend_real ?? 0;
+        const spend_sim = z?.spend_sim ?? 0;
+        const impressions_real = z?.impressions_real ?? 0;
+        const impressions_sim = z?.impressions_sim ?? 0;
+        const clicks_real = z?.clicks_real ?? 0;
+        const clicks_sim = z?.clicks_sim ?? 0;
+        // Hover SyncMap : on injecte la valeur SIM de la métrique principale.
+        const hoverValue = primaryMetric === 'spend' ? spend_sim
+          : primaryMetric === 'clicks' ? clicks_sim
+          : primaryMetric === 'leads' ? leads_sim
+          : impressions_sim;
         return {
           ...f,
           properties: {
             ...(f.properties ?? {}),
-            leads_real: z?.leads_real ?? 0,
-            leads_sim: z?.leads_sim ?? 0,
-            spend_real: z?.spend_real ?? 0,
-            spend_sim: z?.spend_sim ?? 0,
-            impressions_real: z?.impressions_real ?? 0,
-            impressions_sim: z?.impressions_sim ?? 0,
-            clicks_real: z?.clicks_real ?? 0,
-            clicks_sim: z?.clicks_sim ?? 0,
+            leads_real, leads_sim,
+            spend_real, spend_sim,
+            impressions_real, impressions_sim,
+            clicks_real, clicks_sim,
+            leads_delta: leads_sim - leads_real,
+            spend_delta: spend_sim - spend_real,
+            impressions_delta: impressions_sim - impressions_real,
+            clicks_delta: clicks_sim - clicks_real,
             bid_multiplier: z?.bid_multiplier ?? 1.0,
-            // Champ générique consommé par le hover de SyncMap (metricLabel='Leads')
-            impressions: z?.leads_sim ?? 0,
+            impressions: hoverValue,
           },
         };
       }),
     };
-  }, [postalGeoJSON, rowsCurrentDay]);
+  }, [postalGeoJSON, rowsCurrentDay, primaryMetric]);
 
   // Drift dates (pour les marqueurs sur le slider et la timeline).
   const driftDates = useMemo(
@@ -178,7 +198,6 @@ export default function CustomBiddingDetailPage() {
     );
   }
 
-  const primaryMetric = (meta.objective?.required_metrics?.[0] ?? 'leads').toString();
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #050505)', color: 'var(--text-primary, #f0f0f0)', fontFamily: fInter, position: 'relative' }}>
@@ -195,6 +214,8 @@ export default function CustomBiddingDetailPage() {
         isDemo={Boolean(meta.campaign?.is_demo)}
         algorithmCode={meta.strategy.algorithm_code}
         initialMode={meta.strategy.execution_mode}
+        status={meta.strategy.status}
+        viewMode="expert"
         onActionResult={() => {
           // Refresh après predict/train pour récupérer les nouveaux multipliers
           setComparisonRows(null);
@@ -216,7 +237,7 @@ export default function CustomBiddingDetailPage() {
 
       <ChoroplethSplit
         geojson={enrichedGeoJSON}
-        metric="leads"
+        metric={primaryMetric}
         currentDate={currentDate}
       />
 
@@ -224,6 +245,7 @@ export default function CustomBiddingDetailPage() {
         daily={daily}
         currentDate={currentDate}
         driftDates={driftDates}
+        metric={primaryMetric}
       />
 
       {drifts.length > 0 && (

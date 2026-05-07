@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Bridge entre les states de /map/page.tsx et le registre Custom Geo Capture.
+ * MAGELIAN — Bridge entre les states de /map/page.tsx et le registre Custom Geo Capture.
  *
  * Declare N layers contributifs en fonction de l'etat actuel de la page carte.
  * Les 2 modules externes (admin_filter via FilterPanel, digital_analysis via

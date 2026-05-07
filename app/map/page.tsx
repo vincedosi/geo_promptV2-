@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @file app/map/page.tsx — page principale carte GEOMATIK
+ * @file app/map/page.tsx — page principale carte MAGELIAN
  * @size ~2329 lignes (cf docs/known_tech_debt.md — refactor planifié,
  *       non splitté en A4.6.2 par décision produit pour réduire le risque pitch)
  *
@@ -29,6 +29,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
+import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
+import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
+import { METEO_LABEL, METEO_UNIT, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+const MeteoGeoPanel = dynamic(
+  () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
+  { ssr: false },
+);
 import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
 import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
@@ -43,6 +50,7 @@ import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
+import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -163,6 +171,17 @@ export default function MapPage() {
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Masquer les axes <5 000 véh/j par défaut pour limiter la densité visuelle
+  // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
+  const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
+
+  // Météo — données par centroïdes admin (Open-Meteo)
+  const [meteoVisible, setMeteoVisible] = useState(false);
+  const [meteoPanelOpen, setMeteoPanelOpen] = useState(false);
+  const [meteoCentroids, setMeteoCentroids] = useState<Array<{ code: string; lat: number; lon: number }> | null>(null);
+  // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
+  // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
+  const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
   // Radio FM/DAB+ — émetteurs
   const [radioVisible,       setRadioVisible]       = useState(false);
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
@@ -214,6 +233,31 @@ export default function MapPage() {
   useEffect(() => {
     if (searchParams.get('layer') === 'digital') {
       setDigitalVisible(true);
+    }
+  }, [searchParams]);
+
+  // Pré-ouverture de l'overlay Pilotage ML depuis ?overlay=pilotage&action=...
+  // Utilisé par CustomBiddingBar (digital) et StrategyHeader (custom-bidding) pour
+  // remplacer leurs anciens redirects vers /strategies/* (lesquelles n'existent plus).
+  const [pilotageInitialAction, setPilotageInitialAction] = useState<
+    | { type: 'new'; campaignId: string; draftId?: string }
+    | { type: 'edit'; strategyId: string }
+    | { type: 'history'; strategyId: string }
+    | null
+  >(null);
+  useEffect(() => {
+    if (searchParams.get('overlay') !== 'pilotage') return;
+    const action = searchParams.get('action');
+    const campaignId = searchParams.get('campaign');
+    const strategyId = searchParams.get('strategy');
+    const draftId = searchParams.get('draft') ?? undefined;
+    setActiveOverlay('pilotage');
+    if (action === 'new' && campaignId) {
+      setPilotageInitialAction({ type: 'new', campaignId, draftId });
+    } else if (action === 'edit' && strategyId) {
+      setPilotageInitialAction({ type: 'edit', strategyId });
+    } else if (action === 'history' && strategyId) {
+      setPilotageInitialAction({ type: 'history', strategyId });
     }
   }, [searchParams]);
 
@@ -300,20 +344,74 @@ export default function MapPage() {
     try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
   }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync TMJA GeoJSON → map source ─────────────────────────────────────────
+  // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const src = map.getSource('tmja-source') as maplibregl.GeoJSONSource | undefined;
+    try {
+      map.setLayoutProperty('tmja-lines', 'visibility', tmjaGeoJSON ? 'visible' : 'none');
+      map.setFilter(
+        'tmja-lines',
+        tmjaHideLowTraffic ? ['>=', ['get', 'tmja'], 5000] : null,
+      );
+    } catch { /* */ }
+  }, [tmjaGeoJSON, tmjaHideLowTraffic, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Météo : hook data + sync source GeoJSON → bulles colorées ─────────────
+  const meteo = useMeteoData();
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('meteo-source') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    if (tmjaGeoJSON) {
-      src.setData(tmjaGeoJSON);
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'visible'); } catch { /* */ }
+
+    if (meteo.data && meteo.meta && meteoCentroids) {
+      const features: GeoJSON.Feature[] = [];
+      for (const c of meteoCentroids) {
+        const v = meteo.data[c.code];
+        if (!v) continue;
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
+          properties: { code: c.code, weather_value: v.value, label: v.label, unit: v.unit },
+        });
+      }
+      src.setData({ type: 'FeatureCollection', features });
+      try {
+        map.setPaintProperty('meteo-circles', 'circle-color',
+          buildMeteoColorExpr(meteo.meta.variable, meteo.meta.stats, 'weather_value') as maplibregl.ExpressionSpecification,
+        );
+        map.setLayoutProperty('meteo-circles', 'visibility', meteoVisible ? 'visible' : 'none');
+      } catch { /* */ }
     } else {
       src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
+      try { map.setLayoutProperty('meteo-circles', 'visibility', 'none'); } catch { /* */ }
     }
-  }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meteo.data, meteo.meta, meteoCentroids, meteoVisible, mapReady]);
+
+  // Charge les centroïdes (cache 1j navigateur) — re-fetch quand scale change
+  const ensureMeteoCentroids = useCallback(async (scale: MeteoScale) => {
+    try {
+      const res = await adminFetch(`/api/meteo-geo/centroids?scale=${scale}`, { cache: 'force-cache' });
+      if (!res.ok) return;
+      const j = await res.json() as { centroids: Array<{ code: string; lat: number; lon: number }> };
+      setMeteoCentroids(j.centroids ?? []);
+    } catch { /* */ }
+  }, []);
+
+  const handleMeteoApply = useCallback(async (params: MeteoParams) => {
+    const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
+    const scale: MeteoScale = days > 30 ? 'region' : days > 7 ? 'departement' : 'departement';
+    await ensureMeteoCentroids(scale);
+    await meteo.fetch(scale, params);
+    setMeteoVisible(true);
+  }, [meteo, ensureMeteoCentroids]);
+
+  const handleMeteoClear = useCallback(() => {
+    meteo.clear();
+    setMeteoVisible(false);
+  }, [meteo]);
 
   // ── Digital: GeoJSON source + layers ──────────────────────────────────────
   useEffect(() => {
@@ -645,21 +743,12 @@ export default function MapPage() {
     if (data?.pois) setZoneData(data);
   };
 
-  // ── Charger TMJA pour la vue courante ───────────────────────────────────────
+  // ── Toggle TMJA (vector tiles : affichage instantané, lazy par viewport) ───
+  // On garde un FeatureCollection vide en sentinel pour réutiliser la prop
+  // tmjaVisible existante côté FilterPanel et CaptureLayers — la vraie data
+  // est servie par les tiles MVT via la source vector tmja-source.
   const handleLoadTMJA = async () => {
-    const map = mapRef.current;
-    if (!map) return;
-    const zoom = map.getZoom();
-    if (zoom < 8) {
-      alert('Zoomez davantage (zoom ≥ 8) pour afficher les flux routiers TMJA.');
-      return;
-    }
-    const b = map.getBounds();
-    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}&zoom=${zoom.toFixed(1)}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data: GeoJSON.FeatureCollection = await res.json();
-    setTmjaGeoJSON(data);
+    setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
   };
 
   // ── Radio filter options — fetch lazy (au 1er toggle radio) ───────────────
@@ -1799,7 +1888,27 @@ export default function MapPage() {
               onLoadTransport={handleLoadTransport}
               onLoadTMJA={handleLoadTMJA}
               tmjaVisible={!!tmjaGeoJSON}
+              tmjaHideLowTraffic={tmjaHideLowTraffic}
+              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
+              onOpenMeteo={() => setMeteoPanelOpen(true)}
+              onClearMeteo={handleMeteoClear}
+              meteoVisible={meteoVisible}
+              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
               onClearTMJA={() => setTmjaGeoJSON(null)}
+              civicVariableCode={civicVariableCode}
+              onCivicVariableChange={setCivicVariableCode}
+              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
+              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+              onPondererCivicVariable={(code) => {
+                // Ouvre Pilotage ML avec une nouvelle stratégie pré-réglée sur cette variable.
+                // Pour l'instant on prend la 1ère campagne DSP éligible (TTD) comme campagne par défaut.
+                setActiveOverlay('pilotage');
+                setPilotageInitialAction({
+                  type: 'new',
+                  campaignId: '3e58e130-474d-4052-99b4-665c0a3efa85', // Renault Captur (Demo Pitch) — TTD éligible
+                });
+                void code;
+              }}
               radioVisible={radioVisible}
               onToggleRadio={() => setRadioVisible(v => !v)}
               radioHeatmapMode={radioHeatmapMode}
@@ -1918,7 +2027,10 @@ export default function MapPage() {
             />
           )}
           {activeOverlay === 'pilotage' && (
-            <PilotageOverlay />
+            <PilotageOverlay
+              initialAction={pilotageInitialAction}
+              onActionConsumed={() => setPilotageInitialAction(null)}
+            />
           )}
           {activeOverlay === 'zones' && (
             <ZonesOverlay mapRef={mapRef} />
@@ -2017,6 +2129,7 @@ export default function MapPage() {
           )}
         </ResultsPanel>
       )}
+      <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
@@ -2366,6 +2479,32 @@ export default function MapPage() {
       </div>{/* end right panel */}
 
       {/* Map popup styles moved to globals.css */}
+
+      {/* Panel modal météo (configuration variable + période) */}
+      {meteoPanelOpen && (
+        <div
+          onClick={() => setMeteoPanelOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <MeteoGeoPanel
+              onApply={async (params) => {
+                setMeteoPanelOpen(false);
+                await handleMeteoApply(params);
+              }}
+              onClose={() => setMeteoPanelOpen(false)}
+              loading={meteo.loading}
+              progress={meteo.progress}
+              error={meteo.error}
+              stats={meteo.meta?.stats ?? null}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,17 +1,14 @@
 'use client';
 
 import type { BudgetStep, PacingStrategy } from '@/lib/strategy-wizard/types';
+import { PACING_LABELS_FR } from '@/lib/strategy-wizard/types';
 
 interface Props {
   data: BudgetStep;
   onChange: (next: BudgetStep) => void;
 }
 
-const PACING: Array<{ value: PacingStrategy; label: string }> = [
-  { value: 'even', label: 'Even' },
-  { value: 'front_loaded', label: 'Front-loaded' },
-  { value: 'back_loaded', label: 'Back-loaded' },
-];
+const PACING: PacingStrategy[] = ['even', 'front_loaded', 'back_loaded'];
 
 export function Step4Budget({ data, onChange }: Props) {
   const set = <K extends keyof BudgetStep>(k: K, v: BudgetStep[K]) =>
@@ -53,7 +50,10 @@ export function Step4Budget({ data, onChange }: Props) {
         </Field>
       </div>
 
-      <Field label="ID campagne DSP externe (optionnel)">
+      <Field
+        label="ID campagne DSP externe (optionnel)"
+        tagline="Identifiant de la campagne dans votre DSP (TTD, DV360, Meta…) — facilite la réconciliation."
+      >
         <input
           type="text"
           value={data.dsp_external_id ?? ''}
@@ -63,7 +63,10 @@ export function Step4Budget({ data, onChange }: Props) {
         />
       </Field>
 
-      <Field label="CPM prévisionnel">
+      <Field
+        label="CPM prévisionnel"
+        tagline="Coût pour mille impressions estimé — sert au calcul du pacing budget."
+      >
         <input
           type="number"
           step="0.01"
@@ -74,26 +77,32 @@ export function Step4Budget({ data, onChange }: Props) {
         />
       </Field>
 
-      <Field label="Distribution temporelle">
+      <Field
+        label="Distribution temporelle"
+        tagline="Répartition du budget sur la durée de la campagne."
+      >
         <div className="flex gap-2">
           {PACING.map(p => (
             <button
-              key={p.value}
+              key={p}
               type="button"
-              onClick={() => set('pacing_strategy', p.value)}
+              onClick={() => set('pacing_strategy', p)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                data.pacing_strategy === p.value
-                  ? 'border-[rgba(78,205,196,0.5)] bg-[#111] text-[#f0f0f0]'
-                  : 'border-[#1a1a1a] bg-[#0a0a0a] text-[#a0a0a0] hover:border-[#333] hover:text-[#f0f0f0]'
+                data.pacing_strategy === p
+                  ? 'border-accent-teal/50 bg-bg-level-2 text-text-primary'
+                  : 'border-border-subtle bg-bg-level-1 text-text-secondary hover:border-border-hover hover:text-text-primary'
               }`}
             >
-              {p.label}
+              {PACING_LABELS_FR[p]}
             </button>
           ))}
         </div>
       </Field>
 
-      <Field label="Frequency cap">
+      <Field
+        label="Plafond de répétition par utilisateur"
+        tagline="Nombre maximum d'expositions par utilisateur sur une période donnée."
+      >
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -103,7 +112,7 @@ export function Step4Budget({ data, onChange }: Props) {
             placeholder="3"
             className={inputCls + ' w-24'}
           />
-          <span className="text-xs text-[#a0a0a0]">imps /</span>
+          <span className="text-xs text-text-secondary">impressions /</span>
           <input
             type="number"
             min={1}
@@ -112,21 +121,22 @@ export function Step4Budget({ data, onChange }: Props) {
             placeholder="1"
             className={inputCls + ' w-24'}
           />
-          <span className="text-xs text-[#a0a0a0]">jour(s)</span>
+          <span className="text-xs text-text-secondary">jour(s)</span>
         </div>
       </Field>
     </div>
   );
 }
 
-const inputCls = 'bg-[#111] border border-[#1a1a1a] rounded-md px-3 py-2 text-sm text-[#f0f0f0] placeholder:text-[#666] focus:outline-none focus:border-[rgba(78,205,196,0.5)]';
+const inputCls = 'bg-bg-level-2 border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-teal/50';
 const selectCls = inputCls;
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, tagline, children }: { label: string; tagline?: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] text-[#666] font-medium">{label}</span>
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] text-text-tertiary font-medium">{label}</span>
+      {tagline && <span className="text-[11px] text-text-tertiary -mt-0.5">{tagline}</span>}
       {children}
-    </label>
+    </div>
   );
 }

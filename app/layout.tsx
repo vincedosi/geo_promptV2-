@@ -9,7 +9,7 @@ import { TopRightChrome } from '@/components/layout/TopRightChrome'
 import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
 
 export const metadata: Metadata = {
-  title: 'GEOMATIK — Geospatial intelligence',
+  title: 'MAGELIAN — Geospatial intelligence',
   description: 'Plateforme de géomarketing OOH — ciblage, scoring et mesure de campagnes d\'affichage extérieur.',
   icons: [{ rel: 'icon', url: '/geomatik-icon.svg', type: 'image/svg+xml' }],
 }

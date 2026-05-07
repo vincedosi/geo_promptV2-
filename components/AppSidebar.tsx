@@ -183,13 +183,11 @@ function SidebarContent({ pathname }: { pathname: string }) {
             />
             <circle cx="14" cy="14" r="2" fill="#4ecdc4" opacity="0.5" />
           </svg>
-          <span
-            className="text-[15px] font-bold leading-none"
-            style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
-          >
-            <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
-            <span style={{ color: 'var(--brand-teal)' }}>ATIK</span>
-          </span>
+          <img
+            src="/geomatik-icon.svg"
+            alt="MAGELIAN"
+            style={{ height: 18, width: 'auto', display: 'block' }}
+          />
         </div>
         <p
           className="mt-1.5 text-[11px]"

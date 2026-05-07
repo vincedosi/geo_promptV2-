@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Validation des en-têtes CSV vs mappings configurés.
+ * MAGELIAN — Validation des en-têtes CSV vs mappings configurés.
  */
 
 import type { SourceMapping, ValidationResult } from './types';

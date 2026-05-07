@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Hook unique source-of-truth pour le KPI sélectionné.
+ * MAGELIAN — Hook unique source-of-truth pour le KPI sélectionné.
  *
  * URL-bound via le query param `?metric=<field>` :
  *  - Bookmarkable, deep-linking partageable

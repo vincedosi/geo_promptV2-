@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { logger } from '@/lib/logger';
 import { useStrategyDraftAutosave } from '@/lib/strategy-wizard/useStrategyDraftAutosave';
 import type {
   WizardDraftData, IdentityStep, GeographyStep, ObjectiveStep, BudgetStep, MLAgentStep, InitPreset,
 } from '@/lib/strategy-wizard/types';
+import { humanizeActivationError, type ZodIssue } from '@/lib/strategy-wizard/error-mapping';
 import { WizardStepper } from './WizardStepper';
 import { WizardActions } from './WizardActions';
 import { Step1Identity } from './steps/Step1Identity';
@@ -24,6 +24,7 @@ interface Props {
   initialDraft?: { current_step: number; draft_data: WizardDraftData };
   mode?: 'create' | 'edit';
   strategyId?: string;
+  onCompleted?: (strategyId: string) => void;
 }
 
 const TOTAL_STEPS = 5;
@@ -53,15 +54,17 @@ function defaultData(campaignName?: string): WizardDraftData {
   };
 }
 
-export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initialDraft, mode = 'create', strategyId }: Props) {
-  const router = useRouter();
+export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initialDraft, mode = 'create', strategyId, onCompleted }: Props) {
   const [currentStep, setCurrentStep] = useState(initialDraft?.current_step ?? 1);
   const [draftData, setDraftData] = useState<WizardDraftData>(
     initialDraft?.draft_data ?? defaultData(campaignName),
   );
   const [isRecap, setIsRecap] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<{
+    summary: string;
+    fields: Array<{ stepIdx: number; stepLabel: string; field: string; reason: string }>;
+  } | null>(null);
 
   // Autosave (only en mode create)
   const { isSaving, lastSavedAt, error: saveError } = useStrategyDraftAutosave({
@@ -126,39 +129,52 @@ export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initi
     setIsSubmitting(true);
     try {
       const payload = buildPayload(campaignId, draftData, consumeDraftId);
-      if (mode === 'edit' && strategyId) {
-        const res = await adminFetch(`/api/bidding/strategies/${strategyId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error ?? `HTTP ${res.status}`);
+      const url = mode === 'edit' && strategyId
+        ? `/api/bidding/strategies/${strategyId}`
+        : '/api/bidding/strategies';
+      const method = mode === 'edit' && strategyId ? 'PATCH' : 'POST';
+
+      const res = await adminFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // Erreur structurée Zod : { error: 'invalid_body', issues: [...] }
+        if (j?.issues && Array.isArray(j.issues)) {
+          const humanized = humanizeActivationError(j.issues as ZodIssue[]);
+          setSubmitError(humanized);
+          // Saute automatiquement vers le 1er step incomplet
+          if (humanized.fields[0]) {
+            setIsRecap(false);
+            setCurrentStep(humanized.fields[0].stepIdx);
+          }
+        } else {
+          setSubmitError({ summary: j.error ?? `HTTP ${res.status}`, fields: [] });
         }
-        router.push(`/custom-bidding/${strategyId}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (mode === 'edit' && strategyId) {
+        onCompleted?.(strategyId);
       } else {
-        const res = await adminFetch('/api/bidding/strategies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
         if (!j.strategy?.id) throw new Error('Réponse invalide : pas de strategy.id');
-        router.push(`/custom-bidding/${j.strategy.id}`);
+        onCompleted?.(j.strategy.id);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.error('strategy-wizard', `activation failed: ${msg}`);
-      setSubmitError(msg);
+      setSubmitError({ summary: msg, fields: [] });
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] text-[#f0f0f0]">
-      <header className="border-b border-[#1a1a1a] px-4">
+    <div className="flex flex-col h-full min-h-0 bg-bg-level-0 text-text-primary">
+      <header className="border-b border-border-subtle px-4 shrink-0">
         <WizardStepper
           currentStep={currentStep}
           completedSteps={completedSteps}
@@ -166,7 +182,7 @@ export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initi
         />
       </header>
 
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 min-h-0 overflow-auto p-6">
         {!isRecap && currentStep === 1 && (
           <Step1Identity
             data={draftData.identity ?? {}}
@@ -196,6 +212,11 @@ export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initi
             data={draftData.mlagent ?? {}}
             onChange={(v: MLAgentStep) => updateStep('mlagent', v)}
             onPresetApply={handlePresetApply}
+            geoConfigured={
+              draftData.geography?.scope_type === 'custom_zone'
+              && !!draftData.geography?.zone_id
+              && draftData.geography?.weighting_mode !== 'uniform'
+            }
           />
         )}
         {isRecap && (
@@ -206,8 +227,25 @@ export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initi
         )}
 
         {submitError && (
-          <div className="mt-4 max-w-2xl text-xs text-[#ff5757] bg-[rgba(255,87,87,0.1)] border border-[rgba(255,87,87,0.2)] rounded-md p-3">
-            Erreur : {submitError}
+          <div className="mt-4 max-w-2xl text-xs bg-geo-danger/10 border border-geo-danger/20 rounded-md p-3">
+            <div className="text-geo-danger font-medium mb-1">{submitError.summary}</div>
+            {submitError.fields.length > 0 && (
+              <ul className="mt-2 space-y-1.5 text-text-secondary">
+                {submitError.fields.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setIsRecap(false); setCurrentStep(f.stepIdx); }}
+                      className="text-accent-teal hover:text-accent-teal-hover whitespace-nowrap text-[11px] font-medium"
+                    >
+                      Étape {f.stepIdx} →
+                    </button>
+                    <span className="text-text-tertiary">{f.field}&nbsp;:</span>
+                    <span>{f.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </main>

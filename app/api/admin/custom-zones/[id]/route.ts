@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/admin/custom-zones/[id]
+ * MAGELIAN — API /api/admin/custom-zones/[id]
  * DELETE : supprime un set (CASCADE sur geography_zones via FK)
  */
 import { NextRequest, NextResponse } from 'next/server';

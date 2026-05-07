@@ -76,13 +76,14 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
 
         {/* Logotype */}
         <div style={{
-          fontSize: 20, fontWeight: 700, lineHeight: 1,
-          fontFamily: "'Inter', system-ui, sans-serif",
           opacity: 0,
           animation: 'splash-text 0.5s ease-out 0.8s forwards',
         }}>
-          <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
-          <span style={{ color: 'var(--brand-teal)' }}>ATIK</span>
+          <img
+            src="/geomatik-icon.svg"
+            alt="MAGELIAN"
+            style={{ height: 24, width: 'auto', display: 'block' }}
+          />
         </div>
 
         {/* Tagline */}

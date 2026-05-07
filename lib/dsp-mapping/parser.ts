@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Parser CSV/XLSX dynamique piloté par `dsp_source_mappings`.
+ * MAGELIAN — Parser CSV/XLSX dynamique piloté par `dsp_source_mappings`.
  *
  * Remplace `lib/campaigns/parser.ts` + `lib/campaigns/column-mappings.ts`.
  * La structure des sorties est piloté par les mappings DB :

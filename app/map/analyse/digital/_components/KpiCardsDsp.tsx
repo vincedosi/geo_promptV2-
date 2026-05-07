@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Cards KPI dynamiques pour le module Campagne Média.
+ * MAGELIAN — Cards KPI dynamiques pour le module Campagne Média.
  *
  * Charge dynamiquement la liste des KPIs disponibles pour la campagne via
  * `/api/admin/campaigns/[id]/metrics`, puis pour chacun fait un appel à

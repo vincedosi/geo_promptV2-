@@ -1,4 +1,4 @@
-# ARCHITECTURE — GEOMATIK
+# ARCHITECTURE — MAGELIAN
 
 > Derniere mise a jour : 2026-04-17
 > Version : 7.7.x
@@ -17,14 +17,14 @@
 | Cartographie | MapLibre GL JS | ^5.18 |
 | Tuiles vectorielles | PMTiles (IRIS via GitHub Releases) | 4.4.0 |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
-| Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + Geomatik dark style | — |
+| Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
 | Rate limiting | Upstash Redis | ^2.0 |
 | PDF export | @react-pdf/renderer | ^4.3 |
 | Graphiques | Recharts | ^3.8 |
-| Styles | Tailwind CSS + Design System GEOMATIK (dark minimal) | ^3.4 |
+| Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) | ^3.4 |
 | Fonts | Inter (UI) + JetBrains Mono (donnees/code) | — |
 | Validation | Zod | ^3.22 |
 | Tests | Vitest | ^2.0 |
@@ -70,7 +70,7 @@ genesis_app/
 │   └── layout.tsx              # Layout racine (AppSidebar, fonts)
 │
 ├── components/                 # Composants React partages
-│   ├── AppSidebar.tsx          # Sidebar navigation GEOMATIK
+│   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
 │   ├── ClusterDetails          # Detail cluster + analyse
 │   ├── ClusterRadar            # Graphique radar profil cluster
@@ -78,7 +78,7 @@ genesis_app/
 │   ├── ClusterResultsOverlay   # Overlay resultats clustering
 │   ├── CoverageResultsPanel    # Panel resultats couverture Filosofi
 │   ├── SessionBadge            # Badge session utilisateur
-│   └── ui/                     # Composants UI GEOMATIK
+│   └── ui/                     # Composants UI MAGELIAN
 │       ├── GeoBot.tsx          # Mascotte/assistant visuel
 │       ├── GeoSkeleton.tsx     # Skeleton loading
 │       ├── SplashScreen.tsx    # Ecran de chargement initial
@@ -209,6 +209,12 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/iris/geojson` | GET | IRIS GeoJSON par bbox + colonne |
 | `/api/iris/stats` | GET | Stats IRIS par colonne et niveau |
 | `/api/iris/values` | GET | Valeurs IRIS par code |
+| `/api/iris/detail` | GET | Detail IRIS complet (toutes colonnes socio-demo + nom_commune) |
+
+### Indicateurs civiques
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
 
 ### Correlation IRIS
 | Route | Methode | Description |
@@ -451,6 +457,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
 
 ---
 
@@ -583,6 +590,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `INNGEST_EVENT_KEY` | Jobs async |
 | `INNGEST_SIGNING_KEY` | Signing jobs |
 | `NEXT_PUBLIC_APP_URL` | URL app (defaut localhost:3000) |
+| `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
+| `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |
+| `ATMO_FRANCE_PASSWORD` | Mot de passe du compte Atmo Data v2 |
 
 ---
 
@@ -623,4 +633,4 @@ npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/data
 
 ---
 
-*GEOMATIK — Geospatial intelligence*
+*MAGELIAN — Geospatial intelligence*

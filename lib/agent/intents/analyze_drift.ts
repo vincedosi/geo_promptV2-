@@ -23,10 +23,10 @@ const intent: AgentIntent = {
     }
     const supabase = createAdminClient();
 
-    // 1. Drift event
+    // 1. Drift event (avec agent_recommendation potentiellement déjà pré-écrit)
     const { data: drift, error: dErr } = await supabase
       .from('bidding_drift_events')
-      .select('id,strategy_id,detected_at,drift_type,severity,postal_code,country_code,metric_before,metric_after,delta,description')
+      .select('id,strategy_id,detected_at,drift_type,severity,postal_code,country_code,metric_before,metric_after,delta,description,agent_recommendation')
       .eq('id', driftId)
       .single();
     if (dErr || !drift) {
@@ -36,7 +36,7 @@ const intent: AgentIntent = {
     // 2. Strategy + campaign
     const { data: strategy } = await supabase
       .from('bidding_strategies')
-      .select('id,name,algorithm_code,campaign_id')
+      .select('id,name,algorithm_code,campaign_id,is_demo')
       .eq('id', drift.strategy_id)
       .single();
     if (!strategy) {
@@ -45,10 +45,22 @@ const intent: AgentIntent = {
 
     const { data: campaign } = await supabase
       .from('dsp_campaigns')
-      .select('id,name')
+      .select('id,name,is_demo')
       .eq('id', strategy.campaign_id)
       .single();
     const campaignName = campaign?.name ?? 'Campagne inconnue';
+
+    // Mode démo : si la stratégie est `is_demo` ET qu'un agent_recommendation
+    // pré-écrit existe en DB, on l'utilise directement (zéro appel LLM).
+    // Garantit la prévisibilité totale pendant un pitch — aucun risque réseau,
+    // aucune dépendance quota Gemini, latence simulée 1.2s pour le réalisme.
+    const isDemo = Boolean(strategy.is_demo) || Boolean(campaign?.is_demo);
+    const preWritten = drift.agent_recommendation as Record<string, unknown> | null;
+    if (isDemo && preWritten && (preWritten.action || preWritten.summary_french || preWritten.rationale)) {
+      // Délai artificiel pour le ressenti "l'agent réfléchit"
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      return buildDemoOutputFromPreWritten(preWritten, drift.postal_code as string | null);
+    }
 
     // 3. Performance récente (14 derniers jours, agrégat journalier)
     const { data: dailyRows } = await supabase
@@ -147,6 +159,79 @@ function errorOutput(msg: string): IntentOutput {
     response_text: msg,
     proposed_actions: [],
     action_status: 'none',
+  };
+}
+
+/**
+ * Formate l'agent_recommendation pré-écrit (mode démo) en sortie d'intent.
+ * Le pré-écrit suit la convention du seed : { action, reduce_zones, reduce_pct,
+ * boost_zones, boost_pct, projection_14d, rationale }.
+ */
+function buildDemoOutputFromPreWritten(
+  rec: Record<string, unknown>,
+  driftZone: string | null,
+): IntentOutput {
+  const reduceZones = (rec.reduce_zones as string[]) ?? [];
+  const boostZones = (rec.boost_zones as string[]) ?? [];
+  const reducePct = Number(rec.reduce_pct ?? 0);
+  const boostPct = Number(rec.boost_pct ?? 0);
+  const proj = (rec.projection_14d as Record<string, unknown>) ?? {};
+  const rationale = String(rec.rationale ?? '');
+
+  // Construit un texte de réponse riche en français
+  const summaryParts: string[] = [];
+  if (driftZone) {
+    summaryParts.push(`🔴 **Drift critique détecté sur ${driftZone}.**`);
+  }
+  if (rationale) summaryParts.push(rationale);
+  if (reduceZones.length > 0) {
+    summaryParts.push(
+      `**Recommandation** : réduire la pression sur ${reduceZones.join(', ')} de **−${reducePct}%**` +
+      (boostZones.length > 0 ? ` et redéployer le budget vers ${boostZones.join(', ')} (**+${boostPct}%**).` : '.'),
+    );
+  }
+  if (proj.cpl_global_before && proj.cpl_global_after) {
+    summaryParts.push(
+      `**Projection à 14 jours** : CPL global ${Number(proj.cpl_global_before).toFixed(2)}€ → **${Number(proj.cpl_global_after).toFixed(2)}€**` +
+      (proj.visits_delta_pct ? ` (+${proj.visits_delta_pct}% de visites)` : '') +
+      (proj.incremental_visits ? `, soit **${Number(proj.incremental_visits).toLocaleString('fr-FR')} citoyens supplémentaires sensibilisés**.` : '.'),
+    );
+  }
+
+  const responseText = summaryParts.join('\n\n');
+
+  // Construit les actions proposées dans le format ProposedAction
+  const proposedActions: ProposedAction[] = [];
+  for (const zone of reduceZones) {
+    proposedActions.push({
+      type: 'apply_bid_change',
+      risk: reducePct > 30 ? 'medium' : 'low',
+      params: {
+        postal_code: zone,
+        bid_multiplier_delta_pct: -reducePct,
+      },
+      reasoning: `Réduire ${zone} de ${reducePct}% pour soulager la saturation média.`,
+    } as ProposedAction);
+  }
+  for (const zone of boostZones) {
+    proposedActions.push({
+      type: 'apply_bid_change',
+      risk: boostPct > 30 ? 'medium' : 'low',
+      params: {
+        postal_code: zone,
+        bid_multiplier_delta_pct: boostPct,
+      },
+      reasoning: `Booster ${zone} de ${boostPct}% pour exploiter la marge d'activation disponible.`,
+    } as ProposedAction);
+  }
+
+  return {
+    response_text: responseText,
+    proposed_actions: proposedActions,
+    action_status: 'none',
+    tokens_in: 0,
+    tokens_out: 0,
+    duration_ms: 1200,
   };
 }
 

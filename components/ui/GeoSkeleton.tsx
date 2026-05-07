@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * GEOMATIK Skeleton — shimmer loading states
+ * MAGELIAN Skeleton — shimmer loading states
  *
  * Uses the .geo-skeleton class from globals.css for the shimmer animation.
  * Provides pre-built variants for common patterns.

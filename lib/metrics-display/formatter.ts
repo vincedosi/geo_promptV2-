@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Formatage d'une valeur de métrique selon son `unit`.
+ * MAGELIAN — Formatage d'une valeur de métrique selon son `unit`.
  *
  * Les unités sont stockées en TEXT côté DB (`dsp_metrics_registry.unit`).
  * Toutes les inconnues tombent en formatage générique number.
