@@ -41,7 +41,6 @@ genesis_app/
 │   ├── admin/                  # Pages d'administration back-office
 │   │   ├── campaigns/          # Campagnes DSP — liste, import, detail
 │   │   ├── carreaux-import/    # Import des carreaux Filosofi (SHP/Parquet)
-│   │   ├── filosofi-import/    # Import direct INSEE Filosofi
 │   │   ├── health/             # Monitoring : etat DB, tables, fonctions RPC
 │   │   ├── import/             # Import universel de POI (CSV/XLSX/GeoJSON)
 │   │   ├── imports/            # Historique et gestion des imports

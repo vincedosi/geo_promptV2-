@@ -13,7 +13,6 @@ import {
   Lock,
   MapPin,
   Monitor,
-  PlusCircle,
   Radio,
   Share2,
   Target,
@@ -56,7 +55,6 @@ const navItems: NavSection[] = [
     items: [
       { href: '/integration-panneaux', label: 'Intégration', icon: LayoutGrid, badge: 'CSV' },
       { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: Upload, badge: 'Admin' },
-      { href: '/admin/filosofi-import', label: 'Filosofi Import', icon: PlusCircle, badge: 'Admin' },
       { href: '/admin/import', label: 'Import POI', icon: FileUp, badge: 'Admin' },
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
