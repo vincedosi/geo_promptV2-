@@ -103,7 +103,6 @@ export async function POST(req: NextRequest) {
     // PostgrestFilterBuilder's deep generic chain triggers TS2589 ("Type
     // instantiation excessively deep") when narrowed.
     async function fetchAllPages(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       buildQuery: (from: number, to: number) => any,
       max = 10000,
       filter?: (p: PoiPageRow) => boolean,
@@ -157,7 +156,6 @@ export async function POST(req: NextRequest) {
       // Helper : applique cat + filtres nature + filtre org (data_source_id)
       // Note: typed as `any` because Supabase's PostgrestFilterBuilder generic
       // chain causes "Type instantiation excessively deep" errors when narrowed.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const applyFilters = (q: any): any => {
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);

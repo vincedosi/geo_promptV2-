@@ -156,6 +156,9 @@ const analyseCardStyles = `
 `;
 
 export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardProps) {
+  // Hooks first — React rule of hooks forbids early returns above hooks.
+  const [selectedIris, setSelectedIris] = useState<string | null>(null);
+
   if (!output || output.type !== "analyse_complete") return null;
   const data = output as unknown as AnalyseOutput;
 
@@ -206,9 +209,6 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
 
   // ── IRIS distribution ─────────────────────────────────────────────────────────
   const irisData = ((output as Record<string, unknown> & { iris_distribution?: Array<{ code_iris: string; nom: string; pop: number; cible: number; lat?: number | null; lng?: number | null }> }).iris_distribution ?? []);
-
-  // ── IRIS highlight state ──────────────────────────────────────────────────────
-  const [selectedIris, setSelectedIris] = useState<string | null>(null);
 
   const cityCoords = (output as Record<string, unknown> & { coordonnees?: { lat: number; lng: number } }).coordonnees;
 

@@ -163,7 +163,6 @@ interface TooltipPayloadItem {
 }
 // Formatter is intentionally loosely typed: callers pass functions accepting (number, string)
 // or (number) only. We don't want to force every caller to widen its signature.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RechartsFormatter = (value: any, name: any, item: any) => React.ReactNode;
 interface DarkTooltipProps {
   active?: boolean;
@@ -1023,7 +1022,6 @@ async function exportPDF(
 
     const blob = await pdf(
       // Cast needed: pdf() expects ReactElement<DocumentProps> but our component wraps Document internally
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       React.createElement(ClusteringPDFReport, { data, franceAverages: franceAvgForPDF, analysis }) as React.ReactElement<any>
     ).toBlob();
 
