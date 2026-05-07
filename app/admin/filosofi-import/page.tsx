@@ -641,6 +641,10 @@ function StepImport({ info, idcarCol, selectedCols, resolution, millesime, addLo
 }
 
 // ─── Page principale ──────────────────────────────────────────────────────────
+// TODO(filosofi-import): page cassée pré-cleanup, endpoint manquant — décider fix vs remove
+// La page est listée dans components/AppSidebar.tsx mais appelle /api/admin/filosofi-import
+// qui n'existe pas (et n'a jamais existé : les routes /api/admin/import-filosofi/* étaient un
+// chemin différent, supprimées dans 66e7c5c car orphelines). Voir CLEANUP_REPORT.md.
 export default function FilosofiImportPage() {
   const [step,      setStep]      = useState<1 | 2 | 3>(1);
   const [fileInfo,  setFileInfo]  = useState<FileInfo | null>(null);
