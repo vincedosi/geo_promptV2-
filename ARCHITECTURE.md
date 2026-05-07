@@ -1,6 +1,6 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-04-17
+> Derniere mise a jour : 2026-05-07 (cleanup tech-debt)
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -84,10 +84,7 @@ genesis_app/
 │       ├── SplashScreen.tsx    # Ecran de chargement initial
 │       ├── PageTransition.tsx  # Transition entre pages
 │       ├── confirm-modal.tsx   # Modal de confirmation
-│       ├── geo-toast.tsx       # Notifications toast
-│       ├── help-tooltip.tsx    # Tooltips d'aide
-│       ├── search-filter.tsx   # Barre de recherche/filtre
-│       └── section-header.tsx  # En-tete de section (dot teal + bandeau)
+│       └── geo-toast.tsx       # Notifications toast
 │
 ├── lib/                        # Logique metier et services partages
 │   ├── auth.ts                 # createAdminClient(), getUserFromRequest()
@@ -121,7 +118,6 @@ genesis_app/
 │   ├── poi.ts                  # POI, PoiRow
 │   ├── campaign.ts             # DspCampaign, DspCampaignData
 │   ├── spatial.ts              # ZoneData, IsochroneData, BattleData...
-│   ├── api.ts                  # ApiError, PaginatedResponse
 │   └── admin.ts                # Organization, DataSource...
 │
 ├── scripts/                    # Scripts CLI standalone (Python/TS)
@@ -198,7 +194,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/map/tmja` | GET | Trafic moyen journalier |
 | `/api/map/poi-natures` | GET | Natures de POI |
 | `/api/carreaux` | GET/POST | Carreaux Filosofi dans bbox |
-| `/api/carreaux/dynamic` | GET | Tuiles carreaux adaptees au zoom |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) |
 | `/api/iris-tiles/[z]/[x]/[y]` | GET | Tuiles MVT zones IRIS |
 | `/api/iris-tiles-proxy` | GET | Proxy CORS pour PMTiles IRIS (GitHub Releases) |
@@ -206,9 +201,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### IRIS
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/iris/geojson` | GET | IRIS GeoJSON par bbox + colonne |
 | `/api/iris/stats` | GET | Stats IRIS par colonne et niveau |
-| `/api/iris/values` | GET | Valeurs IRIS par code |
 | `/api/iris/detail` | GET | Detail IRIS complet (toutes colonnes socio-demo + nom_commune) |
 
 ### Indicateurs civiques
@@ -223,7 +216,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/correlation/metrics` | GET | Metriques IRIS disponibles |
 | `/api/correlation/compute` | POST | Calcul correlation POI x IRIS |
 | `/api/correlation/analyse` | POST | Analyse textuelle de correlation |
-| `/api/correlation/residuals-geojson` | POST | GeoJSON residus pour carte |
 
 ### Crawler INSEE IRIS
 | Route | Methode | Description |
@@ -306,7 +298,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/radio/import-anfr` | POST | Import ANFR (requireAdmin) |
 | `/api/radio/import-arcom-ods` | POST | Import Arcom ODS (requireAdmin) |
 | `/api/radio/crawl-arcom` | POST | Crawl + matching Arcom (requireAdmin) |
-| `/api/radio/match-manual` | POST | Matching manuel (requireAdmin) |
 | `/api/radio/imports-history` | GET | Historique imports |
 | `/api/radio/import-logs/[logId]` | GET | Logs import |
 
@@ -335,9 +326,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
 | `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
 | `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist) |
-| `/api/admin/import-filosofi/*` | POST | Import Filosofi CSV/Parquet |
 | `/api/admin/import-geo/*` | POST | Import Shapefile |
-| `/api/admin/import-laposte` | POST | Import referentiel La Poste |
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
 | `/api/admin/geocode/update` | POST | Mise a jour geocodage |
 | `/api/admin/health` | GET | Monitoring DB |
@@ -490,20 +479,22 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT) | `api/tiles/` |
 | `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | `api/iris-tiles/` |
-| `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-filosofi/` |
+| `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
 
 ### IRIS
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_iris_geojson_by_bbox` | IRIS GeoJSON par bbox | `api/iris/geojson/` |
-| `get_iris_geojson_by_codes` | IRIS GeoJSON par codes | `api/iris/geojson/` |
 | `get_iris_stats_by_bbox` | Stats IRIS par bbox | `api/iris/stats/` |
 | `get_iris_dept_stats` | Stats IRIS departementales | `api/iris/stats/` |
 | `get_iris_metric_columns` | Colonnes metriques dynamiques | `api/iris/` |
 | `get_iris_fill_status` | Taux de remplissage IRIS | `api/admin/iris/` |
 | `get_iris_iris_residual_inputs` | Inputs residus correlation | `api/correlation/compute/` |
 | `update_iris_core_batch` | Update batch colonnes core | `api/iris-crawler/manual-import/` |
+
+> Orphelines (en base mais sans appelant TS) : `get_iris_geojson_by_bbox`,
+> `get_iris_geojson_by_codes` — etaient utilises par `/api/iris/geojson`,
+> route supprimee. Conservees en base ; voir `CLEANUP_REPORT.md`.
 
 ### Digital / Campagnes
 | RPC | Description | Appelee depuis |
