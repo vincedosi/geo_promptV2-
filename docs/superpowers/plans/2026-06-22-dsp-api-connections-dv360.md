@@ -171,13 +171,13 @@ ALTER TABLE public.dsp_connections ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS dsp_connections_select ON public.dsp_connections;
 CREATE POLICY dsp_connections_select ON public.dsp_connections
   FOR SELECT TO authenticated
-  USING (organization_id = get_user_org(auth.uid()));
+  USING (organization_id = get_user_org());
 
 ALTER TABLE public.dsp_api_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS dsp_api_logs_select ON public.dsp_api_logs;
 CREATE POLICY dsp_api_logs_select ON public.dsp_api_logs
   FOR SELECT TO authenticated
-  USING (organization_id = get_user_org(auth.uid()));
+  USING (organization_id = get_user_org());
 ```
 
 - [ ] **Step 2: Appliquer via MCP Supabase**
