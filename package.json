@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fzstd": "^0.1.1",
+    "google-auth-library": "^10.7.0",
     "hyparquet": "^1.25.1",
     "inngest": "^3.52.6",
     "jszip": "^3.10.1",
