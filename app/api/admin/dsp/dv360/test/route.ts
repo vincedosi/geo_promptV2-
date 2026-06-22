@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, advertisers });
   } catch (e) {
     const durationMs = Date.now() - started;
-    const msg = (e as Error).message;
+    const msg = e instanceof Error ? e.message : String(e);
     await supabase.from('dsp_connections').update({ status: 'error', last_error: msg })
       .eq('organization_id', orgId).eq('provider', 'dv360');
     await logDspEvent({
