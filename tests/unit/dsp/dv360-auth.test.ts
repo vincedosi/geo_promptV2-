@@ -21,6 +21,11 @@ describe('dv360 auth', () => {
     expect(() => parseServiceAccount('{"client_email":"a@b.com"}')).toThrow();
   });
 
+  it('parseServiceAccount rejette un JSON malformé', async () => {
+    const { parseServiceAccount } = await import('@/lib/dsp/dv360/auth');
+    expect(() => parseServiceAccount('not-json')).toThrow('JSON invalide');
+  });
+
   it('buildAuthUrl contient scope display-video, state et access_type=offline', async () => {
     const { buildAuthUrl } = await import('@/lib/dsp/dv360/auth');
     const url = buildAuthUrl('org-123');
