@@ -25,7 +25,7 @@ export default function Dv360Page() {
       const dv = (json.connections ?? []).find((c: DspConnectionPublic) => c.provider === 'dv360') ?? null;
       setConn(dv);
       if (dv?.partner_id) setPartnerId(dv.partner_id);
-      if (dv?.auth_method) setMethod(dv.auth_method);
+      if (dv?.auth_method === 'service_account' || dv?.auth_method === 'oauth') setMethod(dv.auth_method);
     } catch {
       toast.error('Impossible de charger la connexion DV360.');
     }
@@ -48,7 +48,7 @@ export default function Dv360Page() {
       const res = await adminFetch('/api/admin/dsp/dv360/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auth_method: 'service_account', partner_id: partnerId, service_account_json: saJson }),
+        body: JSON.stringify({ auth_method: method, partner_id: partnerId, service_account_json: saJson }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Erreur');
@@ -75,7 +75,8 @@ export default function Dv360Page() {
     setBusy(true);
     try {
       const res = await adminFetch('/api/admin/dsp/dv360/connect', { method: 'DELETE' });
-      if (!res.ok) throw new Error('Erreur déconnexion');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? 'Erreur déconnexion');
       toast.success('Déconnecté.');
       await load();
     } catch (e) { toast.error((e as Error).message); }
@@ -88,7 +89,7 @@ export default function Dv360Page() {
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <img src={provider.logo} alt="DV360" style={{ height: 28 }} />
+        <img src={provider?.logo} alt="DV360" style={{ height: 28 }} />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: fMono, fontSize: 12, color: statusColor }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor }} />
           {status === 'connected' ? 'Connecté' : status === 'error' ? 'Erreur' : 'Déconnecté'}
