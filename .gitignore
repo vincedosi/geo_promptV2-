@@ -57,3 +57,7 @@ server.log
 .claude/skills/agent-browser/
 # Screenshots de tests à la racine (ne touche pas aux PNG versionnés sous docs/assets/)
 /*.png
+
+# Artefacts générés du scoring geo_alignment (cache parquet/geojson, exports CSV/HTML)
+.cache/
+_output/
