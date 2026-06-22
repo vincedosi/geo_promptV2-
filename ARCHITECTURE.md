@@ -1,6 +1,6 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-05-07 (cleanup tech-debt)
+> Derniere mise a jour : 2026-06-22 (DSP API connections)
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -317,6 +317,16 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/campaigns/[id]/organizations` | GET/POST | Gestion orgs campagne |
 | `/api/admin/campaigns/[id]/organizations/[orgId]` | DELETE | Retrait org campagne |
 
+### DSP API (connexions) (protegees par `requireAdmin()`)
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/admin/dsp/connections` | GET | Liste connexions DSP par org |
+| `/api/admin/dsp/dv360/connect` | POST/DELETE | Enregistrement/suppression credentials DV360 (Service Account ou OAuth) |
+| `/api/admin/dsp/dv360/test` | POST | Test connexion DV360 (list_advertisers) |
+| `/api/admin/dsp/dv360/oauth/start` | GET | Initiation flux OAuth DV360 (redirect Google) |
+| `/api/admin/dsp/dv360/oauth/callback` | GET | Callback OAuth DV360 (echange code → tokens) |
+| `/api/admin/dsp/logs` | GET | Logs appels DSP par org (pagines) |
+
 ### Administration generale (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -392,6 +402,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `dsp_campaign_data` | Lignes d'impressions DSP | UNIQUE(campaign_id, date, postal_code, city) |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |
+| `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method |
+| `dsp_api_logs` | Logs appels/connexion/jobs DSP | RLS par org, action + status + latency + error |
 
 ### Geographie & INSEE
 | Table | Description | Notes |
@@ -569,6 +581,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `SUPABASE_DB_URL` | URL PostgreSQL directe |
 | `ORS_API_KEY` | Cle OpenRouteService |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Cle Gemini |
+| `DSP_ENC_KEY` | Cle AES-256 base64 (32 bytes) pour chiffrer les secrets DSP (`dsp_connections`) — **jamais exposer au client** |
 
 ### Optionnelles
 | Variable | Description |
@@ -583,6 +596,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
 | `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |
 | `ATMO_FRANCE_PASSWORD` | Mot de passe du compte Atmo Data v2 |
+| `DV360_OAUTH_CLIENT_ID` | Client ID OAuth Google pour le flux DV360 |
+| `DV360_OAUTH_CLIENT_SECRET` | Client Secret OAuth Google pour le flux DV360 |
+| `DV360_OAUTH_REDIRECT_URI` | URI de callback OAuth DV360 (ex: `https://app/api/admin/dsp/dv360/oauth/callback`) |
 
 ---
 
