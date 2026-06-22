@@ -1371,113 +1371,86 @@ git commit -m "feat: API tab layout (sub-tabs) + index redirect"
 ## Task 16: Pages placeholder Meta / TikTok / TTD
 
 **Files:**
+- Create: `app/admin/api/_components/ProviderPlaceholder.tsx`
 - Create: `app/admin/api/meta/page.tsx`
 - Create: `app/admin/api/tiktok/page.tsx`
 - Create: `app/admin/api/ttd/page.tsx`
 
 **Interfaces:**
-- Consumes: `PROVIDERS`, `C`, `fInter` (`../_lib/constants`).
-- Produces: écran « bientôt disponible » par provider (logo + texte + formulaire désactivé).
+- Consumes: `PROVIDERS`, `C`, `fInter` (`../_lib/constants`), type `DspProvider`.
+- Produces: composant partagé `ProviderPlaceholder` ; 3 pages fines qui le rendent avec leur clé provider (zéro duplication de logique).
 
-> Les 3 fichiers ont la même structure ; seule la clé provider change. Code complet pour chacun ci-dessous.
+- [ ] **Step 1: Créer le composant partagé**
 
-- [ ] **Step 1: Créer `meta/page.tsx`**
+Create `app/admin/api/_components/ProviderPlaceholder.tsx` :
+
+```tsx
+'use client';
+import { PROVIDERS, C, fInter } from '../_lib/constants';
+import type { DspProvider } from '@/types/dsp';
+
+export function ProviderPlaceholder({ providerKey }: { providerKey: DspProvider }) {
+  const p = PROVIDERS.find((x) => x.key === providerKey)!;
+  return (
+    <div style={{ maxWidth: 560 }}>
+      <img src={p.logo} alt={p.label} style={{ height: 28, marginBottom: 16 }} />
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
+        <p style={{ fontFamily: fInter, fontSize: 14, color: C.text, margin: 0 }}>
+          Intégration {p.label} bientôt disponible
+        </p>
+        <p style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, marginTop: 8 }}>
+          La connexion {p.label} sera ajoutée après la mise en production de DV360.
+        </p>
+        <input
+          disabled
+          placeholder="Identifiant de compte"
+          style={{ marginTop: 16, width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.textDim, fontFamily: fInter, fontSize: 13 }}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Créer les 3 pages fines**
 
 Create `app/admin/api/meta/page.tsx` :
 
 ```tsx
-'use client';
-import { PROVIDERS, C, fInter } from '../_lib/constants';
-
+import { ProviderPlaceholder } from '../_components/ProviderPlaceholder';
 export default function MetaPage() {
-  const p = PROVIDERS.find((x) => x.key === 'meta')!;
-  return (
-    <div style={{ maxWidth: 560 }}>
-      <img src={p.logo} alt={p.label} style={{ height: 28, marginBottom: 16 }} />
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
-        <p style={{ fontFamily: fInter, fontSize: 14, color: C.text, margin: 0 }}>Intégration {p.label} bientôt disponible</p>
-        <p style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, marginTop: 8 }}>
-          La connexion {p.label} sera ajoutée après la mise en production de DV360.
-        </p>
-        <input
-          disabled
-          placeholder="Identifiant de compte"
-          style={{ marginTop: 16, width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.textDim, fontFamily: fInter, fontSize: 13 }}
-        />
-      </div>
-    </div>
-  );
+  return <ProviderPlaceholder providerKey="meta" />;
 }
 ```
 
-- [ ] **Step 2: Créer `tiktok/page.tsx`**
-
-Create `app/admin/api/tiktok/page.tsx` — identique à Step 1 mais avec `find((x) => x.key === 'tiktok')` et `export default function TiktokPage()`.
+Create `app/admin/api/tiktok/page.tsx` :
 
 ```tsx
-'use client';
-import { PROVIDERS, C, fInter } from '../_lib/constants';
-
+import { ProviderPlaceholder } from '../_components/ProviderPlaceholder';
 export default function TiktokPage() {
-  const p = PROVIDERS.find((x) => x.key === 'tiktok')!;
-  return (
-    <div style={{ maxWidth: 560 }}>
-      <img src={p.logo} alt={p.label} style={{ height: 28, marginBottom: 16 }} />
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
-        <p style={{ fontFamily: fInter, fontSize: 14, color: C.text, margin: 0 }}>Intégration {p.label} bientôt disponible</p>
-        <p style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, marginTop: 8 }}>
-          La connexion {p.label} sera ajoutée après la mise en production de DV360.
-        </p>
-        <input
-          disabled
-          placeholder="Identifiant de compte"
-          style={{ marginTop: 16, width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.textDim, fontFamily: fInter, fontSize: 13 }}
-        />
-      </div>
-    </div>
-  );
+  return <ProviderPlaceholder providerKey="tiktok" />;
 }
 ```
-
-- [ ] **Step 3: Créer `ttd/page.tsx`**
 
 Create `app/admin/api/ttd/page.tsx` :
 
 ```tsx
-'use client';
-import { PROVIDERS, C, fInter } from '../_lib/constants';
-
+import { ProviderPlaceholder } from '../_components/ProviderPlaceholder';
 export default function TtdPage() {
-  const p = PROVIDERS.find((x) => x.key === 'ttd')!;
-  return (
-    <div style={{ maxWidth: 560 }}>
-      <img src={p.logo} alt={p.label} style={{ height: 28, marginBottom: 16 }} />
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
-        <p style={{ fontFamily: fInter, fontSize: 14, color: C.text, margin: 0 }}>Intégration {p.label} bientôt disponible</p>
-        <p style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, marginTop: 8 }}>
-          La connexion {p.label} sera ajoutée après la mise en production de DV360.
-        </p>
-        <input
-          disabled
-          placeholder="Identifiant de compte"
-          style={{ marginTop: 16, width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.textDim, fontFamily: fInter, fontSize: 13 }}
-        />
-      </div>
-    </div>
-  );
+  return <ProviderPlaceholder providerKey="ttd" />;
 }
 ```
 
-- [ ] **Step 4: Vérifier le type-check**
+- [ ] **Step 3: Vérifier le type-check**
 
 Run: `npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add app/admin/api/meta/page.tsx app/admin/api/tiktok/page.tsx app/admin/api/ttd/page.tsx
-git commit -m "feat: placeholder pages Meta/TikTok/TTD"
+git add app/admin/api/_components/ProviderPlaceholder.tsx app/admin/api/meta/page.tsx app/admin/api/tiktok/page.tsx app/admin/api/ttd/page.tsx
+git commit -m "feat: placeholder pages Meta/TikTok/TTD (shared component)"
 ```
 
 ---
