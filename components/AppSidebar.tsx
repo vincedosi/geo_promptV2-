@@ -13,6 +13,7 @@ import {
   Lock,
   MapPin,
   Monitor,
+  Plug,
   Radio,
   Share2,
   Target,
@@ -60,6 +61,12 @@ const navItems: NavSection[] = [
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
       { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
       { href: '/admin/campaigns', label: 'Campagnes DSP', icon: Target, badge: 'Admin' },
+    ],
+  },
+  {
+    section: 'API',
+    items: [
+      { href: '/admin/api', label: 'Connexions API', icon: Plug, badge: 'Admin' },
     ],
   },
   {
