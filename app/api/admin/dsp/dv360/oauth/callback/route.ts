@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       return redirectToUi(request, 'oauth=error&reason=no_refresh_token');
     }
     const supabase = createAdminClient();
-    await supabase.from('dsp_connections').upsert({
+    const { error: dbError } = await supabase.from('dsp_connections').upsert({
       organization_id: orgId,
       provider: 'dv360',
       auth_method: 'oauth',
@@ -38,6 +38,8 @@ export async function GET(request: NextRequest) {
       token_expires_at: expiryDate ? new Date(expiryDate).toISOString() : null,
       last_error: null,
     }, { onConflict: 'organization_id,provider' });
+
+    if (dbError) return redirectToUi(request, `oauth=error&reason=${encodeURIComponent('db')}`);
 
     await logDspEvent({ orgId, provider: 'dv360', category: 'connection', action: 'oauth_callback', message: 'OAuth Google connecté' });
     return redirectToUi(request, 'oauth=success');
