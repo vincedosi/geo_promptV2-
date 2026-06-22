@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { exchangeCode } from '@/lib/dsp/dv360/auth';
 import { encryptSecret } from '@/lib/crypto/secrets';
+import { verifyState } from '@/lib/dsp/oauth-state';
 import { logDspEvent } from '@/lib/dsp/logger';
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +16,19 @@ function redirectToUi(request: NextRequest, query: string) {
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
-  const orgId = url.searchParams.get('state'); // orgId porté par le state
+  const state = url.searchParams.get('state'); // state signé (HMAC) portant l'orgId
   const oauthError = url.searchParams.get('error');
 
   if (oauthError) return redirectToUi(request, `oauth=error&reason=${encodeURIComponent(oauthError)}`);
-  if (!code || !orgId) return redirectToUi(request, 'oauth=error&reason=missing_code_or_state');
+  if (!code || !state) return redirectToUi(request, 'oauth=error&reason=missing_code_or_state');
+
+  // Vérification anti-CSRF : le state doit être signé par cette app et non expiré.
+  let orgId: string;
+  try {
+    orgId = verifyState(state);
+  } catch {
+    return redirectToUi(request, 'oauth=error&reason=invalid_state');
+  }
 
   try {
     const { refreshToken, expiryDate } = await exchangeCode(code);
