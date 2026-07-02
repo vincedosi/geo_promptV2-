@@ -3,7 +3,7 @@
  * Résout un access token depuis une connexion stockée (chiffrée) puis
  * effectue des appels REST. Serveur uniquement.
  */
-import { getServiceAccountToken, refreshAccessToken } from './auth';
+import { getServiceAccountToken, refreshAccessToken, type OAuthClientCreds } from './auth';
 import { decryptSecret } from '@/lib/crypto/secrets';
 
 const DV360_BASE = 'https://displayvideo.googleapis.com/v3';
@@ -12,6 +12,23 @@ export interface Dv360ConnectionRow {
   auth_method: 'service_account' | 'oauth' | null;
   credentials_encrypted: string | null;
   oauth_refresh_token_encrypted: string | null;
+  oauth_client_id?: string | null;
+  oauth_client_secret_encrypted?: string | null;
+}
+
+/**
+ * Reconstitue les credentials du client OAuth depuis une connexion (secret déchiffré).
+ * Retourne undefined si rien n'est stocké → buildOAuthClient retombe sur les env vars.
+ */
+export function oauthCredsFromRow(conn: Dv360ConnectionRow): OAuthClientCreds | undefined {
+  if (!conn.oauth_client_id || !conn.oauth_client_secret_encrypted) return undefined;
+  const redirectUri = process.env.DV360_OAUTH_REDIRECT_URI;
+  if (!redirectUri) return undefined; // sans redirect URI, fallback env (qui lèvera l'erreur explicite)
+  return {
+    clientId: conn.oauth_client_id,
+    clientSecret: decryptSecret(conn.oauth_client_secret_encrypted),
+    redirectUri,
+  };
 }
 
 export async function resolveAccessToken(conn: Dv360ConnectionRow): Promise<string> {
@@ -21,7 +38,10 @@ export async function resolveAccessToken(conn: Dv360ConnectionRow): Promise<stri
   }
   if (conn.auth_method === 'oauth') {
     if (!conn.oauth_refresh_token_encrypted) throw new Error('Aucun refresh token OAuth enregistré.');
-    const { accessToken } = await refreshAccessToken(decryptSecret(conn.oauth_refresh_token_encrypted));
+    const { accessToken } = await refreshAccessToken(
+      decryptSecret(conn.oauth_refresh_token_encrypted),
+      oauthCredsFromRow(conn),
+    );
     return accessToken;
   }
   throw new Error('Méthode d\'authentification DV360 non configurée.');

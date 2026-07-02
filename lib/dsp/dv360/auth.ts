@@ -41,18 +41,28 @@ export async function getServiceAccountToken(saJson: string): Promise<string> {
   return access_token;
 }
 
-export function buildOAuthClient(): OAuth2Client {
-  const id = process.env.DV360_OAUTH_CLIENT_ID;
-  const secret = process.env.DV360_OAUTH_CLIENT_SECRET;
-  const redirect = process.env.DV360_OAUTH_REDIRECT_URI;
+/**
+ * Credentials du client OAuth. Quand fournis (saisis via formulaire et stockés
+ * chiffrés par org), ils priment ; sinon fallback sur les variables d'env.
+ */
+export interface OAuthClientCreds {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
+export function buildOAuthClient(creds?: OAuthClientCreds): OAuth2Client {
+  const id = creds?.clientId ?? process.env.DV360_OAUTH_CLIENT_ID;
+  const secret = creds?.clientSecret ?? process.env.DV360_OAUTH_CLIENT_SECRET;
+  const redirect = creds?.redirectUri ?? process.env.DV360_OAUTH_REDIRECT_URI;
   if (!id || !secret || !redirect) {
-    throw new Error('Variables OAuth DV360 manquantes (DV360_OAUTH_CLIENT_ID/SECRET/REDIRECT_URI).');
+    throw new Error('Config OAuth DV360 manquante (renseigne le formulaire ou DV360_OAUTH_CLIENT_ID/SECRET/REDIRECT_URI).');
   }
   return new OAuth2Client(id, secret, redirect);
 }
 
-export function buildAuthUrl(state: string): string {
-  return buildOAuthClient().generateAuthUrl({
+export function buildAuthUrl(state: string, creds?: OAuthClientCreds): string {
+  return buildOAuthClient(creds).generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: DV360_SCOPES,
@@ -60,12 +70,12 @@ export function buildAuthUrl(state: string): string {
   });
 }
 
-export async function exchangeCode(code: string): Promise<{
+export async function exchangeCode(code: string, creds?: OAuthClientCreds): Promise<{
   refreshToken: string | null;
   accessToken: string;
   expiryDate: number | null;
 }> {
-  const { tokens } = await buildOAuthClient().getToken(code);
+  const { tokens } = await buildOAuthClient(creds).getToken(code);
   if (!tokens.access_token) throw new Error('DV360 OAuth : access token absent de la réponse.');
   return {
     refreshToken: tokens.refresh_token ?? null,
@@ -74,11 +84,11 @@ export async function exchangeCode(code: string): Promise<{
   };
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<{
+export async function refreshAccessToken(refreshToken: string, creds?: OAuthClientCreds): Promise<{
   accessToken: string;
   expiryDate: number | null;
 }> {
-  const client = buildOAuthClient();
+  const client = buildOAuthClient(creds);
   client.setCredentials({ refresh_token: refreshToken });
   const { token } = await client.getAccessToken();
   if (!token) throw new Error('DV360 OAuth : échec refresh access token.');

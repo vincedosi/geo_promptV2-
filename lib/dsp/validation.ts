@@ -8,6 +8,14 @@ export const dv360ConnectSchema = z.object({
 });
 export type Dv360ConnectInput = z.infer<typeof dv360ConnectSchema>;
 
+/** Config du client OAuth saisie via formulaire (secret chiffré avant stockage). */
+export const dv360OAuthConfigSchema = z.object({
+  partner_id: z.string().trim().min(1, 'Partner ID requis'),
+  oauth_client_id: z.string().trim().min(1, 'Client ID requis'),
+  oauth_client_secret: z.string().trim().min(1, 'Client Secret requis'),
+});
+export type Dv360OAuthConfigInput = z.infer<typeof dv360OAuthConfigSchema>;
+
 export const logsQuerySchema = z.object({
   provider: z.enum(['dv360', 'meta', 'tiktok', 'ttd']).optional(),
   level: z.enum(['info', 'warn', 'error']).optional(),

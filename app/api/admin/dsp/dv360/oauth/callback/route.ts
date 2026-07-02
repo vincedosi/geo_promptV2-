@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { exchangeCode } from '@/lib/dsp/dv360/auth';
+import { oauthCredsFromRow } from '@/lib/dsp/dv360/client';
 import { encryptSecret } from '@/lib/crypto/secrets';
 import { verifyState } from '@/lib/dsp/oauth-state';
 import { logDspEvent } from '@/lib/dsp/logger';
@@ -31,12 +32,25 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { refreshToken, expiryDate } = await exchangeCode(code);
+    const supabase = createAdminClient();
+    // Charge les creds client OAuth de l'org pour échanger le code avec le MÊME
+    // client que celui ayant généré l'URL (sinon Google refuse). Fallback env.
+    const { data: connCreds } = await supabase
+      .from('dsp_connections')
+      .select('oauth_client_id, oauth_client_secret_encrypted')
+      .eq('organization_id', orgId).eq('provider', 'dv360').single();
+    const creds = connCreds
+      ? oauthCredsFromRow({
+          auth_method: 'oauth', credentials_encrypted: null, oauth_refresh_token_encrypted: null,
+          oauth_client_id: connCreds.oauth_client_id, oauth_client_secret_encrypted: connCreds.oauth_client_secret_encrypted,
+        })
+      : undefined;
+
+    const { refreshToken, expiryDate } = await exchangeCode(code, creds);
     if (!refreshToken) {
       // Google n'a pas renvoyé de refresh token (consent déjà accordé sans prompt)
       return redirectToUi(request, 'oauth=error&reason=no_refresh_token');
     }
-    const supabase = createAdminClient();
     const { error: dbError } = await supabase.from('dsp_connections').upsert({
       organization_id: orgId,
       provider: 'dv360',

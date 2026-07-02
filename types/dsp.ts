@@ -12,6 +12,7 @@ export interface DspConnectionPublic {
   auth_method: DspAuthMethod | null;
   status: DspStatus;
   partner_id: string | null;
+  oauth_client_id: string | null; // Client ID OAuth saisi via formulaire (non secret), null sinon
   advertiser_ids: { id: string; name: string }[];
   token_expires_at: string | null;
   last_error: string | null;
