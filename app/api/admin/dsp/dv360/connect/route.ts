@@ -61,21 +61,34 @@ export async function DELETE(request: NextRequest) {
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 
   const supabase = createAdminClient();
-  const { error } = await supabase.from('dsp_connections').update({
-    status: 'disconnected',
-    auth_method: null,
-    credentials_encrypted: null,
-    oauth_refresh_token_encrypted: null,
-    token_expires_at: null,
-    advertiser_ids: [],
-    last_error: null,
-  }).eq('organization_id', orgId).eq('provider', 'dv360');
+
+  // ?scope=full → purge complète : supprime la ligne entière, y compris le
+  // client OAuth (Client ID + Secret chiffré) et le partner_id. Sinon,
+  // déconnexion simple : révoque les credentials mais conserve la config.
+  const full = new URL(request.url).searchParams.get('scope') === 'full';
+
+  const { error } = full
+    ? await supabase.from('dsp_connections').delete()
+        .eq('organization_id', orgId).eq('provider', 'dv360')
+    : await supabase.from('dsp_connections').update({
+        status: 'disconnected',
+        auth_method: null,
+        credentials_encrypted: null,
+        oauth_refresh_token_encrypted: null,
+        token_expires_at: null,
+        advertiser_ids: [],
+        last_error: null,
+      }).eq('organization_id', orgId).eq('provider', 'dv360');
 
   if (error) {
     console.error('[DELETE dv360/connect]', error.message);
     return NextResponse.json({ error: 'Erreur déconnexion.' }, { status: 500 });
   }
 
-  await logDspEvent({ orgId, provider: 'dv360', category: 'connection', action: 'disconnect', message: 'Connexion DV360 supprimée' });
+  await logDspEvent({
+    orgId, provider: 'dv360', category: 'connection',
+    action: full ? 'purge_auth' : 'disconnect',
+    message: full ? 'Données d\'authentification DV360 effacées' : 'Connexion DV360 supprimée',
+  });
   return NextResponse.json({ ok: true });
 }

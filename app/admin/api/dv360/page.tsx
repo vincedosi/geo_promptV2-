@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PROVIDERS, C, fInter, fMono } from '../_lib/constants';
 import type { DspConnectionPublic, DspApiLogRow } from '@/types/dsp';
 
@@ -33,6 +34,7 @@ export default function Dv360Page() {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmPurge, setConfirmPurge] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -148,6 +150,25 @@ export default function Dv360Page() {
       await load();
     } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); loadLogs(); }
+  };
+
+  // Purge complète : supprime TOUT (client OAuth, secret, refresh token,
+  // partner_id) pour ressaisir à neuf. Réinitialise aussi les champs locaux.
+  const purgeAuth = async () => {
+    setBusy(true);
+    try {
+      const res = await adminFetch('/api/admin/dsp/dv360/connect?scope=full', { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? 'Erreur effacement');
+      setConn(null);
+      setPartnerId('');
+      setClientId('');
+      setClientSecret('');
+      setSaJson('');
+      toast.success('Données d\'authentification effacées.');
+      await load();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); setConfirmPurge(false); loadLogs(); }
   };
 
   const status = conn?.status ?? 'disconnected';
@@ -288,6 +309,30 @@ export default function Dv360Page() {
           </>
         )}
       </div>
+
+      {/* Purge complète — efface client OAuth + secrets + partner pour ressaisir à neuf */}
+      {conn && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+          <button
+            onClick={() => setConfirmPurge(true)}
+            disabled={busy}
+            style={{ background: 'transparent', border: 'none', color: C.red, fontFamily: fInter, fontSize: 11, cursor: busy ? 'not-allowed' : 'pointer', textDecoration: 'underline', padding: 0, opacity: busy ? 0.5 : 1 }}
+          >
+            Effacer les données d'authentification
+          </button>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={confirmPurge}
+        onClose={() => setConfirmPurge(false)}
+        onConfirm={purgeAuth}
+        title="Effacer les données d'authentification"
+        message="Supprime définitivement le client OAuth (Client ID + Secret), le refresh token, la clé Service Account et le Partner ID de cette organisation. Il faudra tout ressaisir."
+        confirmLabel="Tout effacer"
+        variant="danger"
+        loading={busy}
+      />
 
       {conn && conn.advertiser_ids.length > 0 && (
         <p style={{ fontFamily: fMono, fontSize: 12, color: C.textSec, marginTop: 16 }}>
