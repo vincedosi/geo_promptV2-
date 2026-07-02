@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
 import { X, Check, AlertTriangle, Info } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -169,15 +169,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     timersRef.current.set(id, tid)
   }, [dismiss])
 
-  const toast: ToastAPI = {
-    success: useCallback((title: string, message?: string) => push(title, message, 'success'), [push]),
-    error:   useCallback((title: string, message?: string) => push(title, message, 'error'), [push]),
-    warning: useCallback((title: string, message?: string) => push(title, message, 'warning'), [push]),
-    info:    useCallback((title: string, message?: string) => push(title, message, 'info'), [push]),
-  }
+  // Identité STABLE : l'API toast et la valeur de contexte sont mémoïsées une
+  // fois pour toutes (push est stable). Sans ça, chaque render du provider
+  // (ex. toast qui expire) recréait `toast` → les useCallback/useEffect des
+  // consommateurs dépendant de [toast] refiraient → boucle infinie de fetchs.
+  const toast: ToastAPI = useMemo(() => ({
+    success: (title: string, message?: string) => push(title, message, 'success'),
+    error:   (title: string, message?: string) => push(title, message, 'error'),
+    warning: (title: string, message?: string) => push(title, message, 'warning'),
+    info:    (title: string, message?: string) => push(title, message, 'info'),
+  }), [push])
+  const contextValue = useMemo(() => ({ toast }), [toast])
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
 
       {/* Container — fixed top-right */}
