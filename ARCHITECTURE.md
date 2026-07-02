@@ -216,19 +216,17 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/correlation/compute` | POST | Calcul correlation POI x IRIS |
 | `/api/correlation/analyse` | POST | Analyse textuelle de correlation |
 
-### Crawler INSEE IRIS
+### Import IRIS (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/iris-crawler/discover` | GET | Decouverte URLs sur page INSEE (whitelist SSRF) |
-| `/api/iris-crawler/download` | POST | Telechargement CSV streaming |
-| `/api/iris-crawler/preview` | POST | Apercu colonnes + stats |
-| `/api/iris-crawler/upload` | POST | Upload fichier vers table `iris` |
-| `/api/iris-crawler/status` | GET | Statut telechargements en cours |
 | `/api/iris-crawler/import-history` | GET | Historique imports IRIS |
-| `/api/iris-crawler/manual-upload` | POST | Upload manuel CSV |
-| `/api/iris-crawler/manual-import` | POST | Import manuel vers DB |
-| `/api/iris-crawler/delete` | DELETE | Suppression import IRIS |
-| `/api/iris-import/insee` | POST | Import INSEE direct |
+| `/api/iris-crawler/manual-upload` | POST | Upload manuel CSV (parse + auto-map) |
+| `/api/iris-crawler/manual-import` | POST | Import manuel vers table `iris` (NDJSON streaming) |
+| `/api/iris-import/insee` | POST | Import INSEE one-shot (download + parse + ecrit, NDJSON) |
+
+> Le pipeline crawler 3-temps (`discover`/`download`/`upload` + `preview`/`status`/`delete`)
+> a ete supprime en 2026-07 : staging disque local incompatible serverless,
+> supplante par les deux chemins ci-dessus. Voir `docs/AUDIT_IMPORTS.md`.
 
 ### Isochrones & Bataille
 | Route | Methode | Description |
