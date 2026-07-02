@@ -34,4 +34,25 @@ describe('dv360 auth', () => {
     expect(url).toContain('state=org-123');
     expect(url).toContain('access_type=offline');
   });
+
+  it('getOAuthRedirectUri privilégie la variable d’env explicite', async () => {
+    const { getOAuthRedirectUri } = await import('@/lib/dsp/dv360/auth');
+    expect(getOAuthRedirectUri()).toBe('http://localhost:3000/api/admin/dsp/dv360/oauth/callback');
+  });
+
+  it('getOAuthRedirectUri dérive de NEXT_PUBLIC_APP_URL sinon', async () => {
+    const { getOAuthRedirectUri } = await import('@/lib/dsp/dv360/auth');
+    const saved = process.env.DV360_OAUTH_REDIRECT_URI;
+    const savedApp = process.env.NEXT_PUBLIC_APP_URL;
+    try {
+      delete process.env.DV360_OAUTH_REDIRECT_URI;
+      process.env.NEXT_PUBLIC_APP_URL = 'https://app.magelian.com/';
+      expect(getOAuthRedirectUri()).toBe('https://app.magelian.com/api/admin/dsp/dv360/oauth/callback');
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      expect(getOAuthRedirectUri()).toBeUndefined();
+    } finally {
+      process.env.DV360_OAUTH_REDIRECT_URI = saved;
+      if (savedApp !== undefined) process.env.NEXT_PUBLIC_APP_URL = savedApp;
+    }
+  });
 });

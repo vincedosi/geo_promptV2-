@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('dsp_connections')
-    .select('provider, auth_method, status, partner_id, oauth_client_id, advertiser_ids, token_expires_at, last_error, updated_at')
+    .select('provider, auth_method, status, partner_id, oauth_client_id, advertiser_ids, token_expires_at, last_error, updated_at, credentials_encrypted, oauth_refresh_token_encrypted')
     .eq('organization_id', profile.organization_id);
 
   if (error) {
@@ -24,6 +24,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
 
-  const connections = (data ?? []) as DspConnectionPublic[];
+  // Mapping explicite : les colonnes chiffrées ne servent qu'à calculer le
+  // booléen has_credentials et ne sont JAMAIS renvoyées au client.
+  const connections: DspConnectionPublic[] = (data ?? []).map((row) => ({
+    provider: row.provider,
+    auth_method: row.auth_method,
+    status: row.status,
+    partner_id: row.partner_id,
+    oauth_client_id: row.oauth_client_id,
+    has_credentials: Boolean(row.credentials_encrypted || row.oauth_refresh_token_encrypted),
+    advertiser_ids: row.advertiser_ids,
+    token_expires_at: row.token_expires_at,
+    last_error: row.last_error,
+    updated_at: row.updated_at,
+  }));
   return NextResponse.json({ connections }, { headers: { 'Cache-Control': 'no-store' } });
 }

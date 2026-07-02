@@ -51,10 +51,23 @@ export interface OAuthClientCreds {
   redirectUri: string;
 }
 
+/**
+ * Redirect URI du callback OAuth : DV360_OAUTH_REDIRECT_URI si définie,
+ * sinon dérivée de NEXT_PUBLIC_APP_URL (le chemin du callback est fixé par
+ * le router Next). Rend le formulaire OAuth autonome, sans env var dédiée.
+ */
+export function getOAuthRedirectUri(): string | undefined {
+  const explicit = process.env.DV360_OAUTH_REDIRECT_URI;
+  if (explicit && explicit.trim()) return explicit.trim();
+  const app = process.env.NEXT_PUBLIC_APP_URL;
+  if (!app || !app.trim()) return undefined;
+  return `${app.trim().replace(/\/+$/, '')}/api/admin/dsp/dv360/oauth/callback`;
+}
+
 export function buildOAuthClient(creds?: OAuthClientCreds): OAuth2Client {
   const id = creds?.clientId ?? process.env.DV360_OAUTH_CLIENT_ID;
   const secret = creds?.clientSecret ?? process.env.DV360_OAUTH_CLIENT_SECRET;
-  const redirect = creds?.redirectUri ?? process.env.DV360_OAUTH_REDIRECT_URI;
+  const redirect = creds?.redirectUri ?? getOAuthRedirectUri();
   if (!id || !secret || !redirect) {
     throw new Error('Config OAuth DV360 manquante (renseigne le formulaire ou DV360_OAUTH_CLIENT_ID/SECRET/REDIRECT_URI).');
   }

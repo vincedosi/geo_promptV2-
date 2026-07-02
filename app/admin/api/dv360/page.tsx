@@ -153,6 +153,10 @@ export default function Dv360Page() {
   const status = conn?.status ?? 'disconnected';
   const statusColor = status === 'connected' ? C.green : status === 'error' ? C.red : C.textDim;
 
+  // Testable seulement si des credentials existent réellement (clé SA ou refresh
+  // token) — évite le faux « status: error » quand le flux OAuth n'est pas fini.
+  const canTest = Boolean(conn?.has_credentials);
+
   // Config serveur insuffisante pour la méthode choisie → on bloque + on explique.
   // OAuth est prêt si les env vars sont là OU si un client OAuth a été saisi par formulaire.
   const oauthClientReady = Boolean(config?.ready.oauth || conn?.oauth_client_id);
@@ -183,6 +187,11 @@ export default function Dv360Page() {
               label="OAuth — Redirect URI"
               ok={config!.env.oauth_redirect_uri}
               value={config!.env.redirect_uri_value ?? undefined}
+            />
+            <ConfigRow
+              label="OAuth — Client de l'organisation (formulaire)"
+              ok={Boolean(conn?.oauth_client_id)}
+              value={conn?.oauth_client_id ?? undefined}
             />
             <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: `0.5px solid ${C.border}` }}>
               <ReadyPill label="Service Account" ok={config!.ready.service_account} />
@@ -240,7 +249,7 @@ export default function Dv360Page() {
             />
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={save} disabled={busy || !partnerId || !saJson || !methodReady} style={btnTeal(busy || !partnerId || !saJson || !methodReady)}>Enregistrer</button>
-              <button onClick={test} disabled={busy || !conn} style={btnOutline(busy || !conn)}>Tester la connexion</button>
+              <button onClick={test} disabled={busy || !canTest} title={canTest ? undefined : 'Enregistre d’abord une clé Service Account.'} style={btnOutline(busy || !canTest)}>Tester la connexion</button>
               {conn && <button onClick={disconnect} disabled={busy} style={btnDanger(busy)}>Déconnecter</button>}
             </div>
           </>
@@ -273,7 +282,7 @@ export default function Dv360Page() {
 
             <div style={{ borderTop: `0.5px solid ${C.border}`, paddingTop: 16, display: 'flex', gap: 10 }}>
               <button onClick={startOAuth} disabled={busy || !partnerId || !methodReady} style={btnTeal(busy || !partnerId || !methodReady)}>Se connecter avec Google</button>
-              <button onClick={test} disabled={busy || !conn} style={btnOutline(busy || !conn)}>Tester la connexion</button>
+              <button onClick={test} disabled={busy || !canTest} title={canTest ? undefined : 'Termine d’abord la connexion Google (bouton « Se connecter avec Google »).'} style={btnOutline(busy || !canTest)}>Tester la connexion</button>
               {conn && <button onClick={disconnect} disabled={busy} style={btnDanger(busy)}>Déconnecter</button>}
             </div>
           </>

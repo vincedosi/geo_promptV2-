@@ -3,7 +3,7 @@
  * Résout un access token depuis une connexion stockée (chiffrée) puis
  * effectue des appels REST. Serveur uniquement.
  */
-import { getServiceAccountToken, refreshAccessToken, type OAuthClientCreds } from './auth';
+import { getServiceAccountToken, refreshAccessToken, getOAuthRedirectUri, type OAuthClientCreds } from './auth';
 import { decryptSecret } from '@/lib/crypto/secrets';
 
 const DV360_BASE = 'https://displayvideo.googleapis.com/v3';
@@ -22,7 +22,7 @@ export interface Dv360ConnectionRow {
  */
 export function oauthCredsFromRow(conn: Dv360ConnectionRow): OAuthClientCreds | undefined {
   if (!conn.oauth_client_id || !conn.oauth_client_secret_encrypted) return undefined;
-  const redirectUri = process.env.DV360_OAUTH_REDIRECT_URI;
+  const redirectUri = getOAuthRedirectUri(); // env explicite ou dérivée de NEXT_PUBLIC_APP_URL
   if (!redirectUri) return undefined; // sans redirect URI, fallback env (qui lèvera l'erreur explicite)
   return {
     clientId: conn.oauth_client_id,
