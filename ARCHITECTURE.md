@@ -323,7 +323,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/dsp/connections` | GET | Liste connexions DSP par org |
 | `/api/admin/dsp/dv360/connect` | POST/DELETE | Enregistrement/suppression credentials DV360 (Service Account ou OAuth) |
 | `/api/admin/dsp/dv360/test` | POST | Test connexion DV360 (list_advertisers) |
-| `/api/admin/dsp/dv360/oauth/start` | GET | Initiation flux OAuth DV360 (redirect Google, `state` signe HMAC) |
+| `/api/admin/dsp/dv360/config` | GET | Diagnostic config serveur DV360 (presence env vars en booleens, jamais de secret + redirect URI en clair) |
+| `/api/admin/dsp/dv360/oauth/config` | POST | Enregistre le client OAuth (Client ID + Secret chiffre) par org — saisie formulaire, prime sur les env vars |
+| `/api/admin/dsp/dv360/oauth/start` | POST | Initiation flux OAuth DV360 (persiste partner_id, renvoie l'URL de consentement Google en JSON, `state` signe HMAC) |
 | `/api/admin/dsp/dv360/oauth/callback` | GET | Callback OAuth DV360 (verif `state` HMAC anti-CSRF, echange code → tokens) |
 | `/api/admin/dsp/logs` | GET | Logs appels DSP par org (pagines) |
 
@@ -402,7 +404,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `dsp_campaign_data` | Lignes d'impressions DSP | UNIQUE(campaign_id, date, postal_code, city) |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |
-| `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method |
+| `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method, client OAuth optionnel par org (`oauth_client_id` + `oauth_client_secret_encrypted`, fallback env) |
 | `dsp_api_logs` | Logs appels/connexion/jobs DSP | RLS par org, action + status + latency + error |
 
 ### Geographie & INSEE
