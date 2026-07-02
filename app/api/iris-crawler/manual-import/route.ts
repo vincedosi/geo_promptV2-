@@ -31,6 +31,11 @@ async function retryUpsert<T>(
 // Body: { sessionId, irisKeyCol, mapping: Record<csvCol, dbTarget|'ignore'> }
 // Réponse: NDJSON streaming
 export async function POST(req: NextRequest) {
+  // Écriture massive dans la table iris → réservé aux admins.
+  // Guard AVANT la création du stream (une 403 en NDJSON serait illisible).
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
