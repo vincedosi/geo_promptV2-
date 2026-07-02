@@ -1,6 +1,6 @@
 /** MAGELIAN — GET /api/admin/dsp/logs : logs DSP de l'org (filtres provider/level, pagination). */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { requireDspAccess, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { logsQuerySchema } from '@/lib/dsp/validation';
 import type { DspApiLogRow } from '@/types/dsp';
@@ -8,8 +8,8 @@ import type { DspApiLogRow } from '@/types/dsp';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const profile = await requireAdmin(request);
-  if (!profile) return adminUnauthorized();
+  const profile = await requireDspAccess(request);
+  if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 

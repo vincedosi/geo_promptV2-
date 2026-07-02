@@ -66,7 +66,7 @@ const navItems: NavSection[] = [
   {
     section: 'API',
     items: [
-      { href: '/admin/api', label: 'Connexions API', icon: Plug, badge: 'Admin' },
+      { href: '/admin/api', label: 'Connexions API', icon: Plug },
     ],
   },
   {

@@ -1,6 +1,6 @@
 /** MAGELIAN — POST /api/admin/dsp/dv360/test : appel réel DV360 (list advertisers) prouvant l'auth. */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { requireDspAccess, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveAccessToken, listAdvertisers, type Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
@@ -8,15 +8,15 @@ import { logDspEvent } from '@/lib/dsp/logger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const profile = await requireAdmin(request);
-  if (!profile) return adminUnauthorized();
+  const profile = await requireDspAccess(request);
+  if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 
   const supabase = createAdminClient();
   const { data: conn, error: readErr } = await supabase
     .from('dsp_connections')
-    .select('auth_method, credentials_encrypted, oauth_refresh_token_encrypted, partner_id')
+    .select('auth_method, credentials_encrypted, oauth_refresh_token_encrypted, oauth_client_id, oauth_client_secret_encrypted, partner_id')
     .eq('organization_id', orgId).eq('provider', 'dv360').single();
 
   if (readErr || !conn) {

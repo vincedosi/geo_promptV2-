@@ -1,6 +1,6 @@
 /** MAGELIAN — POST/DELETE /api/admin/dsp/dv360/connect : enregistre/supprime la connexion Service Account. */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { requireDspAccess, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { dv360ConnectSchema } from '@/lib/dsp/validation';
 import { parseServiceAccount } from '@/lib/dsp/dv360/auth';
@@ -10,8 +10,8 @@ import { logDspEvent } from '@/lib/dsp/logger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const profile = await requireAdmin(request);
-  if (!profile) return adminUnauthorized();
+  const profile = await requireDspAccess(request);
+  if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 
@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const profile = await requireAdmin(request);
-  if (!profile) return adminUnauthorized();
+  const profile = await requireDspAccess(request);
+  if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 
