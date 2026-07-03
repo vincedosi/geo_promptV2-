@@ -52,6 +52,7 @@ import type { ResidualsMeta, ResidualData } from '@/app/map/_components/Correlat
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
+import { PollenMapLayer } from '@/app/map/_components/PollenMapLayer';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -184,6 +185,9 @@ export default function MapPage() {
   // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
   // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
   const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
+  // Carte des allergènes : choroplèthe indice pollen par département (Atmo France)
+  const [pollenVisible, setPollenVisible] = useState(false);
+  const [pollenProgress, setPollenProgress] = useState<{ done: number; total: number } | null>(null);
   // Radio FM/DAB+ — émetteurs
   const [radioVisible,       setRadioVisible]       = useState(false);
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
@@ -1171,6 +1175,8 @@ export default function MapPage() {
     setTmjaGeoJSON(null);
     handleMeteoClear();
     setCivicVariableCode(null);
+    setPollenVisible(false);
+    setPollenProgress(null);
     setRadioVisible(false);
     setRadioHeatmapMode(false);
     setRadioCoverageMode(false);
@@ -2048,6 +2054,9 @@ export default function MapPage() {
               onCivicVariableChange={setCivicVariableCode}
               selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
               selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+              pollenVisible={pollenVisible}
+              onTogglePollen={() => { setPollenProgress(null); setPollenVisible(v => !v); }}
+              pollenProgress={pollenProgress}
               onPondererCivicVariable={(code) => {
                 // Ouvre Pilotage ML avec une nouvelle stratégie pré-réglée sur cette variable.
                 // Pour l'instant on prend la 1ère campagne DSP éligible (TTD) comme campagne par défaut.
@@ -2279,6 +2288,11 @@ export default function MapPage() {
         </ResultsPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
+      <PollenMapLayer
+        mapRef={mapRef}
+        visible={pollenVisible}
+        onProgress={(done, total) => setPollenProgress({ done, total })}
+      />
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}

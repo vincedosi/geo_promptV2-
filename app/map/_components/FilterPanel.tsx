@@ -34,6 +34,7 @@ import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
 import { HealthIndicatorCard } from '@/components/donnees-terrain/HealthIndicatorCard';
+import { POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
@@ -386,6 +387,11 @@ export interface FilterPanelProps {
   selectedIrisCommuneCode?: string | null;
   /** Nom de la commune (optionnel, affiché en en-tête de la carte). */
   selectedIrisCommuneName?: string | null;
+  // Carte des allergènes (choroplèthe indice pollen par département, Atmo France)
+  pollenVisible?:       boolean;
+  onTogglePollen?:      () => void;
+  /** Progression du stream pollen (départements traités / total). */
+  pollenProgress?:      { done: number; total: number } | null;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
   onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
@@ -640,6 +646,7 @@ export function FilterPanel({
   onOpenMeteo, onClearMeteo, meteoVisible, meteoLabel,
   civicVariableCode, onCivicVariableChange, onPondererCivicVariable,
   selectedIrisCommuneCode, selectedIrisCommuneName,
+  pollenVisible, onTogglePollen, pollenProgress,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
@@ -2635,15 +2642,58 @@ export function FilterPanel({
                 sectionKey="civicHealth"
                 open={sectionsOpen.civicHealth === true}
                 onToggle={() => toggleSection('civicHealth')}
-                count={selectedIrisCommuneCode ? 1 : 0}
+                count={(selectedIrisCommuneCode ? 1 : 0) + (pollenVisible ? 1 : 0)}
                 searchTerm={filterSearch}
               />
               {sectionsOpen.civicHealth === true && (
-                <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <HealthIndicatorCard
                     codeCommune={selectedIrisCommuneCode ?? null}
                     nomCommune={selectedIrisCommuneName ?? null}
                   />
+
+                  {/* Carte des allergènes — choroplèthe pollen par département */}
+                  <button
+                    onClick={onTogglePollen}
+                    style={{
+                      padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                      fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+                      background: pollenVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
+                      border: `0.5px solid ${pollenVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                      color: pollenVisible ? 'var(--brand-teal)' : C.textSec,
+                    }}
+                  >
+                    {pollenVisible ? '🌾 Carte des allergènes visible' : '🌾 Afficher la carte des allergènes'}
+                  </button>
+
+                  {pollenVisible && (
+                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                      {/* Progression du stream (1 commune représentative par département) */}
+                      {pollenProgress && pollenProgress.done < pollenProgress.total && (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
+                          Chargement… {pollenProgress.done}/{pollenProgress.total} départements
+                        </div>
+                      )}
+
+                      {/* Légende : niveaux 1-6 de l'indice pollen Atmo France */}
+                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                        Indice pollen
+                      </div>
+                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                        {([1, 2, 3, 4, 5, 6] as const).map(lvl => (
+                          <div key={lvl} title={POLLEN_LEVEL_LABELS[lvl]} style={{ flex: 1, background: `var(--pollen-level-${lvl})` }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
+                        <span>{POLLEN_LEVEL_LABELS[1]}</span>
+                        <span>{POLLEN_LEVEL_LABELS[6]}</span>
+                      </div>
+
+                      <div style={{ marginTop: 8, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                        Source : Atmo France et les AASQA (ODbL) — 1 commune par département · clic sur un département pour le détail par espèce
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
