@@ -53,6 +53,7 @@ import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
+import { ZoneMediaPlanPanel } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -195,6 +196,17 @@ export default function MapPage() {
   const [civicCpStatus, setCivicCpStatus] = useState<'ok' | 'no_data' | null>(null);
   const [civicCpDate, setCivicCpDate] = useState<string | null>(null);
   const [civicRefreshKey, setCivicRefreshKey] = useState(0);
+  // Plan média : zones custom affichées via l'overlay Zones → panneau latéral droit
+  const [planZones, setPlanZones] = useState<Array<{ id: string; name: string }>>([]);
+  const [planPanelOpen, setPlanPanelOpen] = useState(false);
+  const prevPlanCountRef = useRef(0);
+  const handleLoadedZonesChange = useCallback((zones: Array<{ id: string; name: string }>) => {
+    // Auto-ouverture à la première zone affichée ; fermeture quand plus rien
+    if (zones.length > 0 && prevPlanCountRef.current === 0) setPlanPanelOpen(true);
+    if (zones.length === 0) setPlanPanelOpen(false);
+    prevPlanCountRef.current = zones.length;
+    setPlanZones(zones);
+  }, []);
   // Radio FM/DAB+ — émetteurs
   const [radioVisible,       setRadioVisible]       = useState(false);
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
@@ -2217,7 +2229,7 @@ export default function MapPage() {
             />
           )}
           {activeOverlay === 'zones' && (
-            <ZonesOverlay mapRef={mapRef} />
+            <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
           )}
           {activeOverlay === 'settings' && (
             <SettingsOverlay
@@ -2314,6 +2326,36 @@ export default function MapPage() {
         </ResultsPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
+      {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
+      {planZones.length > 0 && planPanelOpen && (
+        <ZoneMediaPlanPanel
+          zones={planZones}
+          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
+          onClose={() => setPlanPanelOpen(false)}
+        />
+      )}
+      {planZones.length > 0 && !planPanelOpen && (
+        <button
+          onClick={() => setPlanPanelOpen(true)}
+          title="Rouvrir le plan média des zones affichées"
+          style={{
+            position: 'fixed',
+            top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
+            right: planPanelOpen && planZones.length ? 510 : 10,
+            zIndex: 50,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
+            borderRadius: 6, padding: '7px 10px', cursor: 'pointer',
+            color: 'var(--brand-teal)',
+            fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+            transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
+        >
+          Plan média ({planZones.length})
+        </button>
+      )}
       <CivicHealthMapLayer
         mapRef={mapRef}
         dataset={civicHealthLayer}
@@ -2381,7 +2423,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: 10,
+              right: planPanelOpen && planZones.length ? 510 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2402,7 +2444,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
-              right: 10,
+              right: planPanelOpen && planZones.length ? 510 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2425,7 +2467,7 @@ export default function MapPage() {
               style={{
                 position: 'fixed',
                 top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
-                right: 10,
+                right: planPanelOpen && planZones.length ? 510 : 10,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',

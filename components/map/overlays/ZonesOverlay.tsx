@@ -21,6 +21,8 @@ import type { CustomGeoZoneSummary } from '@/types/custom-geo';
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
+  /** Notifie le parent des zones actuellement affichées sur la carte (plan média). */
+  onLoadedZonesChange?: (zones: Array<{ id: string; name: string }>) => void;
 }
 
 interface ZonesStats {
@@ -71,7 +73,7 @@ const lineIdOf   = (zoneId: string) => `custom-zone-line-${zoneId}`;
 
 // ─── Composant principal ──────────────────────────────────────────────────
 
-export function ZonesOverlay({ mapRef }: Props) {
+export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
   const { session, isLoading: sessionLoading } = useSession();
   const orgId = session?.user?.organizationId ?? '';
 
@@ -89,6 +91,38 @@ export function ZonesOverlay({ mapRef }: Props) {
   // État UI : zone en cours de fetch / suppression
   const [pendingZoneId, setPendingZoneId] = useState<string | null>(null);
   const [zoneToDelete, setZoneToDelete] = useState<CustomGeoZoneSummary | null>(null);
+
+  // Remonte au parent la liste des zones affichées (déclenche le plan média)
+  useEffect(() => {
+    onLoadedZonesChange?.([...loadedZones.values()].map(z => ({ id: z.id, name: z.name })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedZones]);
+
+  // ── Réconciliation au montage : l'overlay se démonte à chaque fermeture,
+  // mais les couches custom-zone-* restent sur la carte. On reconstruit
+  // loadedZones depuis le style MapLibre pour que Masquer/Afficher et le
+  // plan média restent synchrones après réouverture de l'overlay.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      const style = map.getStyle();
+      const recovered = new Map<string, LoadedZone>();
+      for (const [sourceId, source] of Object.entries(style.sources ?? {})) {
+        if (!sourceId.startsWith('custom-zone-') || (source as { type?: string }).type !== 'geojson') continue;
+        const zoneId = sourceId.slice('custom-zone-'.length);
+        if (!map.getLayer(fillIdOf(zoneId))) continue; // source orpheline (tout effacer)
+        const data = (source as { data?: GeoJSON.Feature }).data;
+        const name = (data?.properties as { name?: string } | undefined)?.name ?? zoneId;
+        const paint = map.getPaintProperty(fillIdOf(zoneId), 'fill-color');
+        const color = typeof paint === 'string' ? paint : ZONE_PALETTE[recovered.size % ZONE_PALETTE.length];
+        const bbox = data?.geometry ? bboxFromGeometry(data.geometry) : null;
+        recovered.set(zoneId, { id: zoneId, name, color, bbox });
+      }
+      if (recovered.size) setLoadedZones(recovered);
+    } catch { /* style pas encore prêt — l'état repart à vide comme avant */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Fetch list + stats ────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {

@@ -384,6 +384,11 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 > voir `docs/AUDIT_IMPORTS.md` C4). Les panneaux s'importent via
 > `/admin/ooh-import` (ArcGIS REST → `panneaux_affichage`).
 
+### Zones custom — plan média
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/custom-geo/national-totals` | GET | Totaux population France par tranche d'age (RPC `get_national_population_totals` sur carreaux_5km, cache serveur 24h) — colonne « % France » du plan media (ZoneMediaPlanPanel : budget/CPM/cible sur les zones affichees) |
+
 ### Export & Sauvegarde
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -549,6 +554,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 |-----|-------------|----------------|
 | `get_zone_centroids` | Centroides zones admin | `api/meteo-geo/` |
 | `get_zone_polygons` | Polygones simplifies zones admin (choroplethe) | `api/meteo-geo/zones/` |
+| `get_national_population_totals` | Totaux France par tranche d'age (carreaux_5km, sql/087) | `api/custom-geo/national-totals/` |
 
 ### Correlation
 | RPC | Description | Appelee depuis |
