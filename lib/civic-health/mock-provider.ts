@@ -15,6 +15,7 @@ import type {
   PollenLevel,
 } from './types';
 import { atmoQualificatif, parseAtmoLevel } from './levels';
+import { isoDate as todayIso } from './utils';
 
 function hash(s: string): number {
   let h = 0;
@@ -22,12 +23,6 @@ function hash(s: string): number {
     h = (h * 31 + s.charCodeAt(i)) | 0;
   }
   return Math.abs(h);
-}
-
-function todayIso(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
 }
 
 function buildAir(codeInsee: string): AirIndicator {

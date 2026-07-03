@@ -3,6 +3,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
 import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
+import { toSlug } from '@/lib/custom-geo/slug';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,14 +38,6 @@ function parseWeights(searchParams: URLSearchParams): Record<string, number> | n
   }
 }
 
-function toSlug(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'zone';
-}
 
 export async function GET(
   request: NextRequest,

@@ -44,7 +44,16 @@
       "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-test.json','utf8'\\)\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first feature:', JSON.stringify\\(d.geojson?.features?.[0]?.properties\\)\\); }\")",
       "Bash(node -e \"const fs=require\\('fs'\\); const raw=fs.readFileSync\\('C:/Users/LA_VSI~1/AppData/Local/Temp/meteo-small.json','utf8'\\); if\\(raw.startsWith\\('<'\\)\\){console.log\\('HTML page returned \\(404\\)'\\)} else { const d=JSON.parse\\(raw\\); if\\(d.error\\){console.log\\('ERROR:',d.error,d.details||''\\)} else { console.log\\('features:', d.geojson?.features?.length\\); console.log\\('meta:', JSON.stringify\\(d.meta\\)\\); console.log\\('first 3 features:', JSON.stringify\\(d.geojson?.features?.slice\\(0,3\\)?.map\\(f=>f.properties\\)\\)\\); } }\")",
       "Bash(taskkill //IM node.exe //F)",
-      "Bash(claude mcp *)"
+      "Bash(claude mcp *)",
+      "Bash(python build_xlsx.py)",
+      "Read(//c/Users/vsidol01/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/a5307c33-3429-4150-8a58-b7aa9ab8cc2b/b570fa60-0247-472a-a652-761d87257d94/skills/xlsx/**)",
+      "Bash(python scripts/recalc.py \"C:\\\\Users\\\\vsidol01\\\\Downloads\\\\evolution_sources_18mai_12juin.xlsx\")",
+      "Read(//c/Program Files/LibreOffice/program/**)",
+      "Read(//c/Program Files \\(x86\\)/LibreOffice/program/**)",
+      "Bash(python build_xlsx2.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(python build_xlsx3.py)",
+      "Bash(python build_xlsx4.py)"
     ]
   }
 }

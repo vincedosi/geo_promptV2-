@@ -17,8 +17,9 @@
  *
  * Source : Atmo France et les AASQA — licence ODbL (mention obligatoire UI).
  */
-import type { AtmoBulkEntry, AtmoLevel, PollenBulkEntry, PollenLevel } from './types';
+import type { AtmoBulkEntry, AtmoLevel, PollenBulkEntry } from './types';
 import { parseAtmoLevel, parsePollenLevel } from './levels';
+import { isoDate, fetchWithTimeout, buildEspeces, buildConcentrations } from './utils';
 
 const WFS_URL = process.env.ATMO_WFS_URL ?? 'https://data.atmo-france.org/geoserver/ows';
 const PAGE_SIZE = 40_000;
@@ -58,12 +59,6 @@ interface WfsFeatureCollection {
   numberReturned?: number;
 }
 
-function isoDate(offsetDays: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
-
 function buildUrl(layer: string, propertyName: string, date: string, startIndex: number): string {
   const params = new URLSearchParams({
     service: 'WFS',
@@ -81,19 +76,13 @@ function buildUrl(layer: string, propertyName: string, date: string, startIndex:
 }
 
 async function fetchPage(layer: string, propertyName: string, date: string, startIndex: number): Promise<WfsFeatureCollection> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(buildUrl(layer, propertyName, date, startIndex), {
-      signal: ctrl.signal,
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`wfs_http_${res.status}`);
-    return (await res.json()) as WfsFeatureCollection;
-  } finally {
-    clearTimeout(t);
-  }
+  const res = await fetchWithTimeout(
+    buildUrl(layer, propertyName, date, startIndex),
+    { headers: { Accept: 'application/json' } },
+    REQUEST_TIMEOUT_MS,
+  );
+  if (!res.ok) throw new Error(`wfs_http_${res.status}`);
+  return (await res.json()) as WfsFeatureCollection;
 }
 
 /**
@@ -144,8 +133,6 @@ export function collectWfsFeatures(
   target: Map<string, PollenBulkEntry>,
 ): number {
   let added = 0;
-  const lvl = (v: number | undefined): PollenLevel => parsePollenLevel(v) ?? 0;
-  const conc = (v: number | undefined): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
   for (const f of json.features ?? []) {
     const p = f.properties;
     if (!p?.code_zone) continue;
@@ -153,22 +140,8 @@ export function collectWfsFeatures(
     if (indice_global == null) continue;
     target.set(String(p.code_zone).toUpperCase(), {
       indice_global,
-      especes: {
-        ambroisie: lvl(p.code_ambr),
-        armoise: lvl(p.code_arm),
-        aulne: lvl(p.code_aul),
-        bouleau: lvl(p.code_boul),
-        graminees: lvl(p.code_gram),
-        olivier: lvl(p.code_oliv),
-      },
-      concentrations: {
-        ambroisie: conc(p.conc_ambr),
-        armoise: conc(p.conc_arm),
-        aulne: conc(p.conc_aul),
-        bouleau: conc(p.conc_boul),
-        graminees: conc(p.conc_gram),
-        olivier: conc(p.conc_oliv),
-      },
+      especes: buildEspeces(p),
+      concentrations: buildConcentrations(p),
       alerte: p.alerte === true,
     });
     added++;
