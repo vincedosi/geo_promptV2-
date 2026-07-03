@@ -206,6 +206,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
+| `/api/civic-indicators/pollen-map` | GET | Carte des allergenes : indice pollen par departement (stream NDJSON, 1 commune representative/dept) — layer PollenMapLayer, toggle section Sante environnementale |
 
 ### Correlation IRIS
 | Route | Methode | Description |
