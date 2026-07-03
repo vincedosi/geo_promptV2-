@@ -50,6 +50,10 @@ export interface PollenIndicator {
   /** Indice global pollen (0 = indisponible, 1-6 = très faible → extrêmement élevé). */
   indice_global: PollenLevel;
   especes: Record<PollenSpecies, PollenLevel>;
+  /** Concentrations en grains/m³ par espèce (absent sur les payloads antérieurs au 2026-07-03). */
+  concentrations?: Record<PollenSpecies, number>;
+  /** Alerte pollen Atmo France sur la zone. */
+  alerte?: boolean;
   previsionJ1?: { indice: PollenLevel };
   previsionJ2?: { indice: PollenLevel };
 }
@@ -72,6 +76,10 @@ export type HealthProviderName = 'atmofrance' | 'mock';
 export interface PollenBulkEntry {
   indice_global: PollenLevel;
   especes: Record<PollenSpecies, PollenLevel>;
+  /** Concentrations en grains/m³ par espèce (0 si non fournie). */
+  concentrations: Record<PollenSpecies, number>;
+  /** Alerte pollen Atmo France sur la commune. */
+  alerte: boolean;
 }
 
 export type AtmoPolluant = 'no2' | 'o3' | 'pm10' | 'pm25' | 'so2';

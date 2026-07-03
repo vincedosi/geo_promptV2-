@@ -72,7 +72,8 @@ interface CpRow {
   code_postal: string;
   indice_global: number;
   nb_communes: number;
-  [metric: string]: string | number;
+  alerte?: boolean;
+  [metric: string]: string | number | boolean | undefined;
 }
 
 /** Donnée normalisée par zone (dept ou CP) pour le repaint et la popup. */
@@ -80,6 +81,10 @@ interface ZoneEntry {
   nom: string;
   indice_global: number;
   metrics: Record<string, number>;
+  /** Concentrations pollen en grains/m³ (max des communes en mode CP). */
+  concentrations?: Record<string, number>;
+  /** Alerte pollen Atmo France sur la zone. */
+  alerte?: boolean;
   stale: boolean;
   nbCommunes?: number;
 }
@@ -230,12 +235,22 @@ export function CivicHealthMapLayer({
           const rows = entry
             ? metricLabels.map(([key, label]) => {
                 const lvl = entry.metrics[key] ?? 0;
+                const conc = entry.concentrations?.[key];
+                const concStr = conc && conc > 0
+                  ? ` <span style="color:var(--text-tertiary);">· ${conc < 10 ? conc.toFixed(1) : Math.round(conc)} grains/m³</span>`
+                  : '';
                 return `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--text-secondary);">
                   <span>${label}</span>
-                  <span style="font-family:'JetBrains Mono',monospace;color:${colors[lvl] ?? colors[0]};">${lvl} — ${civicLevelLabel(dataset, lvl)}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;color:${colors[lvl] ?? colors[0]};">${lvl} — ${civicLevelLabel(dataset, lvl)}${concStr}</span>
                 </div>`;
               }).join('')
             : '<div style="font-size:11px;color:var(--text-tertiary);">Donnée indisponible</div>';
+          const alerteBadge = entry?.alerte
+            ? `<div style="display:inline-block;margin-bottom:6px;padding:2px 8px;border-radius:4px;font-size:10px;
+                background:rgba(255,87,87,0.1);border:0.5px solid rgba(255,87,87,0.2);color:var(--danger);">
+                ⚠ Alerte pollen Atmo France
+              </div>`
+            : '';
           const sampleNote = scale === 'cp'
             ? `max des ${entry?.nbCommunes ?? '?'} commune(s) du code postal`
             : 'échantillon : 1 commune par département';
@@ -251,6 +266,7 @@ export function CivicHealthMapLayer({
                     <span style="width:12px;height:12px;border-radius:50%;background:${colors[entry.indice_global] ?? colors[0]};display:inline-block;"></span>
                     <span style="font-size:12px;color:var(--text-primary);">${titre} ${entry.indice_global}/6 — ${civicLevelLabel(dataset, entry.indice_global)}${entry.stale ? ' (donnée de la veille)' : ''}</span>
                   </div>` : ''}
+                ${alerteBadge}
                 ${rows}
                 <div style="font-size:9px;color:var(--text-tertiary);margin-top:8px;">Source : Atmo France et les AASQA (ODbL) — ${sampleNote}</div>
               </div>
@@ -277,11 +293,16 @@ export function CivicHealthMapLayer({
           onCpDataStatus?.('ok', payload.date);
           for (const r of payload.rows) {
             const metrics: Record<string, number> = {};
-            for (const [key] of metricLabels) metrics[key] = Number(r[key] ?? 0);
+            const concentrations: Record<string, number> = {};
+            for (const [key] of metricLabels) {
+              metrics[key] = Number(r[key] ?? 0);
+              if (dataset === 'pollen') concentrations[key] = Number(r[`conc_${key}`] ?? 0);
+            }
             entriesRef.current.set(r.code_postal, {
               nom: r.code_postal,
               indice_global: r.indice_global,
               metrics,
+              ...(dataset === 'pollen' ? { concentrations, alerte: r.alerte === true } : {}),
               stale: false,
               nbCommunes: r.nb_communes,
             });
@@ -319,6 +340,9 @@ export function CivicHealthMapLayer({
                   nom: line.nom_dept ?? line.code_dept,
                   indice_global: line.pollen.indice_global,
                   metrics: { ...line.pollen.especes },
+                  // Absent sur les payloads en cache antérieurs à l'ajout des concentrations
+                  concentrations: line.pollen.concentrations,
+                  alerte: line.pollen.alerte,
                   stale: line.stale ?? false,
                 });
               } else if (dataset === 'atmo' && line.air) {

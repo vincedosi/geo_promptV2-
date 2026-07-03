@@ -55,17 +55,28 @@ function buildAir(codeInsee: string): AirIndicator {
 function buildPollen(codeInsee: string): PollenIndicator {
   const h = hash(codeInsee);
   const indice_global = ((h % 5) + 1) as PollenLevel;
+  const especes = {
+    ambroisie: ((h >> 1) % 6) as PollenLevel,
+    armoise: ((h >> 2) % 4) as PollenLevel,
+    aulne: ((h >> 3) % 3) as PollenLevel,
+    bouleau: ((h >> 4) % 6) as PollenLevel,
+    graminees: ((h >> 5) % 5) as PollenLevel,
+    olivier: ((h >> 6) % 4) as PollenLevel,
+  };
   return {
     date: todayIso(0),
     indice_global,
-    especes: {
-      ambroisie: ((h >> 1) % 6) as PollenLevel,
-      armoise: ((h >> 2) % 4) as PollenLevel,
-      aulne: ((h >> 3) % 3) as PollenLevel,
-      bouleau: ((h >> 4) % 6) as PollenLevel,
-      graminees: ((h >> 5) % 5) as PollenLevel,
-      olivier: ((h >> 6) % 4) as PollenLevel,
+    especes,
+    // Concentrations pseudo-réalistes : ~10 grains/m³ par niveau + bruit
+    concentrations: {
+      ambroisie: especes.ambroisie * 10 + (h % 7),
+      armoise: especes.armoise * 10 + ((h >> 1) % 7),
+      aulne: especes.aulne * 10 + ((h >> 2) % 7),
+      bouleau: especes.bouleau * 10 + ((h >> 3) % 7),
+      graminees: especes.graminees * 10 + ((h >> 4) % 7),
+      olivier: especes.olivier * 10 + ((h >> 5) % 7),
     },
+    alerte: h % 41 === 0,
     previsionJ1: { indice: ((h >> 7) % 5) as PollenLevel },
     previsionJ2: { indice: ((h >> 8) % 4) as PollenLevel },
   };
@@ -96,7 +107,12 @@ export class MockProvider implements HealthProvider {
     const out = new Map<string, PollenBulkEntry>();
     for (const code of communeCodes) {
       const p = buildPollen(code);
-      out.set(code.toUpperCase(), { indice_global: p.indice_global, especes: p.especes });
+      out.set(code.toUpperCase(), {
+        indice_global: p.indice_global,
+        especes: p.especes,
+        concentrations: p.concentrations ?? { ambroisie: 0, armoise: 0, aulne: 0, bouleau: 0, graminees: 0, olivier: 0 },
+        alerte: p.alerte ?? false,
+      });
     }
     return out;
   }

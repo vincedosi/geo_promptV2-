@@ -61,6 +61,19 @@ interface AtmoFeatureProps {
   code_boul?: number | string;
   code_gram?: number | string;
   code_oliv?: number | string;
+  // Pollen — concentrations grains/m³ + alerte
+  conc_ambr?: number;
+  conc_arm?: number;
+  conc_aul?: number;
+  conc_boul?: number;
+  conc_gram?: number;
+  conc_oliv?: number;
+  alerte?: boolean;
+}
+
+/** Concentration valide (grains/m³) ou 0. */
+function parseConc(v: number | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
 }
 
 interface AtmoFeatureCollection {
@@ -266,6 +279,15 @@ function buildPollen(features: AtmoFeatureProps[]): PollenIndicator | null {
     date: j.date_ech ?? todayIso(0),
     indice_global,
     especes: especesMap,
+    concentrations: {
+      ambroisie: parseConc(j.conc_ambr),
+      armoise: parseConc(j.conc_arm),
+      aulne: parseConc(j.conc_aul),
+      bouleau: parseConc(j.conc_boul),
+      graminees: parseConc(j.conc_gram),
+      olivier: parseConc(j.conc_oliv),
+    },
+    alerte: j.alerte === true,
     ...(j1Indice != null ? { previsionJ1: { indice: j1Indice } } : {}),
     ...(j2Indice != null ? { previsionJ2: { indice: j2Indice } } : {}),
   };
@@ -285,6 +307,15 @@ function pollenEntryFromProps(p: AtmoFeatureProps): PollenBulkEntry | null {
       graminees: parsePollenLevel(p.code_gram) ?? 0,
       olivier: parsePollenLevel(p.code_oliv) ?? 0,
     },
+    concentrations: {
+      ambroisie: parseConc(p.conc_ambr),
+      armoise: parseConc(p.conc_arm),
+      aulne: parseConc(p.conc_aul),
+      bouleau: parseConc(p.conc_boul),
+      graminees: parseConc(p.conc_gram),
+      olivier: parseConc(p.conc_oliv),
+    },
+    alerte: p.alerte === true,
   };
 }
 

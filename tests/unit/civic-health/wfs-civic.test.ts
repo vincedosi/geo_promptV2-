@@ -11,6 +11,7 @@ describe('collectWfsFeatures', () => {
           properties: {
             code_zone: '22195', code_qual: 3,
             code_aul: 1, code_boul: 1, code_oliv: 1, code_gram: 3, code_arm: 1, code_ambr: 0,
+            conc_gram: 41.9, conc_arm: 0.6, conc_ambr: 0, alerte: false,
           },
         },
         {
@@ -26,6 +27,8 @@ describe('collectWfsFeatures', () => {
     expect(target.get('22195')).toMatchObject({
       indice_global: 3,
       especes: { graminees: 3, aulne: 1, ambroisie: 0 },
+      concentrations: { graminees: 41.9, armoise: 0.6, ambroisie: 0 },
+      alerte: false,
     });
     // Codes corses normalisés en majuscules
     expect(target.get('2A004')?.especes.olivier).toBe(4);

@@ -29,13 +29,21 @@ const MIN_PLAUSIBLE_COMMUNES = 1_000;
 interface WfsProps {
   code_zone?: string;
   code_qual?: number;
-  // Pollen
+  // Pollen — niveaux 0-6
   code_aul?: number;
   code_boul?: number;
   code_oliv?: number;
   code_gram?: number;
   code_arm?: number;
   code_ambr?: number;
+  // Pollen — concentrations grains/m³ + alerte
+  conc_aul?: number;
+  conc_boul?: number;
+  conc_oliv?: number;
+  conc_gram?: number;
+  conc_arm?: number;
+  conc_ambr?: number;
+  alerte?: boolean;
   // ATMO
   code_no2?: number;
   code_o3?: number;
@@ -127,7 +135,8 @@ async function fetchBulkWfs<T>(
 // ── Pollen ──────────────────────────────────────────────────────────────────
 
 const POLLEN_LAYER = 'ind_pol:ind_national_pol';
-const POLLEN_PROPS = 'code_zone,code_qual,code_aul,code_boul,code_oliv,code_gram,code_arm,code_ambr';
+const POLLEN_PROPS = 'code_zone,code_qual,code_aul,code_boul,code_oliv,code_gram,code_arm,code_ambr,'
+  + 'conc_aul,conc_boul,conc_oliv,conc_gram,conc_arm,conc_ambr,alerte';
 
 /** Parse une FeatureCollection WFS pollen en Map commune → entrée bulk. Pure — testée. */
 export function collectWfsFeatures(
@@ -136,6 +145,7 @@ export function collectWfsFeatures(
 ): number {
   let added = 0;
   const lvl = (v: number | undefined): PollenLevel => parsePollenLevel(v) ?? 0;
+  const conc = (v: number | undefined): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
   for (const f of json.features ?? []) {
     const p = f.properties;
     if (!p?.code_zone) continue;
@@ -151,6 +161,15 @@ export function collectWfsFeatures(
         graminees: lvl(p.code_gram),
         olivier: lvl(p.code_oliv),
       },
+      concentrations: {
+        ambroisie: conc(p.conc_ambr),
+        armoise: conc(p.conc_arm),
+        aulne: conc(p.conc_aul),
+        bouleau: conc(p.conc_boul),
+        graminees: conc(p.conc_gram),
+        olivier: conc(p.conc_oliv),
+      },
+      alerte: p.alerte === true,
     });
     added++;
   }

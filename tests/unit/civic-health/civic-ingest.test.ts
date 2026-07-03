@@ -4,13 +4,23 @@ import type { AtmoBulkEntry, PollenBulkEntry } from '@/lib/civic-health/types';
 
 const DATE = '2026-07-03';
 
-function entry(global: number, overrides: Partial<PollenBulkEntry['especes']> = {}): PollenBulkEntry {
+function entry(
+  global: number,
+  overrides: Partial<PollenBulkEntry['especes']> = {},
+  concentrations: Partial<PollenBulkEntry['concentrations']> = {},
+  alerte = false,
+): PollenBulkEntry {
   return {
     indice_global: global as PollenBulkEntry['indice_global'],
     especes: {
       ambroisie: 0, armoise: 0, aulne: 0, bouleau: 0, graminees: 0, olivier: 0,
       ...overrides,
     } as PollenBulkEntry['especes'],
+    concentrations: {
+      ambroisie: 0, armoise: 0, aulne: 0, bouleau: 0, graminees: 0, olivier: 0,
+      ...concentrations,
+    },
+    alerte,
   };
 }
 
@@ -21,8 +31,8 @@ describe('aggregatePollenByCp', () => {
       { code_postal: '29200', code_commune: '29189' },
     ];
     const byCommune = new Map<string, PollenBulkEntry>([
-      ['29019', entry(2, { graminees: 5 })],
-      ['29189', entry(4, { bouleau: 3 })],
+      ['29019', entry(2, { graminees: 5 }, { graminees: 41.9 })],
+      ['29189', entry(4, { bouleau: 3 }, { graminees: 12.5, bouleau: 8 }, true)],
     ]);
 
     const rows = aggregatePollenByCp(mapping, byCommune, DATE);
@@ -33,6 +43,9 @@ describe('aggregatePollenByCp', () => {
       indice_global: 4,
       graminees: 5,
       bouleau: 3,
+      conc_graminees: 41.9, // max des 2 communes
+      conc_bouleau: 8,
+      alerte: true,         // OR des communes
       nb_communes: 2,
     });
   });

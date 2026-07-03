@@ -47,7 +47,8 @@ const querySchema = z.object({
 const CP_TABLES = {
   pollen: {
     table: 'pollen_map_daily',
-    columns: 'code_postal, indice_global, ambroisie, armoise, aulne, bouleau, graminees, olivier, nb_communes',
+    columns: 'code_postal, indice_global, ambroisie, armoise, aulne, bouleau, graminees, olivier, '
+      + 'conc_ambroisie, conc_armoise, conc_aulne, conc_bouleau, conc_graminees, conc_olivier, alerte, nb_communes',
   },
   atmo: {
     table: 'atmo_map_daily',

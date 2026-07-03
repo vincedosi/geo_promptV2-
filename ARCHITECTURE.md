@@ -465,7 +465,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
-| `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084), RLS read auth / write service |
+| `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) + concentrations grains/m³ par espece + alerte | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084 + 086), RLS read auth / write service |
 | `atmo_map_daily` | Indice ATMO qualite de l'air par code postal (max des communes du CP) | ~5 000 lignes/jour, purge J-2, ingestion bulk WFS (sql/085), RLS read auth / write service |
 
 ---

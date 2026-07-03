@@ -52,6 +52,13 @@ export interface PollenCpRow {
   bouleau: number;
   graminees: number;
   olivier: number;
+  conc_ambroisie: number;
+  conc_armoise: number;
+  conc_aulne: number;
+  conc_bouleau: number;
+  conc_graminees: number;
+  conc_olivier: number;
+  alerte: boolean;
   nb_communes: number;
 }
 
@@ -92,14 +99,20 @@ export function aggregatePollenByCp(
         code_postal,
         indice_global: 0,
         ambroisie: 0, armoise: 0, aulne: 0, bouleau: 0, graminees: 0, olivier: 0,
+        conc_ambroisie: 0, conc_armoise: 0, conc_aulne: 0, conc_bouleau: 0, conc_graminees: 0, conc_olivier: 0,
+        alerte: false,
         nb_communes: 0,
       };
       byCp.set(code_postal, row);
     }
     row.nb_communes++;
     if (entry.indice_global > row.indice_global) row.indice_global = entry.indice_global;
+    if (entry.alerte) row.alerte = true;
     for (const sp of SPECIES) {
       if (entry.especes[sp] > row[sp]) row[sp] = entry.especes[sp];
+      const concKey = `conc_${sp}` as keyof PollenCpRow;
+      const conc = entry.concentrations[sp];
+      if (conc > (row[concKey] as number)) (row[concKey] as number) = conc;
     }
   }
   return [...byCp.values()];
