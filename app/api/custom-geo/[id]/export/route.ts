@@ -2,9 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
-import { buildZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
+import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
 
 export const dynamic = 'force-dynamic';
+
+/** Items d'une zone pour les exports pondérés (RPC get_zone_items_export). */
+interface ZoneExportItem {
+  poi_id: string;
+  poi_name: string;
+  lat: number;
+  lng: number;
+  radius_km: number;
+  cps: string[];
+}
+
+/**
+ * Parse ?weights={"<poi_id>":<pct>} (plan média). Renvoie null si absent ou
+ * invalide — les formats retombent alors sur leur variante non pondérée.
+ */
+function parseWeights(searchParams: URLSearchParams): Record<string, number> | null {
+  const raw = searchParams.get('weights');
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+      out[k] = n;
+    }
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
 
 function toSlug(name: string): string {
   const slug = name
@@ -36,6 +67,73 @@ export async function GET(
     .single();
 
   const slug = toSlug(zone?.name ?? id.slice(0, 8));
+
+  // Poids du plan média ({poi_id: pct}) — active les variantes pondérées
+  // de bidding_script et tiktok_geo (une entrée par item de la zone).
+  const weights = parseWeights(searchParams);
+  let exportItems: ZoneExportItem[] | null = null;
+  if (weights && (format === 'bidding_script' || format === 'tiktok_geo')) {
+    const { data: itemsData, error: itemsErr } = await supabase.rpc('get_zone_items_export', {
+      p_zone_id: id,
+      p_caller_user_id: profile.id,
+    }) as { data: { items: ZoneExportItem[] } | null; error: { message: string } | null };
+    if (itemsErr) {
+      console.warn('[custom-geo/export] items export', itemsErr.message);
+    }
+    exportItems = itemsData?.items ?? null;
+  }
+
+  if (format === 'bidding_script' && weights && exportItems?.length) {
+    const tiers = exportItems.map(it => ({
+      name: it.poi_name,
+      cps: it.cps,
+      score: (weights[it.poi_id] ?? 0) / 100,
+    }));
+    const script = buildWeightedZoneBiddingScript(zone?.name ?? slug, tiers);
+    return new Response(script, {
+      headers: {
+        'Content-Type': 'text/x-python; charset=utf-8',
+        'Content-Disposition': `attachment; filename="zone_${slug}_custom_bidding_pondere.py"`,
+      },
+    });
+  }
+
+  if (format === 'tiktok_geo' && weights && exportItems?.length) {
+    const budgetRaw = Number(searchParams.get('budget'));
+    const budget = Number.isFinite(budgetRaw) && budgetRaw > 0 ? budgetRaw : null;
+    const sorted = [...exportItems].sort((a, b) => (weights[b.poi_id] ?? 0) - (weights[a.poi_id] ?? 0));
+    const fmtEur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+
+    const lines = [
+      `Zone : ${zone?.name ?? id} — plan média pondéré`,
+      budget ? `Budget total : ${fmtEur(budget)}` : 'Budget total : à répartir selon les % ci-dessous',
+      '',
+      'TikTok ne supporte ni le ciblage par code postal en France, ni la pondération',
+      'dans un même ad group → créer UN AD GROUP PAR ZONE avec sa part de budget,',
+      'ciblage Localisation > Rayon (coller lat, lng puis régler le curseur).',
+      '',
+      ...sorted.flatMap(it => {
+        const pct = weights[it.poi_id] ?? 0;
+        return [
+          `── ${it.poi_name} — ${pct.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} % du budget${budget ? ` (${fmtEur((pct / 100) * budget)})` : ''} ──`,
+          `  Rayon : ${it.lat.toFixed(5)}, ${it.lng.toFixed(5)} — ${it.radius_km} km`,
+          `  Codes postaux couverts (référence) : ${it.cps.length}`,
+          '',
+        ];
+      }),
+      'Rappel : le cercle circonscrit déborde de la zone réelle, et TikTok ne',
+      'permet pas d\'exclure des zones — les recouvrements entre rayons sont',
+      'arbitrés par les budgets d\'ad groups.',
+      '',
+    ];
+
+    return new Response(lines.join('\n'), {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Disposition': `attachment; filename="zone_${slug}_tiktok_geo_pondere.txt"`,
+      },
+    });
+  }
 
   if (format === 'csv_cp' || format === 'csv_iris') {
     const codeType = format === 'csv_cp' ? 'cp' : 'iris';

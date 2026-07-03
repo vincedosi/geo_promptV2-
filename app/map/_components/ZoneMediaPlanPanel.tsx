@@ -17,8 +17,9 @@
  * « Au prorata » restaure le défaut. Calculs 100 % client — aucune écriture.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { X, RotateCcw } from 'lucide-react';
+import { X, RotateCcw, FileDown, Music2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { normalizeShares, proportionalShares } from '@/lib/custom-geo/media-plan';
 import type { AudienceStats, CustomGeoZoneFull } from '@/types/custom-geo';
 
@@ -183,6 +184,34 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   const totalImpressions = budgetNum > 0 && cpmNum > 0 ? (budgetNum / cpmNum) * 1000 : null;
   const franceTotal = nationalTotals?.[cible] ?? null;
 
+  // ── Exports DSP pondérés par la colonne répartition ───────────────────────
+  const [exportState, setExportState] = useState<{ running: boolean; error: string | null }>({ running: false, error: null });
+  const exportWeighted = useCallback(async (format: 'bidding_script' | 'tiktok_geo') => {
+    setExportState({ running: true, error: null });
+    try {
+      // Un fichier par zone affichée ; les items de la zone portent les poids
+      // du tableau (bruts, non renormalisés — les scores DSP sont relatifs)
+      for (const z of zones) {
+        const itemRows = rows.filter(r => r.id.startsWith(`${z.id}:`));
+        if (itemRows.length) {
+          const weights: Record<string, number> = {};
+          for (const r of itemRows) {
+            weights[r.id.slice(z.id.length + 1)] = Math.round((activeRepartition[r.id] ?? 0) * 10) / 10;
+          }
+          const params: Record<string, string> = { weights: JSON.stringify(weights) };
+          if (format === 'tiktok_geo' && budgetNum > 0) params.budget = String(budgetNum);
+          await downloadZoneExport(z.id, format, params);
+        } else {
+          // Zone non décomposable : export classique non pondéré
+          await downloadZoneExport(z.id, format);
+        }
+      }
+      setExportState({ running: false, error: null });
+    } catch (err) {
+      setExportState({ running: false, error: err instanceof Error ? err.message : 'Erreur export' });
+    }
+  }, [zones, rows, activeRepartition, budgetNum]);
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '7px 10px', background: 'var(--bg-level-2)',
     border: '0.5px solid var(--border-subtle)', borderRadius: 6,
@@ -339,6 +368,43 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
           >
             <RotateCcw size={11} /> Répartir au prorata de la cible
           </button>
+        )}
+
+        {/* Exports DSP — pondérés par la colonne répartition */}
+        {!loading && rows.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '0.5px solid var(--border-subtle)', paddingTop: 12 }}>
+            <div style={{ fontFamily: fInter, fontSize: 10.5, color: 'var(--text-tertiary)' }}>
+              Générer les fichiers DSP avec les poids de la répartition
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {([
+                ['bidding_script', FileDown, 'Script bidding DV360'],
+                ['tiktok_geo', Music2, 'Ciblage TikTok'],
+              ] as const).map(([format, Icon, label]) => (
+                <button
+                  key={format}
+                  onClick={() => { void exportWeighted(format); }}
+                  disabled={exportState.running}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent', border: '0.5px solid var(--brand-teal)', borderRadius: 6,
+                    color: 'var(--brand-teal)', fontFamily: fInter, fontSize: 11.5, fontWeight: 500,
+                    padding: '7px 12px', cursor: exportState.running ? 'wait' : 'pointer',
+                    opacity: exportState.running ? 0.6 : 1,
+                    transition: 'background-color 150ms var(--ease-hover)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Icon size={12} strokeWidth={1.5} />
+                  {exportState.running ? 'Génération…' : label}
+                </button>
+              ))}
+            </div>
+            {exportState.error && (
+              <div style={{ fontFamily: fMono, fontSize: 10, color: 'var(--danger)' }}>{exportState.error}</div>
+            )}
+          </div>
         )}
 
         <div style={{ fontFamily: fMono, fontSize: 9, color: 'var(--text-tertiary)', fontStyle: 'italic', lineHeight: 1.5 }}>

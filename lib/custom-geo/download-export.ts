@@ -13,8 +13,11 @@ import type { CustomGeoExportFormat } from '@/types/custom-geo';
 export async function downloadZoneExport(
   zoneId: string,
   format: CustomGeoExportFormat,
+  /** Paramètres additionnels (ex. weights/budget du plan média pondéré). */
+  params?: Record<string, string>,
 ): Promise<void> {
-  const res = await adminFetch(`/api/custom-geo/${zoneId}/export?format=${format}`);
+  const sp = new URLSearchParams({ format, ...(params ?? {}) });
+  const res = await adminFetch(`/api/custom-geo/${zoneId}/export?${sp}`);
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {

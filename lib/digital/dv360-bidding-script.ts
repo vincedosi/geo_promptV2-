@@ -23,6 +23,50 @@ export interface BiddingScriptOptions {
   outZoneScore?: number;
 }
 
+export interface WeightedBiddingTier {
+  /** Nom de l'item (ex. « CIRFA Rennes ») — commentaire dans le script. */
+  name: string;
+  /** Codes postaux de l'item. */
+  cps: string[];
+  /** Score 0-1 (part de répartition du plan média ÷ 100). */
+  score: number;
+}
+
+/**
+ * Script custom bidding DV360 pondéré : un palier de score par item de zone
+ * (les % de répartition du plan média). max_aggregate garde le score le plus
+ * haut si un CP apparaissait dans deux paliers.
+ */
+export function buildWeightedZoneBiddingScript(
+  zoneName: string,
+  tiers: WeightedBiddingTier[],
+): string {
+  const fmt = (n: number): string => {
+    const r = Math.round(n * 1000) / 1000;
+    return Number.isInteger(r) ? r.toFixed(1) : String(r);
+  };
+  const sorted = [...tiers].sort((a, b) => b.score - a.score);
+  const tierLines = sorted.flatMap(t => {
+    if (!t.cps.length) return [`  # ${t.name} — aucun code postal affecté`];
+    const cps = t.cps.map(cp => `"${cp.trim()}"`).join(', ');
+    return [
+      `  # ${t.name} — ${(t.score * 100).toFixed(1)} % du plan`,
+      `  ([country_code == "FR", zip_postal_code in [${cps}]], ${fmt(t.score)}),`,
+    ];
+  });
+
+  return [
+    `# MAGELIAN — custom bidding pondéré « ${zoneName} »`,
+    `# ${sorted.length} zones, scores = répartition du plan média (0-1).`,
+    `# À coller dans DV360 : Custom bidding > Scripted > nouvel algorithme.`,
+    'return max_aggregate([',
+    ...tierLines,
+    '  ([], 0.0)',
+    '])',
+    '',
+  ].join('\n');
+}
+
 /** Construit le script custom bidding DV360 d'une zone (codes postaux français). */
 export function buildZoneBiddingScript(
   zoneName: string,
