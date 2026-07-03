@@ -34,7 +34,7 @@ import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
 import { HealthIndicatorCard } from '@/components/donnees-terrain/HealthIndicatorCard';
-import { POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
+import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
@@ -387,25 +387,28 @@ export interface FilterPanelProps {
   selectedIrisCommuneCode?: string | null;
   /** Nom de la commune (optionnel, affiché en en-tête de la carte). */
   selectedIrisCommuneName?: string | null;
-  // Carte des allergènes (choroplèthe indice pollen, Atmo France)
-  pollenVisible?:       boolean;
-  onTogglePollen?:      () => void;
-  /** Progression du stream pollen (départements traités / total). */
-  pollenProgress?:      { done: number; total: number } | null;
+  // Couches santé environnementale (allergènes + qualité de l'air, Atmo France)
+  /** Couche active : pollen, qualité de l'air, ou null (masquée). */
+  civicHealthLayer?:    'pollen' | 'atmo' | null;
+  onCivicHealthLayerChange?: (layer: 'pollen' | 'atmo' | null) => void;
+  /** Progression du stream département (départements traités / total). */
+  civicProgress?:       { done: number; total: number } | null;
+  /** true pendant le chargement de la couche (zones + valeurs). */
+  civicLoading?:        boolean;
   /** Échelle : département (échantillonné) ou code postal (ingestion bulk). */
-  pollenScale?:         'departement' | 'cp';
-  onPollenScaleChange?: (s: 'departement' | 'cp') => void;
-  /** Métrique filtrée/peinte : indice global ou une espèce. */
-  pollenEspece?:        'global' | 'ambroisie' | 'armoise' | 'aulne' | 'bouleau' | 'graminees' | 'olivier';
-  onPollenEspeceChange?: (e: 'global' | 'ambroisie' | 'armoise' | 'aulne' | 'bouleau' | 'graminees' | 'olivier') => void;
+  civicScale?:          'departement' | 'cp';
+  onCivicScaleChange?:  (s: 'departement' | 'cp') => void;
+  /** Métrique filtrée/peinte : 'global' ou une espèce (pollen) / un polluant (air). */
+  civicMetric?:         string;
+  onCivicMetricChange?: (m: string) => void;
   /** Seuil minimum affiché (0 = tous les niveaux). */
-  pollenMinLevel?:      number;
-  onPollenMinLevelChange?: (n: number) => void;
+  civicMinLevel?:       number;
+  onCivicMinLevelChange?: (n: number) => void;
   /** Statut de la donnée CP ('no_data' = ingestion jamais lancée) + sa date. */
-  pollenCpStatus?:      'ok' | 'no_data' | null;
-  pollenCpDate?:        string | null;
+  civicCpStatus?:       'ok' | 'no_data' | null;
+  civicCpDate?:         string | null;
   /** Appelé après une ingestion admin réussie (le parent recharge le layer). */
-  onPollenIngested?:    () => void;
+  onCivicIngested?:     () => void;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
   onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
@@ -660,11 +663,12 @@ export function FilterPanel({
   onOpenMeteo, onClearMeteo, meteoVisible, meteoLabel,
   civicVariableCode, onCivicVariableChange, onPondererCivicVariable,
   selectedIrisCommuneCode, selectedIrisCommuneName,
-  pollenVisible, onTogglePollen, pollenProgress,
-  pollenScale = 'departement', onPollenScaleChange,
-  pollenEspece = 'global', onPollenEspeceChange,
-  pollenMinLevel = 0, onPollenMinLevelChange,
-  pollenCpStatus, pollenCpDate, onPollenIngested,
+  civicHealthLayer = null, onCivicHealthLayerChange,
+  civicProgress, civicLoading,
+  civicScale = 'departement', onCivicScaleChange,
+  civicMetric = 'global', onCivicMetricChange,
+  civicMinLevel = 0, onCivicMinLevelChange,
+  civicCpStatus, civicCpDate, onCivicIngested,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
@@ -737,16 +741,16 @@ export function FilterPanel({
     }
   }, [selectedIrisCommuneCode]);
 
-  // Ingestion pollen (admin) — POST NDJSON streaming, progression affichée
-  // dans le bloc carte des allergènes. La route enforce requireAdmin (403 → message).
-  const [pollenIngestState, setPollenIngestState] = useState<{
+  // Ingestion santé environnementale (admin) — POST NDJSON streaming,
+  // progression affichée dans le bloc. La route enforce requireAdmin (403 → message).
+  const [civicIngestState, setCivicIngestState] = useState<{
     running: boolean; message: string | null; error: string | null;
   }>({ running: false, message: null, error: null });
 
-  const runPollenIngestStream = useCallback(async () => {
-    setPollenIngestState({ running: true, message: 'Démarrage…', error: null });
+  const runCivicIngestStream = useCallback(async () => {
+    setCivicIngestState({ running: true, message: 'Démarrage…', error: null });
     try {
-      const res = await adminFetch('/api/admin/pollen-ingest', { method: 'POST' });
+      const res = await adminFetch('/api/admin/civic-ingest', { method: 'POST' });
       if (res.status === 403) throw new Error('Réservé aux administrateurs.');
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
@@ -761,16 +765,26 @@ export function FilterPanel({
         for (const raw of lines) {
           if (!raw.trim()) continue;
           try {
-            const line = JSON.parse(raw) as { type: string; message?: string; summary?: { cps_written: number; date: string } };
+            const line = JSON.parse(raw) as {
+              type: string;
+              message?: string;
+              summary?: {
+                pollen: { cps_written?: number; date?: string; error?: string };
+                atmo: { cps_written?: number; date?: string; error?: string };
+              };
+            };
             if (line.type === 'progress' && line.message) {
-              setPollenIngestState({ running: true, message: line.message, error: null });
+              setCivicIngestState({ running: true, message: line.message, error: null });
             } else if (line.type === 'done') {
-              setPollenIngestState({
+              const parts: string[] = [];
+              if (line.summary?.pollen?.cps_written != null) parts.push(`pollen ${line.summary.pollen.cps_written} CP`);
+              if (line.summary?.atmo?.cps_written != null) parts.push(`air ${line.summary.atmo.cps_written} CP`);
+              setCivicIngestState({
                 running: false,
-                message: `Terminé : ${line.summary?.cps_written ?? '?'} codes postaux (${line.summary?.date ?? ''})`,
+                message: `Terminé : ${parts.join(' · ') || 'aucune donnée'}`,
                 error: null,
               });
-              onPollenIngested?.();
+              onCivicIngested?.();
             } else if (line.type === 'error') {
               throw new Error(line.message ?? 'Erreur inconnue');
             }
@@ -781,12 +795,12 @@ export function FilterPanel({
         }
       }
     } catch (err) {
-      setPollenIngestState({
+      setCivicIngestState({
         running: false, message: null,
         error: err instanceof Error ? err.message : 'Erreur inconnue',
       });
     }
-  }, [onPollenIngested]);
+  }, [onCivicIngested]);
   const toggleSection = (key: string) => {
     setSectionsOpen(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -2711,7 +2725,7 @@ export function FilterPanel({
                 sectionKey="civicHealth"
                 open={sectionsOpen.civicHealth === true}
                 onToggle={() => toggleSection('civicHealth')}
-                count={(selectedIrisCommuneCode ? 1 : 0) + (pollenVisible ? 1 : 0)}
+                count={(selectedIrisCommuneCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)}
                 searchTerm={filterSearch}
               />
               {sectionsOpen.civicHealth === true && (
@@ -2721,21 +2735,33 @@ export function FilterPanel({
                     nomCommune={selectedIrisCommuneName ?? null}
                   />
 
-                  {/* Carte des allergènes — choroplèthe pollen par département */}
-                  <button
-                    onClick={onTogglePollen}
-                    style={{
-                      padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                      fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                      background: pollenVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
-                      border: `0.5px solid ${pollenVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                      color: pollenVisible ? 'var(--brand-teal)' : C.textSec,
-                    }}
-                  >
-                    {pollenVisible ? '🌾 Carte des allergènes visible' : '🌾 Afficher la carte des allergènes'}
-                  </button>
+                  {/* Choix de la couche — une seule active à la fois, re-clic pour masquer */}
+                  <div>
+                    <div style={{ ...labelStyle, marginBottom: 4 }}>Couche nationale</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {([['pollen', '🌾 Allergènes'], ['atmo', '🌬️ Qualité de l’air']] as const).map(([value, label]) => {
+                        const active = civicHealthLayer === value;
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => onCivicHealthLayerChange?.(active ? null : value)}
+                            title={active ? 'Masquer la couche' : 'Afficher la couche'}
+                            style={{
+                              flex: 1, padding: '8px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                              fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+                              background: active ? 'rgba(78,205,196,0.1)' : 'transparent',
+                              border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                              color: active ? 'var(--brand-teal)' : C.textSec,
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                  {pollenVisible && (
+                  {civicHealthLayer && (
                     <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {/* Échelle des zones */}
                       <div>
@@ -2744,13 +2770,13 @@ export function FilterPanel({
                           {([['departement', 'Département'], ['cp', 'Code postal']] as const).map(([value, label]) => (
                             <button
                               key={value}
-                              onClick={() => onPollenScaleChange?.(value)}
+                              onClick={() => onCivicScaleChange?.(value)}
                               style={{
                                 flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
                                 fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                                background: pollenScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                                border: `0.5px solid ${pollenScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                                color: pollenScale === value ? 'var(--brand-teal)' : C.textSec,
+                                background: civicScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
+                                border: `0.5px solid ${civicScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                                color: civicScale === value ? 'var(--brand-teal)' : C.textSec,
                               }}
                             >
                               {label}
@@ -2760,7 +2786,7 @@ export function FilterPanel({
                       </div>
 
                       {/* Donnée CP absente : ingestion jamais lancée */}
-                      {pollenScale === 'cp' && pollenCpStatus === 'no_data' && (
+                      {civicScale === 'cp' && civicCpStatus === 'no_data' && (
                         <div style={{
                           padding: '8px 10px', borderRadius: 6,
                           background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
@@ -2769,31 +2795,33 @@ export function FilterPanel({
                             Aucune donnée nationale — l&apos;ingestion quotidienne n&apos;a pas encore tourné.
                           </div>
                           <button
-                            onClick={runPollenIngestStream}
-                            disabled={pollenIngestState.running}
+                            onClick={runCivicIngestStream}
+                            disabled={civicIngestState.running}
                             style={{
                               padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                              fontFamily: fInter, cursor: pollenIngestState.running ? 'wait' : 'pointer',
+                              fontFamily: fInter, cursor: civicIngestState.running ? 'wait' : 'pointer',
                               background: 'transparent', border: '0.5px solid var(--brand-teal)',
-                              color: 'var(--brand-teal)', opacity: pollenIngestState.running ? 0.6 : 1,
+                              color: 'var(--brand-teal)', opacity: civicIngestState.running ? 0.6 : 1,
                             }}
                           >
-                            {pollenIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
+                            {civicIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
                           </button>
                         </div>
                       )}
-                      {(pollenIngestState.message || pollenIngestState.error) && (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: pollenIngestState.error ? 'var(--danger)' : C.textDim }}>
-                          {pollenIngestState.error ?? pollenIngestState.message}
+                      {(civicIngestState.message || civicIngestState.error) && (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: civicIngestState.error ? 'var(--danger)' : C.textDim }}>
+                          {civicIngestState.error ?? civicIngestState.message}
                         </div>
                       )}
 
-                      {/* Espèce filtrée */}
+                      {/* Métrique filtrée — espèce (pollen) ou polluant (air) */}
                       <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>Allergène</div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>
+                          {civicHealthLayer === 'pollen' ? 'Allergène' : 'Polluant'}
+                        </div>
                         <select
-                          value={pollenEspece}
-                          onChange={e => onPollenEspeceChange?.(e.target.value as NonNullable<typeof pollenEspece>)}
+                          value={civicMetric}
+                          onChange={e => onCivicMetricChange?.(e.target.value)}
                           style={{
                             width: '100%', padding: '7px 11px', background: C.bgInput,
                             border: '0.5px solid var(--border-subtle)', borderRadius: 6,
@@ -2801,12 +2829,24 @@ export function FilterPanel({
                           }}
                         >
                           <option value="global">Indice global</option>
-                          <option value="ambroisie">Ambroisie</option>
-                          <option value="armoise">Armoise</option>
-                          <option value="aulne">Aulne</option>
-                          <option value="bouleau">Bouleau</option>
-                          <option value="graminees">Graminées</option>
-                          <option value="olivier">Olivier</option>
+                          {civicHealthLayer === 'pollen' ? (
+                            <>
+                              <option value="ambroisie">Ambroisie</option>
+                              <option value="armoise">Armoise</option>
+                              <option value="aulne">Aulne</option>
+                              <option value="bouleau">Bouleau</option>
+                              <option value="graminees">Graminées</option>
+                              <option value="olivier">Olivier</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="no2">Dioxyde d&apos;azote (NO₂)</option>
+                              <option value="o3">Ozone (O₃)</option>
+                              <option value="pm10">Particules PM10</option>
+                              <option value="pm25">Particules fines PM2.5</option>
+                              <option value="so2">Dioxyde de soufre (SO₂)</option>
+                            </>
+                          )}
                         </select>
                       </div>
 
@@ -2814,50 +2854,70 @@ export function FilterPanel({
                       <div>
                         <div style={{ ...labelStyle, marginBottom: 4 }}>Niveau minimum affiché</div>
                         <select
-                          value={pollenMinLevel}
-                          onChange={e => onPollenMinLevelChange?.(Number(e.target.value))}
+                          value={civicMinLevel}
+                          onChange={e => onCivicMinLevelChange?.(Number(e.target.value))}
                           style={{
                             width: '100%', padding: '7px 11px', background: C.bgInput,
-                            border: `0.5px solid ${pollenMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
+                            border: `0.5px solid ${civicMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
                             borderRadius: 6, fontFamily: fInter, fontSize: 12,
-                            color: pollenMinLevel > 0 ? 'var(--brand-teal)' : C.text,
+                            color: civicMinLevel > 0 ? 'var(--brand-teal)' : C.text,
                             cursor: 'pointer', outline: 'none',
                           }}
                         >
                           <option value={0}>Tous les niveaux</option>
-                          <option value={3}>≥ modéré</option>
-                          <option value={4}>≥ élevé</option>
-                          <option value={5}>≥ très élevé</option>
+                          {civicHealthLayer === 'pollen' ? (
+                            <>
+                              <option value={3}>≥ modéré</option>
+                              <option value={4}>≥ élevé</option>
+                              <option value={5}>≥ très élevé</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value={3}>≥ dégradé</option>
+                              <option value={4}>≥ mauvais</option>
+                              <option value={5}>≥ très mauvais</option>
+                            </>
+                          )}
                         </select>
                       </div>
 
-                      {/* Progression du stream département */}
-                      {pollenScale === 'departement' && pollenProgress && pollenProgress.done < pollenProgress.total && (
+                      {/* Chargement : stream département (compteur) ou fetch CP */}
+                      {civicScale === 'departement' && civicProgress && civicProgress.done < civicProgress.total ? (
                         <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                          Chargement… {pollenProgress.done}/{pollenProgress.total} départements
+                          Chargement… {civicProgress.done}/{civicProgress.total} départements
                         </div>
-                      )}
+                      ) : civicLoading ? (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                          Chargement de la couche…
+                        </div>
+                      ) : null}
 
-                      {/* Légende : niveaux 1-6 de l'indice pollen Atmo France */}
+                      {/* Légende : un libellé par niveau (1-6) */}
                       <div>
-                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                          Indice pollen
+                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
+                          {civicHealthLayer === 'pollen' ? 'Indice pollen' : 'Indice ATMO'}
                         </div>
-                        <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => (
-                            <div key={lvl} title={POLLEN_LEVEL_LABELS[lvl]} style={{ flex: 1, background: `var(--pollen-level-${lvl})` }} />
-                          ))}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
-                          <span>{POLLEN_LEVEL_LABELS[1]}</span>
-                          <span>{POLLEN_LEVEL_LABELS[6]}</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px' }}>
+                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => {
+                            const token = civicHealthLayer === 'pollen' ? `--pollen-level-${lvl}` : `--atmo-level-${lvl}`;
+                            const label = civicHealthLayer === 'pollen' ? POLLEN_LEVEL_LABELS[lvl] : ATMO_LEVEL_LABELS[lvl];
+                            const dimmed = civicMinLevel > 0 && lvl < civicMinLevel;
+                            return (
+                              <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: dimmed ? 0.3 : 1, transition: 'opacity 150ms var(--ease-hover)' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: 2, background: `var(${token})`, flexShrink: 0 }} />
+                                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
+                                  {lvl} — {label}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 
                       <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                        Source : Atmo France et les AASQA (ODbL) — {pollenScale === 'cp'
-                          ? `max des communes par code postal${pollenCpDate ? ` · données du ${pollenCpDate}` : ''}`
-                          : '1 commune par département'} · clic sur une zone pour le détail par espèce
+                        Source : Atmo France et les AASQA (ODbL) — {civicScale === 'cp'
+                          ? `max des communes par code postal${civicCpDate ? ` · données du ${civicCpDate}` : ''}`
+                          : '1 commune par département'} · clic sur une zone pour le détail {civicHealthLayer === 'pollen' ? 'par espèce' : 'par polluant'}
                       </div>
                     </div>
                   )}

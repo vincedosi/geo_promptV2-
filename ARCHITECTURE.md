@@ -206,7 +206,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
-| `/api/civic-indicators/pollen-map` | GET | Carte des allergenes, 2 echelles : `scale=departement` (stream NDJSON, 1 commune representative/dept) ou `scale=cp` (lecture `pollen_map_daily`, filtres `min_level` 0-6 + `espece`) — layer PollenMapLayer, section Sante environnementale |
+| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric`) — layer CivicHealthMapLayer, section Sante environnementale |
 
 ### Correlation IRIS
 | Route | Methode | Description |
@@ -363,7 +363,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/poi-categories` | GET/POST | CRUD categories POI |
 | `/api/admin/poi-manage` | GET/POST/DELETE | Gestion POI |
 | `/api/admin/poi-samples` | GET | Echantillons POI |
-| `/api/admin/pollen-ingest` | POST | Ingestion nationale pollen → `pollen_map_daily` (bulk Atmo ou mock, NDJSON streaming) — aussi cron Inngest `pollen-daily-ingest` 05h30 |
+| `/api/admin/civic-ingest` | POST | Ingestion nationale pollen + qualite de l'air → `pollen_map_daily` + `atmo_map_daily` (WFS public Atmo, NDJSON streaming) — aussi cron Inngest `civic-daily-ingest` 05h30 |
 | `/api/admin/refresh-ville-stats` | POST | Refresh stats villes |
 | `/api/admin/sync-iris-system` | POST | Sync systeme IRIS |
 | `/api/admin/trigger-pmtiles` | POST | Declenchement generation PMTiles |
@@ -465,7 +465,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
-| `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) | ~6 200 lignes/jour, purge J-2, ingestion bulk (sql/084), RLS read auth / write service |
+| `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084), RLS read auth / write service |
+| `atmo_map_daily` | Indice ATMO qualite de l'air par code postal (max des communes du CP) | ~5 000 lignes/jour, purge J-2, ingestion bulk WFS (sql/085), RLS read auth / write service |
 
 ---
 

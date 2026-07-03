@@ -74,6 +74,14 @@ export interface PollenBulkEntry {
   especes: Record<PollenSpecies, PollenLevel>;
 }
 
+export type AtmoPolluant = 'no2' | 'o3' | 'pm10' | 'pm25' | 'so2';
+
+/** Entrée bulk : indice ATMO d'une commune (jour J). 0 = sous-indice absent. */
+export interface AtmoBulkEntry {
+  indice_global: AtmoLevel;
+  polluants: Record<AtmoPolluant, AtmoLevel | 0>;
+}
+
 export interface HealthProvider {
   readonly name: HealthProviderName;
   fetchHealth(codeInsee: string): Promise<HealthIndicator | null>;

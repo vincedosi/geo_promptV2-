@@ -1,22 +1,25 @@
 /**
- * GET /api/civic-indicators/pollen-map?scale=departement|cp&min_level=0-6&espece=global|<espèce>
+ * GET /api/civic-indicators/health-map
+ *   ?dataset=pollen|atmo&scale=departement|cp&min_level=0-6&metric=global|<espèce|polluant>
  *
- * Carte des allergènes, deux échelles :
+ * Carte santé environnementale (allergènes + qualité de l'air), deux échelles :
  *
  *   scale=departement (défaut) — échantillonnage 1 commune représentative
  *   par département (RPC get_dept_representative_communes) via le pipeline
- *   getHealthWithCache. Streaming NDJSON (progression temps réel) :
+ *   getHealthWithCache. Streaming NDJSON (progression temps réel), chaque
+ *   ligne dept porte pollen ET air (même coût, un seul pipeline) :
  *     {"type":"meta","total":104}
- *     {"type":"dept","code_dept":"22","nom_dept":"...","pollen":{...},"stale":false}
+ *     {"type":"dept","code_dept":"22","nom_dept":"...","pollen":{...},"air":{...},"stale":false}
  *     {"type":"done","fetched":100,"failed":4}
  *
- *   scale=cp — lit pollen_map_daily (ingestion bulk nationale, niveaux max
- *   des communes du CP). Filtre SQL min_level sur l'espèce demandée. JSON :
+ *   scale=cp — lit pollen_map_daily / atmo_map_daily (ingestion bulk WFS
+ *   nationale, niveaux max des communes du CP). Filtre SQL min_level sur la
+ *   métrique demandée. JSON :
  *     {"date":"2026-07-03","rows":[{"code_postal":"29200","indice_global":4,...}]}
  *     ou {"date":null,"rows":[],"error":"no_data"} si l'ingestion n'a jamais tourné.
  *
- * min_level/espece ne s'appliquent qu'à scale=cp (au département, le filtre
- * est côté client — les 104 valeurs sont déjà chargées).
+ * min_level/metric ne s'appliquent qu'à scale=cp (au département, le filtre
+ * est côté client — les ~104 valeurs sont déjà chargées).
  *
  * Source : Atmo France et les AASQA — licence ODbL (mention obligatoire côté UI).
  */
@@ -28,21 +31,29 @@ import { getHealthWithCache } from '@/lib/civic-health/get-health';
 
 export const dynamic = 'force-dynamic';
 
+/** Concurrence des lookups dept (cache DB + API Atmo) — reste sous la limite Nano. */
+const CONCURRENCY = 3;
+
+const POLLEN_METRICS = ['global', 'ambroisie', 'armoise', 'aulne', 'bouleau', 'graminees', 'olivier'] as const;
+const ATMO_METRICS = ['global', 'no2', 'o3', 'pm10', 'pm25', 'so2'] as const;
+
 const querySchema = z.object({
+  dataset: z.enum(['pollen', 'atmo']).default('pollen'),
   scale: z.enum(['departement', 'cp']).default('departement'),
   min_level: z.coerce.number().int().min(0).max(6).default(0),
-  espece: z
-    .enum(['global', 'ambroisie', 'armoise', 'aulne', 'bouleau', 'graminees', 'olivier'])
-    .default('global'),
+  metric: z.string().default('global'),
 });
 
-/** Colonne SQL portant le niveau filtré (indice global ou une espèce). */
-function levelColumn(espece: string): string {
-  return espece === 'global' ? 'indice_global' : espece;
-}
-
-/** Concurrence des lookups (cache DB + API Atmo) — reste sous la limite Nano. */
-const CONCURRENCY = 3;
+const CP_TABLES = {
+  pollen: {
+    table: 'pollen_map_daily',
+    columns: 'code_postal, indice_global, ambroisie, armoise, aulne, bouleau, graminees, olivier, nb_communes',
+  },
+  atmo: {
+    table: 'atmo_map_daily',
+    columns: 'code_postal, indice_global, no2, o3, pm10, pm25, so2, nb_communes',
+  },
+} as const;
 
 interface DeptRow {
   code_dept: string;
@@ -58,16 +69,22 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
   }
-  const { scale, min_level, espece } = parsed.data;
+  const { dataset, scale, min_level, metric } = parsed.data;
+  const validMetrics: readonly string[] = dataset === 'pollen' ? POLLEN_METRICS : ATMO_METRICS;
+  if (!validMetrics.includes(metric)) {
+    return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
+  }
+  const levelColumn = metric === 'global' ? 'indice_global' : metric;
 
   const supabase = createAdminClient();
 
-  // ── Échelle code postal : lecture pollen_map_daily (ingestion bulk) ───────
+  // ── Échelle code postal : lecture table quotidienne (ingestion bulk WFS) ──
   if (scale === 'cp') {
+    const { table, columns } = CP_TABLES[dataset];
     // Date la plus récente disponible (aujourd'hui, sinon la veille si le cron
     // du matin n'a pas encore tourné)
     const { data: latest, error: latestErr } = await supabase
-      .from('pollen_map_daily')
+      .from(table)
       .select('date_ech')
       .order('date_ech', { ascending: false })
       .limit(1);
@@ -79,10 +96,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ date: null, rows: [], error: 'no_data' });
     }
     const { data: rows, error: rowsErr } = await supabase
-      .from('pollen_map_daily')
-      .select('code_postal, indice_global, ambroisie, armoise, aulne, bouleau, graminees, olivier, nb_communes')
+      .from(table)
+      .select(columns)
       .eq('date_ech', date)
-      .gte(levelColumn(espece), Math.max(min_level, 1)) // 0 = indisponible, jamais peint
+      .gte(levelColumn, Math.max(min_level, 1)) // 0 = indisponible, jamais peint
       .limit(10_000);
     if (rowsErr) {
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -96,7 +113,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // ── Échelle département : échantillonnage streaming (comportement historique) ──
+  // ── Échelle département : échantillonnage streaming (pollen + air) ────────
   const { data: depts, error } = await supabase.rpc('get_dept_representative_communes') as {
     data: DeptRow[] | null;
     error: { message: string } | null;
@@ -120,22 +137,23 @@ export async function GET(request: NextRequest) {
           const dept = depts[cursor++];
           try {
             const { data } = await getHealthWithCache(dept.code_commune.toUpperCase());
-            if (data?.pollen) {
+            if (data?.pollen || data?.air) {
               fetched++;
               send({
                 type: 'dept',
                 code_dept: dept.code_dept,
                 nom_dept: dept.nom_dept,
                 pollen: data.pollen,
+                air: data.air,
                 stale: data.stale,
               });
             } else {
               failed++;
-              send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null });
+              send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
             }
           } catch {
             failed++;
-            send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null });
+            send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
           }
         }
       };

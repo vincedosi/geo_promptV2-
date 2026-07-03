@@ -4,11 +4,11 @@ import { calculateCoverageJob }        from '@/lib/inngest/functions/calculateCo
 import { populateCarreauxColumns }     from '@/lib/inngest/functions/populateCarreauxColumns';
 import { agentAutoPilotDaily }         from '@/lib/inngest/functions/agentAutoPilotDaily';
 import { agentChatPurgeWeekly }        from '@/lib/inngest/functions/agentChatPurgeWeekly';
-import { pollenDailyIngest }           from '@/lib/inngest/functions/pollenDailyIngest';
+import { civicDailyIngest }            from '@/lib/inngest/functions/civicDailyIngest';
 
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client:    inngest,
-  functions: [calculateCoverageJob, populateCarreauxColumns, agentAutoPilotDaily, agentChatPurgeWeekly, pollenDailyIngest],
+  functions: [calculateCoverageJob, populateCarreauxColumns, agentAutoPilotDaily, agentChatPurgeWeekly, civicDailyIngest],
 });

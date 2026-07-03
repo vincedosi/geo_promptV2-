@@ -1,17 +1,18 @@
 /**
- * POST /api/admin/pollen-ingest
+ * POST /api/admin/civic-ingest
  *
- * Déclenche l'ingestion nationale pollen → pollen_map_daily (bulk Atmo ou
- * mock selon ATMO_PROVIDER). Réponse NDJSON streaming — chaque ligne est un
- * PollenIngestProgress, la dernière porte {type:'done', summary} ou
+ * Déclenche l'ingestion nationale santé environnementale (pollen + qualité
+ * de l'air ATMO) → pollen_map_daily + atmo_map_daily, via le GeoServer WFS
+ * public Atmo. Réponse NDJSON streaming — chaque ligne est un
+ * CivicIngestProgress, la dernière porte {type:'done', summary} ou
  * {type:'error', message}.
  *
- * Le cron Inngest `pollen-daily-ingest` fait la même chose chaque matin ;
+ * Le cron Inngest `civic-daily-ingest` fait la même chose chaque matin ;
  * cette route sert au premier remplissage et aux rejeux manuels.
  */
 import { NextRequest } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import { runPollenIngest } from '@/lib/civic-health/pollen-ingest';
+import { runCivicIngest } from '@/lib/civic-health/civic-ingest';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
       try {
-        const summary = await runPollenIngest(p => send({ type: 'progress', ...p }));
+        const summary = await runCivicIngest(p => send({ type: 'progress', ...p }));
         send({ type: 'done', summary });
       } catch (err) {
         send({ type: 'error', message: err instanceof Error ? err.message : 'unknown' });

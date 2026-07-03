@@ -52,7 +52,7 @@ import type { ResidualsMeta, ResidualData } from '@/app/map/_components/Correlat
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
-import { PollenMapLayer } from '@/app/map/_components/PollenMapLayer';
+import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -185,15 +185,16 @@ export default function MapPage() {
   // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
   // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
   const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
-  // Carte des allergènes : choroplèthe indice pollen (Atmo France)
-  const [pollenVisible, setPollenVisible] = useState(false);
-  const [pollenProgress, setPollenProgress] = useState<{ done: number; total: number } | null>(null);
-  const [pollenScale, setPollenScale] = useState<'departement' | 'cp'>('departement');
-  const [pollenEspece, setPollenEspece] = useState<'global' | 'ambroisie' | 'armoise' | 'aulne' | 'bouleau' | 'graminees' | 'olivier'>('global');
-  const [pollenMinLevel, setPollenMinLevel] = useState(0);
-  const [pollenCpStatus, setPollenCpStatus] = useState<'ok' | 'no_data' | null>(null);
-  const [pollenCpDate, setPollenCpDate] = useState<string | null>(null);
-  const [pollenRefreshKey, setPollenRefreshKey] = useState(0);
+  // Santé environnementale : choroplèthe allergènes ou qualité de l'air (Atmo France)
+  const [civicHealthLayer, setCivicHealthLayer] = useState<'pollen' | 'atmo' | null>(null);
+  const [civicProgress, setCivicProgress] = useState<{ done: number; total: number } | null>(null);
+  const [civicLoading, setCivicLoading] = useState(false);
+  const [civicScale, setCivicScale] = useState<'departement' | 'cp'>('departement');
+  const [civicMetric, setCivicMetric] = useState('global');
+  const [civicMinLevel, setCivicMinLevel] = useState(0);
+  const [civicCpStatus, setCivicCpStatus] = useState<'ok' | 'no_data' | null>(null);
+  const [civicCpDate, setCivicCpDate] = useState<string | null>(null);
+  const [civicRefreshKey, setCivicRefreshKey] = useState(0);
   // Radio FM/DAB+ — émetteurs
   const [radioVisible,       setRadioVisible]       = useState(false);
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
@@ -1181,8 +1182,8 @@ export default function MapPage() {
     setTmjaGeoJSON(null);
     handleMeteoClear();
     setCivicVariableCode(null);
-    setPollenVisible(false);
-    setPollenProgress(null);
+    setCivicHealthLayer(null);
+    setCivicProgress(null);
     setRadioVisible(false);
     setRadioHeatmapMode(false);
     setRadioCoverageMode(false);
@@ -2060,18 +2061,25 @@ export default function MapPage() {
               onCivicVariableChange={setCivicVariableCode}
               selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
               selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
-              pollenVisible={pollenVisible}
-              onTogglePollen={() => { setPollenProgress(null); setPollenVisible(v => !v); }}
-              pollenProgress={pollenProgress}
-              pollenScale={pollenScale}
-              onPollenScaleChange={s => { setPollenProgress(null); setPollenScale(s); }}
-              pollenEspece={pollenEspece}
-              onPollenEspeceChange={setPollenEspece}
-              pollenMinLevel={pollenMinLevel}
-              onPollenMinLevelChange={setPollenMinLevel}
-              pollenCpStatus={pollenCpStatus}
-              pollenCpDate={pollenCpDate}
-              onPollenIngested={() => setPollenRefreshKey(k => k + 1)}
+              civicHealthLayer={civicHealthLayer}
+              onCivicHealthLayerChange={layer => {
+                // Changer de couche remet la métrique sur l'indice global
+                // (les métriques pollen/air ne se recouvrent pas)
+                setCivicProgress(null);
+                setCivicMetric('global');
+                setCivicHealthLayer(layer);
+              }}
+              civicProgress={civicProgress}
+              civicLoading={civicLoading}
+              civicScale={civicScale}
+              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
+              civicMetric={civicMetric}
+              onCivicMetricChange={setCivicMetric}
+              civicMinLevel={civicMinLevel}
+              onCivicMinLevelChange={setCivicMinLevel}
+              civicCpStatus={civicCpStatus}
+              civicCpDate={civicCpDate}
+              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
               onPondererCivicVariable={(code) => {
                 // Ouvre Pilotage ML avec une nouvelle stratégie pré-réglée sur cette variable.
                 // Pour l'instant on prend la 1ère campagne DSP éligible (TTD) comme campagne par défaut.
@@ -2303,15 +2311,16 @@ export default function MapPage() {
         </ResultsPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
-      <PollenMapLayer
+      <CivicHealthMapLayer
         mapRef={mapRef}
-        visible={pollenVisible}
-        scale={pollenScale}
-        minLevel={pollenMinLevel}
-        espece={pollenEspece}
-        refreshKey={pollenRefreshKey}
-        onProgress={(done, total) => setPollenProgress({ done, total })}
-        onCpDataStatus={(status, date) => { setPollenCpStatus(status); setPollenCpDate(date); }}
+        dataset={civicHealthLayer}
+        scale={civicScale}
+        minLevel={civicMinLevel}
+        metric={civicMetric}
+        refreshKey={civicRefreshKey}
+        onProgress={(done, total) => setCivicProgress({ done, total })}
+        onCpDataStatus={(status, date) => { setCivicCpStatus(status); setCivicCpDate(date); }}
+        onLoadingChange={setCivicLoading}
       />
       <CaptureLayers
         mapRef={mapRef}
