@@ -7,7 +7,7 @@
  * sélecteur de Zones personnalisées. Déclenche le fetch via onApply.
  */
 import { useState, useMemo, useEffect, type CSSProperties } from 'react';
-import type { MeteoParams, MeteoVariable, MeteoMode, MeteoStats } from '@/lib/meteo/types';
+import type { MeteoParams, MeteoVariable, MeteoMode, MeteoScale, MeteoStats } from '@/lib/meteo/types';
 import type { MeteoProgress } from '../_lib/use-digital-data';
 
 const fInter = "'Inter', sans-serif";
@@ -30,6 +30,13 @@ const VARIABLES: { id: MeteoVariable; label: string; icon: string }[] = [
   { id: 'temperature_2m', label: 'Température', icon: '🌡' },
   { id: 'windspeed_10m', label: 'Vent', icon: '💨' },
   { id: 'sunshine_duration', label: 'Ensoleillement', icon: '☀' },
+];
+
+// Granularités du plus fin au plus large (choroplèthe /map uniquement)
+const SCALES: { id: MeteoScale; label: string; hint: string }[] = [
+  { id: 'cp', label: 'Code postal', hint: '~6 200 zones' },
+  { id: 'departement', label: 'Département', hint: '96 zones' },
+  { id: 'region', label: 'Région', hint: '13 zones' },
 ];
 
 const MAX_FORECAST_DAYS = 16;
@@ -77,6 +84,9 @@ export interface MeteoGeoPanelProps {
   progress?: MeteoProgress | null;
   error?: string | null;
   stats?: MeteoStats | null;
+  /** Affiche le sélecteur de granularité (choroplèthe /map). La page Digital
+   *  travaille toujours au CP et ne le montre pas. */
+  scaleSelectable?: boolean;
 }
 
 // Inject spin keyframes once (used by progress spinner + button loading state)
@@ -87,8 +97,9 @@ if (typeof document !== 'undefined' && !document.head.querySelector('[data-meteo
   document.head.appendChild(el);
 }
 
-export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progress, error, stats }: MeteoGeoPanelProps) {
+export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progress, error, stats, scaleSelectable }: MeteoGeoPanelProps) {
   const [variable, setVariable] = useState<MeteoVariable>(initialParams?.variable ?? 'precipitation');
+  const [scale, setScale] = useState<MeteoScale>(initialParams?.scale ?? 'departement');
   const [mode, setMode] = useState<MeteoMode>(() => {
     if (!initialParams) return 'forecast';
     return initialParams.endDate >= todayStr() ? 'forecast' : 'history';
@@ -103,6 +114,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
     setStartDate(initialParams.startDate);
     setEndDate(initialParams.endDate);
     setMode(initialParams.endDate >= todayStr() ? 'forecast' : 'history');
+    if (initialParams.scale) setScale(initialParams.scale);
   }, [initialParams]);
 
   const validation = useMemo(() => {
@@ -136,7 +148,7 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
 
   const handleApply = () => {
     if (validation || loading) return;
-    onApply({ variable, startDate, endDate });
+    onApply({ variable, startDate, endDate, ...(scaleSelectable ? { scale } : {}) });
   };
 
   const sectionStyle: CSSProperties = {
@@ -242,6 +254,33 @@ export function MeteoGeoPanel({ onApply, onClose, initialParams, loading, progre
           ))}
         </div>
       </div>
+
+      {/* Granularité (choroplèthe /map uniquement) — du plus fin au plus large */}
+      {scaleSelectable && (
+        <div style={sectionStyle}>
+          <span style={labelStyle}>Granularité</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {SCALES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                style={{ ...pillButton(scale === s.id), flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+                onClick={() => setScale(s.id)}
+              >
+                <span>{s.label}</span>
+                <span style={{ fontFamily: fMono, fontSize: 9, color: COLORS.textTertiary }}>{s.hint}</span>
+              </button>
+            ))}
+          </div>
+          {scale === 'cp' && (
+            <div style={{ marginTop: 8, fontFamily: fInter, fontSize: 10, color: COLORS.textTertiary, lineHeight: 1.5 }}>
+              Les CP de la vue carte sont interrogés. Vue France entière :
+              valeurs échantillonnées (~30 km, la résolution du modèle météo) —
+              zoomez sur votre zone avant d&apos;appliquer pour des valeurs par CP exactes.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mode + presets */}
       <div style={sectionStyle}>

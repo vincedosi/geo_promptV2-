@@ -41,9 +41,9 @@ import type {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-// CP mode (~13 batches × 62s) peut durer ~13 min en cold load.
-// Vercel Pro autorise jusqu'à 900s (15 min). Hors Pro : réduire batch count.
-export const maxDuration = 900;
+// L'échantillonnage spatial garantit 1 seul batch (≤500 points) quelle que
+// soit l'échelle → quelques secondes. maxDuration large par sécurité (retries 429).
+export const maxDuration = 300;
 
 const QuerySchema = z.object({
   scale: z.enum(['region', 'departement', 'cp']),
@@ -55,6 +55,9 @@ const QuerySchema = z.object({
   ]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate must be YYYY-MM-DD'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate must be YYYY-MM-DD'),
+  // Viewport optionnel (mode cp) : "west,south,east,north" — restreint les
+  // zones interrogées à la vue carte pour rester sous 1 batch Open-Meteo.
+  bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/).optional(),
 });
 
 const MAX_HISTORY_DAYS = 90;
@@ -86,6 +89,57 @@ interface ZoneCentroid {
   lon: number;
 }
 
+interface QueryPoint {
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Échantillonnage spatial : regroupe les zones sur une grille adaptative pour
+ * ne jamais dépasser maxPoints appels Open-Meteo (1 batch = quelques secondes,
+ * au lieu de 13 batchs espacés de 62 s pour les 6 187 CP).
+ * Perte de précision négligeable : le modèle Open-Meteo est à ~11-25 km de
+ * résolution — interroger chaque CP revient à répéter la même valeur.
+ * Retourne les points à interroger + l'index du point assigné à chaque zone.
+ */
+function sampleZonePoints(
+  zones: ZoneCentroid[],
+  maxPoints: number,
+): { points: QueryPoint[]; assign: number[] } {
+  if (zones.length <= maxPoints) {
+    return {
+      points: zones.map((z) => ({ lat: z.lat, lon: z.lon })),
+      assign: zones.map((_, i) => i),
+    };
+  }
+  const buildCells = (step: number): Map<string, number[]> => {
+    const m = new Map<string, number[]>();
+    zones.forEach((z, i) => {
+      const k = `${Math.round(z.lat / step)}:${Math.round(z.lon / step)}`;
+      const arr = m.get(k);
+      if (arr) arr.push(i);
+      else m.set(k, [i]);
+    });
+    return m;
+  };
+  let step = 0.1;
+  let cells = buildCells(step);
+  while (cells.size > maxPoints) {
+    step *= 1.4;
+    cells = buildCells(step);
+  }
+  const points: QueryPoint[] = [];
+  const assign = new Array<number>(zones.length).fill(0);
+  for (const idxs of cells.values()) {
+    const lat = idxs.reduce((s, i) => s + zones[i].lat, 0) / idxs.length;
+    const lon = idxs.reduce((s, i) => s + zones[i].lon, 0) / idxs.length;
+    const p = points.length;
+    points.push({ lat, lon });
+    for (const i of idxs) assign[i] = p;
+  }
+  return { points, assign };
+}
+
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -103,7 +157,7 @@ function pickHost(startDate: string, endDate: string): string {
 
 function buildOpenMeteoUrl(
   host: string,
-  zones: ZoneCentroid[],
+  zones: QueryPoint[],
   variable: MeteoVariable,
   startDate: string,
   endDate: string,
@@ -130,7 +184,7 @@ interface OpenMeteoPointResponse {
 }
 
 async function fetchBatchFromOpenMeteo(
-  zones: ZoneCentroid[],
+  zones: QueryPoint[],
   variable: MeteoVariable,
   startDate: string,
   endDate: string,
@@ -142,7 +196,17 @@ async function fetchBatchFromOpenMeteo(
   let res = await fetch(url);
   for (const ms of RATE_LIMIT_BACKOFFS_MS) {
     if (res.status !== 429) break;
-    console.warn(`[meteo-geo] 429 rate limit, retrying in ${ms}ms`);
+    // Quota horaire/journalier épuisé : retenter ne sert à rien (fenêtre d'une
+    // heure) — on échoue immédiatement avec un message clair au lieu de faire
+    // patienter ~105 s de backoffs. Seul le rate limit minute vaut un retry.
+    const body = await res.text().catch(() => '');
+    if (/hourly|daily/i.test(body)) {
+      throw new Error(
+        'Quota horaire Open-Meteo épuisé — réessayez dans l\'heure. ' +
+        '(Les données déjà chargées restent en cache 24 h.)',
+      );
+    }
+    console.warn(`[meteo-geo] 429 rate limit (minute), retrying in ${ms}ms`);
     await new Promise((r) => setTimeout(r, ms));
     res = await fetch(url);
   }
@@ -162,8 +226,13 @@ async function fetchBatchFromOpenMeteo(
   });
 }
 
-function getCacheKey(scale: string, variable: string, startDate: string, endDate: string): string {
-  return createHash('md5').update(`${scale}-${variable}-${startDate}-${endDate}`).digest('hex');
+function getCacheKey(scale: string, variable: string, startDate: string, endDate: string, bbox?: string): string {
+  // bbox arrondie au demi-degré : limite la fragmentation du cache quand la
+  // vue carte bouge légèrement entre deux applications.
+  const bboxKey = bbox
+    ? bbox.split(',').map((v) => (Math.round(parseFloat(v) * 2) / 2).toFixed(1)).join(',')
+    : '';
+  return createHash('md5').update(`v2-${scale}-${variable}-${startDate}-${endDate}-${bboxKey}`).digest('hex');
 }
 
 async function readCacheFile(key: string, isForecast: boolean): Promise<MeteoZoneResponse | null> {
@@ -203,6 +272,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
     variable: searchParams.get('variable'),
     startDate: searchParams.get('startDate'),
     endDate: searchParams.get('endDate'),
+    bbox: searchParams.get('bbox') ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -236,7 +306,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
 
   const variable = q.variable as MeteoVariable;
   const scale = q.scale as MeteoScale;
-  const cacheKey = getCacheKey(q.scale, q.variable, q.startDate, q.endDate);
+  const cacheKey = getCacheKey(q.scale, q.variable, q.startDate, q.endDate, q.bbox);
 
   // ── Cache lookup ─────────────────────────────────────────────────────
   const cached = await readCacheFile(cacheKey, isFuture);
@@ -277,19 +347,30 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
       { status: 500 },
     );
   }
-  const zones = zonesRaw as ZoneCentroid[];
+  let zones = zonesRaw as ZoneCentroid[];
   if (zones.length === 0) {
     return NextResponse.json({ error: 'No zones found for scale' }, { status: 500 });
   }
 
+  // ── Restriction au viewport (mode cp) ────────────────────────────────
+  // Si la vue est hors de France (aucune zone), on retombe sur la France entière.
+  if (q.bbox && scale === 'cp') {
+    const [w, s, e, n] = q.bbox.split(',').map(parseFloat);
+    const scoped = zones.filter((z) => z.lon >= w && z.lon <= e && z.lat >= s && z.lat <= n);
+    if (scoped.length > 0) zones = scoped;
+  }
+
+  // ── Échantillonnage spatial → toujours 1 seul batch Open-Meteo ───────
+  const { points, assign } = sampleZonePoints(zones, MAX_POINTS_PER_BATCH);
+
   // ── Batchs ───────────────────────────────────────────────────────────
-  const batches: ZoneCentroid[][] = [];
-  for (let i = 0; i < zones.length; i += MAX_POINTS_PER_BATCH) {
-    batches.push(zones.slice(i, i + MAX_POINTS_PER_BATCH));
+  const batches: QueryPoint[][] = [];
+  for (let i = 0; i < points.length; i += MAX_POINTS_PER_BATCH) {
+    batches.push(points.slice(i, i + MAX_POINTS_PER_BATCH));
   }
   const totalBatches = batches.length;
   console.log(
-    `[meteo-geo] cache MISS ${q.scale}/${q.variable} zones=${zones.length} batches=${totalBatches}`,
+    `[meteo-geo] cache MISS ${q.scale}/${q.variable} zones=${zones.length} points=${points.length} batches=${totalBatches}`,
   );
 
   // ── Streaming NDJSON ─────────────────────────────────────────────────
@@ -297,8 +378,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const allZones: ZoneCentroid[] = [];
-        const allValues: number[] = [];
+        const pointValues: number[] = [];
 
         for (let i = 0; i < totalBatches; i++) {
           // ETA : estimation grossière basée sur le délai inter-batch restant
@@ -326,8 +406,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
             q.startDate,
             q.endDate,
           );
-          allZones.push(...batch);
-          allValues.push(...values);
+          pointValues.push(...values);
 
           // Délai inter-batch pour le mode CP (pas de délai si un seul batch)
           if (i < totalBatches - 1 && totalBatches > 1) {
@@ -335,17 +414,20 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
           }
         }
 
-        // Stats + unit (sunshine_duration affiché en heures)
-        const stats = computeStats(allValues, variable);
+        // Valeur par zone : chaque zone reçoit la valeur de son point échantillonné
+        const zoneValues = zones.map((_, i) => pointValues[assign[i]]);
+
+        // Stats + unit (sunshine_duration affiché en heures) — calculées par
+        // zone (et non par point) pour des quantiles fidèles à la choroplèthe.
+        const stats = computeStats(zoneValues, variable);
         const unit = variable === 'sunshine_duration' ? 'h' : METEO_UNIT[variable];
         stats.unit = unit;
 
         // Mapping code → valeur
         const data: Record<string, MeteoZoneValue> = {};
-        for (let i = 0; i < allZones.length; i++) {
-          const zone = allZones[i];
-          const value = allValues[i];
-          data[zone.code] = {
+        for (let i = 0; i < zones.length; i++) {
+          const value = zoneValues[i];
+          data[zones[i].code] = {
             value,
             unit,
             label: qualitativeLabel(value, stats, variable),
@@ -359,8 +441,9 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
           endDate: q.endDate,
           scale,
           stats,
-          totalZones: allZones.length,
+          totalZones: zones.length,
           batchesTotal: totalBatches,
+          sampledPoints: points.length,
           cachedAt: null,
         };
 

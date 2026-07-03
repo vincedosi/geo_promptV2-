@@ -24,7 +24,8 @@ export interface UseMeteoData {
   loading: boolean;
   progress: MeteoProgress | null;
   error: string | null;
-  fetch: (scale: MeteoScale, params: MeteoParams) => Promise<void>;
+  /** Résout à true si les données sont chargées, false en cas d'erreur. */
+  fetch: (scale: MeteoScale, params: MeteoParams) => Promise<boolean>;
   clear: () => void;
 }
 
@@ -36,7 +37,7 @@ export function useMeteoData(): UseMeteoData {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const doFetch = useCallback(async (scale: MeteoScale, params: MeteoParams) => {
+  const doFetch = useCallback(async (scale: MeteoScale, params: MeteoParams): Promise<boolean> => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -48,7 +49,8 @@ export function useMeteoData(): UseMeteoData {
         `/api/meteo-geo?scale=${scale}` +
         `&variable=${params.variable}` +
         `&startDate=${params.startDate}` +
-        `&endDate=${params.endDate}`;
+        `&endDate=${params.endDate}` +
+        (params.bbox ? `&bbox=${params.bbox}` : '');
       const res = await adminFetch(url, { signal: ctrl.signal });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
@@ -81,6 +83,7 @@ export function useMeteoData(): UseMeteoData {
           }
         }
       }
+      return true;
     } catch (err: unknown) {
       if ((err as Error).name !== 'AbortError') {
         const msg = err instanceof Error ? err.message : 'Erreur inconnue';
@@ -88,6 +91,7 @@ export function useMeteoData(): UseMeteoData {
         setData(null);
         setMeta(null);
       }
+      return false;
     } finally {
       setLoading(false);
       setProgress(null);

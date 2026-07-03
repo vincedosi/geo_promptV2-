@@ -345,21 +345,26 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      // ── Météo — Bulles colorées aux centroïdes des zones admin ───────────
-      // Source GeoJSON peuplée dynamiquement via /api/meteo-geo + centroids.
+      // ── Météo — Choroplèthe par zones admin (polygones dép./régions) ─────
+      // Source GeoJSON peuplée dynamiquement via /api/meteo-geo + zones.
       // Couleur via expression interpolate sur la palette de la variable.
       map.addSource('meteo-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
       });
       map.addLayer({
-        id: 'meteo-circles', type: 'circle', source: 'meteo-source',
+        id: 'meteo-fill', type: 'fill', source: 'meteo-source',
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 6, 8, 10, 11, 16] as unknown as import('maplibre-gl').ExpressionSpecification,
-          'circle-color': '#4ecdc4', // overridé dynamiquement
-          'circle-opacity': 0.78,
-          'circle-stroke-color': 'rgba(0,0,0,0.5)',
-          'circle-stroke-width': 1,
+          'fill-color': '#4ecdc4', // overridé dynamiquement
+          'fill-opacity': 0.55,
+        },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'meteo-outline', type: 'line', source: 'meteo-source',
+        paint: {
+          'line-color': 'rgba(0,0,0,0.45)',
+          'line-width': 0.8,
         },
         layout: { visibility: 'none' },
       });
@@ -372,7 +377,7 @@ export function useMapInit(
       // navigateur + cache mémoire serveur.
       map.addSource('tmja-source', {
         type: 'vector',
-        tiles: [`${window.location.origin}/api/tmja-tiles/{z}/{x}/{y}?v=v9`],
+        tiles: [`${window.location.origin}/api/tmja-tiles/{z}/{x}/{y}?v=v10`],
         minzoom: 5,
         maxzoom: 14,
       });
