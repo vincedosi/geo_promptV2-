@@ -1,6 +1,6 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-06-22 (DSP API connections)
+> Derniere mise a jour : 2026-07-02 (consolidation panneaux : global_ooh fusionnee dans panneaux_affichage, page /integration-panneaux supprimee)
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -57,7 +57,6 @@ genesis_app/
 │   │   └── _lib/               # constants.ts (circleGeoJSON, getCatColor)
 │   ├── dashboard/              # Page d'accueil apres login
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
-│   ├── integration-panneaux/   # Integration panneaux CSV/XLSX
 │   ├── login/                  # Page de connexion Supabase Auth
 │   ├── map/                    # Page carte complete
 │   │   ├── _components/        # FilterPanel, IrisDetailPanel, ClusteringWizard,
@@ -301,7 +300,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### Meteo
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming) |
+| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming, echantillonnage spatial ≤500 points/appel, bbox viewport optionnelle en mode cp) |
+| `/api/meteo-geo/zones` | GET | Polygones simplifies des zones admin (choroplethe meteo, cache CDN 1 sem.) |
 
 ### Administration campagnes (protegees par `requireAdmin()`)
 | Route | Methode | Description |
@@ -325,6 +325,13 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/dsp/dv360/oauth/config` | POST | Enregistre le client OAuth (Client ID + Secret chiffre) par org — saisie formulaire, prime sur les env vars |
 | `/api/admin/dsp/dv360/oauth/start` | POST | Initiation flux OAuth DV360 (persiste partner_id, renvoie l'URL de consentement Google en JSON, `state` signe HMAC) |
 | `/api/admin/dsp/dv360/oauth/callback` | GET | Callback OAuth DV360 (verif `state` HMAC anti-CSRF, echange code → tokens) |
+| `/api/admin/dsp/dv360/targeting/push` | POST | Push ciblage geo d'une zone custom (CP → geo IDs Google) sur un line item DV360 (additif, max 2000 geo IDs, log dans dsp_api_logs) |
+| `/api/admin/dsp/dv360/zones/push` | POST | Cree une location list DV360 regionale nommee comme la zone custom (CP → geo IDs, lots de 500, max 10 000) — bouton « Creer la zone dans DV360 » du ZoneDetailPanel |
+| `/api/admin/dsp/tiktok/connect` | POST/DELETE | Enregistrement app TikTok (App ID + Secret chiffre) / deconnexion (?scope=full : purge) |
+| `/api/admin/dsp/tiktok/config` | GET | Diagnostic config serveur TikTok (env vars en booleens + redirect URI en clair) |
+| `/api/admin/dsp/tiktok/oauth/start` | POST | Initiation flux OAuth TikTok (renvoie l'URL portal/auth en JSON, state signe HMAC) |
+| `/api/admin/dsp/tiktok/oauth/callback` | GET | Callback OAuth TikTok (verif state HMAC, echange auth_code → access token longue duree chiffre) |
+| `/api/admin/dsp/tiktok/test` | POST | Test connexion TikTok (oauth2/advertiser/get) |
 | `/api/admin/dsp/logs` | GET | Logs appels DSP par org (pagines) |
 
 ### Administration generale (protegees par `requireAdmin()`)
@@ -370,11 +377,10 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/user/organizations` | GET | Orgs de l'utilisateur courant |
 | `/api/user/switch-org` | POST | Changement d'org active |
 
-### Integration panneaux
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/integration-panneaux/parse` | POST | Parse fichier panneaux |
-| `/api/integration-panneaux/execute` | POST | Import panneaux SSE |
+> La page `/integration-panneaux` et ses routes `/api/integration-panneaux/*`
+> ont ete supprimees en 2026-07 (pipeline CSV incomplet, perte de colonnes —
+> voir `docs/AUDIT_IMPORTS.md` C4). Les panneaux s'importent via
+> `/admin/ooh-import` (ArcGIS REST → `panneaux_affichage`).
 
 ### Export & Sauvegarde
 | Route | Methode | Description |
@@ -423,8 +429,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom` |
-| `panneaux_affichage` | Panneaux affichage (~938 lignes) | |
-| `global_ooh` | Panneaux OOH/DOOH toutes regies | `source_ref` = OBJECTID |
+| `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote + scoring) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
@@ -539,6 +544,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_zone_centroids` | Centroides zones admin | `api/meteo-geo/` |
+| `get_zone_polygons` | Polygones simplifies zones admin (choroplethe) | `api/meteo-geo/zones/` |
 
 ### Correlation
 | RPC | Description | Appelee depuis |
@@ -599,6 +605,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `DV360_OAUTH_CLIENT_ID` | Client ID OAuth Google pour le flux DV360 (fallback si non saisi par org via formulaire) |
 | `DV360_OAUTH_CLIENT_SECRET` | Client Secret OAuth Google pour le flux DV360 (fallback si non saisi par org) |
 | `DV360_OAUTH_REDIRECT_URI` | Override du callback OAuth DV360 ; si absente, derivee de `NEXT_PUBLIC_APP_URL` + `/api/admin/dsp/dv360/oauth/callback` |
+| `TIKTOK_APP_ID` | App ID TikTok Business API (fallback si non saisi par org via formulaire) |
+| `TIKTOK_APP_SECRET` | App Secret TikTok (fallback si non saisi par org) |
+| `TIKTOK_OAUTH_REDIRECT_URI` | Override du callback OAuth TikTok ; si absente, derivee de `NEXT_PUBLIC_APP_URL` + `/api/admin/dsp/tiktok/oauth/callback` |
 
 ---
 
