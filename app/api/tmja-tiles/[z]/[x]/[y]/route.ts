@@ -4,14 +4,17 @@
  * Tuiles MVT pour les flux routiers TMJA (table comptages_routiers).
  * Pipeline calqué sur /api/tiles/[z]/[x]/[y] (carreaux Filosofi) :
  *   - RPC PostGIS get_tmja_tile(z, x, y) → bytea ST_AsMVT
- *   - Cache mémoire serveur 1h (LRU 1000 tiles)
+ *   - Gzip (÷4 sur le transfert : ~150 KB → ~35 KB par tuile)
+ *   - Cache CDN 1 semaine (s-maxage) — le cache mémoire par lambda est un
+ *     bonus local, le vrai cache partagé est le CDN Vercel (?v= pour invalider)
  *   - Déduplication des requêtes simultanées
- *   - Headers Cache-Control + CORS
  *
  * Filtre TMJA adaptatif côté SQL : au low-zoom, on ne renvoie que les axes
- * majeurs (autoroutes/nationales), au high-zoom on densifie.
+ * majeurs (autoroutes/nationales), au high-zoom on densifie. Zoom 5 activé
+ * (tier 1 uniquement) pour que les autoroutes soient visibles dès la vue France.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { gzipSync, gunzipSync } from 'zlib';
 import { createAdminClient } from '@/lib/auth';
 
 function getSupabase() {
@@ -35,6 +38,7 @@ function pruneCacheIfNeeded() {
   }
 }
 
+/** Renvoie la tuile MVT déjà gzippée (stockée gzippée en cache mémoire). */
 async function fetchTileBuffer(zoom: number, tileX: number, tileY: number): Promise<Buffer | null> {
   const { data, error } = await getSupabase().rpc('get_tmja_tile', { z: zoom, x: tileX, y: tileY });
   if (error) {
@@ -45,7 +49,19 @@ async function fetchTileBuffer(zoom: number, tileX: number, tileY: number): Prom
   const buffer = rawStr.startsWith('\\x')
     ? Buffer.from(rawStr.slice(2), 'hex')
     : Buffer.from(rawStr, 'base64');
-  return buffer.length > 0 ? buffer : null;
+  return buffer.length > 0 ? gzipSync(buffer) : null;
+}
+
+function tileHeaders(cacheStatus: 'HIT' | 'MISS', acceptsGzip: boolean): Record<string, string> {
+  return {
+    'Content-Type': 'application/vnd.mapbox-vector-tile',
+    ...(acceptsGzip ? { 'Content-Encoding': 'gzip' } : {}),
+    'Vary': 'Accept-Encoding',
+    // Versionné par ?v= → immutable. s-maxage = cache CDN partagé entre users/lambdas.
+    'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+    'X-Tile-Cache': cacheStatus,
+    'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://genesis.vercel.app',
+  };
 }
 
 export async function GET(
@@ -61,24 +77,22 @@ export async function GET(
     return new NextResponse('Invalid tile coordinates', { status: 400 });
   }
 
-  // En dessous de zoom 6, on n'affiche pas — économise des appels DB inutiles
-  if (zoom < 6) {
+  // En dessous de zoom 5, on n'affiche pas — économise des appels DB inutiles
+  // (z5 = vue France : axes majeurs tier 1 uniquement, servis par le CDN)
+  if (zoom < 5) {
     return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   }
 
+  const acceptsGzip = (req.headers.get('accept-encoding') ?? '').includes('gzip');
   const v = req.nextUrl.searchParams.get('v') ?? '0';
   const key = `${v}/${zoom}/${tileX}/${tileY}`;
   const now = Date.now();
 
   const cached = tileMemCache.get(key);
   if (cached && now < cached.expires) {
-    return new NextResponse(cached.buf as unknown as BodyInit, {
-      headers: {
-        'Content-Type': 'application/vnd.mapbox-vector-tile',
-        'Cache-Control': 'public, max-age=86400, immutable',
-        'X-Tile-Cache': 'HIT',
-        'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://genesis.vercel.app',
-      },
+    const body = acceptsGzip ? cached.buf : gunzipSync(cached.buf);
+    return new NextResponse(body as unknown as BodyInit, {
+      headers: tileHeaders('HIT', acceptsGzip),
     });
   }
 
@@ -99,12 +113,8 @@ export async function GET(
   pruneCacheIfNeeded();
   tileMemCache.set(key, { buf: buffer, expires: now + CACHE_TTL_MS });
 
-  return new NextResponse(buffer as unknown as BodyInit, {
-    headers: {
-      'Content-Type': 'application/vnd.mapbox-vector-tile',
-      'Cache-Control': 'public, max-age=3600',
-      'X-Tile-Cache': 'MISS',
-      'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://genesis.vercel.app',
-    },
+  const body = acceptsGzip ? buffer : gunzipSync(buffer);
+  return new NextResponse(body as unknown as BodyInit, {
+    headers: tileHeaders('MISS', acceptsGzip),
   });
 }
