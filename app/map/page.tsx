@@ -1961,6 +1961,7 @@ export default function MapPage() {
             activeOverlay === 'ai' ? 'geo.prompt' :
             activeOverlay === 'perimeter' ? 'Périmètre' :
             activeOverlay === 'terrain' ? 'Données terrain' :
+            activeOverlay === 'audience' ? 'Audience' :
             activeOverlay === 'analyses' ? 'Analyses' :
             activeOverlay === 'campaigns' ? 'Campagnes média' :
             activeOverlay === 'pilotage' ? 'Pilotage ML' :
@@ -1971,6 +1972,7 @@ export default function MapPage() {
             activeOverlay === 'ai' ? 'var(--brand-teal)' :
             activeOverlay === 'perimeter' ? 'var(--cat-context)' :
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
+            activeOverlay === 'audience' ? 'var(--cat-socio)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
             activeOverlay === 'campaigns' ? 'var(--cat-media)' :
             activeOverlay === 'pilotage' ? 'var(--brand-teal)' :
@@ -1980,9 +1982,10 @@ export default function MapPage() {
           onClose={() => setActiveOverlay(null)}
         >
           {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
+          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
             <FilterPanel
               visibleCategory={activeOverlay}
+              onOpenPilotage={() => setActiveOverlay('pilotage')}
               chatSlot={null}
               sendMessage={chat.sendMessage}
               onDirectOOH={handleDirectOOH}

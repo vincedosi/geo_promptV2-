@@ -461,7 +461,9 @@ export interface FilterPanelProps {
   onDigitalPopFieldChange?: (field: string) => void;
   /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
    *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
-  visibleCategory?: 'perimeter' | 'terrain' | 'analyses' | 'campaigns';
+  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'campaigns';
+  /** Ouvre le grand panneau Pilotage ML (bouton en tête de Campagnes média). */
+  onOpenPilotage?: () => void;
   /** Ouverture d'une étude de ville (CTA dans section Scoring, overlay Analyses) */
   onOpenStudy?: () => void;
   /** Ville courante de l'étude (affichée dans le CTA si set) */
@@ -686,7 +688,7 @@ export function FilterPanel({
   digitalCompareView, onDigitalCompareViewChange,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
-  visibleCategory, onOpenStudy, studyVille,
+  visibleCategory, onOpenStudy, studyVille, onOpenPilotage,
   onOpenAnalysisResults, availableResults,
   selectedPOI: selectedPOIProp, onSelectedPOIChange,
   selectedDepts:   selectedDeptsProp,   onSelectedDeptsChange,
@@ -2412,55 +2414,6 @@ export function FilterPanel({
               )}{/* fin collapsible TMJA */}
             </div>
 
-            {/* ── Section : Météo ─────────────────────────────────────────── */}
-            {onOpenMeteo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <FilterSectionHeader
-                  label="Météo"
-                  sectionKey="meteo"
-                  open={sectionsOpen.meteo !== false}
-                  onToggle={() => toggleSection('meteo')}
-                  count={meteoVisible ? 1 : 0}
-                  searchTerm={filterSearch}
-                />
-                {sectionsOpen.meteo !== false && (
-                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
-                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
-                    </div>
-                    {meteoVisible && meteoLabel && (
-                      <div style={{
-                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
-                        color: 'var(--brand-teal)',
-                        padding: '4px 8px',
-                        background: 'var(--bg-level-2)',
-                        border: '0.5px solid var(--brand-teal)',
-                        borderRadius: 4,
-                        marginBottom: 8,
-                      }}>
-                        {meteoLabel} actif
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
-                        onClick={onOpenMeteo}
-                      >
-                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
-                      </button>
-                      {meteoVisible && (
-                        <button
-                          style={pill(false, C.muted)}
-                          onClick={onClearMeteo}
-                          title="Masquer la couche météo"
-                        >Masquer</button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <FilterSectionHeader label="Radio FM/DAB+" sectionKey="radio" open={sectionsOpen.radio !== false} onToggle={() => toggleSection('radio')} count={radioCount} searchTerm={filterSearch} />
@@ -2654,6 +2607,293 @@ export function FilterPanel({
               </div>
               )}{/* fin collapsible radio */}
             </div>
+
+          </div>
+        </CategoryGroup>
+        )}
+
+
+        {/* ════════════════════════════════════════
+            CATÉGORIE — AUDIENCE (socio-démo & contexte)
+            Règle de tri : Terrain = le physique · Audience = les gens et
+            leur environnement · Analyses = ce qui se calcule.
+        ════════════════════════════════════════ */}
+        {(!visibleCategory || visibleCategory === 'audience') && (
+        <CategoryGroup title="Audience" color="var(--cat-socio)" colorRgb="91,155,213" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('carreaux')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
+                Carreaux
+              </span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.carreaux && (
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setCarreauxVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
+                  Carreaux{carreauxLoaded ? ' ✓' : ''}
+                </span>
+              </button>
+
+              {/* Indicateur */}
+              <select
+                value={carreauxIndicateur ?? 'population_totale'}
+                onChange={e => setCarreauxIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
+                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
+                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
+                      <option key={ind.id} value={ind.id}>{ind.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {CARREAUX_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={carreauxOpacity ?? 0.72}
+                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Légende
+                  {carreauxSelectedBucket !== null && (
+                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
+                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
+                    >✕ Tout</button>
+                  )}
+                </div>
+                {(() => {
+                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
+                  if (carreauxRange) {
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => {
+                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
+                          const min = carreauxRange.p5 + i * step;
+                          const max = carreauxRange.p5 + (i + 1) * step;
+                          const isSelected = carreauxSelectedBucket === i;
+                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
+                          return (
+                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
+                            >
+                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
+                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
+                              </span>
+                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
+            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('iris')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
+                IRIS
+                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
+              </span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.iris && (
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setIrisVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
+                  Couche IRIS
+                </span>
+              </button>
+
+              {/* Toggle vrais IRIS uniquement */}
+              <button
+                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
+                  Vrais IRIS uniquement
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
+                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
+                </span>
+              </button>
+
+              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
+              <select
+                value={irisIndicateur ?? 'pop_15_29'}
+                onChange={e => setIrisIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from(
+                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
+                    if (!acc.has(col.group)) acc.set(col.group, []);
+                    acc.get(col.group)!.push(col);
+                    return acc;
+                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
+                ).map(([group, cols]) => (
+                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
+                    {cols.map(col => (
+                      <option key={col.name} value={col.name}>{col.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {IRIS_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={irisOpacity ?? 0.45}
+                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((irisOpacity ?? 0.45) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
+                {(() => {
+                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
+                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
+                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
+                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
+                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (irisVisible && !irisStats) {
+                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
+                  }
+                  if (irisStats && !irisStats.col_exists) {
+                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
+            {/* Sections contexte — blocs déplacés depuis Données terrain */}
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* ── Section : Indicateurs civiques ──────────────────────────── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2925,6 +3165,56 @@ export function FilterPanel({
               )}
             </div>
 
+            {/* ── Section : Météo ─────────────────────────────────────────── */}
+            {onOpenMeteo && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <FilterSectionHeader
+                  label="Météo"
+                  sectionKey="meteo"
+                  open={sectionsOpen.meteo !== false}
+                  onToggle={() => toggleSection('meteo')}
+                  count={meteoVisible ? 1 : 0}
+                  searchTerm={filterSearch}
+                />
+                {sectionsOpen.meteo !== false && (
+                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
+                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
+                    </div>
+                    {meteoVisible && meteoLabel && (
+                      <div style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        color: 'var(--brand-teal)',
+                        padding: '4px 8px',
+                        background: 'var(--bg-level-2)',
+                        border: '0.5px solid var(--brand-teal)',
+                        borderRadius: 4,
+                        marginBottom: 8,
+                      }}>
+                        {meteoLabel} actif
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
+                        onClick={onOpenMeteo}
+                      >
+                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
+                      </button>
+                      {meteoVisible && (
+                        <button
+                          style={pill(false, C.muted)}
+                          onClick={onClearMeteo}
+                          title="Masquer la couche météo"
+                        >Masquer</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            </div>
           </div>
         </CategoryGroup>
         )}
@@ -3648,276 +3938,6 @@ export function FilterPanel({
             )}
             </>)}
 
-            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('carreaux')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Carreaux
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.carreaux && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setCarreauxVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
-                  Carreaux{carreauxLoaded ? ' ✓' : ''}
-                </span>
-              </button>
-
-              {/* Indicateur */}
-              <select
-                value={carreauxIndicateur ?? 'population_totale'}
-                onChange={e => setCarreauxIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
-                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
-                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {CARREAUX_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={carreauxOpacity ?? 0.72}
-                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Légende
-                  {carreauxSelectedBucket !== null && (
-                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
-                    >✕ Tout</button>
-                  )}
-                </div>
-                {(() => {
-                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
-                  if (carreauxRange) {
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => {
-                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                          const min = carreauxRange.p5 + i * step;
-                          const max = carreauxRange.p5 + (i + 1) * step;
-                          const isSelected = carreauxSelectedBucket === i;
-                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
-                          return (
-                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
-                            >
-                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
-                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
-                              </span>
-                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
-            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('iris')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                IRIS
-                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.iris && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setIrisVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
-                  Couche IRIS
-                </span>
-              </button>
-
-              {/* Toggle vrais IRIS uniquement */}
-              <button
-                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
-                  Vrais IRIS uniquement
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
-                </span>
-              </button>
-
-              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
-              <select
-                value={irisIndicateur ?? 'pop_15_29'}
-                onChange={e => setIrisIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(
-                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
-                    if (!acc.has(col.group)) acc.set(col.group, []);
-                    acc.get(col.group)!.push(col);
-                    return acc;
-                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
-                ).map(([group, cols]) => (
-                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
-                    {cols.map(col => (
-                      <option key={col.name} value={col.name}>{col.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {IRIS_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={irisOpacity ?? 0.45}
-                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((irisOpacity ?? 0.45) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
-                {(() => {
-                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
-                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
-                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }
-                  if (irisVisible && !irisStats) {
-                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
-                  }
-                  if (irisStats && !irisStats.col_exists) {
-                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
             {!useAnalysisCTAs && (<>
             {/* ── Accordéon : COUVERTURE (overlay → CTA card) ──────────────── */}
             <button
@@ -4041,6 +4061,25 @@ export function FilterPanel({
         {(!visibleCategory || visibleCategory === 'campaigns') && (
         <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Pilotage ML — sorti du rail, ouvre le même grand panneau qu'avant */}
+              {onOpenPilotage && (
+                <button
+                  onClick={onOpenPilotage}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                    background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                    color: 'var(--brand-teal)', fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                    transition: 'background-color 150ms var(--ease-hover)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  Pilotage ML — bidding automatique
+                  <span style={{ fontSize: 13 }}>→</span>
+                </button>
+              )}
 
               {/* Campaign selector */}
               <div>
