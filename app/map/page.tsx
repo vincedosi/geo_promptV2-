@@ -53,7 +53,7 @@ import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
-import { ZoneMediaPlanPanel } from '@/app/map/_components/ZoneMediaPlanPanel';
+import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -197,7 +197,6 @@ export default function MapPage() {
   const [civicCpDate, setCivicCpDate] = useState<string | null>(null);
   const [civicRefreshKey, setCivicRefreshKey] = useState(0);
   // Plan média : zones custom affichées via l'overlay Zones → panneau latéral droit
-  const PLAN_PANEL_WIDTH = 600; // largeur du ZoneMediaPlanPanel (garder synchro)
   const [planZones, setPlanZones] = useState<Array<{ id: string; name: string }>>([]);
   const [planPanelOpen, setPlanPanelOpen] = useState(false);
   const prevPlanCountRef = useRef(0);
@@ -2342,7 +2341,7 @@ export default function MapPage() {
           style={{
             position: 'fixed',
             top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
-            right: planPanelOpen && planZones.length ? PLAN_PANEL_WIDTH + 10 : 10,
+            right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
             zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
@@ -2424,7 +2423,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: planPanelOpen && planZones.length ? PLAN_PANEL_WIDTH + 10 : 10,
+              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2445,7 +2444,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
-              right: planPanelOpen && planZones.length ? PLAN_PANEL_WIDTH + 10 : 10,
+              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2468,7 +2467,7 @@ export default function MapPage() {
               style={{
                 position: 'fixed',
                 top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
-                right: planPanelOpen && planZones.length ? PLAN_PANEL_WIDTH + 10 : 10,
+                right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
