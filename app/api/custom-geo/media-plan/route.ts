@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { CIBLE_KEYS } from '@/lib/custom-geo/cibles';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,8 @@ const PlanSchema = z.object({
   zones: z.array(z.object({ id: z.string(), name: z.string() })).max(50),
   budget: z.number().nonnegative().nullable(),
   cpm: z.number().nonnegative().nullable(),
-  cible: z.enum(['total', '0_17', '18_24', '25_39', '40_54', '55_64', '65_79', '80_plus']),
+  // Enum construit depuis la liste partagée → couvre âge + ménages + logement
+  cible: z.enum(CIBLE_KEYS as [string, ...string[]]),
   weights: z.record(z.string(), z.number().min(0).max(100)),
 });
 

@@ -10,6 +10,18 @@
 import { adminFetch } from '@/lib/admin-fetch';
 import type { CustomGeoExportFormat } from '@/types/custom-geo';
 
+/** Déclenche le téléchargement navigateur d'un blob sous `filename`. */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadZoneExport(
   zoneId: string,
   format: CustomGeoExportFormat,
@@ -30,13 +42,5 @@ export async function downloadZoneExport(
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `zone_${zoneId}_${format}`;
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(await res.blob(), filename);
 }

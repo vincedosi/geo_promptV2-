@@ -15,43 +15,19 @@
  * Rattachable à une campagne DSP (persistance geo_strategy.media_plan),
  * export CSV du tableau, exports DSP pondérés (DV360 / TikTok).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, RotateCcw, FileDown, Music2 } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { downloadZoneExport } from '@/lib/custom-geo/download-export';
+import { downloadZoneExport, triggerBlobDownload } from '@/lib/custom-geo/download-export';
+import { toSlug } from '@/lib/custom-geo/slug';
 import { normalizeShares, proportionalShares } from '@/lib/custom-geo/media-plan';
+import { CIBLE_GROUPS, CIBLE_UNIT, CIBLE_LABEL, type CibleKey } from '@/lib/custom-geo/cibles';
 import type { AudienceStats, CustomGeoZoneFull } from '@/types/custom-geo';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-export type CibleKey =
-  | 'total' | '0_17' | '18_24' | '25_39' | '40_54' | '55_64' | '65_79' | '80_plus'
-  | 'men' | 'men_prop' | 'men_fmp' | 'men_pauv' | 'log_soc';
-
-/** Cibles groupées par unité. `unit` légende le volume (hab. / ménages / logements). */
-const CIBLE_GROUPS: Array<{ group: string; unit: string; options: Array<[CibleKey, string]> }> = [
-  { group: 'Population (habitants)', unit: 'hab.', options: [
-    ['total', 'Population totale'],
-    ['0_17', '0-17 ans'], ['18_24', '18-24 ans'], ['25_39', '25-39 ans'],
-    ['40_54', '40-54 ans'], ['55_64', '55-64 ans'], ['65_79', '65-79 ans'], ['80_plus', '80 ans et plus'],
-  ]},
-  { group: 'Ménages', unit: 'ménages', options: [
-    ['men', 'Tous les ménages'],
-    ['men_prop', 'Propriétaires'],
-    ['men_fmp', 'Familles monoparentales'],
-    ['men_pauv', 'Ménages pauvres'],
-  ]},
-  { group: 'Logement', unit: 'logements', options: [
-    ['log_soc', 'Logements sociaux (HLM)'],
-  ]},
-];
-const CIBLE_UNIT: Record<CibleKey, string> = Object.fromEntries(
-  CIBLE_GROUPS.flatMap(g => g.options.map(([k]) => [k, g.unit])),
-) as Record<CibleKey, string>;
-const CIBLE_LABEL: Record<CibleKey, string> = Object.fromEntries(
-  CIBLE_GROUPS.flatMap(g => g.options.map(([k, l]) => [k, l])),
-) as Record<CibleKey, string>;
+export type { CibleKey } from '@/lib/custom-geo/cibles';
 
 interface ZoneRef { id: string; name: string; }
 
@@ -110,26 +86,34 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // ── Chargement : items de chaque zone (les CIRFA d'une zone battle…),
   // repli sur l'audience globale de la zone si elle n'est pas décomposable.
   // Le premier appel par zone peut déclencher le calcul serveur (~10 s).
+  // Cache par zone.id : ajouter/retirer une zone ne refetch QUE les nouvelles
+  // (Nano — évite N SELECT superflus à chaque modif de la liste affichée).
+  const zoneRowsCache = useRef<Map<string, ZoneRow[]>>(new Map());
   useEffect(() => {
     let cancelled = false;
     if (!zones.length) { setRows([]); return; }
+    const missing = zones.filter(z => !zoneRowsCache.current.has(z.id));
+    if (!missing.length) {
+      // Tout en cache → recompose sans I/O (préserve l'ordre d'affichage)
+      setRows(zones.flatMap(z => zoneRowsCache.current.get(z.id) ?? []));
+      return;
+    }
     setLoading(true);
     (async () => {
       // Séquentiel par lots de 3 — règle projet : jamais plus de 3 appels parallèles
-      const result: ZoneRow[] = [];
-      for (let i = 0; i < zones.length; i += 3) {
-        const batch = zones.slice(i, i + 3);
-        const fetched = await Promise.all(batch.map(async (z): Promise<ZoneRow[]> => {
+      for (let i = 0; i < missing.length; i += 3) {
+        const batch = missing.slice(i, i + 3);
+        const fetched = await Promise.all(batch.map(async (z): Promise<[string, ZoneRow[]]> => {
           try {
             const res = await adminFetch(`/api/custom-geo/${z.id}/items-audience`);
             if (res.ok) {
               const payload = await res.json() as { items: ZoneItemStats[] | null };
               if (payload.items?.length) {
-                return payload.items.map(it => ({
+                return [z.id, payload.items.map(it => ({
                   id: `${z.id}:${it.poi_id}`,
                   name: it.poi_name,
                   values: it.values ?? null,
-                }));
+                }))];
               }
             }
             // Repli : zone entière (audience_stats de la capture) → aplati en RowValues
@@ -146,14 +130,17 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
               men_pauv: stats.menages?.pauvres,
               log_soc: stats.logements?.sociaux,
             } : null;
-            return [{ id: z.id, name: z.name, values }];
+            return [z.id, [{ id: z.id, name: z.name, values }]];
           } catch {
-            return [{ id: z.id, name: z.name, values: null }];
+            return [z.id, [{ id: z.id, name: z.name, values: null }]];
           }
         }));
-        result.push(...fetched.flat());
+        if (cancelled) return;
+        for (const [zoneId, zoneRows] of fetched) zoneRowsCache.current.set(zoneId, zoneRows);
+        // Repose au fil de l'eau les zones déjà résolues (ordre d'affichage)
+        setRows(zones.flatMap(z => zoneRowsCache.current.get(z.id) ?? []));
       }
-      if (!cancelled) { setRows(result); setLoading(false); }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [zones]);
@@ -351,12 +338,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
 
     const csv = '﻿' + [...meta, header.join(sep), ...body, totalRow].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `plan_media${campaignName ? '_' + campaignName.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : ''}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(blob, `plan_media${campaignName ? '_' + toSlug(campaignName) : ''}.csv`);
   }, [rows, rowMetrics, campaigns, campaignId, cible, budgetNum, cpmNum, totalImpressions, totalVolume, franceTotal]);
 
   const detachPlan = useCallback(async () => {

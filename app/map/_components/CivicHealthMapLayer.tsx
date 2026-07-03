@@ -380,8 +380,9 @@ export function CivicHealthMapLayer({
       const m = mapRef.current;
       if (m) cleanup(m);
     };
+    // opacity absent des deps : simple peinture, gérée par l'effet dédié ci-dessous
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset, scale, opacity, refreshKey]);
+  }, [dataset, scale, refreshKey]);
 
   // ── Effet filtre : repaint sans refetch quand seuil/métrique change ───────
   useEffect(() => {
@@ -390,6 +391,14 @@ export function CivicHealthMapLayer({
     applyPaint(map);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minLevel, metric]);
+
+  // ── Effet opacité : setPaintProperty seul, ni refetch ni reconstruction FC ─
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !dataset || !map.getLayer(FILL_ID)) return;
+    try { map.setPaintProperty(FILL_ID, 'fill-opacity', opacity); } catch { /* couche pas prête */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opacity]);
 
   return null;
 }

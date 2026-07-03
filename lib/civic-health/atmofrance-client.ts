@@ -22,12 +22,11 @@ import type {
   HealthProvider,
   PollenBulkEntry,
   PollenIndicator,
-  PollenLevel,
-  PollenSpecies,
 } from './types';
 import { atmoQualificatif, parseAtmoLevel, parsePollenLevel } from './levels';
+import { isoDate as todayIso, fetchWithTimeout, buildEspeces, buildConcentrations } from './utils';
 
-const BASE_URL = 'https://admindata.atmo-france.org';
+const BASE_URL = process.env.ATMO_API_URL ?? 'https://admindata.atmo-france.org';
 const AUTH_URL = `${BASE_URL}/api/login`;
 const DATA_URL = `${BASE_URL}/api/data`;
 const DATA_ID_ATMO = 112;
@@ -71,34 +70,9 @@ interface AtmoFeatureProps {
   alerte?: boolean;
 }
 
-/** Concentration valide (grains/m³) ou 0. */
-function parseConc(v: number | undefined): number {
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
-}
-
 interface AtmoFeatureCollection {
   type?: string;
   features?: Array<{ properties?: AtmoFeatureProps }>;
-}
-
-function todayIso(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal, cache: 'no-store' });
-  } finally {
-    clearTimeout(t);
-  }
 }
 
 async function login(username: string, password: string): Promise<string> {
@@ -106,7 +80,7 @@ async function login(username: string, password: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ username, password }),
-  });
+  }, REQUEST_TIMEOUT_MS);
   if (res.status === 429) {
     const retryAfter = res.headers.get('Retry-After') ?? '60';
     throw new Error(`atmo_rate_limited:${retryAfter}`);
@@ -157,7 +131,7 @@ async function fetchDataset(
   const url = `${DATA_URL}/${datasetId}/${filter}?withGeom=false`;
   const res = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-  });
+  }, REQUEST_TIMEOUT_MS);
   if (res.status === 401) {
     tokenCache = null;
     throw new Error('atmo_unauthorized');
@@ -261,15 +235,6 @@ function buildPollen(features: AtmoFeatureProps[]): PollenIndicator | null {
   const indice_global = parsePollenLevel(j.code_qual);
   if (indice_global == null) return null;
 
-  const especesMap: Record<PollenSpecies, PollenLevel> = {
-    ambroisie: parsePollenLevel(j.code_ambr) ?? 0,
-    armoise: parsePollenLevel(j.code_arm) ?? 0,
-    aulne: parsePollenLevel(j.code_aul) ?? 0,
-    bouleau: parsePollenLevel(j.code_boul) ?? 0,
-    graminees: parsePollenLevel(j.code_gram) ?? 0,
-    olivier: parsePollenLevel(j.code_oliv) ?? 0,
-  };
-
   const j1 = pickByDate(features, todayIso(1));
   const j2 = pickByDate(features, todayIso(2));
   const j1Indice = j1 ? parsePollenLevel(j1.code_qual) : null;
@@ -278,15 +243,8 @@ function buildPollen(features: AtmoFeatureProps[]): PollenIndicator | null {
   return {
     date: j.date_ech ?? todayIso(0),
     indice_global,
-    especes: especesMap,
-    concentrations: {
-      ambroisie: parseConc(j.conc_ambr),
-      armoise: parseConc(j.conc_arm),
-      aulne: parseConc(j.conc_aul),
-      bouleau: parseConc(j.conc_boul),
-      graminees: parseConc(j.conc_gram),
-      olivier: parseConc(j.conc_oliv),
-    },
+    especes: buildEspeces(j),
+    concentrations: buildConcentrations(j),
     alerte: j.alerte === true,
     ...(j1Indice != null ? { previsionJ1: { indice: j1Indice } } : {}),
     ...(j2Indice != null ? { previsionJ2: { indice: j2Indice } } : {}),
@@ -299,22 +257,8 @@ function pollenEntryFromProps(p: AtmoFeatureProps): PollenBulkEntry | null {
   if (indice_global == null) return null;
   return {
     indice_global,
-    especes: {
-      ambroisie: parsePollenLevel(p.code_ambr) ?? 0,
-      armoise: parsePollenLevel(p.code_arm) ?? 0,
-      aulne: parsePollenLevel(p.code_aul) ?? 0,
-      bouleau: parsePollenLevel(p.code_boul) ?? 0,
-      graminees: parsePollenLevel(p.code_gram) ?? 0,
-      olivier: parsePollenLevel(p.code_oliv) ?? 0,
-    },
-    concentrations: {
-      ambroisie: parseConc(p.conc_ambr),
-      armoise: parseConc(p.conc_arm),
-      aulne: parseConc(p.conc_aul),
-      bouleau: parseConc(p.conc_boul),
-      graminees: parseConc(p.conc_gram),
-      olivier: parseConc(p.conc_oliv),
-    },
+    especes: buildEspeces(p),
+    concentrations: buildConcentrations(p),
     alerte: p.alerte === true,
   };
 }

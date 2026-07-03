@@ -77,3 +77,6 @@ TEST/
 tsc-output.txt
 # Dump YAML d'un snapshot d'accessibilité Playwright
 terrain-panel.yml
+
+# Brief notebook scoring — local uniquement
+docs/SCORE.md
