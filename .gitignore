@@ -61,3 +61,19 @@ server.log
 # Artefacts générés du scoring geo_alignment (cache parquet/geojson, exports CSV/HTML)
 .cache/
 _output/
+
+# ── Secrets & credentials — NE JAMAIS COMMITER ────────────────────────────
+# Fichier de secrets OAuth Google conservé en local (client_id + client_secret)
+NE PAS SUP*
+# Noms de fichiers de credentials Google / DSP courants (garde-fou défensif)
+client_secret*.json
+*credentials*.json
+*_secret.json
+
+# ── Fichiers de travail locaux (données, dumps, sorties d'outils) ─────────
+# Dossier de fichiers de test volumineux (xlsx, exports)
+TEST/
+# Sortie brute de `tsc --noEmit` redirigée dans un fichier
+tsc-output.txt
+# Dump YAML d'un snapshot d'accessibilité Playwright
+terrain-panel.yml
