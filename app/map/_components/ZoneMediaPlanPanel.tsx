@@ -40,16 +40,29 @@ const CIBLES: Array<[CibleKey, string]> = [
 
 interface ZoneRef { id: string; name: string; }
 
-interface ZoneRow {
-  id: string;
-  name: string;
-  stats: AudienceStats | null;
+/** Population d'une ligne — item de zone (CIRFA…) ou zone entière en repli. */
+interface RowPopulation {
+  total: number;
+  by_age: Record<Exclude<CibleKey, 'total'>, number>;
 }
 
-function cibleVolume(stats: AudienceStats | null, cible: CibleKey): number | null {
-  if (!stats?.population) return null;
-  if (cible === 'total') return stats.population.total ?? null;
-  return stats.population.by_age?.[cible] ?? null;
+interface ZoneRow {
+  /** zoneId seul (repli zone entière) ou `zoneId:poiId` (item). */
+  id: string;
+  name: string;
+  population: RowPopulation | null;
+}
+
+interface ZoneItemStats {
+  poi_id: string;
+  poi_name: string;
+  population: RowPopulation;
+}
+
+function cibleVolume(population: RowPopulation | null, cible: CibleKey): number | null {
+  if (!population) return null;
+  if (cible === 'total') return population.total ?? null;
+  return population.by_age?.[cible] ?? null;
 }
 
 function fmtInt(n: number): string {
@@ -78,7 +91,9 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // (défaut : prorata du volume cible, recalculé quand la cible change)
   const [repartition, setRepartition] = useState<Record<string, number> | null>(null);
 
-  // ── Chargement des stats par zone (audience_stats pré-calculées) ─────────
+  // ── Chargement : items de chaque zone (les CIRFA d'une zone battle…),
+  // repli sur l'audience globale de la zone si elle n'est pas décomposable.
+  // Le premier appel par zone peut déclencher le calcul serveur (~10 s).
   useEffect(() => {
     let cancelled = false;
     if (!zones.length) { setRows([]); return; }
@@ -88,20 +103,36 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
       const result: ZoneRow[] = [];
       for (let i = 0; i < zones.length; i += 3) {
         const batch = zones.slice(i, i + 3);
-        const fetched = await Promise.all(batch.map(async z => {
+        const fetched = await Promise.all(batch.map(async (z): Promise<ZoneRow[]> => {
           try {
-            const res = await adminFetch(`/api/custom-geo/${z.id}`);
-            if (!res.ok) throw new Error(String(res.status));
-            const full = await res.json() as CustomGeoZoneFull;
-            const stats = full.audience_stats && 'population' in full.audience_stats
-              ? full.audience_stats as AudienceStats
+            const res = await adminFetch(`/api/custom-geo/${z.id}/items-audience`);
+            if (res.ok) {
+              const payload = await res.json() as { items: ZoneItemStats[] | null };
+              if (payload.items?.length) {
+                return payload.items.map(it => ({
+                  id: `${z.id}:${it.poi_id}`,
+                  name: it.poi_name,
+                  population: it.population ?? null,
+                }));
+              }
+            }
+            // Repli : zone entière (audience_stats de la capture)
+            const full = await adminFetch(`/api/custom-geo/${z.id}`).then(r => (r.ok ? r.json() : null)) as CustomGeoZoneFull | null;
+            const stats = full?.audience_stats && 'population' in full.audience_stats
+              ? (full.audience_stats as AudienceStats)
               : null;
-            return { id: z.id, name: z.name, stats };
+            return [{
+              id: z.id,
+              name: z.name,
+              population: stats?.population
+                ? { total: stats.population.total, by_age: stats.population.by_age }
+                : null,
+            }];
           } catch {
-            return { id: z.id, name: z.name, stats: null };
+            return [{ id: z.id, name: z.name, population: null }];
           }
         }));
-        result.push(...fetched);
+        result.push(...fetched.flat());
       }
       if (!cancelled) { setRows(result); setLoading(false); }
     })();
@@ -121,7 +152,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // ── Calculs ───────────────────────────────────────────────────────────────
   const volumes = useMemo(() => {
     const m = new Map<string, number | null>();
-    for (const r of rows) m.set(r.id, cibleVolume(r.stats, cible));
+    for (const r of rows) m.set(r.id, cibleVolume(r.population, cible));
     return m;
   }, [rows, cible]);
 
@@ -233,7 +264,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
               <thead>
                 <tr>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Zone</th>
-                  <th style={thStyle} title="Part de la zone dans le total des zones affichées, sur la cible">% zones</th>
+                  <th style={thStyle} title="Part de la ligne dans le total affiché, sur la cible">% du total</th>
                   <th style={thStyle} title="Volume cible de la zone rapporté à la population France de la cible">% France</th>
                   <th style={thStyle}>Volume cible</th>
                   <th style={thStyle} title="Répartition % × impressions totales — calculé, non modifiable">Impressions</th>
