@@ -2,8 +2,9 @@
  * Ingestion nationale de l'indice pollen → table pollen_map_daily.
  *
  * Pipeline (étapes nommées, progression obligatoire — règle projet) :
- *   mapping   — charge postal_code_commune (~35k lignes, 1 requête)
- *   fetch     — bulk provider (Atmo : France entière ou par AASQA ; mock : généré)
+ *   mapping   — charge postal_code_commune (~35k lignes, paginé par 5 000)
+ *   fetch     — 1) WFS public Atmo (sans creds, ~35k communes en 1 appel),
+ *               2) repli provider (API authentifiée ou mock selon ATMO_PROVIDER)
  *   aggregate — MAX des communes par code postal (conservateur zones à risque)
  *   insert    — upsert par lots de 50 (contrainte Supabase Nano)
  *   purge     — supprime les dates < J-2
@@ -13,6 +14,7 @@
  */
 import { createAdminClient } from '@/lib/auth';
 import { getProvider } from './provider';
+import { fetchPollenBulkWfs } from './wfs-pollen';
 import type { PollenBulkEntry, PollenSpecies } from './types';
 
 const BATCH_SIZE = 50;
@@ -87,11 +89,6 @@ export async function runPollenIngest(
   const emit = (p: PollenIngestProgress) => onProgress?.(p);
   const supabase = createAdminClient();
   const provider = getProvider();
-  const dateEch = new Date().toISOString().slice(0, 10);
-
-  if (!provider.fetchPollenBulk) {
-    throw new Error(`bulk_unsupported:${provider.name}`);
-  }
 
   // 1. Mapping CP ↔ commune (référentiel La Poste ~35k lignes). PostgREST
   // tronque à 5000 lignes quel que soit le .limit() → pagination .range()
@@ -121,15 +118,28 @@ export async function runPollenIngest(
     total: mapping.length,
   });
 
-  // 2. Bulk provider
-  emit({ step: 'fetch', message: `Récupération bulk (${provider.name})…` });
-  const byCommune = await provider.fetchPollenBulk(communeCodes, message =>
-    emit({ step: 'fetch', message }),
-  );
+  // 2. Bulk : WFS public d'abord (données réelles, zéro credential), puis
+  // repli sur le provider configuré (API authentifiée ou mock)
+  emit({ step: 'fetch', message: 'Récupération bulk — WFS public Atmo…' });
+  let byCommune: Map<string, PollenBulkEntry> | null = null;
+  let dateEch = new Date().toISOString().slice(0, 10);
+  let source = 'wfs-public';
+
+  const wfs = await fetchPollenBulkWfs(message => emit({ step: 'fetch', message }));
+  if (wfs) {
+    byCommune = wfs.byCommune;
+    dateEch = wfs.date; // date réelle de la donnée (peut être J-1 tôt le matin)
+  } else if (provider.fetchPollenBulk) {
+    source = provider.name;
+    emit({ step: 'fetch', message: `Repli provider (${provider.name})…` });
+    byCommune = await provider.fetchPollenBulk(communeCodes, message =>
+      emit({ step: 'fetch', message }),
+    );
+  }
   if (!byCommune || byCommune.size === 0) {
     throw new Error('bulk_unavailable');
   }
-  emit({ step: 'fetch', message: `${byCommune.size} communes avec donnée pollen`, current: byCommune.size });
+  emit({ step: 'fetch', message: `${byCommune.size} communes avec donnée pollen (source : ${source})`, current: byCommune.size });
 
   // 3. Agrégation par code postal
   emit({ step: 'aggregate', message: 'Agrégation par code postal (max des communes)…' });
@@ -168,7 +178,7 @@ export async function runPollenIngest(
 
   const summary: PollenIngestSummary = {
     date: dateEch,
-    provider: provider.name,
+    provider: source,
     communes_mapping: communeCodes.length,
     communes_with_data: byCommune.size,
     cps_written: rows.length,
