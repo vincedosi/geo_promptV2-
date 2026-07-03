@@ -92,6 +92,11 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // (défaut : prorata du volume cible, recalculé quand la cible change)
   const [repartition, setRepartition] = useState<Record<string, number> | null>(null);
 
+  // Rattachement à une campagne DSP (persistance dans geo_strategy)
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string; dsp_source: string; has_plan: boolean }>>([]);
+  const [campaignId, setCampaignId] = useState('');
+  const [saveState, setSaveState] = useState<{ saving: boolean; savedAt: string | null; error: string | null }>({ saving: false, savedAt: null, error: null });
+
   // ── Chargement : items de chaque zone (les CIRFA d'une zone battle…),
   // repli sur l'audience globale de la zone si elle n'est pas décomposable.
   // Le premier appel par zone peut déclencher le calcul serveur (~10 s).
@@ -149,6 +154,40 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+
+  // ── Liste des campagnes de l'org (sélecteur de rattachement) ─────────────
+  useEffect(() => {
+    let cancelled = false;
+    adminFetch('/api/custom-geo/media-plan')
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.campaigns) setCampaigns(j.campaigns); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Sélection d'une campagne → préremplit budget/CPM/cible + poids stockés ─
+  useEffect(() => {
+    if (!campaignId) return;
+    let cancelled = false;
+    setSaveState({ saving: false, savedAt: null, error: null });
+    adminFetch(`/api/custom-geo/media-plan?campaign_id=${campaignId}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (cancelled || !j?.plan?.zones) return;
+        const plan = j.plan as {
+          budget: number | null; cpm: number | null; cible: CibleKey;
+          weights: Record<string, number>; updated_at?: string;
+        };
+        setBudget(plan.budget != null ? String(plan.budget) : '');
+        setCpm(plan.cpm != null ? String(plan.cpm) : '');
+        setCible(plan.cible);
+        // Poids appliqués aux lignes présentes (les autres restent au prorata)
+        setRepartition(Object.keys(plan.weights ?? {}).length ? plan.weights : null);
+        setSaveState({ saving: false, savedAt: plan.updated_at ?? null, error: null });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [campaignId]);
 
   // ── Calculs ───────────────────────────────────────────────────────────────
   const volumes = useMemo(() => {
@@ -212,6 +251,50 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
     }
   }, [zones, rows, activeRepartition, budgetNum]);
 
+  // ── Enregistrement du plan sur la campagne (geo_strategy) ─────────────────
+  const savePlan = useCallback(async () => {
+    if (!campaignId) return;
+    setSaveState({ saving: true, savedAt: null, error: null });
+    try {
+      const res = await adminFetch('/api/custom-geo/media-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          plan: {
+            zones,
+            budget: Number.isFinite(budgetNum) && budgetNum > 0 ? budgetNum : null,
+            cpm: Number.isFinite(cpmNum) && cpmNum > 0 ? cpmNum : null,
+            cible,
+            weights: Object.fromEntries(
+              rows.map(r => [r.id, Math.round((activeRepartition[r.id] ?? 0) * 10) / 10]),
+            ),
+          },
+        }),
+      });
+      if (res.status === 403) throw new Error('Campagne hors de votre organisation.');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      setSaveState({ saving: false, savedAt: j.plan?.updated_at ?? new Date().toISOString(), error: null });
+      setCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, has_plan: true } : c)));
+    } catch (err) {
+      setSaveState({ saving: false, savedAt: null, error: err instanceof Error ? err.message : 'Erreur' });
+    }
+  }, [campaignId, zones, budgetNum, cpmNum, cible, rows, activeRepartition]);
+
+  const detachPlan = useCallback(async () => {
+    if (!campaignId) return;
+    setSaveState({ saving: true, savedAt: null, error: null });
+    try {
+      const res = await adminFetch(`/api/custom-geo/media-plan?campaign_id=${campaignId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSaveState({ saving: false, savedAt: null, error: null });
+      setCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, has_plan: false } : c)));
+    } catch (err) {
+      setSaveState({ saving: false, savedAt: null, error: err instanceof Error ? err.message : 'Erreur' });
+    }
+  }, [campaignId]);
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '7px 10px', background: 'var(--bg-level-2)',
     border: '0.5px solid var(--border-subtle)', borderRadius: 6,
@@ -249,6 +332,55 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Rattachement campagne DSP */}
+        <div>
+          <label style={labelStyle}>Campagne rattachée</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <select
+              value={campaignId}
+              onChange={e => setCampaignId(e.target.value)}
+              style={{ ...inputStyle, fontFamily: fInter, cursor: 'pointer', flex: 1 }}
+            >
+              <option value="">— Aucune (plan non enregistré) —</option>
+              {campaigns.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.has_plan ? '● ' : ''}{c.name} · {c.dsp_source}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={savePlan}
+              disabled={!campaignId || saveState.saving || loading}
+              title={campaignId ? 'Enregistrer le plan sur la campagne' : 'Choisir une campagne'}
+              style={{
+                padding: '7px 14px', borderRadius: 6, fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                cursor: !campaignId || saveState.saving ? 'not-allowed' : 'pointer',
+                background: !campaignId ? 'var(--bg-level-2)' : 'var(--brand-teal)',
+                border: 'none', color: !campaignId ? 'var(--text-tertiary)' : '#050505',
+                opacity: saveState.saving ? 0.6 : 1, whiteSpace: 'nowrap',
+              }}
+            >
+              {saveState.saving ? '…' : 'Enregistrer'}
+            </button>
+          </div>
+          {campaignId && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+              <span style={{ fontFamily: fMono, fontSize: 9, color: saveState.error ? 'var(--danger)' : 'var(--text-tertiary)' }}>
+                {saveState.error
+                  ? saveState.error
+                  : saveState.savedAt
+                    ? `Enregistré le ${new Date(saveState.savedAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                    : 'Plan non encore enregistré'}
+              </span>
+              {saveState.savedAt && (
+                <button onClick={detachPlan} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontFamily: fInter, fontSize: 9, cursor: 'pointer', textDecoration: 'underline' }}>
+                  détacher
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Paramètres */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div>
