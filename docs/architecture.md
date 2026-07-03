@@ -99,7 +99,7 @@ graph TB
 | **Custom Bidding** | bidding_algorithms, bidding_objectives, bidding_strategies, bidding_zone_configs, bidding_zone_config_proposals, bidding_daily_state, bidding_drift_events, adaptive_model_state |
 | **Agent IA** | agent_autonomy_settings, bidding_agent_actions |
 | **Géographie INSEE** | iris (51k), carreaux_filosofi (2.3M), carreaux_2km, carreaux_5km, ref_codes_postaux, france_borders |
-| **POI / Panneaux** | poi (poi_france view), panneaux_affichage, global_ooh, poi_categories |
+| **POI / Panneaux** | poi (poi_france view), panneaux_affichage (table unique, ex-global_ooh fusionnée), poi_categories |
 | **Radio** | emetteur_radio, radio_stations, emetteur_radio_stations |
 | **Custom Geo** | custom_geo_zones, custom_geo_zone_codes |
 | **Scoring / Clustering** | scoring_profiles, clustering_models, poi_clusters |

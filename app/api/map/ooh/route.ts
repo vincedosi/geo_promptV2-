@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
 
     let query = supabase
-      .from('global_ooh')
+      .from('panneaux_affichage')
       .select('id, regie, type_panneau, adresse, ville, lat, lng, nb_faces, metadata')
-      .eq('statut', 'actif')
+      .eq('actif', true)
       .order('regie');
 
     if (regies && regies.length > 0) {

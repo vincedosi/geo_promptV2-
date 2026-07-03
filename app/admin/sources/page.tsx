@@ -1009,13 +1009,13 @@ export default function SourcesPage() {
             <div style={{ background: warnDim, border: `0.5px solid ${warnBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: warn, letterSpacing: 1, marginBottom: 6 }}>
-                  Data Lake OOH — global_ooh
+                  Data Lake OOH — panneaux_affichage
                 </div>
                 <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
                   <span style={{ color: C.textSec }}>Régies: </span><span style={{ color: C.text }}>{(ss.ooh.regies ?? []).slice(0, 5).join(', ')}{(ss.ooh.regies ?? []).length > 5 ? ` +${(ss.ooh.regies ?? []).length - 5}` : ''}</span><br />
                   <span style={{ color: C.textSec }}>Sources: </span><span style={{ color: C.text }}>{(ss.ooh.sources ?? []).join(', ')}</span><br />
                   <span style={{ color: C.textSec }}>Villes: </span>{ss.ooh.nb_villes} villes couvertes<br />
-                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>global_ooh</span> (statut = actif)
+                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>panneaux_affichage</span> (actif = true)
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

@@ -31,7 +31,7 @@ export interface ParseResult {
 // IMPORT CONFIGURATION
 // ============================================================
 
-export type DataType = 'panneaux' | 'poi' | 'carreaux';
+export type DataType = 'poi' | 'carreaux';
 export type GeoMode = 'gps' | 'address' | 'lambert93';
 
 export interface FieldMapping {

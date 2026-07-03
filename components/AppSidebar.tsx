@@ -9,7 +9,6 @@ import {
   Database,
   FileUp,
   Layers,
-  LayoutGrid,
   Lock,
   MapPin,
   Monitor,
@@ -54,7 +53,6 @@ const navItems: NavSection[] = [
   {
     section: 'Administration',
     items: [
-      { href: '/integration-panneaux', label: 'Intégration', icon: LayoutGrid, badge: 'CSV' },
       { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: Upload, badge: 'Admin' },
       { href: '/admin/import', label: 'Import POI', icon: FileUp, badge: 'Admin' },
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },

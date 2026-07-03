@@ -35,6 +35,16 @@ Aussi : pipeline crawler (`discover`/`download`/`upload`) **cassé en prod** (st
 ### C3 — `ref_codes_postaux` : consommé par l'analytics Digital, plus aucun pipeline
 Les RPC analytics Digital (choroplèthes CP, breakdowns) JOIGNENT sur `ref_codes_postaux`, mais sa route d'alimentation (`import-laposte`) a été **supprimée** (commit 66e7c5c) et ses 3 RPC (`build_ref_codes_postaux`, `truncate_laposte_hexasmal`, `update_laposte_centroids`) sont orphelins. Seul un script SQL manuel peut régénérer. `populate-postal` n'alimente que l'autre référentiel (`postal_code_commune`). **Deux référentiels postaux parallèles.**
 
+> **✅ C4 et C6 résolus le 2026-07-02** (`sql/082_consolidation_panneaux.sql`) :
+> le pipeline « Intégration panneaux » (#4) a ensuite été **supprimé** (page
+> `/integration-panneaux`, routes `/api/integration-panneaux/*`, branche
+> `panneaux` de `lib/import`) — les panneaux s'importent via `/admin/ooh-import`.
+> `global_ooh` fusionnée dans `panneaux_affichage` (table unique, 1 434 panneaux),
+> upsert ArcGIS réparé (UNIQUE `source, source_ref`, batch 50, compteurs MAJ réels,
+> `data_source_id` renseigné). Anciennes lignes CSV (géocodage défaillant : 440/656
+> lignes sur 96 positions) sauvegardées dans `panneaux_affichage_backup_csv_20260702`.
+> Scores à recalculer via `/api/scoring`.
+
 ### C4 — Panneaux : perte silencieuse d'attributs + double magasin
 - `integration-panneaux` : les colonnes mappées `nom_regie`, `nom_reseau`, `nb_faces`, `format_digital`, `eclaire`, `audience_vac` ne sont **jamais transmises ni stockées** — l'utilisateur croit les importer
 - **Deux tables de panneaux concurrentes** : `global_ooh` (import ArcGIS, lue par `/api/map/ooh`) vs `panneaux_affichage` (intégration CSV, lue par le scoring) — aucune source de vérité unique

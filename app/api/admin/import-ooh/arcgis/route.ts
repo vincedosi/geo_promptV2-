@@ -1,12 +1,12 @@
 /**
- * GENESIS — Import ArcGIS REST → global_ooh
+ * GENESIS — Import ArcGIS REST → panneaux_affichage
  * Route: POST /api/admin/import-ooh/arcgis
  *
  * Flux :
- *  1. Crée un import_run_ooh (statut 'running')
+ *  1. Crée un import_run_ooh (statut 'running') + une entrée data_sources
  *  2. Pagine l'API ArcGIS (1000 features/page) jusqu'à epuisement
- *  3. Normalise chaque feature → ligne global_ooh
- *  4. Upsert par batch de 500 (ON CONFLICT source+source_ref → update)
+ *  3. Normalise chaque feature → ligne panneaux_affichage
+ *  4. Upsert par batch de 50 (ON CONFLICT source+source_ref → update)
  *  5. Met à jour import_run_ooh avec les stats finales
  *  6. Stream NDJSON de progression vers le client
  */
@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300;
 
-const BATCH_SIZE    = 500;
+const BATCH_SIZE    = 50;
 const PAGE_SIZE     = 1000;
 const FETCH_TIMEOUT = 60_000;
 
@@ -69,7 +69,7 @@ type StreamEvent =
   | { type: 'done';     run_id: string; nb_total: number; nb_inseres: number; nb_maj: number; nb_doublons: number; nb_erreurs: number }
   | { type: 'error';    message: string };
 
-// ─── Normalisation ArcGIS Brest → ligne global_ooh ───────────────────────────
+// ─── Normalisation ArcGIS Brest → ligne panneaux_affichage ───────────────────
 interface ArcGISFeature {
   attributes: {
     OBJECTID:   number;
@@ -83,6 +83,13 @@ interface ArcGISFeature {
     [key: string]: unknown;
   };
   geometry: { x: number; y: number };
+}
+
+/** 'LE RELECQ-KERHUON' → 'Le Relecq-Kerhuon' */
+function titleCaseVille(v: string | null): string | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  return s.toLowerCase().replace(/(^|[\s\-'])\p{L}/gu, c => c.toUpperCase());
 }
 
 function normalizeFeature(f: ArcGISFeature, source: string) {
@@ -99,19 +106,23 @@ function normalizeFeature(f: ArcGISFeature, source: string) {
   const adresse = [num, rue1, rue2 && rue2 !== rue1 ? rue2 : '']
     .filter(Boolean).join(' ').trim() || null;
 
+  const sourceRef = a.OBJECTID.toString();
+
   return {
     source,
-    source_ref:   a.OBJECTID.toString(),
-    regie:        (a.PUBLICITAI ?? '').trim() || null,
-    type_panneau: (a.CLASS ?? '').trim() || null,
+    source_ref:        sourceRef,
+    reference_panneau: sourceRef,
+    regie:             (a.PUBLICITAI ?? '').trim() || null,
+    type_panneau:      (a.CLASS ?? '').trim() || null,
     adresse,
-    ville:        (a.COMMUNE ?? '').trim() || null,
-    nb_faces:     a.NBRE_FACE != null ? Math.round(a.NBRE_FACE) : null,
-    statut:       'actif',
+    ville:             titleCaseVille(a.COMMUNE),
+    nb_faces:          a.NBRE_FACE != null ? Math.round(a.NBRE_FACE) : null,
+    actif:             true,
     lat,
     lng,
-    metadata:     a,
-    date_import:  new Date().toISOString(),
+    metadata:          a,
+    date_import:       new Date().toISOString(),
+    date_maj:          new Date().toISOString(),
   };
 }
 
@@ -187,10 +198,40 @@ export async function POST(req: NextRequest) {
         // ── 1b. Supprimer les données existantes si replace=true ─────────────
         if (replace) {
           send({ type: 'status', message: `Suppression des données existantes (${sourceKey})…` });
-          await supabase.from('global_ooh').delete().eq('source', sourceKey);
+          await supabase.from('panneaux_affichage').delete().eq('source', sourceKey);
           // Supprimer aussi l'entrée data_sources existante
           await supabase.from('data_sources').delete().filter('mapping->>source_key', 'eq', sourceKey);
         }
+
+        // ── 1c. Entrée data_sources (réutilisée si elle existe déjà) ─────────
+        const { data: existingDs } = await supabase
+          .from('data_sources')
+          .select('id')
+          .filter('mapping->>source_key', 'eq', sourceKey)
+          .maybeSingle();
+
+        let dataSourceId: string | null = existingDs?.id ?? null;
+        if (!dataSourceId) {
+          const { data: dsData, error: dsErr } = await supabase.from('data_sources').insert({
+            name:              sourceConfig.label,
+            type:              'panneaux',
+            original_filename: sourceConfig.arcgisUrl,
+            file_format:       'arcgis',
+            status:            'active',
+            organization_id:   profile.organization_id,
+            mapping:           { source_key: sourceKey, run_id: runId },
+          }).select('id').single();
+          if (dsErr) throw new Error(`Création data_sources: ${dsErr.message}`);
+          dataSourceId = dsData.id;
+        }
+
+        // ── 1d. Références déjà en base pour cette source (compteurs insérés/MAJ)
+        const { data: existingRefRows } = await supabase
+          .from('panneaux_affichage')
+          .select('source_ref')
+          .eq('source', sourceKey)
+          .limit(100000);
+        const existingRefs = new Set((existingRefRows ?? []).map(r => r.source_ref as string));
 
         // ── 2. Paginer ArcGIS REST ───────────────────────────────────────────
         let offset       = 0;
@@ -251,21 +292,31 @@ export async function POST(req: NextRequest) {
             .map(f => normalizeFeature(f, sourceKey))
             .filter((r): r is NonNullable<typeof r> => r !== null);
 
-          // ── 4. Upsert par batch ──────────────────────────────────────────
+          // ── 4. Upsert par batch (ON CONFLICT source+source_ref → update) ──
           for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-            const batch = rows.slice(i, i + BATCH_SIZE);
+            const batch = rows.slice(i, i + BATCH_SIZE).map(r => ({
+              ...r,
+              organization_id: profile.organization_id,
+              data_source_id:  dataSourceId,
+            }));
 
-            const { data: inserted, error: insertErr } = await supabase
-              .from('global_ooh')
-              .insert(batch)
-              .select('id');
+            const { error: upsertErr } = await supabase
+              .from('panneaux_affichage')
+              .upsert(batch, { onConflict: 'source,source_ref' });
 
-            if (insertErr) {
+            if (upsertErr) {
               nbErreurs += batch.length;
-              erreurs.push(insertErr.message);
-              send({ type: 'error', message: `Batch insert: ${insertErr.message}` });
+              erreurs.push(upsertErr.message);
+              send({ type: 'error', message: `Batch upsert: ${upsertErr.message}` });
             } else {
-              nbInseres += inserted?.length ?? batch.length;
+              for (const r of batch) {
+                if (existingRefs.has(r.source_ref)) {
+                  nbMaj++;
+                } else {
+                  nbInseres++;
+                  existingRefs.add(r.source_ref);
+                }
+              }
             }
           }
 
@@ -291,21 +342,13 @@ export async function POST(req: NextRequest) {
           erreurs:     erreurs.slice(0, 50),
         }).eq('id', runId);
 
-        // ── 6. Créer une entrée dans data_sources (visible dans /admin/sources)
-        const { data: dsData } = await supabase.from('data_sources').insert({
-          name:              sourceConfig.label,
-          type:              'panneaux',
-          original_filename: sourceConfig.arcgisUrl,
-          file_format:       'arcgis',
-          row_count:         nbInseres,
-          valid_count:       nbInseres,
-          error_count:       nbErreurs,
-          status:            'active',
-          organization_id:   profile.organization_id,
-          mapping:           { source_key: sourceKey, run_id: runId },
-        }).select('id').single();
-
-        const dataSourceId = dsData?.id ?? null;
+        // ── 6. Mettre à jour l'entrée data_sources (visible dans /admin/sources)
+        await supabase.from('data_sources').update({
+          row_count:   nbInseres + nbMaj,
+          valid_count: nbInseres + nbMaj,
+          error_count: nbErreurs,
+          mapping:     { source_key: sourceKey, run_id: runId },
+        }).eq('id', dataSourceId);
 
         send({ type: 'done', run_id: runId!, nb_total: nbTotal, nb_inseres: nbInseres, nb_maj: nbMaj, nb_doublons: nbDoublons, nb_erreurs: nbErreurs });
 

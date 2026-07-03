@@ -33,7 +33,6 @@ const PROTECTED_API_PREFIXES = [
   '/api/coverage-jobs',
   '/api/coverage-stats',
   '/api/export',
-  '/api/integration-panneaux',
   '/api/iris',
   '/api/iris-import',
   '/api/isochrone-battle',
@@ -52,7 +51,6 @@ const PROTECTED_PAGE_PREFIXES = [
   '/dashboard',
   '/admin',
   '/clusters',
-  '/integration-panneaux',
 ];
 
 function isProtectedApi(pathname: string): boolean {
@@ -137,7 +135,6 @@ export const config = {
     '/dashboard/:path*',
     '/admin/:path*',
     '/clusters/:path*',
-    '/integration-panneaux/:path*',
     '/api/chat/:path*',
     '/api/scoring/:path*',
     '/api/map/:path*',
@@ -152,7 +149,6 @@ export const config = {
     '/api/coverage-jobs/:path*',
     '/api/coverage-stats/:path*',
     '/api/export/:path*',
-    '/api/integration-panneaux/:path*',
     '/api/iris/:path*',
     '/api/iris-import/:path*',
     '/api/isochrone-battle/:path*',

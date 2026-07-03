@@ -90,83 +90,14 @@ async function insertPoiBatch(
 }
 
 // ============================================================
-// Panneaux Insert — panneaux_affichage table
-// ============================================================
-
-async function insertPanneauxBatch(
-  batch: ProcessedRow[],
-  globalOffset: number,
-  onLog?: LogCallback
-): Promise<{ inserted: number; ignored: number; errors: number; firstError?: string }> {
-  if (batch.length === 0) return { inserted: 0, ignored: 0, errors: 0 };
-
-  const supabase = getSupabase();
-  let inserted = 0;
-  let ignored = 0;
-  let errors = 0;
-  let firstError: string | undefined;
-
-  for (let i = 0; i < batch.length; i++) {
-    const r = batch[i];
-    const rowNum = globalOffset + i;
-    const label = r.reference_panneau || r.id?.substring(0, 8) || '?';
-
-    try {
-      const row: Record<string, unknown> = {
-        id: r.id,
-        lat: r.lat,
-        lng: r.lng,
-        reference_panneau: r.reference_panneau || r.id,
-        regie: r.regie || 'Inconnu',
-        type_panneau: r.type_panneau || null,
-        ville: r.ville || null,
-        code_postal: r.code_postal || null,
-        code_departement: r.code_departement || null,
-        departement: r.departement || null,
-        region: r.region || null,
-        actif: true,
-      };
-
-      if (r.data_source_id) row.data_source_id = r.data_source_id;
-      if (r.organization_id) row.organization_id = r.organization_id;
-
-      const { error: insertErr } = await supabase
-        .from('panneaux_affichage')
-        .upsert(row, { onConflict: 'id', ignoreDuplicates: true });
-
-      if (insertErr) {
-        if (insertErr.code === '23505') {
-          ignored++;
-          const skipMsg = `[SKIP] #${rowNum} ${label} → doublon`;
-          onLog?.('warn', skipMsg);
-        } else {
-          throw new Error(insertErr.message);
-        }
-      } else {
-        inserted++;
-        const okMsg = `[OK] #${rowNum} ${label} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`;
-        onLog?.('info', okMsg);
-      }
-    } catch (rowErr) {
-      const msg = rowErr instanceof Error ? rowErr.message : String(rowErr);
-      errors++;
-      if (!firstError) firstError = msg;
-      const errMsg = `[ERR] #${rowNum} ${label} → ${msg}`;
-      console.error(`[INSERTER] ${errMsg}`);
-      onLog?.('error', errMsg);
-    }
-  }
-
-  return { inserted, ignored, errors, firstError };
-}
-
-// ============================================================
 // Main dispatcher with progress + live logs
 // ============================================================
+// NB : le type 'panneaux' a été retiré avec la page /integration-panneaux
+// (2026-07-02). Les panneaux s'importent via /admin/ooh-import (ArcGIS REST).
 
 export async function insertRows(
   rows: ProcessedRow[],
-  dataType: 'panneaux' | 'poi',
+  dataType: 'poi',
   onProgress?: (processed: number, total: number, inserted: number, ignored: number, errors: number) => void,
   onLog?: LogCallback
 ): Promise<{ inserted: number; ignored: number; errors: number; firstError?: string }> {
@@ -178,7 +109,7 @@ export async function insertRows(
   // Test connexion via Supabase
   try {
     const supabase = getSupabase();
-    const tableName = dataType === 'panneaux' ? 'panneaux_affichage' : 'poi_france';
+    const tableName = 'poi_france';
     const { error } = await supabase.from(tableName).select('id').limit(1);
     if (error) throw error;
     const connMsg = `Connexion Supabase OK — table "${tableName}"`;
@@ -196,7 +127,7 @@ export async function insertRows(
   let totalErrors = 0;
   let firstError: string | undefined;
 
-  const insertFn = dataType === 'panneaux' ? insertPanneauxBatch : insertPoiBatch;
+  const insertFn = insertPoiBatch;
   const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
