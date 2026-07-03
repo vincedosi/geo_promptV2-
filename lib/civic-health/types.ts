@@ -68,9 +68,26 @@ export interface HealthIndicator {
 
 export type HealthProviderName = 'atmofrance' | 'mock';
 
+/** Entrée bulk : indice pollen d'une commune (jour J, sans prévisions). */
+export interface PollenBulkEntry {
+  indice_global: PollenLevel;
+  especes: Record<PollenSpecies, PollenLevel>;
+}
+
 export interface HealthProvider {
   readonly name: HealthProviderName;
   fetchHealth(codeInsee: string): Promise<HealthIndicator | null>;
+  /**
+   * Récupération nationale de l'indice pollen du jour (ingestion carte des
+   * allergènes). Renvoie une Map code INSEE → niveaux, ou null si le provider
+   * ne sait pas répondre en masse — l'appelant retombe alors sur
+   * l'échantillonnage par département.
+   * @param communeCodes codes INSEE attendus (sert au mock ; ignoré par Atmo)
+   */
+  fetchPollenBulk?(
+    communeCodes: string[],
+    onLog?: (message: string) => void,
+  ): Promise<Map<string, PollenBulkEntry> | null>;
 }
 
 export interface HealthApiResponse {

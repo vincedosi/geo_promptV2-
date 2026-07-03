@@ -10,6 +10,7 @@ import type {
   AtmoLevel,
   HealthIndicator,
   HealthProvider,
+  PollenBulkEntry,
   PollenIndicator,
   PollenLevel,
 } from './types';
@@ -84,5 +85,19 @@ export class MockProvider implements HealthProvider {
       source: 'Atmo France et AASQA',
       stale: false,
     };
+  }
+
+  /** Bulk déterministe : mêmes valeurs que fetchHealth, pour toutes les communes demandées. */
+  async fetchPollenBulk(
+    communeCodes: string[],
+    onLog?: (message: string) => void,
+  ): Promise<Map<string, PollenBulkEntry> | null> {
+    onLog?.(`Mock bulk : génération de ${communeCodes.length} communes`);
+    const out = new Map<string, PollenBulkEntry>();
+    for (const code of communeCodes) {
+      const p = buildPollen(code);
+      out.set(code.toUpperCase(), { indice_global: p.indice_global, especes: p.especes });
+    }
+    return out;
   }
 }

@@ -20,6 +20,7 @@ import type {
   AirIndicator,
   HealthIndicator,
   HealthProvider,
+  PollenBulkEntry,
   PollenIndicator,
   PollenLevel,
   PollenSpecies,
@@ -45,6 +46,7 @@ interface AtmoFeatureProps {
   date_maj?: string;
   source?: string;
   type_zone?: string;
+  aasqa?: string | number;
   // ATMO
   code_qual?: number | string;
   code_no2?: number | string;
@@ -119,12 +121,18 @@ export function _resetTokenCache(): void {
   tokenCache = null;
 }
 
+/** Clause de filtre Atmo Data : {champ: {operator, value}} JSON puis URI-encodé. */
+type AtmoFilter = Record<string, { operator: string; value: string | number }>;
+
+function encodeFilter(filter: AtmoFilter): string {
+  return encodeURIComponent(JSON.stringify(filter));
+}
+
 function buildFilter(codeInsee: string, sinceDate: string): string {
-  const obj = {
+  return encodeFilter({
     code_zone: { operator: '=', value: codeInsee },
     date_ech: { operator: '>=', value: sinceDate },
-  };
-  return encodeURIComponent(JSON.stringify(obj));
+  });
 }
 
 async function fetchDataset(
@@ -154,6 +162,57 @@ async function fetchDataset(
     .map(f => f.properties)
     .filter((p): p is AtmoFeatureProps => !!p);
 }
+
+/**
+ * Requête bas niveau avec filtre arbitraire — sert au bulk national (carte
+ * des allergènes) et au script de diagnostic scripts/test_atmo_bulk.ts.
+ * Timeout élargi : une réponse France entière peut peser plusieurs Mo.
+ */
+export async function fetchDatasetRaw(
+  datasetId: number,
+  filter: AtmoFilter,
+  token: string,
+  timeoutMs = 60_000,
+): Promise<AtmoFeatureProps[]> {
+  const url = `${DATA_URL}/${datasetId}/${encodeFilter(filter)}?withGeom=false`;
+  const res = await fetchWithTimeout(
+    url,
+    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+    timeoutMs,
+  );
+  if (res.status === 401) {
+    tokenCache = null;
+    throw new Error('atmo_unauthorized');
+  }
+  if (res.status === 429) {
+    const retryAfter = res.headers.get('Retry-After') ?? '60';
+    throw new Error(`atmo_rate_limited:${retryAfter}`);
+  }
+  if (!res.ok) {
+    throw new Error(`atmo_data_failed:${datasetId}:${res.status}`);
+  }
+  const json = (await res.json()) as AtmoFeatureCollection;
+  return (json?.features ?? [])
+    .map(f => f.properties)
+    .filter((p): p is AtmoFeatureProps => !!p);
+}
+
+/** Login avec les creds env — pour le script de diagnostic uniquement. */
+export async function loginWithEnv(): Promise<string> {
+  const username = process.env.ATMO_FRANCE_USERNAME;
+  const password = process.env.ATMO_FRANCE_PASSWORD;
+  if (!username || !password) throw new Error('atmofrance_missing_env_creds');
+  return getValidToken(username, password);
+}
+
+/**
+ * Codes région INSEE des AASQA métropole + DROM — stratégie de repli du bulk
+ * quand la requête France entière est refusée/tronquée par l'API.
+ */
+export const AASQA_REGION_CODES = [
+  '11', '24', '27', '28', '32', '44', '52', '53', '75', '76', '84', '93', '94',
+  '01', '02', '03', '04', '06',
+] as const;
 
 function pickByDate(features: AtmoFeatureProps[], date: string): AtmoFeatureProps | null {
   return features.find(f => f.date_ech === date) ?? null;
@@ -212,6 +271,43 @@ function buildPollen(features: AtmoFeatureProps[]): PollenIndicator | null {
   };
 }
 
+/** Convertit une ligne pollen brute en entrée bulk (jour J uniquement). */
+function pollenEntryFromProps(p: AtmoFeatureProps): PollenBulkEntry | null {
+  const indice_global = parsePollenLevel(p.code_qual);
+  if (indice_global == null) return null;
+  return {
+    indice_global,
+    especes: {
+      ambroisie: parsePollenLevel(p.code_ambr) ?? 0,
+      armoise: parsePollenLevel(p.code_arm) ?? 0,
+      aulne: parsePollenLevel(p.code_aul) ?? 0,
+      bouleau: parsePollenLevel(p.code_boul) ?? 0,
+      graminees: parsePollenLevel(p.code_gram) ?? 0,
+      olivier: parsePollenLevel(p.code_oliv) ?? 0,
+    },
+  };
+}
+
+/** Agrège des features pollen (1 ligne/commune/date) en Map commune → entrée du jour. */
+function collectPollenByCommune(
+  features: AtmoFeatureProps[],
+  target: Map<string, PollenBulkEntry>,
+): void {
+  const today = todayIso(0);
+  for (const p of features) {
+    if (p.date_ech !== today || !p.code_zone) continue;
+    const entry = pollenEntryFromProps(p);
+    if (entry) target.set(String(p.code_zone).toUpperCase(), entry);
+  }
+}
+
+/**
+ * Seuil de vraisemblance d'une réponse France entière : en dessous, on
+ * considère que l'API a tronqué ou ignoré la requête sans code_zone et on
+ * bascule sur la stratégie par AASQA.
+ */
+const BULK_MIN_COMMUNES = 2_000;
+
 export class AtmoFranceProvider implements HealthProvider {
   readonly name = 'atmofrance' as const;
   private readonly username: string;
@@ -258,5 +354,64 @@ export class AtmoFranceProvider implements HealthProvider {
       source: 'Atmo France et AASQA',
       stale: false,
     };
+  }
+
+  /**
+   * Bulk national pollen (dataset 122) en deux stratégies :
+   *   A. filtre date seule (France entière, 1 appel) — validé si la réponse
+   *      couvre au moins BULK_MIN_COMMUNES communes ;
+   *   B. repli : 1 appel par AASQA (18 régions, séquentiel — respecte le
+   *      rate limit Atmo).
+   * Renvoie null si les deux échouent : l'appelant garde l'échantillonnage.
+   */
+  async fetchPollenBulk(
+    _communeCodes: string[],
+    onLog?: (message: string) => void,
+  ): Promise<Map<string, PollenBulkEntry> | null> {
+    const token = await getValidToken(this.username, this.password);
+    const today = todayIso(0);
+    const byCommune = new Map<string, PollenBulkEntry>();
+
+    // Stratégie A — France entière, filtre date seule
+    try {
+      onLog?.('Requête bulk France entière (filtre date seule)…');
+      const features = await fetchDatasetRaw(
+        DATA_ID_POLLEN,
+        { date_ech: { operator: '=', value: today } },
+        token,
+      );
+      collectPollenByCommune(features, byCommune);
+      onLog?.(`Bulk France : ${features.length} lignes → ${byCommune.size} communes (jour J)`);
+      if (byCommune.size >= BULK_MIN_COMMUNES) return byCommune;
+      onLog?.(`Réponse sous le seuil de vraisemblance (${BULK_MIN_COMMUNES}) — repli par AASQA`);
+    } catch (err) {
+      onLog?.(`Bulk France refusé (${err instanceof Error ? err.message : 'erreur'}) — repli par AASQA`);
+    }
+
+    // Stratégie B — par AASQA (séquentiel)
+    byCommune.clear();
+    let okRegions = 0;
+    for (const aasqa of AASQA_REGION_CODES) {
+      try {
+        const features = await fetchDatasetRaw(
+          DATA_ID_POLLEN,
+          {
+            aasqa: { operator: '=', value: aasqa },
+            date_ech: { operator: '=', value: today },
+          },
+          token,
+        );
+        collectPollenByCommune(features, byCommune);
+        okRegions++;
+        onLog?.(`AASQA ${aasqa} : ${features.length} lignes (cumul ${byCommune.size} communes)`);
+      } catch (err) {
+        onLog?.(`AASQA ${aasqa} en échec (${err instanceof Error ? err.message : 'erreur'})`);
+      }
+    }
+    if (okRegions === 0 || byCommune.size === 0) {
+      onLog?.('Bulk indisponible sur les deux stratégies — repli échantillonnage.');
+      return null;
+    }
+    return byCommune;
   }
 }

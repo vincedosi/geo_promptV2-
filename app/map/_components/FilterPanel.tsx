@@ -387,11 +387,25 @@ export interface FilterPanelProps {
   selectedIrisCommuneCode?: string | null;
   /** Nom de la commune (optionnel, affiché en en-tête de la carte). */
   selectedIrisCommuneName?: string | null;
-  // Carte des allergènes (choroplèthe indice pollen par département, Atmo France)
+  // Carte des allergènes (choroplèthe indice pollen, Atmo France)
   pollenVisible?:       boolean;
   onTogglePollen?:      () => void;
   /** Progression du stream pollen (départements traités / total). */
   pollenProgress?:      { done: number; total: number } | null;
+  /** Échelle : département (échantillonné) ou code postal (ingestion bulk). */
+  pollenScale?:         'departement' | 'cp';
+  onPollenScaleChange?: (s: 'departement' | 'cp') => void;
+  /** Métrique filtrée/peinte : indice global ou une espèce. */
+  pollenEspece?:        'global' | 'ambroisie' | 'armoise' | 'aulne' | 'bouleau' | 'graminees' | 'olivier';
+  onPollenEspeceChange?: (e: 'global' | 'ambroisie' | 'armoise' | 'aulne' | 'bouleau' | 'graminees' | 'olivier') => void;
+  /** Seuil minimum affiché (0 = tous les niveaux). */
+  pollenMinLevel?:      number;
+  onPollenMinLevelChange?: (n: number) => void;
+  /** Statut de la donnée CP ('no_data' = ingestion jamais lancée) + sa date. */
+  pollenCpStatus?:      'ok' | 'no_data' | null;
+  pollenCpDate?:        string | null;
+  /** Appelé après une ingestion admin réussie (le parent recharge le layer). */
+  onPollenIngested?:    () => void;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
   onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
@@ -647,6 +661,10 @@ export function FilterPanel({
   civicVariableCode, onCivicVariableChange, onPondererCivicVariable,
   selectedIrisCommuneCode, selectedIrisCommuneName,
   pollenVisible, onTogglePollen, pollenProgress,
+  pollenScale = 'departement', onPollenScaleChange,
+  pollenEspece = 'global', onPollenEspeceChange,
+  pollenMinLevel = 0, onPollenMinLevelChange,
+  pollenCpStatus, pollenCpDate, onPollenIngested,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
@@ -718,6 +736,57 @@ export function FilterPanel({
       setSectionsOpen(prev => (prev.civicHealth ? prev : { ...prev, civicHealth: true }));
     }
   }, [selectedIrisCommuneCode]);
+
+  // Ingestion pollen (admin) — POST NDJSON streaming, progression affichée
+  // dans le bloc carte des allergènes. La route enforce requireAdmin (403 → message).
+  const [pollenIngestState, setPollenIngestState] = useState<{
+    running: boolean; message: string | null; error: string | null;
+  }>({ running: false, message: null, error: null });
+
+  const runPollenIngestStream = useCallback(async () => {
+    setPollenIngestState({ running: true, message: 'Démarrage…', error: null });
+    try {
+      const res = await adminFetch('/api/admin/pollen-ingest', { method: 'POST' });
+      if (res.status === 403) throw new Error('Réservé aux administrateurs.');
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const raw of lines) {
+          if (!raw.trim()) continue;
+          try {
+            const line = JSON.parse(raw) as { type: string; message?: string; summary?: { cps_written: number; date: string } };
+            if (line.type === 'progress' && line.message) {
+              setPollenIngestState({ running: true, message: line.message, error: null });
+            } else if (line.type === 'done') {
+              setPollenIngestState({
+                running: false,
+                message: `Terminé : ${line.summary?.cps_written ?? '?'} codes postaux (${line.summary?.date ?? ''})`,
+                error: null,
+              });
+              onPollenIngested?.();
+            } else if (line.type === 'error') {
+              throw new Error(line.message ?? 'Erreur inconnue');
+            }
+          } catch (err) {
+            if (err instanceof SyntaxError) continue; // ligne NDJSON partielle
+            throw err;
+          }
+        }
+      }
+    } catch (err) {
+      setPollenIngestState({
+        running: false, message: null,
+        error: err instanceof Error ? err.message : 'Erreur inconnue',
+      });
+    }
+  }, [onPollenIngested]);
   const toggleSection = (key: string) => {
     setSectionsOpen(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -2667,30 +2736,128 @@ export function FilterPanel({
                   </button>
 
                   {pollenVisible && (
-                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                      {/* Progression du stream (1 commune représentative par département) */}
-                      {pollenProgress && pollenProgress.done < pollenProgress.total && (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
+                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Échelle des zones */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>Échelle</div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {([['departement', 'Département'], ['cp', 'Code postal']] as const).map(([value, label]) => (
+                            <button
+                              key={value}
+                              onClick={() => onPollenScaleChange?.(value)}
+                              style={{
+                                flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                                fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+                                background: pollenScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
+                                border: `0.5px solid ${pollenScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                                color: pollenScale === value ? 'var(--brand-teal)' : C.textSec,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Donnée CP absente : ingestion jamais lancée */}
+                      {pollenScale === 'cp' && pollenCpStatus === 'no_data' && (
+                        <div style={{
+                          padding: '8px 10px', borderRadius: 6,
+                          background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
+                        }}>
+                          <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginBottom: 6 }}>
+                            Aucune donnée nationale — l&apos;ingestion quotidienne n&apos;a pas encore tourné.
+                          </div>
+                          <button
+                            onClick={runPollenIngestStream}
+                            disabled={pollenIngestState.running}
+                            style={{
+                              padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                              fontFamily: fInter, cursor: pollenIngestState.running ? 'wait' : 'pointer',
+                              background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                              color: 'var(--brand-teal)', opacity: pollenIngestState.running ? 0.6 : 1,
+                            }}
+                          >
+                            {pollenIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
+                          </button>
+                        </div>
+                      )}
+                      {(pollenIngestState.message || pollenIngestState.error) && (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: pollenIngestState.error ? 'var(--danger)' : C.textDim }}>
+                          {pollenIngestState.error ?? pollenIngestState.message}
+                        </div>
+                      )}
+
+                      {/* Espèce filtrée */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>Allergène</div>
+                        <select
+                          value={pollenEspece}
+                          onChange={e => onPollenEspeceChange?.(e.target.value as NonNullable<typeof pollenEspece>)}
+                          style={{
+                            width: '100%', padding: '7px 11px', background: C.bgInput,
+                            border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+                            fontFamily: fInter, fontSize: 12, color: C.text, cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          <option value="global">Indice global</option>
+                          <option value="ambroisie">Ambroisie</option>
+                          <option value="armoise">Armoise</option>
+                          <option value="aulne">Aulne</option>
+                          <option value="bouleau">Bouleau</option>
+                          <option value="graminees">Graminées</option>
+                          <option value="olivier">Olivier</option>
+                        </select>
+                      </div>
+
+                      {/* Seuil minimum — cœur du filtre zones à risque */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>Niveau minimum affiché</div>
+                        <select
+                          value={pollenMinLevel}
+                          onChange={e => onPollenMinLevelChange?.(Number(e.target.value))}
+                          style={{
+                            width: '100%', padding: '7px 11px', background: C.bgInput,
+                            border: `0.5px solid ${pollenMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
+                            borderRadius: 6, fontFamily: fInter, fontSize: 12,
+                            color: pollenMinLevel > 0 ? 'var(--brand-teal)' : C.text,
+                            cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          <option value={0}>Tous les niveaux</option>
+                          <option value={3}>≥ modéré</option>
+                          <option value={4}>≥ élevé</option>
+                          <option value={5}>≥ très élevé</option>
+                        </select>
+                      </div>
+
+                      {/* Progression du stream département */}
+                      {pollenScale === 'departement' && pollenProgress && pollenProgress.done < pollenProgress.total && (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
                           Chargement… {pollenProgress.done}/{pollenProgress.total} départements
                         </div>
                       )}
 
                       {/* Légende : niveaux 1-6 de l'indice pollen Atmo France */}
-                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                        Indice pollen
-                      </div>
-                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                        {([1, 2, 3, 4, 5, 6] as const).map(lvl => (
-                          <div key={lvl} title={POLLEN_LEVEL_LABELS[lvl]} style={{ flex: 1, background: `var(--pollen-level-${lvl})` }} />
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
-                        <span>{POLLEN_LEVEL_LABELS[1]}</span>
-                        <span>{POLLEN_LEVEL_LABELS[6]}</span>
+                      <div>
+                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                          Indice pollen
+                        </div>
+                        <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => (
+                            <div key={lvl} title={POLLEN_LEVEL_LABELS[lvl]} style={{ flex: 1, background: `var(--pollen-level-${lvl})` }} />
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
+                          <span>{POLLEN_LEVEL_LABELS[1]}</span>
+                          <span>{POLLEN_LEVEL_LABELS[6]}</span>
+                        </div>
                       </div>
 
-                      <div style={{ marginTop: 8, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                        Source : Atmo France et les AASQA (ODbL) — 1 commune par département · clic sur un département pour le détail par espèce
+                      <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                        Source : Atmo France et les AASQA (ODbL) — {pollenScale === 'cp'
+                          ? `max des communes par code postal${pollenCpDate ? ` · données du ${pollenCpDate}` : ''}`
+                          : '1 commune par département'} · clic sur une zone pour le détail par espèce
                       </div>
                     </div>
                   )}
