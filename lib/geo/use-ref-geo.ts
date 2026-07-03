@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * Source unique des régions / départements INSEE depuis la DB (ref_regions
@@ -65,11 +65,14 @@ export function useRefGeo(): {
     return () => { cancelled = true; };
   }, []);
 
-  const allDepts: RefDept[] = data
+  // Référence stable tant que data ne change pas — un tableau recréé à chaque
+  // render ferait refire tous les useEffect qui en dépendent (boucle infinie
+  // constatée dans FilterPanel).
+  const allDepts: RefDept[] = useMemo(() => data
     ? data.regions
         .flatMap(r => r.depts)
         .sort((a, b) => a.code_dept.localeCompare(b.code_dept))
-    : [];
+    : [], [data]);
 
   return { data, loading, error, allDepts };
 }

@@ -826,7 +826,7 @@ export function FilterPanel({
   // activeExpertTab supprimé — panel unique scrollable (Sprint 1)
 
   // ── OOH / DOOH state ──────────────────────────────────────────────────────
-  // Régies disponibles dans global_ooh (source: Brest Métropole)
+  // Régies disponibles dans panneaux_affichage (source: Brest Métropole)
   const OOH_REGIES = [
     { id: 'DECAUX',       label: 'JCDecaux' },
     { id: 'Clear Chanel', label: 'Clear Channel' },
@@ -939,7 +939,7 @@ export function FilterPanel({
   // Pendant le 1er mount (fetch en cours), les listes sont vides — loading
   // propre, la MultiDropdown affiche "Aucun résultat" jusqu'au cache hit.
   const { data: refGeo, allDepts: REF_ALL_DEPTS } = useRefGeo();
-  const REF_REGIONS = refGeo?.regions ?? [];
+  const REF_REGIONS = useMemo(() => refGeo?.regions ?? [], [refGeo]);
 
   // ── Custom geo capture : branchement filtre admin actif ───────────────────
   // Priorite : depts (plus precis) > regions. 1 seul scale a la fois.
@@ -1189,7 +1189,12 @@ export function FilterPanel({
     // (sinon on perd la sélection user pendant le 1er fetch).
     if (availableDepts.length === 0 && REF_ALL_DEPTS.length === 0) return;
     const codes = availableDepts.map(d => d.code_dept);
-    setSelectedDepts(prev => prev.filter(d => codes.includes(d)));
+    // Bail-out référentiel : renvoyer prev tel quel si rien n'est purgé,
+    // sinon setState reçoit un nouveau tableau à chaque passage → boucle infinie.
+    setSelectedDepts(prev => {
+      const next = prev.filter(d => codes.includes(d));
+      return next.length === prev.length ? prev : next;
+    });
   }, [availableDepts, REF_ALL_DEPTS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectScope = (s: 'metro' | 'all') => {
@@ -2331,7 +2336,7 @@ export function FilterPanel({
                 {sectionsOpen.meteo !== false && (
                   <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
                     <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
-                      Données Open-Meteo agrégées par département (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
+                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
                     </div>
                     {meteoVisible && meteoLabel && (
                       <div style={{
