@@ -11,7 +11,7 @@ export interface ProviderMeta {
 export const PROVIDERS: ProviderMeta[] = [
   { key: 'dv360',  label: 'DV360',          logo: '/logos/dv360.svg',  available: true },
   { key: 'meta',   label: 'Meta',           logo: '/logos/meta.svg',   available: false },
-  { key: 'tiktok', label: 'TikTok',         logo: '/logos/tiktok.svg', available: false },
+  { key: 'tiktok', label: 'TikTok',         logo: '/logos/tiktok.svg', available: true },
   { key: 'ttd',    label: 'The Trade Desk', logo: '/logos/ttd.svg',    available: false },
 ];
 
