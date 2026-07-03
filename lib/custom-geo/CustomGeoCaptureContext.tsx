@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — CustomGeo capture : Context global des layers contributifs
+ * MAGELIAN — CustomGeo capture : Context global des layers contributifs
  *
  * Monté dans app/map/layout.tsx. Expose un registre interne stocké dans un useRef
  * (zéro re-render en cascade quand un layer se réenregistre).

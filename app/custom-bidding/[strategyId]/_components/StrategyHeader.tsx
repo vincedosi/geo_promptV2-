@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { adminFetch } from '@/lib/admin-fetch';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -17,14 +18,26 @@ interface Props {
   initialMode: ExecutionMode;
   onModeChange?: (m: ExecutionMode) => void;
   onActionResult?: (label: string, payload: Record<string, unknown> | string) => void;
+  /** Si fournis, "Éditer" et "Historique" deviennent des callbacks inline (overlay /map). Sinon, fallback vers les Link historiques. */
+  onEdit?: () => void;
+  onShowHistory?: () => void;
+  /** Statut de la stratégie. Si 'completed' on masque les actions opérationnelles ML. */
+  status?: string;
+  /** Mode de vue. En 'simple' on masque les actions opérationnelles ML. */
+  viewMode?: 'simple' | 'expert';
 }
 
 const MODES: ExecutionMode[] = ['monitor_only', 'suggest', 'auto'];
 
 export function StrategyHeader({
   strategyId, strategyName, campaignName, isDemo, algorithmCode,
-  initialMode, onModeChange, onActionResult,
+  initialMode, onModeChange, onActionResult, onEdit, onShowHistory,
+  status, viewMode = 'simple',
 }: Props) {
+  // Actions opérationnelles ML : visibles uniquement quand
+  //   - la campagne est encore active (pas completed/archived)
+  //   - ET on est en vue expert
+  const showMlActions = viewMode === 'expert' && status !== 'completed' && status !== 'archived';
   const [mode, setMode] = useState<ExecutionMode>(initialMode);
   const [busy, setBusy] = useState<null | 'predict' | 'train' | 'drift' | 'mode'>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
@@ -123,26 +136,86 @@ export function StrategyHeader({
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: 4 }}>
-          <ActionButton
-            label="Lancer"
-            running={busy === 'predict'}
-            disabled={busy !== null}
-            primary
-            onClick={() => callBidding('predict', 'predict')}
-          />
-          <ActionButton
-            label="Train"
-            running={busy === 'train'}
-            disabled={busy !== null}
-            onClick={() => callBidding('train', 'train')}
-          />
-          <ActionButton
-            label="Drifts"
-            running={busy === 'drift'}
-            disabled={busy !== null}
-            onClick={() => callBidding('detect-drift', 'detect-drift')}
-          />
+        {showMlActions && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <ActionButton
+              label="Calculer les enchères"
+              tooltip="Lance un cycle de prédiction : le modèle ML calcule les multiplicateurs d'enchère pour chaque zone à partir de la courbe et des données récentes, puis les pousse aux configs DSP."
+              running={busy === 'predict'}
+              disabled={busy !== null}
+              primary
+              onClick={() => callBidding('predict', 'predict')}
+            />
+            <ActionButton
+              label="Réentraîner le modèle"
+              tooltip="Réapprentissage du modèle Hoeffding Adaptive Tree sur les observations récentes. Met à jour les paramètres internes pour mieux refléter la performance réelle."
+              running={busy === 'train'}
+              disabled={busy !== null}
+              onClick={() => callBidding('train', 'train')}
+            />
+            <ActionButton
+              label="Vérifier les déviations"
+              tooltip="Détection de drift sur les 7 derniers jours. Identifie les zones où la performance réelle s'écarte significativement de la simulation."
+              running={busy === 'drift'}
+              disabled={busy !== null}
+              onClick={() => callBidding('detect-drift', 'detect-drift')}
+            />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 4, marginLeft: 8, paddingLeft: 8, borderLeft: '0.5px solid rgba(255,255,255,0.08)' }}>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              style={{
+                padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+                background: 'transparent', color: 'var(--text-secondary)',
+                border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Éditer
+            </button>
+          ) : (
+            <Link
+              href={`/map?overlay=pilotage&action=edit&strategy=${strategyId}`}
+              style={{
+                padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+                background: 'transparent', color: 'var(--text-secondary)',
+                border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}
+            >
+              Éditer
+            </Link>
+          )}
+          {onShowHistory ? (
+            <button
+              type="button"
+              onClick={onShowHistory}
+              style={{
+                padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+                background: 'transparent', color: 'var(--text-tertiary)',
+                border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Historique
+            </button>
+          ) : (
+            <Link
+              href={`/map?overlay=pilotage&action=history&strategy=${strategyId}`}
+              style={{
+                padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
+                background: 'transparent', color: 'var(--text-tertiary)',
+                border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 6,
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}
+            >
+              Historique
+            </Link>
+          )}
         </div>
       </div>
 
@@ -164,15 +237,16 @@ export function StrategyHeader({
   );
 }
 
-function ActionButton({ label, running, disabled, onClick, primary }: { label: string; running: boolean; disabled: boolean; onClick: () => void; primary?: boolean }) {
+function ActionButton({ label, tooltip, running, disabled, onClick, primary }: { label: string; tooltip?: string; running: boolean; disabled: boolean; onClick: () => void; primary?: boolean }) {
   return (
     <button
       disabled={disabled}
       onClick={onClick}
+      title={tooltip}
       style={{
         padding: '6px 10px', fontSize: 11, fontFamily: fInter, fontWeight: 500,
         background: primary ? 'var(--brand-teal)' : 'transparent',
-        color: primary ? '#050505' : 'var(--brand-teal)',
+        color: primary ? 'var(--bg-level-0)' : 'var(--brand-teal)',
         border: primary ? 'none' : '0.5px solid var(--brand-teal)',
         borderRadius: 6, whiteSpace: 'nowrap',
         cursor: disabled ? 'not-allowed' : 'pointer',

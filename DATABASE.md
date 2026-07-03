@@ -50,36 +50,14 @@
 
 ---
 
-### `global_ooh` — Data Lake panneaux OOH (toutes régies)
+### `panneaux_affichage` — Table unique panneaux OOH/DOOH (toutes régies)
 
-> Table centralisée. Toujours filtrer `.eq('statut', 'actif')` dans les requêtes.
-
-| Colonne | Type | Nullable | Défaut | Notes |
-|---------|------|----------|--------|-------|
-| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| `source` | text | NOT NULL | — | Ex: `arcgis_brest_metropole` |
-| `source_ref` | text | nullable | — | OBJECTID ArcGIS — upsert idempotent |
-| `regie` | text | nullable | — | |
-| `type_panneau` | text | nullable | — | |
-| `adresse` | text | nullable | — | |
-| `ville` | text | nullable | — | |
-| `code_insee` | text | nullable | — | |
-| `nb_faces` | integer | nullable | — | |
-| `statut` | text | nullable | `'actif'` | Filtre obligatoire |
-| `lat` | double precision | NOT NULL | — | |
-| `lng` | double precision | NOT NULL | — | |
-| `geom` | geometry | nullable | — | Auto-calculé (trigger) |
-| `metadata` | jsonb | nullable | `'{}'` | |
-| `date_import` | timestamptz | nullable | `now()` | |
-| `date_maj` | timestamptz | nullable | `now()` | |
-
-**Index :** `geom` (GIST), `source`, `regie`, `ville`, UNIQUE `(source, source_ref)` WHERE source_ref IS NOT NULL
-
----
-
-### `panneaux_affichage` — Ancienne table panneaux (enrichie démographie)
-
-> Utilisée par les outils IA `analyser_panneaux` en fallback. Préférer `global_ooh` pour les nouveaux imports.
+> Source de vérité unique depuis 2026-07-02 (`sql/082_consolidation_panneaux.sql`) :
+> `global_ooh` a été fusionnée ici puis supprimée. Lue par la carte (`/api/map/ooh`),
+> les outils IA du copilote et le scoring (6 RPC). Toujours filtrer `.eq('actif', true)`.
+> Colonnes d'identité héritées de global_ooh : `source`, `source_ref` (OBJECTID ArcGIS),
+> `adresse`, `code_insee`, `nb_faces`, `metadata`, `date_import`, `date_maj`.
+> UNIQUE `(source, source_ref)` → upsert idempotent au ré-import ArcGIS.
 
 | Colonne | Type | Nullable | Défaut |
 |---------|------|----------|--------|
@@ -574,7 +552,6 @@ WHERE ds.status <> 'deleted';
 |---------|-------|-----------|----------|-------|
 | `trg_poi_france_auto_geom` | `poi_france` | INSERT / UPDATE | `auto_set_geom()` | Calcule `geom` depuis `lat`/`lng` |
 | `trg_panneaux_auto_geom` | `panneaux_affichage` | INSERT / UPDATE | `auto_set_geom()` | Calcule `geom` depuis `lat`/`lng` |
-| `trg_global_ooh_set_geom` | `global_ooh` | INSERT / UPDATE | `fn_global_ooh_set_geom()` | Calcule `geom` depuis `lat`/`lng` |
 | `trg_iso_cache_compute_geom` | `isochrones_cache` | INSERT / UPDATE | `fn_iso_cache_compute_geom()` | Calcule `geom` + `geom_simplified` depuis `geojson` |
 | `trg_new_poi_clustering` | `poi_france` | INSERT | `flag_new_poi_for_clustering()` | Met `needs_clustering = true` |
 | `trg_poi_clusters_updated_at` | `poi_clusters` | UPDATE | `fn_poi_clusters_updated_at()` | Met à jour `updated_at` |
@@ -592,7 +569,6 @@ WHERE ds.status <> 'deleted';
 |-------|----------------|
 | `poi_france` | `geom` |
 | `panneaux_affichage` | `geom` |
-| `global_ooh` | `geom` |
 | `isochrones_cache` | `geom`, `geom_simplified` |
 | `carreaux_filosofi` | `geom`, `geom_centroid`, `geom` INCLUDE resolution, `ST_SetSRID(geom,4326)` |
 | `carreaux_2km` / `carreaux_5km` | `geom` |
@@ -603,8 +579,7 @@ WHERE ds.status <> 'deleted';
 
 | Table | Colonnes | Condition |
 |-------|----------|-----------|
-| `global_ooh` | `(source, source_ref)` | WHERE source_ref IS NOT NULL |
-| `panneaux_affichage` | `(reference_panneau, regie)` | — |
+| `panneaux_affichage` | `(source, source_ref)` | — (NULLs distincts) |
 | `poi_clusters` | `(poi_id, duration_minutes, mode)` | — |
 | `carreaux_filosofi` | `(idcar, resolution, millesime)` | — |
 | `isochrones_cache` | `cache_key` | — |
@@ -627,7 +602,7 @@ WHERE ds.status <> 'deleted';
 
 | Table | Politique |
 |-------|-----------|
-| `global_ooh` / `import_runs_ooh` | `auth.role() = 'authenticated'` |
+| `import_runs_ooh` | `auth.role() = 'authenticated'` |
 | `isochrones_cache` / `isochrone_carreaux_coverage` | `auth.role() = 'authenticated'` |
 | `panneaux_affichage` / `poi_metadata_index` | `auth.role() = 'authenticated'` |
 | `saved_maps` | ALL pour `auth.role() = 'authenticated'` |
@@ -654,7 +629,7 @@ WHERE ds.status <> 'deleted';
 
 ### ⚠️ Règles critiques
 
-1. **Toujours filtrer** `global_ooh` avec `.eq('statut', 'actif')`
+1. **Toujours filtrer** `panneaux_affichage` avec `.eq('actif', true)`
 2. **Ne jamais utiliser** `france_boundary` — bug trou Lille. Utiliser `france_borders`
 3. **Ne jamais utiliser** `get_isochrone_battle_v10` — ST_Subdivide crée des frontières Voronoï géométriques
 4. **Inserts via `poi_france`** (vue) — le trigger `auto_set_geom` calcule automatiquement `geom` depuis `lat`/`lng`

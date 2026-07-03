@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── GEOMATIK — Design System Tokens ──────────────────────────────────────── */
+/* ─── MAGELIAN — Design System Tokens ──────────────────────────────────────── */
 @layer base {
   :root {
     /* shadcn/ui HSL tokens — dark mode values (default) */
@@ -29,7 +29,7 @@
     --ring: 174 52% 55%;
     --radius: 0.375rem;
 
-    /* GEOMATIK scale (dark defaults) */
+    /* MAGELIAN scale (dark defaults) */
     --bg-level-0: #050505;   /* primary background */
     --bg-level-1: #0a0a0a;   /* surface cards/panels */
     --bg-level-2: #111111;   /* elevated / section bands */
@@ -94,6 +94,24 @@
     --cat-media-rgb: 247, 183, 49;
     --cat-analysis: #e8845c;
     --cat-analysis-rgb: 232, 132, 92;
+
+    /* ── Atmo France — niveaux qualité air ATMO 1→6 (officiels) ───────── */
+    --atmo-level-1: #50f0e6;  /* bon */
+    --atmo-level-2: #50ccaa;  /* moyen */
+    --atmo-level-3: #f0e641;  /* dégradé */
+    --atmo-level-4: #ff5050;  /* mauvais */
+    --atmo-level-5: #960032;  /* très mauvais */
+    --atmo-level-6: #872181;  /* extrêmement mauvais */
+    --atmo-level-na: #555555; /* indisponible */
+
+    /* ── Atmo France — niveaux pollen 0→6 (officiels RAEP) ────────────── */
+    --pollen-level-0: #555555; /* indisponible */
+    --pollen-level-1: #50f0e6; /* très faible */
+    --pollen-level-2: #50ccaa; /* faible */
+    --pollen-level-3: #f0e641; /* modéré */
+    --pollen-level-4: #ff5050; /* élevé */
+    --pollen-level-5: #960032; /* très élevé */
+    --pollen-level-6: #872181; /* extrêmement élevé */
   }
 
   /* Light mode — triggered by <html class="light"> */
@@ -118,7 +136,7 @@
     --input: 0 0% 85%;
     --ring: 174 52% 45%;
 
-    /* GEOMATIK scale (light mirror) */
+    /* MAGELIAN scale (light mirror) */
     --bg-level-0: #ffffff;
     --bg-level-1: #f5f5f5;
     --bg-level-2: #eeeeee;
@@ -161,6 +179,23 @@
     --cat-media-rgb: 217, 119, 6;
     --cat-analysis: #c2410c;
     --cat-analysis-rgb: 194, 65, 12;
+
+    /* ── Atmo France — niveaux air/pollen (light mirror, mêmes hex officiels) */
+    --atmo-level-1: #2ec4b6;
+    --atmo-level-2: #2faf91;
+    --atmo-level-3: #c9b800;
+    --atmo-level-4: #d63838;
+    --atmo-level-5: #7a0028;
+    --atmo-level-6: #6b1968;
+    --atmo-level-na: #888888;
+
+    --pollen-level-0: #888888;
+    --pollen-level-1: #2ec4b6;
+    --pollen-level-2: #2faf91;
+    --pollen-level-3: #c9b800;
+    --pollen-level-4: #d63838;
+    --pollen-level-5: #7a0028;
+    --pollen-level-6: #6b1968;
   }
 
   /* Keep .dark selector for compatibility with shadcn components that target it */
@@ -306,7 +341,7 @@ body {
   padding: 16px;
 }
 
-/* ─── Section header (GEOMATIK pattern) ─────────────────────────────────────── */
+/* ─── Section header (MAGELIAN pattern) ─────────────────────────────────────── */
 
 .geo-section-header {
   background: var(--bg-level-2);

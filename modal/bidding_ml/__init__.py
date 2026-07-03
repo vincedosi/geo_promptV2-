@@ -1,1 +1,1 @@
-"""GEOMATIK Bidding ML — service Modal."""
+"""MAGELIAN Bidding ML — service Modal."""

@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/digital/[campaignId]/custom-zone/[zoneId]
+ * MAGELIAN — API /api/digital/[campaignId]/custom-zone/[zoneId]
  * Croisement campagne DSP × zone custom (galerie /map/custom-geo) → GeoJSON + summary
  * Shape identique à /geography/[setId] : { geojson, summary } avec un seul élément dans zones.
  */

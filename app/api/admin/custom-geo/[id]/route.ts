@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API admin /api/admin/custom-geo/[id]
+ * MAGELIAN — API admin /api/admin/custom-geo/[id]
  * DELETE : suppression admin cross-workspace (override RLS via service role).
  */
 import { NextRequest, NextResponse } from 'next/server';

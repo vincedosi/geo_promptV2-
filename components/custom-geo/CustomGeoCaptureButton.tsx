@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Bouton flottant de capture custom-geo.
+ * MAGELIAN — Bouton flottant de capture custom-geo.
  *
  * Visible sur toutes les pages /map/*. Disabled si aucun layer contributif actif.
  * Affiche un badge avec le compteur de layers enabled.

@@ -44,7 +44,7 @@ const config: Config = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
 
-        // ── GEOMATIK design tokens ──────────────────────────────────────────
+        // ── MAGELIAN design tokens ──────────────────────────────────────────
         // Surfaces
         'geo-bg':       '#050505',
         'geo-card':     '#0a0a0a',

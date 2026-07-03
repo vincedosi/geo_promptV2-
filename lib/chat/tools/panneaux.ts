@@ -28,9 +28,9 @@ export async function analyserPanneaux(args: Record<string, unknown>) {
 
   while (from < MAX_PANNEAUX_IN_MEMORY) {
     let q = supabase
-      .from('global_ooh')
+      .from('panneaux_affichage')
       .select('id, lat, lng, source_ref, regie, type_panneau, ville, adresse')
-      .eq('statut', 'actif')
+      .eq('actif', true)
       .range(from, from + PAGE_PAN - 1);
     if (regie)        q = q.ilike('regie',        `%${regie}%`);
     if (ville)        q = q.ilike('ville',         `%${ville}%`);

@@ -32,9 +32,9 @@ export async function scorerOoh(args: Record<string, unknown>) {
     }
 
     let q = supabase
-      .from('global_ooh')
+      .from('panneaux_affichage')
       .select('id, source_ref, regie, type_panneau, lat, lng, ville, adresse')
-      .eq('statut', 'actif')
+      .eq('actif', true)
       .ilike('ville', `%${ville}%`);
     if (regie)             q = q.ilike('regie', `%${regie}%`);
     if (orgSourceIds !== null) q = q.in('data_source_id', orgSourceIds);

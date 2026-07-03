@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Modal de capture custom-geo.
+ * MAGELIAN — Modal de capture custom-geo.
  *
  * Au mount : resolve en parallele les getGeometry() de tous les layers enabled
  * (peut etre sync ou async, ex: appel RPC). Pendant ce resolve, affiche un loader.
@@ -228,11 +228,17 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
       }));
 
       // Si un layer battle multi-POI est inclus, on hisse les infos POI au
-      // top-level de source_metadata. Le Custom Bidding (futur) lira
-      // source_metadata.pois[] pour proposer un pilotage par POI sur la zone
-      // fusionnée. battle_features est volumineux (1 feature par POI×palier)
-      // → on l'exclut, seuls poi_id/poi_name/lat/lng sont gardés.
+      // top-level de source_metadata ET on construit subzones[] : 1 sous-zone
+      // par POI, dont la géométrie est l'union de tous ses paliers.
+      // Le wizard Custom Bidding pourra alors pondérer chaque POI séparément.
       const battleEnrichment: Record<string, unknown> = {};
+      let battleSubzones: Array<{
+        name: string;
+        source_ref: string;
+        geometry: GeoJSON.Geometry;
+        default_multiplier: number;
+      }> | null = null;
+
       if (battleLayer) {
         const { meta } = battleLayer;
         const palierSet = new Set<number>();
@@ -246,6 +252,37 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
         battleEnrichment.paliers = Array.from(palierSet).sort((a, b) => a - b);
         battleEnrichment.poi_count = meta.pois.length;
         battleEnrichment.pois = meta.pois;
+
+        // Construction des sous-zones : on groupe les battle_features par poi_id,
+        // et pour chaque POI on prend la géométrie du PLUS GRAND palier (qui
+        // contient tous les paliers inférieurs par construction du battle).
+        // Si poi_count >= 2, on envoie subzones[] au backend ; sinon on saute
+        // (1 seul POI = pas de notion de sous-zone).
+        if (meta.pois.length >= 2) {
+          const byPoi = new Map<string, { feature: GeoJSON.Feature; palier: number }>();
+          for (const f of meta.battle_features) {
+            const props = (f.properties ?? {}) as Record<string, unknown>;
+            const poiId = String(props.poi_id ?? '');
+            const palier = Number(props.palier ?? 0);
+            if (!poiId || !Number.isFinite(palier)) continue;
+            const cur = byPoi.get(poiId);
+            if (!cur || palier > cur.palier) byPoi.set(poiId, { feature: f, palier });
+          }
+          // Aligner sur l'ordre de meta.pois pour ordering stable
+          const subzones = meta.pois
+            .map(p => {
+              const entry = byPoi.get(p.poi_id);
+              if (!entry || !entry.feature.geometry) return null;
+              return {
+                name: p.poi_name,
+                source_ref: p.poi_id,
+                geometry: entry.feature.geometry as GeoJSON.Geometry,
+                default_multiplier: 1.0,
+              };
+            })
+            .filter((s): s is NonNullable<typeof s> => s !== null);
+          if (subzones.length >= 2) battleSubzones = subzones;
+        }
       }
 
       const res = await adminFetch('/api/custom-geo/capture', {
@@ -261,6 +298,7 @@ export function CustomGeoCaptureModal({ onClose }: Props) {
           },
           geometries: allGeometries,
           transformation,
+          ...(battleSubzones ? { subzones: battleSubzones } : {}),
         }),
       });
       const data = await res.json();

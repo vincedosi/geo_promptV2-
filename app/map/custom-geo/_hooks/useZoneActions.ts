@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import type { CustomGeoExportFormat } from '@/types/custom-geo';
 
 export function useZoneActions(onSuccess?: () => void) {
@@ -21,7 +22,10 @@ export function useZoneActions(onSuccess?: () => void) {
   }, [onSuccess]);
 
   const exportZone = useCallback((id: string, format: CustomGeoExportFormat) => {
-    window.open(`/api/custom-geo/${id}/export?format=${format}`, '_blank');
+    // Pas de window.open : l'auth API est un header Bearer, pas un cookie
+    void downloadZoneExport(id, format).catch(err => {
+      console.error('[custom-geo export]', err);
+    });
   }, []);
 
   return { rename, remove, exportZone };

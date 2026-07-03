@@ -3,7 +3,7 @@
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { SkeletonText } from '@/components/ui/GeoSkeleton';
 
-// ─── Tokens design system (GEOMATIK) ──────────────────────────────────────────
+// ─── Tokens design system (MAGELIAN) ──────────────────────────────────────────
 const C = {
   bg:      'var(--bg-surface)',
   bgPanel: 'var(--bg-level-2)',
@@ -24,6 +24,7 @@ export interface IrisDetailData {
   code_iris:    string;
   nom_iris:     string | null;
   code_commune: string | null;
+  nom_commune?: string | null;
   code_dept:    string | null;
   is_true_iris: boolean | null;
   [key: string]: unknown;

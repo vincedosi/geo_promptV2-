@@ -126,7 +126,8 @@ export async function POST(request: NextRequest) {
 
     // ── Trim historique : max 8 messages + strip pois des anciens tool results ──
     const trimmedMessages = trimHistory(messages);
-    const modelMessages = await convertToModelMessages(trimmedMessages as any);
+    // @ts-expect-error reason: trimHistory returns our internal message shape; convertToModelMessages expects the AI SDK's UIMessage union which we cannot fully model here without leaking SDK internals.
+    const modelMessages = await convertToModelMessages(trimmedMessages);
     const selectedModel = createModel(provider);
 
     const t1 = Date.now();
@@ -155,10 +156,18 @@ export async function POST(request: NextRequest) {
     let cumTokIn = 0, cumTokOut = 0;
     return result.toUIMessageStreamResponse({
       messageMetadata: ({ part }) => {
-        if (part.type === 'finish-step' && (part as any).usage) {
-          const u = (part as any).usage;
-          cumTokIn  += u.promptTokens  ?? u.inputTokens  ?? 0;
-          cumTokOut += u.completionTokens ?? u.outputTokens ?? 0;
+        interface UsageShape {
+          usage?: {
+            promptTokens?: number;
+            completionTokens?: number;
+            inputTokens?: number;
+            outputTokens?: number;
+          };
+        }
+        const partUsage = (part as UsageShape).usage;
+        if (part.type === 'finish-step' && partUsage) {
+          cumTokIn  += partUsage.promptTokens  ?? partUsage.inputTokens  ?? 0;
+          cumTokOut += partUsage.completionTokens ?? partUsage.outputTokens ?? 0;
           return { tok_in: cumTokIn, tok_out: cumTokOut };
         }
         return undefined;

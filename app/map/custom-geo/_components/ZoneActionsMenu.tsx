@@ -18,13 +18,17 @@ interface Props {
 }
 
 type MenuItem =
-  | { label: string; action: 'csv_cp' | 'csv_iris' | 'geojson'; danger?: false }
+  | { label: string; action: CustomGeoExportFormat; danger?: false }
   | { label: string; action: 'delete'; danger: true };
 
 const menuItems: readonly MenuItem[] = [
   { label: 'Exporter CSV CP', action: 'csv_cp' },
   { label: 'Exporter CSV IRIS', action: 'csv_iris' },
   { label: 'Exporter GeoJSON', action: 'geojson' },
+  { label: 'Exporter DV360 — CP à coller', action: 'dv360_cp' },
+  { label: 'Exporter DV360 — SDF geo IDs', action: 'dv360_sdf' },
+  { label: 'Générer le script bidding DV360', action: 'bidding_script' },
+  { label: 'Exporter TikTok — ciblage géo', action: 'tiktok_geo' },
   { label: 'Supprimer', action: 'delete', danger: true },
 ] as const;
 

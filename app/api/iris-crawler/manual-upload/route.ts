@@ -38,6 +38,10 @@ export interface UploadSessionData {
 // POST /api/iris-crawler/manual-upload
 // Body: FormData { file: File, encoding?: string, separator?: string }
 export async function POST(req: NextRequest) {
+  // Écriture dans la table iris → réservé aux admins.
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   let formData: FormData;
   try {
     formData = await req.formData();

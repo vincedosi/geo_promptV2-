@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Types pour le système de mapping DSP dynamique.
+ * MAGELIAN — Types pour le système de mapping DSP dynamique.
  *
  * Miroir exact du DDL de `public.dsp_source_mappings` posé par le chantier A1
  * (cf. supabase/migrations/20260428_dsp_data_extension_chantier_a1.sql).

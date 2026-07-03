@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Registry des transforms appliquées aux valeurs CSV avant cast.
+ * MAGELIAN — Registry des transforms appliquées aux valeurs CSV avant cast.
  *
  * Les `dsp_source_mappings.transform` sont stockés en TEXT côté DB. Cette
  * couche valide à l'usage : si la transform référencée n'existe pas ici,

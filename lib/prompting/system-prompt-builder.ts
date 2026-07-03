@@ -9,7 +9,7 @@
  * Usage typique :
  *
  *   const prompt = buildSystemPrompt({
- *     role: "Tu es l'assistant bidding de GEOMATIK...",
+ *     role: "Tu es l'assistant bidding de MAGELIAN...",
  *     sections: [
  *       { title: 'Contexte campagne', body: `Nom: ${name}\n...` },
  *       { title: 'Top sur-servis', body: formatList(topRows, fmtRow) },

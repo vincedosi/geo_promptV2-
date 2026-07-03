@@ -6,7 +6,7 @@
 
 **Architecture:** 1 page Next.js client-only, 3 instances MapLibre synchronisées via `syncMove`, 1 barre de contrôle en haut (campagne + échelle + palette). Le GeoJSON est fetché une fois depuis `/api/digital/[campaignId]/map`, puis chaque carte utilise un attribut différent pour sa paint expression (`impressions`, `pop_total`, `imp_pour_mille`).
 
-**Tech Stack:** Next.js 14 App Router, MapLibre GL JS, TypeScript strict, GEOMATIK design system (dark minimal, Inter + JetBrains Mono, teal #4ecdc4)
+**Tech Stack:** Next.js 14 App Router, MapLibre GL JS, TypeScript strict, MAGELIAN design system (dark minimal, Inter + JetBrains Mono, teal #4ecdc4)
 
 ---
 
@@ -188,7 +188,7 @@ git commit -m "feat(digital-triple): data fetch hook with abort"
 import { useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const FRANCE_CENTER: [number, number] = [2.3, 46.6];
@@ -223,7 +223,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     });
 
     map.on('load', () => {
-      applyGeomatikStyle(map);
+      applyMagelianStyle(map);
 
       map.addSource(`digital-${id}`, {
         type: 'geojson',

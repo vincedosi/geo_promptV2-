@@ -6,11 +6,12 @@ import { SplashScreen } from '@/components/ui/SplashScreen'
 import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 import { MainPadding } from '@/components/layout/MainPadding'
 import { TopRightChrome } from '@/components/layout/TopRightChrome'
+import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
 
 export const metadata: Metadata = {
-  title: 'GEOMATIK — Geospatial intelligence',
+  title: 'MAGELIAN — Geospatial intelligence',
   description: 'Plateforme de géomarketing OOH — ciblage, scoring et mesure de campagnes d\'affichage extérieur.',
-  icons: [{ rel: 'icon', url: '/geomatik-icon.svg', type: 'image/svg+xml' }],
+  icons: [{ rel: 'icon', url: '/magelian-icon.svg', type: 'image/svg+xml' }],
 }
 
 // Blocking script: runs before React hydrates, so the correct `dark`/`light`
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 const themeInitScript = `
 (function() {
   try {
-    var saved = localStorage.getItem('geomatik-theme');
+    var saved = localStorage.getItem('magelian-theme');
     var theme = (saved === 'light' || saved === 'dark') ? saved : 'dark';
     var root = document.documentElement;
     if (theme === 'light') {
@@ -48,9 +49,13 @@ export default function RootLayout({
         <ThemeProvider>
           <SplashScreen minDuration={2000} />
           <ToastProvider>
-            <AppSidebar />
-            <TopRightChrome />
-            <MainPadding>{children}</MainPadding>
+            <AgentProvider>
+              <AppSidebar />
+              <TopRightChrome />
+              <MainPadding>{children}</MainPadding>
+              <AgentTrigger />
+              <AgentPanel />
+            </AgentProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

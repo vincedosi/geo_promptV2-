@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Page de démo Custom Geo Capture (hors prod, test interne).
+ * MAGELIAN — Page de démo Custom Geo Capture (hors prod, test interne).
  *
  * Prouve que le système de capture est 100% générique en simulant 3 modules
  * fictifs qui contribuent chacun une géométrie mockée. AUCUNE référence à radio,

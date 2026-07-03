@@ -8,11 +8,11 @@
 ## LECTURE PRÉALABLE — OBLIGATOIRE AVANT TOUTE LIGNE DE CODE
 Lis ces fichiers dans l'ordre :
 1. DESIGN_SYSTEM.md — tokens visuels, composants, règles d'or
-2. .claude/skills/geomatik-product-vision/SKILL.md — architecture UX cible
-3. .claude/skills/geomatik-ux/SKILL.md — règles UX (états, contraste, feedback)
+2. .claude/skills/magelian-product-vision/SKILL.md — architecture UX cible
+3. .claude/skills/magelian-ux/SKILL.md — règles UX (états, contraste, feedback)
 4. .claude/skills/frontend-design/SKILL.md — design visuel et esthétique
-5. .claude/skills/geomatik-metier/SKILL.md — vocabulaire métier OOH/IRIS
-6. .claude/skills/cleanup-geomatik/SKILL.md — règles de cleanup post-dev
+5. .claude/skills/magelian-metier/SKILL.md — vocabulaire métier OOH/IRIS
+6. .claude/skills/cleanup-magelian/SKILL.md — règles de cleanup post-dev
 
 ## STRATÉGIE D'EXÉCUTION — AGENTS
 
@@ -90,7 +90,7 @@ Corps :
 - overflow hidden pendant l'animation
 ```
 
-L'état ouvert/fermé persiste en localStorage (clé : `geomatik-cat-${title}`).
+L'état ouvert/fermé persiste en localStorage (clé : `magelian-cat-${title}`).
 
 Commit : `feat(ui): composant CategoryGroup — header bandeau + collapse`
 
@@ -193,7 +193,7 @@ Dans globals.css, encapsuler toutes les couleurs dans des sélecteurs thème :
 ### 4.2 — ThemeProvider
 
 Créer `components/providers/ThemeProvider.tsx` :
-- Lit localStorage("geomatik-theme") au mount
+- Lit localStorage("magelian-theme") au mount
 - Fallback sur prefers-color-scheme du système
 - Applique data-theme sur <html>
 - Expose un hook useTheme() → { theme, toggleTheme }
@@ -218,7 +218,7 @@ grep -rn "Online\|18:06\|online-status\|connection-status" --include="*.tsx" --i
 Wrapper dans : `{process.env.NODE_ENV === 'development' && (...)}`
 
 ### 5.2 — Supprimer logo dupliqué header
-Le logo GEOMATIK dans le header top-right est un doublon de la sidebar.
+Le logo MAGELIAN dans le header top-right est un doublon de la sidebar.
 Le supprimer. Garder : sélecteur org + theme toggle + user info.
 
 Commit : `fix(layout): masquer debug prod, supprimer logo dupliqué header`
@@ -236,8 +236,8 @@ Utilise verification-before-completion :
 
 ## POST-LIVRAISON — CLEANUP OBLIGATOIRE
 Après le dernier commit de code fonctionnel :
-1. Lance `@cleanup-geomatik` Partie 2 (lint + types) sur les fichiers modifiés
-2. Lance `@cleanup-geomatik` Partie 3 (sécurité) sur les fichiers modifiés
+1. Lance `@cleanup-magelian` Partie 2 (lint + types) sur les fichiers modifiés
+2. Lance `@cleanup-magelian` Partie 3 (sécurité) sur les fichiers modifiés
 3. Rapport : failles sécu + `any` introduits + catch non typés + imports inutilisés
 4. Corrige TOUT avant de considérer la tâche terminée
 5. Commit : `chore(cleanup): lint + types + sécurité post-sprint-0`

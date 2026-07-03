@@ -31,6 +31,11 @@ async function retryUpsert<T>(
 // Body: { sessionId, irisKeyCol, mapping: Record<csvCol, dbTarget|'ignore'> }
 // Réponse: NDJSON streaming
 export async function POST(req: NextRequest) {
+  // Écriture massive dans la table iris → réservé aux admins.
+  // Guard AVANT la création du stream (une 403 en NDJSON serait illisible).
+  const profile = await requireAdmin(req);
+  if (!profile) return adminUnauthorized();
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -126,7 +131,7 @@ export async function POST(req: NextRequest) {
 
           // ── 1. Update colonnes core (UPDATE uniquement — pas d'INSERT, évite NOT NULL) ──
           const coreError = await retryUpsert(
-            () => adminClient.rpc('update_iris_core_batch', { p_rows: coreBatch }),
+            async () => adminClient.rpc('update_iris_core_batch', { p_rows: coreBatch }),
             MAX_RETRIES,
             500,
           );

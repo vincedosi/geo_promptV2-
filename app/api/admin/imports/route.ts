@@ -39,7 +39,19 @@ export async function GET(request: NextRequest) {
     org_name: null,
   }));
 
-  const sourceImports = (sourcesRes.data ?? []).map((r: any) => ({
+  interface DataSourceRow {
+    id: string;
+    name: string;
+    type?: string | null;
+    row_count?: number | null;
+    valid_count?: number | null;
+    error_count?: number | null;
+    import_date: string;
+    status: string;
+    organization_id?: string | null;
+    organizations?: { name?: string; slug?: string } | { name?: string; slug?: string }[] | null;
+  }
+  const sourceImports = ((sourcesRes.data ?? []) as DataSourceRow[]).map((r) => ({
     id: r.id,
     kind: 'source' as const,
     source: r.name,
@@ -52,7 +64,7 @@ export async function GET(request: NextRequest) {
     duplicates: 0,
     errors: r.error_count,
     type: r.type,
-    org_name: r.organizations?.name ?? null,
+    org_name: (Array.isArray(r.organizations) ? r.organizations[0]?.name : r.organizations?.name) ?? null,
   }));
 
   const all = [...oohImports, ...sourceImports].sort(

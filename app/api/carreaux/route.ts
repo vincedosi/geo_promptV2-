@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     console.log('[api/carreaux POST] rows returned:', data?.length ?? 0);
 
-    const features = (data ?? []).map((r: { geometry: any; metadata: Record<string, unknown> }) => {
+    const features = (data ?? []).map((r: { geometry: GeoJSON.Geometry; metadata: Record<string, unknown> }) => {
       // Normalize metadata keys to lowercase
       const raw = r.metadata ?? {};
       const props: Record<string, unknown> = {};

@@ -76,7 +76,7 @@ export async function downloadAndParseAnfr(
   // 2. Download both ZIPs
   onProgress?.('Téléchargement du ZIP principal (~65 Mo)...', 0, 2);
   const fetchOpts = {
-    headers: { 'User-Agent': 'GEOMATIK/1.0 (Dentsu France; geospatial research)' },
+    headers: { 'User-Agent': 'MAGELIAN/1.0 (Dentsu France; geospatial research)' },
     signal: AbortSignal.timeout(300_000),
   };
 

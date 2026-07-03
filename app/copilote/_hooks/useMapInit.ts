@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
 import { Protocol } from 'pmtiles';
 import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
@@ -117,7 +117,7 @@ export function useMapInit(
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: (mapStyleUrl ?? MAP_STYLE) as any,
+      style: mapStyleUrl ?? MAP_STYLE,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
     });
@@ -187,9 +187,9 @@ export function useMapInit(
         try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
       }
 
-      // ── Apply GEOMATIK style overrides if selected (theme-aware) ────────
-      if (mapStyleUrl?.includes('geomatik') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'))) {
-        applyGeomatikStyle(map, themeRef.current);
+      // ── Apply MAGELIAN style overrides if selected (theme-aware) ────────
+      if (mapStyleUrl?.includes('magelian') || (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('magelian'))) {
+        applyMagelianStyle(map, themeRef.current);
       }
 
       // ── Heatmap densité POI (large zoom) ─────────────────────────────────
@@ -345,15 +345,51 @@ export function useMapInit(
         layout: { visibility: 'none' },
       });
 
-      // ── TMJA — Comptages routiers (LineStrings colorées par volume) ─────
-      map.addSource('tmja-source', {
+      // ── Météo — Choroplèthe par zones admin (polygones dép./régions) ─────
+      // Source GeoJSON peuplée dynamiquement via /api/meteo-geo + zones.
+      // Couleur via expression interpolate sur la palette de la variable.
+      map.addSource('meteo-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
       });
       map.addLayer({
-        id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        id: 'meteo-fill', type: 'fill', source: 'meteo-source',
         paint: {
-          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 8, 2.5, 11, 4] as unknown as import('maplibre-gl').ExpressionSpecification,
+          'fill-color': '#4ecdc4', // overridé dynamiquement
+          'fill-opacity': 0.55,
+        },
+        layout: { visibility: 'none' },
+      });
+      map.addLayer({
+        id: 'meteo-outline', type: 'line', source: 'meteo-source',
+        paint: {
+          'line-color': 'rgba(0,0,0,0.45)',
+          'line-width': 0.8,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      // ── TMJA — Comptages routiers (vector tiles MVT, lazy par viewport) ──
+      // Pipeline calqué sur carreaux/IRIS : tiles servies par /api/tmja-tiles
+      // avec cache mémoire serveur 1h, déduplication, et filtrage adaptatif
+      // par seuil TMJA selon zoom (axes majeurs au low-zoom, dense au high).
+      // Bump ?v= si la fonction get_tmja_tile change pour invalider le cache
+      // navigateur + cache mémoire serveur.
+      map.addSource('tmja-source', {
+        type: 'vector',
+        tiles: [`${window.location.origin}/api/tmja-tiles/{z}/{x}/{y}?v=v10`],
+        minzoom: 5,
+        maxzoom: 14,
+      });
+      map.addLayer({
+        id: 'tmja-lines', type: 'line', source: 'tmja-source',
+        'source-layer': 'tmja',
+        paint: {
+          // Low-zoom : traits plus fins pour densité visuelle raisonnable
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            5, 0.6, 7, 1.2, 9, 2, 11, 3.2, 14, 5,
+          ] as unknown as import('maplibre-gl').ExpressionSpecification,
           'line-color': [
             'step', ['get', 'tmja'],
             '#4292C6',   // < 5 000 : bleu
@@ -361,9 +397,12 @@ export function useMapInit(
             15000, '#f97316',  // 15 000–40 000 : orange
             40000, '#ef4444',  // > 40 000 : rouge
           ] as unknown as import('maplibre-gl').ExpressionSpecification,
-          'line-opacity': 0.85,
+          'line-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            5, 0.95, 9, 0.9, 12, 0.8,
+          ] as unknown as import('maplibre-gl').ExpressionSpecification,
         },
-        layout: { visibility: 'none' },
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
       });
 
       // ── Radio émetteurs — clusters + heatmap + couverture ──────────────
@@ -928,15 +967,15 @@ export function useMapInit(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyleUrl]);
 
-  // ── Re-apply GEOMATIK overrides on theme toggle (only when geomatik style) ─
+  // ── Re-apply MAGELIAN overrides on theme toggle (only when magelian style) ─
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const isGeomatik =
-      mapStyleUrl?.includes('geomatik') ||
-      (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('geomatik'));
-    if (!isGeomatik) return;
-    const reapply = () => applyGeomatikStyle(map, theme);
+    const isMagelian =
+      mapStyleUrl?.includes('magelian') ||
+      (typeof window !== 'undefined' && localStorage.getItem('genesis_map_style')?.includes('magelian'));
+    if (!isMagelian) return;
+    const reapply = () => applyMagelianStyle(map, theme);
     if (map.isStyleLoaded()) reapply();
     else map.once('load', reapply);
   }, [theme, mapStyleUrl]);

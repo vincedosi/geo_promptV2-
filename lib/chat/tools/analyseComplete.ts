@@ -167,9 +167,9 @@ export async function analyseComplete(args: Record<string, unknown>) {
 
   // ── Requêtes légères : panneaux + POI (parallèles dans tous les cas) ───────
   let panneauxQ = supabase
-    .from('global_ooh')
+    .from('panneaux_affichage')
     .select('id, regie, type_panneau')
-    .eq('statut', 'actif')
+    .eq('actif', true)
     .ilike('ville', `%${perimetre_value}%`)
     .limit(2000);
   if (orgSourceIds !== null) panneauxQ = panneauxQ.in('data_source_id', orgSourceIds);

@@ -1,4 +1,4 @@
-# GEOMATIK Bidding ML — Modal service
+# MAGELIAN Bidding ML — Modal service
 
 Service Python serverless qui expose Hoeffding Adaptive Tree (algo gagnant
 A4.2) en HTTPS pour le frontend Next.js. Trois endpoints :
@@ -25,7 +25,7 @@ modal token set --token-id ak-... --token-secret as-...
 ### 1.2 Secret Supabase côté Modal
 
 ```bash
-modal secret create geomatik-supabase \
+modal secret create magelian-supabase \
   SUPABASE_URL="https://vkkdbygwbrxyogqosten.supabase.co" \
   SUPABASE_SERVICE_ROLE_KEY="<service_role_key depuis Supabase Dashboard>"
 ```
@@ -219,7 +219,7 @@ Aucune autre modification de code (orchestrateur, frontend) n'est nécessaire.
 
 - `pickle.loads` exécute du code arbitraire : utilisé seulement sur des
   données issues de NOTRE base, écrites par CE service via `service_role_key`.
-- Le secret Modal `geomatik-supabase` est attaché aux fonctions, jamais
+- Le secret Modal `magelian-supabase` est attaché aux fonctions, jamais
   exposé en clair dans les logs.
 - Les endpoints HTTPS Modal sont publics par défaut. Si on veut restreindre,
   ajouter un `MODAL_SHARED_SECRET` Header partagé entre Next.js et Modal.

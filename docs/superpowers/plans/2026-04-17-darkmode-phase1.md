@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a production-ready dark/light mode for GEOMATIK customer-facing surfaces, with persistent user preference, zero-flicker load, and teal `#4ecdc4` accent invariant across both themes.
+**Goal:** Ship a production-ready dark/light mode for MAGELIAN customer-facing surfaces, with persistent user preference, zero-flicker load, and teal `#4ecdc4` accent invariant across both themes.
 
 **Architecture:** A React `ThemeProvider` context + `useTheme` hook drives a `"dark" | "light"` class on `<html>`. All colors flow through CSS variables defined at `:root` (dark, default) and `html.light`. Existing 4-level dark scale (`#050505`/`#0a0a0a`/`#111111`/`#181818`) is preserved; light mode mirrors it. Tailwind config exposes the CSS vars as utility classes (`bg-bg-primary`, `text-text-secondary`, etc.). An inline blocking `<script>` in `<head>` sets the class before React hydrates, eliminating flash. Phase 1 scope is six customer-facing surfaces; admin routes keep hardcoded dark until Phase 2.
 
 **Tech Stack:** Next.js 14 App Router, React 19, TypeScript strict, Tailwind CSS 3.4 + shadcn, lucide-react icons, localStorage for persistence.
 
-**Source of truth spec:** `docs/geomatik-darkmode-final.md`
+**Source of truth spec:** `docs/magelian-darkmode-final.md`
 
 ---
 
@@ -105,7 +105,7 @@ Expected: FAIL — `Cannot find module '@/lib/theme/theme-utils'`.
 // lib/theme/theme-utils.ts
 export type Theme = 'dark' | 'light'
 
-export const STORAGE_KEY = 'geomatik-theme'
+export const STORAGE_KEY = 'magelian-theme'
 
 type StorageLike = {
   getItem: (key: string) => string | null
@@ -304,7 +304,7 @@ Find the current block that starts with `@layer base {` and ends at the closing 
     --ring: 174 52% 55%;
     --radius: 0.375rem;
 
-    /* GEOMATIK scale (dark defaults) */
+    /* MAGELIAN scale (dark defaults) */
     --bg-level-0: #050505;   /* primary background */
     --bg-level-1: #0a0a0a;   /* surface cards/panels */
     --bg-level-2: #111111;   /* elevated / section bands */
@@ -357,7 +357,7 @@ Find the current block that starts with `@layer base {` and ends at the closing 
     --input: 0 0% 85%;
     --ring: 174 52% 45%;
 
-    /* GEOMATIK scale (light mirror) */
+    /* MAGELIAN scale (light mirror) */
     --bg-level-0: #ffffff;
     --bg-level-1: #f5f5f5;
     --bg-level-2: #eeeeee;
@@ -498,9 +498,9 @@ import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 export const metadata: Metadata = {
-  title: 'GEOMATIK — Geospatial intelligence',
+  title: 'MAGELIAN — Geospatial intelligence',
   description: 'Plateforme de géomarketing OOH — ciblage, scoring et mesure de campagnes d\'affichage extérieur.',
-  icons: [{ rel: 'icon', url: '/geomatik-icon.svg', type: 'image/svg+xml' }],
+  icons: [{ rel: 'icon', url: '/magelian-icon.svg', type: 'image/svg+xml' }],
 }
 
 // Blocking script: runs before React hydrates, so the correct `dark`/`light`
@@ -508,7 +508,7 @@ export const metadata: Metadata = {
 const themeInitScript = `
 (function() {
   try {
-    var saved = localStorage.getItem('geomatik-theme');
+    var saved = localStorage.getItem('magelian-theme');
     var theme = (saved === 'light' || saved === 'dark') ? saved : 'dark';
     var root = document.documentElement;
     if (theme === 'light') {
@@ -595,7 +595,7 @@ Checks (open http://localhost:3000):
 2. Click ThemeToggle (top-right Sun icon): page switches to light, icon becomes Moon. All `.g-card`/`.g-btn` primitives may still look dark — that's expected; Task 6 fixes them.
 3. Refresh: stays light.
 4. Click toggle back to dark: refresh stays dark.
-5. DevTools → Application → Local Storage: `geomatik-theme` key present with correct value.
+5. DevTools → Application → Local Storage: `magelian-theme` key present with correct value.
 6. DevTools → Elements: `<html class="dark">` or `<html class="light">` flips on toggle.
 
 - [ ] **Step 4: Commit**
@@ -872,12 +872,12 @@ Expected: `ThemeProvider.test.tsx` passes. No pre-existing tests regress.
 
 Run: `npm run dev`. Go through each item:
 
-- [ ] First-ever load (clear `localStorage.removeItem('geomatik-theme')` in console, then hard refresh): page renders dark with no flash of light.
+- [ ] First-ever load (clear `localStorage.removeItem('magelian-theme')` in console, then hard refresh): page renders dark with no flash of light.
 - [ ] Set light in toggle, refresh: page renders light with no flash of dark.
 - [ ] Toggle between themes 5× rapidly: no visual breakage, no console errors.
 - [ ] Navigate `/` → `/map` → `/copilote/*` → back: theme is persistent across routes.
 - [ ] DevTools Elements: `<html>` has exactly one of `dark` or `light` at all times (never both, never neither).
-- [ ] `localStorage.getItem('geomatik-theme')` returns `"dark"` or `"light"`.
+- [ ] `localStorage.getItem('magelian-theme')` returns `"dark"` or `"light"`.
 - [ ] Teal accent (`#4ecdc4`) is pixel-identical in both themes on: sidebar logo "ATIK", section dots, CTA teal buttons, focus ring on inputs.
 - [ ] Admin routes (`/admin/*`) still render — may look off in light mode (known Phase 2 limitation); verify nothing throws.
 - [ ] No new hydration warnings in the browser console (except the one silenced by `suppressHydrationWarning` on `<html>`).

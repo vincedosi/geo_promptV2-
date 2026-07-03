@@ -1,0 +1,72 @@
+/** MAGELIAN — GET /api/admin/dsp/dv360/oauth/callback : échange le code OAuth et enregistre la connexion. */
+import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/auth';
+import { exchangeCode } from '@/lib/dsp/dv360/auth';
+import { oauthCredsFromRow } from '@/lib/dsp/dv360/client';
+import { encryptSecret } from '@/lib/crypto/secrets';
+import { verifyState } from '@/lib/dsp/oauth-state';
+import { logDspEvent } from '@/lib/dsp/logger';
+
+export const dynamic = 'force-dynamic';
+
+function redirectToUi(request: NextRequest, query: string) {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+  return NextResponse.redirect(`${base}/admin/api/dv360?${query}`);
+}
+
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state'); // state signé (HMAC) portant l'orgId
+  const oauthError = url.searchParams.get('error');
+
+  if (oauthError) return redirectToUi(request, `oauth=error&reason=${encodeURIComponent(oauthError)}`);
+  if (!code || !state) return redirectToUi(request, 'oauth=error&reason=missing_code_or_state');
+
+  // Vérification anti-CSRF : le state doit être signé par cette app et non expiré.
+  let orgId: string;
+  try {
+    orgId = verifyState(state);
+  } catch {
+    return redirectToUi(request, 'oauth=error&reason=invalid_state');
+  }
+
+  try {
+    const supabase = createAdminClient();
+    // Charge les creds client OAuth de l'org pour échanger le code avec le MÊME
+    // client que celui ayant généré l'URL (sinon Google refuse). Fallback env.
+    const { data: connCreds } = await supabase
+      .from('dsp_connections')
+      .select('oauth_client_id, oauth_client_secret_encrypted')
+      .eq('organization_id', orgId).eq('provider', 'dv360').single();
+    const creds = connCreds
+      ? oauthCredsFromRow({
+          auth_method: 'oauth', credentials_encrypted: null, oauth_refresh_token_encrypted: null,
+          oauth_client_id: connCreds.oauth_client_id, oauth_client_secret_encrypted: connCreds.oauth_client_secret_encrypted,
+        })
+      : undefined;
+
+    const { refreshToken, expiryDate } = await exchangeCode(code, creds);
+    if (!refreshToken) {
+      // Google n'a pas renvoyé de refresh token (consent déjà accordé sans prompt)
+      return redirectToUi(request, 'oauth=error&reason=no_refresh_token');
+    }
+    const { error: dbError } = await supabase.from('dsp_connections').upsert({
+      organization_id: orgId,
+      provider: 'dv360',
+      auth_method: 'oauth',
+      status: 'disconnected',
+      oauth_refresh_token_encrypted: encryptSecret(refreshToken),
+      credentials_encrypted: null,
+      token_expires_at: expiryDate ? new Date(expiryDate).toISOString() : null,
+      last_error: null,
+    }, { onConflict: 'organization_id,provider' });
+
+    if (dbError) return redirectToUi(request, `oauth=error&reason=${encodeURIComponent('db')}`);
+
+    await logDspEvent({ orgId, provider: 'dv360', category: 'connection', action: 'oauth_callback', message: 'OAuth Google connecté' });
+    return redirectToUi(request, 'oauth=success');
+  } catch (e) {
+    return redirectToUi(request, `oauth=error&reason=${encodeURIComponent((e as Error).message)}`);
+  }
+}

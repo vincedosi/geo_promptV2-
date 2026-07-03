@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API admin /api/admin/custom-geo/stats
+ * MAGELIAN — API admin /api/admin/custom-geo/stats
  * Stats cross-workspace pour la card du header admin/sources.
  */
 import { NextRequest, NextResponse } from 'next/server';

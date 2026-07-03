@@ -205,7 +205,7 @@ export async function crawlArcomPrefectures(
     try {
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'GEOMATIK/1.0 (Dentsu France; geospatial research)',
+          'User-Agent': 'MAGELIAN/1.0 (Dentsu France; geospatial research)',
           Accept: 'text/html',
         },
         signal: AbortSignal.timeout(15_000),

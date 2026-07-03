@@ -13,6 +13,10 @@ export interface MeteoParams {
   startDate: string;
   endDate: string;
   resolution?: number;
+  /** Granularité choisie par l'utilisateur (choroplèthe /map). Absente = heuristique par durée. */
+  scale?: MeteoScale;
+  /** Viewport carte "west,south,east,north" (mode cp) : restreint les zones interrogées. */
+  bbox?: string;
 }
 
 export interface GridPoint {
@@ -81,6 +85,8 @@ export interface MeteoZoneMeta {
   stats: MeteoStats;
   totalZones: number;
   batchesTotal: number;
+  /** Nb de points Open-Meteo réellement interrogés (échantillonnage spatial si < totalZones) */
+  sampledPoints?: number;
   cachedAt: string | null;
 }
 

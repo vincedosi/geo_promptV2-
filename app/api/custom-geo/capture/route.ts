@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/custom-geo/capture (POST)
+ * MAGELIAN — API /api/custom-geo/capture (POST)
  *
  * Reçoit N géométries + une transformation. Appelle transform_geometries_for_save
  * côté DB pour obtenir UNE géométrie finale, puis enchaine create + resolve codes.
@@ -16,6 +16,13 @@ export const maxDuration = 30;
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
+const SubzoneSchema = z.object({
+  name: z.string().min(1).max(200),
+  source_ref: z.string().max(200).optional().nullable(),
+  geometry: z.record(z.unknown()),
+  default_multiplier: z.number().min(0).max(5).optional(),
+});
+
 const CaptureSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
@@ -24,6 +31,13 @@ const CaptureSchema = z.object({
   source_metadata: z.record(z.unknown()).default({}),
   geometries: z.array(z.record(z.unknown())).min(1).max(100),
   transformation: z.enum(['union', 'convex_hull', 'envelope', 'raw']),
+  /**
+   * Sous-zones nommées (ex: 1 par POI battle). Si fourni :
+   *   • La géométrie parente est l'union des sous-zones (calculée DB-side ici).
+   *   • Chaque CP/IRIS résolu est rattaché à sa sous-zone d'origine.
+   *   • Le wizard Custom Bidding peut pondérer chaque sous-zone séparément.
+   */
+  subzones: z.array(SubzoneSchema).max(50).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -70,8 +84,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 2. Créer la zone avec la géométrie transformée
-  const { data: zoneId, error: createError } = await supabase.rpc('create_custom_geo_zone', {
+  // 2. Créer la zone (avec sous-zones si fournies)
+  // Si subzones[] présent → RPC v2 qui persiste les sous-zones individuelles.
+  // Sinon → RPC legacy (back-compat parfaite, comportement inchangé).
+  const hasSubzones = (parsed.data.subzones?.length ?? 0) > 0;
+  const subzonesPayload = hasSubzones
+    ? parsed.data.subzones!.map(sz => ({
+        name: sz.name,
+        source_ref: sz.source_ref ?? null,
+        geometry_geojson: JSON.stringify(sz.geometry),
+        default_multiplier: sz.default_multiplier ?? 1.0,
+      }))
+    : null;
+
+  const createRpc = hasSubzones ? 'create_custom_geo_zone_with_subzones' : 'create_custom_geo_zone';
+  const createParams: Record<string, unknown> = {
     p_name: parsed.data.name,
     p_description: parsed.data.description ?? null,
     p_org_id: parsed.data.org_id,
@@ -81,7 +108,10 @@ export async function POST(request: NextRequest) {
       transformation: parsed.data.transformation,
     },
     p_geometry_geojson: JSON.stringify(geomJson),
-  });
+  };
+  if (hasSubzones) createParams.p_subzones = subzonesPayload;
+
+  const { data: zoneId, error: createError } = await supabase.rpc(createRpc, createParams);
 
   if (createError || !zoneId) {
     console.error('[custom-geo/capture] create', createError?.message);
@@ -92,10 +122,13 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Résoudre IRIS + CP
-  // Passe explicitement profile.id : la RPC est SECURITY DEFINER mais auth.uid()
-  // retourne NULL via service_role. Le user a déjà été validé par requireAuth.
+  // Si la zone a des sous-zones → resolve v2 (rattache chaque code à sa sous-zone).
+  // Sinon → resolve legacy (équivalent fonctionnel pour zones sans sous-zones).
+  const resolveRpc = hasSubzones
+    ? 'resolve_custom_geo_zone_codes_with_subzones'
+    : 'resolve_custom_geo_zone_codes';
   const { data: resolveData, error: resolveError } = await supabase.rpc(
-    'resolve_custom_geo_zone_codes',
+    resolveRpc,
     { p_zone_id: zoneId, p_caller_user_id: profile.id },
   );
 

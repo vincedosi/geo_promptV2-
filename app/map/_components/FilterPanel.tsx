@@ -1,5 +1,29 @@
 'use client';
 
+/**
+ * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
+ * @size ~3789 lignes (cf docs/known_tech_debt.md — refactor planifié, non
+ *       splitté en A4.6.2 par décision produit pour réduire le risque pitch)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + types globaux           (≈ 1-140)
+ *   2. Helpers locaux + constantes       (≈ 141-280)
+ *   3. Props + interfaces FilterPanel    (≈ 281-550)
+ *   4. State management (useState/useRef) (≈ 551-900)
+ *   5. Custom geo capture hooks          (≈ 901-1050)
+ *   6. POI handlers + isochrones         (≈ 1051-1500)
+ *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
+ *   8. Voronoi + clustering              (≈ 1901-2200)
+ *   9. Coverage + corrélation            (≈ 2201-2700)
+ *  10. Scoring OOH                       (≈ 2701-3000)
+ *  11. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
+ *
+ * @maintainers Pour étendre ce fichier sans le faire grossir :
+ *   - NE PAS ajouter de nouveau gros bloc — extraire vers _components/
+ *   - Préférer un nouveau composant plutôt qu'un n-ième handler ici
+ *   - Lire docs/known_tech_debt.md avant tout refactor structurel
+ */
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Search, X, ChevronDown, HelpCircle } from 'lucide-react';
 import { CategoryGroup } from '@/components/ui/CategoryGroup';
@@ -9,6 +33,8 @@ import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/Co
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
+import { HealthIndicatorCard } from '@/components/donnees-terrain/HealthIndicatorCard';
+import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
@@ -19,7 +45,7 @@ import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import dynamic from 'next/dynamic';
-import type { CorrelationParams, ResidualsMeta } from './CorrelationPanel';
+import type { CorrelationParams, ResidualsMeta, ResidualData } from './CorrelationPanel';
 const CorrelationPanel = dynamic(
   () => import('./CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
   { ssr: false },
@@ -343,10 +369,49 @@ export interface FilterPanelProps {
   onLoadTMJA?:          () => Promise<void>;
   tmjaVisible?:         boolean;
   onClearTMJA?:         () => void;
+  /** Masque les axes < 5 000 véh/j (default true côté parent). */
+  tmjaHideLowTraffic?:  boolean;
+  onToggleTmjaHideLowTraffic?: (next: boolean) => void;
+  // Météo
+  onOpenMeteo?:         () => void;
+  onClearMeteo?:        () => void;
+  meteoVisible?:        boolean;
+  meteoLabel?:          string | null;
+  // Indicateurs civiques (layer choroplèthe par CP)
+  civicVariableCode?:   'abstention_pres_2022' | null;
+  onCivicVariableChange?: (code: 'abstention_pres_2022' | null) => void;
+  /** Callback ouvre le wizard Pilotage ML pré-réglé sur cette variable INSEE. */
+  onPondererCivicVariable?: (code: 'abstention_pres_2022') => void;
+  // Santé environnementale (carte ATMO + pollen pour la commune de l'IRIS sélectionné)
+  /** Code INSEE 5 chars de la commune dont relève l'IRIS sélectionné. */
+  selectedIrisCommuneCode?: string | null;
+  /** Nom de la commune (optionnel, affiché en en-tête de la carte). */
+  selectedIrisCommuneName?: string | null;
+  // Couches santé environnementale (allergènes + qualité de l'air, Atmo France)
+  /** Couche active : pollen, qualité de l'air, ou null (masquée). */
+  civicHealthLayer?:    'pollen' | 'atmo' | null;
+  onCivicHealthLayerChange?: (layer: 'pollen' | 'atmo' | null) => void;
+  /** Progression du stream département (départements traités / total). */
+  civicProgress?:       { done: number; total: number } | null;
+  /** true pendant le chargement de la couche (zones + valeurs). */
+  civicLoading?:        boolean;
+  /** Échelle : département (échantillonné) ou code postal (ingestion bulk). */
+  civicScale?:          'departement' | 'cp';
+  onCivicScaleChange?:  (s: 'departement' | 'cp') => void;
+  /** Métrique filtrée/peinte : 'global' ou une espèce (pollen) / un polluant (air). */
+  civicMetric?:         string;
+  onCivicMetricChange?: (m: string) => void;
+  /** Seuil minimum affiché (0 = tous les niveaux). */
+  civicMinLevel?:       number;
+  onCivicMinLevelChange?: (n: number) => void;
+  /** Statut de la donnée CP ('no_data' = ingestion jamais lancée) + sa date. */
+  civicCpStatus?:       'ok' | 'no_data' | null;
+  civicCpDate?:         string | null;
+  /** Appelé après une ingestion admin réussie (le parent recharge le layer). */
+  onCivicIngested?:     () => void;
   // Corrélation IRIS × POI
   correlationParams?:   CorrelationParams | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onShowResiduals?:     (geojson: any, meta?: ResidualsMeta) => void;
+  onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
   // Radio
   radioVisible?:          boolean;
   onToggleRadio?:         () => void;
@@ -396,7 +461,9 @@ export interface FilterPanelProps {
   onDigitalPopFieldChange?: (field: string) => void;
   /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
    *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
-  visibleCategory?: 'perimeter' | 'terrain' | 'analyses' | 'campaigns';
+  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'campaigns';
+  /** Ouvre le grand panneau Pilotage ML (bouton en tête de Campagnes média). */
+  onOpenPilotage?: () => void;
   /** Ouverture d'une étude de ville (CTA dans section Scoring, overlay Analyses) */
   onOpenStudy?: () => void;
   /** Ville courante de l'étude (affichée dans le CTA si set) */
@@ -594,6 +661,16 @@ export function FilterPanel({
   scoringMapRef, scoringMapReady, onScoreComputed,
   mainMapRef,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
+  tmjaHideLowTraffic = true, onToggleTmjaHideLowTraffic,
+  onOpenMeteo, onClearMeteo, meteoVisible, meteoLabel,
+  civicVariableCode, onCivicVariableChange, onPondererCivicVariable,
+  selectedIrisCommuneCode, selectedIrisCommuneName,
+  civicHealthLayer = null, onCivicHealthLayerChange,
+  civicProgress, civicLoading,
+  civicScale = 'departement', onCivicScaleChange,
+  civicMetric = 'global', onCivicMetricChange,
+  civicMinLevel = 0, onCivicMinLevelChange,
+  civicCpStatus, civicCpDate, onCivicIngested,
   correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
@@ -611,7 +688,7 @@ export function FilterPanel({
   digitalCompareView, onDigitalCompareViewChange,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
-  visibleCategory, onOpenStudy, studyVille,
+  visibleCategory, onOpenStudy, studyVille, onOpenPilotage,
   onOpenAnalysisResults, availableResults,
   selectedPOI: selectedPOIProp, onSelectedPOIChange,
   selectedDepts:   selectedDeptsProp,   onSelectedDeptsChange,
@@ -626,8 +703,11 @@ export function FilterPanel({
   const [filterSearch, setFilterSearch] = useState('');
 
   // ── UX: Collapsible sections with localStorage memory ─────────────────────
-  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'radio'] as const;
+  const SECTION_KEYS = ['perimetre', 'regions', 'departements', 'recherche', 'poi', 'ooh', 'transport', 'tmja', 'meteo', 'radio', 'civicHealth'] as const;
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>(() => {
+    // Sections fermées par défaut : santé environnementale (zone-spécifique,
+    // s'ouvre automatiquement au premier IRIS sélectionné).
+    const DEFAULT_CLOSED = new Set(['civicHealth']);
     // En mode overlay, sections territoriales (périmètre / régions / départements)
     // ouvertes par défaut — le user doit pouvoir filtrer la zone AVANT d'afficher
     // les POI, sinon la carte charge toute la France. Autres sections fermées.
@@ -635,19 +715,100 @@ export function FilterPanel({
       const TERRITORY_OPEN = new Set(['perimetre', 'regions', 'departements']);
       return Object.fromEntries(SECTION_KEYS.map(k => [k, TERRITORY_OPEN.has(k)]));
     }
-    if (typeof window === 'undefined') return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    const allOpen = (): Record<string, boolean> =>
+      Object.fromEntries(SECTION_KEYS.map(k => [k, !DEFAULT_CLOSED.has(k)]));
+    if (typeof window === 'undefined') return allOpen();
     try {
-      const saved = localStorage.getItem('geomatik-filter-sections');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('magelian-filter-sections');
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, boolean>;
+        // Garantit que les nouvelles sections ajoutées plus tard ont une valeur cohérente.
+        for (const k of SECTION_KEYS) {
+          if (!(k in parsed)) parsed[k] = !DEFAULT_CLOSED.has(k);
+        }
+        return parsed;
+      }
     } catch { /* ignore */ }
-    return Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
+    return allOpen();
   });
+
+  // Auto-déploiement de la section "Santé environnementale" au premier IRIS
+  // sélectionné de la session. Si l'utilisateur la referme après, on respecte
+  // son choix : le ref bloque les ouvertures suivantes.
+  const civicHealthAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (selectedIrisCommuneCode && !civicHealthAutoOpenedRef.current) {
+      civicHealthAutoOpenedRef.current = true;
+      setSectionsOpen(prev => (prev.civicHealth ? prev : { ...prev, civicHealth: true }));
+    }
+  }, [selectedIrisCommuneCode]);
+
+  // Ingestion santé environnementale (admin) — POST NDJSON streaming,
+  // progression affichée dans le bloc. La route enforce requireAdmin (403 → message).
+  const [civicIngestState, setCivicIngestState] = useState<{
+    running: boolean; message: string | null; error: string | null;
+  }>({ running: false, message: null, error: null });
+
+  const runCivicIngestStream = useCallback(async () => {
+    setCivicIngestState({ running: true, message: 'Démarrage…', error: null });
+    try {
+      const res = await adminFetch('/api/admin/civic-ingest', { method: 'POST' });
+      if (res.status === 403) throw new Error('Réservé aux administrateurs.');
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const raw of lines) {
+          if (!raw.trim()) continue;
+          try {
+            const line = JSON.parse(raw) as {
+              type: string;
+              message?: string;
+              summary?: {
+                pollen: { cps_written?: number; date?: string; error?: string };
+                atmo: { cps_written?: number; date?: string; error?: string };
+              };
+            };
+            if (line.type === 'progress' && line.message) {
+              setCivicIngestState({ running: true, message: line.message, error: null });
+            } else if (line.type === 'done') {
+              const parts: string[] = [];
+              if (line.summary?.pollen?.cps_written != null) parts.push(`pollen ${line.summary.pollen.cps_written} CP`);
+              if (line.summary?.atmo?.cps_written != null) parts.push(`air ${line.summary.atmo.cps_written} CP`);
+              setCivicIngestState({
+                running: false,
+                message: `Terminé : ${parts.join(' · ') || 'aucune donnée'}`,
+                error: null,
+              });
+              onCivicIngested?.();
+            } else if (line.type === 'error') {
+              throw new Error(line.message ?? 'Erreur inconnue');
+            }
+          } catch (err) {
+            if (err instanceof SyntaxError) continue; // ligne NDJSON partielle
+            throw err;
+          }
+        }
+      }
+    } catch (err) {
+      setCivicIngestState({
+        running: false, message: null,
+        error: err instanceof Error ? err.message : 'Erreur inconnue',
+      });
+    }
+  }, [onCivicIngested]);
   const toggleSection = (key: string) => {
     setSectionsOpen(prev => {
       const next = { ...prev, [key]: !prev[key] };
       // Pas de persistance en mode overlay pour ne pas polluer l'état full-panel
       if (!isOverlayMode) {
-        try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+        try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
       }
       return next;
     });
@@ -655,12 +816,12 @@ export function FilterPanel({
   const collapseAll = () => {
     const next = Object.fromEntries(SECTION_KEYS.map(k => [k, false]));
     setSectionsOpen(next);
-    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
   };
   const expandAll = () => {
     const next = Object.fromEntries(SECTION_KEYS.map(k => [k, true]));
     setSectionsOpen(next);
-    try { localStorage.setItem('geomatik-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem('magelian-filter-sections', JSON.stringify(next)); } catch { /* ignore */ }
   };
 
   // ── Panel resize ──────────────────────────────────────────────────────────
@@ -757,7 +918,7 @@ export function FilterPanel({
   // activeExpertTab supprimé — panel unique scrollable (Sprint 1)
 
   // ── OOH / DOOH state ──────────────────────────────────────────────────────
-  // Régies disponibles dans global_ooh (source: Brest Métropole)
+  // Régies disponibles dans panneaux_affichage (source: Brest Métropole)
   const OOH_REGIES = [
     { id: 'DECAUX',       label: 'JCDecaux' },
     { id: 'Clear Chanel', label: 'Clear Channel' },
@@ -870,7 +1031,7 @@ export function FilterPanel({
   // Pendant le 1er mount (fetch en cours), les listes sont vides — loading
   // propre, la MultiDropdown affiche "Aucun résultat" jusqu'au cache hit.
   const { data: refGeo, allDepts: REF_ALL_DEPTS } = useRefGeo();
-  const REF_REGIONS = refGeo?.regions ?? [];
+  const REF_REGIONS = useMemo(() => refGeo?.regions ?? [], [refGeo]);
 
   // ── Custom geo capture : branchement filtre admin actif ───────────────────
   // Priorite : depts (plus precis) > regions. 1 seul scale a la fois.
@@ -1120,7 +1281,12 @@ export function FilterPanel({
     // (sinon on perd la sélection user pendant le 1er fetch).
     if (availableDepts.length === 0 && REF_ALL_DEPTS.length === 0) return;
     const codes = availableDepts.map(d => d.code_dept);
-    setSelectedDepts(prev => prev.filter(d => codes.includes(d)));
+    // Bail-out référentiel : renvoyer prev tel quel si rien n'est purgé,
+    // sinon setState reçoit un nouveau tableau à chaque passage → boucle infinie.
+    setSelectedDepts(prev => {
+      const next = prev.filter(d => codes.includes(d));
+      return next.length === prev.length ? prev : next;
+    });
   }, [availableDepts, REF_ALL_DEPTS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectScope = (s: 'metro' | 'all') => {
@@ -2180,17 +2346,46 @@ export function FilterPanel({
                   Légende — trafic moyen journalier
                 </div>
                 {[
-                  { color: '#4292C6', label: '< 5 000 véh/j' },
-                  { color: '#f6d543', label: '5 000 – 15 000 véh/j' },
-                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j' },
-                  { color: '#ef4444', label: '> 40 000 véh/j' },
-                ].map(({ color, label }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0 }} />
-                    <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted }}>{label}</span>
-                  </div>
-                ))}
+                  { color: '#4292C6', label: '< 5 000 véh/j', isLow: true },
+                  { color: '#f6d543', label: '5 000 – 15 000 véh/j', isLow: false },
+                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j', isLow: false },
+                  { color: '#ef4444', label: '> 40 000 véh/j', isLow: false },
+                ].map(({ color, label, isLow }) => {
+                  const dimmed = isLow && tmjaHideLowTraffic;
+                  return (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: dimmed ? 0.35 : 1 }}>
+                      <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0, textDecoration: dimmed ? 'line-through' : 'none' }} />
+                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textDecoration: dimmed ? 'line-through' : 'none' }}>{label}</span>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Toggle : masquer le trafic faible (perf + lisibilité) */}
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: onToggleTmjaHideLowTraffic ? 'pointer' : 'default',
+                  padding: '6px 8px',
+                  background: 'var(--elevated)',
+                  border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 4,
+                }}
+                title="Cache les tronçons à moins de 5 000 véh/j (allège le rendu)"
+              >
+                <input
+                  type="checkbox"
+                  checked={tmjaHideLowTraffic}
+                  onChange={e => onToggleTmjaHideLowTraffic?.(e.target.checked)}
+                  disabled={!onToggleTmjaHideLowTraffic}
+                  style={{ accentColor: 'var(--brand-teal)' }}
+                />
+                <span style={{ fontFamily: fInter, fontSize: 11, color: C.text }}>
+                  Masquer le trafic faible (&lt; 5 000 véh/j)
+                </span>
+              </label>
 
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
@@ -2413,6 +2608,613 @@ export function FilterPanel({
               )}{/* fin collapsible radio */}
             </div>
 
+          </div>
+        </CategoryGroup>
+        )}
+
+
+        {/* ════════════════════════════════════════
+            CATÉGORIE — AUDIENCE (socio-démo & contexte)
+            Règle de tri : Terrain = le physique · Audience = les gens et
+            leur environnement · Analyses = ce qui se calcule.
+        ════════════════════════════════════════ */}
+        {(!visibleCategory || visibleCategory === 'audience') && (
+        <CategoryGroup title="Audience" color="var(--cat-socio)" colorRgb="91,155,213" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('carreaux')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
+                Carreaux
+              </span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.carreaux && (
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setCarreauxVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
+                  Carreaux{carreauxLoaded ? ' ✓' : ''}
+                </span>
+              </button>
+
+              {/* Indicateur */}
+              <select
+                value={carreauxIndicateur ?? 'population_totale'}
+                onChange={e => setCarreauxIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
+                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
+                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
+                      <option key={ind.id} value={ind.id}>{ind.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {CARREAUX_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={carreauxOpacity ?? 0.72}
+                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Légende
+                  {carreauxSelectedBucket !== null && (
+                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
+                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
+                    >✕ Tout</button>
+                  )}
+                </div>
+                {(() => {
+                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
+                  if (carreauxRange) {
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => {
+                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
+                          const min = carreauxRange.p5 + i * step;
+                          const max = carreauxRange.p5 + (i + 1) * step;
+                          const isSelected = carreauxSelectedBucket === i;
+                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
+                          return (
+                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
+                            >
+                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
+                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
+                              </span>
+                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
+            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
+            <button
+              onClick={() => toggleAnalyse('iris')}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 14px', background: 'var(--bg-level-2)',
+                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
+                IRIS
+                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
+              </span>
+              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
+            </button>
+            {analyseOpen.iris && (
+            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Toggle visible */}
+              <button
+                onClick={() => setIrisVisible?.(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
+                  Couche IRIS
+                </span>
+              </button>
+
+              {/* Toggle vrais IRIS uniquement */}
+              <button
+                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${C.border}`,
+                  borderRadius: 4, cursor: 'pointer', width: '100%',
+                }}
+              >
+                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
+                  Vrais IRIS uniquement
+                </span>
+                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
+                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
+                </span>
+              </button>
+
+              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
+              <select
+                value={irisIndicateur ?? 'pop_15_29'}
+                onChange={e => setIrisIndicateur?.(e.target.value)}
+                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from(
+                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
+                    if (!acc.has(col.group)) acc.set(col.group, []);
+                    acc.get(col.group)!.push(col);
+                    return acc;
+                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
+                ).map(([group, cols]) => (
+                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
+                    {cols.map(col => (
+                      <option key={col.name} value={col.name}>{col.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {/* Palette */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {IRIS_PALETTES.map(p => (
+                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
+                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
+                    >
+                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Opacité */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
+                <input type="range" min={0.1} max={1} step={0.05}
+                  value={irisOpacity ?? 0.45}
+                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+                />
+                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
+                  {Math.round((irisOpacity ?? 0.45) * 100)}%
+                </span>
+              </div>
+
+              {/* Légende */}
+              <div>
+                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
+                {(() => {
+                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
+                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
+                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
+                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {pal.stops.map((color, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
+                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
+                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  if (irisVisible && !irisStats) {
+                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
+                  }
+                  if (irisStats && !irisStats.col_exists) {
+                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
+                  }
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+            )}
+
+            {/* Sections contexte — blocs déplacés depuis Données terrain */}
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Section : Indicateurs civiques ──────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <FilterSectionHeader
+                label="Indicateurs civiques"
+                sectionKey="civic"
+                open={sectionsOpen.civic !== false}
+                onToggle={() => toggleSection('civic')}
+                count={civicVariableCode ? 1 : 0}
+                searchTerm={filterSearch}
+              />
+              {sectionsOpen.civic !== false && (
+              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                <div style={{ ...labelStyle, marginBottom: 4 }}>Variable à afficher</div>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={civicVariableCode ?? ''}
+                    onChange={(e) => onCivicVariableChange?.((e.target.value || null) as 'abstention_pres_2022' | null)}
+                    style={{
+                      width: '100%', padding: '8px 28px 8px 11px',
+                      background: C.bgInput,
+                      border: `0.5px solid ${civicVariableCode ? 'var(--brand-teal)' : C.border}`,
+                      borderRadius: 4,
+                      fontFamily: fInter, fontSize: 13,
+                      color: civicVariableCode ? 'var(--brand-teal)' : C.text,
+                      appearance: 'none', cursor: 'pointer', outline: 'none',
+                      transition: 'border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
+                    }}
+                  >
+                    <option value="">— Aucune (layer désactivé) —</option>
+                    <option value="abstention_pres_2022">🗳️ Taux d&apos;abstention (Présidentielle 2022)</option>
+                  </select>
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.textDim, fontSize: 10 }}>▾</span>
+                </div>
+
+                {civicVariableCode === 'abstention_pres_2022' && (
+                  <>
+                    {/* Légende gradient */}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                        Légende
+                      </div>
+                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                        {[['#16a34a', 0.5], ['#84cc16', 1], ['#eab308', 1], ['#f97316', 1], ['#dc2626', 1.2], ['#7f1d1d', 0.8]].map(([color, weight], i) => (
+                          <div key={i} style={{ flex: weight as number, background: color as string }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
+                        <span>10% (forte particip.)</span>
+                        <span>30%</span>
+                        <span>60% (forte abst.)</span>
+                      </div>
+                    </div>
+
+                    {/* Source */}
+                    <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                      Source : data.gouv.fr — Ministère de l&apos;Intérieur · 6 186 codes postaux (France métro + DROM)
+                    </div>
+                  </>
+                )}
+              </div>
+              )}{/* fin collapsible civic */}
+            </div>
+
+            {/* ── Section : Santé environnementale (ATMO + pollen) ────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <FilterSectionHeader
+                label="Santé environnementale"
+                sectionKey="civicHealth"
+                open={sectionsOpen.civicHealth === true}
+                onToggle={() => toggleSection('civicHealth')}
+                count={(selectedIrisCommuneCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)}
+                searchTerm={filterSearch}
+              />
+              {sectionsOpen.civicHealth === true && (
+                <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <HealthIndicatorCard
+                    codeCommune={selectedIrisCommuneCode ?? null}
+                    nomCommune={selectedIrisCommuneName ?? null}
+                  />
+
+                  {/* Choix de la couche — une seule active à la fois, re-clic pour masquer */}
+                  <div>
+                    <div style={{ ...labelStyle, marginBottom: 4 }}>Couche nationale</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {([['pollen', '🌾 Allergènes'], ['atmo', '🌬️ Qualité de l’air']] as const).map(([value, label]) => {
+                        const active = civicHealthLayer === value;
+                        return (
+                          <button
+                            key={value}
+                            onClick={() => onCivicHealthLayerChange?.(active ? null : value)}
+                            title={active ? 'Masquer la couche' : 'Afficher la couche'}
+                            style={{
+                              flex: 1, padding: '8px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                              fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+                              background: active ? 'rgba(78,205,196,0.1)' : 'transparent',
+                              border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                              color: active ? 'var(--brand-teal)' : C.textSec,
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {civicHealthLayer && (
+                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Échelle des zones */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>Échelle</div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {([['departement', 'Département'], ['cp', 'Code postal']] as const).map(([value, label]) => (
+                            <button
+                              key={value}
+                              onClick={() => onCivicScaleChange?.(value)}
+                              style={{
+                                flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                                fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+                                background: civicScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
+                                border: `0.5px solid ${civicScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+                                color: civicScale === value ? 'var(--brand-teal)' : C.textSec,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Donnée CP absente : ingestion jamais lancée */}
+                      {civicScale === 'cp' && civicCpStatus === 'no_data' && (
+                        <div style={{
+                          padding: '8px 10px', borderRadius: 6,
+                          background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
+                        }}>
+                          <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginBottom: 6 }}>
+                            Aucune donnée nationale — l&apos;ingestion quotidienne n&apos;a pas encore tourné.
+                          </div>
+                          <button
+                            onClick={runCivicIngestStream}
+                            disabled={civicIngestState.running}
+                            style={{
+                              padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                              fontFamily: fInter, cursor: civicIngestState.running ? 'wait' : 'pointer',
+                              background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                              color: 'var(--brand-teal)', opacity: civicIngestState.running ? 0.6 : 1,
+                            }}
+                          >
+                            {civicIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
+                          </button>
+                        </div>
+                      )}
+                      {(civicIngestState.message || civicIngestState.error) && (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: civicIngestState.error ? 'var(--danger)' : C.textDim }}>
+                          {civicIngestState.error ?? civicIngestState.message}
+                        </div>
+                      )}
+
+                      {/* Métrique filtrée — espèce (pollen) ou polluant (air) */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>
+                          {civicHealthLayer === 'pollen' ? 'Allergène' : 'Polluant'}
+                        </div>
+                        <select
+                          value={civicMetric}
+                          onChange={e => onCivicMetricChange?.(e.target.value)}
+                          style={{
+                            width: '100%', padding: '7px 11px', background: C.bgInput,
+                            border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+                            fontFamily: fInter, fontSize: 12, color: C.text, cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          <option value="global">Indice global</option>
+                          {civicHealthLayer === 'pollen' ? (
+                            <>
+                              <option value="ambroisie">Ambroisie</option>
+                              <option value="armoise">Armoise</option>
+                              <option value="aulne">Aulne</option>
+                              <option value="bouleau">Bouleau</option>
+                              <option value="graminees">Graminées</option>
+                              <option value="olivier">Olivier</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="no2">Dioxyde d&apos;azote (NO₂)</option>
+                              <option value="o3">Ozone (O₃)</option>
+                              <option value="pm10">Particules PM10</option>
+                              <option value="pm25">Particules fines PM2.5</option>
+                              <option value="so2">Dioxyde de soufre (SO₂)</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Seuil minimum — cœur du filtre zones à risque */}
+                      <div>
+                        <div style={{ ...labelStyle, marginBottom: 4 }}>Niveau minimum affiché</div>
+                        <select
+                          value={civicMinLevel}
+                          onChange={e => onCivicMinLevelChange?.(Number(e.target.value))}
+                          style={{
+                            width: '100%', padding: '7px 11px', background: C.bgInput,
+                            border: `0.5px solid ${civicMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
+                            borderRadius: 6, fontFamily: fInter, fontSize: 12,
+                            color: civicMinLevel > 0 ? 'var(--brand-teal)' : C.text,
+                            cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          <option value={0}>Tous les niveaux</option>
+                          {civicHealthLayer === 'pollen' ? (
+                            <>
+                              <option value={3}>≥ modéré</option>
+                              <option value={4}>≥ élevé</option>
+                              <option value={5}>≥ très élevé</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value={3}>≥ dégradé</option>
+                              <option value={4}>≥ mauvais</option>
+                              <option value={5}>≥ très mauvais</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Chargement : stream département (compteur) ou fetch CP */}
+                      {civicScale === 'departement' && civicProgress && civicProgress.done < civicProgress.total ? (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                          Chargement… {civicProgress.done}/{civicProgress.total} départements
+                        </div>
+                      ) : civicLoading ? (
+                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
+                          Chargement de la couche…
+                        </div>
+                      ) : null}
+
+                      {/* Légende : un libellé par niveau (1-6) */}
+                      <div>
+                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
+                          {civicHealthLayer === 'pollen' ? 'Indice pollen' : 'Indice ATMO'}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px' }}>
+                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => {
+                            const token = civicHealthLayer === 'pollen' ? `--pollen-level-${lvl}` : `--atmo-level-${lvl}`;
+                            const label = civicHealthLayer === 'pollen' ? POLLEN_LEVEL_LABELS[lvl] : ATMO_LEVEL_LABELS[lvl];
+                            const dimmed = civicMinLevel > 0 && lvl < civicMinLevel;
+                            return (
+                              <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: dimmed ? 0.3 : 1, transition: 'opacity 150ms var(--ease-hover)' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: 2, background: `var(${token})`, flexShrink: 0 }} />
+                                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
+                                  {lvl} — {label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
+                        Source : Atmo France et les AASQA (ODbL) — {civicScale === 'cp'
+                          ? `max des communes par code postal${civicCpDate ? ` · données du ${civicCpDate}` : ''}`
+                          : '1 commune par département'} · clic sur une zone pour le détail {civicHealthLayer === 'pollen' ? 'par espèce' : 'par polluant'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Section : Météo ─────────────────────────────────────────── */}
+            {onOpenMeteo && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <FilterSectionHeader
+                  label="Météo"
+                  sectionKey="meteo"
+                  open={sectionsOpen.meteo !== false}
+                  onToggle={() => toggleSection('meteo')}
+                  count={meteoVisible ? 1 : 0}
+                  searchTerm={filterSearch}
+                />
+                {sectionsOpen.meteo !== false && (
+                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
+                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
+                    </div>
+                    {meteoVisible && meteoLabel && (
+                      <div style={{
+                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                        color: 'var(--brand-teal)',
+                        padding: '4px 8px',
+                        background: 'var(--bg-level-2)',
+                        border: '0.5px solid var(--brand-teal)',
+                        borderRadius: 4,
+                        marginBottom: 8,
+                      }}>
+                        {meteoLabel} actif
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
+                        onClick={onOpenMeteo}
+                      >
+                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
+                      </button>
+                      {meteoVisible && (
+                        <button
+                          style={pill(false, C.muted)}
+                          onClick={onClearMeteo}
+                          title="Masquer la couche météo"
+                        >Masquer</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            </div>
           </div>
         </CategoryGroup>
         )}
@@ -3136,276 +3938,6 @@ export function FilterPanel({
             )}
             </>)}
 
-            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('carreaux')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Carreaux
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.carreaux && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setCarreauxVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
-                  Carreaux{carreauxLoaded ? ' ✓' : ''}
-                </span>
-              </button>
-
-              {/* Indicateur */}
-              <select
-                value={carreauxIndicateur ?? 'population_totale'}
-                onChange={e => setCarreauxIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
-                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
-                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {CARREAUX_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={carreauxOpacity ?? 0.72}
-                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Légende
-                  {carreauxSelectedBucket !== null && (
-                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
-                    >✕ Tout</button>
-                  )}
-                </div>
-                {(() => {
-                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
-                  if (carreauxRange) {
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => {
-                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                          const min = carreauxRange.p5 + i * step;
-                          const max = carreauxRange.p5 + (i + 1) * step;
-                          const isSelected = carreauxSelectedBucket === i;
-                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
-                          return (
-                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
-                            >
-                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
-                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
-                              </span>
-                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
-            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('iris')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                IRIS
-                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.iris && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setIrisVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
-                  Couche IRIS
-                </span>
-              </button>
-
-              {/* Toggle vrais IRIS uniquement */}
-              <button
-                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
-                  Vrais IRIS uniquement
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
-                </span>
-              </button>
-
-              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
-              <select
-                value={irisIndicateur ?? 'pop_15_29'}
-                onChange={e => setIrisIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(
-                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
-                    if (!acc.has(col.group)) acc.set(col.group, []);
-                    acc.get(col.group)!.push(col);
-                    return acc;
-                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
-                ).map(([group, cols]) => (
-                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
-                    {cols.map(col => (
-                      <option key={col.name} value={col.name}>{col.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {IRIS_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={irisOpacity ?? 0.45}
-                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((irisOpacity ?? 0.45) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
-                {(() => {
-                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
-                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
-                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }
-                  if (irisVisible && !irisStats) {
-                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
-                  }
-                  if (irisStats && !irisStats.col_exists) {
-                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
             {!useAnalysisCTAs && (<>
             {/* ── Accordéon : COUVERTURE (overlay → CTA card) ──────────────── */}
             <button
@@ -3529,6 +4061,25 @@ export function FilterPanel({
         {(!visibleCategory || visibleCategory === 'campaigns') && (
         <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Pilotage ML — sorti du rail, ouvre le même grand panneau qu'avant */}
+              {onOpenPilotage && (
+                <button
+                  onClick={onOpenPilotage}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                    background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                    color: 'var(--brand-teal)', fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                    transition: 'background-color 150ms var(--ease-hover)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  Pilotage ML — bidding automatique
+                  <span style={{ fontSize: 13 }}>→</span>
+                </button>
+              )}
 
               {/* Campaign selector */}
               <div>

@@ -214,11 +214,18 @@ export async function GET(req: NextRequest) {
         try {
           const { data: sizeData } = await supabase.rpc('get_table_sizes');
           if (sizeData && Array.isArray(sizeData)) {
-            for (const sizeRow of sizeData as any[]) {
+            interface TableSizeRow {
+              table_name: string;
+              total_size?: string;
+              total_size_bytes?: string | number;
+              table_size?: string;
+              indexes_size?: string;
+            }
+            for (const sizeRow of sizeData as TableSizeRow[]) {
               const table = tables.find(t => t.table_name === sizeRow.table_name);
               if (table) {
                 table.total_size = sizeRow.total_size || 'N/A';
-                table.total_size_bytes = parseInt(sizeRow.total_size_bytes) || 0;
+                table.total_size_bytes = parseInt(String(sizeRow.total_size_bytes ?? '0')) || 0;
                 table.table_size = sizeRow.table_size || 'N/A';
                 table.indexes_size = sizeRow.indexes_size || 'N/A';
               }

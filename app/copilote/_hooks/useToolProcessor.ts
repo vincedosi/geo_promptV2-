@@ -3,7 +3,17 @@
 import { useEffect, useRef } from 'react';
 import type { UIMessage } from 'ai';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+import type { POI } from '@/types/poi';
 import type { OohExportData } from '../_lib/ooh-export';
+
+/** Shape minimale d'une part de message UIMessage (tool-call, output-available) */
+interface ToolPart {
+  type?: string;
+  state?: string;
+  toolCallId?: string;
+  /** Output structuré renvoyé par l'outil — typé dynamiquement selon le tool name */
+  output?: Record<string, unknown> & { [key: string]: unknown };
+}
 
 export interface CorrelationActionParams {
   mode?:        'iris_poi' | 'iris_iris';
@@ -58,7 +68,7 @@ export function useToolProcessor({
       if (msg.role !== 'assistant') continue;
 
       for (let partIdx = 0; partIdx < (msg.parts ?? []).length; partIdx++) {
-        const p = (msg.parts as any[])[partIdx];
+        const p = (msg.parts as unknown as ToolPart[])[partIdx];
 
         if (p.state !== 'output-available') continue;
         if (!p.type?.startsWith('tool-')) continue;
@@ -69,121 +79,137 @@ export function useToolProcessor({
         processedToolIds.current.add(key);
 
         const toolName = (p.type as string).replace(/^tool-/, '');
-        const result   = p.output;
+        // Cast vers Record arbitraire — la forme exacte dépend du tool name (assertion ZoneData/CarreauxData ci-dessous)
+        const result = p.output as Record<string, unknown> | undefined;
 
         if (toolName === 'analyser_zone_pois' && result?.coordonnees) {
-          zonePoiResults.push(result as ZoneData);
-          const iso = result.isochroneGeoJSON;
-          if (iso?.features?.length > 0) {
+          zonePoiResults.push(result as unknown as ZoneData);
+          const iso = result.isochroneGeoJSON as (IsochroneData & { _fromCache?: boolean; _cachedAt?: string }) | undefined;
+          if (iso?.features && iso.features.length > 0) {
             isochronesToApply.push({
               ...iso,
-              _meta: { mode: result.isochrone_mode ?? 'walk', minutes: result.isochrone_minutes ?? 0 },
+              _meta: { mode: (result.isochrone_mode as string) ?? 'walk', minutes: (result.isochrone_minutes as number) ?? 0 },
               _fromCache: iso._fromCache ?? false,
-              _cachedAt:  iso._cachedAt  ?? null,
+              _cachedAt:  iso._cachedAt ?? undefined,
             });
           }
         } else if (toolName === 'voronoi_analysis' && result?.error) {
           setError(`⬡ Voronoï — Erreur : ${result.error}`);
         } else if (toolName === 'voronoi_analysis' && result) {
-          if (result.voronoiGeoJSON?.features?.length > 0) applyVoronoi(result.voronoiGeoJSON);
-          if (result.poisForMap) setZoneData(result.poisForMap as ZoneData);
+          const vGeo = result.voronoiGeoJSON as VoronoiData | undefined;
+          if (vGeo?.features && vGeo.features.length > 0) applyVoronoi(vGeo);
+          if (result.poisForMap) setZoneData(result.poisForMap as unknown as ZoneData);
 
         } else if (toolName === 'afficher_carreaux' && result) {
-          loadCarreauxFromAI(result as CarreauxData);
+          loadCarreauxFromAI(result as unknown as CarreauxData);
           const sources = carreauxSourcesRef.current;
           if (sources.length > 0) {
             carreauxConfigForSaveRef.current = {
               tableName:        sources[0].tableName,
-              indicateur:       result.indicateur,
-              indicateur_label: result.indicateur_label,
-              coordonnees:      result.coordonnees,
+              indicateur:       result.indicateur as string,
+              indicateur_label: result.indicateur_label as string,
+              coordonnees:      result.coordonnees as { lat: number; lng: number },
             };
           }
 
         } else if (toolName === 'analyser_panneaux' && result?.coordonnees) {
           setZoneData(prev => {
-            if (!prev) return result as ZoneData;
-            const existingIds = new Set(prev.pois.map((p: any) => p.id));
-            const newPois = (result as ZoneData).pois.filter((p: any) => !existingIds.has(p.id));
+            if (!prev) return result as unknown as ZoneData;
+            const existingIds = new Set(prev.pois.map((p: POI) => p.id));
+            const newPois = (result as unknown as ZoneData).pois.filter((p: POI) => !existingIds.has(p.id));
             return {
               ...prev,
               pois: [...prev.pois, ...newPois],
               nb_pois: prev.pois.length + newPois.length,
-              categories: { ...prev.categories, ...(result as ZoneData).categories },
-              couleur_overrides: { ...prev.couleur_overrides, ...(result as ZoneData).couleur_overrides },
+              categories: { ...prev.categories, ...(result as unknown as ZoneData).categories },
+              couleur_overrides: { ...prev.couleur_overrides, ...(result as unknown as ZoneData).couleur_overrides },
             };
           });
 
         } else if (toolName === 'classer_panneaux_audience' && result?.pois) {
-          setZoneData(result as ZoneData);
-          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+          setZoneData(result as unknown as ZoneData);
+          if (result.coordonnees) {
+            const c = result.coordonnees as { lat: number; lng: number };
+            flyToCoords(c.lat, c.lng);
+          }
 
         } else if (toolName === 'scorer_panneaux_ooh' && result?.error) {
           setError(`📊 Score OOH — ${result.error}`);
         } else if (toolName === 'scorer_panneaux_ooh' && result?.pois) {
           // Upgrade les POIs top_ooh existants (catégorie → violet) et ajoute les nouveaux
           setZoneData(prev => {
-            const topPois = (result as ZoneData).pois;
-            const topIds = new Set(topPois.map((p: any) => p.id));
-            if (!prev) return result as ZoneData;
-            const updatedPois = prev.pois.map((p: any) =>
+            const topPois = (result as unknown as ZoneData).pois;
+            const topIds = new Set(topPois.map((p: POI) => p.id));
+            if (!prev) return result as unknown as ZoneData;
+            const updatedPois = prev.pois.map((p: POI) =>
               topIds.has(p.id)
-                ? { ...topPois.find((t: any) => t.id === p.id), categorie: 'top_ooh' }
+                ? { ...topPois.find((t: POI) => t.id === p.id)!, categorie: 'top_ooh' }
                 : p
             );
-            const existingIds = new Set(prev.pois.map((p: any) => p.id));
-            const extraPois = topPois.filter((p: any) => !existingIds.has(p.id));
+            const existingIds = new Set(prev.pois.map((p: POI) => p.id));
+            const extraPois = topPois.filter((p: POI) => !existingIds.has(p.id));
             const merged = [...updatedPois, ...extraPois];
             return {
               ...prev,
               pois: merged,
               nb_pois: merged.length,
-              categories: { ...prev.categories, ...(result as ZoneData).categories },
-              couleur_overrides: { ...prev.couleur_overrides, ...(result as ZoneData).couleur_overrides },
+              categories: { ...prev.categories, ...(result as unknown as ZoneData).categories },
+              couleur_overrides: { ...prev.couleur_overrides, ...(result as unknown as ZoneData).couleur_overrides },
             };
           });
-          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+          if (result.coordonnees) {
+            const c = result.coordonnees as { lat: number; lng: number };
+            flyToCoords(c.lat, c.lng);
+          }
 
         } else if (toolName === 'exporter_rapport_ooh' && result?.error) {
           setError(`📄 Export OOH — ${result.error}`);
         } else if (toolName === 'exporter_rapport_ooh' && result?.action === 'export_ooh') {
-          triggerOohExport(result as any).catch((err: any) =>
-            setError(`📄 Export OOH — ${err.message ?? err}`)
+          triggerOohExport(result as unknown as OohExportData).catch((err: unknown) =>
+            setError(`📄 Export OOH — ${err instanceof Error ? err.message : String(err)}`)
           );
 
         } else if (toolName === 'analyze_poi_synergy' && result?.pois) {
-          setZoneData(result as ZoneData);
-          if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+          setZoneData(result as unknown as ZoneData);
+          if (result.coordonnees) {
+            const c = result.coordonnees as { lat: number; lng: number };
+            flyToCoords(c.lat, c.lng);
+          }
 
         } else if (toolName === 'calculate_audience_coverage' && result) {
           if (result.error) {
             setError(`📊 Couverture — ${result.error}`);
           } else {
-            if (result.isochroneGeoJSON?.features?.length > 0) {
+            const iso = result.isochroneGeoJSON as IsochroneData | undefined;
+            if (iso?.features && iso.features.length > 0) {
               applyIsochrones({
-                ...result.isochroneGeoJSON,
-                _meta:      { mode: result.mode ?? 'drive', minutes: result.travel_time_minutes ?? 0 },
+                ...iso,
+                _meta:      { mode: (result.mode as string) ?? 'drive', minutes: (result.travel_time_minutes as number) ?? 0 },
                 _fromCache: false,
-                _cachedAt:  null,
+                _cachedAt:  undefined,
               });
             }
-            if (result.coordonnees) flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+            if (result.coordonnees) {
+              const c = result.coordonnees as { lat: number; lng: number };
+              flyToCoords(c.lat, c.lng);
+            }
           }
 
         } else if (toolName === 'analyse_correlation' && result?.action === 'analyse_correlation') {
           setCorrelationParams?.({
-            mode:        result.mode        ?? 'iris_poi',
-            poiCategory: result.poiCategory,
-            irisMetric:  result.irisMetric  ?? 'population',
-            sigmaKm:     result.sigmaKm,
-            metricX:     result.metricX,
-            metricY:     result.metricY,
-            departement: result.departement ?? null,
+            mode:        (result.mode as CorrelationActionParams['mode']) ?? 'iris_poi',
+            poiCategory: result.poiCategory as string | undefined,
+            irisMetric:  (result.irisMetric as string) ?? 'population',
+            sigmaKm:     result.sigmaKm as number | undefined,
+            metricX:     result.metricX as string | undefined,
+            metricY:     result.metricY as string | undefined,
+            departement: (result.departement as string | null) ?? null,
             autoAnalyse: result.autoAnalyse !== false,
           });
 
         } else if (toolName === 'analyse_complete' && result?.coordonnees) {
-          flyToCoords(result.coordonnees.lat, result.coordonnees.lng);
+          const c = result.coordonnees as { lat: number; lng: number };
+          flyToCoords(c.lat, c.lng);
 
         } else if (toolName === 'isochrone_battle' && result) {
           if (result.error) {
@@ -196,13 +222,16 @@ export function useToolProcessor({
                 : `⚔️ Bataille d'Isochrones — ${raw}`;
             console.error('[useToolProcessor] isochrone_battle error:', raw);
             setError(friendly);
-          } else if (result.battleGeoJSON?.features?.length > 0) {
-            applyIsochroneBattle(
-              result.battleGeoJSON,
-              result.battleBorders ?? null,
-              result.category,
-              result.poisForMap
-            );
+          } else {
+            const battleGeo = result.battleGeoJSON as { type: string; features: GeoJSON.Feature[] } | undefined;
+            if (battleGeo?.features && battleGeo.features.length > 0) {
+              applyIsochroneBattle(
+                battleGeo,
+                (result.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null,
+                result.category as string | undefined,
+                result.poisForMap as { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[] | undefined
+              );
+            }
           }
         }
       }
@@ -215,8 +244,8 @@ export function useToolProcessor({
           let merged = zonePoiResults[0];
           for (let i = 1; i < zonePoiResults.length; i++) {
             const next = zonePoiResults[i];
-            const existingIds = new Set(merged.pois.map((p: any) => p.id));
-            const newPois = next.pois.filter((p: any) => !existingIds.has(p.id));
+            const existingIds = new Set(merged.pois.map((p: POI) => p.id));
+            const newPois = next.pois.filter((p: POI) => !existingIds.has(p.id));
             merged = {
               ...merged,
               pois: [...merged.pois, ...newPois],
@@ -228,9 +257,9 @@ export function useToolProcessor({
           return merged;
         }
         let result = { ...prev };
-        const existingIds = new Set(prev.pois.map((p: any) => p.id));
+        const existingIds = new Set(prev.pois.map((p: POI) => p.id));
         for (const zoneResult of zonePoiResults) {
-          const newPois = zoneResult.pois.filter((p: any) => !existingIds.has(p.id));
+          const newPois = zoneResult.pois.filter((p: POI) => !existingIds.has(p.id));
           newPois.forEach(p => existingIds.add(p.id));
           result = {
             ...result,

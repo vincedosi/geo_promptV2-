@@ -1,12 +1,42 @@
 'use client';
 
+/**
+ * @file app/map/page.tsx — page principale carte MAGELIAN
+ * @size ~2329 lignes (cf docs/known_tech_debt.md — refactor planifié,
+ *       non splitté en A4.6.2 par décision produit pour réduire le risque pitch)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + dynamic loaders         (≈ 1-90)
+ *   2. Helpers (esc, normToColor, …)     (≈ 91-230)
+ *   3. State management (~70 useState)   (≈ 231-450)
+ *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
+ *   5. POI / battle / voronoi handlers   (≈ 701-1300)
+ *   6. Cluster + radio + meteo handlers  (≈ 1301-1600)
+ *   7. Render JSX (IconBar + OverlayPanel + ResultsPanel + StudyDashboard) (≈ 1601-2329)
+ *
+ * @maintainers Pour étendre ce fichier :
+ *   - NE PAS ajouter d'autres `useState` au top — extraire dans un hook
+ *     dédié (ex: useBattleState(), useRadioState())
+ *   - Les overlays (IconBar items) sont déjà bien isolés dans
+ *     `components/map/overlays/`
+ *   - Lire docs/known_tech_debt.md avant refactor structurel
+ */
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
+import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
+import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
+import { METEO_LABEL, METEO_UNIT, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+const MeteoGeoPanel = dynamic(
+  () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
+  { ssr: false },
+);
 import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
 import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
@@ -21,6 +51,9 @@ import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
+import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
+import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
+import { ZoneMediaPlanPanel } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 const StudyDashboard = dynamic(
   () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
@@ -63,7 +96,7 @@ const ScoringPanel = dynamic(
   () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
   { ssr: false },
 );
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
@@ -141,6 +174,39 @@ export default function MapPage() {
   const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Masquer les axes <5 000 véh/j par défaut pour limiter la densité visuelle
+  // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
+  const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
+
+  // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
+  const [meteoVisible, setMeteoVisible] = useState(false);
+  const [meteoPanelOpen, setMeteoPanelOpen] = useState(false);
+  const [meteoZones, setMeteoZones] = useState<GeoJSON.FeatureCollection | null>(null);
+  const meteoZonesCacheRef = useRef<Record<string, GeoJSON.FeatureCollection>>({});
+  // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
+  // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
+  const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
+  // Santé environnementale : choroplèthe allergènes ou qualité de l'air (Atmo France)
+  const [civicHealthLayer, setCivicHealthLayer] = useState<'pollen' | 'atmo' | null>(null);
+  const [civicProgress, setCivicProgress] = useState<{ done: number; total: number } | null>(null);
+  const [civicLoading, setCivicLoading] = useState(false);
+  const [civicScale, setCivicScale] = useState<'departement' | 'cp'>('departement');
+  const [civicMetric, setCivicMetric] = useState('global');
+  const [civicMinLevel, setCivicMinLevel] = useState(0);
+  const [civicCpStatus, setCivicCpStatus] = useState<'ok' | 'no_data' | null>(null);
+  const [civicCpDate, setCivicCpDate] = useState<string | null>(null);
+  const [civicRefreshKey, setCivicRefreshKey] = useState(0);
+  // Plan média : zones custom affichées via l'overlay Zones → panneau latéral droit
+  const [planZones, setPlanZones] = useState<Array<{ id: string; name: string }>>([]);
+  const [planPanelOpen, setPlanPanelOpen] = useState(false);
+  const prevPlanCountRef = useRef(0);
+  const handleLoadedZonesChange = useCallback((zones: Array<{ id: string; name: string }>) => {
+    // Auto-ouverture à la première zone affichée ; fermeture quand plus rien
+    if (zones.length > 0 && prevPlanCountRef.current === 0) setPlanPanelOpen(true);
+    if (zones.length === 0) setPlanPanelOpen(false);
+    prevPlanCountRef.current = zones.length;
+    setPlanZones(zones);
+  }, []);
   // Radio FM/DAB+ — émetteurs
   const [radioVisible,       setRadioVisible]       = useState(false);
   const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
@@ -192,6 +258,31 @@ export default function MapPage() {
   useEffect(() => {
     if (searchParams.get('layer') === 'digital') {
       setDigitalVisible(true);
+    }
+  }, [searchParams]);
+
+  // Pré-ouverture de l'overlay Pilotage ML depuis ?overlay=pilotage&action=...
+  // Utilisé par CustomBiddingBar (digital) et StrategyHeader (custom-bidding) pour
+  // remplacer leurs anciens redirects vers /strategies/* (lesquelles n'existent plus).
+  const [pilotageInitialAction, setPilotageInitialAction] = useState<
+    | { type: 'new'; campaignId: string; draftId?: string }
+    | { type: 'edit'; strategyId: string }
+    | { type: 'history'; strategyId: string }
+    | null
+  >(null);
+  useEffect(() => {
+    if (searchParams.get('overlay') !== 'pilotage') return;
+    const action = searchParams.get('action');
+    const campaignId = searchParams.get('campaign');
+    const strategyId = searchParams.get('strategy');
+    const draftId = searchParams.get('draft') ?? undefined;
+    setActiveOverlay('pilotage');
+    if (action === 'new' && campaignId) {
+      setPilotageInitialAction({ type: 'new', campaignId, draftId });
+    } else if (action === 'edit' && strategyId) {
+      setPilotageInitialAction({ type: 'edit', strategyId });
+    } else if (action === 'history' && strategyId) {
+      setPilotageInitialAction({ type: 'history', strategyId });
     }
   }, [searchParams]);
 
@@ -278,20 +369,135 @@ export default function MapPage() {
     try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
   }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync TMJA GeoJSON → map source ─────────────────────────────────────────
+  // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const src = map.getSource('tmja-source') as maplibregl.GeoJSONSource | undefined;
+    try {
+      map.setLayoutProperty('tmja-lines', 'visibility', tmjaGeoJSON ? 'visible' : 'none');
+      map.setFilter(
+        'tmja-lines',
+        tmjaHideLowTraffic ? ['>=', ['get', 'tmja'], 5000] : null,
+      );
+    } catch { /* */ }
+  }, [tmjaGeoJSON, tmjaHideLowTraffic, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Météo : hook data + sync source GeoJSON → choroplèthe zones admin ─────
+  const meteo = useMeteoData();
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('meteo-source') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    if (tmjaGeoJSON) {
-      src.setData(tmjaGeoJSON);
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'visible'); } catch { /* */ }
+
+    const setMeteoLayersVisibility = (visible: boolean) => {
+      try {
+        map.setLayoutProperty('meteo-fill', 'visibility', visible ? 'visible' : 'none');
+        map.setLayoutProperty('meteo-outline', 'visibility', visible ? 'visible' : 'none');
+      } catch { /* */ }
+    };
+
+    if (meteo.data && meteo.meta && meteoZones) {
+      const features: GeoJSON.Feature[] = [];
+      for (const f of meteoZones.features) {
+        const code = String(f.properties?.code ?? '');
+        const v = meteo.data[code];
+        if (!v) continue;
+        features.push({
+          ...f,
+          properties: {
+            ...f.properties,
+            weather_value: v.value,
+            label: v.label,
+            unit: v.unit,
+          },
+        });
+      }
+      src.setData({ type: 'FeatureCollection', features });
+      try {
+        map.setPaintProperty('meteo-fill', 'fill-color',
+          buildMeteoColorExpr(meteo.meta.variable, meteo.meta.stats, 'weather_value') as maplibregl.ExpressionSpecification,
+        );
+      } catch { /* */ }
+      setMeteoLayersVisibility(meteoVisible);
     } else {
       src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('tmja-lines', 'visibility', 'none'); } catch { /* */ }
+      setMeteoLayersVisibility(false);
     }
-  }, [tmjaGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady]);
+
+  // Popup au clic sur une zone météo (nom + valeur + label qualitatif)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const onClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as { nom?: string; weather_value?: number; unit?: string; label?: string };
+      const value = p.weather_value != null ? Number(p.weather_value) : null;
+      new maplibregl.Popup({ closeButton: false, maxWidth: '240px' })
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-family:Inter,sans-serif;font-size:12px;color:var(--text-primary)">` +
+          `<div style="font-weight:500;margin-bottom:2px">${p.nom ?? ''}</div>` +
+          (value != null
+            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${p.unit ?? ''}</div>`
+            : '') +
+          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${p.label}</div>` : '') +
+          `</div>`,
+        )
+        .addTo(map);
+    };
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
+
+    map.on('click', 'meteo-fill', onClick);
+    map.on('mouseenter', 'meteo-fill', onEnter);
+    map.on('mouseleave', 'meteo-fill', onLeave);
+    return () => {
+      map.off('click', 'meteo-fill', onClick);
+      map.off('mouseenter', 'meteo-fill', onEnter);
+      map.off('mouseleave', 'meteo-fill', onLeave);
+    };
+  }, [mapReady]);
+
+  // Charge les polygones de zones (cache mémoire par échelle + cache 1j navigateur)
+  const ensureMeteoZones = useCallback(async (scale: MeteoScale) => {
+    const cached = meteoZonesCacheRef.current[scale];
+    if (cached) { setMeteoZones(cached); return; }
+    try {
+      const res = await adminFetch(`/api/meteo-geo/zones?scale=${scale}`, { cache: 'force-cache' });
+      if (!res.ok) return;
+      const fc = await res.json() as GeoJSON.FeatureCollection;
+      meteoZonesCacheRef.current[scale] = fc;
+      setMeteoZones(fc);
+    } catch { /* */ }
+  }, []);
+
+  const handleMeteoApply = useCallback(async (params: MeteoParams) => {
+    // Granularité choisie par l'utilisateur ; fallback heuristique par durée
+    // pour les appels sans scale (compatibilité).
+    const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
+    const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
+    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
+    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
+    let bbox: string | undefined;
+    if (scale === 'cp') {
+      const b = mapRef.current?.getBounds();
+      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
+    }
+    await ensureMeteoZones(scale);
+    const ok = await meteo.fetch(scale, { ...params, bbox });
+    if (ok) setMeteoVisible(true);
+    return ok;
+  }, [meteo, ensureMeteoZones]);
+
+  const handleMeteoClear = useCallback(() => {
+    meteo.clear();
+    setMeteoVisible(false);
+  }, [meteo]);
 
   // ── Digital: GeoJSON source + layers ──────────────────────────────────────
   useEffect(() => {
@@ -525,8 +731,7 @@ export default function MapPage() {
 
     const inverted = residualInvertedRef.current;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
     for (const d of data) {
       matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
     }
@@ -541,8 +746,7 @@ export default function MapPage() {
         'source-layer': 'iris',
         minzoom: 2,
         paint: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          'fill-color':   matchExpr as any,
+          'fill-color':   matchExpr as unknown as maplibregl.ExpressionSpecification,
           'fill-opacity': residualOpacity,
         },
       }, 'iris-border');
@@ -605,13 +809,12 @@ export default function MapPage() {
     residualInvertedRef.current = inverted;
     const map = mapRef.current;
     if (!map?.getLayer('iris-residuals-fill') || !residualLookupRef.current.size) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchExpr: any[] = ['match', ['get', 'code_iris']];
+    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
     residualLookupRef.current.forEach((r, code) => {
       matchExpr.push(code, normToColor(r.norm, inverted));
     });
     matchExpr.push('transparent');
-    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr);
+    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr as unknown as maplibregl.ExpressionSpecification);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charger arrêts de transport pour la vue courante ───────────────────────
@@ -626,21 +829,12 @@ export default function MapPage() {
     if (data?.pois) setZoneData(data);
   };
 
-  // ── Charger TMJA pour la vue courante ───────────────────────────────────────
+  // ── Toggle TMJA (vector tiles : affichage instantané, lazy par viewport) ───
+  // On garde un FeatureCollection vide en sentinel pour réutiliser la prop
+  // tmjaVisible existante côté FilterPanel et CaptureLayers — la vraie data
+  // est servie par les tiles MVT via la source vector tmja-source.
   const handleLoadTMJA = async () => {
-    const map = mapRef.current;
-    if (!map) return;
-    const zoom = map.getZoom();
-    if (zoom < 8) {
-      alert('Zoomez davantage (zoom ≥ 8) pour afficher les flux routiers TMJA.');
-      return;
-    }
-    const b = map.getBounds();
-    const url = `/api/map/tmja?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}&zoom=${zoom.toFixed(1)}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data: GeoJSON.FeatureCollection = await res.json();
-    setTmjaGeoJSON(data);
+    setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
   };
 
   // ── Radio filter options — fetch lazy (au 1er toggle radio) ───────────────
@@ -942,6 +1136,94 @@ export default function MapPage() {
   savedMaps.applyVoronoiRef.current    = mapLayers.applyVoronoi;
   savedMaps.loadCarreauxRef.current    = mapLayers.loadCarreauxFromAI;
   savedMaps.setMessagesRef.current     = chat.setMessages;
+
+  // ── Tout effacer : vide toutes les couches et zones affichées sur la carte ──
+  const handleClearAllLayers = useCallback(() => {
+    const map = mapRef.current;
+
+    // Markers de zone (POI + ville)
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    // Sources GeoJSON → collection vide (idempotent, couvre aussi les effets
+    // qui ne nettoient pas la source quand leur donnée repasse à null)
+    if (map) {
+      const geojsonSources = [
+        'pois-heat', 'zone-circle', 'wizard-highlight', 'meteo-source',
+        'tmja-source', 'radio-emetteurs', 'radio-coverage', 'digital-cp',
+        'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
+        'battle-borders', 'battle-pois', 'clusters-source', 'test-iso',
+        'territory-mask',
+      ];
+      for (const id of geojsonSources) {
+        const src = map.getSource(id);
+        if (src && src.type === 'geojson') {
+          (src as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
+        }
+      }
+
+      // Zones custom affichées via l'overlay Zones (sources custom-zone-<id>
+      // créées dynamiquement). Le panneau retombe sur ses pieds : « Masquer »
+      // puis « Afficher » recréent la couche proprement.
+      const style = map.getStyle();
+      for (const sourceId of Object.keys(style.sources ?? {})) {
+        if (!sourceId.startsWith('custom-zone-')) continue;
+        const zoneId = sourceId.slice('custom-zone-'.length);
+        for (const layerId of [`custom-zone-fill-${zoneId}`, `custom-zone-line-${zoneId}`]) {
+          if (map.getLayer(layerId)) map.removeLayer(layerId);
+        }
+        map.removeSource(sourceId);
+      }
+    }
+
+    // Couches tuiles vectorielles (visibilité) et couches copilote
+    mapLayers.setVoronoiVisible(false);
+    mapLayers.setBattleVisible(false);
+    mapLayers.setIsochroneVisible(false);
+    mapLayers.setCarreauxVisible(false);
+    mapLayers.setIrisVisible(false);
+
+    // États de données de la page
+    setZoneData(null);
+    setBattleFeatures([]);
+    setBattlePois([]);
+    setBattleCacheKey(null);
+    setClusterGeoJSON(null);
+    setClustersVisible(false);
+    setWizardHighlightGeoJSON(null);
+    setTmjaGeoJSON(null);
+    handleMeteoClear();
+    setCivicVariableCode(null);
+    setCivicHealthLayer(null);
+    setCivicProgress(null);
+    setRadioVisible(false);
+    setRadioHeatmapMode(false);
+    setRadioCoverageMode(false);
+    setRadioSelectedId(null);
+    setRadioSelectedNom(null);
+    setDigitalVisible(false);
+    setDigitalStats(null);
+    setDigitalAnalysisOpen(false);
+    setDigitalCampaignId('');
+    setCorrelationParams(null);
+    setResidualsMeta(null);
+    setSelectedIrisCode(null);
+    setSelectedIrisData(null);
+    setSelectedBillboard(null);
+    setActiveResults(null);
+
+    // Périmètre territorial (masque affiché sur la carte)
+    setPerimeterScope(null);
+    setPerimeterSelectedRegions([]);
+    setPerimeterSelectedDepts([]);
+    setPerimeterVille('');
+    setSelectedPOI([]);
+
+    // Nettoie ?customZone= (et autres params) pour qu'un F5 ne recharge rien
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
   // Le polygon de la zone alimente le slot battleFeatures pour que Coverage,
@@ -1273,16 +1555,19 @@ export default function MapPage() {
     // Afficher les isochrones bruts (rings) — couvre cache hit et ORS path.
     // La bataille (ST_Difference) n'est déclenchée que sur clic du bouton BATAILLE.
     if (battleData!.battleGeoJSON?.features?.length > 0) {
-      const rawRings = (battleData!.battleGeoJSON.features as any[])
-        .filter((f: any) => f?.geometry)
-        .map((f: any) => ({
-          cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
-          nom:      String(f.properties?.nom ?? ''),
-          lat:      Number(f.properties?.lat ?? 0),
-          lng:      Number(f.properties?.lng ?? 0),
-          palier:   Number(f.properties?.palier ?? 0),
-          geojson:  f.geometry,
-        }));
+      const rawRings = (battleData!.battleGeoJSON.features as GeoJSON.Feature[])
+        .filter((f) => !!f?.geometry)
+        .map((f) => {
+          const props = (f.properties ?? {}) as Record<string, unknown>;
+          return {
+            cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+            nom:      String(props.nom ?? ''),
+            lat:      Number(props.lat ?? 0),
+            lng:      Number(props.lng ?? 0),
+            palier:   Number(props.palier ?? 0),
+            geojson:  f.geometry as object,
+          };
+        });
       mapLayers.clearBattlePartialRings();
       mapLayers.addBattlePartialRings(rawRings);
       setBattleFeatures(battleData!.battleGeoJSON.features);
@@ -1291,8 +1576,8 @@ export default function MapPage() {
     let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = battleData!.poisForMap ?? [];
     if (poisForMap.length === 0 && battleData!.battleGeoJSON?.features?.length > 0) {
       const poisSeen = new Set<string>();
-      for (const f of battleData!.battleGeoJSON.features as any[]) {
-        const p = f?.properties ?? {};
+      for (const f of battleData!.battleGeoJSON.features as GeoJSON.Feature[]) {
+        const p = (f?.properties ?? {}) as Record<string, unknown>;
         const cid = String(p.cirfa_id ?? p.id ?? '');
         const lat = Number(p.lat), lng = Number(p.lng);
         if (cid && !poisSeen.has(cid) && !isNaN(lat) && !isNaN(lng) && lat && lng) {
@@ -1303,10 +1588,11 @@ export default function MapPage() {
     }
     if (battleData!.battleCacheKey) setBattleCacheKey(battleData!.battleCacheKey);
     if (poisForMap.length > 0) {
-      setBattlePois(poisForMap as any[]);
+      const poisAsPOI: POI[] = poisForMap.map(p => ({ ...p, categorie: p.categorie ?? params.category }));
+      setBattlePois(poisAsPOI);
       setZoneData({
         coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
-        pois: poisForMap as any[],
+        pois: poisAsPOI,
         nb_pois: poisForMap.length,
         categories: { [params.category]: poisForMap.length },
         couleur_overrides: {},
@@ -1340,16 +1626,22 @@ export default function MapPage() {
     const geometry  = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
     const poiGroups = [...groupMap.entries()].map(([id, { nom, geoms }]) => ({ id, nom, geometries: geoms }));
     // Convertir les ring features en RingEntry pour le bouton BATAILLE (Phase 2)
-    const battleRings = (battleData!.battleGeoJSON?.features ?? [])
-      .filter((f: any) => f?.properties?.feature_type === 'ring' && f?.geometry)
-      .map((f: any) => ({
-        cirfa_id: String(f.properties.cirfa_id ?? f.properties.id ?? ''),
-        nom:      String(f.properties.nom ?? ''),
-        lat:      Number(f.properties.lat ?? 0),
-        lng:      Number(f.properties.lng ?? 0),
-        palier:   Number(f.properties.palier ?? 0),
-        geojson:  JSON.stringify(f.geometry),
-      }));
+    const battleRings = ((battleData!.battleGeoJSON?.features ?? []) as GeoJSON.Feature[])
+      .filter((f) => {
+        const ft = (f?.properties as Record<string, unknown> | null)?.feature_type;
+        return ft === 'ring' && !!f?.geometry;
+      })
+      .map((f) => {
+        const props = (f.properties ?? {}) as Record<string, unknown>;
+        return {
+          cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+          nom:      String(props.nom ?? ''),
+          lat:      Number(props.lat ?? 0),
+          lng:      Number(props.lng ?? 0),
+          palier:   Number(props.palier ?? 0),
+          geojson:  JSON.stringify(f.geometry),
+        };
+      });
     return { geometry, nb_pois: battleData!.nb_pois ?? 0, poiGroups, battleRings };
   };
 
@@ -1390,35 +1682,42 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: any;
-          try { evt = JSON.parse(line); } catch { continue; }
+          let evt: Record<string, unknown>;
+          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
           if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue').slice(0, 200));
-          if (evt.type === 'partial_rings' && evt.rings?.length > 0) {
-            mapLayers.addBattlePartialRings(evt.rings);
-            onProgress?.(`> ◆ +${evt.rings.length} isochrones sur la carte`);
+          if (evt.type === 'partial_rings' && Array.isArray(evt.rings) && evt.rings.length > 0) {
+            mapLayers.addBattlePartialRings(evt.rings as Parameters<typeof mapLayers.addBattlePartialRings>[0]);
+            onProgress?.(`> ◆ +${(evt.rings as unknown[]).length} isochrones sur la carte`);
           } else if (evt.type === 'pois_loaded') {
             onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
           } else if (evt.type === 'progress') {
             if (evt.status === 'bataille_postgis') {
               onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
             } else {
-              const pct    = Math.round((evt.completed / evt.total) * 100);
-              const errInfo = evt.err > 0 ? ` (${evt.err} erreurs ORS)` : '';
-              onProgress?.(`> ${evt.completed}/${evt.total} POIs traités — ${pct}%${errInfo}`);
+              const completed = Number(evt.completed ?? 0);
+              const total = Number(evt.total ?? 1);
+              const pct    = Math.round((completed / total) * 100);
+              const errCount = Number(evt.err ?? 0);
+              const errInfo = errCount > 0 ? ` (${errCount} erreurs ORS)` : '';
+              onProgress?.(`> ${completed}/${total} POIs traités — ${pct}%${errInfo}`);
             }
           }
           // result: on affiche juste les rings finaux si disponibles (pas de setZoneData)
-          if (evt.type === 'result' && evt.data?.battleGeoJSON?.features?.length > 0) {
-            const rawRings = (evt.data.battleGeoJSON.features as any[])
-              .filter((f: any) => f?.geometry)
-              .map((f: any) => ({
-                cirfa_id: String(f.properties?.cirfa_id ?? f.properties?.id ?? ''),
-                nom:      String(f.properties?.nom ?? ''),
-                lat:      Number(f.properties?.lat ?? 0),
-                lng:      Number(f.properties?.lng ?? 0),
-                palier:   Number(f.properties?.palier ?? 0),
-                geojson:  f.geometry,
-              }));
+          const evtData = evt.data as { battleGeoJSON?: { features?: GeoJSON.Feature[] } } | undefined;
+          if (evt.type === 'result' && evtData?.battleGeoJSON?.features && evtData.battleGeoJSON.features.length > 0) {
+            const rawRings = (evtData.battleGeoJSON.features as GeoJSON.Feature[])
+              .filter((f) => !!f?.geometry)
+              .map((f) => {
+                const props = (f.properties ?? {}) as Record<string, unknown>;
+                return {
+                  cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
+                  nom:      String(props.nom ?? ''),
+                  lat:      Number(props.lat ?? 0),
+                  lng:      Number(props.lng ?? 0),
+                  palier:   Number(props.palier ?? 0),
+                  geojson:  f.geometry as object,
+                };
+              });
             mapLayers.clearBattlePartialRings();
             mapLayers.addBattlePartialRings(rawRings);
           }
@@ -1468,21 +1767,22 @@ export default function MapPage() {
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         if (!line.trim()) continue;
-        let evt: any;
-        try { evt = JSON.parse(line); } catch { continue; }
+        let evt: Record<string, unknown>;
+        try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
         if (evt.type === 'error') {
           setError(`Bataille — ${evt.message}`);
-          throw new Error(evt.message);
+          throw new Error(String(evt.message ?? 'Erreur inconnue'));
         }
         if (evt.type === 'progress') {
-          onProgress?.(evt.message, PCT[evt.step] ?? 50);
+          onProgress?.(String(evt.message ?? ''), PCT[String(evt.step ?? '')] ?? 50);
         }
         if (evt.type === 'result') {
-          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', evt.battleGeoJSON?.features?.length);
+          const battleGeo = evt.battleGeoJSON as { features?: GeoJSON.Feature[] } | undefined;
+          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', battleGeo?.features?.length);
           onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
-          if (evt.battleGeoJSON?.features?.length > 0) {
-            mapLayers.applyIsochroneBattle(evt.battleGeoJSON, evt.battleBorders ?? null, category, poisForMap);
-            setBattleFeatures(evt.battleGeoJSON.features);
+          if (battleGeo?.features && battleGeo.features.length > 0) {
+            mapLayers.applyIsochroneBattle(battleGeo as { type: string; features: GeoJSON.Feature[] }, (evt.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null, category, poisForMap);
+            setBattleFeatures(battleGeo.features);
           }
         }
       }
@@ -1509,7 +1809,12 @@ export default function MapPage() {
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let data: any;
+      type BattleV2Result = {
+        error?: string;
+        battleGeoJSON?: { type: string; features: GeoJSON.Feature[] };
+        poisForMap?: POI[];
+      };
+      let data: BattleV2Result | undefined;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1518,10 +1823,10 @@ export default function MapPage() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.trim()) continue;
-          let evt: any;
-          try { evt = JSON.parse(line); } catch { continue; }
-          if (evt.type === 'error') throw new Error(evt.message ?? 'Erreur inconnue');
-          if (evt.type === 'result') { data = evt.data; continue; }
+          let evt: Record<string, unknown>;
+          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
+          if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue'));
+          if (evt.type === 'result') { data = evt.data as BattleV2Result; continue; }
           if (evt.type === 'warning') onProgress?.(`> ! ${evt.message}`);
           else if (evt.type === 'pois_loaded')  onProgress?.(`> ${evt.total} POIs chargés`);
           else if (evt.type === 'rings_loaded') onProgress?.(`> ${evt.count} anneaux en cache (${evt.missing} manquants)`);
@@ -1533,7 +1838,7 @@ export default function MapPage() {
       if (data.error) throw new Error(data.error);
 
       // Afficher le résultat sur la carte
-      if (data.battleGeoJSON?.features?.length > 0) {
+      if (data.battleGeoJSON?.features && data.battleGeoJSON.features.length > 0) {
         mapLayers.applyIsochroneBattle(data.battleGeoJSON, null, params.category, data.poisForMap);
         setBattleFeatures(data.battleGeoJSON.features);
       }
@@ -1668,6 +1973,7 @@ export default function MapPage() {
             activeOverlay === 'ai' ? 'geo.prompt' :
             activeOverlay === 'perimeter' ? 'Périmètre' :
             activeOverlay === 'terrain' ? 'Données terrain' :
+            activeOverlay === 'audience' ? 'Audience' :
             activeOverlay === 'analyses' ? 'Analyses' :
             activeOverlay === 'campaigns' ? 'Campagnes média' :
             activeOverlay === 'pilotage' ? 'Pilotage ML' :
@@ -1678,6 +1984,7 @@ export default function MapPage() {
             activeOverlay === 'ai' ? 'var(--brand-teal)' :
             activeOverlay === 'perimeter' ? 'var(--cat-context)' :
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
+            activeOverlay === 'audience' ? 'var(--cat-socio)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
             activeOverlay === 'campaigns' ? 'var(--cat-media)' :
             activeOverlay === 'pilotage' ? 'var(--brand-teal)' :
@@ -1687,9 +1994,10 @@ export default function MapPage() {
           onClose={() => setActiveOverlay(null)}
         >
           {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
+          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
             <FilterPanel
               visibleCategory={activeOverlay}
+              onOpenPilotage={() => setActiveOverlay('pilotage')}
               chatSlot={null}
               sendMessage={chat.sendMessage}
               onDirectOOH={handleDirectOOH}
@@ -1757,7 +2065,46 @@ export default function MapPage() {
               onLoadTransport={handleLoadTransport}
               onLoadTMJA={handleLoadTMJA}
               tmjaVisible={!!tmjaGeoJSON}
+              tmjaHideLowTraffic={tmjaHideLowTraffic}
+              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
+              onOpenMeteo={() => setMeteoPanelOpen(true)}
+              onClearMeteo={handleMeteoClear}
+              meteoVisible={meteoVisible}
+              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
               onClearTMJA={() => setTmjaGeoJSON(null)}
+              civicVariableCode={civicVariableCode}
+              onCivicVariableChange={setCivicVariableCode}
+              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
+              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+              civicHealthLayer={civicHealthLayer}
+              onCivicHealthLayerChange={layer => {
+                // Changer de couche remet la métrique sur l'indice global
+                // (les métriques pollen/air ne se recouvrent pas)
+                setCivicProgress(null);
+                setCivicMetric('global');
+                setCivicHealthLayer(layer);
+              }}
+              civicProgress={civicProgress}
+              civicLoading={civicLoading}
+              civicScale={civicScale}
+              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
+              civicMetric={civicMetric}
+              onCivicMetricChange={setCivicMetric}
+              civicMinLevel={civicMinLevel}
+              onCivicMinLevelChange={setCivicMinLevel}
+              civicCpStatus={civicCpStatus}
+              civicCpDate={civicCpDate}
+              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
+              onPondererCivicVariable={(code) => {
+                // Ouvre Pilotage ML avec une nouvelle stratégie pré-réglée sur cette variable.
+                // Pour l'instant on prend la 1ère campagne DSP éligible (TTD) comme campagne par défaut.
+                setActiveOverlay('pilotage');
+                setPilotageInitialAction({
+                  type: 'new',
+                  campaignId: '3e58e130-474d-4052-99b4-665c0a3efa85', // Renault Captur (Demo Pitch) — TTD éligible
+                });
+                void code;
+              }}
               radioVisible={radioVisible}
               onToggleRadio={() => setRadioVisible(v => !v)}
               radioHeatmapMode={radioHeatmapMode}
@@ -1876,10 +2223,13 @@ export default function MapPage() {
             />
           )}
           {activeOverlay === 'pilotage' && (
-            <PilotageOverlay />
+            <PilotageOverlay
+              initialAction={pilotageInitialAction}
+              onActionConsumed={() => setPilotageInitialAction(null)}
+            />
           )}
           {activeOverlay === 'zones' && (
-            <ZonesOverlay mapRef={mapRef} />
+            <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
           )}
           {activeOverlay === 'settings' && (
             <SettingsOverlay
@@ -1975,6 +2325,48 @@ export default function MapPage() {
           )}
         </ResultsPanel>
       )}
+      <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
+      {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
+      {planZones.length > 0 && planPanelOpen && (
+        <ZoneMediaPlanPanel
+          zones={planZones}
+          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
+          onClose={() => setPlanPanelOpen(false)}
+        />
+      )}
+      {planZones.length > 0 && !planPanelOpen && (
+        <button
+          onClick={() => setPlanPanelOpen(true)}
+          title="Rouvrir le plan média des zones affichées"
+          style={{
+            position: 'fixed',
+            top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
+            right: planPanelOpen && planZones.length ? 610 : 10,
+            zIndex: 50,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
+            borderRadius: 6, padding: '7px 10px', cursor: 'pointer',
+            color: 'var(--brand-teal)',
+            fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+            transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
+        >
+          Plan média ({planZones.length})
+        </button>
+      )}
+      <CivicHealthMapLayer
+        mapRef={mapRef}
+        dataset={civicHealthLayer}
+        scale={civicScale}
+        minLevel={civicMinLevel}
+        metric={civicMetric}
+        refreshKey={civicRefreshKey}
+        onProgress={(done, total) => setCivicProgress({ done, total })}
+        onCpDataStatus={(status, date) => { setCivicCpStatus(status); setCivicCpDate(date); }}
+        onLoadingChange={setCivicLoading}
+      />
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
@@ -2031,7 +2423,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: 10,
+              right: planPanelOpen && planZones.length ? 610 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2044,6 +2436,54 @@ export default function MapPage() {
           >
             {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
+
+          {/* Tout effacer — vide toutes les couches et zones affichées */}
+          <button
+            onClick={handleClearAllLayers}
+            title="Tout effacer (couches et zones affichées)"
+            style={{
+              position: 'fixed',
+              top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
+              right: planPanelOpen && planZones.length ? 610 : 10,
+              zIndex: 50,
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
+              borderRadius: 6, padding: 8,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-secondary)',
+              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Eraser size={16} strokeWidth={1.5} />
+          </button>
+
+          {/* Script custom bidding DV360 — visible quand une zone custom est affichée
+              sur la carte (chargée via « Utiliser dans la carte », battleCacheKey cg__<id>) */}
+          {battleCacheKey?.startsWith('cg__') && (
+            <button
+              onClick={() => { void downloadZoneExport(battleCacheKey.slice(4), 'bidding_script').catch(err => console.error('[map] export bidding', err)); }}
+              title={`Générer le fichier custom bidding DV360 pour « ${battlePois[0]?.nom ?? 'zone custom'} »`}
+              style={{
+                position: 'fixed',
+                top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
+                right: planPanelOpen && planZones.length ? 610 : 10,
+                zIndex: 50,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
+                borderRadius: 6, padding: '7px 10px',
+                cursor: 'pointer',
+                color: 'var(--brand-teal)',
+                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+                transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
+            >
+              <FileDown size={14} strokeWidth={1.5} />
+              Script bidding DV360
+            </button>
+          )}
 
           {/* Toggle Vue comparée / fusionnée déplacé dans l'overlay Campagnes média (FilterPanel) */}
 
@@ -2324,6 +2764,36 @@ export default function MapPage() {
       </div>{/* end right panel */}
 
       {/* Map popup styles moved to globals.css */}
+
+      {/* Panel modal météo (configuration variable + période) */}
+      {meteoPanelOpen && (
+        <div
+          onClick={() => setMeteoPanelOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <MeteoGeoPanel
+              scaleSelectable
+              onApply={async (params) => {
+                // Panneau maintenu ouvert pendant le fetch (spinner) et en cas
+                // d'erreur (le message s'affiche dedans) — fermé sur succès.
+                const ok = await handleMeteoApply(params);
+                if (ok) setMeteoPanelOpen(false);
+              }}
+              onClose={() => setMeteoPanelOpen(false)}
+              loading={meteo.loading}
+              progress={meteo.progress}
+              error={meteo.error}
+              stats={meteo.meta?.stats ?? null}
+            />
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

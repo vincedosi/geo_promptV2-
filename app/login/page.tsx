@@ -92,8 +92,8 @@ export default function LoginPage() {
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
             <img
-              src="/geomatik-logo.svg"
-              alt="GEOMATIK"
+              src="/magelian-icon.svg"
+              alt="MAGELIAN"
               width={240}
               style={{ display: 'block' }}
             />
@@ -311,7 +311,7 @@ export default function LoginPage() {
           padding: '40px 24px',
         }}
       >
-        {/* Hexagonal grid — GEOMATIK signature */}
+        {/* Hexagonal grid — MAGELIAN signature */}
         <div style={{ marginBottom: 32, position: 'relative' }}>
           <svg width="260" height="260" viewBox="0 0 260 260" fill="none" style={{ opacity: 0.9 }}>
             {/* Hexagonal grid pattern */}

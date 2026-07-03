@@ -189,7 +189,7 @@ export async function fetchIsochrones(
       console.warn('[isochrone] clip_geojson_to_france error (fallback brut):', clipErr.message);
     } else if (clipped) {
       geojson = clipped as typeof rawGeojson;
-      const nb = (geojson as any).features?.length ?? 0;
+      const nb = (geojson as { features?: unknown[] }).features?.length ?? 0;
       console.log(`[isochrone] Clip France OK → ${nb} polygones retenus`);
     }
   }

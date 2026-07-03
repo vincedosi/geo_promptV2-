@@ -120,7 +120,7 @@ export async function processRows(
   rawRows: Record<string, string | null>[],
   mapping: FieldMapping,
   geoConfig: GeoConfig,
-  dataType: 'panneaux' | 'poi' | 'carreaux',
+  dataType: 'poi' | 'carreaux',
   options: {
     category?: string;
     regie?: string;
@@ -204,40 +204,34 @@ export async function processRows(
       region: mapped.region || null,
     };
 
-    if (dataType === 'panneaux') {
-      processedRow.reference_panneau = mapped.reference_panneau || processedRow.id;
-      processedRow.regie = options.regie || null;
-      processedRow.type_panneau = mapped.type_panneau || null;
-    } else {
-      processedRow.categorie = options.category || 'autre';
-      processedRow.sous_categorie = null;
-      processedRow.source = 'import_universel';
+    processedRow.categorie = options.category || 'autre';
+    processedRow.sous_categorie = null;
+    processedRow.source = 'import_universel';
 
-      // Collect ALL raw columns into metadata (unmapped + filter fields)
-      const mappedSourceCols = new Set(
-        Object.values(mapping).filter(Boolean) as string[]
-      );
-      // Also exclude geo columns
-      if (geoConfig.colLat) mappedSourceCols.add(geoConfig.colLat);
-      if (geoConfig.colLng) mappedSourceCols.add(geoConfig.colLng);
-      if (geoConfig.colX) mappedSourceCols.add(geoConfig.colX);
-      if (geoConfig.colY) mappedSourceCols.add(geoConfig.colY);
-      if (geoConfig.colAdresse) mappedSourceCols.add(geoConfig.colAdresse);
-      if (geoConfig.colCodePostal) mappedSourceCols.add(geoConfig.colCodePostal);
-      if (geoConfig.colVille) mappedSourceCols.add(geoConfig.colVille);
+    // Collect ALL raw columns into metadata (unmapped + filter fields)
+    const mappedSourceCols = new Set(
+      Object.values(mapping).filter(Boolean) as string[]
+    );
+    // Also exclude geo columns
+    if (geoConfig.colLat) mappedSourceCols.add(geoConfig.colLat);
+    if (geoConfig.colLng) mappedSourceCols.add(geoConfig.colLng);
+    if (geoConfig.colX) mappedSourceCols.add(geoConfig.colX);
+    if (geoConfig.colY) mappedSourceCols.add(geoConfig.colY);
+    if (geoConfig.colAdresse) mappedSourceCols.add(geoConfig.colAdresse);
+    if (geoConfig.colCodePostal) mappedSourceCols.add(geoConfig.colCodePostal);
+    if (geoConfig.colVille) mappedSourceCols.add(geoConfig.colVille);
 
-      const meta: Record<string, string | null> = {};
-      for (const [col, val] of Object.entries(raw)) {
-        if (!mappedSourceCols.has(col)) {
-          // If importedColumns is specified, only include selected columns
-          // If not specified (legacy / dry-run), include all unmapped columns
-          if (!options.importedColumns || options.importedColumns.includes(col)) {
-            meta[col] = val;
-          }
+    const meta: Record<string, string | null> = {};
+    for (const [col, val] of Object.entries(raw)) {
+      if (!mappedSourceCols.has(col)) {
+        // If importedColumns is specified, only include selected columns
+        // If not specified (legacy / dry-run), include all unmapped columns
+        if (!options.importedColumns || options.importedColumns.includes(col)) {
+          meta[col] = val;
         }
       }
-      processedRow.metadata = JSON.stringify(meta);
     }
+    processedRow.metadata = JSON.stringify(meta);
 
     validRows.push(processedRow);
 

@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Types pour l'affichage dynamique des KPIs DSP.
+ * MAGELIAN — Types pour l'affichage dynamique des KPIs DSP.
  *
  * Miroir de `public.dsp_metrics_registry` (cf. chantier A1) — modèle
  * camelCase côté code, snake_case côté DB.

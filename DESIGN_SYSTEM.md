@@ -1,4 +1,4 @@
-# GEOMATIK — Design System Reference
+# MAGELIAN — Design System Reference
 
 > Ce fichier est la source de vérité pour TOUT travail frontend.
 > Claude Code DOIT lire et appliquer ces règles avant toute modification UI.
@@ -7,11 +7,10 @@
 
 ## 1. Identité de marque
 
-- **Nom** : GEOMATIK
+- **Nom** : MAGELIAN
 - **Tagline** : Geospatial intelligence
-- **Logotype** : "GEOM" en #f0f0f0 + "ATIK" en #4ecdc4, Inter 700
-- **Icône** : Hexagone grid teal (public/geomatik-icon.svg)
-- **Logo complet** : Icône + texte + tagline (public/geomatik-logo.svg)
+- **Logotype** : Wordmark SVG `MAGELIAN` (public/magelian-icon.svg) — hauteur 18-24px selon contexte
+- **Logo dans le SaaS** : `<img src="/magelian-icon.svg" alt="MAGELIAN" />` partout (sidebar, splash, topbar, login)
 - **geo.prompt** : Nom de la fonctionnalité copilote IA à l'intérieur de la plateforme
 
 ---
@@ -57,7 +56,7 @@ Style inspiré de Linear, Vercel, Raycast. Monochrome par défaut, couleur avec 
 ### Accent de marque
 | Token | Hex | Usage |
 |-------|-----|-------|
-| --brand-teal | #4ecdc4 | Accent GEOMATIK : tabs actifs, boutons send, dots de section, liens, focus |
+| --brand-teal | #4ecdc4 | Accent MAGELIAN : tabs actifs, boutons send, dots de section, liens, focus |
 | --brand-teal-hover | #3dbdb5 | Hover du teal |
 | --brand-teal-30 | rgba(78,205,196,0.3) | Borders hover subtiles, badges |
 | --brand-teal-50 | rgba(78,205,196,0.5) | Focus ring des inputs |
@@ -206,7 +205,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Sidebar
 - Largeur : 240px, position fixed left
 - Background : #0a0a0a, border-right 0.5px solid #1a1a1a
-- Logo GEOMATIK en haut : icône 28px + "GEOM"#f0f0f0 "ATIK"#4ecdc4
+- Logo MAGELIAN en haut : `<img src="/magelian-icon.svg" />` (hauteur 18px)
 - Items : Inter 400, 13px, #a0a0a0
 - Item actif : background #151515, color #f0f0f0, border-left 2px solid #f0f0f0
 - Sections labels : Inter 400, 11px, #666666, lowercase
@@ -215,7 +214,7 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 ### Page login
 - Pas de sidebar
 - Split screen : formulaire à gauche, vitrine à droite
-- Logo GEOMATIK complet en haut du formulaire
+- Logo MAGELIAN complet en haut du formulaire
 
 ### Page copilote/map
 - Pas de sidebar (plein écran)

@@ -196,7 +196,7 @@ interface OverlayPanelProps {
 
 ## 9. Style — exceptions au design system
 
-Le design system GEOMATIK interdit `box-shadow`, `backdrop-filter` et `gradient`. L'OverlayPanel **fait exception** sur deux points :
+Le design system MAGELIAN interdit `box-shadow`, `backdrop-filter` et `gradient`. L'OverlayPanel **fait exception** sur deux points :
 
 - `backdrop-filter: blur(8px)` — l'overlay flotte au-dessus de la carte, le blur léger laisse percevoir le contexte cartographique sous-jacent.
 - `box-shadow: 0 4px 24px rgba(0,0,0,0.3)` — distingue visuellement l'overlay flottant du fond.
@@ -220,7 +220,7 @@ Le design system GEOMATIK interdit `box-shadow`, `backdrop-filter` et `gradient`
 | 5 | Layout page.tsx : `iconBarHidden` + Maximize2 z=50 + `activeStudy` + bouton retour Étude + câblage complet props vers overlays | `app/map/page.tsx` | `feat(layout): migration page map — carte plein écran + barre + overlay` |
 | 6 | Suppression FilterPanel + tabs Geo.Prompt/Expert + état `mapFullscreen` + search/collapse-all + HOME link FilterPanel | `app/map/_components/FilterPanel.tsx` (suppression), `app/map/page.tsx` (cleanup) | `refactor(layout): supprimer ancien panel Expert et tabs` |
 | 7 | Responsive : bottom bar mobile + sheet overlay + breakpoints | `components/map/IconBar.tsx`, `OverlayPanel.tsx` | `feat(layout): responsive — bottom bar mobile + sheet overlay` |
-| 8 | Cleanup post-livraison : `cleanup-geomatik` parties 2 (lint+types) et 3 (sécurité) sur fichiers modifiés | — | `chore(cleanup): lint + types + sécurité post-refonte overlay` |
+| 8 | Cleanup post-livraison : `cleanup-magelian` parties 2 (lint+types) et 3 (sécurité) sur fichiers modifiés | — | `chore(cleanup): lint + types + sécurité post-refonte overlay` |
 
 ## 12. Hors scope
 

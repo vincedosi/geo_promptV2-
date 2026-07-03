@@ -25,8 +25,8 @@ export async function GET() {
       sigmaMap.set(row.categorie, row.sigma_km);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const enriched = (catResult.data ?? []).map((cat: any) => ({
+    interface CategoryRpcRow { key: string; [k: string]: unknown }
+    const enriched = ((catResult.data ?? []) as CategoryRpcRow[]).map((cat) => ({
       ...cat,
       sigma_km: sigmaMap.get(cat.key) ?? 5.0,
     }));

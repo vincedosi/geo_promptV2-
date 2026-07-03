@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Détection des KPIs réellement disponibles pour une campagne.
+ * MAGELIAN — Détection des KPIs réellement disponibles pour une campagne.
  *
  * Utilise la RPC `get_campaign_available_metrics(uuid)` (chantier A3) :
  * une seule requête DB qui parcourt tout le registry et fait un EXISTS

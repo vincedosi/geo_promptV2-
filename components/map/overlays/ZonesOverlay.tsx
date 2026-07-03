@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * GEOMATIK — Overlay "Zones sauvegardées" dans la barre latérale /map.
+ * MAGELIAN — Overlay "Zones sauvegardées" dans la barre latérale /map.
  *
  * Phase 2 : liste + recherche + filtre par source_type, header avec stats.
  * Phase 3 : clic "Afficher" → fetch geometry + addLayer MapLibre teal + fitBounds.
@@ -11,15 +11,18 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { Search, X, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Search, X, Eye, EyeOff, Trash2, FileDown, Music2 } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { adminFetch } from '@/lib/admin-fetch';
 import { getSourceTypeLabel } from '@/lib/custom-geo/source-type-labels';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { ZoneDeleteDialog } from '@/app/map/custom-geo/_components/ZoneDeleteDialog';
 import type { CustomGeoZoneSummary } from '@/types/custom-geo';
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
+  /** Notifie le parent des zones actuellement affichées sur la carte (plan média). */
+  onLoadedZonesChange?: (zones: Array<{ id: string; name: string }>) => void;
 }
 
 interface ZonesStats {
@@ -70,7 +73,7 @@ const lineIdOf   = (zoneId: string) => `custom-zone-line-${zoneId}`;
 
 // ─── Composant principal ──────────────────────────────────────────────────
 
-export function ZonesOverlay({ mapRef }: Props) {
+export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
   const { session, isLoading: sessionLoading } = useSession();
   const orgId = session?.user?.organizationId ?? '';
 
@@ -88,6 +91,38 @@ export function ZonesOverlay({ mapRef }: Props) {
   // État UI : zone en cours de fetch / suppression
   const [pendingZoneId, setPendingZoneId] = useState<string | null>(null);
   const [zoneToDelete, setZoneToDelete] = useState<CustomGeoZoneSummary | null>(null);
+
+  // Remonte au parent la liste des zones affichées (déclenche le plan média)
+  useEffect(() => {
+    onLoadedZonesChange?.([...loadedZones.values()].map(z => ({ id: z.id, name: z.name })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedZones]);
+
+  // ── Réconciliation au montage : l'overlay se démonte à chaque fermeture,
+  // mais les couches custom-zone-* restent sur la carte. On reconstruit
+  // loadedZones depuis le style MapLibre pour que Masquer/Afficher et le
+  // plan média restent synchrones après réouverture de l'overlay.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      const style = map.getStyle();
+      const recovered = new Map<string, LoadedZone>();
+      for (const [sourceId, source] of Object.entries(style.sources ?? {})) {
+        if (!sourceId.startsWith('custom-zone-') || (source as { type?: string }).type !== 'geojson') continue;
+        const zoneId = sourceId.slice('custom-zone-'.length);
+        if (!map.getLayer(fillIdOf(zoneId))) continue; // source orpheline (tout effacer)
+        const data = (source as { data?: GeoJSON.Feature }).data;
+        const name = (data?.properties as { name?: string } | undefined)?.name ?? zoneId;
+        const paint = map.getPaintProperty(fillIdOf(zoneId), 'fill-color');
+        const color = typeof paint === 'string' ? paint : ZONE_PALETTE[recovered.size % ZONE_PALETTE.length];
+        const bbox = data?.geometry ? bboxFromGeometry(data.geometry) : null;
+        recovered.set(zoneId, { id: zoneId, name, color, bbox });
+      }
+      if (recovered.size) setLoadedZones(recovered);
+    } catch { /* style pas encore prêt — l'état repart à vide comme avant */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Fetch list + stats ────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -436,6 +471,27 @@ function ZoneCard({
             <Eye size={11} /> {pending ? 'Chargement…' : 'Afficher'}
           </button>
         )}
+        <button
+          onClick={() => { void downloadZoneExport(zone.id, 'bidding_script').catch(err => console.error('[ZonesOverlay] export', err)); }}
+          title="Générer le script custom bidding DV360 (fichier à coller dans DV360)"
+          style={{
+            ...ghostBtn('var(--brand-teal)'),
+            padding: '4px 8px', flex: 'none',
+            border: '0.5px solid var(--brand-teal)',
+          }}
+        >
+          <FileDown size={11} />
+        </button>
+        <button
+          onClick={() => { void downloadZoneExport(zone.id, 'tiktok_geo').catch(err => console.error('[ZonesOverlay] export', err)); }}
+          title="Exporter le ciblage géo TikTok Ads (régions + départements de la zone)"
+          style={{
+            ...ghostBtn('var(--text-secondary)'),
+            padding: '4px 8px', flex: 'none',
+          }}
+        >
+          <Music2 size={11} />
+        </button>
         <button
           onClick={onDelete}
           title="Supprimer la zone"

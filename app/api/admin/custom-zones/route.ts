@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — API /api/admin/custom-zones
+ * MAGELIAN — API /api/admin/custom-zones
  * GET : liste les geography_sets (toutes orgs, super_admin only)
  *
  * Query params :

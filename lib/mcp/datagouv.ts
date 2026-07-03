@@ -38,7 +38,7 @@ interface McpJsonRpcResponse {
   };
 }
 
-interface JsonRpcResult { data: McpJsonRpcResponse; sessionId: string | null }
+interface JsonRpcResult { data: McpJsonRpcResponse | null; sessionId: string | null }
 
 /** Subset of JSON Schema used by data.gouv MCP tools */
 interface JsonSchema {
@@ -71,7 +71,7 @@ async function mcpPost(
   const newSession = res.headers.get('Mcp-Session-Id') ?? sessionId;
   const ct         = res.headers.get('Content-Type') ?? '';
 
-  let data: any;
+  let data: McpJsonRpcResponse | null = null;
   if (ct.includes('text/event-stream')) {
     // Parse SSE: find first line that is valid JSON (skip [DONE], empty, etc.)
     const text  = await res.text();
@@ -163,7 +163,12 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
       params:  {},
     });
 
-    const mcpTools: any[] = listData?.result?.tools ?? [];
+    interface McpToolDef {
+      name: string;
+      description?: string;
+      inputSchema?: JsonSchema;
+    }
+    const mcpTools = (listData?.result?.tools ?? []) as McpToolDef[];
     if (!mcpTools.length) throw new Error('tools/list returned empty');
 
     // 4. Convert to AI-SDK tool format
@@ -175,8 +180,8 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
       tools[t.name] = {
         description: t.description ?? t.name,
         // sanitizeSchema returns unknown — cast to JSONSchema7 for AI SDK
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        inputSchema: jsonSchema(inputSchema as any),
+        // @ts-expect-error reason: jsonSchema() expects a precise JSONSchema7 type from the ai SDK; sanitizeSchema returns unknown by design.
+        inputSchema: jsonSchema(inputSchema),
         execute: async (args: Record<string, unknown>) => {
           try {
             const { data } = await mcpPost(capturedSession, {
@@ -188,10 +193,11 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
 
             if (data?.error) return { error: data.error.message ?? 'MCP error' };
 
-            const content: any[] = data?.result?.content ?? [];
+            interface McpContentPart { type: string; text?: string }
+            const content = (data?.result?.content ?? []) as McpContentPart[];
             const text = content
-              .filter((c: any) => c.type === 'text')
-              .map((c: any) => c.text)
+              .filter((c) => c.type === 'text')
+              .map((c) => c.text)
               .join('\n');
 
             return text || JSON.stringify(data?.result ?? {});

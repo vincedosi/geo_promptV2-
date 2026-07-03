@@ -87,16 +87,31 @@ export async function POST(req: NextRequest) {
       s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
     // ── helper: pagination avec retry schema cache ──────────────────────────
+    interface PoiPageRow {
+      id: string;
+      nom?: string | null;
+      lat: number | string;
+      lng: number | string;
+      categorie?: string | null;
+      sous_categorie?: string | null;
+      adresse?: string | null;
+      ville?: string | null;
+      region?: string | null;
+      departement?: string | null;
+    }
+    // buildQuery returns a Supabase chained builder. Typed as `any` because
+    // PostgrestFilterBuilder's deep generic chain triggers TS2589 ("Type
+    // instantiation excessively deep") when narrowed.
     async function fetchAllPages(
       buildQuery: (from: number, to: number) => any,
       max = 10000,
-      filter?: (p: any) => boolean,
+      filter?: (p: PoiPageRow) => boolean,
     ) {
       let from = 0;
       while (from < max) {
         const to = from + PAGE_SIZE - 1;
-        let data: any[] | null = null;
-        let error: any = null;
+        let data: PoiPageRow[] | null = null;
+        let error: { message: string } | null = null;
         // Retry jusqu'à 3× si erreur schema cache (cold start Supabase PostgREST)
         for (let attempt = 0; attempt < 3; attempt++) {
           const result = await Promise.race([
@@ -119,7 +134,7 @@ export async function POST(req: NextRequest) {
           if (filter && !filter(p)) continue;
           const lat = Number(p.lat), lng = Number(p.lng);
           if (isNaN(lat) || isNaN(lng)) continue;
-          poisMap.set(p.id, { id: p.id, nom: p.nom ?? 'Inconnu', lat, lng, categorie: p.categorie ?? 'autre', sous_categorie: p.sous_categorie, adresse: p.adresse, ville: p.ville });
+          poisMap.set(p.id, { id: p.id, nom: p.nom ?? 'Inconnu', lat, lng, categorie: p.categorie ?? 'autre', sous_categorie: p.sous_categorie ?? undefined, adresse: p.adresse ?? undefined, ville: p.ville ?? undefined });
         }
         if (data.length < PAGE_SIZE) break;
         from += PAGE_SIZE;
@@ -139,7 +154,9 @@ export async function POST(req: NextRequest) {
       const natures = poi_natures?.[poiType] ?? [];
 
       // Helper : applique cat + filtres nature + filtre org (data_source_id)
-      const applyFilters = (q: any) => {
+      // Note: typed as `any` because Supabase's PostgrestFilterBuilder generic
+      // chain causes "Type instantiation excessively deep" errors when narrowed.
+      const applyFilters = (q: any): any => {
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);
         if (allowedSourceIds !== null) q = q.in('data_source_id', allowedSourceIds);

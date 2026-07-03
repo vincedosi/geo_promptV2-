@@ -8,7 +8,7 @@
 
 ## Résumé exécutif
 
-GEOMATIK possède un système de prompting **fragmenté mais fonctionnel** bâti sur Vercel AI SDK (Gemini 2.5 Flash + Mistral Small). Trois axes détectés :
+MAGELIAN possède un système de prompting **fragmenté mais fonctionnel** bâti sur Vercel AI SDK (Gemini 2.5 Flash + Mistral Small). Trois axes détectés :
 
 1. **Chat copilote principal** (/api/chat) — engine multi-agents avec 17 outils spécialisés. ~45% du prompting.
 2. **Smart-prompt orchestrateur** (/api/smart-prompt) — routeur Mistral vers agents spécialisés. État : **alpha**, peu de trafic.
@@ -285,7 +285,7 @@ Recommandé : **Kill (simplification)**
 
 ## Résumé final (200 mots)
 
-**Verdict global** : GEOMATIK système prompting fragmenté mais fonctionnel, reposant sur Vercel AI SDK + Gemini 2.5 Flash.
+**Verdict global** : MAGELIAN système prompting fragmenté mais fonctionnel, reposant sur Vercel AI SDK + Gemini 2.5 Flash.
 
 3 vecteurs coexistent :
 1. **Chat copilote** (Prod, 85%, 17 outils) → À réutiliser

@@ -1,5 +1,5 @@
 /**
- * Types partagés du système de prompting GEOMATIK.
+ * Types partagés du système de prompting MAGELIAN.
  * Extraits du chantier A4.5 (BiddingCopilot → lib/prompting/).
  */
 

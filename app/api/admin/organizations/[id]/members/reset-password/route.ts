@@ -26,5 +26,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  return NextResponse.json({ success: true, link: (data as any)?.properties?.action_link ?? null });
+  const linkData = data as { properties?: { action_link?: string } } | null;
+  return NextResponse.json({ success: true, link: linkData?.properties?.action_link ?? null });
 }

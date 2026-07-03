@@ -9,11 +9,10 @@ import {
   Database,
   FileUp,
   Layers,
-  LayoutGrid,
   Lock,
   MapPin,
   Monitor,
-  PlusCircle,
+  Plug,
   Radio,
   Share2,
   Target,
@@ -54,14 +53,18 @@ const navItems: NavSection[] = [
   {
     section: 'Administration',
     items: [
-      { href: '/integration-panneaux', label: 'Intégration', icon: LayoutGrid, badge: 'CSV' },
       { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: Upload, badge: 'Admin' },
-      { href: '/admin/filosofi-import', label: 'Filosofi Import', icon: PlusCircle, badge: 'Admin' },
       { href: '/admin/import', label: 'Import POI', icon: FileUp, badge: 'Admin' },
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
       { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
       { href: '/admin/campaigns', label: 'Campagnes DSP', icon: Target, badge: 'Admin' },
+    ],
+  },
+  {
+    section: 'API',
+    items: [
+      { href: '/admin/api', label: 'Connexions API', icon: Plug },
     ],
   },
   {
@@ -183,13 +186,11 @@ function SidebarContent({ pathname }: { pathname: string }) {
             />
             <circle cx="14" cy="14" r="2" fill="#4ecdc4" opacity="0.5" />
           </svg>
-          <span
-            className="text-[15px] font-bold leading-none"
-            style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
-          >
-            <span style={{ color: 'var(--text-primary)' }}>GEOM</span>
-            <span style={{ color: 'var(--brand-teal)' }}>ATIK</span>
-          </span>
+          <img
+            src="/magelian-icon.svg"
+            alt="MAGELIAN"
+            style={{ height: 18, width: 'auto', display: 'block' }}
+          />
         </div>
         <p
           className="mt-1.5 text-[11px]"

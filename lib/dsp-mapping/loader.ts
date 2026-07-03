@@ -1,5 +1,5 @@
 /**
- * GEOMATIK — Chargement des mappings DSP depuis Supabase + cache mémoire.
+ * MAGELIAN — Chargement des mappings DSP depuis Supabase + cache mémoire.
  *
  * Pattern Nano-friendly : 1 round-trip DB par DSP par requête HTTP. Cache
  * process-local TTL 5 minutes pour éviter d'éclater les IOPS Supabase Nano

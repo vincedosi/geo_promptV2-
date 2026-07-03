@@ -1,4 +1,7 @@
 -- ── Migration 069 : RPC update_iris_core_batch ────────────────────────────────
+-- ⚠️ PÉRIMÉ — remplacé par sql/081_update_iris_core_batch_v2.sql (définition
+-- live : + rev_d1/rev_d9/taux_pauvrete/indice_gini/nb_emplois/taux_emploi
+-- + indicateurs dérivés v2). Conservé pour l'historique. NE PAS RÉAPPLIQUER.
 -- UPDATE uniquement (jamais INSERT) — évite les violations NOT NULL sur les
 -- colonnes obligatoires (code_commune, nom_iris, etc.) lors des imports partiels.
 -- Utilisé pour enrichir les colonnes core d'IRIS existants depuis des CSV INSEE.

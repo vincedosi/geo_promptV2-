@@ -1,5 +1,25 @@
 'use client';
 
+/**
+ * @file app/admin/sources/page.tsx — back-office gestion des Data Sources
+ * @size ~2831 lignes (cf docs/known_tech_debt.md — refactor planifié,
+ *       non splitté en A4.6.2 par décision produit)
+ *
+ * @sections internes (ordre approximatif)
+ *   1. Imports + types Source / Filter   (≈ 1-200)
+ *   2. State management + fetch hooks    (≈ 201-600)
+ *   3. CRUD handlers (create/update/delete/export) (≈ 601-1100)
+ *   4. Tab "Liste sources"               (≈ 1101-1500)
+ *   5. Tab "Détail source" (carte + stats) (≈ 1501-2100)
+ *   6. Tab "Imports" (historique)        (≈ 2101-2400)
+ *   7. Render principal + tabs orchestrator (≈ 2401-2831)
+ *
+ * @maintainers Pour étendre ce fichier :
+ *   - Extraire chaque tab dans son propre composant `_components/<Tab>.tsx`
+ *   - Les handlers CRUD pourraient bouger dans `_lib/sources-actions.ts`
+ *   - Lire docs/known_tech_debt.md avant refactor structurel
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -539,10 +559,11 @@ export default function SourcesPage() {
       const res = await fetch('/api/correlation/categories');
       const data = await res.json();
       if (Array.isArray(data)) {
+        type CorrelationCategory = { key: string; sigma_km: number | null; label?: string | null };
         setSigmaConfig(
-          data
-            .filter((c: any) => c.sigma_km != null)
-            .map((c: any) => ({ categorie: c.key, sigma_km: c.sigma_km, description: c.label ?? null }))
+          (data as CorrelationCategory[])
+            .filter((c) => c.sigma_km != null)
+            .map((c) => ({ categorie: c.key, sigma_km: c.sigma_km as number, description: c.label ?? null }))
         );
       }
     } catch (e: unknown) { console.error('[sigma-config] fetch error:', e); }
@@ -988,13 +1009,13 @@ export default function SourcesPage() {
             <div style={{ background: warnDim, border: `0.5px solid ${warnBorder}`, borderRadius: 2, padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: fontInter, fontSize: 13, fontWeight: 700, color: warn, letterSpacing: 1, marginBottom: 6 }}>
-                  Data Lake OOH — global_ooh
+                  Data Lake OOH — panneaux_affichage
                 </div>
                 <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 2 }}>
                   <span style={{ color: C.textSec }}>Régies: </span><span style={{ color: C.text }}>{(ss.ooh.regies ?? []).slice(0, 5).join(', ')}{(ss.ooh.regies ?? []).length > 5 ? ` +${(ss.ooh.regies ?? []).length - 5}` : ''}</span><br />
                   <span style={{ color: C.textSec }}>Sources: </span><span style={{ color: C.text }}>{(ss.ooh.sources ?? []).join(', ')}</span><br />
                   <span style={{ color: C.textSec }}>Villes: </span>{ss.ooh.nb_villes} villes couvertes<br />
-                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>global_ooh</span> (statut = actif)
+                  <span style={{ color: C.textSec }}>Table: </span><span style={{ color: C.accent }}>panneaux_affichage</span> (actif = true)
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

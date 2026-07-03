@@ -45,13 +45,21 @@ export async function POST(request: NextRequest) {
 
       const rpcParams = { p_metric_x: metric_x, p_metric_y: metric_y, p_dep: null, p_deps: deps };
 
+      interface IrisIrisRpcRow {
+        code_iris: string;
+        nom_iris?: string | null;
+        metric_x: number | string;
+        metric_y: number | string;
+        centroid_lat?: number | null;
+        centroid_lng?: number | null;
+      }
+
       if (no_limit) {
         // JSON scalaire — contourne max-rows PostgREST
         const { data, error } = await supabase.rpc('get_iris_iris_residual_inputs', rpcParams);
         if (error) throw error;
         // Remapper metric_x → metric_value, metric_y → poi_count
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rows = (data as any[] ?? []).map((r: any) => ({
+        const rows = ((data as IrisIrisRpcRow[]) ?? []).map((r) => ({
           code_iris:    r.code_iris,
           nom_iris:     r.nom_iris ?? '',
           metric_value: Number(r.metric_x),
@@ -66,8 +74,7 @@ export async function POST(request: NextRequest) {
         ...rpcParams, p_limit: limit, p_no_limit: false,
       });
       if (error) throw error;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows = ((data as any[]) ?? []).map((r: any) => ({
+      const rows = ((data as IrisIrisRpcRow[]) ?? []).map((r) => ({
         code_iris:    r.code_iris,
         nom_iris:     r.nom_iris ?? '',
         metric_value: Number(r.metric_x),

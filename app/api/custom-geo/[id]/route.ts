@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// GET — detail (sans géométrie)
+// GET — detail (sans géométrie) + sous-zones natives + counts par sous-zone
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -18,7 +18,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('custom_geo_zones')
-    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, bbox, audience_stats, audience_computed_at')
+    .select('id, name, description, org_id, source_type, source_metadata, feature_count_iris, feature_count_cp, resolved_at, created_at, updated_at, created_by, audience_stats, audience_computed_at')
     .eq('id', id)
     .single();
 
@@ -26,7 +26,62 @@ export async function GET(
     return NextResponse.json({ error: 'Zone not found' }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  // bbox : PostGIS geometry → tableau [minLng, minLat, maxLng, maxLat] propre
+  // (le client en a besoin pour fitBounds MapLibre).
+  const { data: bboxRow } = await supabase.rpc('get_zone_bbox_array', { p_zone_id: id });
+  const bbox = (bboxRow ?? null) as [number, number, number, number] | null;
+
+  // Sous-zones natives + count des CPs/IRIS rattachés (1 query agrégée).
+  // Le wizard Custom Bidding utilise ces données pour proposer une pondération
+  // par sous-zone sans demander à l'utilisateur de saisir les CPs.
+  const { data: subzonesRaw, error: szErr } = await supabase
+    .from('custom_geo_zone_subzones')
+    .select('id, name, source_ref, ordering, default_multiplier')
+    .eq('zone_id', id)
+    .order('ordering', { ascending: true });
+
+  let subzones: Array<{
+    id: string;
+    name: string;
+    source_ref: string | null;
+    ordering: number;
+    default_multiplier: number;
+    cp_count: number;
+    iris_count: number;
+  }> = [];
+
+  if (!szErr && subzonesRaw && subzonesRaw.length > 0) {
+    // Counts par sous-zone via 1 query agrégée
+    const { data: counts, error: countErr } = await supabase
+      .from('custom_geo_zone_codes')
+      .select('subzone_id, code_type')
+      .eq('zone_id', id)
+      .not('subzone_id', 'is', null);
+
+    const cntMap = new Map<string, { cp: number; iris: number }>();
+    if (!countErr && counts) {
+      for (const row of counts as Array<{ subzone_id: string; code_type: string }>) {
+        const cur = cntMap.get(row.subzone_id) ?? { cp: 0, iris: 0 };
+        if (row.code_type === 'cp') cur.cp++;
+        else if (row.code_type === 'iris') cur.iris++;
+        cntMap.set(row.subzone_id, cur);
+      }
+    }
+    subzones = subzonesRaw.map(sz => {
+      const c = cntMap.get(sz.id) ?? { cp: 0, iris: 0 };
+      return {
+        id: sz.id,
+        name: sz.name,
+        source_ref: sz.source_ref,
+        ordering: sz.ordering,
+        default_multiplier: Number(sz.default_multiplier),
+        cp_count: c.cp,
+        iris_count: c.iris,
+      };
+    });
+  }
+
+  return NextResponse.json({ ...data, bbox, subzones });
 }
 
 // PATCH — update name/description only

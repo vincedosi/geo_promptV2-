@@ -83,7 +83,7 @@ export async function getUserFromRequest(authHeader: string | null): Promise<Use
     full_name: profile.full_name,
     role: profile.role,
     organization_id: profile.organization_id,
-    organization_name: (profile as any).organizations?.name,
+    organization_name: (profile as { organizations?: { name?: string } }).organizations?.name,
   };
 }
 

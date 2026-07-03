@@ -1,6 +1,6 @@
-# ARCHITECTURE — GEOMATIK
+# ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-04-17
+> Derniere mise a jour : 2026-07-02 (consolidation panneaux : global_ooh fusionnee dans panneaux_affichage, page /integration-panneaux supprimee)
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -17,14 +17,14 @@
 | Cartographie | MapLibre GL JS | ^5.18 |
 | Tuiles vectorielles | PMTiles (IRIS via GitHub Releases) | 4.4.0 |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
-| Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + Geomatik dark style | — |
+| Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
 | Rate limiting | Upstash Redis | ^2.0 |
 | PDF export | @react-pdf/renderer | ^4.3 |
 | Graphiques | Recharts | ^3.8 |
-| Styles | Tailwind CSS + Design System GEOMATIK (dark minimal) | ^3.4 |
+| Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) | ^3.4 |
 | Fonts | Inter (UI) + JetBrains Mono (donnees/code) | — |
 | Validation | Zod | ^3.22 |
 | Tests | Vitest | ^2.0 |
@@ -41,7 +41,6 @@ genesis_app/
 │   ├── admin/                  # Pages d'administration back-office
 │   │   ├── campaigns/          # Campagnes DSP — liste, import, detail
 │   │   ├── carreaux-import/    # Import des carreaux Filosofi (SHP/Parquet)
-│   │   ├── filosofi-import/    # Import direct INSEE Filosofi
 │   │   ├── health/             # Monitoring : etat DB, tables, fonctions RPC
 │   │   ├── import/             # Import universel de POI (CSV/XLSX/GeoJSON)
 │   │   ├── imports/            # Historique et gestion des imports
@@ -58,7 +57,6 @@ genesis_app/
 │   │   └── _lib/               # constants.ts (circleGeoJSON, getCatColor)
 │   ├── dashboard/              # Page d'accueil apres login
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
-│   ├── integration-panneaux/   # Integration panneaux CSV/XLSX
 │   ├── login/                  # Page de connexion Supabase Auth
 │   ├── map/                    # Page carte complete
 │   │   ├── _components/        # FilterPanel, IrisDetailPanel, ClusteringWizard,
@@ -70,7 +68,7 @@ genesis_app/
 │   └── layout.tsx              # Layout racine (AppSidebar, fonts)
 │
 ├── components/                 # Composants React partages
-│   ├── AppSidebar.tsx          # Sidebar navigation GEOMATIK
+│   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
 │   ├── ClusterDetails          # Detail cluster + analyse
 │   ├── ClusterRadar            # Graphique radar profil cluster
@@ -78,16 +76,13 @@ genesis_app/
 │   ├── ClusterResultsOverlay   # Overlay resultats clustering
 │   ├── CoverageResultsPanel    # Panel resultats couverture Filosofi
 │   ├── SessionBadge            # Badge session utilisateur
-│   └── ui/                     # Composants UI GEOMATIK
+│   └── ui/                     # Composants UI MAGELIAN
 │       ├── GeoBot.tsx          # Mascotte/assistant visuel
 │       ├── GeoSkeleton.tsx     # Skeleton loading
 │       ├── SplashScreen.tsx    # Ecran de chargement initial
 │       ├── PageTransition.tsx  # Transition entre pages
 │       ├── confirm-modal.tsx   # Modal de confirmation
-│       ├── geo-toast.tsx       # Notifications toast
-│       ├── help-tooltip.tsx    # Tooltips d'aide
-│       ├── search-filter.tsx   # Barre de recherche/filtre
-│       └── section-header.tsx  # En-tete de section (dot teal + bandeau)
+│       └── geo-toast.tsx       # Notifications toast
 │
 ├── lib/                        # Logique metier et services partages
 │   ├── auth.ts                 # createAdminClient(), getUserFromRequest()
@@ -110,7 +105,7 @@ genesis_app/
 │   ├── inngest/                # Jobs async (couverture, colonnes derivees)
 │   ├── iris-crawler/           # Crawler INSEE IRIS
 │   ├── isochrones/             # fetcher.ts — ORS batch 5 POIs/appel
-│   ├── map/                    # geomatik-style.ts
+│   ├── map/                    # magelian-style.ts
 │   ├── mcp/                    # datagouv.ts — MCP data.gouv.fr
 │   ├── meteo/                  # aggregation.ts, palettes.ts, types.ts
 │   ├── poi/                    # categories.ts
@@ -121,7 +116,6 @@ genesis_app/
 │   ├── poi.ts                  # POI, PoiRow
 │   ├── campaign.ts             # DspCampaign, DspCampaignData
 │   ├── spatial.ts              # ZoneData, IsochroneData, BattleData...
-│   ├── api.ts                  # ApiError, PaginatedResponse
 │   └── admin.ts                # Organization, DataSource...
 │
 ├── scripts/                    # Scripts CLI standalone (Python/TS)
@@ -198,7 +192,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/map/tmja` | GET | Trafic moyen journalier |
 | `/api/map/poi-natures` | GET | Natures de POI |
 | `/api/carreaux` | GET/POST | Carreaux Filosofi dans bbox |
-| `/api/carreaux/dynamic` | GET | Tuiles carreaux adaptees au zoom |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) |
 | `/api/iris-tiles/[z]/[x]/[y]` | GET | Tuiles MVT zones IRIS |
 | `/api/iris-tiles-proxy` | GET | Proxy CORS pour PMTiles IRIS (GitHub Releases) |
@@ -206,9 +199,14 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### IRIS
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/iris/geojson` | GET | IRIS GeoJSON par bbox + colonne |
 | `/api/iris/stats` | GET | Stats IRIS par colonne et niveau |
-| `/api/iris/values` | GET | Valeurs IRIS par code |
+| `/api/iris/detail` | GET | Detail IRIS complet (toutes colonnes socio-demo + nom_commune) |
+
+### Indicateurs civiques
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
+| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric`) — layer CivicHealthMapLayer, section Sante environnementale |
 
 ### Correlation IRIS
 | Route | Methode | Description |
@@ -217,21 +215,18 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/correlation/metrics` | GET | Metriques IRIS disponibles |
 | `/api/correlation/compute` | POST | Calcul correlation POI x IRIS |
 | `/api/correlation/analyse` | POST | Analyse textuelle de correlation |
-| `/api/correlation/residuals-geojson` | POST | GeoJSON residus pour carte |
 
-### Crawler INSEE IRIS
+### Import IRIS (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/iris-crawler/discover` | GET | Decouverte URLs sur page INSEE (whitelist SSRF) |
-| `/api/iris-crawler/download` | POST | Telechargement CSV streaming |
-| `/api/iris-crawler/preview` | POST | Apercu colonnes + stats |
-| `/api/iris-crawler/upload` | POST | Upload fichier vers table `iris` |
-| `/api/iris-crawler/status` | GET | Statut telechargements en cours |
 | `/api/iris-crawler/import-history` | GET | Historique imports IRIS |
-| `/api/iris-crawler/manual-upload` | POST | Upload manuel CSV |
-| `/api/iris-crawler/manual-import` | POST | Import manuel vers DB |
-| `/api/iris-crawler/delete` | DELETE | Suppression import IRIS |
-| `/api/iris-import/insee` | POST | Import INSEE direct |
+| `/api/iris-crawler/manual-upload` | POST | Upload manuel CSV (parse + auto-map) |
+| `/api/iris-crawler/manual-import` | POST | Import manuel vers table `iris` (NDJSON streaming) |
+| `/api/iris-import/insee` | POST | Import INSEE one-shot (download + parse + ecrit, NDJSON) |
+
+> Le pipeline crawler 3-temps (`discover`/`download`/`upload` + `preview`/`status`/`delete`)
+> a ete supprime en 2026-07 : staging disque local incompatible serverless,
+> supplante par les deux chemins ci-dessus. Voir `docs/AUDIT_IMPORTS.md`.
 
 ### Isochrones & Bataille
 | Route | Methode | Description |
@@ -300,14 +295,14 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/radio/import-anfr` | POST | Import ANFR (requireAdmin) |
 | `/api/radio/import-arcom-ods` | POST | Import Arcom ODS (requireAdmin) |
 | `/api/radio/crawl-arcom` | POST | Crawl + matching Arcom (requireAdmin) |
-| `/api/radio/match-manual` | POST | Matching manuel (requireAdmin) |
 | `/api/radio/imports-history` | GET | Historique imports |
 | `/api/radio/import-logs/[logId]` | GET | Logs import |
 
 ### Meteo
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming) |
+| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming, echantillonnage spatial ≤500 points/appel, bbox viewport optionnelle en mode cp) |
+| `/api/meteo-geo/zones` | GET | Polygones simplifies des zones admin (choroplethe meteo, cache CDN 1 sem.) |
 
 ### Administration campagnes (protegees par `requireAdmin()`)
 | Route | Methode | Description |
@@ -321,6 +316,25 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/campaigns/[id]/organizations` | GET/POST | Gestion orgs campagne |
 | `/api/admin/campaigns/[id]/organizations/[orgId]` | DELETE | Retrait org campagne |
 
+### DSP API (connexions) (protegees par `requireAdmin()`)
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/admin/dsp/connections` | GET | Liste connexions DSP par org |
+| `/api/admin/dsp/dv360/connect` | POST/DELETE | Enregistrement/suppression credentials DV360 (Service Account ou OAuth) |
+| `/api/admin/dsp/dv360/test` | POST | Test connexion DV360 (list_advertisers) |
+| `/api/admin/dsp/dv360/config` | GET | Diagnostic config serveur DV360 (presence env vars en booleens, jamais de secret + redirect URI en clair) |
+| `/api/admin/dsp/dv360/oauth/config` | POST | Enregistre le client OAuth (Client ID + Secret chiffre) par org — saisie formulaire, prime sur les env vars |
+| `/api/admin/dsp/dv360/oauth/start` | POST | Initiation flux OAuth DV360 (persiste partner_id, renvoie l'URL de consentement Google en JSON, `state` signe HMAC) |
+| `/api/admin/dsp/dv360/oauth/callback` | GET | Callback OAuth DV360 (verif `state` HMAC anti-CSRF, echange code → tokens) |
+| `/api/admin/dsp/dv360/targeting/push` | POST | Push ciblage geo d'une zone custom (CP → geo IDs Google) sur un line item DV360 (additif, max 2000 geo IDs, log dans dsp_api_logs) |
+| `/api/admin/dsp/dv360/zones/push` | POST | Cree une location list DV360 regionale nommee comme la zone custom (CP → geo IDs, lots de 500, max 10 000) — bouton « Creer la zone dans DV360 » du ZoneDetailPanel |
+| `/api/admin/dsp/tiktok/connect` | POST/DELETE | Enregistrement app TikTok (App ID + Secret chiffre) / deconnexion (?scope=full : purge) |
+| `/api/admin/dsp/tiktok/config` | GET | Diagnostic config serveur TikTok (env vars en booleens + redirect URI en clair) |
+| `/api/admin/dsp/tiktok/oauth/start` | POST | Initiation flux OAuth TikTok (renvoie l'URL portal/auth en JSON, state signe HMAC) |
+| `/api/admin/dsp/tiktok/oauth/callback` | GET | Callback OAuth TikTok (verif state HMAC, echange auth_code → access token longue duree chiffre) |
+| `/api/admin/dsp/tiktok/test` | POST | Test connexion TikTok (oauth2/advertiser/get) |
+| `/api/admin/dsp/logs` | GET | Logs appels DSP par org (pagines) |
+
 ### Administration generale (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -329,9 +343,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
 | `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
 | `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist) |
-| `/api/admin/import-filosofi/*` | POST | Import Filosofi CSV/Parquet |
 | `/api/admin/import-geo/*` | POST | Import Shapefile |
-| `/api/admin/import-laposte` | POST | Import referentiel La Poste |
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
 | `/api/admin/geocode/update` | POST | Mise a jour geocodage |
 | `/api/admin/health` | GET | Monitoring DB |
@@ -351,6 +363,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/poi-categories` | GET/POST | CRUD categories POI |
 | `/api/admin/poi-manage` | GET/POST/DELETE | Gestion POI |
 | `/api/admin/poi-samples` | GET | Echantillons POI |
+| `/api/admin/civic-ingest` | POST | Ingestion nationale pollen + qualite de l'air → `pollen_map_daily` + `atmo_map_daily` (WFS public Atmo, NDJSON streaming) — aussi cron Inngest `civic-daily-ingest` 05h30 |
 | `/api/admin/refresh-ville-stats` | POST | Refresh stats villes |
 | `/api/admin/sync-iris-system` | POST | Sync systeme IRIS |
 | `/api/admin/trigger-pmtiles` | POST | Declenchement generation PMTiles |
@@ -366,11 +379,18 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/user/organizations` | GET | Orgs de l'utilisateur courant |
 | `/api/user/switch-org` | POST | Changement d'org active |
 
-### Integration panneaux
+> La page `/integration-panneaux` et ses routes `/api/integration-panneaux/*`
+> ont ete supprimees en 2026-07 (pipeline CSV incomplet, perte de colonnes —
+> voir `docs/AUDIT_IMPORTS.md` C4). Les panneaux s'importent via
+> `/admin/ooh-import` (ArcGIS REST → `panneaux_affichage`).
+
+### Zones custom — plan média
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/integration-panneaux/parse` | POST | Parse fichier panneaux |
-| `/api/integration-panneaux/execute` | POST | Import panneaux SSE |
+| `/api/custom-geo/national-totals` | GET | Totaux population France par tranche d'age (RPC `get_national_population_totals` sur carreaux_5km, cache serveur 24h) — colonne « % France » du plan media (ZoneMediaPlanPanel : budget/CPM/cible sur les zones affichees) |
+| `/api/custom-geo/[id]/items-audience` | GET | Audience par item d'une zone (les isochrones d'une zone battle) — cache `items_audience_stats`, sinon RPC `compute_zone_items_audience` (sql/088, cibles age+menages+logement social sql/090) |
+| `/api/custom-geo/[id]/export?weights=` | GET | Variantes ponderees de `bidding_script` (paliers de score DV360 par item) et `tiktok_geo` (un ad group par item avec part de budget) — poids du plan media, RPC `get_zone_items_export` (sql/089) |
+| `/api/custom-geo/media-plan` | GET/POST/DELETE | Rattachement du plan media a une campagne DSP — persiste budget/CPM/cible/poids dans `dsp_campaigns.geo_strategy.media_plan` (sous-cle namespacee, scope org) |
 
 ### Export & Sauvegarde
 | Route | Methode | Description |
@@ -398,6 +418,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `dsp_campaign_data` | Lignes d'impressions DSP | UNIQUE(campaign_id, date, postal_code, city) |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |
+| `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method, client OAuth optionnel par org (`oauth_client_id` + `oauth_client_secret_encrypted`, fallback env) |
+| `dsp_api_logs` | Logs appels/connexion/jobs DSP | RLS par org, action + status + latency + error |
 
 ### Geographie & INSEE
 | Table | Description | Notes |
@@ -417,8 +439,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom` |
-| `panneaux_affichage` | Panneaux affichage (~938 lignes) | |
-| `global_ooh` | Panneaux OOH/DOOH toutes regies | `source_ref` = OBJECTID |
+| `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote + scoring) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
@@ -451,6 +472,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
+| `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) + concentrations grains/m³ par espece + alerte | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084 + 086), RLS read auth / write service |
+| `atmo_map_daily` | Indice ATMO qualite de l'air par code postal (max des communes du CP) | ~5 000 lignes/jour, purge J-2, ingestion bulk WFS (sql/085), RLS read auth / write service |
 
 ---
 
@@ -483,20 +507,22 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT) | `api/tiles/` |
 | `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | `api/iris-tiles/` |
-| `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-filosofi/` |
+| `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
 
 ### IRIS
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_iris_geojson_by_bbox` | IRIS GeoJSON par bbox | `api/iris/geojson/` |
-| `get_iris_geojson_by_codes` | IRIS GeoJSON par codes | `api/iris/geojson/` |
 | `get_iris_stats_by_bbox` | Stats IRIS par bbox | `api/iris/stats/` |
 | `get_iris_dept_stats` | Stats IRIS departementales | `api/iris/stats/` |
 | `get_iris_metric_columns` | Colonnes metriques dynamiques | `api/iris/` |
 | `get_iris_fill_status` | Taux de remplissage IRIS | `api/admin/iris/` |
 | `get_iris_iris_residual_inputs` | Inputs residus correlation | `api/correlation/compute/` |
 | `update_iris_core_batch` | Update batch colonnes core | `api/iris-crawler/manual-import/` |
+
+> Orphelines (en base mais sans appelant TS) : `get_iris_geojson_by_bbox`,
+> `get_iris_geojson_by_codes` — etaient utilises par `/api/iris/geojson`,
+> route supprimee. Conservees en base ; voir `CLEANUP_REPORT.md`.
 
 ### Digital / Campagnes
 | RPC | Description | Appelee depuis |
@@ -530,6 +556,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_zone_centroids` | Centroides zones admin | `api/meteo-geo/` |
+| `get_zone_polygons` | Polygones simplifies zones admin (choroplethe) | `api/meteo-geo/zones/` |
+| `get_national_population_totals` | Totaux France par tranche d'age (carreaux_5km, sql/087) | `api/custom-geo/national-totals/` |
 
 ### Correlation
 | RPC | Description | Appelee depuis |
@@ -572,6 +600,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `SUPABASE_DB_URL` | URL PostgreSQL directe |
 | `ORS_API_KEY` | Cle OpenRouteService |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Cle Gemini |
+| `DSP_ENC_KEY` | Cle AES-256 base64 (32 bytes) pour chiffrer les secrets DSP (`dsp_connections`) — **jamais exposer au client** |
 
 ### Optionnelles
 | Variable | Description |
@@ -583,6 +612,16 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `INNGEST_EVENT_KEY` | Jobs async |
 | `INNGEST_SIGNING_KEY` | Signing jobs |
 | `NEXT_PUBLIC_APP_URL` | URL app (defaut localhost:3000) |
+| `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
+| `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |
+| `ATMO_FRANCE_PASSWORD` | Mot de passe du compte Atmo Data v2 |
+| `ATMO_WFS_URL` | Override du GeoServer WFS public Atmo (defaut : data.atmo-france.org/geoserver/ows) — source primaire SANS credential de l'ingestion pollen nationale |
+| `DV360_OAUTH_CLIENT_ID` | Client ID OAuth Google pour le flux DV360 (fallback si non saisi par org via formulaire) |
+| `DV360_OAUTH_CLIENT_SECRET` | Client Secret OAuth Google pour le flux DV360 (fallback si non saisi par org) |
+| `DV360_OAUTH_REDIRECT_URI` | Override du callback OAuth DV360 ; si absente, derivee de `NEXT_PUBLIC_APP_URL` + `/api/admin/dsp/dv360/oauth/callback` |
+| `TIKTOK_APP_ID` | App ID TikTok Business API (fallback si non saisi par org via formulaire) |
+| `TIKTOK_APP_SECRET` | App Secret TikTok (fallback si non saisi par org) |
+| `TIKTOK_OAUTH_REDIRECT_URI` | Override du callback OAuth TikTok ; si absente, derivee de `NEXT_PUBLIC_APP_URL` + `/api/admin/dsp/tiktok/oauth/callback` |
 
 ---
 
@@ -623,4 +662,4 @@ npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/data
 
 ---
 
-*GEOMATIK — Geospatial intelligence*
+*MAGELIAN — Geospatial intelligence*

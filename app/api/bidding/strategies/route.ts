@@ -1,18 +1,82 @@
 /**
  * GET  /api/bidding/strategies — liste les stratégies + métadonnées campagne
- * POST /api/bidding/strategies — crée une stratégie depuis le modal "Activer Custom Bidding"
+ * POST /api/bidding/strategies — crée une stratégie depuis le wizard A4.7 (5 steps)
  *
  * Eligibilité POST : la campagne doit exister ET son `dsp_source` doit être ≠ 'adform'.
  * Conflit : interdit si une stratégie en status active existe déjà pour cette campagne.
+ *
+ * Étapes du POST :
+ *   1. Validation Zod du payload complet (5 steps)
+ *   2. Check eligibilité campagne (non-Adform)
+ *   3. Check conflit (pas de stratégie active existante)
+ *   4. INSERT bidding_strategies avec toutes les colonnes A4.7
+ *   5. INSERT batch bidding_strategy_subzones si fourni
+ *   6. RPC apply_zone_weights_to_strategy() pour générer les bidding_zone_configs
+ *   7. INSERT agent_autonomy_settings si autonomy_override fourni
+ *   8. UPDATE draft → consumed si consume_draft_id fourni
+ *   9. RPC log_strategy_change(change_type='created')
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_MODES = ['monitor_only', 'suggest', 'auto'] as const;
-type ExecutionMode = (typeof VALID_MODES)[number];
+const SubzoneSchema = z.object({
+  name: z.string().min(1).max(200),
+  postal_codes: z.array(z.string().min(1)).min(1),
+  multiplier: z.number().min(0).max(5),
+});
+
+const StrategyCreateSchema = z.object({
+  campaign_id: z.string().uuid(),
+
+  // Step 1
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  advertiser: z.string().max(200).optional(),
+  brand: z.string().max(200).optional(),
+  internal_reference: z.string().max(200).optional(),
+  inventory_type: z.enum(['display', 'video', 'dooh', 'ctv', 'audio']).optional(),
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
+
+  // Step 2
+  scope_type: z.enum(['national', 'custom_zone']),
+  zone_id: z.string().uuid().nullable().optional(),
+  weighting_mode: z.enum(['uniform', 'by_tier', 'by_subzone', 'by_cp_csv']).default('uniform'),
+  in_zone_weights: z.record(z.unknown()).default({}),
+  out_zone_weights: z.record(z.unknown()).default({}),
+  subzones: z.array(SubzoneSchema).optional(),
+
+  // Step 3
+  algorithm_code: z.string().min(1),
+  objective_code: z.string().min(1),
+  kpi_target: z.number().nullable().optional(),
+  kpi_secondary: z.array(z.string()).optional(),
+  attribution_model: z.enum(['last_click', 'first_click', 'linear']).optional(),
+
+  // Step 4
+  total_budget: z.number().nullable().optional(),
+  currency: z.string().min(1).max(8).default('EUR'),
+  daily_budget_max: z.number().nullable().optional(),
+  pacing_strategy: z.enum(['even', 'front_loaded', 'back_loaded', 'custom']).optional(),
+  dsp_external_id: z.string().max(200).optional(),
+  forecast_cpm: z.number().nullable().optional(),
+  frequency_cap_imps: z.number().int().nullable().optional(),
+  frequency_cap_period_days: z.number().int().nullable().optional(),
+
+  // Step 5
+  execution_mode: z.enum(['monitor_only', 'suggest', 'auto']).default('suggest'),
+  init_preset_code: z.string().optional(),
+  agent_autonomy_override: z.number().int().min(0).max(4).nullable().optional(),
+  notification_channels: z.array(z.string()).optional(),
+  alert_severity_threshold: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+
+  is_demo: z.boolean().optional(),
+  consume_draft_id: z.string().uuid().optional(),
+});
 
 export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
@@ -22,16 +86,15 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('bidding_strategies')
     .select(`
-      id, name, campaign_id, algorithm_code, objective_code,
-      execution_mode, scope_type, status, start_date, end_date,
-      is_demo, created_at,
+      id, name, description, campaign_id, algorithm_code, objective_code,
+      execution_mode, scope_type, zone_id, status, start_date, end_date,
+      advertiser, brand, inventory_type, weighting_mode, init_preset_code,
+      total_budget, currency, kpi_target, is_demo, created_at, updated_at,
       dsp_campaigns!inner ( id, name, dsp_source, is_demo, advertiser )
     `)
     .order('created_at', { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ strategies: data ?? [] });
 }
 
@@ -39,40 +102,37 @@ export async function POST(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
-  let body: {
-    campaign_id?: string;
-    name?: string;
-    algorithm_code?: string;
-    objective_code?: string;
-    execution_mode?: ExecutionMode;
-    scope_type?: string;
-    is_demo?: boolean;
-  };
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 });
   }
 
-  const { campaign_id, name, algorithm_code, objective_code } = body;
-  if (!campaign_id || !name || !algorithm_code || !objective_code) {
+  const parsed = StrategyCreateSchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Champs requis : campaign_id, name, algorithm_code, objective_code' },
+      { error: 'invalid_body', issues: parsed.error.issues },
       { status: 400 },
     );
   }
+  const body = parsed.data;
 
-  const execution_mode: ExecutionMode = body.execution_mode && VALID_MODES.includes(body.execution_mode)
-    ? body.execution_mode
-    : 'suggest';
+  // Check zone consistency
+  if (body.scope_type === 'custom_zone' && !body.zone_id) {
+    return NextResponse.json({ error: 'zone_id requis pour scope_type=custom_zone' }, { status: 400 });
+  }
+  if (body.scope_type === 'national' && body.zone_id) {
+    return NextResponse.json({ error: 'zone_id interdit pour scope_type=national' }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
 
-  // 1. Eligibilité : la campagne existe et n'est pas Adform
+  // 1. Eligibilité : campagne non-Adform
   const { data: campaign, error: cErr } = await supabase
     .from('dsp_campaigns')
     .select('id, name, dsp_source, is_demo')
-    .eq('id', campaign_id)
+    .eq('id', body.campaign_id)
     .maybeSingle();
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 });
@@ -83,11 +143,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 2. Conflit : une stratégie active existe déjà ?
+  // 2. Conflit : stratégie active existe déjà ?
   const { data: existing } = await supabase
     .from('bidding_strategies')
     .select('id, name, status')
-    .eq('campaign_id', campaign_id)
+    .eq('campaign_id', body.campaign_id)
     .in('status', ['draft', 'active', 'completed'])
     .limit(1);
   if (existing && existing.length > 0) {
@@ -97,25 +157,109 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. INSERT — status='draft' par défaut
+  // 3. INSERT bidding_strategies
+  const insertPayload = {
+    name: body.name,
+    description: body.description ?? null,
+    campaign_id: body.campaign_id,
+    algorithm_code: body.algorithm_code,
+    objective_code: body.objective_code,
+    execution_mode: body.execution_mode,
+    scope_type: body.scope_type,
+    zone_id: body.zone_id ?? null,
+    start_date: body.start_date ?? null,
+    end_date: body.end_date ?? null,
+    advertiser: body.advertiser ?? null,
+    brand: body.brand ?? null,
+    internal_reference: body.internal_reference ?? null,
+    inventory_type: body.inventory_type ?? null,
+    dsp_external_id: body.dsp_external_id ?? null,
+    kpi_target: body.kpi_target ?? null,
+    kpi_secondary: body.kpi_secondary ?? [],
+    attribution_model: body.attribution_model ?? null,
+    total_budget: body.total_budget ?? null,
+    currency: body.currency,
+    daily_budget_max: body.daily_budget_max ?? null,
+    pacing_strategy: body.pacing_strategy ?? null,
+    forecast_cpm: body.forecast_cpm ?? null,
+    frequency_cap_imps: body.frequency_cap_imps ?? null,
+    frequency_cap_period_days: body.frequency_cap_period_days ?? null,
+    granularity: 'postal_code' as const,
+    init_preset_code: body.init_preset_code ?? null,
+    weighting_mode: body.weighting_mode,
+    in_zone_weights: body.in_zone_weights,
+    out_zone_weights: body.out_zone_weights,
+    notification_channels: body.notification_channels ?? [],
+    alert_severity_threshold: body.alert_severity_threshold ?? null,
+    is_demo: body.is_demo ?? false,
+    status: 'draft' as const,
+    status_changed_at: new Date().toISOString(),
+    created_by: profile.id,
+  };
+
   const { data: created, error: iErr } = await supabase
     .from('bidding_strategies')
-    .insert({
-      name,
-      campaign_id,
-      algorithm_code,
-      objective_code,
-      execution_mode,
-      scope_type: body.scope_type ?? 'national',
-      is_demo: body.is_demo ?? false,
-      status: 'draft',
-      created_by: profile.id,
-    })
-    .select('id, name, campaign_id, algorithm_code, objective_code, execution_mode, status, created_at')
+    .insert(insertPayload)
+    .select('id, name, campaign_id, scope_type, zone_id, weighting_mode, status, created_at')
     .single();
 
   if (iErr || !created) {
     return NextResponse.json({ error: iErr?.message ?? 'INSERT failed' }, { status: 500 });
   }
-  return NextResponse.json({ strategy: created }, { status: 201 });
+
+  // 4. INSERT subzones si présent
+  if (body.subzones && body.subzones.length > 0) {
+    const subzoneRows = body.subzones.map((sz, idx) => ({
+      strategy_id: created.id,
+      name: sz.name,
+      postal_codes: sz.postal_codes,
+      multiplier: sz.multiplier,
+      display_order: idx,
+    }));
+    const { error: szErr } = await supabase.from('bidding_strategy_subzones').insert(subzoneRows);
+    if (szErr) {
+      return NextResponse.json({ error: `subzones: ${szErr.message}` }, { status: 500 });
+    }
+  }
+
+  // 5. RPC apply_zone_weights_to_strategy
+  const { data: nConfigs, error: rpcErr } = await supabase.rpc('apply_zone_weights_to_strategy', {
+    p_strategy_id: created.id,
+    p_in_weights: body.in_zone_weights,
+    p_out_weights: body.out_zone_weights,
+  });
+  if (rpcErr) {
+    return NextResponse.json({ error: `apply_zone_weights: ${rpcErr.message}` }, { status: 500 });
+  }
+
+  // 6. agent_autonomy_settings override si fourni
+  if (typeof body.agent_autonomy_override === 'number') {
+    await supabase.from('agent_autonomy_settings').upsert({
+      scope_type: 'strategy',
+      strategy_id: created.id,
+      autonomy_level: body.agent_autonomy_override,
+    }, { onConflict: 'scope_type,strategy_id' });
+  }
+
+  // 7. Consume draft si fourni
+  if (body.consume_draft_id) {
+    await supabase
+      .from('bidding_strategy_drafts')
+      .update({ consumed_at: new Date().toISOString(), resulting_strategy_id: created.id })
+      .eq('id', body.consume_draft_id)
+      .eq('user_id', profile.id);
+  }
+
+  // 8. Audit trail : 'created'
+  await supabase.rpc('log_strategy_change', {
+    p_strategy_id: created.id,
+    p_change_type: 'created',
+    p_new_value: { name: created.name, weighting_mode: created.weighting_mode, scope_type: created.scope_type },
+    p_triggered_by: 'user',
+  });
+
+  return NextResponse.json(
+    { strategy: created, n_zone_configs_created: nConfigs ?? 0 },
+    { status: 201 },
+  );
 }

@@ -10,13 +10,28 @@ describe('stripHeavyFields', () => {
     expect(stripHeavyFields(42)).toBe(42);
   });
 
-  it('strip pois[] et garde nb_pois', () => {
-    const input = { zone: 'Paris', pois: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+  it('strip pois[] (> 5) en résumé nb_resultats + categories', () => {
+    const input = {
+      zone: 'Paris',
+      pois: [
+        { id: 1, categorie: 'ecole' }, { id: 2, categorie: 'ecole' },
+        { id: 3, categorie: 'gare' }, { id: 4, categorie: 'gare' },
+        { id: 5, categorie: 'mairie' }, { id: 6, categorie: 'mairie' },
+      ],
+    };
     const result = stripHeavyFields(input) as any;
-    expect(result.pois).toEqual([]);
-    expect(result.nb_pois).toBe(3);
+    expect(result.pois).toBeUndefined();          // le tableau lourd est retiré
+    expect(result.nb_resultats).toBe(6);
+    expect(result.categories).toEqual(['ecole', 'gare', 'mairie']);
     expect(result._stripped).toBe(true);
     expect(result.zone).toBe('Paris');
+  });
+
+  it('ne strip PAS pois[] si <= 5 éléments (déjà léger)', () => {
+    const input = { zone: 'Brest', pois: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    const result = stripHeavyFields(input) as any;
+    expect(result.pois).toHaveLength(3);          // préservé
+    expect(result._stripped).toBeUndefined();
   });
 
   it('strip isochroneGeoJSON et garde nb_features', () => {
@@ -72,12 +87,13 @@ describe('stripHeavyFields', () => {
 
   it('strip plusieurs champs en cascade', () => {
     const input = {
-      pois: [{ id: 1 }, { id: 2 }],
+      pois: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }],
       isochroneGeoJSON: { features: [{}] },
       meta: 'Brest',
     };
     const result = stripHeavyFields(input) as any;
-    expect(result.pois).toEqual([]);
+    expect(result.pois).toBeUndefined();
+    expect(result.nb_resultats).toBe(6);
     expect(result.isochroneGeoJSON._stripped).toBe(true);
     expect(result.meta).toBe('Brest');
   });
@@ -100,45 +116,38 @@ describe('trimHistory', () => {
     expect(trimHistory([])).toEqual([]);
   });
 
-  it('garde tout si moins de 14 messages', () => {
-    const msgs = Array.from({ length: 10 }, (_, i) => makeMsg('user', `msg ${i}`));
-    expect(trimHistory(msgs)).toHaveLength(10);
+  it('garde tout si <= 10 messages', () => {
+    const msgs = Array.from({ length: 8 }, (_, i) => makeMsg('user', `msg ${i}`));
+    expect(trimHistory(msgs)).toHaveLength(8);
   });
 
-  it('tronque à 14 messages si historique plus long', () => {
+  it('tronque à 10 messages si historique plus long', () => {
     const msgs = Array.from({ length: 20 }, (_, i) => makeMsg('user', `msg ${i}`));
     const result = trimHistory(msgs);
-    expect(result).toHaveLength(14);
-    // garde les 14 derniers
-    expect((result[0] as any).parts[0].text).toBe('msg 6');
-    expect((result[13] as any).parts[0].text).toBe('msg 19');
+    expect(result).toHaveLength(10);
+    // garde les 10 derniers (msg 10 → msg 19)
+    expect((result[0] as any).parts[0].text).toBe('msg 10');
+    expect((result[9] as any).parts[0].text).toBe('msg 19');
   });
 
-  it('préserve intacts les 4 derniers messages', () => {
-    const heavyResult = { pois: [{ id: 1 }, { id: 2 }] };
-    // 14 messages total → seuil keep_intact = idx >= 14-4 = 10
-    // heavy à idx 9  → 9 >= 10 ? NON  → strippé ✓
-    // heavy à idx 12 → 12 >= 10 ? OUI → intact  ✓
+  it('strip les tool results anciens, préserve intact le tout dernier message', () => {
+    // MAX_MESSAGES=10, KEEP_INTACT=1 → seul idx 9 (dernier) est préservé intact.
+    const heavy = { pois: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }] };
     const msgs = [
-      ...Array.from({ length: 9 }, (_, i) => makeMsg('user', `msg ${i}`)),
-      makeToolResult(heavyResult), // idx 9  → strippé
-      makeMsg('user', 'récent 1'), // idx 10 → intact
-      makeMsg('user', 'récent 2'), // idx 11 → intact
-      makeToolResult(heavyResult), // idx 12 → intact
-      makeMsg('user', 'récent 3'), // idx 13 → intact
+      makeToolResult(heavy),            // idx 0 → ancien → strippé
+      ...Array.from({ length: 8 }, (_, i) => makeMsg('user', `msg ${i}`)),
+      makeToolResult(heavy),            // idx 9 → dernier → intact
     ];
     const result = trimHistory(msgs) as any[];
-    // idx 9 → strippé
-    const oldToolMsg = result[9];
-    expect(oldToolMsg.parts[0].result.pois).toEqual([]);
-    expect(oldToolMsg.parts[0].result.nb_pois).toBe(2);
-    // idx 12 → intact
-    const recentToolMsg = result[12];
-    expect(recentToolMsg.parts[0].result.pois).toHaveLength(2);
+    // idx 0 → strippé (pois retiré, résumé nb_resultats)
+    expect(result[0].parts[0].result.pois).toBeUndefined();
+    expect(result[0].parts[0].result.nb_resultats).toBe(6);
+    // idx 9 → intact (dernier message préservé)
+    expect(result[9].parts[0].result.pois).toHaveLength(6);
   });
 
   it('ne modifie pas les messages texte ordinaires', () => {
-    const msgs = Array.from({ length: 14 }, (_, i) => makeMsg('user', `msg ${i}`));
+    const msgs = Array.from({ length: 10 }, (_, i) => makeMsg('user', `msg ${i}`));
     const result = trimHistory(msgs) as any[];
     result.forEach((msg, i) => {
       expect(msg.parts[0].text).toBe(`msg ${i}`);

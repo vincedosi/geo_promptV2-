@@ -66,7 +66,7 @@
        Client UI : ajouter un nouveau DSP / KPI = INSERT, sans déploiement.
 ```
 
-### RLS (pattern GEOMATIK)
+### RLS (pattern MAGELIAN)
 
 | Table | Policy SELECT | Policy ALL (write) |
 |-------|---------------|--------------------|
@@ -232,5 +232,5 @@ Le legacy Adform est **strictement intact**. Les valeurs `tracked_ads` et `uniqu
 | ✅ Aucun `dsp_pilot.*` mentionné dans la migration | OK |
 | ✅ Aucune RPC production modifiée | OK |
 | ✅ Aucun fichier de la zone forbidden touché | OK |
-| ✅ RLS pattern aligné sur GEOMATIK (`get_user_role()`) | OK (PROMPT mentionnait `auth.jwt()`, alignement vers le pattern réel observé) |
+| ✅ RLS pattern aligné sur MAGELIAN (`get_user_role()`) | OK (PROMPT mentionnait `auth.jwt()`, alignement vers le pattern réel observé) |
 | ✅ Trigger `set_updated_at` réutilisé (pas de duplication) | OK |

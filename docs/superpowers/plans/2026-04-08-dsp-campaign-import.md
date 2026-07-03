@@ -4,7 +4,7 @@
 
 **Goal:** Import Adform DSP campaign exports (CSV/XLSX), store impression data, and auto-match French postal codes to IRIS zones via a La Poste reference table.
 
-**Architecture:** Three Supabase tables (`dsp_campaigns`, `dsp_campaign_data`, `postal_code_commune`) with a PL/pgSQL matching function. A single SSE-streaming API endpoint handles file parsing, bulk insertion, and IRIS matching in one call. Admin UI follows existing GEOMATIK patterns (dark minimal, inline styles, `adminFetch`).
+**Architecture:** Three Supabase tables (`dsp_campaigns`, `dsp_campaign_data`, `postal_code_commune`) with a PL/pgSQL matching function. A single SSE-streaming API endpoint handles file parsing, bulk insertion, and IRIS matching in one call. Admin UI follows existing MAGELIAN patterns (dark minimal, inline styles, `adminFetch`).
 
 **Tech Stack:** Next.js 14 App Router, Supabase (PostgreSQL 15), papaparse, xlsx (SheetJS), Recharts, MapLibre GL (not used in this phase), TypeScript strict.
 

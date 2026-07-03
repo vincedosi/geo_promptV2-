@@ -1,6 +1,6 @@
 export type Theme = 'dark' | 'light'
 
-export const STORAGE_KEY = 'geomatik-theme'
+export const STORAGE_KEY = 'magelian-theme'
 
 type StorageLike = {
   getItem: (key: string) => string | null

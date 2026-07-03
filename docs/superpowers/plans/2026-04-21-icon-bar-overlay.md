@@ -2011,7 +2011,7 @@ git commit -m "feat(layout): OverlayPanel responsive — bottom sheet mobile ave
 
 ## Phase 8 — Cleanup post-livraison
 
-### Task 8.1 : Lance cleanup-geomatik partie 2 (lint + types)
+### Task 8.1 : Lance cleanup-magelian partie 2 (lint + types)
 
 **Files:** —
 
@@ -2061,7 +2061,7 @@ git commit -m "chore(cleanup): lint + types post-refonte overlay"
 
 ---
 
-### Task 8.2 : Lance cleanup-geomatik partie 3 (sécurité)
+### Task 8.2 : Lance cleanup-magelian partie 3 (sécurité)
 
 **Files:** —
 

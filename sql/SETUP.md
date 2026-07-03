@@ -97,7 +97,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 |-------|--------|-------------|
 | `poi` | 001 | Points d'intérêt |
 | `carreaux_filosofi` | 003 | 2.3M carreaux INSEE 200m |
-| `global_ooh` | 005 | Data Lake panneaux OOH |
+| `global_ooh` | 005 | Data Lake panneaux OOH — **supprimée en 082** (fusionnée dans `panneaux_affichage`) |
 | `import_runs_ooh` | 005 | Historique imports OOH |
 | `calculation_jobs` | 013 | Jobs async couverture |
 | `carreaux_2km` | migrations/034 | ~75k cellules 2km pré-agrégées |

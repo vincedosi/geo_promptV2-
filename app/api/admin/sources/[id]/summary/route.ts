@@ -78,7 +78,7 @@ export async function POST(
 }
 
 function buildSummaryPrompt(source: Record<string, unknown>): string {
-  const org = (source as any).organizations?.name || 'Inconnue';
+  const org = (source as { organizations?: { name?: string } }).organizations?.name || 'Inconnue';
   const parts = [
     `Source de donnees: "${source.name}"`,
     `Type: ${source.type}${source.category ? ` (categorie: ${source.category})` : ''}${source.regie ? ` (regie: ${source.regie})` : ''}`,

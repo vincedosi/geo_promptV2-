@@ -142,7 +142,7 @@ export default function OohImportPage() {
           OOH Import
         </h1>
         <p style={{ fontFamily: fontInter, fontSize: 13, color: C.textSec, margin: 0 }}>
-          ArcGIS REST → <span style={{ fontFamily: fontMono, color: C.accent }}>global_ooh</span>
+          ArcGIS REST → <span style={{ fontFamily: fontMono, color: C.accent }}>panneaux_affichage</span>
         </p>
       </div>
 

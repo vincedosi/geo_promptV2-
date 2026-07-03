@@ -1,4 +1,4 @@
-# BLOC STANDARD — À inclure en tête de chaque sprint GEOMATIK
+# BLOC STANDARD — À inclure en tête de chaque sprint MAGELIAN
 
 ## SKILLS OBLIGATOIRES
 @verification-before-completion @executing-plans @systematic-debugging @smart-explore @finishing-a-development-branch @writing-plans @brainstorming @dispatching-parallel-agents @receiving-code-review @requesting-code-review @subagent-driven-development @test-driven-development @using-git-worktrees @using-superpowers @writing-skills @do @make-plan @mem-search @timeline-report @frontend-design
@@ -6,11 +6,11 @@
 ## LECTURE PRÉALABLE — OBLIGATOIRE AVANT TOUTE LIGNE DE CODE
 Lis ces fichiers dans l'ordre :
 1. DESIGN_SYSTEM.md — tokens visuels, composants, règles d'or
-2. .claude/skills/geomatik-product-vision/SKILL.md — architecture UX cible
-3. .claude/skills/geomatik-ux/SKILL.md — règles UX (états, contraste, feedback)
+2. .claude/skills/magelian-product-vision/SKILL.md — architecture UX cible
+3. .claude/skills/magelian-ux/SKILL.md — règles UX (états, contraste, feedback)
 4. .claude/skills/frontend-design/SKILL.md — design visuel et esthétique
-5. .claude/skills/geomatik-metier/SKILL.md — vocabulaire métier OOH/IRIS
-6. .claude/skills/cleanup-geomatik/SKILL.md — règles de cleanup post-dev
+5. .claude/skills/magelian-metier/SKILL.md — vocabulaire métier OOH/IRIS
+6. .claude/skills/cleanup-magelian/SKILL.md — règles de cleanup post-dev
 
 ## STRATÉGIE D'EXÉCUTION — AGENTS
 
@@ -39,7 +39,7 @@ Lis ces fichiers dans l'ordre :
 
 ### Phase cleanup — OBLIGATOIRE
 Après le dernier commit de code fonctionnel :
-1. Lance `@cleanup-geomatik` Partie 2 + Partie 3 sur les fichiers modifiés
+1. Lance `@cleanup-magelian` Partie 2 + Partie 3 sur les fichiers modifiés
 2. Rapport rapide : failles sécu + `any` introduits + catch non typés
 3. Corrige TOUT avant de considérer la tâche terminée
 4. Commit cleanup : `chore(cleanup): lint + types + sécurité post-sprint-X`

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { applyGeomatikStyle } from '@/lib/map/geomatik-style';
+import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
@@ -18,6 +18,10 @@ interface SyncMapProps {
   geojson: GeoJSON.FeatureCollection | null;
   fillExpression: unknown[];
   lineColor?: string;
+  /** Optional MapLibre expression overriding lineColor (e.g. ['case', ['get','is_target'], '#4ecdc4', '#333']). */
+  lineColorExpr?: unknown[];
+  /** Optional MapLibre expression overriding line width. */
+  lineWidthExpr?: unknown[];
   onMove?: (center: [number, number], zoom: number, bearing: number, pitch: number) => void;
   syncTarget?: { center: [number, number]; zoom: number; bearing: number; pitch: number } | null;
   /** Extra zoom added when this map is in a small panel */
@@ -39,7 +43,7 @@ function fmtNum(n: unknown): string {
   return v.toLocaleString('fr-FR');
 }
 
-export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTarget, zoomOffset = 0, hideAdminBoundaries = false, showFeatureHover = false, metricLabel = 'Impressions' }: SyncMapProps) {
+export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr, lineWidthExpr, onMove, syncTarget, zoomOffset = 0, hideAdminBoundaries = false, showFeatureHover = false, metricLabel = 'Impressions' }: SyncMapProps) {
   const { theme } = useTheme();
   const themeRef = useRef(theme);
   themeRef.current = theme;
@@ -71,7 +75,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
     });
 
     map.on('load', () => {
-      applyGeomatikStyle(map, themeRef.current);
+      applyMagelianStyle(map, themeRef.current);
 
       map.addSource(`digital-${id}`, {
         type: 'geojson',
@@ -120,7 +124,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const reapply = () => applyGeomatikStyle(map, theme);
+    const reapply = () => applyMagelianStyle(map, theme);
     if (map.isStyleLoaded()) reapply();
     else map.once('load', reapply);
   }, [theme]);
@@ -141,6 +145,29 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       map.setPaintProperty(`digital-fill-${id}`, 'fill-color', fillExpression as maplibregl.ExpressionSpecification);
     } catch { /* layer not ready yet */ }
   }, [fillExpression, id]);
+
+  // Update line color/width expressions (optional override of static lineColor)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const lineId = `digital-line-${id}`;
+    const apply = () => {
+      if (!map.getLayer(lineId)) return;
+      try {
+        if (lineColorExpr) {
+          map.setPaintProperty(lineId, 'line-color', lineColorExpr as maplibregl.ExpressionSpecification);
+        } else if (lineColor) {
+          map.setPaintProperty(lineId, 'line-color', lineColor);
+        }
+        if (lineWidthExpr) {
+          map.setPaintProperty(lineId, 'line-width', lineWidthExpr as maplibregl.ExpressionSpecification);
+          map.setPaintProperty(lineId, 'line-opacity', 1);
+        }
+      } catch { /* layer not ready yet */ }
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [lineColorExpr, lineWidthExpr, lineColor, id]);
 
   // Sync from other maps
   useEffect(() => {
@@ -223,21 +250,31 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, onMove, syncTa
       }
       if (map.getLayer(lineId)) {
         try {
-          if (hideAdminBoundaries) {
-            map.setPaintProperty(lineId, 'line-color', 'rgba(255,255,255,0.3)');
-            map.setPaintProperty(lineId, 'line-width', 1.5);
-            map.setPaintProperty(lineId, 'line-opacity', 1);
-          } else {
-            map.setPaintProperty(lineId, 'line-color', lineColor ?? '#333333');
-            map.setPaintProperty(lineId, 'line-width', ['interpolate', ['linear'], ['zoom'], 5, 0.2, 9, 0.5, 12, 1] as maplibregl.ExpressionSpecification);
-            map.setPaintProperty(lineId, 'line-opacity', 0.4);
+          // Si une expression line-color/line-width est fournie, on ne l'écrase
+          // pas — c'est l'effet dédié qui pilote ces propriétés (cas outline
+          // cible sur cartes Pilotage ML).
+          if (!lineColorExpr) {
+            if (hideAdminBoundaries) {
+              map.setPaintProperty(lineId, 'line-color', 'rgba(255,255,255,0.3)');
+            } else {
+              map.setPaintProperty(lineId, 'line-color', lineColor ?? '#333333');
+            }
+          }
+          if (!lineWidthExpr) {
+            if (hideAdminBoundaries) {
+              map.setPaintProperty(lineId, 'line-width', 1.5);
+              map.setPaintProperty(lineId, 'line-opacity', 1);
+            } else {
+              map.setPaintProperty(lineId, 'line-width', ['interpolate', ['linear'], ['zoom'], 5, 0.2, 9, 0.5, 12, 1] as maplibregl.ExpressionSpecification);
+              map.setPaintProperty(lineId, 'line-opacity', 0.4);
+            }
           }
         } catch { /* noop */ }
       }
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
-  }, [hideAdminBoundaries, id, lineColor]);
+  }, [hideAdminBoundaries, id, lineColor, lineColorExpr, lineWidthExpr]);
 
   // Hover popup: nom + metric + pop + ratio
   useEffect(() => {

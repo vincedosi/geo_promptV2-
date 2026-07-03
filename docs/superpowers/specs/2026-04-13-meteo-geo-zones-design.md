@@ -247,7 +247,7 @@ get_digital_meteo_aggregation(
   4. **Date pickers** (du / au) — inputs date natifs ou composant existant du projet
   5. **Bouton "Appliquer"** — déclenche le fetch via `onMeteoApply(meteoParams)`
   6. **Légende** (affichée après fetch) : barre de gradient avec min/max dynamiques de la variable
-- Style : dark theme GEOMATIK, `#111111` fond, teal `#4ecdc4` accent, Inter/JetBrains Mono, sentence case, pas de gradients
+- Style : dark theme MAGELIAN, `#111111` fond, teal `#4ecdc4` accent, Inter/JetBrains Mono, sentence case, pas de gradients
 - Bornage dates côté client :
   - Prévisions : max `today + 16 jours`
   - Historique : max `today - 1 jour`, plage max 90 jours
