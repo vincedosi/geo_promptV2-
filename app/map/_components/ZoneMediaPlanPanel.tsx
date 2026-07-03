@@ -27,6 +27,9 @@ import type { AudienceStats, CustomGeoZoneFull } from '@/types/custom-geo';
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
+/** Largeur du panneau (source unique — le décalage des boutons flottants de la carte s'y aligne). */
+export const PANEL_WIDTH = 600;
+
 export type { CibleKey } from '@/lib/custom-geo/cibles';
 
 interface ZoneRef { id: string; name: string; }
@@ -92,10 +95,11 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   useEffect(() => {
     let cancelled = false;
     if (!zones.length) { setRows([]); return; }
+    // Recompose les lignes depuis le cache dans l'ordre d'affichage des zones.
+    const recompose = () => zones.flatMap(z => zoneRowsCache.current.get(z.id) ?? []);
     const missing = zones.filter(z => !zoneRowsCache.current.has(z.id));
     if (!missing.length) {
-      // Tout en cache → recompose sans I/O (préserve l'ordre d'affichage)
-      setRows(zones.flatMap(z => zoneRowsCache.current.get(z.id) ?? []));
+      setRows(recompose()); // tout en cache → sans I/O
       return;
     }
     setLoading(true);
@@ -137,8 +141,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
         }));
         if (cancelled) return;
         for (const [zoneId, zoneRows] of fetched) zoneRowsCache.current.set(zoneId, zoneRows);
-        // Repose au fil de l'eau les zones déjà résolues (ordre d'affichage)
-        setRows(zones.flatMap(z => zoneRowsCache.current.get(z.id) ?? []));
+        setRows(recompose()); // repose au fil de l'eau les zones déjà résolues
       }
       if (!cancelled) setLoading(false);
     })();
@@ -375,7 +378,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', top: topOffset, right: 0, bottom: 0, width: 600, zIndex: 45,
+      position: 'fixed', top: topOffset, right: 0, bottom: 0, width: PANEL_WIDTH, zIndex: 45,
       background: 'var(--bg-surface)', borderLeft: '0.5px solid var(--border-subtle)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
