@@ -19,11 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { getProvider } from '@/lib/civic-health/provider';
-import {
-  getFreshCachedHealth,
-  getStaleCachedHealth,
-  upsertCachedHealth,
-} from '@/lib/civic-health/cache';
+import { getHealthWithCache } from '@/lib/civic-health/get-health';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
@@ -55,52 +51,20 @@ export async function GET(
   }
   const codeInsee = parsed.data.toUpperCase();
 
-  // 1. Cache lookup — fresh (< 24h)
-  try {
-    const fresh = await getFreshCachedHealth(codeInsee);
-    if (fresh) {
-      return NextResponse.json(
-        { data: fresh, provider: getProvider().name },
-        { headers: { 'Cache-Control': 'private, max-age=3600' } },
-      );
-    }
-  } catch (err) {
-    console.warn('[civic-health/route] cache lookup failed', err);
-    // continue
-  }
+  // Pipeline partagé : cache fresh (< 24h) → provider → fallback stale (< 48h)
+  const { data, provider } = await getHealthWithCache(codeInsee);
 
-  // 2. Fetch provider
-  const provider = getProvider();
-  let payload = null;
-  try {
-    payload = await provider.fetchHealth(codeInsee);
-  } catch (err) {
-    console.warn('[civic-health/route] provider error', err);
-  }
-
-  if (payload) {
-    upsertCachedHealth(codeInsee, payload, provider.name).catch(err => {
-      console.warn('[civic-health/route] cache upsert failed', err);
-    });
+  if (data) {
     return NextResponse.json(
-      { data: payload, provider: provider.name },
-      { headers: { 'Cache-Control': 'private, max-age=3600' } },
+      { data, provider },
+      // Donnée stale (fallback après échec provider) : cache client court
+      { headers: { 'Cache-Control': `private, max-age=${data.stale ? 600 : 3600}` } },
     );
   }
 
-  // 3. Fallback stale (< 48h)
-  const stale = await getStaleCachedHealth(codeInsee).catch(() => null);
-  if (stale) {
-    return NextResponse.json(
-      { data: stale, provider: provider.name },
-      { headers: { 'Cache-Control': 'private, max-age=600' } },
-    );
-  }
-
-  // 4. Total miss
   return NextResponse.json({
     data: null,
-    provider: provider.name,
+    provider,
     error: 'unavailable',
     message: `Données ATMO + pollen indisponibles pour la commune ${codeInsee}.`,
   });
