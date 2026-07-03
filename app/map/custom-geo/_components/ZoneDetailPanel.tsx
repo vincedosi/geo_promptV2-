@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { useZoneDetail } from '../_hooks/useZoneDetail';
 import { ZoneRenameDialog } from './ZoneRenameDialog';
 import { ZoneDeleteDialog } from './ZoneDeleteDialog';
+import { ZoneDv360Dialog } from './ZoneDv360Dialog';
 import { ZoneAudienceStats } from './ZoneAudienceStats';
 import type { CustomGeoExportFormat } from '@/types/custom-geo';
 
@@ -32,6 +33,7 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
   const { zone, loading } = useZoneDetail(zoneId);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [dv360Open, setDv360Open] = useState(false);
 
   if (loading || !zone) {
     return (
@@ -109,6 +111,14 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
             ))}
           </div>
 
+          <div style={{ display: 'flex', gap: 6 }}>
+            {(['dv360_cp', 'dv360_sdf'] as const).map(fmt => (
+              <button key={fmt} onClick={() => actions.exportZone(zoneId, fmt)} style={{ flex: 1, padding: '8px 0', borderRadius: 6, fontSize: 10, fontFamily: fMono, background: 'transparent', border: '0.5px solid var(--border-default)', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
+                {fmt}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={() => router.push(`/map?customZone=${zoneId}`)}
             style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
@@ -120,6 +130,18 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
             style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
           >
             Utiliser dans Digital
+          </button>
+          <button
+            onClick={() => actions.exportZone(zoneId, 'bidding_script')}
+            style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
+          >
+            Générer le script bidding DV360
+          </button>
+          <button
+            onClick={() => setDv360Open(true)}
+            style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)', cursor: 'pointer', width: '100%' }}
+          >
+            Créer la zone dans DV360
           </button>
 
           <button onClick={() => setDeleteOpen(true)} style={{ padding: '8px 16px', borderRadius: 6, fontSize: 12, fontFamily: fInter, background: 'rgba(255,87,87,0.05)', border: '0.5px solid rgba(255,87,87,0.2)', color: 'var(--danger)', cursor: 'pointer', width: '100%', marginTop: 8 }}>
@@ -135,6 +157,15 @@ export function ZoneDetailPanel({ zoneId, onClose, actions, onRefresh }: Props) 
           currentDescription={zone.description ?? ''}
           onRename={async (name, desc) => { await actions.rename(zoneId, name, desc); onRefresh(); setRenameOpen(false); }}
           onClose={() => setRenameOpen(false)}
+        />
+      )}
+
+      {dv360Open && (
+        <ZoneDv360Dialog
+          zoneId={zoneId}
+          zoneName={zone.name}
+          cpCount={zone.feature_count_cp}
+          onClose={() => setDv360Open(false)}
         />
       )}
 

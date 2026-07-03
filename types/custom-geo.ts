@@ -81,7 +81,14 @@ export interface CustomGeoZoneGeometry {
   };
 }
 
-export type CustomGeoExportFormat = 'csv_cp' | 'csv_iris' | 'geojson';
+export type CustomGeoExportFormat =
+  | 'csv_cp'
+  | 'csv_iris'
+  | 'geojson'
+  | 'dv360_cp'
+  | 'dv360_sdf'
+  | 'bidding_script'
+  | 'tiktok_geo';
 
 export type CaptureTransformation = 'union' | 'convex_hull' | 'envelope' | 'raw';
 

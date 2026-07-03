@@ -11,10 +11,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
-import { Search, X, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Search, X, Eye, EyeOff, Trash2, FileDown, Music2 } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';
 import { adminFetch } from '@/lib/admin-fetch';
 import { getSourceTypeLabel } from '@/lib/custom-geo/source-type-labels';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { ZoneDeleteDialog } from '@/app/map/custom-geo/_components/ZoneDeleteDialog';
 import type { CustomGeoZoneSummary } from '@/types/custom-geo';
 
@@ -436,6 +437,27 @@ function ZoneCard({
             <Eye size={11} /> {pending ? 'Chargement…' : 'Afficher'}
           </button>
         )}
+        <button
+          onClick={() => { void downloadZoneExport(zone.id, 'bidding_script').catch(err => console.error('[ZonesOverlay] export', err)); }}
+          title="Générer le script custom bidding DV360 (fichier à coller dans DV360)"
+          style={{
+            ...ghostBtn('var(--brand-teal)'),
+            padding: '4px 8px', flex: 'none',
+            border: '0.5px solid var(--brand-teal)',
+          }}
+        >
+          <FileDown size={11} />
+        </button>
+        <button
+          onClick={() => { void downloadZoneExport(zone.id, 'tiktok_geo').catch(err => console.error('[ZonesOverlay] export', err)); }}
+          title="Exporter le ciblage géo TikTok Ads (régions + départements de la zone)"
+          style={{
+            ...ghostBtn('var(--text-secondary)'),
+            padding: '4px 8px', flex: 'none',
+          }}
+        >
+          <Music2 size={11} />
+        </button>
         <button
           onClick={onDelete}
           title="Supprimer la zone"

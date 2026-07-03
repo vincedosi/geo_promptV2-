@@ -47,6 +47,124 @@ export async function resolveAccessToken(conn: Dv360ConnectionRow): Promise<stri
   throw new Error('Méthode d\'authentification DV360 non configurée.');
 }
 
+/**
+ * Assigne des geo IDs Google (TARGETING_TYPE_GEO_REGION) à un line item via
+ * bulkEditAssignedTargetingOptions. Additif : ne supprime pas le ciblage géo
+ * existant (un delete nécessiterait de lister les options assignées au préalable).
+ */
+export async function bulkAssignGeoRegions(
+  accessToken: string,
+  advertiserId: string,
+  lineItemId: string,
+  geoIds: number[],
+): Promise<{ updatedLineItemIds: string[]; failedLineItemIds: string[] }> {
+  const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/lineItems:bulkEditAssignedTargetingOptions`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      lineItemIds: [lineItemId],
+      createRequests: [
+        {
+          targetingType: 'TARGETING_TYPE_GEO_REGION',
+          assignedTargetingOptions: geoIds.map((id) => ({
+            geoRegionDetails: { targetingOptionId: String(id) },
+          })),
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`DV360 bulkEditAssignedTargetingOptions ${res.status} : ${body.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    updatedLineItemIds?: string[];
+    failedLineItemIds?: string[];
+  };
+  return {
+    updatedLineItemIds: data.updatedLineItemIds ?? [],
+    failedLineItemIds: data.failedLineItemIds ?? [],
+  };
+}
+
+/**
+ * Crée une liste de localisations régionale (location list) chez un advertiser.
+ * C'est l'objet DV360 « zone » réutilisable : attachable ensuite à n'importe
+ * quel line item / insertion order depuis l'UI DV360.
+ */
+export async function createLocationList(
+  accessToken: string,
+  advertiserId: string,
+  displayName: string,
+): Promise<{ locationListId: string }> {
+  const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/locationLists`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      // DV360 plafonne displayName à 240 bytes
+      displayName: displayName.slice(0, 240),
+      locationType: 'TARGETING_LOCATION_TYPE_REGIONAL',
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`DV360 locationLists.create ${res.status} : ${body.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as { locationListId?: string };
+  if (!data.locationListId) {
+    throw new Error('DV360 locationLists.create : locationListId absent de la réponse.');
+  }
+  return { locationListId: data.locationListId };
+}
+
+/** Taille de lot pour assignedLocations:bulkEdit (limite la taille de payload par requête). */
+const ASSIGNED_LOCATIONS_CHUNK = 500;
+
+/** Ajoute des geo IDs Google à une location list, par lots séquentiels. */
+export async function bulkAddAssignedLocations(
+  accessToken: string,
+  advertiserId: string,
+  locationListId: string,
+  geoIds: number[],
+): Promise<{ assignedCount: number }> {
+  const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/locationLists/${encodeURIComponent(locationListId)}/assignedLocations:bulkEdit`;
+  let assignedCount = 0;
+  for (let i = 0; i < geoIds.length; i += ASSIGNED_LOCATIONS_CHUNK) {
+    const chunk = geoIds.slice(i, i + ASSIGNED_LOCATIONS_CHUNK);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+      body: JSON.stringify({
+        createdAssignedLocations: chunk.map((id) => ({ targetingOptionId: String(id) })),
+        deletedAssignedLocationIds: [],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(
+        `DV360 assignedLocations.bulkEdit ${res.status} après ${assignedCount}/${geoIds.length} assignations : ${body.slice(0, 300)}`,
+      );
+    }
+    const data = (await res.json()) as { assignedLocations?: unknown[] };
+    assignedCount += data.assignedLocations?.length ?? chunk.length;
+  }
+  return { assignedCount };
+}
+
 export async function listAdvertisers(
   accessToken: string,
   partnerId: string,
