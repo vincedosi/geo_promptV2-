@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
   if (cached && now < cached.expires) {
     return NextResponse.json(
       { totals: cached.data, cached: true },
-      { headers: { 'Cache-Control': 'private, max-age=86400' } },
+      // no-store navigateur : le cache serveur 24h (ci-dessus) porte le coût ;
+      // évite qu'un ajout de clé (nouvelle cible) reste invisible 24h côté client.
+      { headers: { 'Cache-Control': 'no-store' } },
     );
   }
 

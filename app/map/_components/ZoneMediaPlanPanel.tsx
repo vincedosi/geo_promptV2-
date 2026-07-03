@@ -3,18 +3,17 @@
 /**
  * ZoneMediaPlanPanel — plan média sur les zones custom affichées sur la carte.
  *
- * S'ouvre à droite quand ≥ 1 zone custom est affichée (ZonesOverlay).
- * Paramètres : budget (€), CPM (€), cible (tranche d'âge des audience_stats
- * pré-calculées à la capture — zéro I/O). Une ligne par zone :
+ * S'ouvre à droite quand ≥ 1 zone custom est affichée (ZonesOverlay). Une ligne
+ * par item (les 4 CIRFA d'une zone battle), repli sur la zone entière sinon.
+ * Paramètres : budget (€), CPM (€), cible (âge / ménages / logement social).
  *
- *   Zone · % du total (part de la zone dans la somme des zones, sur la cible)
- *   · % France (vs total national, RPC cachée 24h) · Volume cible
- *   · Impressions (grisé = répartition % × budget/CPM×1000)
- *   · Répartition % (éditable, auto-normalisée à 100)
+ * Colonnes : % du total · % France (RPC totaux nationaux) · Volume cible ·
+ * Impressions (répartition × budget/CPM×1000) · Répétition (impressions ÷
+ * audience — nb de vues/personne) · Coût/1000 sur cible · Répartition % éditable
+ * (auto-normalisée à 100, prorata par défaut). Calculs 100 % client.
  *
- * La répartition démarre au prorata du volume cible ; modifier une zone
- * réajuste les autres proportionnellement (somme toujours 100). Le bouton
- * « Au prorata » restaure le défaut. Calculs 100 % client — aucune écriture.
+ * Rattachable à une campagne DSP (persistance geo_strategy.media_plan),
+ * export CSV du tableau, exports DSP pondérés (DV360 / TikTok).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X, RotateCcw, FileDown, Music2 } from 'lucide-react';
@@ -26,44 +25,55 @@ import type { AudienceStats, CustomGeoZoneFull } from '@/types/custom-geo';
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-export type CibleKey = 'total' | '0_17' | '18_24' | '25_39' | '40_54' | '55_64' | '65_79' | '80_plus';
+export type CibleKey =
+  | 'total' | '0_17' | '18_24' | '25_39' | '40_54' | '55_64' | '65_79' | '80_plus'
+  | 'men' | 'men_prop' | 'men_fmp' | 'men_pauv' | 'log_soc';
 
-const CIBLES: Array<[CibleKey, string]> = [
-  ['total', 'Population totale'],
-  ['0_17', '0-17 ans'],
-  ['18_24', '18-24 ans'],
-  ['25_39', '25-39 ans'],
-  ['40_54', '40-54 ans'],
-  ['55_64', '55-64 ans'],
-  ['65_79', '65-79 ans'],
-  ['80_plus', '80 ans et plus'],
+/** Cibles groupées par unité. `unit` légende le volume (hab. / ménages / logements). */
+const CIBLE_GROUPS: Array<{ group: string; unit: string; options: Array<[CibleKey, string]> }> = [
+  { group: 'Population (habitants)', unit: 'hab.', options: [
+    ['total', 'Population totale'],
+    ['0_17', '0-17 ans'], ['18_24', '18-24 ans'], ['25_39', '25-39 ans'],
+    ['40_54', '40-54 ans'], ['55_64', '55-64 ans'], ['65_79', '65-79 ans'], ['80_plus', '80 ans et plus'],
+  ]},
+  { group: 'Ménages', unit: 'ménages', options: [
+    ['men', 'Tous les ménages'],
+    ['men_prop', 'Propriétaires'],
+    ['men_fmp', 'Familles monoparentales'],
+    ['men_pauv', 'Ménages pauvres'],
+  ]},
+  { group: 'Logement', unit: 'logements', options: [
+    ['log_soc', 'Logements sociaux (HLM)'],
+  ]},
 ];
+const CIBLE_UNIT: Record<CibleKey, string> = Object.fromEntries(
+  CIBLE_GROUPS.flatMap(g => g.options.map(([k]) => [k, g.unit])),
+) as Record<CibleKey, string>;
+const CIBLE_LABEL: Record<CibleKey, string> = Object.fromEntries(
+  CIBLE_GROUPS.flatMap(g => g.options.map(([k, l]) => [k, l])),
+) as Record<CibleKey, string>;
 
 interface ZoneRef { id: string; name: string; }
 
-/** Population d'une ligne — item de zone (CIRFA…) ou zone entière en repli. */
-interface RowPopulation {
-  total: number;
-  by_age: Record<Exclude<CibleKey, 'total'>, number>;
-}
+/** Valeurs d'audience d'une ligne, à plat par clé de cible. */
+type RowValues = Partial<Record<CibleKey, number>>;
 
 interface ZoneRow {
   /** zoneId seul (repli zone entière) ou `zoneId:poiId` (item). */
   id: string;
   name: string;
-  population: RowPopulation | null;
+  values: RowValues | null;
 }
 
 interface ZoneItemStats {
   poi_id: string;
   poi_name: string;
-  population: RowPopulation;
+  values: RowValues;
 }
 
-function cibleVolume(population: RowPopulation | null, cible: CibleKey): number | null {
-  if (!population) return null;
-  if (cible === 'total') return population.total ?? null;
-  return population.by_age?.[cible] ?? null;
+function cibleVolume(values: RowValues | null, cible: CibleKey): number | null {
+  if (!values) return null;
+  return values[cible] ?? null;
 }
 
 function fmtInt(n: number): string {
@@ -118,24 +128,27 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
                 return payload.items.map(it => ({
                   id: `${z.id}:${it.poi_id}`,
                   name: it.poi_name,
-                  population: it.population ?? null,
+                  values: it.values ?? null,
                 }));
               }
             }
-            // Repli : zone entière (audience_stats de la capture)
+            // Repli : zone entière (audience_stats de la capture) → aplati en RowValues
             const full = await adminFetch(`/api/custom-geo/${z.id}`).then(r => (r.ok ? r.json() : null)) as CustomGeoZoneFull | null;
             const stats = full?.audience_stats && 'population' in full.audience_stats
               ? (full.audience_stats as AudienceStats)
               : null;
-            return [{
-              id: z.id,
-              name: z.name,
-              population: stats?.population
-                ? { total: stats.population.total, by_age: stats.population.by_age }
-                : null,
-            }];
+            const values: RowValues | null = stats?.population ? {
+              total: stats.population.total,
+              ...stats.population.by_age,
+              men: stats.menages?.total,
+              men_prop: stats.menages?.proprietaires,
+              men_fmp: stats.menages?.monoparentales,
+              men_pauv: stats.menages?.pauvres,
+              log_soc: stats.logements?.sociaux,
+            } : null;
+            return [{ id: z.id, name: z.name, values }];
           } catch {
-            return [{ id: z.id, name: z.name, population: null }];
+            return [{ id: z.id, name: z.name, values: null }];
           }
         }));
         result.push(...fetched.flat());
@@ -192,7 +205,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // ── Calculs ───────────────────────────────────────────────────────────────
   const volumes = useMemo(() => {
     const m = new Map<string, number | null>();
-    for (const r of rows) m.set(r.id, cibleVolume(r.population, cible));
+    for (const r of rows) m.set(r.id, cibleVolume(r.values, cible));
     return m;
   }, [rows, cible]);
 
@@ -222,6 +235,33 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   const cpmNum = parseFloat(cpm.replace(',', '.'));
   const totalImpressions = budgetNum > 0 && cpmNum > 0 ? (budgetNum / cpmNum) * 1000 : null;
   const franceTotal = nationalTotals?.[cible] ?? null;
+
+  // Métriques dérivées par ligne — réutilisées par le tableau ET l'export CSV.
+  // frequence  = impressions ÷ audience cible (répétition : nb de vues/personne)
+  // costPerMille = budget de la ligne ÷ (audience cible ÷ 1000) — coût réel/1000 sur cible
+  const rowMetrics = useMemo(() => {
+    const m = new Map<string, {
+      vol: number | null; share: number; impressions: number | null;
+      pctZones: number | null; pctFrance: number | null; frequence: number | null; costPerMille: number | null;
+    }>();
+    for (const r of rows) {
+      const vol = volumes.get(r.id) ?? null;
+      const share = activeRepartition[r.id] ?? 0;
+      const impressions = totalImpressions != null ? (share / 100) * totalImpressions : null;
+      const budgetRow = Number.isFinite(budgetNum) && budgetNum > 0 ? (share / 100) * budgetNum : null;
+      m.set(r.id, {
+        vol, share, impressions,
+        pctZones: totalVolume > 0 && vol != null ? (vol / totalVolume) * 100 : null,
+        pctFrance: franceTotal && vol != null ? (vol / franceTotal) * 100 : null,
+        frequence: impressions != null && vol && vol > 0 ? impressions / vol : null,
+        costPerMille: budgetRow != null && vol && vol > 0 ? budgetRow / (vol / 1000) : null,
+      });
+    }
+    return m;
+  }, [rows, volumes, activeRepartition, totalImpressions, budgetNum, totalVolume, franceTotal]);
+
+  const fmtFreq = (n: number | null) => (n != null ? `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}×` : '—');
+  const fmtEur = (n: number | null) => (n != null ? `${Math.round(n).toLocaleString('fr-FR')} €` : '—');
 
   // ── Exports DSP pondérés par la colonne répartition ───────────────────────
   const [exportState, setExportState] = useState<{ running: boolean; error: string | null }>({ running: false, error: null });
@@ -282,6 +322,43 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
     }
   }, [campaignId, zones, budgetNum, cpmNum, cible, rows, activeRepartition]);
 
+  // ── Export CSV du tableau (partage client/collègue) ───────────────────────
+  const exportTableCsv = useCallback(() => {
+    const sep = ';'; // séparateur FR (Excel)
+    const esc = (v: string) => (/[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const num = (n: number | null, d = 0) => (n == null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+    const campaignName = campaigns.find(c => c.id === campaignId)?.name ?? '';
+    const meta = [
+      `Plan média${campaignName ? ` — ${campaignName}` : ''}`,
+      `Cible${sep}${CIBLE_LABEL[cible]} (${CIBLE_UNIT[cible]})`,
+      `Budget${sep}${budgetNum > 0 ? budgetNum : ''}${sep}CPM${sep}${cpmNum > 0 ? cpmNum : ''}`,
+      `Impressions totales${sep}${totalImpressions != null ? Math.round(totalImpressions) : ''}`,
+      '',
+    ];
+    const header = ['Zone', '% total', '% France', `Volume (${CIBLE_UNIT[cible]})`, 'Impressions', 'Répétition', 'Coût/1000 cible (€)', 'Répartition %'];
+    const body = rows.map(r => {
+      const mm = rowMetrics.get(r.id)!;
+      return [
+        esc(r.name), num(mm.pctZones, 1), num(mm.pctFrance, 2), num(mm.vol),
+        num(mm.impressions), num(mm.frequence, 1), num(mm.costPerMille), num(mm.share, 1),
+      ].join(sep);
+    });
+    const totalRow = [
+      'Total', totalVolume > 0 ? '100' : '', franceTotal && totalVolume > 0 ? num((totalVolume / franceTotal) * 100, 2) : '',
+      num(totalVolume), num(totalImpressions), num(totalImpressions && totalVolume > 0 ? totalImpressions / totalVolume : null, 1),
+      num(budgetNum > 0 && totalVolume > 0 ? budgetNum / (totalVolume / 1000) : null), '100',
+    ].join(sep);
+
+    const csv = '﻿' + [...meta, header.join(sep), ...body, totalRow].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan_media${campaignName ? '_' + campaignName.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : ''}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }, [rows, rowMetrics, campaigns, campaignId, cible, budgetNum, cpmNum, totalImpressions, totalVolume, franceTotal]);
+
   const detachPlan = useCallback(async () => {
     if (!campaignId) return;
     setSaveState({ saving: true, savedAt: null, error: null });
@@ -316,7 +393,7 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', top: topOffset, right: 0, bottom: 0, width: 500, zIndex: 45,
+      position: 'fixed', top: topOffset, right: 0, bottom: 0, width: 600, zIndex: 45,
       background: 'var(--bg-surface)', borderLeft: '0.5px solid var(--border-subtle)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
@@ -395,7 +472,11 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
             <label style={labelStyle}>Cible</label>
             <select value={cible} onChange={e => setCible(e.target.value as CibleKey)}
               style={{ ...inputStyle, fontFamily: fInter, cursor: 'pointer' }}>
-              {CIBLES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              {CIBLE_GROUPS.map(g => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </optgroup>
+              ))}
             </select>
           </div>
         </div>
@@ -425,41 +506,44 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
               <thead>
                 <tr>
                   <th style={{ ...thStyle, textAlign: 'left' }}>Zone</th>
-                  <th style={thStyle} title="Part de la ligne dans le total affiché, sur la cible">% du total</th>
+                  <th style={thStyle} title="Part de la ligne dans le total affiché, sur la cible">% total</th>
                   <th style={thStyle} title="Volume cible de la zone rapporté à la population France de la cible">% France</th>
-                  <th style={thStyle}>Volume cible</th>
-                  <th style={thStyle} title="Répartition % × impressions totales — calculé, non modifiable">Impressions</th>
-                  <th style={thStyle} title="Part du budget allouée à la zone — modifiable, somme = 100 %">Répartition</th>
+                  <th style={thStyle} title={`Volume cible (${CIBLE_UNIT[cible]})`}>Volume</th>
+                  <th style={thStyle} title="Répartition % × impressions totales — calculé">Impressions</th>
+                  <th style={thStyle} title="Répétition : impressions ÷ audience cible (nombre de vues par personne)">Répétition</th>
+                  <th style={thStyle} title="Coût pour 1000 personnes de la cible : budget de la zone ÷ (audience ÷ 1000)">€/1000</th>
+                  <th style={thStyle} title="Part du budget allouée à la zone — modifiable, somme = 100 %">Répart.</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => {
-                  const vol = volumes.get(r.id);
-                  const share = activeRepartition[r.id] ?? 0;
-                  const impressions = totalImpressions != null ? (share / 100) * totalImpressions : null;
-                  const pctZones = totalVolume > 0 && vol != null ? (vol / totalVolume) * 100 : null;
-                  const pctFrance = franceTotal && vol != null ? (vol / franceTotal) * 100 : null;
+                  const mm = rowMetrics.get(r.id)!;
                   return (
                     <tr key={r.id}>
                       <td style={{ ...tdStyle, textAlign: 'left', fontFamily: fInter, fontSize: 12, color: 'var(--text-primary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.name}>
                         {r.name}
                       </td>
-                      <td style={tdStyle}>{pctZones != null ? fmtPct(pctZones) : '—'}</td>
-                      <td style={tdStyle}>{pctFrance != null ? fmtPct(pctFrance, 2) : '—'}</td>
-                      <td style={tdStyle} title={vol == null ? 'Stats d’audience non calculées pour cette zone' : undefined}>
-                        {vol != null ? fmtInt(vol) : 'n/d'}
+                      <td style={tdStyle}>{mm.pctZones != null ? fmtPct(mm.pctZones) : '—'}</td>
+                      <td style={tdStyle}>{mm.pctFrance != null ? fmtPct(mm.pctFrance, 2) : '—'}</td>
+                      <td style={tdStyle} title={mm.vol == null ? 'Stats d’audience non calculées pour cette zone' : undefined}>
+                        {mm.vol != null ? fmtInt(mm.vol) : 'n/d'}
                       </td>
                       <td style={{ ...tdStyle, color: 'var(--text-tertiary)' }}>
-                        {impressions != null ? fmtInt(impressions) : '—'}
+                        {mm.impressions != null ? fmtInt(mm.impressions) : '—'}
                       </td>
+                      <td style={{ ...tdStyle, color: mm.frequence != null && mm.frequence > 10 ? 'var(--warning)' : 'var(--text-secondary)' }}
+                          title={mm.frequence != null && mm.frequence > 10 ? 'Sur-exposition : le budget dépasse largement l’audience cible' : undefined}>
+                        {fmtFreq(mm.frequence)}
+                      </td>
+                      <td style={tdStyle}>{fmtEur(mm.costPerMille)}</td>
                       <td style={{ ...tdStyle, padding: '4px 0 4px 8px' }}>
                         <input
                           type="number" min={0} max={100} step={0.1}
-                          value={Math.round(share * 10) / 10}
+                          value={Math.round(mm.share * 10) / 10}
                           onChange={e => setZoneShare(r.id, parseFloat(e.target.value) || 0)}
                           aria-label={`Répartition ${r.name}`}
                           style={{
-                            width: 62, padding: '5px 6px', textAlign: 'right',
+                            width: 58, padding: '5px 6px', textAlign: 'right',
                             background: 'var(--bg-level-2)', borderRadius: 4,
                             border: `0.5px solid ${repartition ? 'var(--brand-teal)' : 'var(--border-default)'}`,
                             fontFamily: fMono, fontSize: 11.5, color: 'var(--text-primary)', outline: 'none',
@@ -479,6 +563,8 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
                   </td>
                   <td style={{ ...tdStyle, borderBottom: 'none', color: 'var(--text-primary)' }}>{totalVolume > 0 ? fmtInt(totalVolume) : '—'}</td>
                   <td style={{ ...tdStyle, borderBottom: 'none', color: 'var(--text-primary)' }}>{totalImpressions ? fmtInt(totalImpressions) : '—'}</td>
+                  <td style={{ ...tdStyle, borderBottom: 'none' }}>{fmtFreq(totalImpressions && totalVolume > 0 ? totalImpressions / totalVolume : null)}</td>
+                  <td style={{ ...tdStyle, borderBottom: 'none' }}>{fmtEur(budgetNum > 0 && totalVolume > 0 ? budgetNum / (totalVolume / 1000) : null)}</td>
                   <td style={{ ...tdStyle, borderBottom: 'none' }}>
                     {fmtPct(Object.values(activeRepartition).reduce((a, b) => a + b, 0), 0)}
                   </td>
@@ -488,18 +574,33 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
           </div>
         )}
 
-        {/* Reset répartition */}
-        {repartition && (
-          <button
-            onClick={() => setRepartition(null)}
-            style={{
-              alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6,
-              background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 6,
-              color: 'var(--text-secondary)', fontFamily: fInter, fontSize: 11, padding: '6px 10px', cursor: 'pointer',
-            }}
-          >
-            <RotateCcw size={11} /> Répartir au prorata de la cible
-          </button>
+        {/* Actions tableau : reset répartition + export CSV */}
+        {!loading && rows.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {repartition && (
+              <button
+                onClick={() => setRepartition(null)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 6,
+                  color: 'var(--text-secondary)', fontFamily: fInter, fontSize: 11, padding: '6px 10px', cursor: 'pointer',
+                }}
+              >
+                <RotateCcw size={11} /> Répartir au prorata
+              </button>
+            )}
+            <button
+              onClick={exportTableCsv}
+              title="Télécharger le tableau (CSV, ouvrable dans Excel)"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'none', border: '0.5px solid var(--border-default)', borderRadius: 6,
+                color: 'var(--text-secondary)', fontFamily: fInter, fontSize: 11, padding: '6px 10px', cursor: 'pointer',
+              }}
+            >
+              <FileDown size={11} /> Exporter le tableau (CSV)
+            </button>
+          </div>
         )}
 
         {/* Exports DSP — pondérés par la colonne répartition */}

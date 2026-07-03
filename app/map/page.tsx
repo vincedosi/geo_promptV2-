@@ -2341,7 +2341,7 @@ export default function MapPage() {
           style={{
             position: 'fixed',
             top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
-            right: planPanelOpen && planZones.length ? 510 : 10,
+            right: planPanelOpen && planZones.length ? 610 : 10,
             zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
@@ -2423,7 +2423,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: planPanelOpen && planZones.length ? 510 : 10,
+              right: planPanelOpen && planZones.length ? 610 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2444,7 +2444,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
-              right: planPanelOpen && planZones.length ? 510 : 10,
+              right: planPanelOpen && planZones.length ? 610 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -2467,7 +2467,7 @@ export default function MapPage() {
               style={{
                 position: 'fixed',
                 top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
-                right: planPanelOpen && planZones.length ? 510 : 10,
+                right: planPanelOpen && planZones.length ? 610 : 10,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
