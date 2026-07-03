@@ -27,6 +27,7 @@ import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
+import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
@@ -93,7 +94,7 @@ const ScoringPanel = dynamic(
   () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
   { ssr: false },
 );
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
@@ -175,10 +176,11 @@ export default function MapPage() {
   // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
   const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
 
-  // Météo — données par centroïdes admin (Open-Meteo)
+  // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
   const [meteoVisible, setMeteoVisible] = useState(false);
   const [meteoPanelOpen, setMeteoPanelOpen] = useState(false);
-  const [meteoCentroids, setMeteoCentroids] = useState<Array<{ code: string; lat: number; lon: number }> | null>(null);
+  const [meteoZones, setMeteoZones] = useState<GeoJSON.FeatureCollection | null>(null);
+  const meteoZonesCacheRef = useRef<Record<string, GeoJSON.FeatureCollection>>({});
   // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
   // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
   const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
@@ -357,7 +359,7 @@ export default function MapPage() {
     } catch { /* */ }
   }, [tmjaGeoJSON, tmjaHideLowTraffic, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Météo : hook data + sync source GeoJSON → bulles colorées ─────────────
+  // ── Météo : hook data + sync source GeoJSON → choroplèthe zones admin ─────
   const meteo = useMeteoData();
 
   useEffect(() => {
@@ -366,47 +368,108 @@ export default function MapPage() {
     const src = map.getSource('meteo-source') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
-    if (meteo.data && meteo.meta && meteoCentroids) {
+    const setMeteoLayersVisibility = (visible: boolean) => {
+      try {
+        map.setLayoutProperty('meteo-fill', 'visibility', visible ? 'visible' : 'none');
+        map.setLayoutProperty('meteo-outline', 'visibility', visible ? 'visible' : 'none');
+      } catch { /* */ }
+    };
+
+    if (meteo.data && meteo.meta && meteoZones) {
       const features: GeoJSON.Feature[] = [];
-      for (const c of meteoCentroids) {
-        const v = meteo.data[c.code];
+      for (const f of meteoZones.features) {
+        const code = String(f.properties?.code ?? '');
+        const v = meteo.data[code];
         if (!v) continue;
         features.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
-          properties: { code: c.code, weather_value: v.value, label: v.label, unit: v.unit },
+          ...f,
+          properties: {
+            ...f.properties,
+            weather_value: v.value,
+            label: v.label,
+            unit: v.unit,
+          },
         });
       }
       src.setData({ type: 'FeatureCollection', features });
       try {
-        map.setPaintProperty('meteo-circles', 'circle-color',
+        map.setPaintProperty('meteo-fill', 'fill-color',
           buildMeteoColorExpr(meteo.meta.variable, meteo.meta.stats, 'weather_value') as maplibregl.ExpressionSpecification,
         );
-        map.setLayoutProperty('meteo-circles', 'visibility', meteoVisible ? 'visible' : 'none');
       } catch { /* */ }
+      setMeteoLayersVisibility(meteoVisible);
     } else {
       src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('meteo-circles', 'visibility', 'none'); } catch { /* */ }
+      setMeteoLayersVisibility(false);
     }
-  }, [meteo.data, meteo.meta, meteoCentroids, meteoVisible, mapReady]);
+  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady]);
 
-  // Charge les centroïdes (cache 1j navigateur) — re-fetch quand scale change
-  const ensureMeteoCentroids = useCallback(async (scale: MeteoScale) => {
+  // Popup au clic sur une zone météo (nom + valeur + label qualitatif)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const onClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as { nom?: string; weather_value?: number; unit?: string; label?: string };
+      const value = p.weather_value != null ? Number(p.weather_value) : null;
+      new maplibregl.Popup({ closeButton: false, maxWidth: '240px' })
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-family:Inter,sans-serif;font-size:12px;color:var(--text-primary)">` +
+          `<div style="font-weight:500;margin-bottom:2px">${p.nom ?? ''}</div>` +
+          (value != null
+            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${p.unit ?? ''}</div>`
+            : '') +
+          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${p.label}</div>` : '') +
+          `</div>`,
+        )
+        .addTo(map);
+    };
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
+
+    map.on('click', 'meteo-fill', onClick);
+    map.on('mouseenter', 'meteo-fill', onEnter);
+    map.on('mouseleave', 'meteo-fill', onLeave);
+    return () => {
+      map.off('click', 'meteo-fill', onClick);
+      map.off('mouseenter', 'meteo-fill', onEnter);
+      map.off('mouseleave', 'meteo-fill', onLeave);
+    };
+  }, [mapReady]);
+
+  // Charge les polygones de zones (cache mémoire par échelle + cache 1j navigateur)
+  const ensureMeteoZones = useCallback(async (scale: MeteoScale) => {
+    const cached = meteoZonesCacheRef.current[scale];
+    if (cached) { setMeteoZones(cached); return; }
     try {
-      const res = await adminFetch(`/api/meteo-geo/centroids?scale=${scale}`, { cache: 'force-cache' });
+      const res = await adminFetch(`/api/meteo-geo/zones?scale=${scale}`, { cache: 'force-cache' });
       if (!res.ok) return;
-      const j = await res.json() as { centroids: Array<{ code: string; lat: number; lon: number }> };
-      setMeteoCentroids(j.centroids ?? []);
+      const fc = await res.json() as GeoJSON.FeatureCollection;
+      meteoZonesCacheRef.current[scale] = fc;
+      setMeteoZones(fc);
     } catch { /* */ }
   }, []);
 
   const handleMeteoApply = useCallback(async (params: MeteoParams) => {
+    // Granularité choisie par l'utilisateur ; fallback heuristique par durée
+    // pour les appels sans scale (compatibilité).
     const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
-    const scale: MeteoScale = days > 30 ? 'region' : days > 7 ? 'departement' : 'departement';
-    await ensureMeteoCentroids(scale);
-    await meteo.fetch(scale, params);
-    setMeteoVisible(true);
-  }, [meteo, ensureMeteoCentroids]);
+    const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
+    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
+    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
+    let bbox: string | undefined;
+    if (scale === 'cp') {
+      const b = mapRef.current?.getBounds();
+      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
+    }
+    await ensureMeteoZones(scale);
+    const ok = await meteo.fetch(scale, { ...params, bbox });
+    if (ok) setMeteoVisible(true);
+    return ok;
+  }, [meteo, ensureMeteoZones]);
 
   const handleMeteoClear = useCallback(() => {
     meteo.clear();
@@ -1050,6 +1113,92 @@ export default function MapPage() {
   savedMaps.applyVoronoiRef.current    = mapLayers.applyVoronoi;
   savedMaps.loadCarreauxRef.current    = mapLayers.loadCarreauxFromAI;
   savedMaps.setMessagesRef.current     = chat.setMessages;
+
+  // ── Tout effacer : vide toutes les couches et zones affichées sur la carte ──
+  const handleClearAllLayers = useCallback(() => {
+    const map = mapRef.current;
+
+    // Markers de zone (POI + ville)
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    // Sources GeoJSON → collection vide (idempotent, couvre aussi les effets
+    // qui ne nettoient pas la source quand leur donnée repasse à null)
+    if (map) {
+      const geojsonSources = [
+        'pois-heat', 'zone-circle', 'wizard-highlight', 'meteo-source',
+        'tmja-source', 'radio-emetteurs', 'radio-coverage', 'digital-cp',
+        'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
+        'battle-borders', 'battle-pois', 'clusters-source', 'test-iso',
+        'territory-mask',
+      ];
+      for (const id of geojsonSources) {
+        const src = map.getSource(id);
+        if (src && src.type === 'geojson') {
+          (src as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
+        }
+      }
+
+      // Zones custom affichées via l'overlay Zones (sources custom-zone-<id>
+      // créées dynamiquement). Le panneau retombe sur ses pieds : « Masquer »
+      // puis « Afficher » recréent la couche proprement.
+      const style = map.getStyle();
+      for (const sourceId of Object.keys(style.sources ?? {})) {
+        if (!sourceId.startsWith('custom-zone-')) continue;
+        const zoneId = sourceId.slice('custom-zone-'.length);
+        for (const layerId of [`custom-zone-fill-${zoneId}`, `custom-zone-line-${zoneId}`]) {
+          if (map.getLayer(layerId)) map.removeLayer(layerId);
+        }
+        map.removeSource(sourceId);
+      }
+    }
+
+    // Couches tuiles vectorielles (visibilité) et couches copilote
+    mapLayers.setVoronoiVisible(false);
+    mapLayers.setBattleVisible(false);
+    mapLayers.setIsochroneVisible(false);
+    mapLayers.setCarreauxVisible(false);
+    mapLayers.setIrisVisible(false);
+
+    // États de données de la page
+    setZoneData(null);
+    setBattleFeatures([]);
+    setBattlePois([]);
+    setBattleCacheKey(null);
+    setClusterGeoJSON(null);
+    setClustersVisible(false);
+    setWizardHighlightGeoJSON(null);
+    setTmjaGeoJSON(null);
+    handleMeteoClear();
+    setCivicVariableCode(null);
+    setRadioVisible(false);
+    setRadioHeatmapMode(false);
+    setRadioCoverageMode(false);
+    setRadioSelectedId(null);
+    setRadioSelectedNom(null);
+    setDigitalVisible(false);
+    setDigitalStats(null);
+    setDigitalAnalysisOpen(false);
+    setDigitalCampaignId('');
+    setCorrelationParams(null);
+    setResidualsMeta(null);
+    setSelectedIrisCode(null);
+    setSelectedIrisData(null);
+    setSelectedBillboard(null);
+    setActiveResults(null);
+
+    // Périmètre territorial (masque affiché sur la carte)
+    setPerimeterScope(null);
+    setPerimeterSelectedRegions([]);
+    setPerimeterSelectedDepts([]);
+    setPerimeterVille('');
+    setSelectedPOI([]);
+
+    // Nettoie ?customZone= (et autres params) pour qu'un F5 ne recharge rien
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
   // Le polygon de la zone alimente le slot battleFeatures pour que Coverage,
@@ -2200,6 +2349,54 @@ export default function MapPage() {
             {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
 
+          {/* Tout effacer — vide toutes les couches et zones affichées */}
+          <button
+            onClick={handleClearAllLayers}
+            title="Tout effacer (couches et zones affichées)"
+            style={{
+              position: 'fixed',
+              top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
+              right: 10,
+              zIndex: 50,
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
+              borderRadius: 6, padding: 8,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-secondary)',
+              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Eraser size={16} strokeWidth={1.5} />
+          </button>
+
+          {/* Script custom bidding DV360 — visible quand une zone custom est affichée
+              sur la carte (chargée via « Utiliser dans la carte », battleCacheKey cg__<id>) */}
+          {battleCacheKey?.startsWith('cg__') && (
+            <button
+              onClick={() => { void downloadZoneExport(battleCacheKey.slice(4), 'bidding_script').catch(err => console.error('[map] export bidding', err)); }}
+              title={`Générer le fichier custom bidding DV360 pour « ${battlePois[0]?.nom ?? 'zone custom'} »`}
+              style={{
+                position: 'fixed',
+                top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
+                right: 10,
+                zIndex: 50,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
+                borderRadius: 6, padding: '7px 10px',
+                cursor: 'pointer',
+                color: 'var(--brand-teal)',
+                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, fontWeight: 500,
+                transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
+            >
+              <FileDown size={14} strokeWidth={1.5} />
+              Script bidding DV360
+            </button>
+          )}
+
           {/* Toggle Vue comparée / fusionnée déplacé dans l'overlay Campagnes média (FilterPanel) */}
 
           {/* Triple map view — visible when Digital active + vue comparée */}
@@ -2492,9 +2689,12 @@ export default function MapPage() {
         >
           <div onClick={(e) => e.stopPropagation()}>
             <MeteoGeoPanel
+              scaleSelectable
               onApply={async (params) => {
-                setMeteoPanelOpen(false);
-                await handleMeteoApply(params);
+                // Panneau maintenu ouvert pendant le fetch (spinner) et en cas
+                // d'erreur (le message s'affiche dedans) — fermé sur succès.
+                const ok = await handleMeteoApply(params);
+                if (ok) setMeteoPanelOpen(false);
               }}
               onClose={() => setMeteoPanelOpen(false)}
               loading={meteo.loading}
@@ -2502,6 +2702,7 @@ export default function MapPage() {
               error={meteo.error}
               stats={meteo.meta?.stats ?? null}
             />
+
           </div>
         </div>
       )}
