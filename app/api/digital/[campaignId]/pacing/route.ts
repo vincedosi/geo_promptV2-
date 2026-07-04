@@ -27,9 +27,26 @@ export async function GET(
   const { campaignId } = await params;
   const { searchParams } = new URL(request.url);
   const versionParam = searchParams.get('version');
-  const version = versionParam ? parseInt(versionParam, 10) : null;
+  const version = versionParam !== null ? parseInt(versionParam, 10) : null;
+  if (versionParam !== null && Number.isNaN(version)) {
+    return NextResponse.json({ error: 'invalid_version' }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
+
+  // Version explicitement demandée : vérifier son existence AVANT d'appeler la RPC
+  // (la RPC ne renvoie NULL que si la campagne n'a AUCUN snapshot, pas si la version demandée est absente)
+  if (version !== null) {
+    const { data: exists } = await supabase
+      .from('campaign_plan_snapshot')
+      .select('version')
+      .eq('campaign_id', campaignId)
+      .eq('version', version)
+      .limit(1);
+    if (!exists || exists.length === 0) {
+      return NextResponse.json({ error: 'version_not_found' }, { status: 404 });
+    }
+  }
 
   // Métrique alignée sur le panneau d'analyse
   const { data: camp } = await supabase
