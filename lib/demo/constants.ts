@@ -11,6 +11,18 @@ export const DEMO_ZONE_ID = 'f001b479-b870-4958-978d-e7a98b90de57'; // CIRFA BRE
 export const DEMO_ZONE_NAME = 'CIRFA BRETAGNE';
 export const DEMO_CAMPAIGN_ID = 'dede0000-0000-4000-8000-000000000001';
 
+/** Seuil d'écart moyen (points) sous lequel la boucle est considérée « conforme ». */
+export const CONVERGENCE_TOLERANCE = 2;
+
+/** Nombre maximal de tours de correction en mode autonome. */
+export const MAX_ROUNDS = 3;
+
+/** Nombre d'étapes maximales par correction en mode guidé. */
+export const STEP_CAP_GUIDE = 2;
+
+/** Nombre d'étapes maximales par correction en mode autonome. */
+export const STEP_CAP_AUTONOME = 12;
+
 /** Bornes date d'une période (1-based) du calendrier synthétique. */
 export function periodBounds(period: number): { start: string; end: string } {
   const base = new Date(`${CALENDAR_START}T00:00:00Z`);
