@@ -68,9 +68,12 @@ export async function POST(request: NextRequest) {
   for (let i = 0; i < zones.length; i += 3) {
     const batch = zones.slice(i, i + 3);
     const expanded = await Promise.all(batch.map(async (z) => {
-      const { data } = await supabase.rpc('get_zone_items_export', {
+      const { data, error } = await supabase.rpc('get_zone_items_export', {
         p_zone_id: z.zone_id, p_caller_user_id: profile.id,
-      }) as { data: { items: ZoneExportItem[] } | null };
+      }) as { data: { items: ZoneExportItem[] } | null; error: { message: string } | null };
+      if (error) {
+        console.warn('[media-plan/snapshot] get_zone_items_export', z.zone_id, error.message);
+      }
       return { z, items: data?.items ?? [] };
     }));
 
@@ -102,6 +105,9 @@ export async function POST(request: NextRequest) {
   for (let i = 0; i < rows.length; i += 50) {
     const { error: insErr } = await supabase.from('campaign_plan_snapshot').insert(rows.slice(i, i + 50));
     if (insErr) {
+      // Snapshot partiel : purge best-effort pour éviter qu'un lecteur (get_campaign_pacing)
+      // ne prenne des lignes incomplètes pour un snapshot complet.
+      await supabase.from('campaign_plan_snapshot').delete().eq('campaign_id', campaign_id).eq('version', version);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
   }
