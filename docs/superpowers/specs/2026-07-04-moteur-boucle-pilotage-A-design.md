@@ -39,8 +39,9 @@ convergence est **réelle** (l'algo fonctionne contre une résistance cachée), 
 1. **Version MAX prod-correcte** (approche « période-aware », pas la version simple « éphémère ») : chaque version de plan se mesure sur SA période de délivrance `[period_start, period_end)`, comme un vrai ad server qui reporte des lignes datées.
 2. **Vraie table, vrai pipeline** : le simulateur écrit dans la VRAIE `dsp_campaign_data` ; le pacing/rebid/report la lisent inchangés. Isolation par le flag `is_demo` (existe déjà sur `dsp_campaigns`) + scope `campaign_id`, PAS par une table ou une org séparée.
 3. **Deux bords agnostiques** : la boucle a deux côtés multi-fournisseurs, abstraits derrière des interfaces — **ad server** (lecture/mesure : simulateur, puis Adform/CM360…) et **DSP/trade desk** (push/bid : DV360/TikTok, puis TTD/Meta/Snapchat…). Le cœur (plan, snapshot, pacing, rebid) ne connaît ni l'un ni l'autre.
-4. **Simulateur réactif seedé** : la délivrance réagit au plan poussé contre une résistance cachée fixe → convergence réelle. PRNG seedé → déterministe par le seed (démo reproductible), stochastique par le modèle.
+4. **Simulateur réactif seedé** : la délivrance réagit à l'**enchère poussée** contre une résistance cachée fixe → convergence réelle. PRNG seedé → déterministe par le seed (démo reproductible), stochastique par le modèle.
 5. **Le « mode démo » est un wrapper** (fixtures + contrôleur seed/simulate/rebid/reset), jamais une branche dans la logique métier.
+6. **CIBLE ≠ ENCHÈRE (correction post-test de convergence)** : deux quantités DISTINCTES par item. La **cible** (`expected_share`, ce que l'annonceur VEUT délivrer) est **FIXE** sur toutes les versions (= l'intention v1). L'**enchère** (`item_weight`, ce qu'on pousse au DSP pour l'atteindre) est **ajustée** à chaque rebid. La délivrance réagit à l'**enchère** ; le pacing mesure l'écart vs la **cible fixe** ; le rebid déplace l'**enchère** (jamais la cible). Confondre les deux (cible = enchère dérivée) fait courir après un poteau de but mobile → oscillation, jamais de convergence (bug attrapé par le test d'acceptation, corrigé). Le rebid mergé `new_bid = bid × (cible/réel)` est déjà correct pour ce modèle ; le pacing mergé compare bien `actual` vs `expected_share` — il suffit que la boucle garde `expected_share` = cible fixe et pilote le simulateur par l'enchère.
 
 ## Architecture
 
@@ -70,20 +71,23 @@ Adaptateur ad-server en mode démo. Pour la période N, à partir du snapshot `v
 produit la délivrance datée que l'ad server reporterait. Modèle par code postal :
 
 ```
-délivrance(CP, N) ∝ audience(CP) × saturate( poids_poussé(item du CP, vN) × gain × résistance(CP) ) × (1 + bruit_seedé)
+délivrance(CP, N) ∝ audience(CP) × saturate( ENCHÈRE(item du CP, vN) × gain × résistance(CP) ) × (1 + bruit_seedé)
 ```
 
+La délivrance réagit à l'**enchère** (`bid_share` = `item_weight` normalisé intra-zone du snapshot vN), **pas à la cible**. La cible (`expected_share`, fixe) ne sert qu'à mesurer l'écart et à piloter le rebid.
+
 - **`audience(CP)`** = `ref_codes_postaux.pop_total` normalisée (portée réaliste : gros CP délivrent plus).
-- **`poids_poussé(vN)`** = la part de l'item (depuis le snapshot vN).
+- **`ENCHÈRE(vN)` = `bid_share`** = part d'enchère poussée de l'item (item_weight normalisé intra-zone). Démarre = cible ; s'en éloigne à mesure que le rebid compense la résistance.
 - **`résistance(CP)`** ∈ `(0,1]` = facteur **caché, seedé, FIXE** par CP (certains CP répondent mal au bidding : plus chers, moins d'inventaire). C'est l'**imperfection DSP** qui crée l'écart initial. Ex. `résistance(CP) = 0.3 + 0.7 × rng(seed, CP)`.
-- **`saturate(x) = x / (1 + x)`** : monotone croissante, rendements décroissants (réaliste). Plus de poids → plus de délivrance, mais bornée.
+- **`saturate(x) = x / (1 + x)`** : monotone croissante, rendements décroissants (réaliste). Plus d'enchère → plus de délivrance, mais bornée.
 - La délivrance brute est **normalisée à un volume total** V (impressions de la période) → `impressions(CP)`. `clicks`/`spend` dérivés par CTR/CPM seedés.
 
-**Pourquoi ça converge pour de vrai** : au tour 1, poids ~uniformes → les CP à forte résistance
-sont **sous-servis** (saturate(poids×r) faible), d'autres sur-servis. Le rebid **relève le poids
-là où c'est sous-servi** → au tour 2, `saturate(poids↑ × r)` monte → la part délivrée se rapproche
-de la cible → l'écart baisse. C'est la boucle de feedback réelle contre une résistance fixe. La
-conformité monte v1→v2→v3 parce que l'algo **fonctionne**.
+**Pourquoi ça converge pour de vrai** : au tour 1, enchère = cible → les CP à forte résistance
+sont **sous-servis** (saturate(enchère×r) faible), d'autres sur-servis (écart vs la **cible fixe**). Le
+rebid **relève l'enchère là où c'est sous-servi vs la cible** → au tour 2, `saturate(enchère↑ × r)`
+monte → la part délivrée se rapproche de la **cible fixe** → l'écart baisse. La cible ne bouge pas
+(poteaux stables), seule l'enchère s'ajuste ; c'est la boucle de feedback réelle contre une
+résistance fixe. La conformité monte v1→v2→v3 parce que l'algo **fonctionne**.
 
 **Garde d'isolation** : le simulateur **refuse d'écrire** si la campagne n'a pas `is_demo = true`.
 
@@ -134,7 +138,7 @@ la délivrance de la campagne. Évolution :
 Unités isolées, dans l'ordre :
 
 1. **`lib/demo/rng.ts`** (pur, testé) : PRNG seedé (mulberry32) + helper `rng(seed, key)` déterministe par clé.
-2. **`lib/demo/simulator.ts`** (pur, testé) : `simulateDelivery({ items: SnapshotItem[], audienceByCp, seed, totalVolume }) → DeliveryRow[]` (par CP : impressions/clicks/spend). Propriétés testées : monotonie (poids↑ → délivrance↑), déterminisme (même seed → même sortie), résistance crée un écart.
+2. **`lib/demo/simulator.ts`** (pur, testé) : `simulateDelivery({ items: SimItem[], audienceByCp, seed, period, totalVolume }) → DeliveryRow[]` (par CP : impressions/clicks/spend). `SimItem` porte **`bid_share`** (l'enchère, pas la cible). Propriétés testées : monotonie (**enchère**↑ → délivrance↑), déterminisme (même seed → même sortie), résistance crée un écart.
 3. **Migration `sql/097`** : colonnes `period_start`/`period_end` sur `campaign_plan_snapshot` + `get_campaign_pacing` filtré par période. Appliquée via MCP, versionnée. **Extension de l'endpoint snapshot** (`POST /api/custom-geo/media-plan/snapshot`, mergé) : accepte des `period_start`/`period_end` optionnels (défaut NULL = fenêtre ouverte = comportement actuel), écrits sur les lignes de la version. C'est par là que le contrôleur démo pose la période de chaque version.
 4. **Fixtures + `lib/demo/fixtures.ts`** : IDs stables, seed idempotent de la campagne fictive (org/zone réutilisées, campagne `is_demo`, plan initial).
 5. **Contrôleur `/api/demo/*`** : `seed`, `simulate-period`, `apply-rebid`, `reset`, `teardown` (garde `is_demo`, purge scopée `campaign_id`, insert batch 50, `match_campaign_postal_to_iris`).
@@ -142,9 +146,15 @@ Unités isolées, dans l'ordre :
 7. **Observation UI (léger)** : sélecteur de version dans `PacingPanel` (la route pacing supporte déjà `?version=`) pour voir v1/v2/v3.
 
 **Interfaces clés** :
-- `SnapshotItem` = `{ zone_id, item_id, expected_share, cps: string[] }` (dérivé de `campaign_plan_snapshot`).
-- `DeliveryRow` = `{ postal_code, date, impressions, clicks, spend }`.
+- `SimItem` = `{ zone_id, item_id, bid_share, cps: string[] }` — `bid_share` = enchère normalisée (item_weight intra-zone du snapshot). Le simulateur est piloté par l'enchère.
+- `DeliveryRow` = `{ postal_code, impressions, clicks, spend }`.
 - `simulateDelivery(...)` pur → le contrôleur l'insère dans `dsp_campaign_data`.
+
+**Sémantique cible ≠ enchère dans `campaign_plan_snapshot`** (décision 6) :
+- `expected_share` = **CIBLE fixe** (= l'intention v1, identique sur toutes les versions de la campagne).
+- `item_weight` = **ENCHÈRE** (change à chaque version : v1 = cible ; vN+1 = sortie du rebid).
+- Le simulateur consomme l'**enchère** (`item_weight` normalisé) ; le pacing compare `actual` vs la **cible** (`expected_share`) ; le rebid reçoit `expected_share`=cible + `item_weight`=enchère courante → `new_weight` = nouvelle enchère.
+- **`apply-rebid`** : reporte la cible v1 telle quelle dans `expected_share` de vN+1 (NE la re-dérive PAS des nouveaux poids), et met `item_weight` = nouvelle enchère. C'est le point qui garantit la convergence.
 
 ## Flux de données
 

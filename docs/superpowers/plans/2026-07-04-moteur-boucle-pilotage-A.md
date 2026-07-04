@@ -137,8 +137,8 @@ import { simulateDelivery, type SimItem } from '@/lib/demo/simulator';
 const cps = ['10', '20', '30', '40'];
 const audience = { '10': 1000, '20': 1000, '30': 1000, '40': 1000 };
 const twoItems = (wA: number, wB: number): SimItem[] => [
-  { zone_id: 'z', item_id: 'z:a', expected_share: wA, cps: ['10', '20'] },
-  { zone_id: 'z', item_id: 'z:b', expected_share: wB, cps: ['30', '40'] },
+  { zone_id: 'z', item_id: 'z:a', bid_share: wA, cps: ['10', '20'] },
+  { zone_id: 'z', item_id: 'z:b', bid_share: wB, cps: ['30', '40'] },
 ];
 
 function shareOf(rows: { postal_code: string; impressions: number }[], itemCps: string[]): number {
@@ -160,7 +160,7 @@ describe('simulateDelivery', () => {
     expect(Math.abs(sum - 10000)).toBeLessThanOrEqual(rows.length); // arrondis
   });
 
-  it('monotonie : relever le poids d’un item augmente sa part délivrée', () => {
+  it('monotonie : relever l’enchère d’un item augmente sa part délivrée', () => {
     const base = simulateDelivery({ items: twoItems(0.5, 0.5), audienceByCp: audience, seed: 42, period: 1, totalVolume: 10000 });
     const boosted = simulateDelivery({ items: twoItems(0.8, 0.2), audienceByCp: audience, seed: 42, period: 1, totalVolume: 10000 });
     expect(shareOf(boosted, ['10', '20'])).toBeGreaterThan(shareOf(base, ['10', '20']));
@@ -195,7 +195,7 @@ import { rngFor } from '@/lib/demo/rng';
 export interface SimItem {
   zone_id: string;
   item_id: string;
-  expected_share: number; // part poussée de l'item (intra-zone, depuis le snapshot)
+  bid_share: number; // ENCHÈRE poussée de l'item (item_weight normalisé intra-zone), PAS la cible
   cps: string[];
 }
 
@@ -222,9 +222,9 @@ export function simulateDelivery(input: SimInput): SimDeliveryRow[] {
   const gain = input.gain ?? 3;
   const noise = input.noise ?? 0.1;
 
-  // Poids poussé par CP (chaque CP appartient à un item)
+  // Enchère poussée par CP (chaque CP appartient à un item)
   const weightByCp = new Map<string, number>();
-  for (const it of input.items) for (const cp of it.cps) weightByCp.set(cp, it.expected_share);
+  for (const it of input.items) for (const cp of it.cps) weightByCp.set(cp, it.bid_share);
 
   // Délivrance brute par CP
   const raw: Array<{ cp: string; v: number }> = [];
@@ -283,9 +283,8 @@ Créer `tests/unit/demo/convergence.test.ts` :
 import { describe, it, expect } from 'vitest';
 import { simulateDelivery, type SimItem } from '@/lib/demo/simulator';
 import { computeRebidWeights } from '@/lib/pacing/rebid';
-import { computePacing, type PacingItemInput } from '@/lib/pacing/compute';
 
-// 4 items d'une zone, poids initiaux égaux (25 chacun), 2 CP par item.
+// 4 items d'une zone, 2 CP par item. CIBLE fixe / ENCHÈRE ajustée par le rebid.
 const ITEMS = [
   { item_id: 'z:a', cps: ['1', '2'] },
   { item_id: 'z:b', cps: ['3', '4'] },
@@ -296,50 +295,51 @@ const audienceByCp: Record<string, number> = Object.fromEntries(
   ['1','2','3','4','5','6','7','8'].map((cp, i) => [cp, 800 + i * 120]),
 );
 
-function sharesFromWeights(weights: Record<string, number>): SimItem[] {
-  const total = Object.values(weights).reduce((s, w) => s + w, 0) || 1;
-  return ITEMS.map(it => ({ zone_id: 'z', item_id: it.item_id, expected_share: weights[it.item_id] / total, cps: it.cps }));
+// CIBLE FIXE (l'intention) — ne bouge JAMAIS. Parts normalisées intra-zone.
+const TARGET: Record<string, number> = { 'z:a': 0.25, 'z:b': 0.25, 'z:c': 0.25, 'z:d': 0.25 };
+
+/** SimItem pilotés par l'ENCHÈRE (bid) normalisée — c'est l'enchère qui pilote la délivrance. */
+function bidItems(bids: Record<string, number>): SimItem[] {
+  const total = Object.values(bids).reduce((s, w) => s + w, 0) || 1;
+  return ITEMS.map(it => ({ zone_id: 'z', item_id: it.item_id, bid_share: bids[it.item_id] / total, cps: it.cps }));
 }
 
-/** Écart absolu moyen (points) entre part réelle et part planifiée, intra-zone. */
-function meanAbsDelta(weights: Record<string, number>, period: number): number {
-  const items = sharesFromWeights(weights);
-  const rows = simulateDelivery({ items, audienceByCp, seed: 42, period, totalVolume: 1_000_000 });
+/** Part réelle délivrée par item, pour une enchère + une période données. */
+function actualShares(bids: Record<string, number>, period: number): Record<string, number> {
+  const rows = simulateDelivery({ items: bidItems(bids), audienceByCp, seed: 42, period, totalVolume: 1_000_000 });
   const impByCp = new Map(rows.map(r => [r.postal_code, r.impressions]));
-  const pacingInput: PacingItemInput[] = items.map(it => ({
-    zone_id: 'z', zone_name: 'z', item_id: it.item_id, item_name: it.item_id, item_weight: 0,
-    expected_share: it.expected_share,
-    actual_imp: it.cps.reduce((s, cp) => s + (impByCp.get(cp) ?? 0), 0),
-    actual_spend: 0, cp_count: it.cps.length,
-  }));
-  const out = computePacing(pacingInput);
-  return out.reduce((s, i) => s + Math.abs(i.delta_pts), 0) / out.length;
+  const total = rows.reduce((s, r) => s + r.impressions, 0) || 1;
+  return Object.fromEntries(ITEMS.map(it => [
+    it.item_id, it.cps.reduce((s, cp) => s + (impByCp.get(cp) ?? 0), 0) / total,
+  ]));
 }
 
-describe('convergence de la boucle (simulateur + rebid + pacing)', () => {
-  it('l’écart absolu moyen décroît de v1 à v3', () => {
-    let weights: Record<string, number> = { 'z:a': 25, 'z:b': 25, 'z:c': 25, 'z:d': 25 };
+/** Écart absolu moyen (points) entre la part réelle et la CIBLE FIXE. */
+function meanAbsDeltaVsTarget(bids: Record<string, number>, period: number): number {
+  const actual = actualShares(bids, period);
+  return ITEMS.reduce((s, it) => s + Math.abs((actual[it.item_id] - TARGET[it.item_id]) * 100), 0) / ITEMS.length;
+}
+
+describe('convergence de la boucle (enchère → cible fixe)', () => {
+  it('l’écart absolu moyen vs la cible fixe décroît en itérant le rebid', () => {
+    let bids: Record<string, number> = { 'z:a': 25, 'z:b': 25, 'z:c': 25, 'z:d': 25 }; // enchère = cible au départ
     const errs: number[] = [];
     for (let period = 1; period <= 3; period++) {
-      errs.push(meanAbsDelta(weights, period));
-      // rebid : recalcule les poids depuis le diagnostic de cette période
-      const items = sharesFromWeights(weights);
-      const rows = simulateDelivery({ items, audienceByCp, seed: 42, period, totalVolume: 1_000_000 });
-      const impByCp = new Map(rows.map(r => [r.postal_code, r.impressions]));
-      const zoneTotal = rows.reduce((s, r) => s + r.impressions, 0) || 1;
-      const rebid = computeRebidWeights(items.map(it => ({
-        zone_id: 'z', item_id: it.item_id, item_weight: weights[it.item_id],
-        expected_share: it.expected_share,
-        actual_share: it.cps.reduce((s, cp) => s + (impByCp.get(cp) ?? 0), 0) / zoneTotal,
+      errs.push(meanAbsDeltaVsTarget(bids, period));
+      const actual = actualShares(bids, period);
+      // rebid : CIBLE FIXE en expected_share, ENCHÈRE courante en item_weight → nouvelle enchère
+      const rebid = computeRebidWeights(ITEMS.map(it => ({
+        zone_id: 'z', item_id: it.item_id,
+        item_weight: bids[it.item_id],        // enchère courante
+        expected_share: TARGET[it.item_id],   // CIBLE FIXE (jamais l'enchère !)
+        actual_share: actual[it.item_id],
       })));
-      weights = Object.fromEntries(rebid.map(r => [r.item_id, r.new_weight]));
+      bids = Object.fromEntries(rebid.map(r => [r.item_id, r.new_weight]));
     }
-    // Déterministe (seed 42). On prouve la convergence sans exiger une monotonie
-    // pas-à-pas parfaite (le bruit varie par période) : écart initial réel, puis
-    // convergence nette au bout de 2 rebids.
-    expect(errs[0]).toBeGreaterThan(3);            // écart sous/sur-servi réel au tour 1
-    expect(errs[2]).toBeLessThan(errs[0] * 0.8);   // a convergé d'au moins 20 %
-    expect(errs[2]).toBeLessThan(errs[0]);         // strictement mieux qu'au départ
+    // Déterministe (seed 42). Écart initial réel, puis convergence nette vers la cible fixe.
+    expect(errs[0]).toBeGreaterThan(2);          // écart sous/sur-servi réel au tour 1
+    expect(errs[2]).toBeLessThan(errs[0] * 0.8); // a convergé d'au moins 20 %
+    expect(errs[2]).toBeLessThan(errs[0]);       // strictement mieux qu'au départ
   });
 });
 ```
@@ -536,7 +536,7 @@ git commit -m "feat(pacing): période-aware — get_campaign_pacing filtré par 
 **Interfaces:**
 - Produces:
   - `constants` : `DEMO_SEED`, `PERIOD_LEN_DAYS`, `CALENDAR_START`, `TOTAL_VOLUME`, `SIM_GAIN`, `SIM_NOISE`, `DEMO_CAMPAIGN_ID`, `DEMO_ORG_ID`, `DEMO_ZONE_ID`, `DEMO_ZONE_NAME`, `periodBounds(period: number): { start: string; end: string }`.
-  - `fixtures` : `ensureDemoCampaign(supabase): Promise<void>` (idempotent), `ensureDemoPlan(supabase): Promise<{ items: {item_id, item_name, weight}[] }>`.
+  - `fixtures` : `ensureDemoCampaign(supabase): Promise<void>` (idempotent), `ensureDemoPlan(supabase): Promise<{ items: {item_id, item_name, target_share, bid_weight}[] }>` (v1 : cible = enchère).
 
 - [ ] **Step 1: Écrire les constantes**
 
@@ -598,18 +598,20 @@ export async function ensureDemoCampaign(supabase: SupabaseClient): Promise<void
 export async function ensureDemoPlan(
   supabase: SupabaseClient,
   callerUserId: string,
-): Promise<{ items: Array<{ item_id: string; item_name: string; weight: number }> }> {
+): Promise<{ items: Array<{ item_id: string; item_name: string; target_share: number; bid_weight: number }> }> {
   const { data } = await supabase.rpc('get_zone_items_export', {
     p_zone_id: DEMO_ZONE_ID, p_caller_user_id: callerUserId,
   }) as { data: { items: Array<{ poi_id: string; poi_name: string }> } | null };
   const raw = data?.items ?? [];
   if (raw.length === 0) throw new Error('demo_zone_not_expandable');
 
+  // v1 : ENCHÈRE = CIBLE. target_share = cible (fixe), bid_weight = enchère (ajustée ensuite).
   const w = Math.round((100 / raw.length) * 10) / 10;
-  const items = raw.map(it => ({ item_id: `${DEMO_ZONE_ID}:${it.poi_id}`, item_name: it.poi_name, weight: w }));
+  const share = 1 / raw.length;
+  const items = raw.map(it => ({ item_id: `${DEMO_ZONE_ID}:${it.poi_id}`, item_name: it.poi_name, target_share: share, bid_weight: w }));
 
-  // Persiste le plan média sur la campagne (geo_strategy.media_plan)
-  const weights: Record<string, number> = Object.fromEntries(items.map(it => [it.item_id, it.weight]));
+  // Persiste le plan média sur la campagne (geo_strategy.media_plan) — poids = enchère
+  const weights: Record<string, number> = Object.fromEntries(items.map(it => [it.item_id, it.bid_weight]));
   const { data: camp } = await supabase.from('dsp_campaigns').select('geo_strategy').eq('id', DEMO_CAMPAIGN_ID).single();
   const existing = (camp?.geo_strategy ?? {}) as Record<string, unknown>;
   await supabase.from('dsp_campaigns').update({
@@ -650,7 +652,6 @@ Créer `lib/demo/controller.ts` :
  * simulation d'une période, purge. Toute écriture exige is_demo=true.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildZoneSnapshotItems } from '@/lib/pacing/snapshot';
 import { simulateDelivery, type SimItem } from '@/lib/demo/simulator';
 import { DEMO_CAMPAIGN_ID, DEMO_ZONE_ID, DEMO_ZONE_NAME, DEMO_SEED, TOTAL_VOLUME, SIM_GAIN, SIM_NOISE, periodBounds } from '@/lib/demo/constants';
 
@@ -667,10 +668,11 @@ export async function latestVersion(supabase: SupabaseClient): Promise<number> {
   return (data?.[0]?.version as number | undefined) ?? 0;
 }
 
-/** Crée un snapshot périodé pour la campagne démo à partir de poids par item. */
+/** Crée un snapshot périodé pour la campagne démo. Chaque item porte SA CIBLE (fixe) et SON
+ *  ENCHÈRE (courante) : expected_share = target_share (cible), item_weight = bid_weight (enchère). */
 export async function createPeriodSnapshot(
   supabase: SupabaseClient, callerUserId: string,
-  items: Array<{ item_id: string; item_name: string; weight: number }>, period: number,
+  items: Array<{ item_id: string; item_name: string; target_share: number; bid_weight: number }>, period: number,
 ): Promise<number> {
   const version = (await latestVersion(supabase)) + 1;
   const { start, end } = periodBounds(period);
@@ -678,16 +680,21 @@ export async function createPeriodSnapshot(
     p_zone_id: DEMO_ZONE_ID, p_caller_user_id: callerUserId,
   }) as { data: { items: Array<{ poi_id: string; cps: string[] }> } | null };
   const cpsByPoi = new Map((data?.items ?? []).map(it => [it.poi_id, it.cps]));
-  const snapshotItems = buildZoneSnapshotItems(DEMO_ZONE_ID, items, cpsByPoi);
 
   const rows: Array<Record<string, unknown>> = [];
-  for (const it of snapshotItems) for (const cp of it.cps) {
-    rows.push({
-      campaign_id: DEMO_CAMPAIGN_ID, version, created_by: callerUserId, dsp: 'dv360',
-      budget: 100000, cpm: 5, cible: 'total', zone_id: DEMO_ZONE_ID, zone_name: DEMO_ZONE_NAME,
-      item_id: it.item_id, item_name: it.item_name, item_weight: it.item_weight,
-      expected_share: it.expected_share, postal_code: cp, period_start: start, period_end: end,
-    });
+  for (const it of items) {
+    const cps = cpsByPoi.get(it.item_id.slice(DEMO_ZONE_ID.length + 1)) ?? [];
+    if (cps.length === 0) continue; // item non expansable → non figé
+    for (const cp of cps) {
+      rows.push({
+        campaign_id: DEMO_CAMPAIGN_ID, version, created_by: callerUserId, dsp: 'dv360',
+        budget: 100000, cpm: 5, cible: 'total', zone_id: DEMO_ZONE_ID, zone_name: DEMO_ZONE_NAME,
+        item_id: it.item_id, item_name: it.item_name,
+        item_weight: it.bid_weight,       // ENCHÈRE (change par version)
+        expected_share: it.target_share,  // CIBLE FIXE (identique sur toutes les versions)
+        postal_code: cp, period_start: start, period_end: end,
+      });
+    }
   }
   if (rows.length === 0) throw new Error('no_expandable_items');
   for (let i = 0; i < rows.length; i += 50) {
@@ -703,22 +710,27 @@ export async function simulateCurrentPeriod(supabase: SupabaseClient): Promise<{
   if (version === 0) throw new Error('no_snapshot');
 
   const { data: snap } = await supabase.from('campaign_plan_snapshot')
-    .select('zone_id, item_id, expected_share, postal_code, period_start, period_end')
+    .select('zone_id, item_id, item_weight, postal_code, period_start')
     .eq('campaign_id', DEMO_CAMPAIGN_ID).eq('version', version);
   const rows = snap ?? [];
   if (rows.length === 0) throw new Error('empty_snapshot');
   const period = version; // 1 version ↔ 1 période dans la démo
   const periodStart = rows[0].period_start as string;
 
-  // Reconstruire les SimItem (item → cps + expected_share)
-  const byItem = new Map<string, SimItem>();
+  // Reconstruire les items (item → cps + ENCHÈRE item_weight). Le simulateur est piloté
+  // par l'enchère normalisée (bid_share), PAS par la cible.
+  const byItem = new Map<string, { zone_id: string; item_id: string; item_weight: number; cps: string[] }>();
   const cps = new Set<string>();
   for (const r of rows) {
     cps.add(r.postal_code as string);
-    const it = byItem.get(r.item_id as string) ?? { zone_id: r.zone_id as string, item_id: r.item_id as string, expected_share: r.expected_share as number, cps: [] };
+    const it = byItem.get(r.item_id as string) ?? { zone_id: r.zone_id as string, item_id: r.item_id as string, item_weight: r.item_weight as number, cps: [] };
     it.cps.push(r.postal_code as string);
     byItem.set(r.item_id as string, it);
   }
+  const totalWeight = Array.from(byItem.values()).reduce((s, it) => s + it.item_weight, 0) || 1;
+  const simItems: SimItem[] = Array.from(byItem.values()).map(it => ({
+    zone_id: it.zone_id, item_id: it.item_id, bid_share: it.item_weight / totalWeight, cps: it.cps,
+  }));
 
   // Audience par CP
   const { data: refs } = await supabase.from('ref_codes_postaux')
@@ -726,7 +738,7 @@ export async function simulateCurrentPeriod(supabase: SupabaseClient): Promise<{
   const audienceByCp: Record<string, number> = Object.fromEntries((refs ?? []).map(r => [r.code_postal as string, Number(r.pop_total) || 0]));
 
   const delivery = simulateDelivery({
-    items: Array.from(byItem.values()), audienceByCp, seed: DEMO_SEED, period,
+    items: simItems, audienceByCp, seed: DEMO_SEED, period,
     totalVolume: TOTAL_VOLUME, gain: SIM_GAIN, noise: SIM_NOISE,
   });
 
@@ -847,9 +859,15 @@ export async function POST(request: NextRequest) {
       expected_share: p.expected_share, actual_share: p.actual_share,
     })));
 
+    // Cible FIXE (reportée depuis le pacing = expected_share du snapshot, invariant) ;
+    // enchère = nouvelle sortie du rebid.
     const items = rebid.map(r => {
       const src = pacing.find(p => p.item_id === r.item_id)!;
-      return { item_id: r.item_id, item_name: src.item_name, weight: Math.round(r.new_weight * 10) / 10 };
+      return {
+        item_id: r.item_id, item_name: src.item_name,
+        target_share: src.expected_share,               // CIBLE FIXE
+        bid_weight: Math.round(r.new_weight * 10) / 10,  // nouvelle ENCHÈRE
+      };
     });
     const newVersion = await createPeriodSnapshot(supabase, profile.id, items, version + 1);
     const { rows } = await simulateCurrentPeriod(supabase);
