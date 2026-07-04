@@ -3,10 +3,14 @@
  * Campaign detail with stats breakdown, or delete campaign.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
+
+/** Correction manuelle du statut de cycle de vie d'une campagne (paused/ended/archived), ou null pour lever l'override. */
+export const StatusOverrideSchema = z.enum(['paused', 'ended', 'archived']).nullable();
 
 export async function GET(
   request: NextRequest,
@@ -142,6 +146,16 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (organization_id !== undefined) updates.organization_id = organization_id;
   if (name !== undefined) updates.name = name;
+
+  if ('status_override' in body) {
+    const parsed = StatusOverrideSchema.safeParse(body.status_override);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'status_override invalide' }, { status: 400 });
+    }
+    updates.status_override = parsed.data;
+    updates.status_override_at = parsed.data ? new Date().toISOString() : null;
+    updates.status_override_by = parsed.data ? profile.id : null;
+  }
 
   const { error } = await supabase.from('dsp_campaigns').update(updates).eq('id', id);
   if (error) {
