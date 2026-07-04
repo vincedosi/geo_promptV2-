@@ -20,6 +20,8 @@ const BodySchema = z.object({
   budget: z.number().nonnegative().nullable(),
   cpm: z.number().nonnegative().nullable(),
   cible: z.enum(CIBLE_KEYS as [string, ...string[]]),
+  period_start: z.string().nullable().optional(),
+  period_end: z.string().nullable().optional(),
   zones: z.array(z.object({
     zone_id: z.string(),
     zone_name: z.string(),
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
   }
-  const { campaign_id, dsp, budget, cpm, cible, zones } = parsed.data;
+  const { campaign_id, dsp, budget, cpm, cible, zones, period_start, period_end } = parsed.data;
 
   const supabase = createAdminClient();
 
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
             zone_id: z.zone_id, zone_name: z.zone_name,
             item_id: item.item_id, item_name: item.item_name,
             item_weight: item.item_weight, expected_share: item.expected_share, postal_code: cp,
+            period_start: period_start ?? null, period_end: period_end ?? null,
           });
         }
       }
