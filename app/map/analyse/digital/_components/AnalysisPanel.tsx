@@ -139,7 +139,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
         {(['analyse', 'pacing'] as const).map((m) => (
           <button key={m} onClick={() => setMode(m)} style={{
             padding: '6px 12px', fontFamily: 'Inter, sans-serif', fontSize: 12, cursor: 'pointer',
@@ -148,6 +148,12 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
             color: mode === m ? 'var(--brand-teal)' : 'var(--text-tertiary)',
           }}>{m === 'analyse' ? 'Analyse démographique' : 'Plan vs réel'}</button>
         ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={onToggle} style={{
+          padding: '6px 14px', fontFamily: 'Inter, sans-serif', fontSize: 11, cursor: 'pointer',
+          background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+          color: 'var(--text-secondary)',
+        }}>Fermer analyse</button>
       </div>
 
       {mode === 'analyse' && (
@@ -227,11 +233,6 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
             </select>
           </div>
         )}
-        <button onClick={onToggle} style={{
-          padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: 'pointer',
-          background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
-          color: 'var(--text-secondary)', alignSelf: 'center',
-        }}>Fermer analyse</button>
       </div>
 
       {/* Scrollable grid */}

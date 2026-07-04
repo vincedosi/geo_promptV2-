@@ -20,6 +20,8 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
   const [state, setState] = useState<{ loading: boolean; data: PacingResponse | null; empty: boolean; error: string | null }>(
     { loading: true, data: null, empty: false, error: null },
   );
+  const [rebidding, setRebidding] = useState(false);
+  const [rebidError, setRebidError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,26 +38,34 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
     return () => { cancelled = true; };
   }, [campaignId]);
 
-  const onRebid = useCallback((format: 'bidding_script' | 'tiktok_geo') => {
+  const onRebid = useCallback(async (format: 'bidding_script' | 'tiktok_geo') => {
     const items = state.data?.items ?? [];
-    if (!items.length) return;
-    const rebidInput: RebidItemInput[] = items.map(i => ({
-      zone_id: i.zone_id, item_id: i.item_id, item_weight: i.item_weight,
-      expected_share: i.expected_share, actual_share: i.actual_share,
-    }));
-    const corrected = computeRebidWeights(rebidInput);
-    // Un export par zone, avec les poids corrigés (poi_id → new_weight)
-    const byZone = new Map<string, Record<string, number>>();
-    for (const r of corrected) {
-      const poiId = r.item_id.slice(r.zone_id.length + 1);
-      const w = byZone.get(r.zone_id) ?? {};
-      w[poiId] = Math.round(r.new_weight * 10) / 10;
-      byZone.set(r.zone_id, w);
+    if (!items.length || rebidding) return;
+    setRebidding(true);
+    setRebidError(null);
+    try {
+      const rebidInput: RebidItemInput[] = items.map(i => ({
+        zone_id: i.zone_id, item_id: i.item_id, item_weight: i.item_weight,
+        expected_share: i.expected_share, actual_share: i.actual_share,
+      }));
+      const corrected = computeRebidWeights(rebidInput);
+      // Un export par zone, avec les poids corrigés (poi_id → new_weight)
+      const byZone = new Map<string, Record<string, number>>();
+      for (const r of corrected) {
+        const poiId = r.item_id.slice(r.zone_id.length + 1);
+        const w = byZone.get(r.zone_id) ?? {};
+        w[poiId] = Math.round(r.new_weight * 10) / 10;
+        byZone.set(r.zone_id, w);
+      }
+      for (const [zoneId, weights] of byZone) {
+        await downloadZoneExport(zoneId, format, { weights: JSON.stringify(weights) });
+      }
+    } catch (err: unknown) {
+      setRebidError(err instanceof Error ? err.message : 'Échec de l\'export rebid');
+    } finally {
+      setRebidding(false);
     }
-    for (const [zoneId, weights] of byZone) {
-      void downloadZoneExport(zoneId, format, { weights: JSON.stringify(weights) });
-    }
-  }, [state.data]);
+  }, [state.data, rebidding]);
 
   if (state.loading) return <div style={{ padding: 16, fontFamily: fInter, fontSize: 13, color: 'var(--text-secondary)' }}>Chargement…</div>;
   if (state.error) return <div style={{ padding: 16, fontFamily: fInter, fontSize: 13, color: 'var(--danger)' }}>Erreur : {state.error}</div>;
@@ -106,9 +116,14 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
         </tbody>
       </table>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={() => onRebid('bidding_script')} style={rebidBtn}>Générer le rebid corrigé DV360</button>
-        <button onClick={() => onRebid('tiktok_geo')} style={rebidBtn}>Rebid TikTok</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+        <button onClick={() => onRebid('bidding_script')} disabled={rebidding} style={rebidding ? rebidBtnDisabled : rebidBtn}>
+          {rebidding ? 'Génération…' : 'Générer le rebid corrigé DV360'}
+        </button>
+        <button onClick={() => onRebid('tiktok_geo')} disabled={rebidding} style={rebidding ? rebidBtnDisabled : rebidBtn}>
+          {rebidding ? 'Génération…' : 'Rebid TikTok'}
+        </button>
+        {rebidError && <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--danger)' }}>Erreur : {rebidError}</span>}
       </div>
     </div>
   );
@@ -117,4 +132,8 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
 const rebidBtn: React.CSSProperties = {
   background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)',
   borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12, cursor: 'pointer',
+};
+
+const rebidBtnDisabled: React.CSSProperties = {
+  ...rebidBtn, cursor: 'not-allowed', opacity: 0.5,
 };
