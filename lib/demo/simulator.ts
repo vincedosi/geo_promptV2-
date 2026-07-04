@@ -9,7 +9,7 @@ import { rngFor } from '@/lib/demo/rng';
 export interface SimItem {
   zone_id: string;
   item_id: string;
-  expected_share: number; // part poussée de l'item (intra-zone, depuis le snapshot)
+  bid_share: number; // ENCHÈRE poussée de l'item (item_weight normalisé intra-zone), PAS la cible
   cps: string[];
 }
 
@@ -36,9 +36,9 @@ export function simulateDelivery(input: SimInput): SimDeliveryRow[] {
   const gain = input.gain ?? 3;
   const noise = input.noise ?? 0.1;
 
-  // Poids poussé par CP (chaque CP appartient à un item)
+  // Enchère poussée par CP (chaque CP appartient à un item)
   const weightByCp = new Map<string, number>();
-  for (const it of input.items) for (const cp of it.cps) weightByCp.set(cp, it.expected_share);
+  for (const it of input.items) for (const cp of it.cps) weightByCp.set(cp, it.bid_share);
 
   // Délivrance brute par CP
   const raw: Array<{ cp: string; v: number }> = [];
