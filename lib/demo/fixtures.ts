@@ -12,7 +12,8 @@ import { DEMO_CAMPAIGN_ID, DEMO_ORG_ID, DEMO_ZONE_ID, DEMO_ZONE_NAME } from '@/l
  *  et ajouter date_start/date_end/country SI le schéma les impose NOT NULL. Le set
  *  minimal ci-dessous (id, organization_id, name, is_demo) suffit au moteur. */
 export async function ensureDemoCampaign(supabase: SupabaseClient): Promise<void> {
-  const { data: existing } = await supabase.from('dsp_campaigns').select('id, is_demo').eq('id', DEMO_CAMPAIGN_ID).maybeSingle();
+  const { data: existing, error: selErr } = await supabase.from('dsp_campaigns').select('id, is_demo').eq('id', DEMO_CAMPAIGN_ID).maybeSingle();
+  if (selErr) throw selErr;
   if (existing && existing.is_demo !== true) {
     throw new Error('demo_id_collision_with_real_campaign');
   }

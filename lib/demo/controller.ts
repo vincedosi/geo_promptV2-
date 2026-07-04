@@ -27,9 +27,10 @@ export async function createPeriodSnapshot(
 ): Promise<number> {
   const version = (await latestVersion(supabase)) + 1;
   const { start, end } = periodBounds(period);
-  const { data } = await supabase.rpc('get_zone_items_export', {
+  const { data, error: rpcErr } = await supabase.rpc('get_zone_items_export', {
     p_zone_id: DEMO_ZONE_ID, p_caller_user_id: callerUserId,
-  }) as { data: { items: Array<{ poi_id: string; cps: string[] }> } | null };
+  }) as { data: { items: Array<{ poi_id: string; cps: string[] }> } | null; error: { message: string } | null };
+  if (rpcErr) { console.warn('[demo/createPeriodSnapshot] get_zone_items_export', rpcErr.message); throw new Error(rpcErr.message); }
   const cpsByPoi = new Map((data?.items ?? []).map(it => [it.poi_id, it.cps]));
 
   // Items retenus = ceux expansables (cps non vide). La cible est renormalisée à 1 sur
