@@ -49,8 +49,13 @@ export async function GET(request: NextRequest) {
 
   const rows = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
 
-  // Last data date per campaign — signal d'attention (statut & cycle de vie)
-  const { data: lastDates } = await supabase.rpc('get_campaign_last_data_dates');
+  // Last data date per campaign — signal d'attention (statut & cycle de vie).
+  // RPC bornée par les ids affichés → index scan, jamais de scan intégral de
+  // dsp_campaign_data (contrainte I/O Nano). Cf sql/095.
+  const ids = rows.map((c: { id: string }) => c.id);
+  const { data: lastDates } = ids.length
+    ? await supabase.rpc('get_campaign_last_data_dates', { p_ids: ids })
+    : { data: [] };
   const lastByCampaign = new Map<string, string>(
     (lastDates ?? []).map((r: { campaign_id: string; last_data_date: string }) => [r.campaign_id, r.last_data_date])
   );
