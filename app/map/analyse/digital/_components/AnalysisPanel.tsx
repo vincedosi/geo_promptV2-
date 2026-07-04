@@ -8,6 +8,7 @@ import { ActionListTable } from './ActionListTable';
 import { MediaHeatmap } from './MediaHeatmap';
 import { AiAnalysisBlock } from './AiAnalysisBlock';
 import { BiddingRecommendation } from './BiddingRecommendation';
+import { PacingPanel } from './PacingPanel';
 
 const fInter = "'Inter', sans-serif";
 
@@ -40,6 +41,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   const [breakdownData, setBreakdownData] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'region' | 'dept' | 'cp'>('region');
+  const [mode, setMode] = useState<'analyse' | 'pacing'>('analyse');
   const [cpLimit, setCpLimit] = useState<number>(50);
   const [cpPopMin, setCpPopMin] = useState<number>(5000);
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
@@ -137,6 +139,25 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
         />
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+        {(['analyse', 'pacing'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)} style={{
+            padding: '6px 12px', fontFamily: 'Inter, sans-serif', fontSize: 12, cursor: 'pointer',
+            background: 'transparent', border: 'none',
+            borderBottom: mode === m ? '2px solid var(--brand-teal)' : '2px solid transparent',
+            color: mode === m ? 'var(--brand-teal)' : 'var(--text-tertiary)',
+          }}>{m === 'analyse' ? 'Analyse démographique' : 'Plan vs réel'}</button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={onToggle} style={{
+          padding: '6px 14px', fontFamily: 'Inter, sans-serif', fontSize: 11, cursor: 'pointer',
+          background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
+          color: 'var(--text-secondary)',
+        }}>Fermer analyse</button>
+      </div>
+
+      {mode === 'analyse' && (
+      <>
       {/* Aggregation tabs OR breadcrumb — sticky */}
       <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0, padding: '0 24px', minHeight: 36 }}>
         {inDrillDown ? (
@@ -212,11 +233,6 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
             </select>
           </div>
         )}
-        <button onClick={onToggle} style={{
-          padding: '6px 14px', fontFamily: fInter, fontSize: 11, cursor: 'pointer',
-          background: 'var(--bg-level-2)', border: '0.5px solid var(--border-default)', borderRadius: 4,
-          color: 'var(--text-secondary)', alignSelf: 'center',
-        }}>Fermer analyse</button>
       </div>
 
       {/* Scrollable grid */}
@@ -266,6 +282,10 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {mode === 'pacing' && <PacingPanel campaignId={campaignId} />}
     </div>
   );
 }
