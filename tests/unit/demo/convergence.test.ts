@@ -57,6 +57,8 @@ describe('convergence de la boucle (enchère → cible fixe)', () => {
     // Déterministe (seed 42). Écart initial réel, puis convergence nette vers la cible fixe.
     expect(errs[0]).toBeGreaterThan(2);          // écart sous/sur-servi réel au tour 1
     expect(errs[2]).toBeLessThan(errs[0] * 0.8); // a convergé d'au moins 20 %
+    expect(errs[1]).toBeLessThan(errs[0]);       // v2 strictement mieux que v1
+    expect(errs[2]).toBeLessThan(errs[1]);       // v3 strictement mieux que v2 (pas d'oscillation)
     expect(errs[2]).toBeLessThan(errs[0]);       // strictement mieux qu'au départ
   });
 });
