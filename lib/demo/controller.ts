@@ -5,6 +5,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { simulateDelivery, type SimItem } from '@/lib/demo/simulator';
 import { DEMO_CAMPAIGN_ID, DEMO_ZONE_ID, DEMO_ZONE_NAME, DEMO_SEED, TOTAL_VOLUME, SIM_GAIN, SIM_NOISE, periodBounds } from '@/lib/demo/constants';
+import { computePacing, type PacingItemInput } from '@/lib/pacing/compute';
+import { computeRebidWeights, type RebidItemInput } from '@/lib/pacing/rebid';
+import { ensureDemoCampaign, ensureDemoPlan } from '@/lib/demo/fixtures';
+import { toPilotPacing, type PilotPacing, type PilotResult } from '@/lib/demo/pilot-types';
 
 /** Garde dure : refuse d'agir sur une campagne non-démo. */
 export async function assertDemo(supabase: SupabaseClient, campaignId: string): Promise<void> {
@@ -121,4 +125,56 @@ export async function simulateCurrentPeriod(supabase: SupabaseClient): Promise<{
 export async function purgeDemo(supabase: SupabaseClient): Promise<void> {
   await supabase.from('dsp_campaign_data').delete().eq('campaign_id', DEMO_CAMPAIGN_ID);
   await supabase.from('campaign_plan_snapshot').delete().eq('campaign_id', DEMO_CAMPAIGN_ID);
+}
+
+/** Lit le diagnostic de pilotage de la campagne démo (dernière version si version omise). */
+export async function readDemoPacing(
+  supabase: SupabaseClient, version?: number | null,
+): Promise<PilotPacing | null> {
+  const { data } = await supabase.rpc('get_campaign_pacing', {
+    p_campaign_id: DEMO_CAMPAIGN_ID, p_metric_field: 'impressions', p_version: version ?? null,
+  });
+  const rpc = (typeof data === 'string' ? JSON.parse(data) : data) as { version: number; items: PacingItemInput[] } | null;
+  if (!rpc) return null;
+  return toPilotPacing(rpc.version, computePacing(rpc.items ?? []));
+}
+
+/** Démarre la campagne fictive : fixtures → snapshot v1 → délivrance période 1 → diagnostic. */
+export async function seedDemo(supabase: SupabaseClient, userId: string): Promise<PilotResult> {
+  await ensureDemoCampaign(supabase);
+  await assertDemo(supabase, DEMO_CAMPAIGN_ID);
+  await purgeDemo(supabase);
+  const { items } = await ensureDemoPlan(supabase, userId);
+  await createPeriodSnapshot(supabase, userId, items, 1);
+  const { rows } = await simulateCurrentPeriod(supabase);
+  const pacing = await readDemoPacing(supabase, 1);
+  if (!pacing) throw new Error('seed_no_pacing');
+  return { ...pacing, delivery_rows: rows };
+}
+
+/** Applique le rebid : cible fixe reportée, enchère mise à jour, nouvelle période simulée → diagnostic. */
+export async function applyRebid(supabase: SupabaseClient, userId: string): Promise<PilotResult> {
+  await assertDemo(supabase, DEMO_CAMPAIGN_ID);
+  const version = await latestVersion(supabase);
+  if (version === 0) throw new Error('no_snapshot');
+  const { data } = await supabase.rpc('get_campaign_pacing', {
+    p_campaign_id: DEMO_CAMPAIGN_ID, p_metric_field: 'impressions', p_version: version,
+  });
+  const rpc = (typeof data === 'string' ? JSON.parse(data) : data) as { items: PacingItemInput[] } | null;
+  if (!rpc?.items?.length) throw new Error('no_pacing');
+  const pacing = computePacing(rpc.items);
+  const rebid = computeRebidWeights(pacing.map<RebidItemInput>((p) => ({
+    zone_id: p.zone_id, item_id: p.item_id, item_weight: p.item_weight,
+    expected_share: p.expected_share, actual_share: p.actual_share,
+  })));
+  const items = rebid.map((r) => {
+    const src = pacing.find((p) => p.item_id === r.item_id)!;
+    return { item_id: r.item_id, item_name: src.item_name,
+      target_share: src.expected_share, bid_weight: Math.round(r.new_weight * 10) / 10 };
+  });
+  const newVersion = await createPeriodSnapshot(supabase, userId, items, version + 1);
+  const { rows } = await simulateCurrentPeriod(supabase);
+  const next = await readDemoPacing(supabase, newVersion);
+  if (!next) throw new Error('rebid_no_pacing');
+  return { ...next, delivery_rows: rows };
 }
