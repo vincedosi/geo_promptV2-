@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { CIBLE_KEYS } from '@/lib/custom-geo/cibles';
+import { buildZoneSnapshotItems } from '@/lib/pacing/snapshot';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,19 +79,15 @@ export async function POST(request: NextRequest) {
     }));
 
     for (const { z, items } of expanded) {
-      const totalWeight = z.items.reduce((s, it) => s + it.weight, 0) || 1;
       const cpsByPoi = new Map(items.map((it) => [it.poi_id, it.cps]));
-      for (const planItem of z.items) {
-        const poiId = planItem.item_id.slice(z.zone_id.length + 1); // "zone:poi" → "poi"
-        const cps = cpsByPoi.get(poiId) ?? [];
-        if (cps.length === 0) continue; // item non poussable → non figé
-        const expected_share = planItem.weight / totalWeight; // normalisation INTRA-ZONE
-        for (const cp of cps) {
+      const snapshotItems = buildZoneSnapshotItems(z.zone_id, z.items, cpsByPoi);
+      for (const item of snapshotItems) {
+        for (const cp of item.cps) {
           rows.push({
             campaign_id, version, created_by: profile.id, dsp, budget, cpm, cible,
             zone_id: z.zone_id, zone_name: z.zone_name,
-            item_id: planItem.item_id, item_name: planItem.item_name,
-            item_weight: planItem.weight, expected_share, postal_code: cp,
+            item_id: item.item_id, item_name: item.item_name,
+            item_weight: item.item_weight, expected_share: item.expected_share, postal_code: cp,
           });
         }
       }
