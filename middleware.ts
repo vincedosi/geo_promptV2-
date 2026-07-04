@@ -51,6 +51,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/dashboard',
   '/admin',
   '/clusters',
+  '/demo',
 ];
 
 function isProtectedApi(pathname: string): boolean {
@@ -135,6 +136,7 @@ export const config = {
     '/dashboard/:path*',
     '/admin/:path*',
     '/clusters/:path*',
+    '/demo/:path*',
     '/api/chat/:path*',
     '/api/scoring/:path*',
     '/api/map/:path*',
