@@ -275,11 +275,41 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
           await downloadZoneExport(z.id, format);
         }
       }
+
+      // Fige le snapshot du plan poussé (pacing plan-vs-réel), une fois pour tout le plan.
+      if (campaignId) {
+        const snapZones = zones.map(z => ({
+          zone_id: z.id,
+          zone_name: z.name,
+          items: rows
+            .filter(r => r.id.startsWith(`${z.id}:`))
+            .map(r => ({
+              item_id: r.id,
+              item_name: r.name,
+              weight: Math.round((activeRepartition[r.id] ?? 0) * 10) / 10,
+            })),
+        })).filter(z => z.items.length > 0);
+        if (snapZones.length) {
+          await adminFetch('/api/custom-geo/media-plan/snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              campaign_id: campaignId,
+              dsp: format === 'tiktok_geo' ? 'tiktok' : 'dv360',
+              budget: Number.isFinite(budgetNum) && budgetNum > 0 ? budgetNum : null,
+              cpm: Number.isFinite(cpmNum) && cpmNum > 0 ? cpmNum : null,
+              cible,
+              zones: snapZones,
+            }),
+          }).catch(() => { /* le téléchargement a réussi ; le snapshot est best-effort */ });
+        }
+      }
+
       setExportState({ running: false, error: null });
     } catch (err) {
       setExportState({ running: false, error: err instanceof Error ? err.message : 'Erreur export' });
     }
-  }, [zones, rows, activeRepartition, budgetNum]);
+  }, [zones, rows, activeRepartition, budgetNum, cpmNum, cible, campaignId]);
 
   // ── Enregistrement du plan sur la campagne (geo_strategy) ─────────────────
   const savePlan = useCallback(async () => {
