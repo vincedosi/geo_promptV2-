@@ -2,13 +2,10 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { createClient } from '@supabase/supabase-js';
 import { PacingCard } from './PacingCard';
 import type { PilotPacing } from '@/lib/demo/pilot-types';
 
 const fInter = 'Inter, sans-serif';
-let _sb: ReturnType<typeof createClient> | null = null;
-function sb() { return _sb ??= createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!); }
 const PILOT_TOOLS = ['tool-demarrer_pilotage', 'tool-mesurer', 'tool-corriger_enchere'];
 
 export function PilotChatPanel() {
@@ -20,8 +17,17 @@ export function PilotChatPanel() {
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/pilot',
     headers: async (): Promise<Record<string, string>> => {
-      const { data: { session } } = await sb().auth.getSession();
-      return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+      // Session cookie-based (@supabase/ssr) : le token est dans le cookie sb-<ref>-auth-token,
+      // pas dans localStorage — getSession() d'un client plain renverrait null.
+      const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split('.')[0];
+      const c = document.cookie.split('; ').find((x) => x.startsWith(`sb-${ref}-auth-token=`));
+      if (!c) return {};
+      let val = decodeURIComponent(c.substring(c.indexOf('=') + 1));
+      if (val.startsWith('base64-')) { try { val = atob(val.slice(7)); } catch { return {}; } }
+      try {
+        const token = JSON.parse(val).access_token as string | undefined;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      } catch { return {}; }
     },
     prepareSendMessagesRequest: ({ messages, body }) => ({ body: { ...body, messages, mode: modeRef.current } }),
   }), [modeRef]);
