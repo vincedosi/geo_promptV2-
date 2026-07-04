@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge';
+import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/status';
 import type { CampaignDetail, DspCampaignData } from '@/types/campaign';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -54,6 +56,29 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+// ── Override action button ─────────────────────────────────────────────────────
+function ActionButton({
+  label, onClick, variant = 'neutral', disabled,
+}: { label: string; onClick: () => void; variant?: 'neutral' | 'teal'; disabled?: boolean }) {
+  const isTeal = variant === 'teal';
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: 'transparent',
+        border: `0.5px solid ${isTeal ? C.teal : C.borderDefault}`,
+        color: isTeal ? C.teal : C.textSec,
+        borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12, fontWeight: 500,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +90,7 @@ export default function CampaignDetailPage() {
   const [page, setPage] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [overridePending, setOverridePending] = useState(false);
   const [activeTab, setActiveTab] = useState<'pays' | 'regions' | 'departements' | 'donnees'>('pays');
   const [strategyId, setStrategyId] = useState<string | null>(null);
 
@@ -117,6 +143,27 @@ export default function CampaignDetailPage() {
     setShowDeleteConfirm(false);
   };
 
+  const setOverride = async (value: StatusOverride | null) => {
+    setOverridePending(true);
+    try {
+      const res = await adminFetch(`/api/admin/campaigns/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status_override: value }),
+      });
+      if (res.ok) {
+        await fetchDetail(page); // recharge la campagne → badge recalculé
+      } else {
+        console.error('[setOverride] PATCH échoué', res.status);
+        toastApi.error('Erreur', 'Mise à jour du statut échouée');
+      }
+    } catch (err) {
+      console.error('[setOverride]', err);
+      toastApi.error('Erreur', 'Mise à jour du statut échouée');
+    }
+    setOverridePending(false);
+  };
+
   if (loading && !detail) {
     return (
       <div style={{ background: C.bg, minHeight: '100vh', padding: 24 }}>
@@ -128,6 +175,9 @@ export default function CampaignDetailPage() {
   if (!detail) return null;
 
   const { campaign: camp, stats, data } = detail;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const status = effectiveCampaignStatus(camp, today);
 
   const totalRows = data.total;
   const franceRows = stats.by_country.find((c) => c.country === 'France')?.row_count ?? 0;
@@ -157,9 +207,12 @@ export default function CampaignDetailPage() {
           >
             ← Campagnes DSP
           </button>
-          <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: C.text, margin: 0 }}>
-            {camp.name}
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: C.text, margin: 0 }}>
+              {camp.name}
+            </h1>
+            <CampaignStatusBadge status={status} />
+          </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
             <span style={{
               background: 'var(--bg-level-3)', border: `0.5px solid ${C.borderDefault}`,
@@ -173,6 +226,23 @@ export default function CampaignDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {status === 'en_cours' && (
+            <>
+              <ActionButton label="Mettre en pause" onClick={() => setOverride('paused')} disabled={overridePending} />
+              <ActionButton label="Clôturer" onClick={() => setOverride('ended')} disabled={overridePending} />
+            </>
+          )}
+          {status === 'en_pause' && (
+            <ActionButton label="Reprendre" onClick={() => setOverride(null)} variant="teal" disabled={overridePending} />
+          )}
+          {camp.status_override === 'ended' && (
+            <ActionButton label="Rouvrir" onClick={() => setOverride(null)} disabled={overridePending} />
+          )}
+          {status === 'archivee' ? (
+            <ActionButton label="Désarchiver" onClick={() => setOverride(null)} disabled={overridePending} />
+          ) : (
+            <ActionButton label="Archiver" onClick={() => setOverride('archived')} disabled={overridePending} />
+          )}
           {strategyId ? (
             <button
               onClick={() => router.push(`/custom-bidding/${strategyId}`)}

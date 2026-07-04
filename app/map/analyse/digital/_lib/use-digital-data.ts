@@ -15,6 +15,10 @@ interface Campaign {
   total_unique_impressions: number;
   dsp_source: string; date_start: string | null; date_end: string | null;
   nb_medias: number; nb_postal_codes: number;
+  /** Correction manuelle du statut de cycle de vie (paused/ended/archived), ou null si aucune. */
+  status_override: 'paused' | 'ended' | 'archived' | null;
+  /** Date de la dernière ligne de données importée (signal d'attention). */
+  last_data_date: string | null;
 }
 
 interface GeographySummary {

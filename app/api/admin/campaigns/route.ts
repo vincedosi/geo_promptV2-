@@ -73,6 +73,14 @@ export async function GET(request: NextRequest) {
     linksMap.set(l.campaign_id, arr);
   }
 
+  // Last data date per campaign — signal d'attention (statut & cycle de vie).
+  // RPC bornée par campaignIds affichés → index scan (idx_dsp_data_campaign),
+  // jamais de scan intégral de dsp_campaign_data (contrainte I/O Nano). Cf sql/095.
+  const { data: lastDates } = await supabase.rpc('get_campaign_last_data_dates', { p_ids: campaignIds });
+  const lastByCampaign = new Map<string, string>(
+    (lastDates ?? []).map((r: { campaign_id: string; last_data_date: string }) => [r.campaign_id, r.last_data_date])
+  );
+
   const items = campaigns.map((c) => ({
     ...c,
     organization_name: (c as Record<string, unknown>).organizations ? ((c as Record<string, unknown>).organizations as Record<string, unknown>)?.name : null,
@@ -80,6 +88,7 @@ export async function GET(request: NextRequest) {
     total_rows: statsMap.get(c.id)?.total_rows ?? 0,
     france_rows: statsMap.get(c.id)?.france_rows ?? 0,
     matched_iris: statsMap.get(c.id)?.matched_iris ?? 0,
+    last_data_date: lastByCampaign.get(c.id) ?? null,
   }));
 
   return NextResponse.json(items, { headers: { 'Cache-Control': 'no-store' } });

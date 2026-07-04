@@ -7,6 +7,8 @@ import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { CampaignListItem, CampaignImportEvent, CampaignImportReport, DspCampaignData } from '@/types/campaign';
+import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge';
+import { effectiveCampaignStatus, campaignNeedsAttention, type CampaignStatus } from '@/lib/campaigns/status';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -265,6 +267,16 @@ function OrgBadges({
   );
 }
 
+// ── Status filter tabs (statut de cycle de vie) ──────────────────────────────
+const STATUS_TABS: { value: 'all' | CampaignStatus; label: string }[] = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'en_cours', label: 'En cours' },
+  { value: 'a_venir', label: 'À venir' },
+  { value: 'en_pause', label: 'En pause' },
+  { value: 'terminee', label: 'Terminées' },
+];
+const STATUS_ORDER: CampaignStatus[] = ['en_cours', 'a_venir', 'en_pause', 'terminee', 'archivee'];
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CampaignsPage() {
   const { toast: toastApi } = useToast();
@@ -276,6 +288,8 @@ export default function CampaignsPage() {
   // Org filter (super_admin only)
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>('');
+  // Status filter (statut de cycle de vie) — archivées masquées par défaut
+  const [statusFilter, setStatusFilter] = useState<'all' | CampaignStatus>('all');
 
   // Modal step: 'upload' → 'preview' → 'importing' → 'done'
   type ModalStep = 'upload' | 'preview' | 'importing' | 'done';
@@ -354,13 +368,23 @@ export default function CampaignsPage() {
   }, []);
 
   // Filter campaigns by selected org (matches if owner OR linked via pivot)
-  const filteredCampaigns = selectedOrg
+  const orgFilteredCampaigns = selectedOrg
     ? campaigns.filter(c => {
         const cc = c as unknown as { organization_id?: string; organizations_linked?: OrgRef[] };
         if (cc.organization_id === selectedOrg) return true;
         return (cc.organizations_linked ?? []).some(o => o.id === selectedOrg);
       })
     : campaigns;
+
+  // Statut effectif + attention par campagne, filtre par statut (archivées masquées par défaut), tri en_cours en tête
+  const today = new Date().toISOString().slice(0, 10);
+  const withStatus = orgFilteredCampaigns.map(c => {
+    const status = effectiveCampaignStatus(c, today);
+    return { ...c, status, attention: campaignNeedsAttention({ status, last_data_date: c.last_data_date }, today) };
+  });
+  const filteredCampaigns = withStatus
+    .filter(c => (statusFilter === 'all' ? c.status !== 'archivee' : c.status === statusFilter))
+    .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
 
   // ── Preview handler ───────────────────────────────────────────────────────
   const handlePreview = async () => {
@@ -556,6 +580,28 @@ export default function CampaignsPage() {
 
       <SH label="Campagnes" />
 
+      {/* Status filter tabs (statut de cycle de vie) */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: `0.5px solid ${C.border}` }}>
+        {STATUS_TABS.map((tab) => {
+          const active = statusFilter === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '8px 12px', fontFamily: fInter, fontWeight: 500, fontSize: 12,
+                color: active ? C.text : C.textDim,
+                borderBottom: active ? `2px solid ${C.teal}` : '2px solid transparent',
+                marginBottom: -1,
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Debug state */}
       <div style={{ fontFamily: fMono, fontSize: 10, color: C.warn, padding: '4px 14px', marginBottom: 8, background: C.warnDim, borderRadius: 4 }}>
         DEBUG — loading: {String(loading)} | campaigns: {campaigns.length} | error: {fetchError ?? 'none'}
@@ -584,6 +630,7 @@ export default function CampaignsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <Link href={`/admin/campaigns/${c.id}`} style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: C.text, textDecoration: 'none' }}>{c.name}</Link>
                       <span style={{ background: C.warnDim, border: `0.5px solid ${C.warn}44`, borderRadius: 4, padding: '1px 6px', fontSize: 9, color: C.warn, fontFamily: fInter, fontWeight: 500 }}>{c.dsp_source}</span>
+                      <CampaignStatusBadge status={c.status} attention={c.attention} />
                       <OrgBadges
                         campaignId={c.id}
                         ownerOrgId={(c as unknown as { organization_id?: string | null }).organization_id ?? null}

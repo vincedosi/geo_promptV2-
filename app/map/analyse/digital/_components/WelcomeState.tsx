@@ -11,6 +11,8 @@ interface Campaign {
   date_start: string | null; date_end: string | null;
   total_tracked_ads: number; total_unique_impressions: number;
   nb_medias: number; nb_postal_codes: number;
+  status_override: 'paused' | 'ended' | 'archived' | null;
+  last_data_date: string | null;
 }
 
 interface WelcomeStateProps {
