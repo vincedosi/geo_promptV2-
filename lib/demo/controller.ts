@@ -32,17 +32,23 @@ export async function createPeriodSnapshot(
   }) as { data: { items: Array<{ poi_id: string; cps: string[] }> } | null };
   const cpsByPoi = new Map((data?.items ?? []).map(it => [it.poi_id, it.cps]));
 
+  // Items retenus = ceux expansables (cps non vide). La cible est renormalisée à 1 sur
+  // ces seuls items retenus (sinon Σ expected_share < 1 dans la zone si un item est exclu).
+  const kept = items
+    .map(it => ({ it, cps: cpsByPoi.get(it.item_id.slice(DEMO_ZONE_ID.length + 1)) ?? [] }))
+    .filter(x => x.cps.length > 0);
+  const totalTarget = kept.reduce((s, x) => s + x.it.target_share, 0) || 1;
+
   const rows: Array<Record<string, unknown>> = [];
-  for (const it of items) {
-    const cps = cpsByPoi.get(it.item_id.slice(DEMO_ZONE_ID.length + 1)) ?? [];
-    if (cps.length === 0) continue; // item non expansable → non figé
+  for (const { it, cps } of kept) {
+    const expected_share = it.target_share / totalTarget; // CIBLE renormalisée sur les items retenus
     for (const cp of cps) {
       rows.push({
         campaign_id: DEMO_CAMPAIGN_ID, version, created_by: callerUserId, dsp: 'dv360',
         budget: 100000, cpm: 5, cible: 'total', zone_id: DEMO_ZONE_ID, zone_name: DEMO_ZONE_NAME,
         item_id: it.item_id, item_name: it.item_name,
-        item_weight: it.bid_weight,       // ENCHÈRE (change par version)
-        expected_share: it.target_share,  // CIBLE FIXE (identique sur toutes les versions)
+        item_weight: it.bid_weight,  // ENCHÈRE (change par version)
+        expected_share,              // CIBLE renormalisée (identique sur toutes les versions)
         postal_code: cp, period_start: start, period_end: end,
       });
     }
