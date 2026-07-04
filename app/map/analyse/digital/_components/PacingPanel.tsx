@@ -23,6 +23,7 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
   const [rebidding, setRebidding] = useState(false);
   const [rebidError, setRebidError] = useState<string | null>(null);
   const [version, setVersion] = useState<number | null>(null);
+  const [maxVersion, setMaxVersion] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +35,10 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
         const j = await res.json();
         if (cancelled) return;
         if (j.empty) setState({ loading: false, data: null, empty: true, error: null });
-        else setState({ loading: false, data: j, empty: false, error: null });
+        else {
+          setState({ loading: false, data: j, empty: false, error: null });
+          if (version === null) setMaxVersion(j.version);
+        }
       })
       .catch((err) => { if (!cancelled) setState({ loading: false, data: null, empty: false, error: err.message }); });
     return () => { cancelled = true; };
@@ -80,10 +84,11 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
   const d = state.data!;
   const nbSous = d.items.filter(i => i.status === 'sous_servi').length;
   const nbSur = d.items.filter(i => i.status === 'sur_servi').length;
+  const displayMaxVersion = maxVersion ?? d.version;
 
   return (
     <div style={{ padding: 12, fontFamily: fInter }}>
-      {d.version > 1 && (
+      {displayMaxVersion > 1 && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
           <span>Version</span>
           <select
@@ -91,7 +96,7 @@ export function PacingPanel({ campaignId }: { campaignId: string }) {
             onChange={(e) => setVersion(Number(e.target.value))}
             style={{ background: 'var(--elevated)', color: 'var(--text-primary)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '4px 8px', fontFamily: fInter, fontSize: 12 }}
           >
-            {Array.from({ length: d.version }, (_, i) => i + 1).map(v => (
+            {Array.from({ length: displayMaxVersion }, (_, i) => i + 1).map(v => (
               <option key={v} value={v}>v{v}</option>
             ))}
           </select>
