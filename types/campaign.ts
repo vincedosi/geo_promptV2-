@@ -16,6 +16,8 @@ export interface DspCampaign {
   countries: string[] | null;
   created_at: string;
   created_by: string | null;
+  /** Correction manuelle du statut de cycle de vie (paused/ended/archived), ou null si aucune. */
+  status_override: 'paused' | 'ended' | 'archived' | null;
 }
 
 export interface DspCampaignData {
@@ -41,6 +43,8 @@ export interface CampaignListItem extends DspCampaign {
   total_rows: number;
   france_rows: number;
   matched_iris: number;
+  /** Date de la dernière ligne de données importée (signal d'attention). */
+  last_data_date: string | null;
 }
 
 export interface CampaignDetail {

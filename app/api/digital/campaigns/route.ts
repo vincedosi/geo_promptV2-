@@ -48,5 +48,16 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
-  return NextResponse.json(rows, { headers: { 'Cache-Control': 'no-store' } });
+
+  // Last data date per campaign — signal d'attention (statut & cycle de vie)
+  const { data: lastDates } = await supabase.rpc('get_campaign_last_data_dates');
+  const lastByCampaign = new Map<string, string>(
+    (lastDates ?? []).map((r: { campaign_id: string; last_data_date: string }) => [r.campaign_id, r.last_data_date])
+  );
+  const items = rows.map((c: { id: string }) => ({
+    ...c,
+    last_data_date: lastByCampaign.get(c.id) ?? null,
+  }));
+
+  return NextResponse.json(items, { headers: { 'Cache-Control': 'no-store' } });
 }

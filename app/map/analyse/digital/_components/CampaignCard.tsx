@@ -1,5 +1,8 @@
 'use client';
 
+import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge';
+import { effectiveCampaignStatus, campaignNeedsAttention } from '@/lib/campaigns/status';
+
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
@@ -8,6 +11,8 @@ interface Campaign {
   date_start: string | null; date_end: string | null;
   total_tracked_ads: number; total_unique_impressions: number;
   nb_medias: number; nb_postal_codes: number;
+  status_override: 'paused' | 'ended' | 'archived' | null;
+  last_data_date: string | null;
 }
 
 function fmt(n: number): string {
@@ -29,6 +34,10 @@ export function CampaignCard({ campaign: c, onClick, mlMode }: CampaignCardProps
     ? `${c.date_start} → ${c.date_end}`
     : null;
 
+  const today = new Date().toISOString().slice(0, 10);
+  const status = effectiveCampaignStatus(c, today);
+  const attention = campaignNeedsAttention({ status, last_data_date: c.last_data_date }, today);
+
   return (
     <button onClick={onClick} style={{
       width: '100%', padding: '14px 16px', cursor: 'pointer',
@@ -42,10 +51,11 @@ export function CampaignCard({ campaign: c, onClick, mlMode }: CampaignCardProps
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontFamily: fInter, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
             {c.name}
           </div>
+          <CampaignStatusBadge status={status} attention={attention} />
           {mlMode && (
             <span
               title={`Custom Bidding actif (mode: ${mlMode})`}
