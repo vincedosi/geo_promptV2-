@@ -3,14 +3,11 @@
  * Campaign detail with stats breakdown, or delete campaign.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { StatusOverrideSchema } from '@/lib/campaigns/status';
 
 export const dynamic = 'force-dynamic';
-
-/** Correction manuelle du statut de cycle de vie d'une campagne (paused/ended/archived), ou null pour lever l'override. */
-export const StatusOverrideSchema = z.enum(['paused', 'ended', 'archived']).nullable();
 
 export async function GET(
   request: NextRequest,
