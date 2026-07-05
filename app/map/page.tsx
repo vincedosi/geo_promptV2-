@@ -11,7 +11,7 @@
  *   3. State management (~70 useState)   (≈ 231-450)
  *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
  *   5. POI / battle / voronoi handlers   (≈ 701-1300)
- *   6. Cluster + radio + meteo handlers  (≈ 1301-1600)
+ *   6. Radio + meteo handlers            (≈ 1301-1600)
  *   7. Render JSX (IconBar + OverlayPanel + ResultsPanel + StudyDashboard) (≈ 1601-2329)
  *
  * @maintainers Pour étendre ce fichier :
@@ -48,7 +48,6 @@ import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
-import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
@@ -79,10 +78,6 @@ import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
-const ClusteringResultsContent = dynamic(
-  () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
-  { ssr: false },
-);
 const ScoringPanel = dynamic(
   () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
   { ssr: false },
@@ -142,13 +137,6 @@ export default function MapPage() {
   const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
-  // Clustering clusters
-  const [clusterGeoJSON,    setClusterGeoJSON]    = useState<ClusterGeoJSON | null>(null);
-  const [clustersVisible,   setClustersVisible]   = useState(false);
-  const [clusterLoading,    setClusterLoading]    = useState(false);
-  const [clusterDuration,   setClusterDuration]   = useState(60);
-  // Wizard highlight — POIs preview pendant la configuration du clustering
-  const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // Masquer les axes <5 000 véh/j par défaut pour limiter la densité visuelle
@@ -304,36 +292,6 @@ export default function MapPage() {
   } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
-
-  // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const src = map.getSource('wizard-highlight') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (wizardHighlightGeoJSON) {
-      src.setData(wizardHighlightGeoJSON);
-      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'visible'); } catch { /* */ }
-    } else {
-      src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'none'); } catch { /* */ }
-    }
-  }, [wizardHighlightGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sync cluster GeoJSON → map source ──────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !clusterGeoJSON) return;
-    const src = map.getSource('clusters-source') as maplibregl.GeoJSONSource | undefined;
-    src?.setData(clusterGeoJSON as unknown as GeoJSON.FeatureCollection);
-  }, [clusterGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sync clustersVisible → layer visibility ─────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
-  }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
@@ -653,16 +611,9 @@ export default function MapPage() {
       .catch(() => { setIrisDetailLoading(false); });
   }, [selectedIrisCode]);
 
-  // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
+  // ── flyTo helper ────────────────────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
     if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom, duration: 1000 });
-  };
-  const handleFitBounds = (bounds: [[number, number], [number, number]]) => {
-    if (mapRef.current && mapReady)
-      mapRef.current.fitBounds(
-        new maplibregl.LngLatBounds(bounds[0], bounds[1]),
-        { padding: 60, duration: 1000 },
-      );
   };
 
   // ── Charger arrêts de transport pour la vue courante ───────────────────────
@@ -874,68 +825,6 @@ export default function MapPage() {
     src.setData({ type: 'FeatureCollection', features: circles });
   }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
-  const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
-    try {
-      const res = await fetch('/api/map/pois', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          poi_types: poiTypes,
-          scope:     metropolitaine ? 'metro' : 'all',
-          regions:   [],
-          depts:     [],
-          ville:     '',
-          rayon_poi: null,
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.pois?.length) { setWizardHighlightGeoJSON(null); return; }
-      const fc: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: (data.pois as { id: string; nom: string; lat: number; lng: number }[]).map(p => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-          properties: { id: p.id, nom: p.nom },
-        })),
-      };
-      setWizardHighlightGeoJSON(fc);
-    } catch { /* ignore */ }
-  };
-
-  // ── Charger les clusters (lazy) ────────────────────────────────────────────
-  const handleToggleClusters = async () => {
-    if (!clustersVisible && !clusterGeoJSON) {
-      setClusterLoading(true);
-      try {
-        const res  = await fetch(`/api/poi-clusters?duration=${clusterDuration}`);
-        const data = await res.json();
-        if (data.type === 'FeatureCollection') {
-          setClusterGeoJSON(data as ClusterGeoJSON);
-          setClustersVisible(true);
-        }
-      } catch { /* ignore */ } finally { setClusterLoading(false); }
-    } else {
-      setClustersVisible(v => !v);
-    }
-  };
-
-  // ── Changer la durée de clustering — re-fetch ───────────────────────────────
-  const handleClusterDurationChange = async (d: number) => {
-    setClusterDuration(d);
-    setClusterLoading(true);
-    try {
-      const res  = await fetch(`/api/poi-clusters?duration=${d}`);
-      const data = await res.json();
-      if (data.type === 'FeatureCollection') {
-        setClusterGeoJSON(data as ClusterGeoJSON);
-        setClustersVisible(true);
-      }
-    } catch { /* ignore */ } finally { setClusterLoading(false); }
-  };
-
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
   const mapLayers = useMapLayers({
     mapRef, mapReady,
@@ -996,10 +885,10 @@ export default function MapPage() {
     // qui ne nettoient pas la source quand leur donnée repasse à null)
     if (map) {
       const geojsonSources = [
-        'pois-heat', 'zone-circle', 'wizard-highlight', 'meteo-source',
+        'pois-heat', 'zone-circle', 'meteo-source',
         'tmja-source', 'radio-emetteurs', 'radio-coverage', 'digital-cp',
         'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
-        'battle-borders', 'battle-pois', 'clusters-source', 'test-iso',
+        'battle-borders', 'battle-pois', 'test-iso',
         'territory-mask',
       ];
       for (const id of geojsonSources) {
@@ -1035,9 +924,6 @@ export default function MapPage() {
     setBattleFeatures([]);
     setBattlePois([]);
     setBattleCacheKey(null);
-    setClusterGeoJSON(null);
-    setClustersVisible(false);
-    setWizardHighlightGeoJSON(null);
     setTmjaGeoJSON(null);
     handleMeteoClear();
     setCivicVariableCode(null);
@@ -1714,9 +1600,8 @@ export default function MapPage() {
 
   // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
   const availableResults = useMemo(() => ({
-    clustering:  !!clusterGeoJSON,
-    scoring:     !!studyVille,
-  }), [clusterGeoJSON, studyVille]);
+    scoring: !!studyVille,
+  }), [studyVille]);
 
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
@@ -1867,17 +1752,7 @@ export default function MapPage() {
               densityMode={densityMode}
               onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
               onPOIStylesChange={setPoiStyles}
-              clusterGeoJSON={clusterGeoJSON}
-              clustersVisible={clustersVisible}
-              clusterLoading={clusterLoading}
-              clusterDuration={clusterDuration}
-              onToggleClusters={handleToggleClusters}
-              onLoadClusters={handleToggleClusters}
-              onClusterDurationChange={handleClusterDurationChange}
               onFlyTo={handleFlyTo}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
               carreauxVisible={mapLayers.carreauxVisible}
               carreauxLoaded={mapLayers.carreauxLoaded}
               carreauxIndicateur={mapLayers.carreauxIndicateur}
@@ -2087,27 +1962,10 @@ export default function MapPage() {
         <ResultsPanel
           topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           type={activeResults}
-          title={
-            activeResults === 'clustering' ? 'Résultats — clustering' : 'Résultats — scoring OOH'
-          }
+          title="Résultats — scoring OOH"
           dotColor="var(--cat-analysis)"
           onClose={handleCloseResults}
         >
-          {activeResults === 'clustering' && (
-            <ClusteringResultsContent
-              geojson={clusterGeoJSON ?? null}
-              visible={clustersVisible}
-              loading={clusterLoading}
-              duration={clusterDuration}
-              onToggle={handleToggleClusters}
-              onLoad={handleToggleClusters}
-              onDurationChange={handleClusterDurationChange}
-              onFlyTo={handleFlyTo}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
-            />
-          )}
           {activeResults === 'scoring' && (
             <div style={{ padding: 16 }}>
               <ScoringPanel
@@ -2190,8 +2048,6 @@ export default function MapPage() {
         battleCacheKey={battleCacheKey}
         battleFeatures={battleFeatures}
         battlePois={battlePois}
-        clusterGeoJSON={clusterGeoJSON}
-        clustersVisible={clustersVisible}
         radioSelectedId={radioSelectedId}
         radioSelectedNom={radioSelectedNom}
         radioCoverageMode={radioCoverageMode}

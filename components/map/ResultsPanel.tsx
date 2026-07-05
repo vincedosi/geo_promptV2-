@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
-export type ResultsPanelType = 'clustering' | 'scoring';
+export type ResultsPanelType = 'scoring';
 
 interface ResultsPanelProps {
   type: ResultsPanelType;
@@ -40,8 +40,8 @@ export function ResultsPanel({
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Morph quand l'utilisateur switch d'analyse (Clustering → Scoring)
-  // sans fermer le panel — feedback visuel sans démontage du contenu.
+  // Morph quand l'utilisateur switch de type de panel sans le fermer
+  // — feedback visuel sans démontage du contenu.
   useEffect(() => {
     if (prevTypeRef.current === type) return;
     prevTypeRef.current = type;

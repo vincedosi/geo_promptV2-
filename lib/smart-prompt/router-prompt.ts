@@ -12,7 +12,6 @@ import type { RegistryEntry, RouterDecision, AgentName } from './types';
 const RouterSchema = z.object({
   agent: z.enum([
     'demographie',
-    'poi_clustering',
     'panneaux',
     'isochrone_battle',
     'benchmark',
@@ -25,7 +24,6 @@ const RouterSchema = z.object({
     categorie_poi:  z.string().optional(),
     indicateur:     z.string().optional(),
     rayon_km:       z.number().optional(),
-    model_version:  z.number().optional(),
     mode:           z.enum(['drive', 'walk', 'bike', 'stats', 'ranking']).optional(),
     paliers:        z.array(z.number()).optional(),
     limit:          z.number().optional(),
@@ -55,7 +53,6 @@ ${sections}
 AGENTS DISPONIBLES :
 • demographie     → stats INSEE Filosofi (revenus, population, âge, logements, pauvreté)
                     2 modes : stats (pour une ville) ou ranking (classement national des villes)
-• poi_clustering  → modèles de clustering POI×Filosofi (profils socio, segmentation)
 • panneaux        → panneaux d'affichage OOH/DOOH (JCDecaux, Clear Channel, etc.)
 • isochrone_battle → sectorisation géographique par temps de trajet (drive/walk/bike)
 • benchmark       → comparaison multi-villes, classements nationaux

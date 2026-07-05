@@ -6,7 +6,6 @@
 // Agents disponibles
 export type AgentName =
   | 'demographie'
-  | 'poi_clustering'
   | 'panneaux'
   | 'isochrone_battle'
   | 'benchmark'

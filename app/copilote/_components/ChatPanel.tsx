@@ -102,7 +102,6 @@ const runningToolLabels: Record<string, string> = {
 // ─── Agent badges ─────────────────────────────────────────────────────────────
 const AGENT_COLOR: Record<AgentName, string> = {
   demographie:      '#3dffa0',
-  poi_clustering:   'var(--brand-teal)',
   panneaux:         '#fbbf24',
   isochrone_battle: '#38bdf8',
   benchmark:        '#f472b6',
@@ -111,7 +110,6 @@ const AGENT_COLOR: Record<AgentName, string> = {
 
 const AGENT_LABEL: Record<AgentName, string> = {
   demographie:      'DEMO',
-  poi_clustering:   'CLUSTER',
   panneaux:         'OOH',
   isochrone_battle: 'ISO',
   benchmark:        'BENCH',
@@ -206,7 +204,7 @@ const SMART_KEYWORDS = [
   /\blogements?\b/i,   /\bpauvreté\b/i,       /\bpauvrete\b/i,
   /\bseniors?\b/i,     /\bpropriétaires?\b/i, /\blocataires?\b/i,
   /\bpanneaux?\b/i,    /\baffichage\b/i,      /\booh\b/i,         /\bdooh\b/i,
-  /\bbenchmark\b/i,    /\bclustering\b/i,
+  /\bbenchmark\b/i,
   /\bstatistiques?\b/i,/\bcombien\b/i,
   /\bnombre (de|d')\b/i, /\bmédiane\b/i,      /\bmediane\b/i,
   /\b\d{1,2}[\s\-–]\d{1,2} ans\b/i,           // "18-24 ans" ou "18 24 ans"

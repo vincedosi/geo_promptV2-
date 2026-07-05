@@ -6,7 +6,6 @@
 import { createAdminClient }    from '@/lib/auth';
 import { routePrompt }          from './router-prompt';
 import { runDemographieAgent }  from './agents/demographie';
-import { runPoiClusteringAgent } from './agents/poi-clustering';
 import type {
   AgentName,
   AgentResult,
@@ -33,9 +32,6 @@ async function executeAgent(
   switch (agent) {
     case 'demographie':
       return runDemographieAgent(params);
-
-    case 'poi_clustering':
-      return runPoiClusteringAgent(params);
 
     case 'panneaux':
       // Agent panneaux : redirige vers l'outil existant via message d'orientation
@@ -92,7 +88,6 @@ async function executeAgent(
           'Essayez des formulations comme :',
           '- *"Quel est le revenu médian à Bordeaux ?"*',
           '- *"Combien de CIRFA en France ?"*',
-          '- *"Montre-moi le dernier modèle de clustering"*',
         ].join('\n'),
         error: 'Requête hors périmètre ou ambiguë.',
       };

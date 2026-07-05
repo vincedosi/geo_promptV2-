@@ -9,7 +9,6 @@
  *
  * Modules branches :
  *   - battle-isochrone     : RPC get_battle_geometry
- *   - poi-clusters         : capture directe client
  *   - radio-coverage       : RPC get_radio_coverage_geometry
  *   - iris-selection       : RPC get_iris_selection_geometry
  *   - voronoi-cells        : RPC get_voronoi_capture_geometry (mode standard V1, TODO V2 routier)
@@ -23,7 +22,6 @@ import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import type { POI } from '@/types/poi';
-import type { ClusterGeoJSON } from './ClusterPanel';
 
 /** POI light embarqué dans la metadata du layer battle pour le mode "N zones individuelles". */
 export interface BattlePoiMeta {
@@ -42,10 +40,6 @@ interface Props {
   battleFeatures?: GeoJSON.Feature[];
   /** Liste des POI du battle (id, nom, lat, lng, categorie). */
   battlePois?: POI[];
-
-  // Cluster POI (capture directe client-side)
-  clusterGeoJSON: ClusterGeoJSON | null;
-  clustersVisible: boolean;
 
   // Radio coverage
   radioSelectedId: string | null;
@@ -90,8 +84,6 @@ export function CaptureLayers({
   battleCacheKey,
   battleFeatures,
   battlePois,
-  clusterGeoJSON,
-  clustersVisible,
   radioSelectedId,
   radioSelectedNom,
   radioCoverageMode,
@@ -164,25 +156,6 @@ export function CaptureLayers({
       category: battleCategory,
       mode: battleMode,
     },
-  });
-
-  // ── Cluster POI (direct) ─────────────────────────────────────────────
-  const getClusterGeom = useCallback((): ContributedGeometry => {
-    if (!clusterGeoJSON) return null;
-    const geoms: GeoJSON.Geometry[] = [];
-    for (const f of clusterGeoJSON.features) {
-      if (f.geometry) geoms.push(f.geometry as GeoJSON.Geometry);
-    }
-    return geoms.length > 0 ? geoms : null;
-  }, [clusterGeoJSON]);
-
-  useCustomGeoLayer({
-    id: 'map-poi-clusters',
-    sourceType: 'poi_clusters',
-    label: clusterGeoJSON ? `Clusters POI (${clusterGeoJSON.features.length} groupes)` : 'Clusters POI',
-    enabled: clustersVisible && !!clusterGeoJSON && clusterGeoJSON.features.length > 0,
-    getGeometry: getClusterGeom,
-    metadata: { cluster_count: clusterGeoJSON?.features.length ?? 0 },
   });
 
   // ── Radio coverage ────────────────────────────────────────────────────
