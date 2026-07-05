@@ -188,37 +188,5 @@ export function buildTools(
       execute: (args: Record<string, unknown>) =>
         executeToolCall('analyse_complete', args, categoriesList, {}),
     },
-
-    analyse_correlation: {
-      description: "Analyse la corrélation statistique (Pearson, Spearman, R²) entre deux variables IRIS. Deux modes : 'iris_poi' (métrique IRIS × densité POI, défaut) ou 'iris_iris' (métrique IRIS × métrique IRIS, sans POI). Ouvre le tiroir CORRÉLATION dans EXPERT > ANALYSE avec les paramètres pré-remplis et lance le calcul. Utiliser pour : 'corrélation', 'lien entre', 'relation entre', 'est-ce que X influence Y', 'impact de X sur Y', 'y a-t-il un rapport entre'. En mode iris_iris, pas besoin de catégorie POI : utiliser metric_x et metric_y. Les métriques IRIS disponibles sont décrites dans le contexte système.",
-      inputSchema: z.object({
-        mode: z.enum(['iris_poi', 'iris_iris']).optional().describe(
-          "Mode d'analyse. 'iris_poi' = métrique IRIS vs densité POI (défaut). 'iris_iris' = deux métriques IRIS entre elles (ex: chômage vs revenus, population jeune vs taux pauvreté)."
-        ),
-        poi_category: z.string().optional().describe(
-          `Mode iris_poi uniquement — catégorie de POI. ${catsDesc}. Mapping : 'transports/bus/arrêts' → 'arret_transport', 'lycées/lycée/high school' → 'lycee', 'CIRFA/armée/recrutement' → 'cirfa'.`
-        ),
-        iris_metric: z.string().optional().describe(
-          "Mode iris_poi uniquement — métrique IRIS axe X. Défaut : 'population'. Voir le contexte système pour la liste et le mapping langage naturel → colonne."
-        ),
-        sigma_km: z.number().optional().describe(
-          "Mode iris_poi uniquement — portée d'influence σ en km (défaut: valeur config par catégorie). Convertir les expressions de distance : 'dans 2km' → 1.0, 'à 10km' → 3.3, 'dans 15km' → 5.0. Ex: 'lycées dans 15km' → sigma_km: 5.0. σ = rayon_cible / 3."
-        ),
-        metric_x: z.string().optional().describe(
-          "Mode iris_iris uniquement — première métrique (axe X). Ex: 'population', 'taux_chomage', 'rev_median'."
-        ),
-        metric_y: z.string().optional().describe(
-          "Mode iris_iris uniquement — seconde métrique (axe Y, corrélée). Ex: 'taux_pauvrete', 'pop_15_29'. Doit être différent de metric_x."
-        ),
-        departement: z.string().optional().describe(
-          "Code département (opt). Ex: '75'=Paris, '13'=Bouches-du-Rhône, '29'=Finistère. Si ville mentionnée, déduire le code."
-        ),
-        auto_analyse_ia: z.boolean().optional().describe(
-          "Lancer l'analyse IA automatiquement après calcul (déf: true si interprétation demandée)."
-        ),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('analyse_correlation', args, categoriesList, {}),
-    },
   };
 }

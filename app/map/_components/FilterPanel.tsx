@@ -43,13 +43,6 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
-import dynamic from 'next/dynamic';
-import type { CorrelationParams, ResidualsMeta, ResidualData } from './CorrelationPanel';
-const CorrelationPanel = dynamic(
-  () => import('./CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
-  { ssr: false },
-);
-
 // ─── Equity indicator types ──────────────────────────────────────────────────
 // ─── Digital palettes (same IDs as IRIS for consistency) ──────────────────────
 export const DIGITAL_PALETTES = [
@@ -407,9 +400,6 @@ export interface FilterPanelProps {
   civicCpDate?:         string | null;
   /** Appelé après une ingestion admin réussie (le parent recharge le layer). */
   onCivicIngested?:     () => void;
-  // Corrélation IRIS × POI
-  correlationParams?:   CorrelationParams | null;
-  onShowResiduals?:     (data: ResidualData[] | null, meta?: ResidualsMeta) => void;
   // Radio
   radioVisible?:          boolean;
   onToggleRadio?:         () => void;
@@ -467,13 +457,12 @@ export interface FilterPanelProps {
   /** Ville courante de l'étude (affichée dans le CTA si set) */
   studyVille?: string | null;
   /** Ouvre le panel résultats d'analyse à gauche de la carte. Quand fourni en mode overlay,
-   *  les 3 analyses lourdes (clustering / corrélation / scoring) deviennent
+   *  les 2 analyses lourdes (clustering / scoring) deviennent
    *  des cartes CTA et leur contenu lourd vit dans le ResultsPanel externe. */
-  onOpenAnalysisResults?: (type: 'clustering' | 'correlation' | 'scoring') => void;
+  onOpenAnalysisResults?: (type: 'clustering' | 'scoring') => void;
   /** Indique pour chaque analyse si un résultat est déjà calculé (badge "Résultats disponibles"). */
   availableResults?: {
     clustering?: boolean;
-    correlation?: boolean;
     scoring?: boolean;
   };
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
@@ -668,7 +657,6 @@ export function FilterPanel({
   civicMetric = 'global', onCivicMetricChange,
   civicMinLevel = 0, onCivicMinLevelChange,
   civicCpStatus, civicCpDate, onCivicIngested,
-  correlationParams, onShowResiduals,
   radioVisible, onToggleRadio, radioHeatmapMode, onToggleRadioHeatmap,
   radioCoverageMode, onToggleRadioCoverage, radioLoading,
   radioSystemeFilter, onRadioSystemeChange, onSelectRadio,
@@ -1322,13 +1310,6 @@ export function FilterPanel({
   };
 
   const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
-
-  // Auto-ouvrir l'accordéon CORRÉLATION + onglet ANALYSE quand des params arrivent depuis le chat
-  useEffect(() => {
-    if (!correlationParams) return;
-    setActiveTab('expert');
-    setAnalyseOpen(prev => ({ ...prev, correlation: true }));
-  }, [correlationParams]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
@@ -3221,7 +3202,6 @@ export function FilterPanel({
                 </div>
                 {([
                   { type: 'clustering',  label: 'Clustering',              desc: 'K-means POI × Filosofi par durée d\'exposition.' },
-                  { type: 'correlation', label: 'Corrélation IRIS × POI',  desc: 'Croise la métrique IRIS avec la densité POI.' },
                   { type: 'scoring',     label: 'Scoring OOH',             desc: 'Score paramétrique par panneau.' },
                 ] as const).map(card => {
                   const isReady = !!availableResults?.[card.type];
@@ -3918,35 +3898,6 @@ export function FilterPanel({
                   </div>
                 </div>
               )}
-            </div>
-            )}
-            </>)}
-
-            {!useAnalysisCTAs && (<>
-            {/* ── Accordéon : CORRÉLATION IRIS × POI (overlay → CTA card) ─── */}
-            <button
-              onClick={() => toggleAnalyse('correlation')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Corrélation IRIS × POI
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.correlation ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.correlation && (
-            <div style={{ padding: '0 4px 4px' }}>
-              <CorrelationPanel
-                onFlyTo={onFlyTo}
-                params={correlationParams ?? null}
-                selectedDepts={selectedDepts}
-                territoireLabel={territoire || undefined}
-                onShowResiduals={onShowResiduals}
-              />
             </div>
             )}
             </>)}

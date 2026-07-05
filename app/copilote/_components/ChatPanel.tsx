@@ -91,7 +91,6 @@ const runningToolLabels: Record<string, string> = {
   'tool-afficher_carreaux':           'Chargement des carreaux…',
   'tool-isochrone_battle':            'Calcul Bataille d\'Isochrones (~1-2 min)…',
   'tool-analyze_poi_synergy':         'Analyse synergies POI × démographie…',
-  'tool-analyse_correlation':         'Calcul corrélation IRIS × POI…',
   'tool-search_datasets':             'Recherche sur data.gouv.fr…',
   'tool-get_dataset_info':            'Récupération fiche dataset…',
   'tool-list_dataset_resources':      'Liste des ressources…',

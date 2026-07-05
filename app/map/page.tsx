@@ -41,14 +41,13 @@ import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
 import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
 import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
-import { useToolProcessor, type CorrelationActionParams } from '@/app/copilote/_hooks/useToolProcessor';
+import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
-import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
@@ -84,10 +83,6 @@ const ClusteringResultsContent = dynamic(
   () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
   { ssr: false },
 );
-const CorrelationPanelDyn = dynamic(
-  () => import('@/app/map/_components/CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
-  { ssr: false },
-);
 const ScoringPanel = dynamic(
   () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
   { ssr: false },
@@ -100,19 +95,6 @@ import type { SelectedBillboard } from '@/types/map';
 function esc(s: string | undefined | null): string {
   if (!s) return '';
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// ─── Helpers résidus ──────────────────────────────────────────────────────────
-
-function normToColor(norm: number, inverted = false): string {
-  const n = inverted ? -norm : norm;
-  if (n <= -0.5)  return '#ef4444';
-  if (n <= -0.15) return '#f97316';
-  if (n <= -0.05) return '#fbbf24';
-  if (n <   0.05) return '#e2e8f0';
-  if (n <   0.15) return '#86efac';
-  if (n <   0.5)  return '#22c55e';
-  return '#059669';
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -285,17 +267,6 @@ export default function MapPage() {
   const digitalCampaignIdRef = useRef<string>('');
 
   const radioFetchRef = useRef<AbortController | null>(null);
-  // Corrélation IRIS × POI — params depuis le chat
-  const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
-  // Résidus de corrélation — layer MVT (match expression sur iris-source)
-  const [residualsMeta,     setResidualsMeta]     = useState<ResidualsMeta | null>(null);
-  const [residualOpacity,   setResidualOpacity]   = useState(0.65);
-  const [residualInverted,  setResidualInverted]  = useState(false);
-  const residualsClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
-  const residualsMouseHandlersRef = useRef<{ enter: () => void; leave: () => void } | null>(null);
-  const residualLookupRef    = useRef<Map<string, ResidualData>>(new Map());
-  const residualInvertedRef  = useRef(false);
-  useEffect(() => { residualInvertedRef.current = residualInverted; }, [residualInverted]);
 
   // ── IRIS detail panel ──────────────────────────────────────────────────────
   const [selectedIrisCode,   setSelectedIrisCode]   = useState<string | null>(null);
@@ -694,124 +665,6 @@ export default function MapPage() {
       );
   };
 
-  // ── Résidus de corrélation — layer MVT (match expression sur iris-source) ──
-  const handleShowResiduals = useCallback((data: ResidualData[] | null, meta?: ResidualsMeta) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const LAYER = 'iris-residuals-fill';
-
-    // Cleanup ancien handler + layer
-    if (residualsClickHandlerRef.current) {
-      try { map.off('click', LAYER, residualsClickHandlerRef.current); } catch { /* ok */ }
-      residualsClickHandlerRef.current = null;
-    }
-    if (residualsMouseHandlersRef.current) {
-      try { map.off('mouseenter', LAYER, residualsMouseHandlersRef.current.enter); } catch { /* ok */ }
-      try { map.off('mouseleave', LAYER, residualsMouseHandlersRef.current.leave); } catch { /* ok */ }
-      residualsMouseHandlersRef.current = null;
-    }
-    try {
-      if (map.getLayer(LAYER)) map.removeLayer(LAYER);
-    } catch { /* ok */ }
-
-    if (!data) {
-      setResidualsMeta(null);
-      residualLookupRef.current.clear();
-      return;
-    }
-
-    // Lookup pour les popups (code_iris → données calculées)
-    residualLookupRef.current = new Map(data.map(d => [d.code_iris, d]));
-
-    const inverted = residualInvertedRef.current;
-
-    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
-    for (const d of data) {
-      matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
-    }
-    matchExpr.push('transparent'); // fallback pour les IRIS hors résultats
-
-    try {
-      // Inséré avant iris-border pour que les bordures restent visibles au-dessus
-      map.addLayer({
-        id: LAYER,
-        type: 'fill',
-        source: 'iris-source',
-        'source-layer': 'iris',
-        minzoom: 2,
-        paint: {
-          'fill-color':   matchExpr as unknown as maplibregl.ExpressionSpecification,
-          'fill-opacity': residualOpacity,
-        },
-      }, 'iris-border');
-    } catch {
-      return;
-    }
-
-    // Popup au clic via le lookup (les données ne sont pas dans les tuiles MVT)
-    const clickHandler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features?.length) return;
-      const props = e.features[0].properties as Record<string, unknown>;
-      const codeIris = String(props.code_iris ?? '');
-      const d = residualLookupRef.current.get(codeIris);
-      if (!d) return;
-      const sign = d.residual > 0 ? '+' : '';
-      const inv  = residualInvertedRef.current;
-      const status = d.residual >  0.5 ? (inv ? 'Sur-équipé (rouge)'  : 'Sur-équipé')
-                   : d.residual < -0.5 ? (inv ? 'Sous-équipé (vert)'  : 'Sous-équipé')
-                   : 'Normal';
-      const statusColor = inv
-        ? (d.residual >  0.5 ? '#ef4444' : d.residual < -0.5 ? '#22c55e' : '#e2e8f0')
-        : (d.residual >  0.5 ? '#22c55e' : d.residual < -0.5 ? '#ef4444' : '#e2e8f0');
-      new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:var(--text-primary);padding:12px;">
-          <strong style="font-size:12px;color:var(--brand-teal);">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
-          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
-          <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
-          <div style="font-size:11px;color:var(--text-secondary);">
-            POI réels : <strong>${d.poi_count}</strong><br/>
-            POI prédits : <strong>${d.predicted.toFixed(2)}</strong><br/>
-            Métrique : <strong>${d.metric_value.toLocaleString('fr')}</strong>
-          </div>
-        </div>`)
-        .addTo(map);
-    };
-    const onResidualEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onResidualLeave = () => { map.getCanvas().style.cursor = ''; };
-    residualsClickHandlerRef.current = clickHandler;
-    residualsMouseHandlersRef.current = { enter: onResidualEnter, leave: onResidualLeave };
-    map.on('click', LAYER, clickHandler);
-    map.on('mouseenter', LAYER, onResidualEnter);
-    map.on('mouseleave', LAYER, onResidualLeave);
-
-    setResidualsMeta(meta ?? null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady]);
-
-  // ── Contrôles résidus — opacité + inversion ────────────────────────────────
-  const handleResidualOpacity = useCallback((value: number) => {
-    setResidualOpacity(value);
-    const map = mapRef.current;
-    if (map?.getLayer('iris-residuals-fill')) {
-      map.setPaintProperty('iris-residuals-fill', 'fill-opacity', value);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleResidualInvert = useCallback((inverted: boolean) => {
-    setResidualInverted(inverted);
-    residualInvertedRef.current = inverted;
-    const map = mapRef.current;
-    if (!map?.getLayer('iris-residuals-fill') || !residualLookupRef.current.size) return;
-    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
-    residualLookupRef.current.forEach((r, code) => {
-      matchExpr.push(code, normToColor(r.norm, inverted));
-    });
-    matchExpr.push('transparent');
-    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr as unknown as maplibregl.ExpressionSpecification);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Charger arrêts de transport pour la vue courante ───────────────────────
   const handleLoadTransport = async (types: string[]) => {
     const map = mapRef.current;
@@ -1124,7 +977,6 @@ export default function MapPage() {
         else setError(null);
       });
     },
-    setCorrelationParams,
   });
 
   savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
@@ -1200,8 +1052,6 @@ export default function MapPage() {
     setDigitalStats(null);
     setDigitalAnalysisOpen(false);
     setDigitalCampaignId('');
-    setCorrelationParams(null);
-    setResidualsMeta(null);
     setSelectedIrisCode(null);
     setSelectedIrisData(null);
     setSelectedBillboard(null);
@@ -1865,9 +1715,8 @@ export default function MapPage() {
   // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
   const availableResults = useMemo(() => ({
     clustering:  !!clusterGeoJSON,
-    correlation: !!residualsMeta,
     scoring:     !!studyVille,
-  }), [clusterGeoJSON, residualsMeta, studyVille]);
+  }), [clusterGeoJSON, studyVille]);
 
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
@@ -2126,8 +1975,6 @@ export default function MapPage() {
               radioPointSize={radioPointSize}
               onRadioPointSizeChange={setRadioPointSize}
               onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              correlationParams={correlationParams}
-              onShowResiduals={handleShowResiduals}
               digitalVisible={digitalVisible}
               digitalLoading={digitalLoading}
               digitalStats={digitalStats}
@@ -2241,9 +2088,7 @@ export default function MapPage() {
           topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           type={activeResults}
           title={
-            activeResults === 'clustering'  ? 'Résultats — clustering' :
-            activeResults === 'correlation' ? 'Résultats — corrélation IRIS × POI' :
-                                              'Résultats — scoring OOH'
+            activeResults === 'clustering' ? 'Résultats — clustering' : 'Résultats — scoring OOH'
           }
           dotColor="var(--cat-analysis)"
           onClose={handleCloseResults}
@@ -2262,15 +2107,6 @@ export default function MapPage() {
               onWizardHighlight={handleWizardHighlight}
               onWizardClose={() => setWizardHighlightGeoJSON(null)}
             />
-          )}
-          {activeResults === 'correlation' && (
-            <div style={{ padding: 16 }}>
-              <CorrelationPanelDyn
-                onFlyTo={handleFlyTo}
-                params={correlationParams ?? null}
-                onShowResiduals={handleShowResiduals}
-              />
-            </div>
           )}
           {activeResults === 'scoring' && (
             <div style={{ padding: 16 }}>
@@ -2532,123 +2368,6 @@ export default function MapPage() {
         onMapStyleChange={handleMapStyleChange}
       />
       </div>
-
-          {/* Résidus de corrélation — légende flottante */}
-          {residualsMeta && (
-            <div style={{
-              position: 'absolute', bottom: 44, left: 12, zIndex: 100,
-              background: 'var(--card-overlay)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: '0.5px solid var(--border-default)',
-              borderRadius: 4,
-              padding: '10px 12px',
-              minWidth: 200,
-              fontFamily: "'JetBrains Mono','Fira Mono',monospace",
-            }}>
-              {/* Titre */}
-              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: 'var(--brand-teal)', marginBottom: 6 }}>
-                RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
-              </div>
-
-              {/* Labels légende — inversés si residualInverted */}
-              {(residualInverted
-                ? [
-                    { color: '#ef4444', label: 'Très sur-équipé' },
-                    { color: '#f97316', label: 'Sur-équipé' },
-                    { color: '#fbbf24', label: 'Léger excédent' },
-                    { color: '#e2e8f0', label: 'Dans la norme' },
-                    { color: '#86efac', label: 'Léger déficit' },
-                    { color: '#22c55e', label: 'Sous-équipé' },
-                    { color: '#059669', label: 'Très sous-équipé' },
-                  ]
-                : [
-                    { color: '#ef4444', label: 'Très sous-équipé' },
-                    { color: '#f97316', label: 'Sous-équipé' },
-                    { color: '#fbbf24', label: 'Léger déficit' },
-                    { color: '#e2e8f0', label: 'Dans la norme' },
-                    { color: '#86efac', label: 'Léger excédent' },
-                    { color: '#22c55e', label: 'Sur-équipé' },
-                    { color: '#059669', label: 'Très sur-équipé' },
-                  ]
-              ).map(({ color, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ width: 10, height: 10, background: color, borderRadius: 1, flexShrink: 0, opacity: 0.85 }} />
-                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>{label}</span>
-                </div>
-              ))}
-
-              {/* Séparateur */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8, paddingTop: 8 }}>
-
-                {/* Slider opacité */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-                    OPACITÉ
-                  </span>
-                  <input
-                    type="range" min={0.1} max={1} step={0.05}
-                    value={residualOpacity}
-                    onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--brand-teal)', cursor: 'pointer', height: 4 }}
-                  />
-                  <span style={{ fontSize: 8, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>
-                    {Math.round(residualOpacity * 100)}%
-                  </span>
-                </div>
-
-                {/* Toggle inversion */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>Inverser couleurs</span>
-                  <button
-                    onClick={() => handleResidualInvert(!residualInverted)}
-                    style={{
-                      position: 'relative',
-                      width: 32, height: 16,
-                      background: residualInverted ? 'var(--brand-teal)' : 'var(--border-subtle)',
-                      border: `1px solid ${residualInverted ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      transition: 'background 150ms, border-color 150ms',
-                      flexShrink: 0,
-                      padding: 0,
-                    }}
-                    title={residualInverted ? 'Rouge = excédent' : 'Rouge = déficit'}
-                  >
-                    <span style={{
-                      position: 'absolute',
-                      top: 2, left: residualInverted ? 16 : 2,
-                      width: 10, height: 10,
-                      background: '#fff',
-                      borderRadius: '50%',
-                      transition: 'left 150ms',
-                    }} />
-                  </button>
-                </div>
-                <div style={{ fontSize: 7.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
-                  Rouge = {residualInverted ? 'excédent' : 'déficit'}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 6, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
-              </div>
-
-              {/* Masquer */}
-              <button
-                onClick={() => handleShowResiduals(null)}
-                style={{
-                  marginTop: 6, width: '100%', padding: '4px 0',
-                  background: 'transparent', border: '1px solid var(--border-default)',
-                  borderRadius: 2, color: 'var(--text-tertiary)', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
-                  fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
-                }}
-              >
-                ✕ MASQUER
-              </button>
-            </div>
-          )}
 
           {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
 

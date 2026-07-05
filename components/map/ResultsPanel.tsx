@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
-export type ResultsPanelType = 'clustering' | 'scoring' | 'correlation';
+export type ResultsPanelType = 'clustering' | 'scoring';
 
 interface ResultsPanelProps {
   type: ResultsPanelType;

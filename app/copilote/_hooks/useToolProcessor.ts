@@ -15,17 +15,6 @@ interface ToolPart {
   output?: Record<string, unknown> & { [key: string]: unknown };
 }
 
-export interface CorrelationActionParams {
-  mode?:        'iris_poi' | 'iris_iris';
-  poiCategory?: string;
-  irisMetric?:  string;
-  sigmaKm?:     number;
-  metricX?:     string;
-  metricY?:     string;
-  departement:  string | null;
-  autoAnalyse:  boolean;
-}
-
 interface UseToolProcessorOpts {
   messages: UIMessage[];
   setZoneData: React.Dispatch<React.SetStateAction<ZoneData | null>>;
@@ -40,7 +29,6 @@ interface UseToolProcessorOpts {
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
   triggerOohExport: (data: OohExportData) => Promise<void>;
-  setCorrelationParams?: (p: CorrelationActionParams) => void;
 }
 
 export function useToolProcessor({
@@ -55,7 +43,6 @@ export function useToolProcessor({
   carreauxConfigForSaveRef,
   flyToCoords,
   triggerOohExport,
-  setCorrelationParams,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
@@ -175,18 +162,6 @@ export function useToolProcessor({
             const c = result.coordonnees as { lat: number; lng: number };
             flyToCoords(c.lat, c.lng);
           }
-
-        } else if (toolName === 'analyse_correlation' && result?.action === 'analyse_correlation') {
-          setCorrelationParams?.({
-            mode:        (result.mode as CorrelationActionParams['mode']) ?? 'iris_poi',
-            poiCategory: result.poiCategory as string | undefined,
-            irisMetric:  (result.irisMetric as string) ?? 'population',
-            sigmaKm:     result.sigmaKm as number | undefined,
-            metricX:     result.metricX as string | undefined,
-            metricY:     result.metricY as string | undefined,
-            departement: (result.departement as string | null) ?? null,
-            autoAnalyse: result.autoAnalyse !== false,
-          });
 
         } else if (toolName === 'analyse_complete' && result?.coordonnees) {
           const c = result.coordonnees as { lat: number; lng: number };
