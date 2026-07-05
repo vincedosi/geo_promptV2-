@@ -11,8 +11,8 @@
  *   3. State management (~70 useState)   (≈ 231-450)
  *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
  *   5. POI / battle / voronoi handlers   (≈ 701-1300)
- *   6. Cluster + radio + meteo handlers  (≈ 1301-1600)
- *   7. Render JSX (IconBar + OverlayPanel + ResultsPanel + StudyDashboard) (≈ 1601-2329)
+ *   6. Radio + meteo handlers            (≈ 1301-1600)
+ *   7. Render JSX (IconBar + OverlayPanel) (≈ 1601-2329)
  *
  * @maintainers Pour étendre ce fichier :
  *   - NE PAS ajouter d'autres `useState` au top — extraire dans un hook
@@ -41,24 +41,18 @@ import { useSavedMaps }        from '@/app/copilote/_hooks/useSavedMaps';
 import { useMapLayers }        from '@/app/copilote/_hooks/useMapLayers';
 import { useChatControls }     from '@/app/copilote/_hooks/useChatControls';
 import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
-import { useToolProcessor, type CorrelationActionParams } from '@/app/copilote/_hooks/useToolProcessor';
+import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
-import type { ResidualsMeta, ResidualData } from '@/app/map/_components/CorrelationPanel';
-import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
-const StudyDashboard = dynamic(
-  () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
-  { ssr: false },
-);
 const TripleMapView = dynamic(
   () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
   { ssr: false },
@@ -68,34 +62,16 @@ const DigitalAnalysisPanel = dynamic(
   { ssr: false },
 );
 import type { ZoneData, BattleResult } from '@/types/spatial';
-import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
-const ClusteringResultsContent = dynamic(
-  () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
-  { ssr: false },
-);
-const CoverageResultsPanel = dynamic(
-  () => import('@/components/CoverageResultsPanel').then(m => ({ default: m.CoverageResultsPanel })),
-  { ssr: false },
-);
-const CorrelationPanelDyn = dynamic(
-  () => import('@/app/map/_components/CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
-  { ssr: false },
-);
-const ScoringPanel = dynamic(
-  () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
-  { ssr: false },
-);
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -106,41 +82,16 @@ function esc(s: string | undefined | null): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ─── Helpers résidus ──────────────────────────────────────────────────────────
-
-function normToColor(norm: number, inverted = false): string {
-  const n = inverted ? -norm : norm;
-  if (n <= -0.5)  return '#ef4444';
-  if (n <= -0.15) return '#f97316';
-  if (n <= -0.05) return '#fbbf24';
-  if (n <   0.05) return '#e2e8f0';
-  if (n <   0.15) return '#86efac';
-  if (n <   0.5)  return '#22c55e';
-  return '#059669';
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
-  const [activeStudy, setActiveStudy] = useState(false);
-  const handleOpenStudy = useCallback(() => {
-    setActiveStudy(true);
-    setActiveOverlay(null);
-    setActiveResults(null);
-  }, []);
-  const handleCloseStudy = useCallback(() => {
-    setActiveStudy(false);
-  }, []);
   const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
   const handleOverlayToggle = useCallback((id: OverlayId) => {
     setActiveOverlay(prev => prev === id ? null : id);
   }, []);
-  // ── Results panel (volet gauche pour les analyses) ──
-  const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
-  const [coverageReady, setCoverageReady] = useState(false);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
@@ -150,14 +101,6 @@ export default function MapPage() {
   const [perimeterSelectedRegions, setPerimeterSelectedRegions] = useState<string[]>([]);
   const [perimeterSelectedDepts,   setPerimeterSelectedDepts]   = useState<string[]>([]);
   const [perimeterVille,           setPerimeterVille]           = useState('');
-  const handleOpenAnalysisResults = useCallback((type: ResultsPanelType) => {
-    setActiveResults(type);
-    setActiveOverlay(null);
-  }, []);
-  const handleCloseResults = useCallback(() => {
-    setActiveResults(null);
-  }, []);
-  const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
   const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
@@ -165,13 +108,6 @@ export default function MapPage() {
   const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
-  // Clustering clusters
-  const [clusterGeoJSON,    setClusterGeoJSON]    = useState<ClusterGeoJSON | null>(null);
-  const [clustersVisible,   setClustersVisible]   = useState(false);
-  const [clusterLoading,    setClusterLoading]    = useState(false);
-  const [clusterDuration,   setClusterDuration]   = useState(60);
-  // Wizard highlight — POIs preview pendant la configuration du clustering
-  const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // Masquer les axes <5 000 véh/j par défaut pour limiter la densité visuelle
@@ -290,17 +226,6 @@ export default function MapPage() {
   const digitalCampaignIdRef = useRef<string>('');
 
   const radioFetchRef = useRef<AbortController | null>(null);
-  // Corrélation IRIS × POI — params depuis le chat
-  const [correlationParams, setCorrelationParams] = useState<CorrelationActionParams | null>(null);
-  // Résidus de corrélation — layer MVT (match expression sur iris-source)
-  const [residualsMeta,     setResidualsMeta]     = useState<ResidualsMeta | null>(null);
-  const [residualOpacity,   setResidualOpacity]   = useState(0.65);
-  const [residualInverted,  setResidualInverted]  = useState(false);
-  const residualsClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
-  const residualsMouseHandlersRef = useRef<{ enter: () => void; leave: () => void } | null>(null);
-  const residualLookupRef    = useRef<Map<string, ResidualData>>(new Map());
-  const residualInvertedRef  = useRef(false);
-  useEffect(() => { residualInvertedRef.current = residualInverted; }, [residualInverted]);
 
   // ── IRIS detail panel ──────────────────────────────────────────────────────
   const [selectedIrisCode,   setSelectedIrisCode]   = useState<string | null>(null);
@@ -338,36 +263,6 @@ export default function MapPage() {
   } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
-
-  // ── Sync wizard highlight GeoJSON → map source ─────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const src = map.getSource('wizard-highlight') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (wizardHighlightGeoJSON) {
-      src.setData(wizardHighlightGeoJSON);
-      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'visible'); } catch { /* */ }
-    } else {
-      src.setData({ type: 'FeatureCollection', features: [] });
-      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'none'); } catch { /* */ }
-    }
-  }, [wizardHighlightGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sync cluster GeoJSON → map source ──────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !clusterGeoJSON) return;
-    const src = map.getSource('clusters-source') as maplibregl.GeoJSONSource | undefined;
-    src?.setData(clusterGeoJSON as unknown as GeoJSON.FeatureCollection);
-  }, [clusterGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sync clustersVisible → layer visibility ─────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* */ }
-  }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
@@ -687,135 +582,10 @@ export default function MapPage() {
       .catch(() => { setIrisDetailLoading(false); });
   }, [selectedIrisCode]);
 
-  // ── flyTo / fitBounds helpers ──────────────────────────────────────────────
+  // ── flyTo helper ────────────────────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
     if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom, duration: 1000 });
   };
-  const handleFitBounds = (bounds: [[number, number], [number, number]]) => {
-    if (mapRef.current && mapReady)
-      mapRef.current.fitBounds(
-        new maplibregl.LngLatBounds(bounds[0], bounds[1]),
-        { padding: 60, duration: 1000 },
-      );
-  };
-
-  // ── Résidus de corrélation — layer MVT (match expression sur iris-source) ──
-  const handleShowResiduals = useCallback((data: ResidualData[] | null, meta?: ResidualsMeta) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const LAYER = 'iris-residuals-fill';
-
-    // Cleanup ancien handler + layer
-    if (residualsClickHandlerRef.current) {
-      try { map.off('click', LAYER, residualsClickHandlerRef.current); } catch { /* ok */ }
-      residualsClickHandlerRef.current = null;
-    }
-    if (residualsMouseHandlersRef.current) {
-      try { map.off('mouseenter', LAYER, residualsMouseHandlersRef.current.enter); } catch { /* ok */ }
-      try { map.off('mouseleave', LAYER, residualsMouseHandlersRef.current.leave); } catch { /* ok */ }
-      residualsMouseHandlersRef.current = null;
-    }
-    try {
-      if (map.getLayer(LAYER)) map.removeLayer(LAYER);
-    } catch { /* ok */ }
-
-    if (!data) {
-      setResidualsMeta(null);
-      residualLookupRef.current.clear();
-      return;
-    }
-
-    // Lookup pour les popups (code_iris → données calculées)
-    residualLookupRef.current = new Map(data.map(d => [d.code_iris, d]));
-
-    const inverted = residualInvertedRef.current;
-
-    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
-    for (const d of data) {
-      matchExpr.push(d.code_iris, normToColor(d.norm, inverted));
-    }
-    matchExpr.push('transparent'); // fallback pour les IRIS hors résultats
-
-    try {
-      // Inséré avant iris-border pour que les bordures restent visibles au-dessus
-      map.addLayer({
-        id: LAYER,
-        type: 'fill',
-        source: 'iris-source',
-        'source-layer': 'iris',
-        minzoom: 2,
-        paint: {
-          'fill-color':   matchExpr as unknown as maplibregl.ExpressionSpecification,
-          'fill-opacity': residualOpacity,
-        },
-      }, 'iris-border');
-    } catch {
-      return;
-    }
-
-    // Popup au clic via le lookup (les données ne sont pas dans les tuiles MVT)
-    const clickHandler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features?.length) return;
-      const props = e.features[0].properties as Record<string, unknown>;
-      const codeIris = String(props.code_iris ?? '');
-      const d = residualLookupRef.current.get(codeIris);
-      if (!d) return;
-      const sign = d.residual > 0 ? '+' : '';
-      const inv  = residualInvertedRef.current;
-      const status = d.residual >  0.5 ? (inv ? 'Sur-équipé (rouge)'  : 'Sur-équipé')
-                   : d.residual < -0.5 ? (inv ? 'Sous-équipé (vert)'  : 'Sous-équipé')
-                   : 'Normal';
-      const statusColor = inv
-        ? (d.residual >  0.5 ? '#ef4444' : d.residual < -0.5 ? '#22c55e' : '#e2e8f0')
-        : (d.residual >  0.5 ? '#22c55e' : d.residual < -0.5 ? '#ef4444' : '#e2e8f0');
-      new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-family:system-ui;font-size:13px;line-height:1.5;color:var(--text-primary);padding:12px;">
-          <strong style="font-size:12px;color:var(--brand-teal);">${String(props.nom_iris ?? d.nom_iris ?? codeIris)}</strong>
-          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">${String(props.code_dept ?? '')} · ${codeIris}</div>
-          <div style="font-size:18px;font-weight:700;color:${statusColor};margin-bottom:6px;">${status} (${sign}${d.residual.toFixed(2)})</div>
-          <div style="font-size:11px;color:var(--text-secondary);">
-            POI réels : <strong>${d.poi_count}</strong><br/>
-            POI prédits : <strong>${d.predicted.toFixed(2)}</strong><br/>
-            Métrique : <strong>${d.metric_value.toLocaleString('fr')}</strong>
-          </div>
-        </div>`)
-        .addTo(map);
-    };
-    const onResidualEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onResidualLeave = () => { map.getCanvas().style.cursor = ''; };
-    residualsClickHandlerRef.current = clickHandler;
-    residualsMouseHandlersRef.current = { enter: onResidualEnter, leave: onResidualLeave };
-    map.on('click', LAYER, clickHandler);
-    map.on('mouseenter', LAYER, onResidualEnter);
-    map.on('mouseleave', LAYER, onResidualLeave);
-
-    setResidualsMeta(meta ?? null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady]);
-
-  // ── Contrôles résidus — opacité + inversion ────────────────────────────────
-  const handleResidualOpacity = useCallback((value: number) => {
-    setResidualOpacity(value);
-    const map = mapRef.current;
-    if (map?.getLayer('iris-residuals-fill')) {
-      map.setPaintProperty('iris-residuals-fill', 'fill-opacity', value);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleResidualInvert = useCallback((inverted: boolean) => {
-    setResidualInverted(inverted);
-    residualInvertedRef.current = inverted;
-    const map = mapRef.current;
-    if (!map?.getLayer('iris-residuals-fill') || !residualLookupRef.current.size) return;
-    const matchExpr: unknown[] = ['match', ['get', 'code_iris']];
-    residualLookupRef.current.forEach((r, code) => {
-      matchExpr.push(code, normToColor(r.norm, inverted));
-    });
-    matchExpr.push('transparent');
-    map.setPaintProperty('iris-residuals-fill', 'fill-color', matchExpr as unknown as maplibregl.ExpressionSpecification);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charger arrêts de transport pour la vue courante ───────────────────────
   const handleLoadTransport = async (types: string[]) => {
@@ -1026,68 +796,6 @@ export default function MapPage() {
     src.setData({ type: 'FeatureCollection', features: circles });
   }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Highlight wizard POIs sur la carte ─────────────────────────────────────
-  const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
-    try {
-      const res = await fetch('/api/map/pois', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          poi_types: poiTypes,
-          scope:     metropolitaine ? 'metro' : 'all',
-          regions:   [],
-          depts:     [],
-          ville:     '',
-          rayon_poi: null,
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.pois?.length) { setWizardHighlightGeoJSON(null); return; }
-      const fc: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: (data.pois as { id: string; nom: string; lat: number; lng: number }[]).map(p => ({
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-          properties: { id: p.id, nom: p.nom },
-        })),
-      };
-      setWizardHighlightGeoJSON(fc);
-    } catch { /* ignore */ }
-  };
-
-  // ── Charger les clusters (lazy) ────────────────────────────────────────────
-  const handleToggleClusters = async () => {
-    if (!clustersVisible && !clusterGeoJSON) {
-      setClusterLoading(true);
-      try {
-        const res  = await fetch(`/api/poi-clusters?duration=${clusterDuration}`);
-        const data = await res.json();
-        if (data.type === 'FeatureCollection') {
-          setClusterGeoJSON(data as ClusterGeoJSON);
-          setClustersVisible(true);
-        }
-      } catch { /* ignore */ } finally { setClusterLoading(false); }
-    } else {
-      setClustersVisible(v => !v);
-    }
-  };
-
-  // ── Changer la durée de clustering — re-fetch ───────────────────────────────
-  const handleClusterDurationChange = async (d: number) => {
-    setClusterDuration(d);
-    setClusterLoading(true);
-    try {
-      const res  = await fetch(`/api/poi-clusters?duration=${d}`);
-      const data = await res.json();
-      if (data.type === 'FeatureCollection') {
-        setClusterGeoJSON(data as ClusterGeoJSON);
-        setClustersVisible(true);
-      }
-    } catch { /* ignore */ } finally { setClusterLoading(false); }
-  };
-
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
   const mapLayers = useMapLayers({
     mapRef, mapReady,
@@ -1122,14 +830,6 @@ export default function MapPage() {
     flyToCoords: (lat, lng) => {
       if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
     },
-    triggerOohExport: async (data: OohExportData) => {
-      setError('Generation du rapport Excel...');
-      await exportOohReport(data, mapRef, msg => {
-        if (msg) setError(msg);
-        else setError(null);
-      });
-    },
-    setCorrelationParams,
   });
 
   savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
@@ -1149,10 +849,10 @@ export default function MapPage() {
     // qui ne nettoient pas la source quand leur donnée repasse à null)
     if (map) {
       const geojsonSources = [
-        'pois-heat', 'zone-circle', 'wizard-highlight', 'meteo-source',
+        'pois-heat', 'zone-circle', 'meteo-source',
         'tmja-source', 'radio-emetteurs', 'radio-coverage', 'digital-cp',
         'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
-        'battle-borders', 'battle-pois', 'clusters-source', 'test-iso',
+        'battle-borders', 'battle-pois', 'test-iso',
         'territory-mask',
       ];
       for (const id of geojsonSources) {
@@ -1188,9 +888,6 @@ export default function MapPage() {
     setBattleFeatures([]);
     setBattlePois([]);
     setBattleCacheKey(null);
-    setClusterGeoJSON(null);
-    setClustersVisible(false);
-    setWizardHighlightGeoJSON(null);
     setTmjaGeoJSON(null);
     handleMeteoClear();
     setCivicVariableCode(null);
@@ -1205,12 +902,9 @@ export default function MapPage() {
     setDigitalStats(null);
     setDigitalAnalysisOpen(false);
     setDigitalCampaignId('');
-    setCorrelationParams(null);
-    setResidualsMeta(null);
     setSelectedIrisCode(null);
     setSelectedIrisData(null);
     setSelectedBillboard(null);
-    setActiveResults(null);
 
     // Périmètre territorial (masque affiché sur la carte)
     setPerimeterScope(null);
@@ -1226,8 +920,8 @@ export default function MapPage() {
   }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
-  // Le polygon de la zone alimente le slot battleFeatures pour que Coverage,
-  // Corrélation et autres analyses puissent l'exploiter exactement comme une
+  // Le polygon de la zone alimente le slot battleFeatures pour que Corrélation
+  // et autres analyses puissent l'exploiter exactement comme une
   // bataille d'isochrones (groupe unique, palier=1). Attend mapReady pour
   // s'assurer que la source MapLibre `battle-rings` est créée.
   const customZoneLoadedRef = useRef<string | null>(null);
@@ -1867,14 +1561,6 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
-  // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
-  const availableResults = useMemo(() => ({
-    clustering:  !!clusterGeoJSON,
-    coverage:    coverageReady,
-    correlation: !!residualsMeta,
-    scoring:     !!studyVille,
-  }), [clusterGeoJSON, coverageReady, residualsMeta, studyVille]);
-
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
     <ChatPanel
@@ -1961,7 +1647,6 @@ export default function MapPage() {
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}
         hidden={iconBarHidden}
-        studyAvailable={!!studyVille}
       />
       {activeOverlay && (
         <OverlayPanel
@@ -2024,17 +1709,7 @@ export default function MapPage() {
               densityMode={densityMode}
               onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
               onPOIStylesChange={setPoiStyles}
-              clusterGeoJSON={clusterGeoJSON}
-              clustersVisible={clustersVisible}
-              clusterLoading={clusterLoading}
-              clusterDuration={clusterDuration}
-              onToggleClusters={handleToggleClusters}
-              onLoadClusters={handleToggleClusters}
-              onClusterDurationChange={handleClusterDurationChange}
               onFlyTo={handleFlyTo}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
               carreauxVisible={mapLayers.carreauxVisible}
               carreauxLoaded={mapLayers.carreauxLoaded}
               carreauxIndicateur={mapLayers.carreauxIndicateur}
@@ -2058,10 +1733,7 @@ export default function MapPage() {
               setIrisPalette={mapLayers.setIrisPalette}
               setIrisOpacity={mapLayers.setIrisOpacity}
               setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-              scoringMapRef={mapRef}
-              scoringMapReady={mapReady}
               mainMapRef={mapRef}
-              onScoreComputed={(v) => setStudyVille(v)}
               onLoadTransport={handleLoadTransport}
               onLoadTMJA={handleLoadTMJA}
               tmjaVisible={!!tmjaGeoJSON}
@@ -2132,8 +1804,6 @@ export default function MapPage() {
               radioPointSize={radioPointSize}
               onRadioPointSizeChange={setRadioPointSize}
               onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              correlationParams={correlationParams}
-              onShowResiduals={handleShowResiduals}
               digitalVisible={digitalVisible}
               digitalLoading={digitalLoading}
               digitalStats={digitalStats}
@@ -2206,10 +1876,6 @@ export default function MapPage() {
               onDigitalCompareViewChange={setDigitalCompareView}
               digitalPopField={digitalPopField}
               onDigitalPopFieldChange={setDigitalPopField}
-              studyVille={studyVille}
-              onOpenStudy={handleOpenStudy}
-              onOpenAnalysisResults={handleOpenAnalysisResults}
-              availableResults={availableResults}
               selectedPOI={selectedPOI}
               onSelectedPOIChange={setSelectedPOI}
               selectedDepts={perimeterSelectedDepts}
@@ -2241,89 +1907,6 @@ export default function MapPage() {
             />
           )}
         </OverlayPanel>
-      )}
-      {activeResults && (
-        <ResultsPanel
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
-          type={activeResults}
-          title={
-            activeResults === 'clustering'  ? 'Résultats — clustering' :
-            activeResults === 'coverage'    ? 'Résultats — couverture démographique' :
-            activeResults === 'correlation' ? 'Résultats — corrélation IRIS × POI' :
-                                              'Résultats — scoring OOH'
-          }
-          dotColor="var(--cat-analysis)"
-          onClose={handleCloseResults}
-        >
-          {activeResults === 'clustering' && (
-            <ClusteringResultsContent
-              geojson={clusterGeoJSON ?? null}
-              visible={clustersVisible}
-              loading={clusterLoading}
-              duration={clusterDuration}
-              onToggle={handleToggleClusters}
-              onLoad={handleToggleClusters}
-              onDurationChange={handleClusterDurationChange}
-              onFlyTo={handleFlyTo}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
-            />
-          )}
-          {activeResults === 'coverage' && (
-            <div style={{ padding: 16 }}>
-              <CoverageResultsPanel
-                inline
-                battleFeatures={battleFeatures}
-                pois={battlePois}
-                battleCacheKey={battleCacheKey ?? undefined}
-                onResultsReady={(s) => setCoverageReady(s.length > 0)}
-              />
-            </div>
-          )}
-          {activeResults === 'correlation' && (
-            <div style={{ padding: 16 }}>
-              <CorrelationPanelDyn
-                onFlyTo={handleFlyTo}
-                params={correlationParams ?? null}
-                onShowResiduals={handleShowResiduals}
-              />
-            </div>
-          )}
-          {activeResults === 'scoring' && (
-            <div style={{ padding: 16 }}>
-              <ScoringPanel
-                inline
-                mapRef={mapRef}
-                mapReady={mapReady}
-                onFlyTo={handleFlyTo}
-                onScoreComputed={(v) => setStudyVille(v)}
-              />
-              {studyVille && (
-                <button
-                  type="button"
-                  onClick={handleOpenStudy}
-                  style={{
-                    width: '100%', marginTop: 12,
-                    background: 'transparent',
-                    border: '0.5px solid var(--brand-teal)',
-                    color: 'var(--brand-teal)',
-                    borderRadius: 6, padding: '10px 12px',
-                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, fontWeight: 500,
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    transition: 'background-color 150ms var(--ease-hover)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  Ouvrir l&apos;étude de ville →
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, opacity: 0.8 }}>{studyVille}</span>
-                </button>
-              )}
-            </div>
-          )}
-        </ResultsPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
       {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
@@ -2372,8 +1955,6 @@ export default function MapPage() {
         battleCacheKey={battleCacheKey}
         battleFeatures={battleFeatures}
         battlePois={battlePois}
-        clusterGeoJSON={clusterGeoJSON}
-        clustersVisible={clustersVisible}
         radioSelectedId={radioSelectedId}
         radioSelectedNom={radioSelectedNom}
         radioCoverageMode={radioCoverageMode}
@@ -2385,34 +1966,11 @@ export default function MapPage() {
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         tmjaGeoJSON={tmjaGeoJSON}
       />
-      {/* ── Right panel: map + optional StudyDashboard (tab bar Carte/Étude supprimé) ── */}
+      {/* ── Right panel: map ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Bouton "← Retour à la carte" (visible uniquement en mode Étude)
-           Descend sous la MapTopBar quand elle est affichée pour ne pas la chevaucher. */}
-        {activeStudy && (
-          <button
-            type="button"
-            onClick={handleCloseStudy}
-            style={{
-              position: 'fixed',
-              top: iconBarHidden ? 12 : MAP_TOPBAR_HEIGHT + 10,
-              left: 60, zIndex: 50,
-              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
-              color: 'var(--text-secondary)', borderRadius: 6, padding: '6px 12px',
-              fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-          >
-            ← Retour à la carte
-          </button>
-        )}
-
-        {/* Map area — masquée quand activeStudy est true */}
-        <div style={{ flex: 1, position: 'relative', display: !activeStudy ? 'flex' : 'none' }}>
+        {/* Map area */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
 
           {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay
              Le bouton descend sous la MapTopBar quand elle est affichée. */}
@@ -2551,125 +2109,6 @@ export default function MapPage() {
       />
       </div>
 
-          {/* Résidus de corrélation — légende flottante */}
-          {residualsMeta && (
-            <div style={{
-              position: 'absolute', bottom: 44, left: 12, zIndex: 100,
-              background: 'var(--card-overlay)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              border: '0.5px solid var(--border-default)',
-              borderRadius: 4,
-              padding: '10px 12px',
-              minWidth: 200,
-              fontFamily: "'JetBrains Mono','Fira Mono',monospace",
-            }}>
-              {/* Titre */}
-              <div style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.14em', color: 'var(--brand-teal)', marginBottom: 6 }}>
-                RÉSIDUS — {residualsMeta.catLabel.toUpperCase()} × {residualsMeta.metLabel.toUpperCase()}
-              </div>
-
-              {/* Labels légende — inversés si residualInverted */}
-              {(residualInverted
-                ? [
-                    { color: '#ef4444', label: 'Très sur-équipé' },
-                    { color: '#f97316', label: 'Sur-équipé' },
-                    { color: '#fbbf24', label: 'Léger excédent' },
-                    { color: '#e2e8f0', label: 'Dans la norme' },
-                    { color: '#86efac', label: 'Léger déficit' },
-                    { color: '#22c55e', label: 'Sous-équipé' },
-                    { color: '#059669', label: 'Très sous-équipé' },
-                  ]
-                : [
-                    { color: '#ef4444', label: 'Très sous-équipé' },
-                    { color: '#f97316', label: 'Sous-équipé' },
-                    { color: '#fbbf24', label: 'Léger déficit' },
-                    { color: '#e2e8f0', label: 'Dans la norme' },
-                    { color: '#86efac', label: 'Léger excédent' },
-                    { color: '#22c55e', label: 'Sur-équipé' },
-                    { color: '#059669', label: 'Très sur-équipé' },
-                  ]
-              ).map(({ color, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ width: 10, height: 10, background: color, borderRadius: 1, flexShrink: 0, opacity: 0.85 }} />
-                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>{label}</span>
-                </div>
-              ))}
-
-              {/* Séparateur */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 8, paddingTop: 8 }}>
-
-                {/* Slider opacité */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono','Fira Mono',monospace", fontSize: 7, letterSpacing: '0.1em', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-                    OPACITÉ
-                  </span>
-                  <input
-                    type="range" min={0.1} max={1} step={0.05}
-                    value={residualOpacity}
-                    onChange={e => handleResidualOpacity(parseFloat(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--brand-teal)', cursor: 'pointer', height: 4 }}
-                  />
-                  <span style={{ fontSize: 8, color: 'var(--text-tertiary)', minWidth: 28, textAlign: 'right' }}>
-                    {Math.round(residualOpacity * 100)}%
-                  </span>
-                </div>
-
-                {/* Toggle inversion */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 8.5, color: 'var(--text-tertiary)' }}>Inverser couleurs</span>
-                  <button
-                    onClick={() => handleResidualInvert(!residualInverted)}
-                    style={{
-                      position: 'relative',
-                      width: 32, height: 16,
-                      background: residualInverted ? 'var(--brand-teal)' : 'var(--border-subtle)',
-                      border: `1px solid ${residualInverted ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      transition: 'background 150ms, border-color 150ms',
-                      flexShrink: 0,
-                      padding: 0,
-                    }}
-                    title={residualInverted ? 'Rouge = excédent' : 'Rouge = déficit'}
-                  >
-                    <span style={{
-                      position: 'absolute',
-                      top: 2, left: residualInverted ? 16 : 2,
-                      width: 10, height: 10,
-                      background: '#fff',
-                      borderRadius: '50%',
-                      transition: 'left 150ms',
-                    }} />
-                  </button>
-                </div>
-                <div style={{ fontSize: 7.5, color: 'var(--text-tertiary)', marginBottom: 6 }}>
-                  Rouge = {residualInverted ? 'excédent' : 'déficit'}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 6, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                {residualsMeta.n.toLocaleString('fr')} IRIS · r = {residualsMeta.r >= 0 ? '+' : ''}{residualsMeta.r.toFixed(2)}
-              </div>
-
-              {/* Masquer */}
-              <button
-                onClick={() => handleShowResiduals(null)}
-                style={{
-                  marginTop: 6, width: '100%', padding: '4px 0',
-                  background: 'transparent', border: '1px solid var(--border-default)',
-                  borderRadius: 2, color: 'var(--text-tertiary)', fontFamily: "'JetBrains Mono','Fira Mono',monospace",
-                  fontSize: 7, letterSpacing: '0.1em', cursor: 'pointer',
-                }}
-              >
-                ✕ MASQUER
-              </button>
-            </div>
-          )}
-
-          {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
-
           {/* WelcomeOverlay retiré : l'utilisateur arrive directement sur la carte */}
 
           {/* IRIS detail panel — overlay à droite sur la carte */}
@@ -2748,19 +2187,6 @@ export default function MapPage() {
             </div>
           )}
         </div>
-
-        {/* Study dashboard — lazy, affiché quand onglet Étude */}
-        {activeStudy && (
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
-            <StudyDashboard
-              ville={studyVille}
-              onPanneauClick={(lat, lng) => {
-                setActiveStudy(false);
-                setTimeout(() => handleFlyTo(lat, lng, 17), 80);
-              }}
-            />
-          </div>
-        )}
       </div>{/* end right panel */}
 
       {/* Map popup styles moved to globals.css */}

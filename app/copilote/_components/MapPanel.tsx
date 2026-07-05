@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
 import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatColor } from '../_lib/constants';
 import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
-
-const SaveGeographyModal = dynamic(
-  () => import('./SaveGeographyModal').then((m) => ({ default: m.SaveGeographyModal })),
-  { ssr: false, loading: () => null }
-);
 
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement>;
@@ -146,7 +140,6 @@ export function MapPanel({
 }: MapPanelProps) {
   const [currentZoom, setCurrentZoom] = useState<number | null>(null);
   const [hoveredToggle, setHoveredToggle] = useState<string | null>(null);
-  const [showSaveGeoModal, setShowSaveGeoModal] = useState(false);
 
   // Écoute le zoom de la carte
   React.useEffect(() => {
@@ -520,24 +513,6 @@ export function MapPanel({
                 {battlePois.length > 8 && (
                   <span style={{ fontSize: 9, color: C.textDim }}>+{battlePois.length - 8} autres</span>
                 )}
-                <button
-                  onClick={() => setShowSaveGeoModal(true)}
-                  style={{
-                    marginTop: 5,
-                    padding: '5px 9px',
-                    background: 'transparent',
-                    border: `0.5px solid var(--brand-teal)`,
-                    borderRadius: 4,
-                    color: 'var(--brand-teal)',
-                    fontFamily: fontInter,
-                    fontSize: 9,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  Sauvegarder comme geographie
-                </button>
               </div>
             );
           })()}
@@ -630,16 +605,6 @@ export function MapPanel({
           </div>
         </div>
       )}
-
-      <SaveGeographyModal
-        open={showSaveGeoModal}
-        onClose={() => setShowSaveGeoModal(false)}
-        categorie={battleCategory || 'cirfa'}
-        minutes={battleMaxPalier || 60}
-        mode="drive"
-        zoneType={null}
-        nbZones={battlePois.length}
-      />
 
       <style>{`
         @keyframes mapBadgeFade {

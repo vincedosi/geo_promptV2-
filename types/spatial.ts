@@ -65,17 +65,6 @@ export interface BattleResult {
 // Copilote session
 // ---------------------------------------------------------------------------
 
-/** Metadata attachée au ZoneData quand le tool analyze_poi_synergy est utilisé */
-export interface SynergyMeta {
-  poi_category: string;
-  target_demo_col: string;
-  target_demo_label: string;
-  max_distance_m: number;
-  min_audience: number;
-  buffer_radius_m: number;
-  total_audience: number;
-}
-
 export interface ZoneData {
   ville: string;
   region?: string | null;
@@ -89,8 +78,6 @@ export interface ZoneData {
   categories: Record<string, number>;
   /** Couleurs custom par catégorie, ex: { lycee: '#000000', cirfa: 'red' } */
   couleur_overrides?: Record<string, string>;
-  /** Présent uniquement pour les résultats analyze_poi_synergy */
-  _synergy?: SynergyMeta;
 }
 
 export interface CarreauxData {

@@ -55,7 +55,6 @@ interface DigitalData {
     popField?: string,
     media?: string[],
     metric?: string,
-    geographySetId?: string | null,
     customZoneId?: string | null,
   ) => Promise<void>;
   fetchMeteo: (scale: MeteoScale, params: MeteoParams) => Promise<void>;
@@ -90,7 +89,6 @@ export function useDigitalData(): DigitalData {
     popField?: string,
     media?: string[],
     metric?: string,
-    geographySetId?: string | null,
     customZoneId?: string | null,
   ) => {
     if (!campaignId) return;
@@ -105,27 +103,6 @@ export function useDigitalData(): DigitalData {
       // La route API /api/digital/[id]/map résout le bon field selon le DSP
       // (Adform alias 'impressions' → tracked_ads ; TTD impressions = colonne native).
       const m = metric ? encodeURIComponent(metric) : 'impressions';
-
-      // Mode "Zones isochrones" (legacy geography_sets issus du copilote/battle)
-      if (scale === 'zones') {
-        console.log('[digital-data] fetchMap scale=zones setId=', geographySetId);
-        if (!geographySetId) {
-          setGeojson({ type: 'FeatureCollection', features: [] });
-          setGeographySummary(null);
-          return;
-        }
-        const url = `/api/digital/${campaignId}/geography/${geographySetId}?pop_field=${pf}&metric=${m}`;
-        const res = await fetch(url, { signal: ctrl.signal });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => '');
-          throw new Error(`HTTP ${res.status} ${txt}`);
-        }
-        const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: GeographySummary | null };
-        console.log('[digital-data] zones features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
-        setGeojson(data.geojson);
-        setGeographySummary(data.summary);
-        return;
-      }
 
       // Mode "Zones personnalisees" (galerie /map/custom-geo)
       if (scale === 'custom_zone') {

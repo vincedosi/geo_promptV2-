@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/table'
 import {
   AlertCircle,
-  BarChart2,
   CheckCircle2,
   Info,
   LayoutDashboard,
@@ -79,7 +78,6 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', active: false },
   { icon: Map, label: 'Copilote', active: true },
   { icon: MapPin, label: 'Panneaux OOH', active: false },
-  { icon: BarChart2, label: 'Clustering', active: false },
   { icon: Users, label: 'Organisations', active: false },
   { icon: Settings, label: 'Administration', active: false },
 ]

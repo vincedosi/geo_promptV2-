@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SyncMap } from './_components/SyncMap';
 import { MapLegend } from './_components/MapLegend';
-import { RailroadPipeline, type GeographySet, type CustomZoneOption } from './_components/RailroadPipeline';
+import { RailroadPipeline, type CustomZoneOption } from './_components/RailroadPipeline';
 import { MeteoGeoPanel } from './_components/MeteoGeoPanel';
 import { useDigitalData } from './_lib/use-digital-data';
 import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from './_lib/palettes';
@@ -133,8 +133,6 @@ export default function DigitalTripleMapPage() {
   // KPI sélectionné — state local. Le KpiSelector et le toggle legacy
   // CampaignContextBar appellent setMetric directement (controlled).
   const [metric, setMetric] = useState<string>('impressions');
-  const [geographySets, setGeographySets] = useState<GeographySet[]>([]);
-  const [geographySetId, setGeographySetId] = useState<string | null>(null);
   const [customZones, setCustomZones] = useState<CustomZoneOption[]>([]);
   const [customZoneId, setCustomZoneId] = useState<string | null>(null);
   const [pendingCustomZoneId, setPendingCustomZoneId] = useState<string | null>(null);
@@ -143,16 +141,6 @@ export default function DigitalTripleMapPage() {
   const [meteoOpen, setMeteoOpen] = useState(false);
   const [meteoParams, setMeteoParams] = useState<MeteoParams | null>(null);
   const isMeteoActive = meteoData !== null || meteoOpen;
-
-  // Fetch geography sets on mount
-  useEffect(() => {
-    adminFetch('/api/geographies')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.sets)) setGeographySets(data.sets);
-      })
-      .catch(() => {});
-  }, []);
 
   // Fetch custom zones du workspace dès qu'on a l'orgId
   useEffect(() => {
@@ -182,7 +170,7 @@ export default function DigitalTripleMapPage() {
     setScale('custom_zone');
     setCustomZoneId(queryZoneId);
     if (customZones.length > 0) {
-      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, geographySetId, queryZoneId);
+      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, queryZoneId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, campaignId, customZones]);
@@ -224,50 +212,40 @@ export default function DigitalTripleMapPage() {
 
   const handleCampaignChange = useCallback((id: string) => {
     setCampaignId(id);
-    if (id) fetchMap(id, scale, popField, selectedMedia, metric, geographySetId, customZoneId);
-  }, [scale, popField, selectedMedia, metric, geographySetId, customZoneId, fetchMap]);
+    if (id) fetchMap(id, scale, popField, selectedMedia, metric, customZoneId);
+  }, [scale, popField, selectedMedia, metric, customZoneId, fetchMap]);
 
   const handleScaleChange = useCallback((s: string) => {
     setScale(s);
-    let nextSetId = geographySetId;
     let nextCustomZoneId = customZoneId;
-    if (s === 'zones' && !nextSetId && geographySets.length > 0) {
-      nextSetId = geographySets[0].id;
-      setGeographySetId(nextSetId);
-    }
     if (s === 'custom_zone' && !nextCustomZoneId && customZones.length > 0) {
       nextCustomZoneId = customZones[0].id;
       setCustomZoneId(nextCustomZoneId);
     }
-    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextSetId, nextCustomZoneId);
-  }, [campaignId, popField, selectedMedia, metric, geographySetId, geographySets, customZoneId, customZones, fetchMap]);
+    if (campaignId) fetchMap(campaignId, s, popField, selectedMedia, metric, nextCustomZoneId);
+  }, [campaignId, popField, selectedMedia, metric, customZoneId, customZones, fetchMap]);
 
   const handlePopFieldChange = useCallback((f: string) => {
     setPopField(f);
-    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, geographySetId, customZoneId);
-  }, [campaignId, scale, selectedMedia, metric, geographySetId, customZoneId, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, f, selectedMedia, metric, customZoneId);
+  }, [campaignId, scale, selectedMedia, metric, customZoneId, fetchMap]);
 
   const handleMediaChange = useCallback((media: string[]) => {
     setSelectedMedia(media);
-    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, geographySetId, customZoneId);
-  }, [campaignId, scale, popField, metric, geographySetId, customZoneId, fetchMap]);
-
-  const handleGeographySetChange = useCallback((setId: string | null) => {
-    setGeographySetId(setId);
-    if (campaignId && scale === 'zones') fetchMap(campaignId, 'zones', popField, selectedMedia, metric, setId, customZoneId);
-  }, [campaignId, scale, popField, selectedMedia, metric, customZoneId, fetchMap]);
+    if (campaignId) fetchMap(campaignId, scale, popField, media, metric, customZoneId);
+  }, [campaignId, scale, popField, metric, customZoneId, fetchMap]);
 
   const handleCustomZoneChange = useCallback((zoneId: string | null) => {
     setCustomZoneId(zoneId);
-    if (campaignId && scale === 'custom_zone') fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, geographySetId, zoneId);
-  }, [campaignId, scale, popField, selectedMedia, metric, geographySetId, fetchMap]);
+    if (campaignId && scale === 'custom_zone') fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, zoneId);
+  }, [campaignId, scale, popField, selectedMedia, metric, fetchMap]);
 
   // Re-fetch quand le KPI sélectionné change (KpiSelector URL-bound). Les
   // autres handlers (scale/popField/media/zone) gèrent leur propre fetch ;
   // celui-ci comble le cas où seul `?metric=` change.
   useEffect(() => {
     if (!campaignId) return;
-    fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId, customZoneId);
+    fetchMap(campaignId, scale, popField, selectedMedia, metric, customZoneId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric]);
 
@@ -312,27 +290,16 @@ export default function DigitalTripleMapPage() {
 
   // Refetch map when metric toggles
   useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, geographySetId, customZoneId);
+    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, customZoneId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [metric]);
 
-  // Si l'utilisateur est en mode zones mais qu'aucun set n'était dispo au moment
-  // du switch, auto-sélectionner et fetcher dès que les sets arrivent
-  useEffect(() => {
-    if (scale === 'zones' && !geographySetId && geographySets.length > 0 && campaignId) {
-      const firstId = geographySets[0].id;
-      setGeographySetId(firstId);
-      fetchMap(campaignId, 'zones', popField, selectedMedia, metric, firstId, customZoneId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geographySets, scale]);
-
-  // Idem pour custom zones : auto-select première zone disponible quand on bascule en mode custom_zone
+  // Auto-select première zone disponible quand on bascule en mode custom_zone
   useEffect(() => {
     if (scale === 'custom_zone' && !customZoneId && customZones.length > 0 && campaignId) {
       const firstId = customZones[0].id;
       setCustomZoneId(firstId);
-      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, geographySetId, firstId);
+      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, firstId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customZones, scale]);
@@ -343,7 +310,7 @@ export default function DigitalTripleMapPage() {
     if (customZones.some(z => z.id === pendingCustomZoneId)) {
       setScale('custom_zone');
       setCustomZoneId(pendingCustomZoneId);
-      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, geographySetId, pendingCustomZoneId);
+      fetchMap(campaignId, 'custom_zone', popField, selectedMedia, metric, pendingCustomZoneId);
     }
     setPendingCustomZoneId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -374,9 +341,9 @@ export default function DigitalTripleMapPage() {
   // Determine which map is focused (1/2) and which two are stacked (1/4 each)
   const focusMap = layout === 'equal' ? null : layout.replace('focus-', '');
 
-  // Modes "single-feature" : zones isochrones (geography_set) OU zones custom (galerie).
-  // Dans les 2 cas, la carte affiche une géométrie sélectionnée au lieu d'une choroplèthe.
-  const isZones = scale === 'zones' || scale === 'custom_zone';
+  // Mode "single-feature" : zones custom (galerie). La carte affiche une
+  // géométrie sélectionnée au lieu d'une choroplèthe.
+  const isZones = scale === 'custom_zone';
 
   // ── Custom geo capture : zone digital active (scale admin uniquement) ────
   // Pour zones/custom_zone, la geom est deja capturable directement via les routes
@@ -576,15 +543,13 @@ export default function DigitalTripleMapPage() {
             <div style={{ flex: 1 }}>
               <RailroadPipeline
                 campaigns={campaigns} popFields={POP_FIELDS} mediaList={mediaList}
-                geographySets={geographySets} customZones={customZones}
+                customZones={customZones}
                 selectedCampaign={campaignId} selectedPopField={popField} selectedScale={scale}
                 selectedMedia={selectedMedia} selectedLayout={layout}
-                selectedGeographySetId={geographySetId}
                 selectedCustomZoneId={customZoneId}
                 isMeteoActive={isMeteoActive}
                 onCampaignChange={handleCampaignChange} onPopFieldChange={handlePopFieldChange}
                 onScaleChange={handleScaleChange} onMediaChange={handleMediaChange} onLayoutChange={(l: string) => setLayout(l as LayoutMode)}
-                onGeographySetChange={handleGeographySetChange}
                 onCustomZoneChange={handleCustomZoneChange}
                 onMeteoClick={handleMeteoClick}
                 zonesCount={geojson?.features.length ?? 0} totalImpressions={stats.totalImp} metric={metric} loading={geojsonLoading || meteoLoading}

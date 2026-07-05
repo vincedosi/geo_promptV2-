@@ -13,7 +13,6 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   iris_selection: 'Sélection IRIS',
   digital_analysis: 'Analyse digital',
   meteo_grid: 'Grille météo',
-  poi_clusters: 'Clusters POI',
   tmja_routes: 'Trafic routier',
   composite: 'Composite multi-layers',
 };

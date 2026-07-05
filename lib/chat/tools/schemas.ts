@@ -84,93 +84,6 @@ export function buildTools(
         executeToolCall('isochrone_battle', args, categoriesList, { forceRecalculate }),
     },
 
-    analyser_panneaux: {
-      description: "Affiche panneaux OOH/DOOH sur carte. Sans filtre géo = France entière. Filtrables par régie, type de format, ville/région.",
-      inputSchema: z.object({
-        regie:        z.string().optional().describe('Régie (ex: JCDecaux).'),
-        ville:        z.string().optional().describe('Ville.'),
-        region:       z.string().optional().describe('Région.'),
-        departement:  z.string().optional().describe('Département.'),
-        type_panneau: z.string().optional().describe('Format panneau.'),
-        couleur:      z.string().optional().describe('Couleur CSS.'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('analyser_panneaux', args, categoriesList, {}),
-    },
-
-    classer_panneaux_audience: {
-      description: "Classe panneaux OOH par audience démographique cible. Renvoie tableau rang|ref|régie|type|audience + total. ville est requis.",
-      inputSchema: z.object({
-        ville:         z.string().describe('Ville (requis).'),
-        target_column: z.string().describe('Colonne Filosofi (ind_18_24, Ind…).'),
-        target_label:  z.string().describe('Label cible.'),
-        rayon_metres:  z.number().optional().describe('Rayon m/panneau (déf 500).'),
-        limit:         z.number().optional().describe('Max panneaux (déf 10).'),
-        regie:         z.string().optional().describe('Régie.'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('classer_panneaux_audience', args, categoriesList, {}),
-    },
-
-    scorer_panneaux_ooh: {
-      description: "Score multi-critères panneaux OOH : audience démographique × contexte POI. Plus complet que classer_panneaux_audience. ville est requis.",
-      inputSchema: z.object({
-        ville:          z.string().describe('Ville (requis).'),
-        target_column:  z.string().describe('Colonne Filosofi (ind_18_24, Ind…).'),
-        target_label:   z.string().describe('Label cible.'),
-        rayon_metres:   z.number().optional().describe('Rayon m (déf 500).'),
-        poids_demo:     z.number().optional().describe('Poids démo [0-1] (déf 0.65).'),
-        poids_contexte: z.number().optional().describe('Poids POI [0-1] (déf 0.35).'),
-        limit:          z.number().optional().describe('Max panneaux (déf 10).'),
-        regie:          z.string().optional().describe('Régie.'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('scorer_panneaux_ooh', args, categoriesList, {}),
-    },
-
-    exporter_rapport_ooh: {
-      description: "Export rapport OOH complet d'une ville (tous panneaux scorés) pour Excel ou rapport client. ville est requis.",
-      inputSchema: z.object({
-        ville:          z.string().describe('Ville (requis).'),
-        target_column:  z.string().describe('Colonne Filosofi.'),
-        target_label:   z.string().describe('Label cible.'),
-        rayon_metres:   z.number().optional().describe('Rayon m (déf 500).'),
-        poids_demo:     z.number().optional().describe('Poids démo (déf 0.65).'),
-        poids_contexte: z.number().optional().describe('Poids POI (déf 0.35).'),
-        regie:          z.string().optional().describe('Régie.'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('exporter_rapport_ooh', args, categoriesList, {}),
-    },
-
-    analyze_poi_synergy: {
-      description: "Panneaux OOH proches d'un type de POI ET à forte densité démographique (synergies d'implantation). ville et poi_category sont requis.",
-      inputSchema: z.object({
-        poi_category:      z.string().describe(catsDesc),
-        ville:             z.string().describe('Ville (requis).'),
-        target_demo_col:   z.string().describe('Colonne Filosofi.'),
-        target_demo_label: z.string().describe('Label cible.'),
-        max_distance_m:    z.number().optional().describe('Rayon POI m (déf 500).'),
-        min_audience:      z.number().optional().describe('Audience min (déf 0).'),
-        buffer_radius_m:   z.number().optional().describe('Visibilité panneau m (déf 300).'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('analyze_poi_synergy', args, categoriesList, {}),
-    },
-
-    calculate_audience_coverage: {
-      description: "Compte combien de personnes d'une cible démographique habitent dans un isochrone autour d'un lieu. Renvoie le total + GeoJSON isochrone. location_name et travel_time_minutes sont requis.",
-      inputSchema: z.object({
-        location_name:       z.string().describe('Lieu ou ville.'),
-        travel_time_minutes: z.number().describe('Durée trajet min.'),
-        target_column:       z.string().describe('Colonne Filosofi (Ind, ind_18_24…).'),
-        target_label:        z.string().describe('Label cible.'),
-        mode:                z.enum(['drive', 'walk', 'bike']).optional().describe('Mode (déf drive).'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('calculate_audience_coverage', args, categoriesList, {}),
-    },
-
     ask_configuration: {
       description: "Appeler cet outil quand l'utilisateur demande une analyse complète, un rapport, une étude, ou un profil d'une zone — même sans précisions supplémentaires. Retourne les options disponibles (cibles démo + catégories POI présentes dans la zone) pour configurer l'analyse. NE PAS demander de clarification : appeler directement.",
       inputSchema: z.object({
@@ -200,38 +113,6 @@ export function buildTools(
       }),
       execute: (args: Record<string, unknown>) =>
         executeToolCall('analyse_complete', args, categoriesList, {}),
-    },
-
-    analyse_correlation: {
-      description: "Analyse la corrélation statistique (Pearson, Spearman, R²) entre deux variables IRIS. Deux modes : 'iris_poi' (métrique IRIS × densité POI, défaut) ou 'iris_iris' (métrique IRIS × métrique IRIS, sans POI). Ouvre le tiroir CORRÉLATION dans EXPERT > ANALYSE avec les paramètres pré-remplis et lance le calcul. Utiliser pour : 'corrélation', 'lien entre', 'relation entre', 'est-ce que X influence Y', 'impact de X sur Y', 'y a-t-il un rapport entre'. En mode iris_iris, pas besoin de catégorie POI : utiliser metric_x et metric_y. Les métriques IRIS disponibles sont décrites dans le contexte système.",
-      inputSchema: z.object({
-        mode: z.enum(['iris_poi', 'iris_iris']).optional().describe(
-          "Mode d'analyse. 'iris_poi' = métrique IRIS vs densité POI (défaut). 'iris_iris' = deux métriques IRIS entre elles (ex: chômage vs revenus, population jeune vs taux pauvreté)."
-        ),
-        poi_category: z.string().optional().describe(
-          `Mode iris_poi uniquement — catégorie de POI. ${catsDesc}. Mapping : 'transports/bus/arrêts' → 'arret_transport', 'lycées/lycée/high school' → 'lycee', 'CIRFA/armée/recrutement' → 'cirfa'.`
-        ),
-        iris_metric: z.string().optional().describe(
-          "Mode iris_poi uniquement — métrique IRIS axe X. Défaut : 'population'. Voir le contexte système pour la liste et le mapping langage naturel → colonne."
-        ),
-        sigma_km: z.number().optional().describe(
-          "Mode iris_poi uniquement — portée d'influence σ en km (défaut: valeur config par catégorie). Convertir les expressions de distance : 'dans 2km' → 1.0, 'à 10km' → 3.3, 'dans 15km' → 5.0. Ex: 'lycées dans 15km' → sigma_km: 5.0. σ = rayon_cible / 3."
-        ),
-        metric_x: z.string().optional().describe(
-          "Mode iris_iris uniquement — première métrique (axe X). Ex: 'population', 'taux_chomage', 'rev_median'."
-        ),
-        metric_y: z.string().optional().describe(
-          "Mode iris_iris uniquement — seconde métrique (axe Y, corrélée). Ex: 'taux_pauvrete', 'pop_15_29'. Doit être différent de metric_x."
-        ),
-        departement: z.string().optional().describe(
-          "Code département (opt). Ex: '75'=Paris, '13'=Bouches-du-Rhône, '29'=Finistère. Si ville mentionnée, déduire le code."
-        ),
-        auto_analyse_ia: z.boolean().optional().describe(
-          "Lancer l'analyse IA automatiquement après calcul (déf: true si interprétation demandée)."
-        ),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('analyse_correlation', args, categoriesList, {}),
     },
   };
 }

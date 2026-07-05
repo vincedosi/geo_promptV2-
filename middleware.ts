@@ -15,7 +15,6 @@ import type { NextRequest } from 'next/server';
 // ── Routes protégées ───────────────────────────────────────────────────────────
 const PROTECTED_API_PREFIXES = [
   '/api/chat',
-  '/api/scoring',
   '/api/map/pois',
   '/api/map/poi-natures',
   '/api/map/ooh',
@@ -26,13 +25,8 @@ const PROTECTED_API_PREFIXES = [
   '/api/iris-crawler',
   '/api/iris-tiles-proxy',
   '/api/tiles',
-  '/api/poi-clusters',
   '/api/analysis',
   '/api/carreaux',
-  '/api/coverage-breakdown',
-  '/api/coverage-jobs',
-  '/api/coverage-stats',
-  '/api/export',
   '/api/iris',
   '/api/iris-import',
   '/api/isochrone-battle',
@@ -41,7 +35,6 @@ const PROTECTED_API_PREFIXES = [
   '/api/providers',
   '/api/saved-maps',
   '/api/smart-prompt',
-  '/api/correlation',
   '/api/radio',
 ];
 
@@ -50,7 +43,6 @@ const PROTECTED_PAGE_PREFIXES = [
   '/copilote',
   '/dashboard',
   '/admin',
-  '/clusters',
   '/demo',
 ];
 
@@ -135,22 +127,15 @@ export const config = {
     '/copilote/:path*',
     '/dashboard/:path*',
     '/admin/:path*',
-    '/clusters/:path*',
     '/demo/:path*',
     '/api/chat/:path*',
-    '/api/scoring/:path*',
     '/api/map/:path*',
     '/api/admin/:path*',
     '/api/iris-crawler/:path*',
     '/api/iris-tiles-proxy/:path*',
     '/api/tiles/:path*',
-    '/api/poi-clusters/:path*',
     '/api/analysis/:path*',
     '/api/carreaux/:path*',
-    '/api/coverage-breakdown/:path*',
-    '/api/coverage-jobs/:path*',
-    '/api/coverage-stats/:path*',
-    '/api/export/:path*',
     '/api/iris/:path*',
     '/api/iris-import/:path*',
     '/api/isochrone-battle/:path*',
@@ -159,7 +144,6 @@ export const config = {
     '/api/providers/:path*',
     '/api/saved-maps/:path*',
     '/api/smart-prompt/:path*',
-    '/api/correlation/:path*',
     '/api/radio/:path*',
   ],
 };

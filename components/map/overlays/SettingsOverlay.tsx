@@ -5,7 +5,6 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
-  Share2,
   Layers as LayersIcon,
   FileUp,
   Radio as RadioIcon,
@@ -43,7 +42,6 @@ interface NavLink {
 
 const NAV_LINKS: NavLink[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clusters', label: 'Clustering', icon: Share2 },
   { href: '/map/custom-geo', label: 'Zones custom', icon: LayersIcon },
   { href: '/admin/import', label: 'Import POI', icon: FileUp },
   { href: '/admin/radio', label: 'Radio FM/DAB+', icon: RadioIcon },

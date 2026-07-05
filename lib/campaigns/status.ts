@@ -3,9 +3,14 @@
  * Statut effectif = override manuel sinon dérivé du calendrier.
  * Dates au format ISO 'YYYY-MM-DD' (comparaison lexicographique correcte).
  */
+import { z } from 'zod';
 
 export type CampaignStatus = 'a_venir' | 'en_cours' | 'en_pause' | 'terminee' | 'archivee';
 export type StatusOverride = 'paused' | 'ended' | 'archived';
+
+/** Correction manuelle du statut (paused/ended/archived), ou null pour lever l'override.
+ *  Défini ici (et pas dans la route) car un fichier route Next ne peut exporter qu'un handler. */
+export const StatusOverrideSchema = z.enum(['paused', 'ended', 'archived']).nullable();
 
 /** Seuil (jours) au-delà duquel une campagne « en cours » sans donnée est signalée. */
 export const FRESHNESS_DAYS = 3;

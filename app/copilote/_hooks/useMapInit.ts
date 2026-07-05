@@ -328,23 +328,6 @@ export function useMapInit(
         map.off('mouseleave', 'pois-circles', onPoisCirclesMouseleave);
       });
 
-      // ── Wizard highlight (clustering wizard — POI preview) ───────────────
-      map.addSource('wizard-highlight', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
-      });
-      map.addLayer({
-        id: 'wizard-highlight-layer', type: 'circle', source: 'wizard-highlight',
-        paint: {
-          'circle-color': '#f59e0b',
-          'circle-radius': 5,
-          'circle-opacity': 0.80,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#050505',
-        },
-        layout: { visibility: 'none' },
-      });
-
       // ── Météo — Choroplèthe par zones admin (polygones dép./régions) ─────
       // Source GeoJSON peuplée dynamiquement via /api/meteo-geo + zones.
       // Couleur via expression interpolate sur la palette de la variable.
@@ -877,72 +860,6 @@ export function useMapInit(
       };
       map.on('click', 'battle-pois-circle', onBattlePoisClick);
       cleanupFns.push(() => { map.off('click', 'battle-pois-circle', onBattlePoisClick); });
-
-      // ── Clustering POI Filosofi ───────────────────────────────────────────
-      map.addSource('clusters-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
-        generateId: true,
-      });
-      map.addLayer({
-        id: 'clusters-layer',
-        type: 'circle',
-        source: 'clusters-source',
-        paint: {
-          'circle-color':        ['get', 'cluster_color'] as unknown as maplibregl.ExpressionSpecification,
-          'circle-radius':       7,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
-          'circle-opacity':      0.92,
-        },
-        layout: { visibility: 'none' },
-      });
-
-      const onClustersClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-        if (!e.features?.length) return;
-        const p = e.features[0].properties as Record<string, string>;
-        let profileFeatures: Record<string, number> = {};
-        try { profileFeatures = JSON.parse(p.profile_features ?? '{}'); } catch { /* */ }
-
-        // Notify React (ClusterPanel listens via custom event)
-        window.dispatchEvent(new CustomEvent('genesis:cluster-select', {
-          detail: {
-            poi_id:           p.poi_id,
-            poi_name:         p.poi_name,
-            cluster_id:       Number(p.cluster_id),
-            cluster_label:    p.cluster_label,
-            cluster_color:    p.cluster_color,
-            categorie:        p.categorie,
-            ville:            p.ville,
-            profile_features: profileFeatures,
-            lat:              e.lngLat.lat,
-            lng:              e.lngLat.lng,
-          },
-        }));
-
-        // Simple popup
-        new maplibregl.Popup({ closeButton: true, maxWidth: '220px' })
-          .setLngLat(e.lngLat)
-          .setHTML(
-            `<div style="font-size:12px;padding:6px 8px;font-family:sans-serif">` +
-            `<b style="color:#1e293b">${p.poi_name ?? '—'}</b><br/>` +
-            `<span style="display:inline-block;margin-top:3px;padding:1px 6px;border-radius:2px;font-size:10px;background:${p.cluster_color};color:#fff">${p.cluster_label}</span>` +
-            `<div style="color:#94a3b8;font-size:10px;margin-top:3px">${p.ville ?? ''}</div>` +
-            `</div>`
-          )
-          .addTo(map);
-      };
-      const onClustersMousemove  = () => { map.getCanvas().style.cursor = 'pointer'; };
-      const onClustersMouseleave = () => { map.getCanvas().style.cursor = ''; };
-      map.on('click', 'clusters-layer', onClustersClick);
-      map.on('mousemove',  'clusters-layer', onClustersMousemove);
-      map.on('mouseleave', 'clusters-layer', onClustersMouseleave);
-      cleanupFns.push(() => {
-        map.off('click', 'clusters-layer', onClustersClick);
-        map.off('mousemove', 'clusters-layer', onClustersMousemove);
-        map.off('mouseleave', 'clusters-layer', onClustersMouseleave);
-      });
-
 
       setMapReady(true);
     });
