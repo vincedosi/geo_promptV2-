@@ -1,6 +1,6 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-07-02 (consolidation panneaux : global_ooh fusionnee dans panneaux_affichage, page /integration-panneaux supprimee)
+> Derniere mise a jour : 2026-07-05 (retrait ancien paradigme carte/layers)
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -50,7 +50,6 @@ genesis_app/
 │   │   ├── radio/              # Admin emetteurs radio FM/DAB+
 │   │   ├── sources/            # Gestion des sources de donnees
 │   │   └── users/              # Gestion utilisateurs multi-tenant
-│   ├── clusters/               # Pages analyse clustering POI x Filosofi
 │   ├── copilote/               # Interface principale : chat IA + carte MapLibre
 │   │   ├── _components/        # ChatPanel, MapPanel, PromptsPanel, ZoneCard...
 │   │   ├── _hooks/             # useMapInit, useMapLayers, useChatControls...
@@ -59,8 +58,7 @@ genesis_app/
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
 │   ├── login/                  # Page de connexion Supabase Auth
 │   ├── map/                    # Page carte complete
-│   │   ├── _components/        # FilterPanel, IrisDetailPanel, ClusteringWizard,
-│   │   │                       # CorrelationPanel, ScoringPanel, StudyDashboard
+│   │   ├── _components/        # FilterPanel, IrisDetailPanel
 │   │   └── analyse/digital/    # Analyse campagnes digitales
 │   │       ├── _components/    # AnalysisPanel, SyncMap, BiddingCopilot,
 │   │       │                   # MeteoGeoPanel, MediaHeatmap, KpiSummary...
@@ -70,11 +68,6 @@ genesis_app/
 ├── components/                 # Composants React partages
 │   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
-│   ├── ClusterDetails          # Detail cluster + analyse
-│   ├── ClusterRadar            # Graphique radar profil cluster
-│   ├── ClusteringPDFReport     # Export PDF rapport clustering
-│   ├── ClusterResultsOverlay   # Overlay resultats clustering
-│   ├── CoverageResultsPanel    # Panel resultats couverture Filosofi
 │   ├── SessionBadge            # Badge session utilisateur
 │   └── ui/                     # Composants UI MAGELIAN
 │       ├── GeoBot.tsx          # Mascotte/assistant visuel
@@ -97,12 +90,11 @@ genesis_app/
 │   │   ├── system-prompt.ts    # Prompt systeme dynamique
 │   │   ├── trim-history.ts     # Compression historique chat
 │   │   └── tools/              # Outils function calling (1 fichier = 1 outil)
-│   ├── clustering/             # feature-themes.ts
 │   ├── db/                     # Migrations SQL applicatives
 │   ├── digital/                # google-ads-geo-ids.json
 │   ├── geo/                    # france-admin.ts, locations.ts
 │   ├── import/                 # Pipeline d'import universel
-│   ├── inngest/                # Jobs async (couverture, colonnes derivees)
+│   ├── inngest/                # Jobs async (colonnes derivees)
 │   ├── iris-crawler/           # Crawler INSEE IRIS
 │   ├── isochrones/             # fetcher.ts — ORS batch 5 POIs/appel
 │   ├── map/                    # magelian-style.ts
@@ -119,7 +111,6 @@ genesis_app/
 │   └── admin.ts                # Organization, DataSource...
 │
 ├── scripts/                    # Scripts CLI standalone (Python/TS)
-│   ├── clustering_poi_filosofi.py  # K-means POI x Filosofi
 │   ├── import_gtfs_stops.py        # Import arrets transport
 │   ├── import_iris_insee.py         # Import IRIS INSEE
 │   ├── import_iris_local.py         # Import IRIS local
@@ -167,7 +158,7 @@ Organization (client)
 
 Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 `dsp_campaigns`, `dsp_campaign_data`, `data_sources`, `panneaux_affichage`,
-`poi_france`, `saved_maps`, `scoring_profiles`, `profiles`, `organizations`,
+`poi_france`, `saved_maps`, `profiles`, `organizations`,
 `organization_members`, `campaign_organizations`
 
 ---
@@ -208,14 +199,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
 | `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric`) — layer CivicHealthMapLayer, section Sante environnementale |
 
-### Correlation IRIS
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/correlation/categories` | GET | Categories disponibles pour correlation |
-| `/api/correlation/metrics` | GET | Metriques IRIS disponibles |
-| `/api/correlation/compute` | POST | Calcul correlation POI x IRIS |
-| `/api/correlation/analyse` | POST | Analyse textuelle de correlation |
-
 ### Import IRIS (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -235,38 +218,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/isochrone-battle-v2` | POST | Version active isochrone battle |
 | `/api/isochrone-battle/apply-battle` | POST | Decoupe territoires sans chevauchement |
 | `/api/isochrone-cache-check` | GET/POST | Verifie cache isochrone par POI |
-
-### Couverture Filosofi
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/coverage-stats` | POST | Couverture demographique (streaming NDJSON) |
-| `/api/coverage-breakdown` | POST | Detail par tranche d'age |
-| `/api/coverage-jobs` | POST | Lance job Inngest |
-
-### Scoring OOH
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/scoring` | GET/POST | Scoring OOH par ville |
-| `/api/scoring/dashboard` | GET | Dashboard scoring ville |
-| `/api/scoring/isochrones` | GET | Isochrones scoring |
-| `/api/scoring/profiles` | GET/POST | CRUD profils scoring |
-| `/api/scoring/profiles/[id]` | PUT/DELETE | Modification/suppression profil |
-
-### Clustering POI
-| Route | Methode | Description |
-|-------|---------|-------------|
-| `/api/poi-clusters` | GET | Clusters par modele |
-| `/api/poi-clusters/run` | POST | Lance calcul clustering |
-| `/api/poi-clusters/count` | GET | Compte POI par cluster |
-| `/api/poi-clusters/model` | GET | Modele actif |
-| `/api/poi-clusters/models` | GET | Historique modeles |
-| `/api/poi-clusters/models/[version]` | GET/DELETE | Detail/suppression modele |
-| `/api/poi-clusters/models/[version]/analysis` | GET/DELETE | Analyse IA du modele |
-| `/api/poi-clusters/models/[version]/generate-analysis` | POST | Generation analyse IA |
-| `/api/poi-clusters/poi/[poiId]` | GET | Cluster d'un POI |
-| `/api/poi-clusters/poi-types` | GET | Types de POI par cluster |
-| `/api/poi-clusters/france-averages` | GET | Moyennes nationales |
-| `/api/poi-clusters/history/[poiId]` | GET | Historique cluster POI |
 
 ### Digital / Campagnes DSP (protegees par `requireAuth()`)
 | Route | Methode | Description |
@@ -394,7 +345,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### Export & Sauvegarde
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/export/ooh-report` | POST | Rapport OOH Excel (XLSX) |
 | `/api/saved-maps` | GET/POST/DELETE | Sauvegarde/charge etat carte |
 | `/api/saved-maps/[id]` | GET/PUT/DELETE | Acces/modification/suppression |
 | `/api/inngest` | POST | Webhook Inngest |
@@ -438,7 +388,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom` |
-| `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote + scoring) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
+| `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
 | `poi_accessibility_config` | Parametres sigma accessibilite | |
@@ -452,15 +402,10 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `emetteur_radio_stations` | Liaison N:N emetteurs/stations | many-to-many |
 | `radio_imports_log` | Historique imports radio | |
 
-### Scoring & Clustering
+### Isochrones
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `scoring_profiles` | Profils JSON scoring OOH parametrique | |
 | `isochrones_cache` | Cache isochrones ORS | Cle : poi_id + mode + minutes |
-| `clustering_jobs` | Jobs de clustering K-means | |
-| `clustering_models` | Modeles de clustering | |
-| `poi_clusters` | Resultats POI -> cluster_id | |
-| `poi_cluster_history` | Historique assignations cluster | |
 
 ### Support
 | Table | Description | Notes |
@@ -486,15 +431,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `clip_rings_to_france` | Clip anneaux isochrones sur France | Routes isochrone |
 | `clip_geojson_to_france` | Clip GeoJSON sur `france_borders` | `api/isochrone-battle/` |
 
-### Scoring & Couverture
+### Voronoi & Stats villes
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `compute_panneau_scores_v2` | Scoring OOH parametrique | `lib/chat/tools/scorerOoh.ts` |
-| `compute_coverage_fast` | Couverture Filosofi dans isochrones | `lib/inngest/functions/` |
-| `calculate_coverage_per_group` | Couverture par groupe (dedupliquee) | `api/coverage-stats/` |
-| `calculate_target_coverage` | Couverture buffer circulaire | `lib/chat/tools/audienceCoverage.ts` |
-| `compute_poi_accessibility` | Accessibilite POI (Gaussian sigma) | `api/correlation/compute/` |
-| `find_synergy_billboards` | Panneaux OOH synergie | `lib/chat/tools/synergy.ts` |
 | `get_voronoi_by_category` | Voronoi par categorie, clippe France | `lib/chat/tools/voronoi.ts` |
 | `refresh_ville_stats_chunk` | Refresh stats villes par batch | `api/admin/refresh-ville-stats/` |
 
@@ -522,13 +461,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 > Orphelines (en base mais sans appelant TS) : `get_iris_geojson_by_bbox`,
 > `get_iris_geojson_by_codes` — etaient utilises par `/api/iris/geojson`,
 > route supprimee. Conservees en base ; voir `CLEANUP_REPORT.md`.
->
-> Orphelines (feature `geography_sets` supprimee 2026-07, jeux de zones
-> isochrones obsoletes issus du copilote battle/voronoi — remplaces par
-> `custom_geo_zones` / `/map/custom-geo`) : `get_geography_sets`,
-> `save_geography_from_cache`, `get_digital_geography_map`. Table
-> `geography_sets` et RPCs conservees en base (suppression SQL non faite
-> dans ce chantier, cf revue dediee).
 
 ### Digital / Campagnes
 | RPC | Description | Appelee depuis |
@@ -563,11 +495,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_zone_polygons` | Polygones simplifies zones admin (choroplethe) | `api/meteo-geo/zones/` |
 | `get_national_population_totals` | Totaux France par tranche d'age (carreaux_5km, sql/087) | `api/custom-geo/national-totals/` |
 
-### Correlation
-| RPC | Description | Appelee depuis |
-|-----|-------------|----------------|
-| `correlation_iris_iris` | Correlation POI x IRIS | `api/correlation/compute/` |
-
 ### Referentiels
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
@@ -585,7 +512,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_active_data_registry` | Registre donnees actif | `api/` |
 | `get_check_constraint_values` | Valeurs contraintes CHECK | `api/` |
 | `drop_carreaux_table` | DROP table carreaux dynamique | `api/admin/sources/[id]/` |
-| `get_accessibility_inputs` | Inputs accessibilite | `api/correlation/` |
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
 | `smart_demographie_stats` | Stats demo smart prompt | `lib/smart-prompt/` |
 | `smart_demographie_top_villes` | Top villes smart prompt | `lib/smart-prompt/` |
