@@ -80,3 +80,6 @@ terrain-panel.yml
 
 # Brief notebook scoring — local uniquement
 docs/SCORE.md
+
+# Exports DSP réels/synthétiques (données campagne, ne pas committer)
+docs/Adform/
