@@ -41,7 +41,7 @@ empêchent aujourd'hui une vraie campagne d'entrer dans la machinerie pacing/bil
 - `lib/dsp-mapping/` : `loadMappings`, `parseFile`, `parseRow`, transforms (`parse_eu_date`…).
   Mapping `adform` seedé : `date`(requis), `country`(requis), `postal code`→`postal_code`(requis),
   `tracked ads`→`tracked_ads`(requis), + campaign/city/region/dma/media/unique impressions.
-- `dsp_campaign_data` : `UNIQUE(campaign_id, date, postal_code, city)` ; colonnes date, city,
+- `dsp_campaign_data` : unicite via index EXPRESSION `idx_dsp_data_unique` (campaign_id, COALESCE(date), COALESCE(postal_code), COALESCE(city), COALESCE(media)) — non inferable par onConflict, d'ou DELETE+insert pour l'idempotence ; colonnes date, city,
   country, postal_code, region, dma_region, tracked_ads, impressions, clicks, spend, metrics,
   dsp_source, code_iris…
 - `get_campaign_pacing(p_campaign_id, p_metric_field, p_version)` : filtre déjà la délivrance par
