@@ -221,27 +221,6 @@ Mêmes colonnes que `carreaux_2km`. Utilisé pour zoom ≤ 7.
 
 ---
 
-### `calculation_jobs` — Jobs de calcul couverture
-
-| Colonne | Type | Notes |
-|---------|------|-------|
-| `id` | uuid NOT NULL | PK |
-| `user_id` | uuid | FK → `profiles.id` |
-| `target_column` | text NOT NULL | `'ind'` — colonne Filosofi cible |
-| `poi_count` | integer | `0` |
-| `isochrone_duration` | integer | `30` (minutes) |
-| `mode` | text | `'drive'` |
-| `status` | job_status (ENUM) | `'pending'` — `pending / running / done / error` |
-| `progress` | integer | `0` — pourcentage |
-| `result` | numeric | nullable — résultat final |
-| `error_message` | text | nullable |
-| `created_at` / `updated_at` | timestamptz | NOT NULL, `now()` |
-| `geometries` | text[] | nullable — GeoJSON strings |
-| `geometry` | text | nullable |
-| `breakdown` | jsonb | nullable — détail par tranche |
-
----
-
 ### `import_runs_ooh` — Historique imports OOH ArcGIS
 
 | Colonne | Type | Notes |
@@ -265,83 +244,6 @@ Mêmes colonnes que `carreaux_2km`. Utilisé pour zoom ≤ 7.
 | `minutes` | integer NOT NULL | PK |
 | `mode` | text NOT NULL | PK |
 | `carreau_id` | bigint NOT NULL | PK — FK → `carreaux_filosofi.id` |
-
----
-
-### `clustering_models` — Modèles K-Means entraînés
-
-| Colonne | Type | Notes |
-|---------|------|-------|
-| `id` | integer NOT NULL | PK (séquence) |
-| `version` | integer NOT NULL | UNIQUE |
-| `k` | integer NOT NULL | Nombre de clusters |
-| `silhouette_score` | numeric | nullable |
-| `n_pca_components` / `variance_explained` | integer / numeric | nullable |
-| `feature_names` | jsonb NOT NULL | Variables utilisées |
-| `scaler_mean` / `scaler_scale` | jsonb NOT NULL | StandardScaler params |
-| `pca_components` / `pca_mean` | jsonb NOT NULL | PCA params |
-| `centroids` / `cluster_labels` / `cluster_avg_profiles` | jsonb NOT NULL | Résultats |
-| `n_poi_trained` | integer | nullable |
-| `duration_minutes` | integer NOT NULL | `60` |
-| `mode` | text NOT NULL | `'drive'` |
-| `created_at` | timestamptz | `now()` |
-| `cluster_mapping_from_previous` | jsonb | nullable — migration entre versions |
-| `feature_themes` | text[] | nullable |
-
----
-
-### `clustering_jobs` — Jobs d'entraînement clustering
-
-| Colonne | Type | Notes |
-|---------|------|-------|
-| `id` | uuid NOT NULL | PK |
-| `status` | text NOT NULL | `'pending'` — `pending / running / done / error` |
-| `poi_types` | text[] NOT NULL | Types POI à clusteriser |
-| `geo_filter` / `params` | jsonb | nullable |
-| `started_at` | timestamptz NOT NULL | `now()` |
-| `finished_at` | timestamptz | nullable |
-| `log_tail` / `error` | text | nullable |
-| `result_meta` | jsonb | nullable |
-
----
-
-### `poi_clusters` — Affectations cluster par POI (version active)
-
-| Colonne | Type | Notes |
-|---------|------|-------|
-| `id` | integer NOT NULL | PK (séquence) |
-| `poi_id` | uuid NOT NULL | FK → `poi_france.id`, UNIQUE(poi_id, duration_minutes, mode) |
-| `cluster_id` | integer NOT NULL | |
-| `cluster_label` | text | nullable |
-| `pca_components` / `profile_features` / `cluster_avg_profile` | jsonb | nullable |
-| `n_carreaux_intersected` | integer | nullable |
-| `population_totale_couverte` | numeric | nullable |
-| `model_version` | integer NOT NULL | `1` |
-| `duration_minutes` | integer NOT NULL | `60` |
-| `mode` | text NOT NULL | `'drive'` |
-| `created_at` / `updated_at` | timestamptz | `now()` |
-| `imputed_features` | jsonb | `'[]'` — features imputées |
-
-**Index :** `poi_id`, `cluster_id`, `duration_minutes+mode`, `model_version`
-
----
-
-### `poi_cluster_history` — Historique des changements de cluster
-
-| Colonne | Type | Notes |
-|---------|------|-------|
-| `id` | integer NOT NULL | PK (séquence) |
-| `poi_id` | uuid NOT NULL | |
-| `cluster_id` / `previous_cluster_id` | integer | |
-| `cluster_label` | text | nullable |
-| `model_version` | integer NOT NULL | |
-| `profile_features` / `pca_components` | jsonb | nullable |
-| `distance_to_centroid` | numeric | nullable |
-| `action` | text NOT NULL | `'assign' / 'reassign'` |
-| `changed` | boolean | `false` |
-| `created_at` | timestamptz | `now()` |
-| `duration_minutes` | integer NOT NULL | `60` |
-| `mode` | text NOT NULL | `'drive'` |
 
 ---
 
@@ -431,15 +333,12 @@ WHERE ds.status <> 'deleted';
 
 | Fonction | Arguments | Retourne | Notes |
 |----------|-----------|----------|-------|
-| `calculate_coverage_per_group` | `p_groups jsonb, p_column text='ind'` | `TABLE(group_id text, coverage bigint)` | **ACTIF** — couverture par groupe (CIRFAs). `p_groups = [{id, geometries:[GeoJSON]}]` |
-| `compute_coverage_fast` | `p_categorie, p_mode, p_column='ind', p_level` | `bigint` | **ACTIF** — couverture réseau depuis `isochrones_cache` |
 | `compute_coverage_per_poi_batch` | `p_cache_keys text[], p_column='ind'` | `TABLE(cache_key, audience)` | Couverture par POI en batch |
 | `calculate_coverage_band_scan` | `p_union_scan_geojson, target_column, ...` | `jsonb` | Scan par bandes lat |
 | `calculate_coverage_breakdown` | `p_union_scan_geojson, isochrone_features, target_column` | `jsonb` | Détail par isochrone |
 | `calculate_coverage_union_only` | `isochrone_features jsonb` | `jsonb` | Union seule |
 | `compute_coverage_by_level` | `p_categorie, p_mode, p_column` | `TABLE(level, audience)` | Par palier |
 | `compute_coverage_per_poi` | `p_categorie, p_mode, p_level, p_column` | `TABLE(cache_key, audience)` | Par POI |
-| `calculate_target_coverage` | `isochrone_geojson, target_column, ...` | `numeric` | Couverture simple |
 | `calculate_network_coverage` | `p_geometry, p_column` | `numeric` | Legacy v1 |
 | `calculate_network_coverage_v6/v7/v8` | `isochrone_features jsonb, target_column, ...` | `jsonb` | Versions archivées |
 
@@ -484,7 +383,6 @@ WHERE ds.status <> 'deleted';
 | `get_carreaux_bbox` | `p_table, bbox(4), p_limit=10000, p_resolution='200m', p_millesime='2021'` | **ACTIF** — carreaux dans viewport |
 | `get_carreaux` | `p_table, bbox(4), p_millesime, p_resolution` | Version legacy |
 | `get_carreaux_by_zoom` | `zoom_level, bbox(4), indicateur, max_rows` | Sélection par zoom |
-| `get_carreaux_for_scoring` | `p_table, p_col, bbox(4), p_millesime` | Pour scoring OOH |
 | `import_carreaux_batch` | `p_idcars[], p_resolutions[], p_millesimes[], p_geom_wkts[], p_metadatas[]` | Import batch carreaux |
 | `export_carreaux_batch` | `p_limit, p_offset` | Export paginé |
 | `export_carreaux_after` | `p_last_idcar, p_limit` | Export keyset pagination |
@@ -511,7 +409,6 @@ WHERE ds.status <> 'deleted';
 | Fonction | Arguments | Notes |
 |----------|-----------|-------|
 | `count_poi_by_categorie_source` | `p_categorie, p_source='data_gouv'` | integer — count POI par source |
-| `find_synergy_billboards` | `poi_category, max_distance_m, target_demo_col, min_audience=0, buffer_radius_m=300, [ville]` | Panneaux synergiques avec POI |
 | `panneaux_near_point` | `p_lat, p_lng, p_rayon_m=500, p_limit=50` | Panneaux proches d'un point |
 | `get_poi_near_panneau` | `p_panneau_id, p_categorie, p_rayon_m=500` | POI proches d'un panneau |
 
@@ -554,8 +451,6 @@ WHERE ds.status <> 'deleted';
 | `trg_panneaux_auto_geom` | `panneaux_affichage` | INSERT / UPDATE | `auto_set_geom()` | Calcule `geom` depuis `lat`/`lng` |
 | `trg_iso_cache_compute_geom` | `isochrones_cache` | INSERT / UPDATE | `fn_iso_cache_compute_geom()` | Calcule `geom` + `geom_simplified` depuis `geojson` |
 | `trg_new_poi_clustering` | `poi_france` | INSERT | `flag_new_poi_for_clustering()` | Met `needs_clustering = true` |
-| `trg_poi_clusters_updated_at` | `poi_clusters` | UPDATE | `fn_poi_clusters_updated_at()` | Met à jour `updated_at` |
-| `trg_calculation_jobs_updated_at` | `calculation_jobs` | UPDATE | `fn_update_updated_at()` | Met à jour `updated_at` |
 | `trg_saved_maps_updated_at` | `saved_maps` | UPDATE | `update_saved_maps_updated_at()` | Met à jour `updated_at` |
 | `handle_new_user` (auth schema) | `auth.users` | INSERT | `handle_new_user()` | Crée `profiles` automatiquement |
 
@@ -580,7 +475,6 @@ WHERE ds.status <> 'deleted';
 | Table | Colonnes | Condition |
 |-------|----------|-----------|
 | `panneaux_affichage` | `(source, source_ref)` | — (NULLs distincts) |
-| `poi_clusters` | `(poi_id, duration_minutes, mode)` | — |
 | `carreaux_filosofi` | `(idcar, resolution, millesime)` | — |
 | `isochrones_cache` | `cache_key` | — |
 
@@ -596,7 +490,6 @@ WHERE ds.status <> 'deleted';
 | `france_borders` / `france_boundary` | SELECT public |
 | `poi_categories` | SELECT public |
 | `organizations` | SELECT public |
-| `calculation_jobs` | SELECT public (par id) |
 
 ### Lecture authentifiée
 
@@ -620,8 +513,7 @@ WHERE ds.status <> 'deleted';
 
 | Table | Notes |
 |-------|-------|
-| `clustering_jobs` / `filosofi_national_averages` | `auth.role() = 'service_role'` |
-| `calculation_jobs` (ALL) | `auth.role() = 'service_role'` |
+| `filosofi_national_averages` | `auth.role() = 'service_role'` |
 
 ---
 
