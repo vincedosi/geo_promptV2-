@@ -102,8 +102,7 @@ graph TB
 | **POI / Panneaux** | poi (poi_france view), panneaux_affichage (table unique, ex-global_ooh fusionnée), poi_categories |
 | **Radio** | emetteur_radio, radio_stations, emetteur_radio_stations |
 | **Custom Geo** | custom_geo_zones, custom_geo_zone_codes |
-| **Scoring / Clustering** | scoring_profiles, clustering_models, poi_clusters |
-| **Support** | saved_maps, isochrones_cache, calculation_jobs |
+| **Support** | saved_maps, isochrones_cache |
 
 24 RPCs métier custom (préfixes `get_*`, `aggregate_*`, `match_*`, `compute_*`).
 

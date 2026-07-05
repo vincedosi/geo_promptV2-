@@ -21,7 +21,7 @@ interface Campaign {
   last_data_date: string | null;
 }
 
-interface GeographySummary {
+interface CustomZoneSummary {
   in_zone_impressions: number;
   total_impressions: number;
   pct_in_zone: number;
@@ -40,7 +40,7 @@ interface DigitalData {
   campaignsLoading: boolean;
   geojson: GeoJSON.FeatureCollection | null;
   geojsonLoading: boolean;
-  geographySummary: GeographySummary | null;
+  customZoneSummary: CustomZoneSummary | null;
   // Meteo state — data = mapping code_zone → valeur météo
   // Les 3 cartes réutilisent `geojson` (memes polygones), la 3eme carte enrichit
   // chaque feature avec meteo_value via le lookup sur ce Record.
@@ -66,7 +66,7 @@ export function useDigitalData(): DigitalData {
   const [campaignsLoading, setCampaignsLoading] = useState(true);
   const [geojson, setGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [geojsonLoading, setGeojsonLoading] = useState(false);
-  const [geographySummary, setGeographySummary] = useState<GeographySummary | null>(null);
+  const [customZoneSummary, setCustomZoneSummary] = useState<CustomZoneSummary | null>(null);
   const [meteoData, setMeteoData] = useState<Record<string, MeteoZoneValue> | null>(null);
   const [meteoMeta, setMeteoMeta] = useState<MeteoZoneMeta | null>(null);
   const [meteoLoading, setMeteoLoading] = useState(false);
@@ -109,7 +109,7 @@ export function useDigitalData(): DigitalData {
         console.log('[digital-data] fetchMap scale=custom_zone zoneId=', customZoneId);
         if (!customZoneId) {
           setGeojson({ type: 'FeatureCollection', features: [] });
-          setGeographySummary(null);
+          setCustomZoneSummary(null);
           return;
         }
         const url = `/api/digital/${campaignId}/custom-zone/${customZoneId}?pop_field=${pf}&metric=${m}`;
@@ -118,14 +118,14 @@ export function useDigitalData(): DigitalData {
           const txt = await res.text().catch(() => '');
           throw new Error(`HTTP ${res.status} ${txt}`);
         }
-        const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: GeographySummary | null };
+        const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: CustomZoneSummary | null };
         console.log('[digital-data] custom_zone features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
         setGeojson(data.geojson);
-        setGeographySummary(data.summary);
+        setCustomZoneSummary(data.summary);
         return;
       }
 
-      setGeographySummary(null);
+      setCustomZoneSummary(null);
       let url = `/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${scale}&pop_field=${pf}&metric=${m}`;
       if (media && media.length > 0) url += `&media=${media.join(',')}`;
       const res = await fetch(url, { signal: ctrl.signal });
@@ -228,7 +228,7 @@ export function useDigitalData(): DigitalData {
 
   return {
     campaigns, campaignsLoading,
-    geojson, geojsonLoading, geographySummary,
+    geojson, geojsonLoading, customZoneSummary,
     meteoData, meteoMeta, meteoLoading, meteoProgress, meteoError,
     fetchMap, fetchMeteo, clearMeteo,
   };

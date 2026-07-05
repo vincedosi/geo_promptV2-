@@ -86,7 +86,7 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 | Composant carte | `app/map/_components/FilterPanel.tsx` |
 | Import données | `lib/import/inserter.ts` |
 | Import DSP | `app/api/admin/campaigns/import/route.ts` |
-| Column mappings | `lib/campaigns/column-mappings.ts` |
+| Column mappings | `lib/dsp-mapping/loader.ts` (mappings dynamiques en base `dsp_source_mappings`) |
 | Migration SQL | `sql/SETUP.md` |
 
 ## Commandes

@@ -289,9 +289,6 @@ export interface FilterPanelProps {
   isochroneVisible: boolean;
   setIsochroneVisible: (v: boolean) => void;
   setShowSavePanel: (v: boolean | ((p: boolean) => boolean)) => void;
-  battleFeatures?: GeoJSON.Feature[];
-  battlePois?:     Array<{ id: string; nom: string; lat: number; lng: number; ville?: string; adresse?: string }>;
-  battleCacheKey?: string | null;
   densityMode?: boolean;
   onDensityModeChange?: (v: boolean) => void;
   onPOIStylesChange?: (styles: POIStylesMap) => void;
@@ -587,9 +584,6 @@ export function FilterPanel({
   battleOuterFillVisible, setBattleOuterFillVisible,
   isochroneVisible, setIsochroneVisible,
   setShowSavePanel,
-  battleFeatures: battleFeaturesProp = [],
-  battlePois: battlePoisProp = [],
-  battleCacheKey,
   onPOIStylesChange,
   onFlyTo,
   carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
@@ -881,7 +875,7 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, iris: false, carreaux: false, digital: false,
+    spatiale: false, iris: false, carreaux: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
