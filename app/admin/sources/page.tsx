@@ -43,20 +43,6 @@ interface IrisSource {
   format: string; coverage: string; imported_at: string; schema: string[];
 }
 
-// ── Custom zones (geography_sets) ────────────────────────────────────────────
-interface CustomZoneSet {
-  id: string;
-  name: string;
-  description: string | null;
-  organization_id: string | null;
-  organization_name: string | null;
-  organization_slug: string | null;
-  source_type: string;
-  feature_count: number;
-  created_at: string;
-  created_by: string | null;
-}
-
 // ── Sources stats types ───────────────────────────────────────────────────────
 interface SourcesStats {
   ooh: {
@@ -166,7 +152,7 @@ export default function SourcesPage() {
   const [availableMetaKeys, setAvailableMetaKeys] = useState<string[]>([]);
   const [isSavingFilters, setIsSavingFilters] = useState(false);
   const [isLoadingMetaKeys, setIsLoadingMetaKeys] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio' | 'dsp' | 'zones_iso' | 'custom_zones'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'poi' | 'panneaux' | 'carreaux' | 'iris' | 'transport' | 'radio' | 'dsp' | 'custom_zones'>('all');
   const [radioStats, setRadioStats] = useState<{ total_emetteurs: number; emetteurs_fm: number; emetteurs_dab: number; total_radios: number } | null>(null);
 
   // DSP campaigns
@@ -183,15 +169,6 @@ export default function SourcesPage() {
   const [dspDeleting, setDspDeleting] = useState(false);
   const dspFileRef = useRef<HTMLInputElement>(null);
 
-  // Custom zones (geography_sets)
-  const [zones, setZones] = useState<CustomZoneSet[]>([]);
-  const [zonesLoading, setZonesLoading] = useState(false);
-  const [zonesOrgFilter, setZonesOrgFilter] = useState<string>(''); // '' = all, 'null' = Global, sinon uuid org
-  const [zonesSearch, setZonesSearch] = useState('');
-  const [zonesSearchDebounced, setZonesSearchDebounced] = useState('');
-  const [zonesTotalFeatures, setZonesTotalFeatures] = useState(0);
-  const [zoneDeleteConfirm, setZoneDeleteConfirm] = useState<CustomZoneSet | null>(null);
-  const [zoneDeleting, setZoneDeleting] = useState(false);
 
   // IRIS stats
   const [irisStats,   setIrisStats]   = useState<IrisStats | null>(null);
@@ -570,43 +547,6 @@ export default function SourcesPage() {
     setSigmaConfigLoading(false);
   }, []);
 
-  // Custom zones — fetch
-  const fetchZones = useCallback(async () => {
-    setZonesLoading(true);
-    try {
-      const url = new URL('/api/admin/custom-zones', window.location.origin);
-      if (zonesOrgFilter) url.searchParams.set('org_id', zonesOrgFilter);
-      const res = await adminFetch(url.toString());
-      const data = await res.json();
-      if (res.ok) {
-        setZones(data.sets || []);
-        setZonesTotalFeatures(data.total_features ?? 0);
-      } else {
-        console.error('[zones]', data.error);
-      }
-    } catch (e: unknown) { console.error('[zones] fetch error:', e); }
-    setZonesLoading(false);
-  }, [zonesOrgFilter]);
-
-  const handleZoneDelete = useCallback(async (set: CustomZoneSet) => {
-    setZoneDeleting(true);
-    try {
-      const res = await adminFetch(`/api/admin/custom-zones/${set.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok && data.deleted) {
-        toastApi.success('Set supprimé', `${data.removed_zones ?? 0} zones retirées`);
-        setZones((prev) => prev.filter((z) => z.id !== set.id));
-        setZonesTotalFeatures((prev) => Math.max(0, prev - (set.feature_count ?? 0)));
-      } else {
-        toastApi.error('Erreur', data.error ?? 'Suppression échouée');
-      }
-    } catch (e: unknown) {
-      toastApi.error('Erreur réseau', e instanceof Error ? e.message : String(e));
-    }
-    setZoneDeleting(false);
-    setZoneDeleteConfirm(null);
-  }, [toastApi]);
-
   useEffect(() => {
     if (activeTab === 'iris' && !irisStats && !irisLoading) fetchIrisStats();
   }, [activeTab, irisStats, irisLoading, fetchIrisStats]);
@@ -626,15 +566,6 @@ export default function SourcesPage() {
     if (activeTab === 'dsp') fetchDspCampaigns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab === 'zones_iso') fetchZones();
-  }, [activeTab, fetchZones]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setZonesSearchDebounced(zonesSearch), 200);
-    return () => clearTimeout(t);
-  }, [zonesSearch]);
 
   // ============================================================
   // Actions
@@ -933,7 +864,6 @@ export default function SourcesPage() {
           { key: 'transport', label: `Transport & Flux (${ss ? fmtK(ss.transport.total + ss.flux.total) : '…'})`, color: '#22c55e' },
           { key: 'radio',     label: `Radio (${radioStats ? fmtK(radioStats.total_emetteurs) : '…'})`,    color: C.accent },
           { key: 'dsp',       label: `DSP (${dspCampaigns.length || '…'})`,                                color: C.warn },
-          { key: 'zones_iso',    label: `Zones iso (${zones.length || '…'})`,                                 color: C.blue },
           { key: 'custom_zones', label: `Zones perso`,                                                         color: 'var(--brand-teal)' },
         ];
         return (
@@ -2690,151 +2620,8 @@ export default function SourcesPage() {
         );
       })()}
 
-      {/* ── Custom zones tab (geography_sets) ── */}
+      {/* ── Custom zones tab (custom_geo_zones) ── */}
       {activeTab === 'custom_zones' && <CustomZonesTab />}
-
-      {activeTab === 'zones_iso' && (() => {
-        const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
-        const fmtN = (n: number) => n.toLocaleString('fr-FR');
-        const cardSt = { background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 2 };
-        const sourceTypeColor = (t: string) => {
-          if (t === 'battle') return C.warn;
-          if (t === 'isochrone') return C.accent;
-          if (t === 'manual') return C.green;
-          if (t === 'import') return C.blue;
-          return C.textDim;
-        };
-        const sourceTypeLabel = (t: string) => {
-          if (t === 'battle') return 'Battle';
-          if (t === 'isochrone') return 'Isochrone';
-          if (t === 'manual') return 'Manuel';
-          if (t === 'import') return 'Import';
-          return t;
-        };
-        const qLow = zonesSearchDebounced.trim().toLowerCase();
-        const filtered = qLow
-          ? zones.filter((z) => z.name.toLowerCase().includes(qLow) || (z.organization_name ?? '').toLowerCase().includes(qLow))
-          : zones;
-
-        return (
-          <div style={{ animation: 'srcFadeIn 0.3s ease-out' }}>
-            {/* Header + stats */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: C.text }}>
-                  Zones personnalisées (geography_sets)
-                </div>
-                <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginTop: 2 }}>
-                  Sets de zones sauvegardés depuis la carte (battle, isochrone, manuel, import)
-                </div>
-              </div>
-              <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>
-                {zones.length} sets · {fmtN(zonesTotalFeatures)} zones
-              </div>
-            </div>
-
-            {/* Filters row */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-              <select
-                value={zonesOrgFilter}
-                onChange={(e) => setZonesOrgFilter(e.target.value)}
-                disabled={zonesLoading}
-                style={{ background: C.bgSurface, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fontInter, fontSize: 12, color: C.text, minWidth: 200, outline: 'none' }}
-              >
-                <option value="">Tous les workspaces</option>
-                <option value="null">— Global (sans workspace) —</option>
-                {organizations.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={zonesSearch}
-                onChange={(e) => setZonesSearch(e.target.value)}
-                placeholder="Rechercher par nom ou workspace…"
-                style={{ flex: 1, background: C.bgSurface, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fontInter, fontSize: 12, color: C.text, outline: 'none' }}
-              />
-              <button
-                onClick={fetchZones}
-                disabled={zonesLoading}
-                style={{ background: 'transparent', border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 14px', fontFamily: fontInter, fontSize: 12, color: C.textDim, cursor: zonesLoading ? 'not-allowed' : 'pointer' }}
-              >
-                {zonesLoading ? <Spinner size={12} /> : '↻ Refresh'}
-              </button>
-            </div>
-
-            {/* List */}
-            {zonesLoading ? (
-              <div style={{ ...cardSt, textAlign: 'center', padding: 40, color: C.textDim }}>
-                <Spinner size={20} /> Chargement…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ ...cardSt, textAlign: 'center', padding: 40, color: C.textDim, fontFamily: fontInter, fontSize: 13 }}>
-                {zones.length === 0
-                  ? 'Aucun set de zones personnalisées pour ce workspace'
-                  : 'Aucun résultat pour cette recherche'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filtered.map((z) => {
-                  const stColor = sourceTypeColor(z.source_type);
-                  const stLabel = sourceTypeLabel(z.source_type);
-                  const workspaceLabel = z.organization_name ?? '— Global —';
-                  return (
-                    <div key={z.id} style={{ ...cardSt, padding: '12px 16px', transition: 'border-color 0.15s' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.borderLight; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <span style={{ fontWeight: 500, fontSize: 14, color: C.text, flex: 1, fontFamily: fontInter }}>
-                          {z.name}
-                        </span>
-                        <span style={{ fontSize: 10, padding: '2px 8px', background: `${stColor}1a`, border: `0.5px solid ${stColor}44`, borderRadius: 4, color: stColor, fontFamily: fontInter, fontWeight: 500 }}>
-                          {stLabel}
-                        </span>
-                        <button
-                          onClick={() => setZoneDeleteConfirm(z)}
-                          style={{ background: C.redDim, border: `0.5px solid rgba(255,87,87,0.2)`, borderRadius: 4, padding: '3px 10px', fontFamily: fontInter, fontSize: 10, color: C.red, cursor: 'pointer' }}
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim, flexWrap: 'wrap' }}>
-                        <span>
-                          <span style={{ color: C.textSec }}>Workspace: </span>
-                          <span style={{ color: z.organization_name ? C.text : C.textDim }}>{workspaceLabel}</span>
-                        </span>
-                        <span>
-                          <span style={{ color: C.textSec }}>Zones: </span>
-                          <span style={{ color: C.text }}>{fmtN(z.feature_count)}</span>
-                        </span>
-                        <span>
-                          <span style={{ color: C.textSec }}>Créé: </span>
-                          <span style={{ color: C.text }}>{fmtD(z.created_at)}</span>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Delete confirmation */}
-            <ConfirmModal
-              open={!!zoneDeleteConfirm}
-              onClose={() => { if (!zoneDeleting) setZoneDeleteConfirm(null); }}
-              onConfirm={() => { if (zoneDeleteConfirm) handleZoneDelete(zoneDeleteConfirm); }}
-              title={zoneDeleteConfirm ? `Supprimer "${zoneDeleteConfirm.name}"` : 'Supprimer ce set'}
-              message={zoneDeleteConfirm
-                ? `Workspace : ${zoneDeleteConfirm.organization_name ?? '— Global —'} · ${zoneDeleteConfirm.feature_count} zones. Action irréversible — les utilisateurs ne pourront plus utiliser ce set dans leurs analyses.`
-                : 'Action irréversible.'}
-              confirmLabel={zoneDeleting ? 'Suppression…' : 'Supprimer définitivement'}
-              variant="danger"
-              loading={zoneDeleting}
-            />
-          </div>
-        );
-      })()}
 
       {/* ── Delete confirmation modal ── */}
       <ConfirmModal

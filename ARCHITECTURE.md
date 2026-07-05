@@ -279,7 +279,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/digital/[campaignId]/cp-detail` | GET | IRIS dans un code postal |
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
-| `/api/digital/[campaignId]/geography/[setId]` | GET | Croisement campagne x jeu de zones |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
 | Route | Methode | Description |
@@ -523,6 +522,13 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 > Orphelines (en base mais sans appelant TS) : `get_iris_geojson_by_bbox`,
 > `get_iris_geojson_by_codes` — etaient utilises par `/api/iris/geojson`,
 > route supprimee. Conservees en base ; voir `CLEANUP_REPORT.md`.
+>
+> Orphelines (feature `geography_sets` supprimee 2026-07, jeux de zones
+> isochrones obsoletes issus du copilote battle/voronoi — remplaces par
+> `custom_geo_zones` / `/map/custom-geo`) : `get_geography_sets`,
+> `save_geography_from_cache`, `get_digital_geography_map`. Table
+> `geography_sets` et RPCs conservees en base (suppression SQL non faite
+> dans ce chantier, cf revue dediee).
 
 ### Digital / Campagnes
 | RPC | Description | Appelee depuis |
@@ -534,9 +540,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_digital_media_heatmap` | Heatmap regies x zones | `api/digital/[id]/analysis/` |
 | `get_digital_available_indicators` | Indicateurs disponibles | `api/digital/[id]/analysis/` |
 | `get_digital_cp_iris_detail` | Detail IRIS dans un CP | `api/digital/[id]/cp-detail/` |
-| `get_digital_geography_map` | Croisement campagne x zones | `api/digital/[id]/geography/` |
 | `get_codes_postaux_bbox` | Polygones CP dans bbox | `api/digital/codes-postaux/` |
-| `get_geography_sets` | Jeux de zones disponibles | `api/geographies/` |
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
 | `get_campaign_stats_by_field` | Stats par champ | `api/admin/campaigns/[id]/` |
@@ -570,7 +574,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `build_ref_codes_postaux` | Construction ref CP | `api/admin/import-laposte/` |
 | `truncate_laposte_hexasmal` | Reset ref La Poste | `api/admin/import-laposte/` |
 | `update_laposte_centroids` | Centroides CP | `api/admin/import-laposte/` |
-| `save_geography_from_cache` | Sauvegarde jeu de zones | `api/geographies/` |
 
 ### Admin & Monitoring
 | RPC | Description | Appelee depuis |
