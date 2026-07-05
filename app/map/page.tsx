@@ -12,7 +12,7 @@
  *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
  *   5. POI / battle / voronoi handlers   (≈ 701-1300)
  *   6. Radio + meteo handlers            (≈ 1301-1600)
- *   7. Render JSX (IconBar + OverlayPanel + ResultsPanel + StudyDashboard) (≈ 1601-2329)
+ *   7. Render JSX (IconBar + OverlayPanel) (≈ 1601-2329)
  *
  * @maintainers Pour étendre ce fichier :
  *   - NE PAS ajouter d'autres `useState` au top — extraire dans un hook
@@ -53,10 +53,6 @@ import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_compone
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
-const StudyDashboard = dynamic(
-  () => import('@/app/map/_components/StudyDashboard').then(m => ({ default: m.StudyDashboard })),
-  { ssr: false },
-);
 const TripleMapView = dynamic(
   () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
   { ssr: false },
@@ -66,22 +62,16 @@ const DigitalAnalysisPanel = dynamic(
   { ssr: false },
 );
 import type { ZoneData, BattleResult } from '@/types/spatial';
-import { exportOohReport, type OohExportData } from '@/app/copilote/_lib/ooh-export';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { SessionBadge }    from '@/components/SessionBadge';
 import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { ResultsPanel, type ResultsPanelType } from '@/components/map/ResultsPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
-const ScoringPanel = dynamic(
-  () => import('@/app/map/_components/ScoringPanel').then(m => ({ default: m.ScoringPanel })),
-  { ssr: false },
-);
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -97,22 +87,11 @@ function esc(s: string | undefined | null): string {
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
-  const [activeStudy, setActiveStudy] = useState(false);
-  const handleOpenStudy = useCallback(() => {
-    setActiveStudy(true);
-    setActiveOverlay(null);
-    setActiveResults(null);
-  }, []);
-  const handleCloseStudy = useCallback(() => {
-    setActiveStudy(false);
-  }, []);
   const [iconBarHidden, setIconBarHidden] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
   const handleOverlayToggle = useCallback((id: OverlayId) => {
     setActiveOverlay(prev => prev === id ? null : id);
   }, []);
-  // ── Results panel (volet gauche pour les analyses) ──
-  const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
@@ -122,14 +101,6 @@ export default function MapPage() {
   const [perimeterSelectedRegions, setPerimeterSelectedRegions] = useState<string[]>([]);
   const [perimeterSelectedDepts,   setPerimeterSelectedDepts]   = useState<string[]>([]);
   const [perimeterVille,           setPerimeterVille]           = useState('');
-  const handleOpenAnalysisResults = useCallback((type: ResultsPanelType) => {
-    setActiveResults(type);
-    setActiveOverlay(null);
-  }, []);
-  const handleCloseResults = useCallback(() => {
-    setActiveResults(null);
-  }, []);
-  const [studyVille,  setStudyVille]  = useState<string | null>(null);
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
   const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
@@ -859,13 +830,6 @@ export default function MapPage() {
     flyToCoords: (lat, lng) => {
       if (mapRef.current && mapReady) mapRef.current.flyTo({ center: [lng, lat], zoom: 11, duration: 1200 });
     },
-    triggerOohExport: async (data: OohExportData) => {
-      setError('Generation du rapport Excel...');
-      await exportOohReport(data, mapRef, msg => {
-        if (msg) setError(msg);
-        else setError(null);
-      });
-    },
   });
 
   savedMaps.applyIsochronesRef.current = mapLayers.applyIsochrones;
@@ -941,7 +905,6 @@ export default function MapPage() {
     setSelectedIrisCode(null);
     setSelectedIrisData(null);
     setSelectedBillboard(null);
-    setActiveResults(null);
 
     // Périmètre territorial (masque affiché sur la carte)
     setPerimeterScope(null);
@@ -1598,11 +1561,6 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
-  // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
-  const availableResults = useMemo(() => ({
-    scoring: !!studyVille,
-  }), [studyVille]);
-
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
     <ChatPanel
@@ -1689,7 +1647,6 @@ export default function MapPage() {
         activeItem={activeOverlay}
         onItemClick={handleOverlayToggle}
         hidden={iconBarHidden}
-        studyAvailable={!!studyVille}
       />
       {activeOverlay && (
         <OverlayPanel
@@ -1776,10 +1733,7 @@ export default function MapPage() {
               setIrisPalette={mapLayers.setIrisPalette}
               setIrisOpacity={mapLayers.setIrisOpacity}
               setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-              scoringMapRef={mapRef}
-              scoringMapReady={mapReady}
               mainMapRef={mapRef}
-              onScoreComputed={(v) => setStudyVille(v)}
               onLoadTransport={handleLoadTransport}
               onLoadTMJA={handleLoadTMJA}
               tmjaVisible={!!tmjaGeoJSON}
@@ -1922,10 +1876,6 @@ export default function MapPage() {
               onDigitalCompareViewChange={setDigitalCompareView}
               digitalPopField={digitalPopField}
               onDigitalPopFieldChange={setDigitalPopField}
-              studyVille={studyVille}
-              onOpenStudy={handleOpenStudy}
-              onOpenAnalysisResults={handleOpenAnalysisResults}
-              availableResults={availableResults}
               selectedPOI={selectedPOI}
               onSelectedPOIChange={setSelectedPOI}
               selectedDepts={perimeterSelectedDepts}
@@ -1957,49 +1907,6 @@ export default function MapPage() {
             />
           )}
         </OverlayPanel>
-      )}
-      {activeResults && (
-        <ResultsPanel
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
-          type={activeResults}
-          title="Résultats — scoring OOH"
-          dotColor="var(--cat-analysis)"
-          onClose={handleCloseResults}
-        >
-          {activeResults === 'scoring' && (
-            <div style={{ padding: 16 }}>
-              <ScoringPanel
-                inline
-                mapRef={mapRef}
-                mapReady={mapReady}
-                onFlyTo={handleFlyTo}
-                onScoreComputed={(v) => setStudyVille(v)}
-              />
-              {studyVille && (
-                <button
-                  type="button"
-                  onClick={handleOpenStudy}
-                  style={{
-                    width: '100%', marginTop: 12,
-                    background: 'transparent',
-                    border: '0.5px solid var(--brand-teal)',
-                    color: 'var(--brand-teal)',
-                    borderRadius: 6, padding: '10px 12px',
-                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, fontWeight: 500,
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    transition: 'background-color 150ms var(--ease-hover)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  Ouvrir l&apos;étude de ville →
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, opacity: 0.8 }}>{studyVille}</span>
-                </button>
-              )}
-            </div>
-          )}
-        </ResultsPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
       {/* Plan média sur les zones custom affichées (budget / CPM / cible) */}
@@ -2059,34 +1966,11 @@ export default function MapPage() {
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         tmjaGeoJSON={tmjaGeoJSON}
       />
-      {/* ── Right panel: map + optional StudyDashboard (tab bar Carte/Étude supprimé) ── */}
+      {/* ── Right panel: map ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Bouton "← Retour à la carte" (visible uniquement en mode Étude)
-           Descend sous la MapTopBar quand elle est affichée pour ne pas la chevaucher. */}
-        {activeStudy && (
-          <button
-            type="button"
-            onClick={handleCloseStudy}
-            style={{
-              position: 'fixed',
-              top: iconBarHidden ? 12 : MAP_TOPBAR_HEIGHT + 10,
-              left: 60, zIndex: 50,
-              background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
-              color: 'var(--text-secondary)', borderRadius: 6, padding: '6px 12px',
-              fontSize: 12, fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'top 200ms var(--ease-out), background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-          >
-            ← Retour à la carte
-          </button>
-        )}
-
-        {/* Map area — masquée quand activeStudy est true */}
-        <div style={{ flex: 1, position: 'relative', display: !activeStudy ? 'flex' : 'none' }}>
+        {/* Map area */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
 
           {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay
              Le bouton descend sous la MapTopBar quand elle est affichée. */}
@@ -2225,8 +2109,6 @@ export default function MapPage() {
       />
       </div>
 
-          {/* Scoring OOH panel — déplacé dans l'onglet EXPERT > ANALYSE > accordéon Scoring OOH */}
-
           {/* WelcomeOverlay retiré : l'utilisateur arrive directement sur la carte */}
 
           {/* IRIS detail panel — overlay à droite sur la carte */}
@@ -2305,19 +2187,6 @@ export default function MapPage() {
             </div>
           )}
         </div>
-
-        {/* Study dashboard — lazy, affiché quand onglet Étude */}
-        {activeStudy && (
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--bg-primary)' }}>
-            <StudyDashboard
-              ville={studyVille}
-              onPanneauClick={(lat, lng) => {
-                setActiveStudy(false);
-                setTimeout(() => handleFlyTo(lat, lng, 17), 80);
-              }}
-            />
-          </div>
-        )}
       </div>{/* end right panel */}
 
       {/* Map popup styles moved to globals.css */}

@@ -93,11 +93,11 @@ Indicateurs JSONB (colonne \`indicators\`, ~14 500 IRIS, source Filosofi décile
 
 ## Routing
 
-PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | panneaux/OOH/JCDecaux→analyser_panneaux | meilleurs panneaux/top→classer_panneaux_audience | score/multi-critères→scorer_panneaux_ooh | synergie/près POI→analyze_poi_synergy | export/rapport OOH→exporter_rapport_ooh
+PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER)
 
 ## Multi-étapes
 
-Décompose automatiquement les demandes combinées. Annonce le plan en une phrase avant d'exécuter. Ex : "panneaux + population jeune" → analyser_panneaux puis afficher_carreaux.
+Décompose automatiquement les demandes combinées. Annonce le plan en une phrase avant d'exécuter.
 "Analyse Brest" ou "profil complet Bretagne" → ask_configuration(ville, Brest) → [l'utilisateur confirme les paramètres] → analyse_complete(ville, Brest, ind_18_24, [lycee, cirfa, …]).
 
 ## Quand demander une clarification

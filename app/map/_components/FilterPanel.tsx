@@ -15,8 +15,7 @@
  *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
  *   8. Voronoi                           (≈ 1901-2200)
  *   9. Corrélation                       (≈ 2201-2700)
- *  10. Scoring OOH                       (≈ 2701-3000)
- *  11. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
+ *  10. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
  *
  * @maintainers Pour étendre ce fichier sans le faire grossir :
  *   - NE PAS ajouter de nouveau gros bloc — extraire vers _components/
@@ -34,7 +33,6 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/level
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
-import { ScoringPanel } from './ScoringPanel';
 import type { CampaignListItem } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
@@ -142,7 +140,6 @@ const TOOLTIPS: Record<string, string> = {
   tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
   iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
   carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',
-  scoring:    'Score de performance d\'un panneau basé sur visibilité, trafic et affinité cible',
   isochrone:  'Zone accessible en X minutes depuis un point donné',
   poi:        'Point d\'Intérêt — commerce, service, lieu public',
 };
@@ -324,10 +321,6 @@ export interface FilterPanelProps {
   setIrisPalette?:      (v: string) => void;
   setIrisOpacity?:      (v: number) => void;
   setIrisTrueOnly?:     (v: boolean) => void;
-  // Scoring OOH
-  scoringMapRef?:       React.MutableRefObject<MaplibreMap | null>;
-  scoringMapReady?:     boolean;
-  onScoreComputed?:     (ville: string) => void;
   // Reference vers la carte principale (pour territory mask layer)
   mainMapRef?:          React.MutableRefObject<MaplibreMap | null>;
   // Transport & TMJA
@@ -427,18 +420,6 @@ export interface FilterPanelProps {
   visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'campaigns';
   /** Ouvre le grand panneau Pilotage ML (bouton en tête de Campagnes média). */
   onOpenPilotage?: () => void;
-  /** Ouverture d'une étude de ville (CTA dans section Scoring, overlay Analyses) */
-  onOpenStudy?: () => void;
-  /** Ville courante de l'étude (affichée dans le CTA si set) */
-  studyVille?: string | null;
-  /** Ouvre le panel résultats d'analyse à gauche de la carte. Quand fourni en mode overlay,
-   *  l'analyse lourde (scoring) devient une carte CTA et son contenu lourd
-   *  vit dans le ResultsPanel externe. */
-  onOpenAnalysisResults?: (type: 'scoring') => void;
-  /** Indique pour chaque analyse si un résultat est déjà calculé (badge "Résultats disponibles"). */
-  availableResults?: {
-    scoring?: boolean;
-  };
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];
@@ -616,7 +597,6 @@ export function FilterPanel({
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
-  scoringMapRef, scoringMapReady, onScoreComputed,
   mainMapRef,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
   tmjaHideLowTraffic = true, onToggleTmjaHideLowTraffic,
@@ -645,8 +625,7 @@ export function FilterPanel({
   digitalCompareView, onDigitalCompareViewChange,
   digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
   digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
-  visibleCategory, onOpenStudy, studyVille, onOpenPilotage,
-  onOpenAnalysisResults, availableResults,
+  visibleCategory, onOpenPilotage,
   selectedPOI: selectedPOIProp, onSelectedPOIChange,
   selectedDepts:   selectedDeptsProp,   onSelectedDeptsChange,
   selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
@@ -654,7 +633,6 @@ export function FilterPanel({
   scope:           scopeProp,           onScopeChange,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
-  const useAnalysisCTAs = isOverlayMode && !!onOpenAnalysisResults;
 
   // ── UX: Search filter ──────────────────────────────────────────────────────
   const [filterSearch, setFilterSearch] = useState('');
@@ -903,7 +881,7 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, iris: false, carreaux: false, scoring: false, digital: false,
+    spatiale: false, iris: false, carreaux: false, digital: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
@@ -3153,65 +3131,6 @@ export function FilterPanel({
         <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-            {/* ── CTA cards (overlay mode) : ouvrent le ResultsPanel à gauche ── */}
-            {useAnalysisCTAs && (
-              <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 16px', borderBottom: `0.5px solid ${C.border}` }}>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2, textTransform: 'none' }}>
-                  Lancer une analyse
-                </div>
-                {([
-                  { type: 'scoring',     label: 'Scoring OOH',             desc: 'Score paramétrique par panneau.' },
-                ] as const).map(card => {
-                  const isReady = !!availableResults?.[card.type];
-                  return (
-                    <button
-                      key={card.type}
-                      type="button"
-                      onClick={() => onOpenAnalysisResults?.(card.type)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: 4,
-                        textAlign: 'left', padding: '10px 12px',
-                        background: 'var(--bg-level-2)',
-                        border: `0.5px solid ${isReady ? 'var(--brand-teal-30, rgba(78,205,196,0.3))' : C.border}`,
-                        borderRadius: 6, cursor: 'pointer',
-                        transition: 'border-color 180ms var(--ease-out), background-color 180ms var(--ease-out)',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = 'var(--brand-teal)';
-                        e.currentTarget.style.background = 'rgba(78,205,196,0.06)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = isReady ? 'var(--brand-teal-30, rgba(78,205,196,0.3))' : C.border;
-                        e.currentTarget.style.background = 'var(--bg-level-2)';
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--cat-analysis)', flexShrink: 0 }} />
-                        <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: C.text, flex: 1 }}>
-                          {card.label}
-                        </span>
-                        {isReady && (
-                          <span style={{
-                            fontFamily: fMono, fontSize: 9,
-                            color: 'var(--brand-teal)',
-                            background: 'rgba(78,205,196,0.1)',
-                            border: '0.5px solid rgba(78,205,196,0.3)',
-                            padding: '1px 6px', borderRadius: 3,
-                          }}>
-                            Résultats disponibles
-                          </span>
-                        )}
-                        <span style={{ color: C.textDim, fontSize: 12, fontFamily: fInter }}>→</span>
-                      </div>
-                      <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, lineHeight: 1.4, paddingLeft: 14 }}>
-                        {card.desc}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
             <button
               onClick={() => toggleAnalyse('spatiale')}
@@ -3735,59 +3654,6 @@ export function FilterPanel({
             </div>{/* fin section analyse spatiale */}
             </div>
             )}
-
-
-            {!useAnalysisCTAs && (<>
-            {/* ── Accordéon : SCORING OOH (overlay → CTA card) ─────────────── */}
-            <button
-              onClick={() => toggleAnalyse('scoring')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Scoring OOH
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.scoring ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.scoring && scoringMapRef && (
-            <div style={{ padding: '0 4px 4px' }}>
-              <ScoringPanel
-                inline
-                mapRef={scoringMapRef}
-                mapReady={scoringMapReady ?? false}
-                onFlyTo={onFlyTo ?? (() => {})}
-                onScoreComputed={onScoreComputed}
-              />
-              {/* CTA Étude : visible uniquement quand un scoring a été calculé + overlay mode */}
-              {studyVille && onOpenStudy && isOverlayMode && (
-                <button
-                  type="button"
-                  onClick={onOpenStudy}
-                  style={{
-                    width: '100%', marginTop: 10,
-                    background: 'transparent',
-                    border: '0.5px solid var(--brand-teal)',
-                    color: 'var(--brand-teal)',
-                    borderRadius: 6, padding: '8px 12px',
-                    fontFamily: fInter, fontSize: 12, fontWeight: 500,
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    transition: 'background-color 150ms var(--ease-hover)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  Ouvrir l&apos;étude de ville →
-                  <span style={{ fontFamily: fMono, fontSize: 10, opacity: 0.8 }}>{studyVille}</span>
-                </button>
-              )}
-            </div>
-            )}
-            </>)}
 
           </div>
         </CategoryGroup>

@@ -4,7 +4,6 @@ import { useEffect, useRef } from 'react';
 import type { UIMessage } from 'ai';
 import type { ZoneData, IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 import type { POI } from '@/types/poi';
-import type { OohExportData } from '../_lib/ooh-export';
 
 /** Shape minimale d'une part de message UIMessage (tool-call, output-available) */
 interface ToolPart {
@@ -28,7 +27,6 @@ interface UseToolProcessorOpts {
     tableName: string; indicateur: string; indicateur_label: string; coordonnees: { lat: number; lng: number };
   } | null>;
   flyToCoords: (lat: number, lng: number) => void;
-  triggerOohExport: (data: OohExportData) => Promise<void>;
 }
 
 export function useToolProcessor({
@@ -42,7 +40,6 @@ export function useToolProcessor({
   carreauxSourcesRef,
   carreauxConfigForSaveRef,
   flyToCoords,
-  triggerOohExport,
 }: UseToolProcessorOpts) {
   const processedToolIds = useRef(new Set<string>());
 
@@ -97,70 +94,6 @@ export function useToolProcessor({
               indicateur_label: result.indicateur_label as string,
               coordonnees:      result.coordonnees as { lat: number; lng: number },
             };
-          }
-
-        } else if (toolName === 'analyser_panneaux' && result?.coordonnees) {
-          setZoneData(prev => {
-            if (!prev) return result as unknown as ZoneData;
-            const existingIds = new Set(prev.pois.map((p: POI) => p.id));
-            const newPois = (result as unknown as ZoneData).pois.filter((p: POI) => !existingIds.has(p.id));
-            return {
-              ...prev,
-              pois: [...prev.pois, ...newPois],
-              nb_pois: prev.pois.length + newPois.length,
-              categories: { ...prev.categories, ...(result as unknown as ZoneData).categories },
-              couleur_overrides: { ...prev.couleur_overrides, ...(result as unknown as ZoneData).couleur_overrides },
-            };
-          });
-
-        } else if (toolName === 'classer_panneaux_audience' && result?.pois) {
-          setZoneData(result as unknown as ZoneData);
-          if (result.coordonnees) {
-            const c = result.coordonnees as { lat: number; lng: number };
-            flyToCoords(c.lat, c.lng);
-          }
-
-        } else if (toolName === 'scorer_panneaux_ooh' && result?.error) {
-          setError(`📊 Score OOH — ${result.error}`);
-        } else if (toolName === 'scorer_panneaux_ooh' && result?.pois) {
-          // Upgrade les POIs top_ooh existants (catégorie → violet) et ajoute les nouveaux
-          setZoneData(prev => {
-            const topPois = (result as unknown as ZoneData).pois;
-            const topIds = new Set(topPois.map((p: POI) => p.id));
-            if (!prev) return result as unknown as ZoneData;
-            const updatedPois = prev.pois.map((p: POI) =>
-              topIds.has(p.id)
-                ? { ...topPois.find((t: POI) => t.id === p.id)!, categorie: 'top_ooh' }
-                : p
-            );
-            const existingIds = new Set(prev.pois.map((p: POI) => p.id));
-            const extraPois = topPois.filter((p: POI) => !existingIds.has(p.id));
-            const merged = [...updatedPois, ...extraPois];
-            return {
-              ...prev,
-              pois: merged,
-              nb_pois: merged.length,
-              categories: { ...prev.categories, ...(result as unknown as ZoneData).categories },
-              couleur_overrides: { ...prev.couleur_overrides, ...(result as unknown as ZoneData).couleur_overrides },
-            };
-          });
-          if (result.coordonnees) {
-            const c = result.coordonnees as { lat: number; lng: number };
-            flyToCoords(c.lat, c.lng);
-          }
-
-        } else if (toolName === 'exporter_rapport_ooh' && result?.error) {
-          setError(`📄 Export OOH — ${result.error}`);
-        } else if (toolName === 'exporter_rapport_ooh' && result?.action === 'export_ooh') {
-          triggerOohExport(result as unknown as OohExportData).catch((err: unknown) =>
-            setError(`📄 Export OOH — ${err instanceof Error ? err.message : String(err)}`)
-          );
-
-        } else if (toolName === 'analyze_poi_synergy' && result?.pois) {
-          setZoneData(result as unknown as ZoneData);
-          if (result.coordonnees) {
-            const c = result.coordonnees as { lat: number; lng: number };
-            flyToCoords(c.lat, c.lng);
           }
 
         } else if (toolName === 'analyse_complete' && result?.coordonnees) {
