@@ -16,6 +16,7 @@ import {
   NoMappingsFoundError,
 } from '@/lib/dsp-mapping/types';
 import type { CampaignImportEvent } from '@/types/campaign';
+import { resolveImportScope } from '@/lib/campaigns/import-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ const ImportFieldsSchema = z.object({
   dsp_source: z.string().trim().min(1).max(50).default('adform'),
   campaign_name: z.string().trim().max(200).optional().nullable(),
   organization_id: z.string().uuid().optional().nullable(),
+  campaign_id: z.string().uuid().optional().nullable(),
 });
 
 function badRequest(message: string, details?: unknown) {
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
   const dspSource = parsedFields.data.dsp_source.toLowerCase();
   const campaignNameOverride = parsedFields.data.campaign_name ?? null;
   const requestedOrgId = parsedFields.data.organization_id ?? null;
+  const requestedCampaignId = parsedFields.data.campaign_id ?? null;
 
   // organization_id : super_admin peut viser n'importe quelle org ; sinon forcer celle du profil
   let organizationId: string;
@@ -108,6 +111,29 @@ export async function POST(request: NextRequest) {
     return badRequest(
       `Erreur chargement mappings : ${err instanceof Error ? err.message : String(err)}`,
     );
+  }
+
+  // ── Cible : campagne existante (optionnel) — créer le client tôt pour la pré-vérif ──
+  const supabase = createAdminClient();
+  let existingCampaign: { id: string; organization_id: string | null; dsp_source: string | null } | null = null;
+  if (requestedCampaignId) {
+    const { data: camp } = await supabase
+      .from('dsp_campaigns')
+      .select('id, organization_id, dsp_source')
+      .eq('id', requestedCampaignId)
+      .single();
+    if (!camp) {
+      return new Response(JSON.stringify({ error: 'campaign_not_found' }), {
+        status: 404, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const scope = resolveImportScope(profile.role, profile.organization_id, camp.organization_id);
+    if (!scope.allowed) {
+      return new Response(JSON.stringify({ error: 'Forbidden', reason: scope.reason }), {
+        status: 403, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    existingCampaign = camp;
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -158,39 +184,51 @@ export async function POST(request: NextRequest) {
           message: `${totalRows} lignes détectées, ${parsed.countries.length} pays`,
         });
 
-        // ── Create campaign record ──────────────────────────────────────
-        const supabase = createAdminClient();
-
-        const { data: campaign, error: campErr } = await supabase
-          .from('dsp_campaigns')
-          .insert({
-            name: campaignName,
-            dsp_source: dspSource,
-            advertiser: null,
-            date_start: parsed.dateStart,
-            date_end: parsed.dateEnd,
-            total_tracked_ads: parsed.totalTrackedAds,
-            total_unique_impressions: parsed.totalUniqueImpressions,
-            countries: parsed.countries,
-            created_by: profile.id,
-            organization_id: organizationId,
-          })
-          .select('id')
-          .single();
-
-        if (campErr || !campaign) {
-          send({ type: 'error', message: `Erreur création campagne : ${campErr?.message ?? 'inconnue'}` });
-          controller.close();
-          return;
+        // ── Cibler la campagne : existante (append) ou nouvelle ─────────
+        // supabase est déjà créé avant le stream (pré-vérif campaign_id).
+        let campaignId: string;
+        let effectiveOrgId = organizationId;
+        if (existingCampaign) {
+          campaignId = existingCampaign.id;
+          effectiveOrgId = existingCampaign.organization_id ?? organizationId;
+          if (existingCampaign.dsp_source && existingCampaign.dsp_source !== dspSource) {
+            send({
+              type: 'progress',
+              processed: 0,
+              total: totalRows,
+              message: `Attention : campagne cible '${existingCampaign.dsp_source}', fichier '${dspSource}'. La métrique de pacing suit le dsp_source de la campagne.`,
+            });
+          }
+        } else {
+          const { data: campaign, error: campErr } = await supabase
+            .from('dsp_campaigns')
+            .insert({
+              name: campaignName,
+              dsp_source: dspSource,
+              advertiser: null,
+              date_start: parsed.dateStart,
+              date_end: parsed.dateEnd,
+              total_tracked_ads: parsed.totalTrackedAds,
+              total_unique_impressions: parsed.totalUniqueImpressions,
+              countries: parsed.countries,
+              created_by: profile.id,
+              organization_id: organizationId,
+            })
+            .select('id')
+            .single();
+          if (campErr || !campaign) {
+            send({ type: 'error', message: `Erreur création campagne : ${campErr?.message ?? 'inconnue'}` });
+            controller.close();
+            return;
+          }
+          campaignId = campaign.id;
         }
-
-        const campaignId = campaign.id;
 
         // Lier l'org propriétaire dans la table pivot multi-org
         await supabase
           .from('campaign_organizations')
           .upsert(
-            { campaign_id: campaignId, organization_id: organizationId, added_by: profile.id },
+            { campaign_id: campaignId, organization_id: effectiveOrgId, added_by: profile.id },
             { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true },
           );
 
@@ -268,7 +306,7 @@ export async function POST(request: NextRequest) {
 
           const { error: insertErr } = await supabase
             .from('dsp_campaign_data')
-            .insert(batch);
+            .upsert(batch, { onConflict: 'campaign_id,date,postal_code,city' });
 
           if (insertErr) {
             send({ type: 'error', message: `Erreur insert batch ${i}: ${insertErr.message}` });
