@@ -34,7 +34,6 @@ interface IconBarProps {
   activeItem: OverlayId | null;
   onItemClick: (id: OverlayId) => void;
   hidden?: boolean;
-  studyAvailable?: boolean;
   showLabels?: boolean;
 }
 
@@ -42,7 +41,6 @@ export function IconBar({
   activeItem,
   onItemClick,
   hidden = false,
-  studyAvailable = false,
   showLabels = true,
 }: IconBarProps) {
   // Shortcut "/" ouvre AI overlay (si focus pas dans input)
@@ -91,7 +89,6 @@ export function IconBar({
           item={item}
           active={activeItem === item.id}
           showLabel={showLabels}
-          studyBadge={item.id === 'analyses' && studyAvailable}
           onClick={() => onItemClick(item.id)}
         />
       ))}
@@ -114,11 +111,10 @@ interface IconButtonProps {
   item: IconBarItem;
   active: boolean;
   showLabel: boolean;
-  studyBadge?: boolean;
   onClick: () => void;
 }
 
-function IconButton({ item, active, showLabel, studyBadge, onClick }: IconButtonProps) {
+function IconButton({ item, active, showLabel, onClick }: IconButtonProps) {
   const Icon = item.icon;
   const isAI = item.id === 'ai';
 
@@ -179,20 +175,6 @@ function IconButton({ item, active, showLabel, studyBadge, onClick }: IconButton
               background: 'var(--brand-teal, #4ecdc4)',
               boxShadow: '0 0 0 0 rgba(78,205,196,0.6)',
               animation: 'iconBarPulse 2s ease-in-out infinite',
-            }}
-          />
-        )}
-        {/* Badge Étude disponible sur Analyses */}
-        {studyBadge && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 4,
-              right: 6,
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--brand-teal, #4ecdc4)',
             }}
           />
         )}

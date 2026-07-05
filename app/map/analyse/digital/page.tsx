@@ -116,7 +116,7 @@ function MapPanel({ title, titleAccent, palettes, palette, onPaletteChange, inve
 
 export default function DigitalTripleMapPage() {
   const {
-    campaigns, geojson, geojsonLoading, geographySummary,
+    campaigns, geojson, geojsonLoading, customZoneSummary,
     meteoData, meteoMeta, meteoLoading, meteoProgress, meteoError,
     fetchMap, fetchMeteo, clearMeteo,
   } = useDigitalData();
@@ -288,12 +288,6 @@ export default function DigitalTripleMapPage() {
     clearMeteo();
   }, [clearMeteo]);
 
-  // Refetch map when metric toggles
-  useEffect(() => {
-    if (campaignId) fetchMap(campaignId, scale, popField, selectedMedia, metric, customZoneId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metric]);
-
   // Auto-select première zone disponible quand on bascule en mode custom_zone
   useEffect(() => {
     if (scale === 'custom_zone' && !customZoneId && customZones.length > 0 && campaignId) {
@@ -343,10 +337,10 @@ export default function DigitalTripleMapPage() {
 
   // Mode "single-feature" : zones custom (galerie). La carte affiche une
   // géométrie sélectionnée au lieu d'une choroplèthe.
-  const isZones = scale === 'custom_zone';
+  const isCustomZone = scale === 'custom_zone';
 
   // ── Custom geo capture : zone digital active (scale admin uniquement) ────
-  // Pour zones/custom_zone, la geom est deja capturable directement via les routes
+  // Pour custom_zone, la geom est deja capturable directement via les routes
   // de consommation existantes. Ici on branche uniquement scale admin (region/dept/cp).
   const digitalScaleForCapture: 'region' | 'departement' | 'cp' | null =
     scale === 'region' || scale === 'departement' || scale === 'cp' ? scale : null;
@@ -466,7 +460,7 @@ export default function DigitalTripleMapPage() {
         onMove={handleMove('imp')} syncTarget={syncSource !== 'imp' ? syncState : null} zoomOffset={zo}
         percentiles={stats.impPerc} legendStops={impInverted ? [...impPal.stops].reverse() : impPal.stops}
         legendMin="0" legendMid={stats.impPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.impPerc?.max.toLocaleString('fr-FR') ?? ''}
-        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
+        hideAdminBoundaries={isCustomZone} showFeatureHover={isCustomZone} metricLabel={metricLabelLong} />
     );
     if (key === 'pop') {
       // Swap meteo : la 3eme carte reutilise les memes polygones (meteoEnrichedGeojson)
@@ -482,7 +476,7 @@ export default function DigitalTripleMapPage() {
             legendMin={`${meteoMeta!.stats.min.toFixed(1)} ${meteoMeta!.unit}`}
             legendMid={`${meteoMeta!.stats.mean.toFixed(1)} ${meteoMeta!.unit}`}
             legendMax={`${meteoMeta!.stats.max.toFixed(1)} ${meteoMeta!.unit}`}
-            hideAdminBoundaries={isZones} showFeatureHover={true} metricLabel={METEO_LABEL[meteoMeta!.variable]} />
+            hideAdminBoundaries={isCustomZone} showFeatureHover={true} metricLabel={METEO_LABEL[meteoMeta!.variable]} />
         );
       }
       return (
@@ -491,7 +485,7 @@ export default function DigitalTripleMapPage() {
           onMove={handleMove('pop')} syncTarget={syncSource !== 'pop' ? syncState : null} zoomOffset={zo}
           percentiles={stats.popPerc} legendStops={popInverted ? [...popPal.stops].reverse() : popPal.stops}
           legendMin="0" legendMid={stats.popPerc?.p50.toLocaleString('fr-FR') ?? ''} legendMax={stats.popPerc?.max.toLocaleString('fr-FR') ?? ''}
-          hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
+          hideAdminBoundaries={isCustomZone} showFeatureHover={isCustomZone} metricLabel={metricLabelLong} />
       );
     }
     return (
@@ -500,7 +494,7 @@ export default function DigitalTripleMapPage() {
         onMove={handleMove('ratio')} syncTarget={syncSource !== 'ratio' ? syncState : null} zoomOffset={zo}
         percentiles={stats.ratioPerc} legendStops={ratioInverted ? [...ratPal.stops].reverse() : ratPal.stops}
         legendMin="sous-servi" legendMid="mediane" legendMax="sur-servi"
-        hideAdminBoundaries={isZones} showFeatureHover={isZones} metricLabel={metricLabelLong} />
+        hideAdminBoundaries={isCustomZone} showFeatureHover={isCustomZone} metricLabel={metricLabelLong} />
     );
   };
 
@@ -565,8 +559,8 @@ export default function DigitalTripleMapPage() {
             metric={metric}
             onMetricChange={setMetric}
             onOpenAnalysis={() => setAnalysisOpen(true)}
-            inZonePct={isZones ? geographySummary?.pct_in_zone ?? null : null}
-            inZoneImpressions={isZones ? geographySummary?.in_zone_impressions ?? null : null}
+            inZonePct={isCustomZone ? customZoneSummary?.pct_in_zone ?? null : null}
+            inZoneImpressions={isCustomZone ? customZoneSummary?.in_zone_impressions ?? null : null}
           />
 
           {campaignId && (

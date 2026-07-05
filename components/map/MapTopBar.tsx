@@ -11,8 +11,8 @@ export const MAP_TOPBAR_HEIGHT = 44;
  *   [logo MAGELIAN] …………………… [theme toggle] [workspace ▾] [email ▾]
  *
  * Positionnée à droite de l'IconBar (left: 48) pour ne pas chevaucher le
- * rail vertical. Reste au-dessus des overlays (z-index: 45, au-dessus du
- * ResultsPanel z:35 et OverlayPanel z:40).
+ * rail vertical. Reste au-dessus des overlays (z-index: 45, au-dessus de
+ * l'OverlayPanel z:40).
  */
 export function MapTopBar() {
   return (

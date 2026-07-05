@@ -1703,9 +1703,6 @@ export default function MapPage() {
               isochroneVisible={mapLayers.isochroneVisible}
               setIsochroneVisible={mapLayers.setIsochroneVisible}
               setShowSavePanel={savedMaps.setShowSavePanel}
-              battleFeatures={battleFeatures}
-              battlePois={battlePois}
-              battleCacheKey={battleCacheKey}
               densityMode={densityMode}
               onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
               onPOIStylesChange={setPoiStyles}
