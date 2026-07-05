@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     dsp_source: formData.get('dsp_source') ?? undefined,
     campaign_name: formData.get('campaign_name'),
     organization_id: formData.get('organization_id'),
+    campaign_id: formData.get('campaign_id'),
   });
 
   if (!parsedFields.success) {
@@ -117,11 +118,16 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
   let existingCampaign: { id: string; organization_id: string | null; dsp_source: string | null } | null = null;
   if (requestedCampaignId) {
-    const { data: camp } = await supabase
+    const { data: camp, error: campLookupErr } = await supabase
       .from('dsp_campaigns')
       .select('id, organization_id, dsp_source')
       .eq('id', requestedCampaignId)
       .single();
+    if (campLookupErr && campLookupErr.code !== 'PGRST116') {
+      return new Response(JSON.stringify({ error: 'campaign_lookup_failed' }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      });
+    }
     if (!camp) {
       return new Response(JSON.stringify({ error: 'campaign_not_found' }), {
         status: 404, headers: { 'Content-Type': 'application/json' },
