@@ -84,10 +84,6 @@ const ClusteringResultsContent = dynamic(
   () => import('@/components/map/ClusteringResultsContent').then(m => ({ default: m.ClusteringResultsContent })),
   { ssr: false },
 );
-const CoverageResultsPanel = dynamic(
-  () => import('@/components/CoverageResultsPanel').then(m => ({ default: m.CoverageResultsPanel })),
-  { ssr: false },
-);
 const CorrelationPanelDyn = dynamic(
   () => import('@/app/map/_components/CorrelationPanel').then(m => ({ default: m.CorrelationPanel })),
   { ssr: false },
@@ -140,7 +136,6 @@ export default function MapPage() {
   }, []);
   // ── Results panel (volet gauche pour les analyses) ──
   const [activeResults, setActiveResults] = useState<ResultsPanelType | null>(null);
-  const [coverageReady, setCoverageReady] = useState(false);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
@@ -1226,8 +1221,8 @@ export default function MapPage() {
   }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
-  // Le polygon de la zone alimente le slot battleFeatures pour que Coverage,
-  // Corrélation et autres analyses puissent l'exploiter exactement comme une
+  // Le polygon de la zone alimente le slot battleFeatures pour que Corrélation
+  // et autres analyses puissent l'exploiter exactement comme une
   // bataille d'isochrones (groupe unique, palier=1). Attend mapReady pour
   // s'assurer que la source MapLibre `battle-rings` est créée.
   const customZoneLoadedRef = useRef<string | null>(null);
@@ -1870,10 +1865,9 @@ export default function MapPage() {
   // ── Disponibilité des résultats d'analyses (badge dans CTA cards de l'overlay Analyses) ──
   const availableResults = useMemo(() => ({
     clustering:  !!clusterGeoJSON,
-    coverage:    coverageReady,
     correlation: !!residualsMeta,
     scoring:     !!studyVille,
-  }), [clusterGeoJSON, coverageReady, residualsMeta, studyVille]);
+  }), [clusterGeoJSON, residualsMeta, studyVille]);
 
   // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
   const chatSlotContent = (
@@ -2248,7 +2242,6 @@ export default function MapPage() {
           type={activeResults}
           title={
             activeResults === 'clustering'  ? 'Résultats — clustering' :
-            activeResults === 'coverage'    ? 'Résultats — couverture démographique' :
             activeResults === 'correlation' ? 'Résultats — corrélation IRIS × POI' :
                                               'Résultats — scoring OOH'
           }
@@ -2269,17 +2262,6 @@ export default function MapPage() {
               onWizardHighlight={handleWizardHighlight}
               onWizardClose={() => setWizardHighlightGeoJSON(null)}
             />
-          )}
-          {activeResults === 'coverage' && (
-            <div style={{ padding: 16 }}>
-              <CoverageResultsPanel
-                inline
-                battleFeatures={battleFeatures}
-                pois={battlePois}
-                battleCacheKey={battleCacheKey ?? undefined}
-                onResultsReady={(s) => setCoverageReady(s.length > 0)}
-              />
-            </div>
           )}
           {activeResults === 'correlation' && (
             <div style={{ padding: 16 }}>

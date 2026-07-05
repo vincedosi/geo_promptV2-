@@ -109,7 +109,7 @@ Indicateurs JSONB (colonne \`indicators\`, ~14 500 IRIS, source Filosofi décile
 
 ## Routing
 
-PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | combien/couverture→calculate_audience_coverage | panneaux/OOH/JCDecaux→analyser_panneaux | meilleurs panneaux/top→classer_panneaux_audience | score/multi-critères→scorer_panneaux_ooh | synergie/près POI→analyze_poi_synergy | export/rapport OOH→exporter_rapport_ooh | corrélation/lien entre/relation entre/impact de X sur Y/y a-t-il un rapport→analyse_correlation
+PRIORITÉ : analyse/rapport/profil/étude + lieu→ask_configuration (NE PAS demander de clarification) | POI/affiche/montre→analyser_zone_pois | isochrone/Xmin/autour→analyser_zone_pois(+isochrone) | densité/population/carreaux→afficher_carreaux | découpe/territoire/voronoï→voronoi_analysis | compare/bataille/sectorisation→isochrone_battle_v2(EN PREMIER) | panneaux/OOH/JCDecaux→analyser_panneaux | meilleurs panneaux/top→classer_panneaux_audience | score/multi-critères→scorer_panneaux_ooh | synergie/près POI→analyze_poi_synergy | export/rapport OOH→exporter_rapport_ooh | corrélation/lien entre/relation entre/impact de X sur Y/y a-t-il un rapport→analyse_correlation
 
 OUTIL analyse_correlation — métriques IRIS disponibles :
 ${irisCorrelationSection}

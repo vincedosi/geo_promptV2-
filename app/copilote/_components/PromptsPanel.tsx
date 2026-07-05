@@ -94,18 +94,6 @@ const CATEGORIES: PromptCategory[] = [
     ],
   },
   {
-    id: 'coverage',
-    icon: '·',
-    label: 'Couverture population',
-    color: 'var(--brand-teal)',
-    description: "Calcule combien de personnes d'une tranche d'âge sont accessibles depuis un point en un temps donné.",
-    prompts: [
-      { text: 'Combien de jeunes 18-24 ans dans 30 min en voiture autour de Brest ?', desc: 'Résultat numérique + zone sur la carte' },
-      { text: 'Population accessible à pied en 15 min autour de Lyon', desc: 'Population totale accessible' },
-      { text: 'Combien de jeunes 18-24 ans à moins de 60 min en voiture de Rennes ?', desc: 'Bassin de recrutement routier' },
-    ],
-  },
-  {
     id: 'panneaux',
     icon: '·',
     label: 'Panneaux OOH',

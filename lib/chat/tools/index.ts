@@ -8,7 +8,6 @@ import { voronoiAnalysis }   from './voronoi';
 import { afficherCarreaux }  from './carreaux';
 import { isochroneBattle, isochroneBattleV2 } from './isochrones';
 import { analyserPanneaux }  from './panneaux';
-import { audienceCoverage }  from './audienceCoverage';
 import { classerAudience }   from './classerAudience';
 import { scorerOoh }         from './scorerOoh';
 import { exporterRapport }   from './exporterRapport';
@@ -40,9 +39,6 @@ export async function executeToolCall(
 
     case 'analyser_panneaux':
       return analyserPanneaux(args);
-
-    case 'calculate_audience_coverage':
-      return audienceCoverage(args);
 
     case 'classer_panneaux_audience':
       return classerAudience(args);

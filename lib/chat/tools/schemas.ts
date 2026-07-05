@@ -158,19 +158,6 @@ export function buildTools(
         executeToolCall('analyze_poi_synergy', args, categoriesList, {}),
     },
 
-    calculate_audience_coverage: {
-      description: "Compte combien de personnes d'une cible démographique habitent dans un isochrone autour d'un lieu. Renvoie le total + GeoJSON isochrone. location_name et travel_time_minutes sont requis.",
-      inputSchema: z.object({
-        location_name:       z.string().describe('Lieu ou ville.'),
-        travel_time_minutes: z.number().describe('Durée trajet min.'),
-        target_column:       z.string().describe('Colonne Filosofi (Ind, ind_18_24…).'),
-        target_label:        z.string().describe('Label cible.'),
-        mode:                z.enum(['drive', 'walk', 'bike']).optional().describe('Mode (déf drive).'),
-      }),
-      execute: (args: Record<string, unknown>) =>
-        executeToolCall('calculate_audience_coverage', args, categoriesList, {}),
-    },
-
     ask_configuration: {
       description: "Appeler cet outil quand l'utilisateur demande une analyse complète, un rapport, une étude, ou un profil d'une zone — même sans précisions supplémentaires. Retourne les options disponibles (cibles démo + catégories POI présentes dans la zone) pour configurer l'analyse. NE PAS demander de clarification : appeler directement.",
       inputSchema: z.object({

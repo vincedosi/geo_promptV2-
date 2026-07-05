@@ -176,25 +176,6 @@ export function useToolProcessor({
             flyToCoords(c.lat, c.lng);
           }
 
-        } else if (toolName === 'calculate_audience_coverage' && result) {
-          if (result.error) {
-            setError(`📊 Couverture — ${result.error}`);
-          } else {
-            const iso = result.isochroneGeoJSON as IsochroneData | undefined;
-            if (iso?.features && iso.features.length > 0) {
-              applyIsochrones({
-                ...iso,
-                _meta:      { mode: (result.mode as string) ?? 'drive', minutes: (result.travel_time_minutes as number) ?? 0 },
-                _fromCache: false,
-                _cachedAt:  undefined,
-              });
-            }
-            if (result.coordonnees) {
-              const c = result.coordonnees as { lat: number; lng: number };
-              flyToCoords(c.lat, c.lng);
-            }
-          }
-
         } else if (toolName === 'analyse_correlation' && result?.action === 'analyse_correlation') {
           setCorrelationParams?.({
             mode:        (result.mode as CorrelationActionParams['mode']) ?? 'iris_poi',

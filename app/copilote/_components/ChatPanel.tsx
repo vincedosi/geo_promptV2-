@@ -5,7 +5,6 @@ import type { UIMessage } from 'ai';
 import type { ZoneData, SavedMap } from '@/types/spatial';
 import GeoBot, { type GeoBotStatus } from '@/components/ui/GeoBot';
 import { ZoneCard }        from './ZoneCard';
-import { CoverageCard }    from './CoverageCard';
 import { SynergyResults }  from './SynergyResults';
 import { TypingDots }      from './TypingDots';
 import { PromptsPanel }    from './PromptsPanel';
@@ -91,7 +90,6 @@ const runningToolLabels: Record<string, string> = {
   'tool-voronoi_analysis':            'Calcul du Voronoï…',
   'tool-afficher_carreaux':           'Chargement des carreaux…',
   'tool-isochrone_battle':            'Calcul Bataille d\'Isochrones (~1-2 min)…',
-  'tool-calculate_audience_coverage': 'Calcul de couverture audience…',
   'tool-analyze_poi_synergy':         'Analyse synergies POI × démographie…',
   'tool-analyse_correlation':         'Calcul corrélation IRIS × POI…',
   'tool-search_datasets':             'Recherche sur data.gouv.fr…',
@@ -573,13 +571,6 @@ export function ChatPanel({
                   p.state === 'output-available' && p.output?.coordonnees)
               : null;
 
-            const coveragePart = msg.role === 'assistant'
-              ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).find(p =>
-                  p.type === 'tool-calculate_audience_coverage' &&
-                  p.state === 'output-available' &&
-                  p.output?.coverage_count !== undefined && !p.output?.error)
-              : null;
-
             const synergyPart = msg.role === 'assistant'
               ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).find(p =>
                   p.type === 'tool-analyze_poi_synergy' &&
@@ -629,15 +620,6 @@ export function ChatPanel({
                       {zonePart    && <ZoneCard zone={zonePart.output as unknown as ZoneData} />}
                       {synergyPart && <SynergyResults zoneData={synergyPart.output as unknown as ZoneData} />}
                       {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as unknown as Parameters<typeof DataGouvCard>[0]['parts']} />}
-                      {coveragePart && (
-                        <CoverageCard
-                          locationName={String(coveragePart.output?.location_name ?? '')}
-                          travelTimeMinutes={Number(coveragePart.output?.travel_time_minutes ?? 0)}
-                          targetLabel={String(coveragePart.output?.target_label ?? '')}
-                          coverageCount={Number(coveragePart.output?.coverage_count ?? 0)}
-                          mode={String(coveragePart.output?.mode ?? 'drive')}
-                        />
-                      )}
                       {textContent && (() => {
                         const isRawMcpOutput = datagouvParts.length > 0 && (
                           textContent.startsWith('Found ') ||
@@ -645,7 +627,7 @@ export function ChatPanel({
                         );
                         if (isRawMcpOutput) return null;
                         return (
-                          <div style={{ marginTop: (zonePart || synergyPart || coveragePart || datagouvParts.length > 0) ? 10 : 0, borderLeft: '2px solid var(--brand-teal)', paddingLeft: 12, padding: '8px 14px 8px 12px', fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 400 }}>
+                          <div style={{ marginTop: (zonePart || synergyPart || datagouvParts.length > 0) ? 10 : 0, borderLeft: '2px solid var(--brand-teal)', paddingLeft: 12, padding: '8px 14px 8px 12px', fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.65, fontFamily: fontInter, fontWeight: 400 }}>
                             <ChatMarkdown text={textContent} />
                           </div>
                         );

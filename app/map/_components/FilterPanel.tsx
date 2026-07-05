@@ -14,7 +14,7 @@
  *   6. POI handlers + isochrones         (≈ 1051-1500)
  *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
  *   8. Voronoi + clustering              (≈ 1901-2200)
- *   9. Coverage + corrélation            (≈ 2201-2700)
+ *   9. Corrélation                       (≈ 2201-2700)
  *  10. Scoring OOH                       (≈ 2701-3000)
  *  11. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
  *
@@ -29,7 +29,6 @@ import { Search, X, ChevronDown, HelpCircle } from 'lucide-react';
 import { CategoryGroup } from '@/components/ui/CategoryGroup';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
-import { CoverageResultsPanel, type CoverageSummaryEntry } from '@/components/CoverageResultsPanel';
 import { ClusterPanel } from './ClusterPanel';
 import type { ClusterGeoJSON } from './ClusterPanel';
 import { ClusterResultsOverlay } from '@/components/ClusterResultsOverlay';
@@ -156,7 +155,6 @@ const TOOLTIPS: Record<string, string> = {
   scoring:    'Score de performance d\'un panneau basé sur visibilité, trafic et affinité cible',
   isochrone:  'Zone accessible en X minutes depuis un point donné',
   poi:        'Point d\'Intérêt — commerce, service, lieu public',
-  couverture: 'Population unique touchée par l\'ensemble des panneaux (dédupliquée)',
 };
 
 // ─── Collapsible section header ───────────────────────────────────────────────
@@ -469,13 +467,12 @@ export interface FilterPanelProps {
   /** Ville courante de l'étude (affichée dans le CTA si set) */
   studyVille?: string | null;
   /** Ouvre le panel résultats d'analyse à gauche de la carte. Quand fourni en mode overlay,
-   *  les 4 analyses lourdes (clustering / couverture / corrélation / scoring) deviennent
+   *  les 3 analyses lourdes (clustering / corrélation / scoring) deviennent
    *  des cartes CTA et leur contenu lourd vit dans le ResultsPanel externe. */
-  onOpenAnalysisResults?: (type: 'clustering' | 'coverage' | 'correlation' | 'scoring') => void;
+  onOpenAnalysisResults?: (type: 'clustering' | 'correlation' | 'scoring') => void;
   /** Indique pour chaque analyse si un résultat est déjà calculé (badge "Résultats disponibles"). */
   availableResults?: {
     clustering?: boolean;
-    coverage?: boolean;
     correlation?: boolean;
     scoring?: boolean;
   };
@@ -944,12 +941,9 @@ export function FilterPanel({
   // ── TMJA ──────────────────────────────────────────────────────────────────
   const [tmjaLoading, setTmjaLoading] = useState(false);
 
-  // ── Coverage summary (managed internally, fed by CoverageResultsPanel) ──
-  const [coverageSummary, setCoverageSummary] = useState<CoverageSummaryEntry[]>([]);
-
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, clustering: false, iris: false, carreaux: false, couverture: false, scoring: false, digital: false,
+    spatiale: false, clustering: false, iris: false, carreaux: false, scoring: false, digital: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1328,13 +1322,6 @@ export function FilterPanel({
   };
 
   const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
-
-  // Auto-ouvrir l'accordéon COUVERTURE quand des données arrivent
-  useEffect(() => {
-    if (coverageSummary && coverageSummary.length > 0) {
-      setAnalyseOpen(prev => ({ ...prev, couverture: true }));
-    }
-  }, [coverageSummary]);
 
   // Auto-ouvrir l'accordéon CORRÉLATION + onglet ANALYSE quand des params arrivent depuis le chat
   useEffect(() => {
@@ -3234,7 +3221,6 @@ export function FilterPanel({
                 </div>
                 {([
                   { type: 'clustering',  label: 'Clustering',              desc: 'K-means POI × Filosofi par durée d\'exposition.' },
-                  { type: 'coverage',    label: 'Couverture démographique', desc: 'Population dans les isochrones, par palier.' },
                   { type: 'correlation', label: 'Corrélation IRIS × POI',  desc: 'Croise la métrique IRIS avec la densité POI.' },
                   { type: 'scoring',     label: 'Scoring OOH',             desc: 'Score paramétrique par panneau.' },
                 ] as const).map(card => {
@@ -3801,8 +3787,6 @@ export function FilterPanel({
                         )}
                         </>
                       )}
-
-                      {/* couverture déplacée dans l'accordéon COUVERTURE */}
                     </div>
                     )}
                   </div>
@@ -3934,38 +3918,6 @@ export function FilterPanel({
                   </div>
                 </div>
               )}
-            </div>
-            )}
-            </>)}
-
-            {!useAnalysisCTAs && (<>
-            {/* ── Accordéon : COUVERTURE (overlay → CTA card) ──────────────── */}
-            <button
-              onClick={() => toggleAnalyse('couverture')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Couverture
-                {coverageSummary && coverageSummary.length > 0 && (
-                  <span style={{ color: C.green, marginLeft: 6 }}>● {coverageSummary.length}</span>
-                )}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.couverture ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.couverture && (
-            <div style={{ padding: '0 4px 4px' }}>
-              <CoverageResultsPanel
-                inline
-                battleFeatures={battleFeaturesProp}
-                pois={battlePoisProp}
-                onResultsReady={setCoverageSummary}
-                battleCacheKey={battleCacheKey ?? undefined}
-              />
             </div>
             )}
             </>)}
