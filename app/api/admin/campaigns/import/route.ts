@@ -304,6 +304,23 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        // Append idempotent : si on cible une campagne existante, purger la délivrance
+        // de la plage de dates du fichier avant réinsertion. (Le vrai index unique est une
+        // expression COALESCE non inférable par onConflict — d'où DELETE+insert plutôt qu'upsert.)
+        if (existingCampaign && parsed.dateStart && parsed.dateEnd) {
+          const { error: purgeErr } = await supabase
+            .from('dsp_campaign_data')
+            .delete()
+            .eq('campaign_id', campaignId)
+            .gte('date', parsed.dateStart)
+            .lte('date', parsed.dateEnd);
+          if (purgeErr) {
+            send({ type: 'error', message: `Erreur purge période : ${purgeErr.message}` });
+            controller.close();
+            return;
+          }
+        }
+
         // ── Batch insert rows ───────────────────────────────────────────
         let inserted = 0;
 
@@ -312,7 +329,7 @@ export async function POST(request: NextRequest) {
 
           const { error: insertErr } = await supabase
             .from('dsp_campaign_data')
-            .upsert(batch, { onConflict: 'campaign_id,date,postal_code,city' });
+            .insert(batch);
 
           if (insertErr) {
             send({ type: 'error', message: `Erreur insert batch ${i}: ${insertErr.message}` });

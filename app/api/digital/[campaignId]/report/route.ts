@@ -19,12 +19,15 @@ export async function GET(
   const { campaignId } = await params;
 
   const supabase = createAdminClient();
-  const { data: camp } = await supabase
+  const { data: camp, error: campErr } = await supabase
     .from('dsp_campaigns')
     .select('organization_id, dsp_source')
     .eq('id', campaignId)
     .single();
 
+  if (campErr && campErr.code !== 'PGRST116') {
+    return NextResponse.json({ error: 'lookup_failed' }, { status: 500 });
+  }
   // 404 si absente OU hors org (ne pas divulguer l'existence à une autre org)
   if (!camp) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
   if (profile.role !== 'super_admin' && camp.organization_id !== profile.organization_id) {
