@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computePacing, type PacingItemInput } from '@/lib/pacing/compute';
-import { CONVERGENCE_TOLERANCE, DEMO_CAMPAIGN_ID } from '@/lib/demo/constants';
+import { CONVERGENCE_TOLERANCE } from '@/lib/demo/constants';
 import type {
   SnapshotMeta, RawVersionPacing, CampaignReport,
   ConvergencePoint, ZoneBeforeAfter, BudgetSummary, ReportKpis,
@@ -18,7 +18,7 @@ function versionSpend(items: PacingItemInput[], cpm: number): number {
 
 /** Assemble le CampaignReport à partir des données déjà lues (PUR, testable). */
 export function assembleReport(
-  campaignName: string, meta: SnapshotMeta[], pacings: RawVersionPacing[],
+  campaignId: string, campaignName: string, meta: SnapshotMeta[], pacings: RawVersionPacing[],
 ): CampaignReport | null {
   if (meta.length === 0 || pacings.length === 0) return null;
 
@@ -81,7 +81,7 @@ export function assembleReport(
   const mN = metaByV.get(lastV)!;
   return {
     header: {
-      campaign_id: DEMO_CAMPAIGN_ID, campaign_name: campaignName,
+      campaign_id: campaignId, campaign_name: campaignName,
       zone_name: m0.zone_name, dsp: m0.dsp, cible: m0.cible,
       period_start: m0.period_start ?? '', period_end: mN.period_end ?? '',
       version_count: versions.length,
@@ -94,12 +94,14 @@ export function assembleReport(
 export async function buildCampaignReport(
   supabase: SupabaseClient, campaignId: string, metric = 'impressions',
 ): Promise<CampaignReport | null> {
-  const { data: camp } = await supabase.from('dsp_campaigns').select('name').eq('id', campaignId).single();
+  const { data: camp, error: campErr } = await supabase.from('dsp_campaigns').select('name').eq('id', campaignId).single();
+  if (campErr) throw campErr;
   const campaignName = (camp?.name as string | undefined) ?? 'Campagne';
 
-  const { data: rows } = await supabase.from('campaign_plan_snapshot')
+  const { data: rows, error: rowsErr } = await supabase.from('campaign_plan_snapshot')
     .select('version, budget, cpm, cible, dsp, zone_name, period_start, period_end')
     .eq('campaign_id', campaignId).order('version', { ascending: true });
+  if (rowsErr) throw rowsErr;
   if (!rows?.length) return null;
 
   const metaByV = new Map<number, SnapshotMeta>();
@@ -115,9 +117,10 @@ export async function buildCampaignReport(
 
   const pacings: RawVersionPacing[] = [];
   for (const m of meta) {
-    const { data } = await supabase.rpc('get_campaign_pacing', {
+    const { data, error: rpcErr } = await supabase.rpc('get_campaign_pacing', {
       p_campaign_id: campaignId, p_metric_field: metric, p_version: m.version,
     });
+    if (rpcErr) throw rpcErr;
     const rpc = (typeof data === 'string' ? JSON.parse(data) : data) as
       { items?: PacingItemInput[]; in_plan_imp?: number; total_imp?: number; spillover?: { imp?: number } } | null;
     if (!rpc) continue;
@@ -127,5 +130,5 @@ export async function buildCampaignReport(
       spillover_imp: Number(rpc.spillover?.imp ?? 0),
     });
   }
-  return assembleReport(campaignName, meta, pacings);
+  return assembleReport(campaignId, campaignName, meta, pacings);
 }

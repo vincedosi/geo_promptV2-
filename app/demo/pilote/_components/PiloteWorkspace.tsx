@@ -14,7 +14,7 @@ export default function PiloteWorkspace() {
     borderBottom: active ? '2px solid var(--brand-teal)' : '2px solid transparent',
   } as const);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0 }}>
         <button style={tabStyle(tab === 'pilotage')} onClick={() => setTab('pilotage')}>Pilotage</button>
         <button style={tabStyle(tab === 'bilan')} onClick={() => setTab('bilan')}>Bilan</button>

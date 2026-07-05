@@ -22,8 +22,10 @@ const PACINGS: RawVersionPacing[] = [
 
 describe('assembleReport', () => {
   it('assemble un report convergent depuis 3 versions', () => {
-    const r = assembleReport('Démo', META, PACINGS)!;
+    const campaignId = 'dede0000-0000-4000-8000-000000000001';
+    const r = assembleReport(campaignId, 'Démo', META, PACINGS)!;
     expect(r).not.toBeNull();
+    expect(r.header.campaign_id).toBe(campaignId);
 
     // convergence : mean_delta décroissant, dernier converged
     expect(r.convergence.map((c) => c.version)).toEqual([1, 2, 3]);
@@ -63,6 +65,6 @@ describe('assembleReport', () => {
   });
 
   it('retourne null sans snapshot', () => {
-    expect(assembleReport('Démo', [], [])).toBeNull();
+    expect(assembleReport('x', 'Démo', [], [])).toBeNull();
   });
 });
