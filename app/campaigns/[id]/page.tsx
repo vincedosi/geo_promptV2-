@@ -9,10 +9,14 @@ import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge'
 import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/status';
 import type { CampaignDetail, DspCampaignData } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from './_components/FilAriane';
-import { StepMemo } from './_components/StepMemo';
-import { StrategyWizard } from '@/app/strategies/_components/StrategyWizard';
 import { StrategyDetail } from '@/components/map/overlays/PilotageOverlay';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
+import { StepCible } from './_components/steps/StepCible';
+import { StepZones } from './_components/steps/StepZones';
+import { StepBudget } from './_components/steps/StepBudget';
+import { StepStrategie } from './_components/steps/StepStrategie';
+import { StepLancement } from './_components/steps/StepLancement';
+import { DEFAULT_PROG_DRAFT, inferIntensity, type ProgDraft } from './_components/steps/types';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -41,6 +45,8 @@ const COCKPIT_PHASES: FilArianeStep[] = [
 ];
 
 type CockpitView = 'overview' | 'prog' | 'pilotage' | 'bilan';
+type ProgStepKey = 'cible' | 'zones' | 'budget' | 'strategie' | 'lancement';
+const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'zones', 'budget', 'strategie', 'lancement'];
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
@@ -276,6 +282,11 @@ export default function CampaignDetailPage() {
   const [strategyLoaded, setStrategyLoaded] = useState(false);
   const [view, setView] = useState<CockpitView>('overview');
 
+  // Brouillon Programmer (Cible/Zones/Budget/Stratégie/Lancement) — un seul
+  // objet local, préservé tant que la page n'est pas rechargée.
+  const [progStep, setProgStep] = useState<ProgStepKey>('cible');
+  const [draft, setDraft] = useState<ProgDraft>(DEFAULT_PROG_DRAFT);
+
   // Stratégie de bidding rattachée à cette campagne (si elle existe).
   const fetchStrategy = useCallback(async () => {
     try {
@@ -295,10 +306,46 @@ export default function CampaignDetailPage() {
     fetchStrategy();
   }, [id, fetchStrategy]);
 
+  // Préremplit les dates du brouillon depuis la campagne (une fois, si non renseignées).
+  useEffect(() => {
+    const camp = detail?.campaign;
+    if (!camp) return;
+    setDraft((prev) => (prev.startDate || prev.endDate) ? prev : {
+      ...prev,
+      startDate: camp.date_start ? camp.date_start.slice(0, 10) : prev.startDate,
+      endDate: camp.date_end ? camp.date_end.slice(0, 10) : prev.endDate,
+    });
+  }, [detail]);
+
+  // Préremplissage best-effort depuis une stratégie déjà existante (édition/re-programmation).
+  const strategyPrefillRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!strategyId || strategyPrefillRef.current === strategyId) return;
+    strategyPrefillRef.current = strategyId;
+    (async () => {
+      try {
+        const r = await adminFetch(`/api/bidding/strategies/${strategyId}`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        const s = d.strategy ?? {};
+        setDraft((prev) => ({
+          ...prev,
+          intensity: inferIntensity(s.in_zone_weights) ?? prev.intensity,
+          scopeType: s.scope_type ?? prev.scopeType,
+          zoneId: s.zone_id ?? null,
+          totalBudget: s.total_budget ?? prev.totalBudget,
+          forecastCpm: s.forecast_cpm ?? prev.forecastCpm,
+          startDate: s.start_date ? String(s.start_date).slice(0, 10) : prev.startDate,
+          endDate: s.end_date ? String(s.end_date).slice(0, 10) : prev.endDate,
+          executionMode: s.execution_mode ?? prev.executionMode,
+        }));
+      } catch { /* best-effort */ }
+    })();
+  }, [strategyId]);
+
   const unlockedPiloter = !!strategyId && (strategyStatus === 'active' || strategyStatus === 'completed');
   const currentStepIndex = strategyId ? 5 : 0;
-  const progActiveKey = COCKPIT_STEPS[Math.min(currentStepIndex, COCKPIT_STEPS.length - 1)].key;
-  const filArianeActiveKey = view === 'overview' ? '' : view === 'prog' ? progActiveKey : view;
+  const filArianeActiveKey = view === 'overview' ? '' : view === 'prog' ? progStep : view;
 
   // Deep-link initial : ?view=pilotage|bilan|prog|overview.
   // pilotage/bilan ne sont honorés que si la stratégie est déverrouillée
@@ -314,11 +361,15 @@ export default function CampaignDetailPage() {
   }, [strategyLoaded, unlockedPiloter, searchParams]);
 
   const handleFilArianeSelect = useCallback((key: string) => {
-    if (COCKPIT_STEP_KEYS.has(key)) { setView('prog'); return; }
+    if (COCKPIT_STEP_KEYS.has(key)) { setProgStep(key as ProgStepKey); setView('prog'); return; }
     if (key === 'pilotage' || key === 'bilan') {
       if (unlockedPiloter) setView(key);
     }
   }, [unlockedPiloter]);
+
+  const progIndex = PROG_STEP_ORDER.indexOf(progStep);
+  const goProgPrev = useCallback(() => setProgStep(PROG_STEP_ORDER[Math.max(0, progIndex - 1)]), [progIndex]);
+  const goProgNext = useCallback(() => setProgStep(PROG_STEP_ORDER[Math.min(PROG_STEP_ORDER.length - 1, progIndex + 1)]), [progIndex]);
 
   const fetchDetail = useCallback(async (p: number) => {
     setLoading(true);
@@ -605,29 +656,31 @@ export default function CampaignDetailPage() {
       )}
 
       {view === 'prog' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, alignItems: 'start' }}>
-          <div style={{
-            display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)', minHeight: 520,
-            background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 8, overflow: 'hidden',
-          }}>
-            <StrategyWizard
+        <>
+          {progStep === 'cible' && (
+            <StepCible draft={draft} setDraft={setDraft} onNext={goProgNext} />
+          )}
+          {progStep === 'zones' && (
+            <StepZones draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
+          )}
+          {progStep === 'budget' && (
+            <StepBudget draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
+          )}
+          {progStep === 'strategie' && (
+            <StepStrategie draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
+          )}
+          {progStep === 'lancement' && (
+            <StepLancement
+              draft={draft}
+              setDraft={setDraft}
               campaignId={id}
-              campaignName={camp?.name}
-              mode={strategyId ? 'edit' : 'create'}
-              strategyId={strategyId ?? undefined}
+              campaignName={camp.name}
+              existingStrategyId={strategyId}
+              onPrev={goProgPrev}
               onCompleted={() => { fetchStrategy(); setView('pilotage'); }}
-              embedded
             />
-          </div>
-          <StepMemo
-            paragraphs={[
-              <>La <strong>cible</strong> (zones, budget, objectif) fixe le <strong>cap</strong> de la campagne : c&apos;est le cadre que l&apos;agent ML ne dépasse jamais.</>,
-              <>Une fois lancée, l&apos;<strong>enchère mobile</strong> tient le cap au jour le jour : elle ajuste les paliers dans les limites définies ici, sans jamais sortir du budget ou du scope géographique.</>,
-              <>Chaque étape se sauvegarde automatiquement — tu peux revenir en arrière ou fermer cette fenêtre sans perdre ta progression.</>,
-            ]}
-            tip="Démarre en mode suggestion : l'agent propose ses ajustements, tu valides avant qu'ils partent en production."
-          />
-        </div>
+          )}
+        </>
       )}
 
       {view === 'pilotage' && (
