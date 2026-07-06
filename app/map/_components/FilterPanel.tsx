@@ -33,22 +33,11 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/level
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
-import type { CampaignListItem } from '@/types/campaign';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 // ─── Equity indicator types ──────────────────────────────────────────────────
-// ─── Digital palettes (same IDs as IRIS for consistency) ──────────────────────
-export const DIGITAL_PALETTES = [
-  { id: 'bleu',    label: 'Bleu',    stops: ['#F7FBFF','#C6DBEF','#9ECAE1','#4292C6','#2171B5','#08306B'] },
-  { id: 'vert',    label: 'Vert',    stops: ['#F7FCF5','#C7E9C0','#74C476','#41AB5D','#238B45','#00441B'] },
-  { id: 'chaleur', label: 'Chaleur', stops: ['#FAEEDA','#FAC775','#EF9F27','#D85A30','#993C1D','#501313'] },
-  { id: 'rouge',   label: 'Rouge',   stops: ['#FFF5F0','#FEE0D2','#FCBBA1','#FC9272','#DE2D26','#A50F15'] },
-  { id: 'turbo',   label: 'Turbo',   stops: ['#30123b','#4675ed','#1bcfd4','#61fc6c','#f6a91b','#c42503'] },
-  { id: 'plasma',  label: 'Plasma',  stops: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921'] },
-  { id: 'teal',    label: 'Teal',    stops: ['var(--bg-surface)','#16537e','#1e8a7a','var(--brand-teal)','#7eddd5','#f7fff7'] },
-];
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -394,29 +383,9 @@ export interface FilterPanelProps {
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
 
-  // Digital (DSP impressions choropleth)
-  onDigitalShowImpressions?: (campaignId: string) => void;
-  /** Toggle vue comparée (3 cartes) / fusionnée (1 carte). Default true. */
-  digitalCompareView?: boolean;
-  onDigitalCompareViewChange?: (compare: boolean) => void;
-  onDigitalClear?: () => void;
-  digitalVisible?: boolean;
-  digitalLoading?: boolean;
-  digitalStats?: { total_impressions: number; zones_count: number; campaign_name: string } | null;
-  digitalPalette?: string;
-  onDigitalPaletteChange?: (paletteId: string) => void;
-  digitalInverted?: boolean;
-  onDigitalInvertChange?: (inverted: boolean) => void;
-  digitalScale?: string;
-  onDigitalScaleChange?: (scale: string) => void;
-  onOpenDigitalAnalysis?: () => void;
-  digitalPopField?: string;
-  onDigitalPopFieldChange?: (field: string) => void;
   /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
    *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
-  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'campaigns';
-  /** Ouvre le grand panneau Pilotage ML (bouton en tête de Campagnes média). */
-  onOpenPilotage?: () => void;
+  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses';
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];
@@ -615,11 +584,7 @@ export function FilterPanel({
   radioBorderWidth, onRadioBorderWidthChange,
   radioPointSize, onRadioPointSizeChange,
   onRecenterFrance,
-  onDigitalShowImpressions, onDigitalClear, digitalVisible, digitalLoading, digitalStats,
-  digitalCompareView, onDigitalCompareViewChange,
-  digitalPalette, onDigitalPaletteChange, digitalInverted, onDigitalInvertChange,
-  digitalScale, onDigitalScaleChange, onOpenDigitalAnalysis, digitalPopField: digitalPopFieldProp, onDigitalPopFieldChange,
-  visibleCategory, onOpenPilotage,
+  visibleCategory,
   selectedPOI: selectedPOIProp, onSelectedPOIChange,
   selectedDepts:   selectedDeptsProp,   onSelectedDeptsChange,
   selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
@@ -879,26 +844,6 @@ export function FilterPanel({
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
-
-  // Digital campaign state
-  const [digitalCampaigns, setDigitalCampaigns] = useState<CampaignListItem[]>([]);
-  const [digitalSelectedCampaign, setDigitalSelectedCampaign] = useState<string>('');
-  const [digitalMetricMode, setDigitalMetricMode] = useState<'brut' | 'pour_mille'>('brut');
-  const digitalPopField = digitalPopFieldProp ?? 'population';
-  const setDigitalPopField = (v: string) => onDigitalPopFieldChange?.(v);
-
-  useEffect(() => {
-    // Fetch campaign list on mount (was: on accordion open)
-    adminFetch(`/api/digital/campaigns?_t=${Date.now()}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: CampaignListItem[]) => {
-        setDigitalCampaigns(data);
-        if (digitalSelectedCampaign && !data.some(c => c.id === digitalSelectedCampaign)) {
-          setDigitalSelectedCampaign('');
-        }
-      })
-      .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Territoire state ──────────────────────────────────────────────────────
   // Controlled si props fournies (lift à page.tsx pour persistance entre
@@ -3648,230 +3593,6 @@ export function FilterPanel({
             </div>{/* fin section analyse spatiale */}
             </div>
             )}
-
-          </div>
-        </CategoryGroup>
-        )}
-
-        {/* ════════════════════════════════════════
-            CATÉGORIE — CAMPAGNES MÉDIA
-        ════════════════════════════════════════ */}
-        {(!visibleCategory || visibleCategory === 'campaigns') && (
-        <CategoryGroup title="Campagnes média" color="var(--cat-media)" colorRgb="247,183,49" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {/* Pilotage ML — sorti du rail, ouvre le même grand panneau qu'avant */}
-              {onOpenPilotage && (
-                <button
-                  onClick={onOpenPilotage}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
-                    background: 'transparent', border: '0.5px solid var(--brand-teal)',
-                    color: 'var(--brand-teal)', fontFamily: fInter, fontSize: 12, fontWeight: 500,
-                    transition: 'background-color 150ms var(--ease-hover)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  Pilotage ML — bidding automatique
-                  <span style={{ fontSize: 13 }}>→</span>
-                </button>
-              )}
-
-              {/* Campaign selector */}
-              <div>
-                <div style={labelStyle}>Campagne DSP</div>
-                <select
-                  value={digitalSelectedCampaign}
-                  onChange={e => setDigitalSelectedCampaign(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }}
-                >
-                  <option value="">Sélectionner une campagne</option>
-                  {digitalCampaigns.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} — {c.total_tracked_ads?.toLocaleString('fr-FR')} imp.
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Population target selector — aligné sur IRIS_DB_COLUMNS
-                 (même source que l'accordéon IRIS). Les booleans
-                 (is_true_iris) et métadonnées sont exclus. Groupés par
-                 optgroup pour une lisibilité identique à l'onglet IRIS. */}
-              <div>
-                <div style={labelStyle}>Cible population</div>
-                <select
-                  value={digitalPopField}
-                  onChange={e => setDigitalPopField(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }}
-                >
-                  {(() => {
-                    const choroplethable = IRIS_DB_COLUMNS
-                      .filter(c => c.type !== 'boolean' && c.group !== 'Métadonnées');
-                    // Ordre des groupes identique à celui de l'onglet IRIS
-                    const groupOrder = ['Population', 'Âge', 'Revenus', 'Diplômes', 'CSP', 'Emploi', 'Logement', 'Mobilité', 'Familles'] as const;
-                    const byGroup = new Map<string, typeof choroplethable>();
-                    for (const col of choroplethable) {
-                      if (!byGroup.has(col.group)) byGroup.set(col.group, []);
-                      byGroup.get(col.group)!.push(col);
-                    }
-                    const ordered = groupOrder
-                      .map(g => ({ group: g, cols: byGroup.get(g) ?? [] }))
-                      .filter(g => g.cols.length > 0);
-                    return ordered.map(g => (
-                      <optgroup key={g.group} label={g.group} style={{ color: C.textDim }}>
-                        {g.cols.map(col => (
-                          <option key={col.name} value={col.name}>{col.label}</option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()}
-                </select>
-              </div>
-
-              {/* Scale selector */}
-              <div>
-                <div style={labelStyle}>Échelle</div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {([
-                    { id: 'cp' as const, label: 'Code postal' },
-                    { id: 'departement' as const, label: 'Département' },
-                    { id: 'region' as const, label: 'Région' },
-                  ]).map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => onDigitalScaleChange?.(s.id)}
-                      style={{
-                        flex: 1, padding: '6px 4px', fontSize: 10, fontFamily: fInter,
-                        background: digitalScale === s.id ? 'rgba(78,205,196,0.12)' : 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${digitalScale === s.id ? 'var(--brand-teal)' : C.border}`,
-                        borderRadius: 4, cursor: 'pointer',
-                        color: digitalScale === s.id ? 'var(--brand-teal)' : C.textSec,
-                        transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-                      }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Palette selector + invert toggle retirés — les palettes sont
-                 maintenant gérées par carte dans la vue comparée (plasma par
-                 défaut pour les 3 cartes, ajustable via le picker en header
-                 de chaque carte). */}
-
-              {/* Show impressions button */}
-              <button
-                onClick={() => onDigitalShowImpressions?.(digitalSelectedCampaign)}
-                disabled={!digitalSelectedCampaign || digitalLoading}
-                style={{
-                  fontFamily: fInter, fontSize: 12, padding: '10px 14px', width: '100%',
-                  background: digitalVisible ? 'rgba(78,205,196,0.08)' : 'rgba(255,255,255,0.03)',
-                  border: `0.5px solid ${digitalVisible ? 'var(--brand-teal)' : C.border}`, borderRadius: 6,
-                  color: digitalVisible ? 'var(--brand-teal)' : C.text,
-                  cursor: !digitalSelectedCampaign ? 'not-allowed' : 'pointer',
-                  opacity: !digitalSelectedCampaign ? 0.5 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-                }}
-              >
-                {digitalLoading ? 'Chargement...' : digitalVisible ? 'Impressions affichées' : 'Afficher les impressions'}
-              </button>
-
-              {/* Stats + legend when visible */}
-              {digitalVisible && digitalStats && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                  {digitalStats.campaign_name && (
-                    <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec }}>{digitalStats.campaign_name}</div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
-                    <span style={{ color: C.textSec }}>Total impressions</span>
-                    <span style={{ fontFamily: fMono, color: 'var(--brand-teal)' }}>{Number(digitalStats.total_impressions).toLocaleString('fr-FR')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: fInter }}>
-                    <span style={{ color: C.textSec }}>Codes postaux</span>
-                    <span style={{ fontFamily: fMono, color: C.text }}>{Number(digitalStats.zones_count).toLocaleString('fr-FR')}</span>
-                  </div>
-                  {/* Legend gradient */}
-                  <div>
-                    <div style={{
-                      height: 10, borderRadius: 3,
-                      background: `linear-gradient(to right, ${(digitalInverted ? [...(DIGITAL_PALETTES.find(p => p.id === digitalPalette)?.stops ?? DIGITAL_PALETTES[0].stops)].reverse() : (DIGITAL_PALETTES.find(p => p.id === digitalPalette)?.stops ?? DIGITAL_PALETTES[0].stops)).join(', ')})`,
-                    }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>0</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>médiane</span>
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>max</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => onDigitalClear?.()}
-                      style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: `0.5px solid ${C.border}`, borderRadius: 3, color: C.textDim, cursor: 'pointer' }}
-                    >
-                      Masquer
-                    </button>
-                    {onOpenDigitalAnalysis && (
-                      <button
-                        onClick={onOpenDigitalAnalysis}
-                        style={{ fontFamily: fInter, fontSize: 10, padding: '5px 8px', background: 'none', border: 'none', color: 'var(--brand-teal)', cursor: 'pointer', transition: 'opacity 150ms var(--ease-hover)' }}
-                      >
-                        Analyse detaillee →
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Toggle Vue comparée / fusionnée — visible quand digital actif ── */}
-              {digitalVisible && onDigitalCompareViewChange && (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4,
-                  padding: '12px', background: 'var(--bg-level-2)', border: `0.5px solid ${C.border}`, borderRadius: 6,
-                }}>
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Mode d&apos;affichage
-                  </div>
-                  <div style={{
-                    display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden',
-                    border: '0.5px solid var(--border-default)', background: 'var(--bg-surface)',
-                  }}>
-                    {[
-                      { id: true,  label: 'Vue comparée',  desc: '3 cartes côte à côte' },
-                      { id: false, label: 'Vue fusionnée', desc: '1 carte choroplèthe' },
-                    ].map(opt => {
-                      const active = digitalCompareView === opt.id;
-                      return (
-                        <button
-                          key={String(opt.id)}
-                          type="button"
-                          onClick={() => onDigitalCompareViewChange(opt.id)}
-                          aria-pressed={active}
-                          title={opt.desc}
-                          style={{
-                            flex: 1, padding: '8px 10px', border: 'none', cursor: 'pointer',
-                            fontFamily: fInter, fontSize: 11.5, fontWeight: 500,
-                            background: active ? 'rgba(78,205,196,0.12)' : 'transparent',
-                            color: active ? 'var(--brand-teal)' : C.textDim,
-                            borderLeft: opt.id === false ? '0.5px solid var(--border-default)' : 'none',
-                            transition: 'background-color var(--duration-hover) var(--ease-hover), color var(--duration-hover) var(--ease-hover)',
-                          }}
-                          onMouseEnter={e => { if (!active) e.currentTarget.style.color = C.textSec; }}
-                          onMouseLeave={e => { if (!active) e.currentTarget.style.color = C.textDim; }}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div style={{ fontFamily: fInter, fontSize: 10.5, color: C.textDim, lineHeight: 1.45 }}>
-                    {digitalCompareView
-                      ? '3 cartes synchronisées : ratio (focus), impressions, population.'
-                      : 'Choroplèthe unique sur la carte principale, superposable.'}
-                  </div>
-                </div>
-              )}
 
           </div>
         </CategoryGroup>

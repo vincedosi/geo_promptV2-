@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Bot, MapPin, Layers, Users, BarChart3, Megaphone, Settings, Bookmark } from 'lucide-react';
+import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-// 'pilotage' reste un overlay valide (ouvert depuis Campagnes média) mais n'a
-// plus de bouton dans le rail — remplacé par 'audience'.
-export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'campaigns' | 'pilotage' | 'zones' | 'settings';
+export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'pilotage' | 'zones' | 'settings';
 
 interface IconBarItem {
   id: OverlayId;
@@ -25,7 +23,7 @@ const ICON_BAR_ITEMS: IconBarItem[] = [
   { id: 'terrain', label: 'Terrain', icon: Layers, colorVar: 'var(--cat-terrain, #4ecdc4)', rgb: '78,205,196' },
   { id: 'audience', label: 'Audience', icon: Users, colorVar: 'var(--cat-socio, #5b9bd5)', rgb: '91,155,213' },
   { id: 'analyses', label: 'Analyses', icon: BarChart3, colorVar: 'var(--cat-analysis, #e8845c)', rgb: '232,132,92' },
-  { id: 'campaigns', label: 'Campagnes', icon: Megaphone, colorVar: 'var(--cat-media, #f7b731)', rgb: '247,183,49' },
+  { id: 'pilotage', label: 'Pilotage ML', icon: Target, colorVar: 'var(--brand-teal)', rgb: '78,205,196' },
   { id: 'zones', label: 'Zones', icon: Bookmark, colorVar: 'var(--brand-teal, #4ecdc4)', rgb: '78,205,196' },
   { id: 'settings', label: 'Réglages', icon: Settings, colorVar: 'var(--text-tertiary)', rgb: '102,102,102', position: 'bottom' },
 ];
