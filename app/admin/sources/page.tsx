@@ -2387,7 +2387,7 @@ export default function SourcesPage() {
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                      <Link href={`/admin/campaigns/${c.id}`} style={{ fontWeight: 500, fontSize: 14, color: C.accent, textDecoration: 'none', flex: 1, fontFamily: fontInter }}>
+                      <Link href={`/campaigns/${c.id}`} style={{ fontWeight: 500, fontSize: 14, color: C.accent, textDecoration: 'none', flex: 1, fontFamily: fontInter }}>
                         {c.name}
                       </Link>
                       <span style={{ fontSize: 10, padding: '2px 8px', background: C.warnDim, border: `0.5px solid ${C.warn}44`, borderRadius: 4, color: C.warn, fontFamily: fontInter, fontWeight: 500 }}>
