@@ -45,7 +45,7 @@ const StrategyCreateSchema = z.object({
   // Step 2
   scope_type: z.enum(['national', 'custom_zone']),
   zone_id: z.string().uuid().nullable().optional(),
-  weighting_mode: z.enum(['uniform', 'by_tier', 'by_subzone', 'by_cp_csv']).default('uniform'),
+  weighting_mode: z.enum(['uniform', 'by_tier', 'by_subzone', 'by_cp_csv', 'by_insee_variable']).default('uniform'),
   in_zone_weights: z.record(z.unknown()).default({}),
   out_zone_weights: z.record(z.unknown()).default({}),
   subzones: z.array(SubzoneSchema).optional(),
