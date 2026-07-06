@@ -600,6 +600,7 @@ export default function CampaignDetailPage() {
               mode={strategyId ? 'edit' : 'create'}
               strategyId={strategyId ?? undefined}
               onCompleted={() => { fetchStrategy(); setView('pilotage'); }}
+              embedded
             />
           </div>
           <StepMemo

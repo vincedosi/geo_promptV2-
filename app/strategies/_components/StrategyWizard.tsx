@@ -25,6 +25,15 @@ interface Props {
   mode?: 'create' | 'edit';
   strategyId?: string;
   onCompleted?: (strategyId: string) => void;
+  /**
+   * Quand `true`, le wizard est monté à l'intérieur d'un shell hôte (ex. le cockpit
+   * campagne) qui affiche déjà sa propre navigation d'étapes (FilAriane) : ne pas
+   * rendre le <WizardStepper> interne pour éviter un double stepper empilé.
+   * Le contenu d'étape + le footer Précédent/Suivant restent inchangés.
+   * Défaut `false` → comportement identique à l'existant (overlay carte
+   * CreateWizardLoader/EditWizardLoader non concernés).
+   */
+  embedded?: boolean;
 }
 
 const TOTAL_STEPS = 5;
@@ -54,7 +63,7 @@ function defaultData(campaignName?: string): WizardDraftData {
   };
 }
 
-export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initialDraft, mode = 'create', strategyId, onCompleted }: Props) {
+export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initialDraft, mode = 'create', strategyId, onCompleted, embedded = false }: Props) {
   const [currentStep, setCurrentStep] = useState(initialDraft?.current_step ?? 1);
   const [draftData, setDraftData] = useState<WizardDraftData>(
     initialDraft?.draft_data ?? defaultData(campaignName),
@@ -174,13 +183,15 @@ export function StrategyWizard({ campaignId, campaignName, consumeDraftId, initi
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-level-0 text-text-primary">
-      <header className="border-b border-border-subtle px-4 shrink-0">
-        <WizardStepper
-          currentStep={currentStep}
-          completedSteps={completedSteps}
-          onStepClick={onStepClick}
-        />
-      </header>
+      {!embedded && (
+        <header className="border-b border-border-subtle px-4 shrink-0">
+          <WizardStepper
+            currentStep={currentStep}
+            completedSteps={completedSteps}
+            onStepClick={onStepClick}
+          />
+        </header>
+      )}
 
       <main className="flex-1 min-h-0 overflow-auto p-6">
         {!isRecap && currentStep === 1 && (

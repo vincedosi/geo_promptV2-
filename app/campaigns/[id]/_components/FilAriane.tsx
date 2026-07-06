@@ -45,6 +45,7 @@ interface FilArianeProps {
 }
 
 type NodeState = 'done' | 'active' | 'upcoming' | 'locked';
+type NodeKind = 'step' | 'phase';
 
 interface NodeSpec {
   key: string;
@@ -53,6 +54,7 @@ interface NodeSpec {
   state: NodeState;
   display: string;
   reachable: boolean;
+  kind: NodeKind;
 }
 
 export function FilAriane({ steps, phases, activeKey, currentStepIndex, unlockedPiloter, onSelect }: FilArianeProps) {
@@ -67,9 +69,12 @@ export function FilAriane({ steps, phases, activeKey, currentStepIndex, unlocked
       state,
       display: state === 'done' ? '✓' : String(i + 1),
       reachable: true,
+      kind: 'step',
     };
   });
 
+  // Phases (Pilotage/Bilan) : ce ne sont PAS des étapes numérotées — cadenas si
+  // verrouillées, sinon un simple dot (actif = node plein teal, à venir = petit dot teal).
   const phaseNodes: NodeSpec[] = phases.map((p, i) => {
     const locked = !unlockedPiloter;
     const state: NodeState = locked ? 'locked' : (p.key === activeKey ? 'active' : 'upcoming');
@@ -78,8 +83,9 @@ export function FilAriane({ steps, phases, activeKey, currentStepIndex, unlocked
       label: p.label,
       eyebrow: i === 0 ? 'piloter' : undefined,
       state,
-      display: locked ? '🔒' : String(i + 1),
+      display: locked ? '🔒' : '',
       reachable: !locked,
+      kind: 'phase',
     };
   });
 
@@ -110,7 +116,10 @@ function StepNode({ node, showLine, onSelect }: { node: NodeSpec; showLine: bool
     width: 32, height: 32, borderRadius: '50%',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: fMono, fontSize: 12, fontWeight: 500,
-    border: `1.5px solid ${C.borderDefault}`, background: C.elevated, color: C.textDim,
+    // Longhand (jamais `border` shorthand) : le hover mute `borderColor` seul,
+    // mélanger shorthand/longhand déclenche le warning React "Removing borderColor border".
+    borderWidth: 1.5, borderStyle: 'solid', borderColor: C.borderDefault,
+    background: C.elevated, color: C.textDim,
     zIndex: 2, position: 'relative',
     transition: 'border-color 0.22s ease, background-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease',
   };
@@ -133,6 +142,12 @@ function StepNode({ node, showLine, onSelect }: { node: NodeSpec; showLine: bool
   }
 
   const lineColor = state === 'done' ? C.teal30 : C.borderDefault;
+
+  // Phases (Pilotage/Bilan) : jamais de numéro. Verrouillé → 🔒 (node.display).
+  // Actif → node déjà plein teal (rien à afficher dedans). Atteignable non-actif → petit dot teal.
+  const content = node.kind === 'phase' && node.reachable && state !== 'active'
+    ? <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: C.teal, display: 'block' }} />
+    : node.display;
 
   return (
     <div
@@ -180,7 +195,7 @@ function StepNode({ node, showLine, onSelect }: { node: NodeSpec; showLine: bool
           }}
         />
       )}
-      <span data-node="true" style={nodeStyle}>{node.display}</span>
+      <span data-node="true" style={nodeStyle}>{content}</span>
       <span style={capStyle}>{node.label}</span>
     </div>
   );
