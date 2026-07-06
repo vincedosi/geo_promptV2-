@@ -44,7 +44,7 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import { FilterPanel, DIGITAL_PALETTES } from '@/app/map/_components/FilterPanel';
+import { FilterPanel } from '@/app/map/_components/FilterPanel';
 import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
@@ -53,14 +53,6 @@ import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_compone
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
-const TripleMapView = dynamic(
-  () => import('@/components/digital/TripleMapView').then(m => ({ default: m.TripleMapView })),
-  { ssr: false },
-);
-const DigitalAnalysisPanel = dynamic(
-  () => import('@/components/digital/AnalysisPanelSwitch').then(m => ({ default: m.AnalysisPanelSwitch })),
-  { ssr: false },
-);
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { SessionBadge }    from '@/components/SessionBadge';
@@ -163,39 +155,7 @@ export default function MapPage() {
   const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
   const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
   const [radioPointSize,     setRadioPointSize]     = useState(5);
-  // Digital (DSP impressions choropleth)
-  const [digitalVisible, setDigitalVisible] = useState(false);
-  const [digitalLoading, setDigitalLoading] = useState(false);
-  const [digitalStats, setDigitalStats] = useState<{ total_impressions: number; zones_count: number; campaign_name: string } | null>(null);
-  // 'plasma' par défaut pour la vue fusionnée (cohérent avec TripleMapView
-  // en vue comparée). Picker retiré de l'overlay Campagnes — les 3 cartes
-  // de la vue comparée ont leur propre picker en header.
-  const [digitalPalette, setDigitalPalette] = useState('plasma');
-  const [digitalInverted, setDigitalInverted] = useState(false);
-  const [digitalScale, setDigitalScale] = useState('region');
-  const [digitalCompareView, setDigitalCompareView] = useState(true);
-  const [digitalAnalysisOpen, setDigitalAnalysisOpen] = useState(false);
-  const [digitalAnalysisClosing, setDigitalAnalysisClosing] = useState(false);
-  const [digitalAnalysisSize, setDigitalAnalysisSize] = useState<'half' | 'full'>('half');
-  const closeDigitalAnalysis = useCallback(() => {
-    if (digitalAnalysisClosing) return;
-    setDigitalAnalysisClosing(true);
-    setTimeout(() => {
-      setDigitalAnalysisOpen(false);
-      setDigitalAnalysisSize('half');
-      setDigitalAnalysisClosing(false);
-    }, 200);
-  }, [digitalAnalysisClosing]);
-  const [digitalCampaignId, setDigitalCampaignId] = useState('');
-  const [digitalPopField, setDigitalPopField] = useState('population');
-
-  // Auto-activate Digital layer from sidebar shortcut (?layer=digital)
   const searchParams = useSearchParams();
-  useEffect(() => {
-    if (searchParams.get('layer') === 'digital') {
-      setDigitalVisible(true);
-    }
-  }, [searchParams]);
 
   // Pré-ouverture de l'overlay Pilotage ML depuis ?overlay=pilotage&action=...
   // Utilisé par CustomBiddingBar (digital) et StrategyHeader (custom-bidding) pour
@@ -221,9 +181,6 @@ export default function MapPage() {
       setPilotageInitialAction({ type: 'history', strategyId });
     }
   }, [searchParams]);
-
-  const digitalPercentilesRef = useRef<number[]>([]);
-  const digitalCampaignIdRef = useRef<string>('');
 
   const radioFetchRef = useRef<AbortController | null>(null);
 
@@ -393,148 +350,6 @@ export default function MapPage() {
     meteo.clear();
     setMeteoVisible(false);
   }, [meteo]);
-
-  // ── Digital: GeoJSON source + layers ──────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    if (map.getSource('digital-cp')) return; // already added
-
-    map.addSource('digital-cp', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-    });
-
-    map.addLayer({
-      id: 'digital-cp-fill',
-      type: 'fill',
-      source: 'digital-cp',
-      paint: {
-        'fill-color': 'rgba(78, 205, 196, 0.06)',
-        'fill-opacity': 0.8,
-      },
-      layout: { visibility: 'none' },
-    });
-
-    map.addLayer({
-      id: 'digital-cp-line',
-      type: 'line',
-      source: 'digital-cp',
-      paint: {
-        'line-color': 'rgba(78, 205, 196, 0.35)',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.3, 9, 0.8, 12, 1.2] as unknown as maplibregl.ExpressionSpecification,
-        'line-opacity': 0.6,
-      },
-      layout: { visibility: 'none' },
-    });
-  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Digital: visibility sync ────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const vis = digitalVisible ? 'visible' : 'none';
-    if (map.getLayer('digital-cp-fill')) map.setLayoutProperty('digital-cp-fill', 'visibility', vis);
-    if (map.getLayer('digital-cp-line')) map.setLayoutProperty('digital-cp-line', 'visibility', vis);
-  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Digital: re-fetch when scale changes (if already visible) ───────────────
-  useEffect(() => {
-    if (!digitalVisible || !digitalCampaignIdRef.current) return;
-    const cid = digitalCampaignIdRef.current;
-    const map = mapRef.current;
-    if (!map) return;
-
-    setDigitalLoading(true);
-    adminFetch(`/api/digital/${cid}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`)
-      .then(r => r.ok ? r.json() as Promise<GeoJSON.FeatureCollection> : null)
-      .then(fc => {
-        if (!fc) return;
-        const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
-        if (src) src.setData(fc);
-
-        const values = fc.features.map(f => Number(f.properties?.impressions) || 0).filter(v => v > 0).sort((a, b) => a - b);
-        if (values.length > 0) {
-          const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
-          digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
-        }
-
-        const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
-        const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
-        const pts = digitalPercentilesRef.current;
-        const pairs: (string | number)[] = [];
-        for (let i = 0; i < Math.min(stops.length, pts.length); i++) pairs.push(pts[i], stops[i]);
-        map.setPaintProperty('digital-cp-fill', 'fill-color', [
-          'case', ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
-          ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
-        ]);
-        map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
-
-        const totalImp = values.reduce((a, b) => a + b, 0);
-        setDigitalStats(prev => prev ? { ...prev, total_impressions: totalImp, zones_count: fc.features.length } : prev);
-      })
-      .finally(() => setDigitalLoading(false));
-  }, [digitalScale]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Digital: apply palette when palette/inverted/percentiles change ─────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !digitalVisible) return;
-    if (!map.getLayer('digital-cp-fill')) return;
-
-    const pts = digitalPercentilesRef.current;
-    if (pts.length < 6) return; // need percentiles
-
-    const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
-    const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
-
-    // Build interpolation: p10, p25, p50, p75, p90, max
-    const pairs: (string | number)[] = [];
-    for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
-      pairs.push(pts[i], stops[i]);
-    }
-
-    map.setPaintProperty('digital-cp-fill', 'fill-color', [
-      'case',
-      ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
-      ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0],
-        ...pairs,
-      ],
-    ]);
-    map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
-  }, [digitalPalette, digitalInverted, digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Digital: hover popup ────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !digitalVisible) return;
-
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '260px' });
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { map.getCanvas().style.cursor = ''; popup.remove(); };
-    const onMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features?.length) return;
-      const p = e.features[0].properties;
-      popup.setLngLat(e.lngLat).setHTML(`
-        <div style="font-family:Inter,sans-serif;font-size:11px;color:var(--text-primary);background:var(--bg-surface);padding:8px 10px;border-radius:6px;border:0.5px solid var(--border-default)">
-          <div style="font-weight:500;margin-bottom:4px">${esc(p.code)} — ${esc(p.nom)}</div>
-          <div style="color:var(--text-secondary)">Impressions: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.impressions).toLocaleString('fr-FR')}</span></div>
-          ${p.pop_total ? `<div style="color:var(--text-secondary)">Population: <span style="color:var(--text-primary);font-family:'JetBrains Mono',monospace">${Number(p.pop_total).toLocaleString('fr-FR')}</span></div>` : ''}
-          ${p.imp_pour_mille ? `<div style="color:var(--text-secondary)">Imp./1000 hab: <span style="color:var(--brand-teal);font-family:'JetBrains Mono',monospace">${Number(p.imp_pour_mille).toLocaleString('fr-FR')}</span></div>` : ''}
-        </div>
-      `).addTo(map);
-    };
-
-    map.on('mouseenter', 'digital-cp-fill', onEnter);
-    map.on('mouseleave', 'digital-cp-fill', onLeave);
-    map.on('mousemove', 'digital-cp-fill', onMove);
-    return () => {
-      map.off('mouseenter', 'digital-cp-fill', onEnter);
-      map.off('mouseleave', 'digital-cp-fill', onLeave);
-      map.off('mousemove', 'digital-cp-fill', onMove);
-      popup.remove();
-    };
-  }, [digitalVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── IRIS detail — click handler ────────────────────────────────────────────
   useEffect(() => {
@@ -850,7 +665,7 @@ export default function MapPage() {
     if (map) {
       const geojsonSources = [
         'pois-heat', 'zone-circle', 'meteo-source',
-        'tmja-source', 'radio-emetteurs', 'radio-coverage', 'digital-cp',
+        'tmja-source', 'radio-emetteurs', 'radio-coverage',
         'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
         'battle-borders', 'battle-pois', 'test-iso',
         'territory-mask',
@@ -898,10 +713,6 @@ export default function MapPage() {
     setRadioCoverageMode(false);
     setRadioSelectedId(null);
     setRadioSelectedNom(null);
-    setDigitalVisible(false);
-    setDigitalStats(null);
-    setDigitalAnalysisOpen(false);
-    setDigitalCampaignId('');
     setSelectedIrisCode(null);
     setSelectedIrisData(null);
     setSelectedBillboard(null);
@@ -1660,7 +1471,6 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'Données terrain' :
             activeOverlay === 'audience' ? 'Audience' :
             activeOverlay === 'analyses' ? 'Analyses' :
-            activeOverlay === 'campaigns' ? 'Campagnes média' :
             activeOverlay === 'pilotage' ? 'Pilotage ML' :
             activeOverlay === 'zones' ? 'Zones sauvegardées' :
             'Réglages'
@@ -1671,7 +1481,6 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
             activeOverlay === 'audience' ? 'var(--cat-socio)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
-            activeOverlay === 'campaigns' ? 'var(--cat-media)' :
             activeOverlay === 'pilotage' ? 'var(--brand-teal)' :
             activeOverlay === 'zones' ? 'var(--brand-teal)' :
             'var(--text-tertiary)'
@@ -1679,10 +1488,9 @@ export default function MapPage() {
           onClose={() => setActiveOverlay(null)}
         >
           {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses' || activeOverlay === 'campaigns') && (
+          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses') && (
             <FilterPanel
               visibleCategory={activeOverlay}
-              onOpenPilotage={() => setActiveOverlay('pilotage')}
               chatSlot={null}
               sendMessage={chat.sendMessage}
               onDirectOOH={handleDirectOOH}
@@ -1801,78 +1609,6 @@ export default function MapPage() {
               radioPointSize={radioPointSize}
               onRadioPointSizeChange={setRadioPointSize}
               onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              digitalVisible={digitalVisible}
-              digitalLoading={digitalLoading}
-              digitalStats={digitalStats}
-              digitalPalette={digitalPalette}
-              onDigitalPaletteChange={setDigitalPalette}
-              digitalInverted={digitalInverted}
-              onDigitalInvertChange={setDigitalInverted}
-              digitalScale={digitalScale}
-              onDigitalScaleChange={setDigitalScale}
-              onDigitalShowImpressions={async (campaignId: string) => {
-                if (!campaignId) return;
-                digitalCampaignIdRef.current = campaignId;
-                setDigitalCampaignId(campaignId);
-                setDigitalLoading(true);
-                mapLayers.setIrisVisible(false);
-                try {
-                  const map = mapRef.current;
-                  if (!map) return;
-                  const res = await adminFetch(`/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${digitalScale}`);
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  const fc = await res.json() as GeoJSON.FeatureCollection;
-                  const src = map.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
-                  if (src) src.setData(fc);
-                  const values = fc.features
-                    .map(f => Number(f.properties?.impressions) || 0)
-                    .filter(v => v > 0)
-                    .sort((a, b) => a - b);
-                  if (values.length > 0) {
-                    const pct = (p: number) => values[Math.floor(p * (values.length - 1))];
-                    digitalPercentilesRef.current = [pct(0.1), pct(0.25), pct(0.5), pct(0.75), pct(0.9), values[values.length - 1]];
-                  } else {
-                    digitalPercentilesRef.current = [0, 1, 10, 100, 1000, 10000];
-                  }
-                  const pal = DIGITAL_PALETTES.find(p => p.id === digitalPalette) ?? DIGITAL_PALETTES[0];
-                  const stops = digitalInverted ? [...pal.stops].reverse() : [...pal.stops];
-                  const pts = digitalPercentilesRef.current;
-                  const pairs: (string | number)[] = [];
-                  for (let i = 0; i < Math.min(stops.length, pts.length); i++) {
-                    pairs.push(pts[i], stops[i]);
-                  }
-                  map.setPaintProperty('digital-cp-fill', 'fill-color', [
-                    'case',
-                    ['==', ['to-number', ['get', 'impressions'], 0], 0], 'var(--border-subtle)',
-                    ['interpolate', ['linear'], ['to-number', ['get', 'impressions'], 0], ...pairs],
-                  ]);
-                  map.setPaintProperty('digital-cp-fill', 'fill-opacity', 0.7);
-                  const totalImp = values.reduce((a, b) => a + b, 0);
-                  const campRes = await adminFetch('/api/digital/campaigns');
-                  const camps = campRes.ok ? await campRes.json() : [];
-                  const campName = camps.find((c: { id: string; name: string }) => c.id === campaignId)?.name ?? '';
-                  setDigitalStats({ total_impressions: totalImp, zones_count: fc.features.length, campaign_name: campName });
-                  setDigitalVisible(true);
-                } catch (err: unknown) {
-                  console.error('[digital]', err);
-                } finally {
-                  setDigitalLoading(false);
-                }
-              }}
-              onDigitalClear={() => {
-                setDigitalVisible(false);
-                setDigitalStats(null);
-                setDigitalAnalysisOpen(false);
-                setDigitalCampaignId('');
-                const map = mapRef.current;
-                const src = map?.getSource('digital-cp') as maplibregl.GeoJSONSource | undefined;
-                src?.setData({ type: 'FeatureCollection', features: [] });
-              }}
-              onOpenDigitalAnalysis={() => setDigitalAnalysisOpen(true)}
-              digitalCompareView={digitalCompareView}
-              onDigitalCompareViewChange={setDigitalCompareView}
-              digitalPopField={digitalPopField}
-              onDigitalPopFieldChange={setDigitalPopField}
               selectedPOI={selectedPOI}
               onSelectedPOIChange={setSelectedPOI}
               selectedDepts={perimeterSelectedDepts}
@@ -2040,26 +1776,6 @@ export default function MapPage() {
             </button>
           )}
 
-          {/* Toggle Vue comparée / fusionnée déplacé dans l'overlay Campagnes média (FilterPanel) */}
-
-          {/* Triple map view — visible when Digital active + vue comparée */}
-          {digitalVisible && digitalCompareView && digitalCampaignId && (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 15 }}>
-              <TripleMapView
-                campaignId={digitalCampaignId}
-                scale={digitalScale}
-                popField={digitalPopField}
-                metric="impressions"
-              />
-            </div>
-          )}
-
-      {/* Main map — hidden behind TripleMapView when Digital compare view is active */}
-      <div style={{
-        ...(digitalVisible && digitalCompareView && digitalCampaignId
-          ? { position: 'absolute' as const, inset: 0, zIndex: 1, visibility: 'hidden' as const }
-          : { display: 'contents' as const }),
-      }}>
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
@@ -2104,7 +1820,6 @@ export default function MapPage() {
         mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
         onMapStyleChange={handleMapStyleChange}
       />
-      </div>
 
           {/* WelcomeOverlay retiré : l'utilisateur arrive directement sur la carte */}
 
@@ -2123,66 +1838,6 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* Drawer analyse détaillée Digital — slide depuis le bas, exit direct */}
-          {digitalAnalysisOpen && digitalCampaignId && (
-            <div
-              data-state={digitalAnalysisClosing ? 'closing' : 'open'}
-              style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50,
-                height: digitalAnalysisSize === 'full' ? '100%' : '50%', minHeight: 300,
-                background: 'var(--bg-surface)',
-                borderTop: '0.5px solid var(--border-default)',
-                boxShadow: '0 -4px 18px rgba(0, 0, 0, 0.18)',
-                display: 'flex', flexDirection: 'column',
-                willChange: 'transform, opacity, height',
-                animation: digitalAnalysisClosing
-                  ? 'drawerSlideOutBottom var(--duration-exit) var(--ease-exit) both'
-                  : 'drawerSlideInBottom var(--duration-enter) var(--ease-spring) both',
-                transition: 'height var(--duration-enter) var(--ease-spring)',
-              }}>
-              <div style={{
-                padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderBottom: '0.5px solid var(--border-subtle)', flexShrink: 0,
-              }}>
-                <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>
-                  Analyse detaillee
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button
-                    onClick={() => setDigitalAnalysisSize(s => s === 'half' ? 'full' : 'half')}
-                    title={digitalAnalysisSize === 'full' ? 'Reduire' : 'Plein ecran'}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: 4, transition: 'color var(--duration-hover) var(--ease-hover), background-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
-                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
-                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-                  >
-                    {digitalAnalysisSize === 'full' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                  </button>
-                  <button
-                    onClick={closeDigitalAnalysis}
-                    aria-label="Fermer"
-                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 18, padding: '0 6px', lineHeight: 1, borderRadius: 4, transition: 'color var(--duration-hover) var(--ease-hover), background-color var(--duration-hover) var(--ease-hover), transform var(--duration-press) var(--ease-out)' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-level-2)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
-                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
-                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-                  >×</button>
-                </div>
-              </div>
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                <DigitalAnalysisPanel
-                  campaignId={digitalCampaignId}
-                  scale={digitalScale}
-                  popField={digitalPopField}
-                  selectedMedia={[]}
-                  metric="impressions"
-                  open={digitalAnalysisOpen}
-                  onToggle={closeDigitalAnalysis}
-                />
-              </div>
-            </div>
-          )}
         </div>
       </div>{/* end right panel */}
 
