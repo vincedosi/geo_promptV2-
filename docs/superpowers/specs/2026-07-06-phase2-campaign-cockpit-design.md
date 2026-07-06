@@ -11,33 +11,39 @@ Rendre la boucle de pilotage **visible et utilisable au même endroit** : depuis
 
 **Regrouper, pas réécrire.** Chaque zone du cockpit monte des composants qui existent déjà. Zéro duplication, zéro dette : les surfaces absorbées (`/custom-bidding`, `/demo/pilote`) sont retirées de la nav et redirigées, pas laissées orphelines.
 
+## Direction validée (Vincent, 06/07) — **fil d'Ariane step-by-step, super beau + simple, mémos**
+
+Maquette de référence approuvée : `scratchpad/cockpit-mockup.html` (artifact). Cap directeur :
+- **Super beau + simple** : une étape = **une décision**, épurée, zéro surcharge.
+- **Fil d'Ariane** : la programmation d'une campagne est un parcours guidé pas-à-pas (breadcrumb/stepper), pas un formulaire dense.
+- **Mémos** : à chaque étape, une carte teal « À quoi sert cette étape » + une astuce 💡 (pédago, courte).
+- 100% design system MAGELIAN (dark, teal, flat, Inter/JetBrains Mono).
+
 ## Structure — `/campaigns/[id]` devient le cockpit
 
-Le détail campagne actuel (KPIs, Organisations, tabs pays/région/dép/brutes, « Voir la stratégie ») devient l'**accueil** du cockpit. On ajoute une barre d'onglets qui raconte la boucle.
-
-⚑ **Choix best-judgment : 3 onglets** (plutôt que 5) — plus proche du code existant, moins de fragmentation. La boucle complète (délivrance → mesure → optimisation) vit *dans* l'onglet Pilotage, matérialisée par les sections déjà présentes dans Pilotage ML.
+Le fil d'Ariane porte deux temps : **Programmer** (parcours guidé) puis **Piloter** (verrouillé tant que non lancé).
 
 ```
 /campaigns/[id]  — COCKPIT
-┌──────────┬───────────────────────────────┬────────┐
-│  Aperçu  │           Pilotage            │ Bilan  │
-└──────────┴───────────────────────────────┴────────┘
+  ── programmer ──────────────────────────────  ── piloter ──────
+  Cible → Zones → Budget → Stratégie → Lancement   Pilotage · Bilan
+   (une décision par étape + mémo à droite)         (post-lancement)
 ```
 
-### Onglet 1 — Aperçu (= le détail campagne actuel)
-- KPIs (tracked ads, lignes, pays, lignes France, IRIS matchés), statut & cycle de vie, Organisations (partage workspace), breakdown pays/région/dép/brutes.
-- **Rien à réécrire** : c'est la page `/campaigns/[id]` d'aujourd'hui.
-- Ajout : plan média de la campagne (cible/budget/CPM) si défini — réutilise `ZoneMediaPlanPanel` / `media-plan` existant.
+### Temps 1 — Programmer (fil d'Ariane, 5 étapes)
+Chaque étape = un écran focalisé + son mémo. **On réutilise le modèle de données existant** du `StrategyWizard` (identity/geography/objective/budget/mlagent) ; le fil d'Ariane en est la **surface belle et simple**, pas une nouvelle logique.
+1. **Cible** — variable de ciblage (INSEE : abstention, âge, revenu…). Le « qui », fixe. ↔ `objective`/`geography.weighting`.
+2. **Zones** — périmètre géo (national+DROM / régions / zone custom). La carte est un **outil** ici. ↔ `geography`.
+3. **Budget** — budget total, CPM cible, période ; pacing anti-dépassement. ↔ `budget`.
+4. **Stratégie** — comment l'enchère bouge (autonomie agent : monitor / suggest / auto). Le « comment ». ↔ `mlagent`.
+5. **Lancement** — récap réversible → arme la campagne (passe en Piloter).
 
-### Onglet 2 — Pilotage (le cœur, la boucle)
-- Monte la stratégie de pilotage de la campagne = **le composant Pilotage ML existant** (`PilotageOverlay` / les composants `custom-bidding/[strategyId]/_components`) : `StrategyHeader`, `HeroImpact`, `DualMap` (réel vs simulé), `CurveTranslator`, pacing plan-vs-réel, rebid, `AgentPanel`, drifts.
-- Les sections internes **sont** la boucle : Délivrance (ce qui diffuse) → Mesure (pacing) → Optimisation (rebid/agent).
-- Si aucune stratégie : CTA « Créer une stratégie » (le `StrategyWizard` existant), campagne pré-remplie.
-- ⚑ La carte (DualMap / choroplèthe) est un **outil dans cet onglet**, pas une destination séparée.
+### Temps 2 — Piloter (post-lancement, verrouillé avant)
+- **Pilotage** — monte le détail Pilotage ML **existant** (`PilotageOverlay` / `custom-bidding/[strategyId]/_components` : `StrategyHeader`, `HeroImpact`, `DualMap` réel-vs-sim, pacing plan-vs-réel, rebid, `AgentPanel`). La boucle délivrance→mesure→optimisation vit là. La carte y est un outil.
+- **Bilan** — rapport C existant (`final-report`). « En cours » tant que non terminé.
 
-### Onglet 3 — Bilan
-- Le rapport C existant (`/api/.../final-report`, bilan de campagne terminée).
-- Lisible quand la campagne/stratégie est terminée ; sinon état « en cours, bilan à venir ».
+### Accueil du cockpit
+Le détail campagne actuel (KPIs, statut, Organisations, breakdown pays/région/dép/brutes) reste l'**écran d'atterrissage** ; le fil d'Ariane le surplombe. Rien de cet écran n'est réécrit.
 
 ## Absorptions (fin des orphelines — anti-dette)
 - `/custom-bidding` (liste) + `/custom-bidding/[strategyId]` (détail) → **absorbés dans l'onglet Pilotage**. Les `_components` restent (ils sont l'implémentation) ; les **pages** `page.tsx` sont retirées et redirigées vers `/campaigns/[id]?tab=pilotage`. Le bouton « Voir la stratégie » du détail pointe vers l'onglet.
