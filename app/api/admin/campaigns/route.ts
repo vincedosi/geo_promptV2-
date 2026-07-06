@@ -29,12 +29,37 @@ export async function GET(request: NextRequest) {
 
   const supabase = createNoCacheAdminClient();
 
-  const { data: campaigns, error } = await supabase
+  // Scope au workspace actif : profile.organization_id est l'org active du
+  // super_admin (null = « Toutes les orgs » via l'org switcher → vue globale).
+  // Une campagne appartient au workspace si elle y est reliée (pivot
+  // campaign_organizations, règle de la RLS dsp_campaigns_select) OU si elle
+  // en est la propriétaire directe (dsp_campaigns.organization_id) — superset
+  // qui évite de masquer une campagne possédée mais sans ligne pivot.
+  const activeOrg = profile.organization_id;
+  let allowedIds: string[] | null = null;
+  if (activeOrg) {
+    const [pivot, owned] = await Promise.all([
+      supabase.from('campaign_organizations').select('campaign_id').eq('organization_id', activeOrg),
+      supabase.from('dsp_campaigns').select('id').eq('organization_id', activeOrg),
+    ]);
+    const ids = new Set<string>();
+    for (const r of pivot.data ?? []) ids.add(r.campaign_id);
+    for (const r of owned.data ?? []) ids.add(r.id);
+    allowedIds = [...ids];
+    if (allowedIds.length === 0) {
+      return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
+    }
+  }
+
+  let campaignsQuery = supabase
     .from('dsp_campaigns')
     .select('*, organizations(name)')
     .order('created_at', { ascending: false });
+  if (allowedIds) campaignsQuery = campaignsQuery.in('id', allowedIds);
 
-  console.log('[campaigns] found:', campaigns?.length);
+  const { data: campaigns, error } = await campaignsQuery;
+
+  console.log('[campaigns] found:', campaigns?.length, activeOrg ? `(org ${activeOrg})` : '(all orgs)');
 
   if (error) {
     console.error('[GET /api/admin/campaigns] DB error:', error.message);
