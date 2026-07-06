@@ -779,7 +779,7 @@ function SelectedRow({ s }: { s: StrategyListItem }) {
   );
 }
 
-function StrategyDetail({
+export function StrategyDetail({
   strategyId, onEdit, onShowHistory,
 }: {
   strategyId: string;
