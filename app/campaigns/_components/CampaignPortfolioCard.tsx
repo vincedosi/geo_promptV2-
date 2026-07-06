@@ -26,7 +26,7 @@ export function CampaignPortfolioCard(
     ? Math.round(((campaign.matched_iris ?? 0) / campaign.france_rows) * 100) : null;
   return (
     <Link href={`/campaigns/${campaign.id}`}
-      style={{ display: 'block', background: 'var(--card)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, padding: '14px 16px', textDecoration: 'none' }}
+      style={{ display: 'block', background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 8, padding: '14px 16px', textDecoration: 'none' }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal)'; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

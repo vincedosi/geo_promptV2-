@@ -20,7 +20,7 @@ export function PortfolioToolbar({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
       <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Rechercher une campagne…"
-        style={{ flex: '1 1 220px', background: 'var(--elevated)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '8px 12px', fontSize: 13, color: 'var(--text-primary)' }} />
+        style={{ flex: '1 1 220px', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '8px 12px', fontSize: 13, color: 'var(--text-primary)' }} />
       <div style={{ display: 'flex', gap: 6 }}>
         <button style={chip(statusFilter === 'all')} onClick={() => onStatusFilter('all')}>Tous</button>
         {STATUSES.map((s) => (
@@ -28,18 +28,18 @@ export function PortfolioToolbar({
         ))}
       </div>
       <select value={sort} onChange={(e) => onSort(e.target.value as 'recent' | 'name' | 'status')}
-        style={{ background: 'var(--elevated)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--text-primary)' }}>
+        style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--text-primary)' }}>
         <option value="recent">Plus récent</option>
         <option value="name">Nom</option>
         <option value="status">Statut</option>
       </select>
       <button onClick={onCreate}
-        style={{ background: 'var(--text-primary)', color: 'var(--background)', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+        style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
         Créer une campagne
       </button>
       <details style={{ position: 'relative' }}>
         <summary style={{ listStyle: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px 8px', fontSize: 16 }}>⋯</summary>
-        <div style={{ position: 'absolute', right: 0, top: '100%', background: 'var(--card)', border: '0.5px solid var(--border-default)', borderRadius: 6, padding: 4, zIndex: 10, minWidth: 200 }}>
+        <div style={{ position: 'absolute', right: 0, top: '100%', background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 6, padding: 4, zIndex: 10, minWidth: 200 }}>
           <button onClick={() => onBulk('populate-postal')} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}>Peupler réf. La Poste</button>
           <button onClick={() => onBulk('match-iris')} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}>Relancer matching IRIS (toutes)</button>
         </div>

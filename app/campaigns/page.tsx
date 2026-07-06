@@ -56,13 +56,23 @@ export default function CampaignsPortfolioPage() {
     try {
       if (action === 'populate-postal') {
         const res = await adminFetch('/api/admin/campaigns/populate-postal', { method: 'POST' });
-        toast.success(res.ok ? 'Référentiel La Poste peuplé' : 'Échec', undefined);
+        if (res.ok) toast.success('Référentiel La Poste peuplé', undefined);
+        else toast.error('Échec', undefined);
       } else {
-        for (const { c } of enriched) {
-          await adminFetch(`/api/admin/campaigns/${c.id}/match-iris`, { method: 'POST' });
+        const targets = enriched.filter(({ c }) => (c.france_rows ?? 0) > 0 && (c.matched_iris ?? 0) === 0);
+        if (targets.length === 0) {
+          toast.success('Rien à matcher', undefined);
+        } else {
+          let done = 0;
+          for (const { c } of targets) {
+            await adminFetch(`/api/admin/campaigns/${c.id}/match-iris`, { method: 'POST' });
+            done += 1;
+            if (done % 3 === 0 || done === targets.length) {
+              toast.success(`Matching IRIS ${done}/${targets.length}`, undefined);
+            }
+          }
+          load();
         }
-        toast.success('Matching IRIS relancé', undefined);
-        load();
       }
     } catch { toast.error('Erreur', undefined); }
   }, [enriched, toast, load]);

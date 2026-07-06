@@ -53,8 +53,7 @@
       "Bash(python build_xlsx2.py)",
       "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
       "Bash(python build_xlsx3.py)",
-      "Bash(python build_xlsx4.py)",
-      "Bash(python build_xlsx5.py)"
+      "Bash(python build_xlsx4.py)"
     ]
   }
 }
