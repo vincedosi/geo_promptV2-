@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -261,6 +261,7 @@ function CockpitLockedState({
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast: toastApi } = useToast();
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
@@ -272,6 +273,7 @@ export default function CampaignDetailPage() {
   const [activeTab, setActiveTab] = useState<'pays' | 'regions' | 'departements' | 'donnees'>('pays');
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
+  const [strategyLoaded, setStrategyLoaded] = useState(false);
   const [view, setView] = useState<CockpitView>('overview');
 
   // Stratégie de bidding rattachée à cette campagne (si elle existe).
@@ -285,6 +287,7 @@ export default function CampaignDetailPage() {
       setStrategyId(match?.id ?? null);
       setStrategyStatus(match?.status ?? null);
     } catch { /* ignore */ }
+    setStrategyLoaded(true);
   }, [id]);
 
   useEffect(() => {
@@ -296,6 +299,19 @@ export default function CampaignDetailPage() {
   const currentStepIndex = strategyId ? 5 : 0;
   const progActiveKey = COCKPIT_STEPS[Math.min(currentStepIndex, COCKPIT_STEPS.length - 1)].key;
   const filArianeActiveKey = view === 'overview' ? '' : view === 'prog' ? progActiveKey : view;
+
+  // Deep-link initial : ?view=pilotage|bilan|prog|overview.
+  // pilotage/bilan ne sont honorés que si la stratégie est déverrouillée
+  // (attend la résolution de fetchStrategy) — sinon repli sur overview.
+  // Appliqué une seule fois, au montage.
+  const viewParamAppliedRef = useRef(false);
+  useEffect(() => {
+    if (viewParamAppliedRef.current || !strategyLoaded) return;
+    viewParamAppliedRef.current = true;
+    const v = searchParams.get('view');
+    if (v === 'prog') { setView('prog'); return; }
+    if (v === 'pilotage' || v === 'bilan') { setView(unlockedPiloter ? v : 'overview'); return; }
+  }, [strategyLoaded, unlockedPiloter, searchParams]);
 
   const handleFilArianeSelect = useCallback((key: string) => {
     if (COCKPIT_STEP_KEYS.has(key)) { setView('prog'); return; }

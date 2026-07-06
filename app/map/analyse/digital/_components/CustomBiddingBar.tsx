@@ -105,7 +105,7 @@ export function CustomBiddingBar({ campaignId, campaignName, dspSource }: Props)
           </div>
         </div>
         <button
-          onClick={() => router.push(`/custom-bidding/${strategy.id}`)}
+          onClick={() => router.push(`/campaigns/${campaignId}?view=pilotage`)}
           style={{
             padding: '8px 14px', fontSize: 12, fontFamily: fInter, fontWeight: 500,
             background: 'var(--brand-teal, #4ecdc4)', color: '#050505',

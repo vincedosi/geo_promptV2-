@@ -1,7 +1,9 @@
-import PiloteWorkspace from './_components/PiloteWorkspace';
+/**
+ * /demo/pilote — absorbé par le cockpit campagne (app/campaigns/[id]).
+ * Redirige vers la campagne de démo dans le cockpit.
+ */
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default function PilotePage() {
-  return <PiloteWorkspace />;
+export default function Page() {
+  redirect('/campaigns/dede0000-0000-4000-8000-000000000001');
 }
