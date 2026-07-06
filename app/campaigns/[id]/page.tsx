@@ -120,7 +120,7 @@ export default function CampaignDetailPage() {
         setDetail(data);
       } else {
         toastApi.error('Erreur', 'Campagne introuvable');
-        router.push('/admin/campaigns');
+        router.push('/campaigns');
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -134,7 +134,7 @@ export default function CampaignDetailPage() {
       const res = await adminFetch(`/api/admin/campaigns/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toastApi.success('Campagne supprimée');
-        router.push('/admin/campaigns');
+        router.push('/campaigns');
       } else {
         toastApi.error('Erreur', 'Suppression échouée');
       }
@@ -199,7 +199,7 @@ export default function CampaignDetailPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <button
-            onClick={() => router.push('/admin/campaigns')}
+            onClick={() => router.push('/campaigns')}
             style={{
               background: 'transparent', border: 'none', color: C.textDim,
               fontFamily: fInter, fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 8,
