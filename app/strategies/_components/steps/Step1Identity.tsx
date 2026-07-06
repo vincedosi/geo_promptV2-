@@ -26,22 +26,22 @@ export function Step1Identity({ data, onChange }: Props) {
           type="text"
           value={data.name ?? ''}
           onChange={(e) => set('name', e.target.value)}
-          placeholder="ex: Pilotage ML — Renault Captur Q1 2026"
+          placeholder="Nom de la stratégie"
           className={inputCls}
         />
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Annonceur">
-          <input type="text" value={data.advertiser ?? ''} onChange={(e) => set('advertiser', e.target.value)} placeholder="Renault" className={inputCls} />
+          <input type="text" value={data.advertiser ?? ''} onChange={(e) => set('advertiser', e.target.value)} placeholder="Nom de l'annonceur" className={inputCls} />
         </Field>
         <Field label="Marque / produit">
-          <input type="text" value={data.brand ?? ''} onChange={(e) => set('brand', e.target.value)} placeholder="Captur" className={inputCls} />
+          <input type="text" value={data.brand ?? ''} onChange={(e) => set('brand', e.target.value)} placeholder="Marque ou produit" className={inputCls} />
         </Field>
       </div>
 
       <Field label="Référence interne (optionnel)">
-        <input type="text" value={data.internal_reference ?? ''} onChange={(e) => set('internal_reference', e.target.value)} placeholder="RNL-CAPT-Q1-26" className={inputCls} />
+        <input type="text" value={data.internal_reference ?? ''} onChange={(e) => set('internal_reference', e.target.value)} placeholder="Référence interne" className={inputCls} />
       </Field>
 
       <Field label="Type d'inventaire *">
