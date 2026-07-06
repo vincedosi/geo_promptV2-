@@ -56,6 +56,145 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+// ── Organization ref (multi-org sharing per campaign) ───────────────────────────
+type OrgRef = { id: string; name: string; slug?: string };
+
+function OrganizationsSection({ campaignId }: { campaignId: string }) {
+  const { toast: toastApi } = useToast();
+  const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
+  const [linked, setLinked] = useState<(OrgRef & { is_owner?: boolean })[]>([]);
+  const [allOrgs, setAllOrgs] = useState<OrgRef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const fetchLinked = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations`);
+      if (res.ok) {
+        const data = await res.json();
+        setOwnerOrgId(data.owner_organization_id ?? null);
+        setLinked(data.organizations ?? []);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [campaignId]);
+
+  useEffect(() => { fetchLinked(); }, [fetchLinked]);
+
+  // Load all orgs for the "add" picker (super_admin sees all, admin sees own org).
+  useEffect(() => {
+    adminFetch('/api/admin/organizations')
+      .then(r => r.ok ? r.json() : { organizations: [] })
+      .then(d => setAllOrgs(Array.isArray(d) ? d : (d.organizations ?? [])))
+      .catch(() => {});
+  }, []);
+
+  const linkedIds = new Set(linked.map(o => o.id));
+  const available = allOrgs.filter(o => !linkedIds.has(o.id));
+
+  const removeOrg = async (orgId: string) => {
+    if (orgId === ownerOrgId) return;
+    if (linked.length <= 1) {
+      toastApi.error('Action impossible', 'Une campagne doit rester liée à au moins une organisation');
+      return;
+    }
+    setBusy(true);
+    const res = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations/${orgId}`, { method: 'DELETE' });
+    setBusy(false);
+    if (res.ok) { toastApi.success('Organisation retirée'); fetchLinked(); }
+    else { const err = await res.json().catch(() => ({})); toastApi.error('Erreur', err.error ?? `HTTP ${res.status}`); }
+  };
+
+  const addOrg = async (orgId: string) => {
+    setPickerOpen(false);
+    setBusy(true);
+    const res = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organization_id: orgId }),
+    });
+    setBusy(false);
+    if (res.ok) { toastApi.success('Organisation ajoutée'); fetchLinked(); }
+    else { const err = await res.json().catch(() => ({})); toastApi.error('Erreur', err.error ?? `HTTP ${res.status}`); }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <SH label="Organisations" />
+      {loading ? (
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, padding: '0 14px' }}>Chargement…</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', position: 'relative', padding: '0 14px' }}>
+          {linked.map(o => {
+            const isOwner = o.id === ownerOrgId;
+            return (
+              <span key={o.id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '3px 8px', borderRadius: 4,
+                fontFamily: fInter, fontSize: 11, fontWeight: 500,
+                background: isOwner ? 'rgba(78,205,196,0.08)' : C.elevated,
+                border: `0.5px solid ${isOwner ? C.teal + '66' : C.borderDefault}`,
+                color: isOwner ? C.teal : C.textSec,
+              }}>
+                {o.name}
+                {isOwner && <span style={{ fontSize: 9, opacity: 0.7 }}>★ propriétaire</span>}
+                {!isOwner && (
+                  <button
+                    onClick={() => removeOrg(o.id)}
+                    disabled={busy}
+                    style={{
+                      background: 'transparent', border: 'none', cursor: busy ? 'not-allowed' : 'pointer',
+                      padding: 0, marginLeft: 2, color: C.textDim, fontSize: 13, lineHeight: 1,
+                    }}
+                    title="Retirer cette organisation"
+                  >×</button>
+                )}
+              </span>
+            );
+          })}
+          {available.length > 0 && (
+            <>
+              <button
+                onClick={() => setPickerOpen(p => !p)}
+                disabled={busy}
+                style={{
+                  background: 'transparent', border: `0.5px dashed ${C.borderDefault}`, borderRadius: 4,
+                  padding: '3px 8px', fontFamily: fInter, fontSize: 11, color: C.textDim,
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                }}
+              >+ Ajouter</button>
+              {pickerOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 14, zIndex: 20,
+                  background: C.card, border: `0.5px solid ${C.borderDefault}`, borderRadius: 4,
+                  padding: 4, minWidth: 180,
+                }}>
+                  {available.map(o => (
+                    <button
+                      key={o.id}
+                      onClick={() => addOrg(o.id)}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        padding: '5px 8px', fontFamily: fInter, fontSize: 12, color: C.textSec,
+                        borderRadius: 3,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = C.elevated; e.currentTarget.style.color = C.teal; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textSec; }}
+                    >{o.name}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Override action button ─────────────────────────────────────────────────────
 function ActionButton({
   label, onClick, variant = 'neutral', disabled,
@@ -283,6 +422,9 @@ export default function CampaignDetailPage() {
           color={matchedIris > 0 ? C.green : C.textDim}
         />
       </div>
+
+      {/* Organisations liées */}
+      <OrganizationsSection campaignId={id} />
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: `0.5px solid ${C.border}`, marginBottom: 16 }}>
