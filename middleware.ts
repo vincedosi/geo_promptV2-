@@ -42,6 +42,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/map',
   '/copilote',
   '/dashboard',
+  '/campaigns',
   '/admin',
   '/demo',
 ];
@@ -126,6 +127,7 @@ export const config = {
     '/map/:path*',
     '/copilote/:path*',
     '/dashboard/:path*',
+    '/campaigns/:path*',
     '/admin/:path*',
     '/demo/:path*',
     '/api/chat/:path*',

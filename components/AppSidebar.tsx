@@ -5,11 +5,9 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Activity,
-  BarChart3,
   Database,
   FileUp,
   Layers,
-  Lock,
   MapPin,
   Monitor,
   Plug,
@@ -41,10 +39,15 @@ type NavSection = {
 
 const navItems: NavSection[] = [
   {
-    section: 'Analyse',
+    section: 'Campagnes',
     items: [
-      { href: '/map', label: 'geo.prompt', icon: MapPin },
-      { href: '/map?layer=digital', label: 'Digital', icon: BarChart3 },
+      { href: '/campaigns', label: 'Portfolio', icon: Target },
+    ],
+  },
+  {
+    section: 'Carte',
+    items: [
+      { href: '/map', label: 'Explorer', icon: MapPin },
       { href: '/map/custom-geo', label: 'Zones custom', icon: Layers },
     ],
   },
@@ -56,13 +59,7 @@ const navItems: NavSection[] = [
       { href: '/admin/ooh-import', label: 'Import OOH', icon: Monitor, badge: 'Admin' },
       { href: '/dashboard/iris-crawler', label: 'IRIS Crawler', icon: Layers, badge: 'Admin' },
       { href: '/admin/radio', label: 'Radio FM/DAB+', icon: Radio, badge: 'Admin' },
-      { href: '/admin/campaigns', label: 'Campagnes DSP', icon: Target, badge: 'Admin' },
-    ],
-  },
-  {
-    section: 'API',
-    items: [
-      { href: '/admin/api', label: 'Connexions API', icon: Plug },
+      { href: '/admin/api', label: 'Connexions API', icon: Plug, badge: 'Admin' },
     ],
   },
   {
@@ -71,7 +68,6 @@ const navItems: NavSection[] = [
       { href: '/admin/sources', label: 'Sources', icon: Database },
       { href: '/admin/users', label: 'Users', icon: Users },
       { href: '/admin/organizations', label: 'Organisations', icon: Users },
-      { href: '/login', label: 'Connexion', icon: Lock },
       { href: '/admin/imports', label: 'Imports', icon: Upload },
       { href: '/admin/health', label: 'Health check', icon: Activity, badge: 'Sys' },
     ],
