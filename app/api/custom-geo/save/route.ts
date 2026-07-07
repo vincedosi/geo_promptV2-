@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const { data: resolveData, error: resolveError } = await supabase.rpc(
       'resolve_custom_geo_zone_codes',
-      { p_zone_id: zoneId },
+      { p_zone_id: zoneId, p_caller_user_id: profile.id },
     );
 
     if (resolveError) {
