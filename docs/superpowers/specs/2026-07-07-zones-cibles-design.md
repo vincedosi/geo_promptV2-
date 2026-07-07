@@ -74,7 +74,9 @@ Parcours :
 4. « Ajouter à la cible » → matérialise la zone custom, nommée automatiquement
    (ex. « Part 15-24 ≥ 22 % — juil. 2026 »), visible aussi dans la galerie.
 5. Le panier de cibles (1..n : indicateurs matérialisés + zones de la galerie)
-   → si n > 1, fusion en **zone composite** à la validation de l'étape.
+   → si n > 1, fusion en **zone composite** au moment du Lancement (juste avant
+   la création de la stratégie — évite les composites orphelines si le
+   brouillon est abandonné).
 6. La stratégie reçoit `scope_type='custom_zone'` + `zone_id` = zone unique ou
    composite. **Aucun changement du moteur de bidding** (1 zone + courbes,
    comme aujourd'hui). L'intensité (courbes doux/marqué/fort) reste dans l'étape
