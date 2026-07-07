@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const QuerySchema = z.object({
   indicator: z.string().min(1).max(100),
   operator: z.enum(['>=', '<=']),
-  threshold: z.coerce.number().finite(),
+  threshold: z.string().min(1).transform(Number).pipe(z.number().finite()),
 });
 
 export async function GET(request: NextRequest) {

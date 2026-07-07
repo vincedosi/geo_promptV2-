@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
   const sel = (typeof selRaw === 'string' ? JSON.parse(selRaw) : selRaw) as {
     codes: string[]; count: number; truncated: boolean; scale: 'iris' | 'cp';
   };
+  if (!Array.isArray(sel?.codes)) {
+    console.error('[source/indicator-threshold] reponse RPC inattendue (codes manquants)');
+    return NextResponse.json({ error: 'selection_failed' }, { status: 400 });
+  }
   if (!sel.codes.length) return NextResponse.json({ error: 'empty_selection' }, { status: 400 });
   if (sel.truncated) return NextResponse.json({ error: 'selection_too_large', count: sel.count }, { status: 400 });
 
@@ -51,7 +55,8 @@ export async function POST(request: NextRequest) {
       console.error('[source/indicator-threshold] geom iris:', error.message);
       return NextResponse.json({ error: 'geometry_failed' }, { status: 400 });
     }
-    geometry = data;
+    const parsedGeo = (typeof data === 'string' ? JSON.parse(data) : data) as { geometry?: unknown };
+    geometry = parsedGeo?.geometry ?? null;
   } else {
     // CP : même RPC que la source météo (signature : p_scale, p_codes)
     const { data, error } = await supabase.rpc('get_admin_filter_geometry', {
@@ -61,7 +66,12 @@ export async function POST(request: NextRequest) {
       console.error('[source/indicator-threshold] geom cp:', error.message);
       return NextResponse.json({ error: 'geometry_failed' }, { status: 400 });
     }
-    geometry = data;
+    const parsedGeo = (typeof data === 'string' ? JSON.parse(data) : data) as { geometry?: unknown };
+    geometry = parsedGeo?.geometry ?? null;
+  }
+  if (!geometry) {
+    console.error('[source/indicator-threshold] geometrie vide dans la reponse RPC');
+    return NextResponse.json({ error: 'geometry_failed' }, { status: 400 });
   }
   return NextResponse.json({ geometry, count: sel.count, truncated: sel.truncated, scale: sel.scale });
 }
