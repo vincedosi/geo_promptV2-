@@ -40,6 +40,10 @@ export async function POST(
   if (!profile) return authUnauthorized();
   const { campaignId } = await params;
 
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)) {
+    return NextResponse.json({ error: 'invalid_campaign_id' }, { status: 400 });
+  }
+
   let raw: unknown;
   try { raw = await request.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
   const parsed = CampaignChatBodySchema.safeParse(raw);
@@ -49,24 +53,29 @@ export async function POST(
 
   const supabase = createAdminClient();
 
-  const { data: campaign } = await supabase
+  const { data: campaign, error: campaignError } = await supabase
     .from('dsp_campaigns')
     .select('id, name, dsp_source, date_start, date_end, total_tracked_ads, countries, status_override')
     .eq('id', campaignId)
     .single();
+  if (campaignError) console.error('[campaign-chat] campaign:', campaignError.message);
   if (!campaign) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   // Stats géo agrégées (RPC existantes) — 2 appels en parallèle (< 3, contrainte Nano).
   const [countryRes, regionRes] = await Promise.all([
-    supabase.rpc('get_campaign_stats_by_field', { p_campaign_id: campaignId, p_field: 'country' }).select('*'),
-    supabase.rpc('get_campaign_stats_by_field', { p_campaign_id: campaignId, p_field: 'region' }).select('*'),
+    supabase.rpc('get_campaign_stats_by_field', { p_campaign_id: campaignId, p_field: 'country' }),
+    supabase.rpc('get_campaign_stats_by_field', { p_campaign_id: campaignId, p_field: 'region' }),
   ]);
-  const byCountry = toStatRows(countryRes.data, ['country', 'field_value']);
-  const byRegion = toStatRows(regionRes.data, ['region', 'field_value']);
+  if (countryRes.error) console.error('[campaign-chat] stats country:', countryRes.error.message);
+  if (regionRes.error) console.error('[campaign-chat] stats region:', regionRes.error.message);
+  const parseJsonbRows = (d: unknown): unknown =>
+    typeof d === 'string' ? JSON.parse(d) : (d ?? []);
+  const byCountry = toStatRows(parseJsonbRows(countryRes.data), ['country', 'field_value']);
+  const byRegion = toStatRows(parseJsonbRows(regionRes.data), ['region', 'field_value']);
 
   // Croisement IRIS : une seule RPC déjà bornée (30 départements max), pas de boucle cp-detail.
   const metricField = campaign.dsp_source === 'adform' ? 'tracked_ads' : 'impressions';
-  const { data: breakdownRaw } = await supabase.rpc('get_digital_analysis_breakdown_v2', {
+  const { data: breakdownRaw, error: breakdownError } = await supabase.rpc('get_digital_analysis_breakdown_v2', {
     p_campaign_id: campaignId,
     p_aggregation: 'dept',
     p_indicator: 'population',
@@ -77,18 +86,20 @@ export async function POST(
     p_parent_type: null,
     p_parent_code: null,
   });
+  if (breakdownError) console.error('[campaign-chat] breakdown:', breakdownError.message);
   const breakdownDept = (
     typeof breakdownRaw === 'string' ? JSON.parse(breakdownRaw) : (breakdownRaw ?? [])
   ) as Array<Record<string, unknown>>;
 
   // Stratégie de bidding rattachée (facultative) + journal borné.
-  const { data: strategyRow } = await supabase
+  const { data: strategyRow, error: strategyError } = await supabase
     .from('bidding_strategies')
     .select('id, name, status, algorithm_code, objective_code, execution_mode, total_budget, forecast_cpm, start_date, end_date')
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (strategyError) console.error('[campaign-chat] strategy:', strategyError.message);
 
   let strategy: StrategyMeta | null = null;
   const journal: JournalLine[] = [];
@@ -122,6 +133,9 @@ export async function POST(
         .order('generated_at', { ascending: false })
         .limit(10),
     ]);
+    if (actionsRes.error) console.error('[campaign-chat] actions:', actionsRes.error.message);
+    if (driftsRes.error) console.error('[campaign-chat] drifts:', driftsRes.error.message);
+    if (recosRes.error) console.error('[campaign-chat] recos:', recosRes.error.message);
     for (const a of (actionsRes.data ?? []) as Array<{ intent: string; agent_response: string | null; applied_at: string | null; created_at: string }>) {
       journal.push({ at: a.applied_at ?? a.created_at, kind: 'action', title: a.intent, body: a.agent_response ?? '' });
     }
