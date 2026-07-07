@@ -218,3 +218,9 @@ grant execute on function public.get_composite_zone_geometry(uuid[]) to service_
 create index if not exists idx_iris_cible_expr_15_29 on public.iris ((pop_15_29::float / nullif(population,0) * 100)) where is_true_iris;
 create index if not exists idx_iris_cible_expr_30_44 on public.iris ((pop_30_44::float / nullif(population,0) * 100)) where is_true_iris;
 create index if not exists idx_iris_cible_expr_45_59 on public.iris ((pop_45_59::float / nullif(population,0) * 100)) where is_true_iris;
+
+-- ── 100c (appliquée via MCP le 2026-07-07) — drop des 3 index bruts inutilisés
+-- (la RPC filtre ces indicateurs via l'expression pct_of_population uniquement).
+drop index if exists public.idx_iris_cible_pop_15_29;
+drop index if exists public.idx_iris_cible_pop_30_44;
+drop index if exists public.idx_iris_cible_pop_45_59;
