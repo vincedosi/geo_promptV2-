@@ -12,6 +12,7 @@ import {
   Monitor,
   Plug,
   Radio,
+  Sparkles,
   Target,
   Upload,
   Users,
@@ -22,6 +23,7 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Menu } from 'lucide-react'
+import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext'
 
 // ─── Nav data ──────────────────────────────────────────────────────────────────
 
@@ -132,6 +134,7 @@ function NavLink({
 function SidebarContent({ pathname }: { pathname: string }) {
   const [time, setTime] = useState('')
   const [mounted, setMounted] = useState(false)
+  const { openOverlay } = useMagelianOverlay()
 
   useEffect(() => {
     const tick = () => {
@@ -195,6 +198,24 @@ function SidebarContent({ pathname }: { pathname: string }) {
       </div>
 
       <Separator style={{ background: 'var(--border-subtle)', height: '0.5px' }} />
+
+      {/* ── MAGELIAN — ouvre l'overlay cockpit campagne ───────────────────────── */}
+      <div className="px-3 pt-3">
+        <button
+          type="button"
+          data-magelian-trigger
+          onClick={openOverlay}
+          className="group flex w-full items-center gap-2.5 rounded-md px-3 py-[9px] text-[13px] font-medium transition-colors duration-150"
+          style={{
+            background: 'var(--brand-teal-10)',
+            border: '0.5px solid var(--brand-teal-30)',
+            color: 'var(--brand-teal)',
+          }}
+        >
+          <Sparkles size={16} strokeWidth={1.75} className="shrink-0" />
+          <span className="flex-1 text-left leading-none">MAGELIAN</span>
+        </button>
+      </div>
 
       {/* ── Navigation ─────────────────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0">

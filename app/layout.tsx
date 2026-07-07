@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 import { MainPadding } from '@/components/layout/MainPadding'
 import { TopRightChrome } from '@/components/layout/TopRightChrome'
 import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
+import { MagelianOverlayProvider } from '@/components/magelian/MagelianOverlayContext'
+import { MagelianOverlay } from '@/components/magelian/MagelianOverlay'
 
 export const metadata: Metadata = {
   title: 'MAGELIAN — Geospatial intelligence',
@@ -50,11 +52,14 @@ export default function RootLayout({
           <SplashScreen minDuration={2000} />
           <ToastProvider>
             <AgentProvider>
-              <AppSidebar />
-              <TopRightChrome />
-              <MainPadding>{children}</MainPadding>
-              <AgentTrigger />
-              <AgentPanel />
+              <MagelianOverlayProvider>
+                <AppSidebar />
+                <TopRightChrome />
+                <MainPadding>{children}</MainPadding>
+                <AgentTrigger />
+                <AgentPanel />
+                <MagelianOverlay />
+              </MagelianOverlayProvider>
             </AgentProvider>
           </ToastProvider>
         </ThemeProvider>
