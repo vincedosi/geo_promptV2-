@@ -6,11 +6,11 @@ import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
+import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
 const fInter = "'Inter', system-ui, sans-serif";
-const fMono = "'JetBrains Mono', monospace";
 
 /** Durée de l'animation de sortie (doit matcher --duration-exit dans globals.css). */
 const EXIT_DURATION_MS = 200;
@@ -253,6 +253,38 @@ export function MagelianOverlay() {
         ))}
       </div>
 
+      {/* Sélecteur de campagne — partagé entre Création et Suivi */}
+      <div style={{ padding: '12px 20px 0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <label
+          htmlFor="magelian-campaign-select"
+          style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}
+        >
+          Campagne
+        </label>
+        <select
+          id="magelian-campaign-select"
+          value={selectedId ?? ''}
+          onChange={(e) => setSelectedId(e.target.value || null)}
+          disabled={!campaigns || campaigns.length === 0}
+          style={{
+            background: 'var(--bg-level-2)',
+            border: '0.5px solid var(--border-subtle)',
+            borderRadius: 6,
+            padding: '8px 12px',
+            fontFamily: fInter,
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            minWidth: 260,
+          }}
+        >
+          {campaigns === null && <option value="">Chargement…</option>}
+          {campaigns !== null && campaigns.length === 0 && <option value="">Aucune campagne</option>}
+          {campaigns?.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Body scrollable */}
       <div
         style={{
@@ -263,71 +295,23 @@ export function MagelianOverlay() {
         }}
       >
         {tab === 'creation' && (
-          <div>
-            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label
-                htmlFor="magelian-campaign-select"
-                style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}
-              >
-                Campagne
-              </label>
-              <select
-                id="magelian-campaign-select"
-                value={selectedId ?? ''}
-                onChange={(e) => setSelectedId(e.target.value || null)}
-                disabled={!campaigns || campaigns.length === 0}
-                style={{
-                  background: 'var(--bg-level-2)',
-                  border: '0.5px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '8px 12px',
-                  fontFamily: fInter,
-                  fontSize: 13,
-                  color: 'var(--text-primary)',
-                  minWidth: 260,
-                }}
-              >
-                {campaigns === null && <option value="">Chargement…</option>}
-                {campaigns !== null && campaigns.length === 0 && <option value="">Aucune campagne</option>}
-                {campaigns?.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+          selectedId ? (
+            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded />
+          ) : campaigns !== null ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
             </div>
-
-            {selectedId ? (
-              <CampaignCockpit key={selectedId} campaignId={selectedId} embedded />
-            ) : campaigns !== null ? (
-              <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-                Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
-              </div>
-            ) : null}
-          </div>
+          ) : null
         )}
 
         {tab === 'suivi' && (
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '0.5px solid var(--border-subtle)',
-              borderRadius: 12,
-              padding: '48px 32px',
-              textAlign: 'center',
-              maxWidth: 520,
-              margin: '40px auto 0',
-            }}
-          >
-            <div style={{ fontFamily: fInter, fontWeight: 500, fontSize: 15, color: 'var(--text-primary)', marginBottom: 8 }}>
-              Suivi de campagne
+          selectedId ? (
+            <CampaignSuivi key={selectedId} campaignId={selectedId} />
+          ) : campaigns !== null ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
             </div>
-            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Le tableau de bord de suivi d&apos;une campagne en cours (pacing plan-vs-réel en direct, alertes,
-              delivery temps réel) arrive bientôt.
-            </div>
-            <div style={{ fontFamily: fMono, fontSize: 11, color: 'var(--text-tertiary)', marginTop: 14 }}>
-              À venir
-            </div>
-          </div>
+          ) : null
         )}
       </div>
     </div>,
