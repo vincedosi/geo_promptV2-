@@ -129,7 +129,10 @@ export function StepCible({
           org_id: orgId,
         }),
       });
-      if (!saveRes.ok && saveRes.status !== 207) throw new Error('Sauvegarde de la zone échouée');
+      if (!saveRes.ok) throw new Error('Sauvegarde de la zone échouée');
+      if (saveRes.status === 207) {
+        throw new Error('Zone créée mais résolution des codes échouée — retire-la de la galerie et réessaie.');
+      }
       const saved = await saveRes.json();
       setDraft((prev) => ({
         ...prev,
@@ -281,6 +284,11 @@ export function StepCible({
             </button>
           </div>
           {error && <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
+          {orgId === null && gallery !== null && (
+            <div style={{ marginTop: 8, fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, color: 'var(--warning)' }}>
+              Organisation de la campagne introuvable — la matérialisation de cibles est indisponible avec ton rôle.
+            </div>
+          )}
         </FieldBlock>
       )}
 

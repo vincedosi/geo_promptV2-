@@ -49,7 +49,10 @@ async function resolveFinalZone(
       org_id: orgId,
     }),
   });
-  if (!saveRes.ok && saveRes.status !== 207) throw new Error('Sauvegarde de la zone composite échouée');
+  if (!saveRes.ok) throw new Error('Sauvegarde de la zone composite échouée');
+  if (saveRes.status === 207) {
+    throw new Error('Zone composite créée mais résolution des codes échouée — relance le lancement.');
+  }
   const saved = await saveRes.json();
   return { scope_type: 'custom_zone', zone_id: saved.zone_id };
 }

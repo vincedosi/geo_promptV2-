@@ -1,6 +1,6 @@
 /**
- * GENESIS — Types & constantes partagées par les 5 étapes bespoke du
- * Programmer (Cible/Zones/Budget/Stratégie/Lancement) du cockpit campagne.
+ * GENESIS — Types & constantes partagées par les 4 étapes bespoke du
+ * Programmer (Cible/Budget/Stratégie/Lancement) du cockpit campagne.
  *
  * Le brouillon (`ProgDraft`) vit dans `app/campaigns/[id]/page.tsx` et est
  * passé par référence à chaque étape — aucune étape ne persiste rien

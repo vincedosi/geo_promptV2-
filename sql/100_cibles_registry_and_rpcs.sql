@@ -127,9 +127,8 @@ begin
     if reg.data_source = 'iris_column' then
       execute format(
         'select jsonb_build_object(''count'', count(*), ''population'', coalesce(sum(population),0)::bigint, ''scale'', %L)
-           from %I where %s %s %s is not null and %s',
-        reg.scale, v_table, v_expr, p_operator, v_expr,
-        format('%s %s %L::numeric %s', v_expr, p_operator, p_threshold, v_where_extra)
+           from %I where %s is not null and %s %s %L::numeric %s',
+        reg.scale, v_table, v_expr, v_expr, p_operator, p_threshold, v_where_extra
       ) into result;
     else
       execute format(
