@@ -21,7 +21,7 @@ export default function Page() {
       .then(j => {
         if (cancelled) return;
         const cid = j?.campaign?.id ?? j?.strategy?.campaign_id ?? null;
-        router.replace(cid ? `/campaigns/${cid}?view=pilotage` : '/campaigns');
+        router.replace(cid ? `/campaigns/${cid}` : '/campaigns');
       })
       .catch(() => { if (!cancelled) router.replace('/campaigns'); });
     return () => { cancelled = true; };
