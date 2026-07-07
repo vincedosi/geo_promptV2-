@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -35,6 +36,7 @@ export function MagelianOverlay() {
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
 
   const [tab, setTab] = useState<MagelianTab>('creation');
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
@@ -52,6 +54,9 @@ export function MagelianOverlay() {
       setClosing(false);
     }, EXIT_DURATION_MS);
   }, [closing, closeOverlay]);
+
+  // Monté côté client uniquement (createPortal a besoin de document).
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -118,9 +123,9 @@ export function MagelianOverlay() {
     };
   }, [open, handleClose]);
 
-  if (!open && !closing) return null;
+  if (!mounted || (!open && !closing)) return null;
 
-  return (
+  return createPortal(
     <div
       ref={panelRef}
       className="magelian-overlay-panel"
@@ -139,7 +144,9 @@ export function MagelianOverlay() {
         border: '0.5px solid var(--border-default)',
         borderRadius: 12,
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
-        zIndex: 50,
+        // Au-dessus de la carte MapLibre (conteneur /map en z-index 9999)
+        // et du rail comme de la sidebar. Overlay porté sur <body>.
+        zIndex: 10000,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -323,6 +330,7 @@ export function MagelianOverlay() {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
