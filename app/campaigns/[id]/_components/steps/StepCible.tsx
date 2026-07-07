@@ -40,6 +40,7 @@ export function StepCible({
   const [materializing, setMaterializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewSeqRef = useRef(0);
 
   // Catalogue + org owner + galerie (une fois)
   useEffect(() => {
@@ -81,14 +82,19 @@ export function StepCible({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setPreviewLoading(true);
     debounceRef.current = setTimeout(async () => {
+      const seq = ++previewSeqRef.current;
       try {
         const res = await adminFetch(
           `/api/cibles/preview?indicator=${encodeURIComponent(selected.indicator_code)}&operator=${encodeURIComponent(operator)}&threshold=${threshold}`,
           { cache: 'no-store' },
         );
+        if (seq !== previewSeqRef.current) return; // réponse périmée — ignorer
         setPreview(res.ok ? await res.json() : null);
-      } catch { setPreview(null); }
-      setPreviewLoading(false);
+      } catch {
+        if (seq !== previewSeqRef.current) return;
+        setPreview(null);
+      }
+      if (seq === previewSeqRef.current) setPreviewLoading(false);
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [selected, operator, threshold]);
