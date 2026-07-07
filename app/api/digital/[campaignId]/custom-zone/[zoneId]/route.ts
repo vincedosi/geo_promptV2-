@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,11 @@ export async function GET(
   const metric = searchParams.get('metric') === 'unique' ? 'unique' : 'impressions';
 
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
   const { data, error } = await supabase.rpc('aggregate_dsp_by_custom_zone', {
     p_campaign_id: campaignId,
     p_zone_id: zoneId,

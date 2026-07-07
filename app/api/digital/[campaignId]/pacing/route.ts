@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { computePacing, type PacingItemInput } from '@/lib/pacing/compute';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,10 @@ export async function GET(
   }
 
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   // Version explicitement demandée : vérifier son existence AVANT d'appeler la RPC
   // (la RPC ne renvoie NULL que si la campagne n'a AUCUN snapshot, pas si la version demandée est absente)

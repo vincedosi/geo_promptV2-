@@ -1,10 +1,12 @@
 /**
  * GET /api/digital/[campaignId]/map?bbox=xmin,ymin,xmax,ymax
  * Returns GeoJSON FeatureCollection of CP choropleth for a campaign.
- * Auth: getSession() (JWT local)
+ * Auth: requireAuth + scope org campagne.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
   const { campaignId } = await params;
   const { searchParams } = new URL(request.url);
   const bboxStr = searchParams.get('bbox');
@@ -40,6 +44,10 @@ export async function GET(
   // Pour les autres DSP (TTD/DV360/...), 'impressions' reste la vraie colonne native.
   const metricRaw = (searchParams.get('metric') ?? '').trim();
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   let metricField = metricRaw || 'tracked_ads';
   if (metricRaw === 'unique') {

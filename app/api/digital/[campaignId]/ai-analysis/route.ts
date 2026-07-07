@@ -8,6 +8,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,10 @@ export async function POST(
   const { indicator, medias, kpi, breakdown, heatmap_summary } = body;
 
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   // Get campaign name
   const { data: camp } = await supabase.from('dsp_campaigns').select('name').eq('id', campaignId).single();

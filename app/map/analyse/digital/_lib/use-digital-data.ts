@@ -113,7 +113,7 @@ export function useDigitalData(): DigitalData {
           return;
         }
         const url = `/api/digital/${campaignId}/custom-zone/${customZoneId}?pop_field=${pf}&metric=${m}`;
-        const res = await fetch(url, { signal: ctrl.signal });
+        const res = await adminFetch(url, { signal: ctrl.signal });
         if (!res.ok) {
           const txt = await res.text().catch(() => '');
           throw new Error(`HTTP ${res.status} ${txt}`);
@@ -128,7 +128,7 @@ export function useDigitalData(): DigitalData {
       setCustomZoneSummary(null);
       let url = `/api/digital/${campaignId}/map?bbox=-5.5,41.0,10.0,51.5&scale=${scale}&pop_field=${pf}&metric=${m}`;
       if (media && media.length > 0) url += `&media=${media.join(',')}`;
-      const res = await fetch(url, { signal: ctrl.signal });
+      const res = await adminFetch(url, { signal: ctrl.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const fc = await res.json() as GeoJSON.FeatureCollection;
       setGeojson(fc);

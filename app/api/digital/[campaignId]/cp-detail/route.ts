@@ -1,10 +1,12 @@
 /**
  * GET /api/digital/[campaignId]/cp-detail?cp=75001
  * Returns GeoJSON FeatureCollection of IRIS zones within a code postal.
- * Auth: getSession() (JWT local)
+ * Auth: requireAuth + scope org campagne.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +14,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> }
 ) {
-  await params; // consume params
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+  const { campaignId } = await params;
   const { searchParams } = new URL(request.url);
   const cp = searchParams.get('cp');
 
@@ -21,6 +25,10 @@ export async function GET(
   }
 
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const { data, error } = await supabase.rpc('get_digital_cp_iris_detail', {
     p_code_postal: cp,

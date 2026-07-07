@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { buildCampaignReport } from '@/lib/report/aggregate';
 
 export const dynamic = 'force-dynamic';
@@ -19,19 +20,21 @@ export async function GET(
   const { campaignId } = await params;
 
   const supabase = createAdminClient();
+
+  // Scope org via le helper commun (owner OU org liée via campaign_organizations),
+  // 404 uniforme — l'ancien check inline refusait à tort les orgs liées.
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
   const { data: camp, error: campErr } = await supabase
     .from('dsp_campaigns')
-    .select('organization_id, dsp_source')
+    .select('dsp_source')
     .eq('id', campaignId)
     .single();
 
-  if (campErr && campErr.code !== 'PGRST116') {
+  if (campErr || !camp) {
+    if (campErr) console.error('[digital/report] campagne:', campErr.message);
     return NextResponse.json({ error: 'lookup_failed' }, { status: 500 });
-  }
-  // 404 si absente OU hors org (ne pas divulguer l'existence à une autre org)
-  if (!camp) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
-  if (profile.role !== 'super_admin' && camp.organization_id !== profile.organization_id) {
-    return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
   }
 
   const metric = camp.dsp_source === 'adform' ? 'tracked_ads' : 'impressions';

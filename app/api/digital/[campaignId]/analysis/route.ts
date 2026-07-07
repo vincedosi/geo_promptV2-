@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,10 @@ export async function GET(
   const type = searchParams.get('type') || 'breakdown';
 
   const supabase = createAdminClient();
+
+  // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   if (type === 'medias') {
     const { data, error } = await supabase.rpc('get_campaign_medias', { p_campaign_id: campaignId });
