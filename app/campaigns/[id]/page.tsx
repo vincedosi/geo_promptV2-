@@ -281,6 +281,7 @@ export default function CampaignDetailPage() {
   const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
   const [strategyLoaded, setStrategyLoaded] = useState(false);
   const [view, setView] = useState<CockpitView>('overview');
+  const [mainTab, setMainTab] = useState<'suivi' | 'creation'>('creation');
 
   // Brouillon Programmer (Cible/Zones/Budget/Stratégie/Lancement) — un seul
   // objet local, préservé tant que la page n'est pas rechargée.
@@ -455,6 +456,27 @@ export default function CampaignDetailPage() {
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', padding: 24 }}>
+      {/* Onglets principaux : Suivi campagne (à venir) · Création campagne (cockpit) */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: `0.5px solid ${C.border}`, marginBottom: 20 }}>
+        {([['suivi', 'Suivi campagne'], ['creation', 'Création campagne']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setMainTab(key)}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              fontFamily: fInter, fontWeight: 500, fontSize: 13,
+              color: mainTab === key ? C.text : C.textDim,
+              padding: '8px 14px', marginBottom: -0.5,
+              borderBottom: `2px solid ${mainTab === key ? C.teal : 'transparent'}`,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mainTab === 'creation' && (
+      <>
       {/* Fil d'Ariane cockpit — toujours visible */}
       <div style={{ marginBottom: 20 }}>
         {view !== 'overview' && (
@@ -709,6 +731,23 @@ export default function CampaignDetailPage() {
             onCta={() => setView(unlockedPiloter ? 'pilotage' : 'prog')}
           />
         )
+      )}
+      </>
+      )}
+
+      {mainTab === 'suivi' && (
+        <div style={{
+          background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 12,
+          padding: '48px 32px', textAlign: 'center', marginBottom: 20,
+        }}>
+          <div style={{ fontFamily: fInter, fontWeight: 500, fontSize: 15, color: C.text, marginBottom: 8 }}>
+            Suivi de campagne
+          </div>
+          <div style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, maxWidth: 460, margin: '0 auto', lineHeight: 1.6 }}>
+            Le tableau de bord de suivi d&apos;une campagne en cours (pacing plan-vs-réel en direct, alertes, delivery temps réel) arrive bientôt.
+          </div>
+          <div style={{ fontFamily: fMono, fontSize: 11, color: C.textDim, marginTop: 14 }}>À venir</div>
+        </div>
       )}
 
       {/* Delete confirmation */}
