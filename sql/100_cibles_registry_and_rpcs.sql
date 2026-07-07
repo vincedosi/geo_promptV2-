@@ -209,3 +209,12 @@ grant execute on function public.get_composite_zone_geometry(uuid[]) to service_
 --     Execution Time: 0.374 ms
 --   Index Only Scan confirmé. Pas de Seq Scan.
 -- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── 100b (appliquée via MCP le 2026-07-07) — index d'expression pour les 3
+-- indicateurs normalisés pct_of_population : l'index sur colonne brute ne sert
+-- pas, le WHERE de la RPC porte sur l'expression. Mesuré : preview part_15_29
+-- >= 22 : 6338 ms (Index Scan idx_iris_is_true + Filter) → 435 ms cache froid
+-- (Bitmap Index Scan idx_iris_cible_expr_15_29).
+create index if not exists idx_iris_cible_expr_15_29 on public.iris ((pop_15_29::float / nullif(population,0) * 100)) where is_true_iris;
+create index if not exists idx_iris_cible_expr_30_44 on public.iris ((pop_30_44::float / nullif(population,0) * 100)) where is_true_iris;
+create index if not exists idx_iris_cible_expr_45_59 on public.iris ((pop_45_59::float / nullif(population,0) * 100)) where is_true_iris;
