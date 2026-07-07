@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark } from 'lucide-react';
+import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 
 export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'pilotage' | 'zones' | 'settings';
 
@@ -56,6 +57,7 @@ export function IconBar({
     return () => window.removeEventListener('keydown', onKey);
   }, [onItemClick]);
 
+  const { openOverlay } = useMagelianOverlay();
   const topItems = ICON_BAR_ITEMS.filter(i => i.position !== 'bottom');
   const bottomItems = ICON_BAR_ITEMS.filter(i => i.position === 'bottom');
 
@@ -81,6 +83,39 @@ export function IconBar({
         transition: 'transform 200ms var(--ease-out, ease)',
       }}
     >
+      {/* Bouton MAGELIAN — ouvre l'overlay campagne (Création + Suivi) */}
+      <button
+        type="button"
+        data-magelian-trigger
+        onClick={openOverlay}
+        title="MAGELIAN"
+        style={{
+          width: 40,
+          height: showLabels ? 44 : 40,
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+          background: 'rgba(78,205,196,0.08)',
+          border: '0.5px solid var(--brand-teal)',
+          cursor: 'pointer',
+          color: 'var(--brand-teal)',
+          transition: 'background-color 150ms var(--ease-hover, ease)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.16)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.08)'; }}
+      >
+        <Sparkles size={20} strokeWidth={1.5} />
+        {showLabels && (
+          <span style={{ fontSize: 9, fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, lineHeight: 1, color: 'inherit' }}>
+            MAGELIAN
+          </span>
+        )}
+      </button>
+      <div style={{ width: 24, height: 0.5, background: 'var(--border-subtle, #1a1a1a)', margin: '4px 0' }} />
+
       {topItems.map(item => (
         <IconButton
           key={item.id}

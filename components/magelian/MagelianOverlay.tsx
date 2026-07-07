@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
@@ -25,6 +26,12 @@ interface CampaignRef {
 
 export function MagelianOverlay() {
   const { open, closeOverlay } = useMagelianOverlay();
+  // Sur /map il n'y a pas de sidebar 240px mais le rail d'icônes 48px :
+  // l'overlay se cale à droite du rail (56) au lieu de la sidebar (256).
+  const pathname = usePathname();
+  const onMap = pathname?.startsWith('/map') ?? false;
+  const panelLeft = onMap ? 56 : 256;
+  const panelWidth = onMap ? 'calc(100vw - 68px)' : 'calc(100vw - 268px)';
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -33,6 +40,9 @@ export function MagelianOverlay() {
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fetchedRef = useRef(false);
+  // Instant d'ouverture : évite que le mousedown du clic d'ouverture (ou un
+  // event synthétique de la carte) referme aussitôt l'overlay via click-outside.
+  const openedAtRef = useRef(0);
 
   const handleClose = useCallback(() => {
     if (closing) return;
@@ -47,9 +57,12 @@ export function MagelianOverlay() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Reset l'onglet actif à chaque nouvelle ouverture.
+  // Reset l'onglet actif à chaque nouvelle ouverture + horodate l'ouverture.
   useEffect(() => {
-    if (open) setTab('creation');
+    if (open) {
+      setTab('creation');
+      openedAtRef.current = Date.now();
+    }
   }, [open]);
 
   // Charge la liste des campagnes une seule fois (lazy, à la première ouverture).
@@ -89,6 +102,9 @@ export function MagelianOverlay() {
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
+      // Fenêtre de garde après ouverture : ne pas se refermer sur l'événement
+      // d'ouverture lui-même.
+      if (Date.now() - openedAtRef.current < 400) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest('.magelian-overlay-panel')) return;
@@ -114,8 +130,8 @@ export function MagelianOverlay() {
       style={{
         position: 'fixed',
         top: 12,
-        left: 256,
-        width: 'calc(100vw - 268px)',
+        left: panelLeft,
+        width: panelWidth,
         height: 'calc(100vh - 24px)',
         background: 'var(--card-overlay, rgba(10, 10, 10, 0.92))',
         backdropFilter: 'blur(var(--backdrop-blur, 4px))',
