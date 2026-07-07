@@ -83,9 +83,12 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
     setChatError(null);
     setInput('');
     // Historique éphémère : les tours précédents partent dans le body.
+    // Bornes du endpoint (Zod) : max 40 tours, content ≤ 4000 chars.
+    // Le serveur ne garde que les 20 derniers tours — inutile d'envoyer plus.
     const priorHistory = messages
       .filter((m) => !m.pending && m.content)
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
+      .slice(-20);
     setMessages((m) => [...m, { role: 'user', content: txt }, { role: 'assistant', content: '', pending: true }]);
     try {
       const res = await adminFetch(`/api/digital/${campaignId}/campaign-chat`, {
@@ -105,6 +108,15 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { role: 'assistant', content: acc, pending: false };
+          return copy;
+        });
+      }
+      const tail = decoder.decode();
+      if (tail) {
+        acc += tail;
         setMessages((m) => {
           const copy = [...m];
           copy[copy.length - 1] = { role: 'assistant', content: acc, pending: false };
@@ -152,7 +164,7 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
                   <div>
                     <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Tracked ads</div>
-                    <div style={{ fontFamily: fMono, fontSize: 16, color: 'var(--text-primary)' }}>{fmtNum(camp.total_tracked_ads)}</div>
+                    <div style={{ fontFamily: fMono, fontSize: 16, color: 'var(--text-primary)' }}>{fmtNum(camp.total_tracked_ads ?? 0)}</div>
                   </div>
                   <div>
                     <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Période</div>
@@ -191,7 +203,6 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
         }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
           <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Interroger la campagne</span>
-          <span style={{ marginLeft: 'auto', fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>gemini-2.5-flash</span>
         </div>
 
         <div
