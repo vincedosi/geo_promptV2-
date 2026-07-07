@@ -31,7 +31,7 @@ export interface FilArianeStep {
 }
 
 interface FilArianeProps {
-  /** Étapes "programmer" de la campagne, dans l'ordre (Cible/Zones/Budget/Stratégie/Lancement). */
+  /** Étapes "programmer" de la campagne, dans l'ordre (Cible/Budget/Stratégie/Lancement). */
   steps: FilArianeStep[];
   /** Phases "piloter" optionnelles — plus utilisées par le cockpit, conservées pour compat. */
   phases?: FilArianeStep[];

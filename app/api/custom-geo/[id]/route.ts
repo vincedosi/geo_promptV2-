@@ -137,6 +137,22 @@ export async function DELETE(
   const { id } = await params;
   const supabase = createAdminClient();
 
+  // Garde-fou : interdit de supprimer une zone référencée par une stratégie
+  // de bidding, ou membre d'une zone composite existante.
+  const [stratRes, compRes] = await Promise.all([
+    supabase.from('bidding_strategies').select('id').eq('zone_id', id).limit(1),
+    supabase.from('custom_geo_zones')
+      .select('id')
+      .contains('source_metadata', { member_zone_ids: [id] })
+      .limit(1),
+  ]);
+  if ((stratRes.data ?? []).length > 0) {
+    return NextResponse.json({ error: 'zone_referenced_by_strategy' }, { status: 409 });
+  }
+  if ((compRes.data ?? []).length > 0) {
+    return NextResponse.json({ error: 'zone_member_of_composite' }, { status: 409 });
+  }
+
   const { error } = await supabase
     .from('custom_geo_zones')
     .delete()

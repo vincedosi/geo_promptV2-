@@ -1,15 +1,19 @@
 'use client';
 
 /**
- * Étape 5/5 — Lancement : récapitulatif + CTA qui crée réellement la
+ * Étape 4/4 — Lancement : récapitulatif + CTA qui crée réellement la
  * stratégie de bidding (POST /api/bidding/strategies), puis l'active
  * (PATCH status='active') pour déverrouiller le Pilotage immédiatement.
+ *
+ * Résout ici le `zone_id` final à partir du panier `draft.cibles` :
+ * vide → national, une zone → directe, plusieurs → fusion en zone composite
+ * (POST /api/custom-geo/source/composite + /api/custom-geo/save).
  *
  * Si une stratégie existe déjà pour cette campagne (`existingStrategyId`),
  * on ré-arme celle-ci via PATCH plutôt que de tenter un POST (qui renverrait
  * un 409 conflit) — "re-arming" simple, sans sur-ingénierie.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import type { StepProps } from './types';
@@ -18,6 +22,37 @@ import {
   fmtDateShort, fmtEUR,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell } from './ui';
+
+/** n=0 → national ; n=1 → zone directe ; n>1 → crée la composite (géométrie union + save). */
+async function resolveFinalZone(
+  cibles: { id: string; name: string }[],
+  orgId: string | null,
+): Promise<{ scope_type: 'national' | 'custom_zone'; zone_id: string | null }> {
+  if (cibles.length === 0) return { scope_type: 'national', zone_id: null };
+  if (cibles.length === 1) return { scope_type: 'custom_zone', zone_id: cibles[0].id };
+  if (!orgId) throw new Error('Organisation introuvable pour fusionner les zones cibles');
+  const geoRes = await adminFetch('/api/custom-geo/source/composite', {
+    method: 'POST', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zone_ids: cibles.map((c) => c.id) }),
+  });
+  if (!geoRes.ok) throw new Error('Fusion des zones cibles échouée');
+  const geo = await geoRes.json();
+  const saveRes = await adminFetch('/api/custom-geo/save', {
+    method: 'POST', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: `Cible composite (${cibles.length} zones) — ${new Date().toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`,
+      source_type: 'composite',
+      source_metadata: { kind: 'composite', member_zone_ids: cibles.map((c) => c.id) },
+      geometry: geo.geometry,
+      org_id: orgId,
+    }),
+  });
+  if (!saveRes.ok && saveRes.status !== 207) throw new Error('Sauvegarde de la zone composite échouée');
+  const saved = await saveRes.json();
+  return { scope_type: 'custom_zone', zone_id: saved.zone_id };
+}
 
 interface Props extends StepProps {
   campaignId: string;
@@ -47,15 +82,33 @@ export function StepLancement({
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
 
-  const scopeTitle = draft.scopeType === 'national' ? 'National + DROM' : (draft.zoneName ?? 'Zone custom');
-  const invalid = draft.scopeType === 'custom_zone' && !draft.zoneId
+  // Org propriétaire de la campagne — nécessaire pour sauvegarder la zone
+  // composite quand le panier de cibles contient plusieurs zones.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const orgRes = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations`, { cache: 'no-store' });
+        const orgData = orgRes.ok ? await orgRes.json() : {};
+        if (!cancelled) setOwnerOrgId((orgData.owner_organization_id as string | undefined) ?? null);
+      } catch { if (!cancelled) setOwnerOrgId(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId]);
+
+  const cibleTitle = draft.cibles.length === 0
+    ? 'National (métropole + DROM)'
+    : draft.cibles.map((c) => c.name).join(' + ');
+  const invalid = (draft.cibles.length > 1 && !ownerOrgId)
     || !draft.totalBudget || !draft.startDate || !draft.endDate;
 
   async function handleArm() {
     if (invalid) return;
     setSubmitting(true);
     try {
+      const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
       const commonFields = {
         weighting_mode: 'by_insee_variable' as const,
         in_zone_weights: {
@@ -64,8 +117,8 @@ export function StepLancement({
           curve: INTENSITY_CURVES[draft.intensity],
         },
         out_zone_weights: {},
-        scope_type: draft.scopeType,
-        zone_id: draft.scopeType === 'custom_zone' ? draft.zoneId : null,
+        scope_type,
+        zone_id,
         total_budget: draft.totalBudget,
         forecast_cpm: draft.forecastCpm,
         currency: 'EUR' as const,
@@ -144,8 +197,8 @@ export function StepLancement({
   return (
     <StepShell
       title="Lancement"
-      stepNumber={5}
-      totalSteps={5}
+      stepNumber={4}
+      totalSteps={4}
       memo={{
         paragraphs: [
           <>Au lancement, la campagne passe en <strong style={{ color: C.text, fontWeight: 500 }}>Pilotage</strong> : tu suis le pacing plan-vs-réel en direct.</>,
@@ -172,7 +225,7 @@ export function StepLancement({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <RecapRow
           title={`Cible · ${INTENSITY_META[draft.intensity].title}`}
-          sub={`Taux d'abstention (2022) sur ${scopeTitle}`}
+          sub={`Taux d'abstention (2022) sur ${cibleTitle}`}
         />
         <RecapRow
           title={`${fmtEUR(draft.totalBudget)} · CPM ${draft.forecastCpm != null ? draft.forecastCpm.toLocaleString('fr-FR') + ' €' : '—'}`}

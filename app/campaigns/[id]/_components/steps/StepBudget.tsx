@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Étape 3/5 — Budget : enveloppe, CPM cible et période. Écrit `total_budget`,
+ * Étape 2/4 — Budget : enveloppe, CPM cible et période. Écrit `total_budget`,
  * `forecast_cpm`, `start_date`, `end_date` dans le brouillon (pré-remplis
  * depuis les dates de la campagne par le cockpit, page.tsx).
  */
@@ -14,8 +14,8 @@ export function StepBudget({ draft, setDraft, onPrev, onNext }: StepProps & { on
   return (
     <StepShell
       title="Budget"
-      stepNumber={3}
-      totalSteps={5}
+      stepNumber={2}
+      totalSteps={4}
       memo={{
         paragraphs: [
           <>Le budget est un <B>plafond</B>, pas un objectif à cramer.</>,

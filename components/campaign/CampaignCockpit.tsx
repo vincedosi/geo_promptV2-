@@ -10,7 +10,6 @@ import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/st
 import type { CampaignDetail, DspCampaignData } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from '@/app/campaigns/[id]/_components/FilAriane';
 import { StepCible } from '@/app/campaigns/[id]/_components/steps/StepCible';
-import { StepZones } from '@/app/campaigns/[id]/_components/steps/StepZones';
 import { StepBudget } from '@/app/campaigns/[id]/_components/steps/StepBudget';
 import { StepStrategie } from '@/app/campaigns/[id]/_components/steps/StepStrategie';
 import { StepLancement } from '@/app/campaigns/[id]/_components/steps/StepLancement';
@@ -31,7 +30,6 @@ const fMono = "'JetBrains Mono', monospace";
 // ── Fil d'Ariane cockpit — étapes "programmer" ───────────────────────────────────
 const COCKPIT_STEPS: FilArianeStep[] = [
   { key: 'cible', label: 'Cible' },
-  { key: 'zones', label: 'Zones' },
   { key: 'budget', label: 'Budget' },
   { key: 'strategie', label: 'Stratégie' },
   { key: 'lancement', label: 'Lancement' },
@@ -39,8 +37,8 @@ const COCKPIT_STEPS: FilArianeStep[] = [
 const COCKPIT_STEP_KEYS = new Set(COCKPIT_STEPS.map((s) => s.key));
 
 type CockpitView = 'overview' | 'prog';
-type ProgStepKey = 'cible' | 'zones' | 'budget' | 'strategie' | 'lancement';
-const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'zones', 'budget', 'strategie', 'lancement'];
+type ProgStepKey = 'cible' | 'budget' | 'strategie' | 'lancement';
+const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'budget', 'strategie', 'lancement'];
 
 function fmtDate(d: string | null) {
   if (!d) return '—';
@@ -258,7 +256,7 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
   const [strategyLoaded, setStrategyLoaded] = useState(false);
   const [view, setView] = useState<CockpitView>('overview');
 
-  // Brouillon Programmer (Cible/Zones/Budget/Stratégie/Lancement) — un seul
+  // Brouillon Programmer (Cible/Budget/Stratégie/Lancement) — un seul
   // objet local, préservé tant que la page n'est pas rechargée.
   const [progStep, setProgStep] = useState<ProgStepKey>('cible');
   const [draft, setDraft] = useState<ProgDraft>(DEFAULT_PROG_DRAFT);
@@ -307,8 +305,7 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
         setDraft((prev) => ({
           ...prev,
           intensity: inferIntensity(s.in_zone_weights) ?? prev.intensity,
-          scopeType: s.scope_type ?? prev.scopeType,
-          zoneId: s.zone_id ?? null,
+          cibles: s.zone_id ? [{ id: s.zone_id, name: s.zone_name ?? 'Zone de la stratégie', sourceType: 'custom' }] : [],
           totalBudget: s.total_budget ?? prev.totalBudget,
           forecastCpm: s.forecast_cpm ?? prev.forecastCpm,
           startDate: s.start_date ? String(s.start_date).slice(0, 10) : prev.startDate,
@@ -319,7 +316,7 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
     })();
   }, [strategyId]);
 
-  const currentStepIndex = strategyId ? 5 : 0;
+  const currentStepIndex = strategyId ? 4 : 0;
   const filArianeActiveKey = view === 'prog' ? progStep : '';
 
   // Deep-link initial : ?view=prog (pilotage/bilan supprimés → repli silencieux
@@ -612,10 +609,7 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
       {view === 'prog' && (
         <>
           {progStep === 'cible' && (
-            <StepCible draft={draft} setDraft={setDraft} onNext={goProgNext} />
-          )}
-          {progStep === 'zones' && (
-            <StepZones draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
+            <StepCible draft={draft} setDraft={setDraft} campaignId={id} onNext={goProgNext} />
           )}
           {progStep === 'budget' && (
             <StepBudget draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
