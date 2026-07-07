@@ -33,14 +33,14 @@ export interface FilArianeStep {
 interface FilArianeProps {
   /** Étapes "programmer" de la campagne, dans l'ordre (Cible/Zones/Budget/Stratégie/Lancement). */
   steps: FilArianeStep[];
-  /** Phases "piloter" (Pilotage/Bilan), verrouillées tant que `unlockedPiloter` est faux. */
-  phases: FilArianeStep[];
+  /** Phases "piloter" optionnelles — plus utilisées par le cockpit, conservées pour compat. */
+  phases?: FilArianeStep[];
   /** Clé de l'étape/phase actuellement sélectionnée. */
   activeKey: string;
   /** Index dans `steps` de l'étape la plus avancée déjà atteinte (pour le style done/active). */
   currentStepIndex: number;
   /** Si faux, les phases piloter s'affichent verrouillées (🔒) et ne sont pas cliquables. */
-  unlockedPiloter: boolean;
+  unlockedPiloter?: boolean;
   onSelect: (key: string) => void;
 }
 
@@ -57,7 +57,7 @@ interface NodeSpec {
   kind: NodeKind;
 }
 
-export function FilAriane({ steps, phases, activeKey, currentStepIndex, unlockedPiloter, onSelect }: FilArianeProps) {
+export function FilAriane({ steps, phases = [], activeKey, currentStepIndex, unlockedPiloter = false, onSelect }: FilArianeProps) {
   const programmerNodes: NodeSpec[] = steps.map((s, i) => {
     let state: NodeState = 'upcoming';
     if (i < currentStepIndex) state = 'done';
@@ -96,13 +96,17 @@ export function FilAriane({ steps, phases, activeKey, currentStepIndex, unlocked
           {programmerNodes.map((node, i) => (
             <StepNode key={node.key} node={node} showLine={i > 0} onSelect={onSelect} />
           ))}
-          <div
-            aria-hidden
-            style={{ width: 1, alignSelf: 'stretch', background: C.borderDefault, margin: '0 10px', position: 'relative', top: -2 }}
-          />
-          {phaseNodes.map((node) => (
-            <StepNode key={node.key} node={node} showLine onSelect={onSelect} />
-          ))}
+          {phaseNodes.length > 0 && (
+            <>
+              <div
+                aria-hidden
+                style={{ width: 1, alignSelf: 'stretch', background: C.borderDefault, margin: '0 10px', position: 'relative', top: -2 }}
+              />
+              {phaseNodes.map((node) => (
+                <StepNode key={node.key} node={node} showLine onSelect={onSelect} />
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>

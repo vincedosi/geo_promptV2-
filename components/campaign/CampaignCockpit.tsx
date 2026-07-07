@@ -9,8 +9,6 @@ import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge'
 import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/status';
 import type { CampaignDetail, DspCampaignData } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from '@/app/campaigns/[id]/_components/FilAriane';
-import { StrategyDetail } from '@/components/map/overlays/PilotageOverlay';
-import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
 import { StepCible } from '@/app/campaigns/[id]/_components/steps/StepCible';
 import { StepZones } from '@/app/campaigns/[id]/_components/steps/StepZones';
 import { StepBudget } from '@/app/campaigns/[id]/_components/steps/StepBudget';
@@ -30,7 +28,7 @@ const C = {
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-// ── Fil d'Ariane cockpit — étapes "programmer" + phases "piloter" ──────────────
+// ── Fil d'Ariane cockpit — étapes "programmer" ───────────────────────────────────
 const COCKPIT_STEPS: FilArianeStep[] = [
   { key: 'cible', label: 'Cible' },
   { key: 'zones', label: 'Zones' },
@@ -39,12 +37,8 @@ const COCKPIT_STEPS: FilArianeStep[] = [
   { key: 'lancement', label: 'Lancement' },
 ];
 const COCKPIT_STEP_KEYS = new Set(COCKPIT_STEPS.map((s) => s.key));
-const COCKPIT_PHASES: FilArianeStep[] = [
-  { key: 'pilotage', label: 'Pilotage' },
-  { key: 'bilan', label: 'Bilan' },
-];
 
-type CockpitView = 'overview' | 'prog' | 'pilotage' | 'bilan';
+type CockpitView = 'overview' | 'prog';
 type ProgStepKey = 'cible' | 'zones' | 'budget' | 'strategie' | 'lancement';
 const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'zones', 'budget', 'strategie', 'lancement'];
 
@@ -245,24 +239,6 @@ function ActionButton({
   );
 }
 
-// ── Locked / empty state for pilotage & bilan views ────────────────────────────
-function CockpitLockedState({
-  message, ctaLabel, onCta,
-}: { message: string; ctaLabel: string; onCta: () => void }) {
-  return (
-    <div style={{
-      background: C.card, border: `0.5px solid ${C.border}`, borderRadius: 8,
-      padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-      textAlign: 'center',
-    }}>
-      <div style={{ fontFamily: fInter, fontSize: 13, color: C.textSec, maxWidth: 360 }}>
-        {message}
-      </div>
-      <ActionButton label={ctaLabel} onClick={onCta} variant="teal" />
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; embedded?: boolean }) {
   const id = campaignId;
@@ -343,29 +319,21 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
     })();
   }, [strategyId]);
 
-  const unlockedPiloter = !!strategyId && (strategyStatus === 'active' || strategyStatus === 'completed');
   const currentStepIndex = strategyId ? 5 : 0;
-  const filArianeActiveKey = view === 'overview' ? '' : view === 'prog' ? progStep : view;
+  const filArianeActiveKey = view === 'prog' ? progStep : '';
 
-  // Deep-link initial : ?view=pilotage|bilan|prog|overview.
-  // pilotage/bilan ne sont honorés que si la stratégie est déverrouillée
-  // (attend la résolution de fetchStrategy) — sinon repli sur overview.
-  // Appliqué une seule fois, au montage.
+  // Deep-link initial : ?view=prog (pilotage/bilan supprimés → repli silencieux
+  // sur overview). Appliqué une seule fois, au montage.
   const viewParamAppliedRef = useRef(false);
   useEffect(() => {
     if (viewParamAppliedRef.current || !strategyLoaded) return;
     viewParamAppliedRef.current = true;
-    const v = searchParams.get('view');
-    if (v === 'prog') { setView('prog'); return; }
-    if (v === 'pilotage' || v === 'bilan') { setView(unlockedPiloter ? v : 'overview'); return; }
-  }, [strategyLoaded, unlockedPiloter, searchParams]);
+    if (searchParams.get('view') === 'prog') setView('prog');
+  }, [strategyLoaded, searchParams]);
 
   const handleFilArianeSelect = useCallback((key: string) => {
-    if (COCKPIT_STEP_KEYS.has(key)) { setProgStep(key as ProgStepKey); setView('prog'); return; }
-    if (key === 'pilotage' || key === 'bilan') {
-      if (unlockedPiloter) setView(key);
-    }
-  }, [unlockedPiloter]);
+    if (COCKPIT_STEP_KEYS.has(key)) { setProgStep(key as ProgStepKey); setView('prog'); }
+  }, []);
 
   const progIndex = PROG_STEP_ORDER.indexOf(progStep);
   const goProgPrev = useCallback(() => setProgStep(PROG_STEP_ORDER[Math.max(0, progIndex - 1)]), [progIndex]);
@@ -471,10 +439,8 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
         )}
         <FilAriane
           steps={COCKPIT_STEPS}
-          phases={COCKPIT_PHASES}
           activeKey={filArianeActiveKey}
           currentStepIndex={currentStepIndex}
-          unlockedPiloter={unlockedPiloter}
           onSelect={handleFilArianeSelect}
         />
       </div>
@@ -531,20 +497,6 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
           ) : (
             <ActionButton label="Archiver" onClick={() => setOverride('archived')} disabled={overridePending} />
           )}
-          {strategyId ? (
-            <button
-              onClick={() => setView('pilotage')}
-              style={{
-                background: 'transparent',
-                border: '0.5px solid var(--brand-teal)',
-                color: 'var(--brand-teal)',
-                borderRadius: 6, padding: '8px 16px', fontFamily: fInter, fontSize: 12,
-                cursor: 'pointer',
-              }}
-            >
-              Voir la stratégie
-            </button>
-          ) : null}
           <button
             onClick={() => setShowDeleteConfirm(true)}
             style={{
@@ -679,38 +631,10 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
               campaignName={camp.name}
               existingStrategyId={strategyId}
               onPrev={goProgPrev}
-              onCompleted={() => { fetchStrategy(); setView('pilotage'); }}
+              onCompleted={() => { fetchStrategy(); setView('overview'); }}
             />
           )}
         </>
-      )}
-
-      {view === 'pilotage' && (
-        unlockedPiloter && strategyId ? (
-          <StrategyDetail
-            strategyId={strategyId}
-            onEdit={() => setView('prog')}
-            onShowHistory={() => {}}
-          />
-        ) : (
-          <CockpitLockedState
-            message="Programme d'abord la campagne pour la piloter."
-            ctaLabel="Programmer la campagne"
-            onCta={() => setView('prog')}
-          />
-        )
-      )}
-
-      {view === 'bilan' && (
-        strategyId && strategyStatus === 'completed' ? (
-          <FinalReport strategyId={strategyId} />
-        ) : (
-          <CockpitLockedState
-            message="Le bilan sera disponible à la fin de la campagne."
-            ctaLabel={unlockedPiloter ? 'Voir le pilotage' : 'Programmer la campagne'}
-            onCta={() => setView(unlockedPiloter ? 'pilotage' : 'prog')}
-          />
-        )
       )}
 
       {/* Delete confirmation */}
