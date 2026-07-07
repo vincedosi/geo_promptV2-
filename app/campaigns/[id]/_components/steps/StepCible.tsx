@@ -1,50 +1,284 @@
 'use client';
 
 /**
- * Étape 1/5 — Cible : le « qui ». Choix de la variable de ciblage (une seule
- * disponible : taux d'abstention présidentielle 2022) + l'intensité de la
- * sur-pondération. Écrit `weighting_mode='by_insee_variable'` +
- * `in_zone_weights={mode, variable_code, curve}` dans le brouillon.
+ * Étape 1/4 — Cible : le « où » et le « qui ». Catalogue d'indicateurs
+ * (Audience/Comportement/Contexte) + seuil dans l'unité de l'indicateur +
+ * aperçu count, OU zones de la galerie (Mes zones). Panier multi-cibles.
+ * Vide = national. L'intensité de sur-pondération reste ici.
+ * La fusion en composite se fait au Lancement (pas ici).
  */
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { adminFetch } from '@/lib/admin-fetch';
+import { buildCibleMetadata, buildCibleName, type CibleIndicator } from '@/lib/cibles/naming';
+import { addCible, removeCible, type CibleZoneRef } from '@/lib/cibles/draft';
 import type { Intensity, StepProps } from './types';
 import { INTENSITY_META } from './types';
 import { B, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
 
 const INTENSITIES: Intensity[] = ['doux', 'marque', 'fort'];
+const FAMILLES: Array<{ key: CibleIndicator['famille']; label: string }> = [
+  { key: 'audience', label: 'Audience' },
+  { key: 'comportement', label: 'Comportement' },
+  { key: 'contexte', label: 'Contexte' },
+];
 
-export function StepCible({ draft, setDraft, onNext }: StepProps & { onNext: () => void }) {
+interface GalleryZone { id: string; name: string; source_type: string }
+interface Preview { count: number; population: number | null; scale: 'iris' | 'cp' }
+
+export function StepCible({
+  draft, setDraft, campaignId, onNext,
+}: StepProps & { campaignId: string; onNext: () => void }) {
+  const [indicators, setIndicators] = useState<CibleIndicator[] | null>(null);
+  const [gallery, setGallery] = useState<GalleryZone[] | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [famille, setFamille] = useState<CibleIndicator['famille'] | 'zones'>('audience');
+  const [selected, setSelected] = useState<CibleIndicator | null>(null);
+  const [operator, setOperator] = useState<'>=' | '<='>('>=');
+  const [threshold, setThreshold] = useState<number>(0);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [materializing, setMaterializing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Catalogue + org owner + galerie (une fois)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await adminFetch('/api/cibles/indicators', { cache: 'no-store' });
+        const d = r.ok ? await r.json() : { indicators: [] };
+        if (!cancelled) setIndicators(d.indicators ?? []);
+      } catch { if (!cancelled) setIndicators([]); }
+    })();
+    (async () => {
+      try {
+        const orgRes = await adminFetch(`/api/admin/campaigns/${campaignId}/organizations`, { cache: 'no-store' });
+        const orgData = orgRes.ok ? await orgRes.json() : {};
+        const org = (orgData.owner_organization_id as string | undefined) ?? null;
+        if (cancelled) return;
+        setOrgId(org);
+        if (!org) { setGallery([]); return; }
+        const res = await adminFetch(`/api/custom-geo/list?org_id=${org}`, { cache: 'no-store' });
+        const data = res.ok ? await res.json() : { zones: [] };
+        if (!cancelled) setGallery((data.zones ?? []) as GalleryZone[]);
+      } catch { if (!cancelled) setGallery([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId]);
+
+  // Sélection d'un indicateur → seuil par défaut au milieu du slider
+  const pickIndicator = (ind: CibleIndicator) => {
+    setSelected(ind);
+    setOperator(ind.default_operator);
+    setThreshold((ind.slider_min + ind.slider_max) / 2);
+    setPreview(null);
+  };
+
+  // Aperçu debounced (400 ms) — 1 requête COUNT par mouvement stabilisé
+  useEffect(() => {
+    if (!selected) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setPreviewLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await adminFetch(
+          `/api/cibles/preview?indicator=${encodeURIComponent(selected.indicator_code)}&operator=${encodeURIComponent(operator)}&threshold=${threshold}`,
+          { cache: 'no-store' },
+        );
+        setPreview(res.ok ? await res.json() : null);
+      } catch { setPreview(null); }
+      setPreviewLoading(false);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [selected, operator, threshold]);
+
+  // Matérialiser : géométrie (route source) puis save (zone custom) puis panier
+  const materialize = useCallback(async () => {
+    if (!selected || !orgId || materializing) return;
+    setMaterializing(true);
+    setError(null);
+    try {
+      const geoRes = await adminFetch('/api/custom-geo/source/indicator-threshold', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicator_code: selected.indicator_code, operator, threshold }),
+      });
+      if (!geoRes.ok) {
+        const j = await geoRes.json().catch(() => ({}));
+        throw new Error(j.error === 'selection_too_large'
+          ? 'Seuil trop large : resserre le curseur.'
+          : j.error === 'empty_selection' ? 'Aucune zone ne passe ce seuil.' : `Erreur (${geoRes.status})`);
+      }
+      const geo = await geoRes.json();
+      const name = buildCibleName(selected.label, operator, threshold, selected.unit, new Date());
+      const saveRes = await adminFetch('/api/custom-geo/save', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          source_type: 'indicator_threshold',
+          source_metadata: buildCibleMetadata(selected, operator, threshold, new Date()),
+          geometry: geo.geometry,
+          org_id: orgId,
+        }),
+      });
+      if (!saveRes.ok && saveRes.status !== 207) throw new Error('Sauvegarde de la zone échouée');
+      const saved = await saveRes.json();
+      setDraft((prev) => ({
+        ...prev,
+        cibles: addCible(prev.cibles, { id: saved.zone_id, name, sourceType: 'indicator_threshold' }),
+      }));
+      setSelected(null);
+      setPreview(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMaterializing(false);
+    }
+  }, [selected, orgId, operator, threshold, materializing, setDraft]);
+
+  const familyIndicators = indicators?.filter((i) => i.famille === famille) ?? [];
+
   return (
     <StepShell
       title="Cible"
       stepNumber={1}
-      totalSteps={5}
+      totalSteps={4}
       memo={{
         paragraphs: [
-          <>La cible reste <B>fixe</B> pendant toute la campagne : c&apos;est le cap.</>,
-          <>À l&apos;inverse, l&apos;<B>enchère</B> bouge chaque jour pour tenir ce cap — c&apos;est l&apos;étape Stratégie, plus loin.</>,
+          <>Une cible = une <B>zone</B> + un <B>curseur</B> : « les zones où l&apos;indicateur dépasse (ou reste sous) le seuil que TU fixes ».</>,
+          <>Tu peux en empiler plusieurs — elles fusionnent en une zone de diffusion au lancement. Panier vide = national.</>,
         ],
-        tip: "On sépare le quoi viser (ici) du comment enchérir (étape 4).",
-        mini: [1, 3, 4],
+        tip: 'Les cibles Contexte (pollen, air) bougent chaque jour : posées en début de vague, révisables en cours de route.',
+        mini: [1, 2, 3],
       }}
       footer={<StandardFooter onPrev={() => {}} isFirst nextLabel="Continuer →" onNext={onNext} />}
     >
       <Lead>
-        Le <B>« qui »</B> : la variable qui définit les zones à privilégier. MAGELIAN sur-pondère la diffusion
-        là où cette valeur est forte.
+        Le <B>« où »</B> : construis ta cible depuis les données, ou pioche dans tes zones. MAGELIAN
+        concentre la diffusion dessus.
       </Lead>
 
-      <FieldBlock label="Variable de ciblage">
-        <OptsList>
-          <OptionRow
-            selected
-            onClick={() => {}}
-            title="Taux d'abstention (présidentielle 2022)"
-            sub="INSEE · par code postal"
-            value="▲ fort = cible"
-          />
-        </OptsList>
+      {/* Panier */}
+      <FieldBlock label={`Ma cible (${draft.cibles.length || 'national'})`}>
+        {draft.cibles.length === 0 ? (
+          <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--text-tertiary)' }}>
+            Aucune zone cible — diffusion nationale (métropole + DROM).
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {draft.cibles.map((c) => (
+              <span key={c.id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px',
+                borderRadius: 4, background: 'var(--brand-teal-10)', border: '0.5px solid var(--brand-teal-30)',
+                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, color: 'var(--brand-teal)',
+              }}>
+                {c.name}
+                <button
+                  onClick={() => setDraft((prev) => ({ ...prev, cibles: removeCible(prev.cibles, c.id) }))}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-tertiary)', fontSize: 13, lineHeight: 1 }}
+                  aria-label={`Retirer ${c.name}`}
+                >×</button>
+              </span>
+            ))}
+          </div>
+        )}
       </FieldBlock>
 
+      {/* Familles */}
+      <FieldBlock label="Construire une cible">
+        <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--border-subtle)', marginBottom: 10 }}>
+          {[...FAMILLES, { key: 'zones' as const, label: 'Mes zones' }].map((f) => (
+            <button key={f.key} onClick={() => { setFamille(f.key); setSelected(null); }}
+              style={{
+                background: 'transparent', border: 'none',
+                borderBottom: famille === f.key ? '2px solid var(--brand-teal)' : '2px solid transparent',
+                padding: '8px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
+                color: famille === f.key ? 'var(--text-primary)' : 'var(--text-tertiary)', cursor: 'pointer',
+              }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {famille === 'zones' ? (
+          <OptsList>
+            {gallery === null && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Chargement…</div>}
+            {gallery?.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Aucune zone dans la galerie — crée-les depuis la carte.</div>}
+            {gallery?.map((z) => (
+              <OptionRow
+                key={z.id}
+                selected={draft.cibles.some((c) => c.id === z.id)}
+                onClick={() => setDraft((prev) => ({ ...prev, cibles: addCible(prev.cibles, { id: z.id, name: z.name, sourceType: z.source_type }) }))}
+                title={z.name}
+                sub={z.source_type}
+                value="+ ajouter"
+              />
+            ))}
+          </OptsList>
+        ) : (
+          <OptsList>
+            {indicators === null && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Chargement…</div>}
+            {familyIndicators.map((ind) => (
+              <OptionRow
+                key={ind.indicator_code}
+                selected={selected?.indicator_code === ind.indicator_code}
+                onClick={() => pickIndicator(ind)}
+                title={ind.label}
+                sub={`${ind.scale === 'iris' ? 'IRIS' : 'Code postal'} · ${ind.unit}${ind.dynamic ? ' · dynamique' : ''}`}
+                value={selected?.indicator_code === ind.indicator_code ? '▼' : '▶'}
+              />
+            ))}
+          </OptsList>
+        )}
+      </FieldBlock>
+
+      {/* Seuil + aperçu + matérialiser */}
+      {selected && famille !== 'zones' && (
+        <FieldBlock label={`Seuil — ${selected.label}`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <select value={operator} onChange={(e) => setOperator(e.target.value as '>=' | '<=')}
+              style={{ background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6, padding: '6px 10px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--text-primary)' }}>
+              <option value=">=">Au-dessus de (sur-représenté)</option>
+              <option value="<=">En-dessous de (sous-représenté)</option>
+            </select>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--text-primary)' }}>
+              {threshold} {selected.unit}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={selected.slider_min} max={selected.slider_max} step={selected.slider_step}
+            value={threshold}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--brand-teal)' }}
+            aria-label={`Seuil ${selected.label}`}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-secondary)', minWidth: 220 }}>
+              {previewLoading ? 'Calcul…' : preview
+                ? `${preview.count.toLocaleString('fr-FR')} ${preview.scale === 'iris' ? 'IRIS' : 'CP'}${preview.population ? ` · ${Math.round(preview.population / 1000).toLocaleString('fr-FR')} k hab.` : ''}`
+                : '—'}
+            </span>
+            <button
+              onClick={() => { void materialize(); }}
+              disabled={materializing || !preview || preview.count === 0 || !orgId}
+              style={{
+                background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)',
+                borderRadius: 6, padding: '8px 16px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
+                cursor: materializing || !preview || preview.count === 0 ? 'not-allowed' : 'pointer',
+                opacity: materializing || !preview || preview.count === 0 ? 0.5 : 1,
+              }}
+            >
+              {materializing ? 'Matérialisation…' : 'Ajouter à ma cible'}
+            </button>
+          </div>
+          {error && <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
+        </FieldBlock>
+      )}
+
+      {/* Intensité (inchangé) */}
       <FieldBlock label="Intensité du ciblage">
         <OptsList>
           {INTENSITIES.map((i) => (

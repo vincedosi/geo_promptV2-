@@ -7,6 +7,7 @@
  * elle-même avant Lancement (POST + PATCH réels vers /api/bidding/strategies).
  */
 import type { Dispatch, SetStateAction } from 'react';
+import type { CibleZoneRef } from '@/lib/cibles/draft';
 
 export type Intensity = 'doux' | 'marque' | 'fort';
 export type ScopeType = 'national' | 'custom_zone';
@@ -14,9 +15,8 @@ export type ExecutionMode = 'monitor_only' | 'suggest' | 'auto';
 
 export interface ProgDraft {
   intensity: Intensity;
-  scopeType: ScopeType;
-  zoneId: string | null;
-  zoneName: string | null;
+  /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
+  cibles: CibleZoneRef[];
   totalBudget: number | null;
   forecastCpm: number | null;
   startDate: string; // 'YYYY-MM-DD' ou ''
@@ -26,9 +26,7 @@ export interface ProgDraft {
 
 export const DEFAULT_PROG_DRAFT: ProgDraft = {
   intensity: 'marque',
-  scopeType: 'national',
-  zoneId: null,
-  zoneName: null,
+  cibles: [],
   totalBudget: null,
   forecastCpm: null,
   startDate: '',
