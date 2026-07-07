@@ -21,6 +21,19 @@ describe('CampaignChatBodySchema', () => {
     });
     expect(r.success).toBe(false);
   });
+  it('accepte un message de 2000 caractères pile', () => {
+    expect(CampaignChatBodySchema.safeParse({ message: 'x'.repeat(2000) }).success).toBe(true);
+  });
+  it('rejette un historique de plus de 40 tours', () => {
+    const history = Array.from({ length: 41 }, () => ({ role: 'user' as const, content: 'ok' }));
+    expect(CampaignChatBodySchema.safeParse({ message: 'ok', history }).success).toBe(false);
+    expect(CampaignChatBodySchema.safeParse({ message: 'ok', history: history.slice(0, 40) }).success).toBe(true);
+  });
+  it('rejette un tour dont le content dépasse 4000 caractères', () => {
+    const long = { role: 'user' as const, content: 'y'.repeat(4001) };
+    expect(CampaignChatBodySchema.safeParse({ message: 'ok', history: [long] }).success).toBe(false);
+    expect(CampaignChatBodySchema.safeParse({ message: 'ok', history: [{ role: 'user' as const, content: 'y'.repeat(4000) }] }).success).toBe(true);
+  });
 });
 
 describe('truncateHistory', () => {
