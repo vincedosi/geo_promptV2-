@@ -30,7 +30,7 @@
     "fzstd": "^0.1.1",
     "google-auth-library": "^10.7.0",
     "hyparquet": "^1.25.1",
-    "inngest": "^3.52.6",
+    "inngest": "^3.54.2",
     "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
     "maplibre-gl": "^5.18.0",
