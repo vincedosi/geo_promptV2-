@@ -85,3 +85,4 @@ docs/SCORE.md
 docs/Adform/
 
 .next-verify/
+.env*
