@@ -93,4 +93,9 @@ describe('buildSuiviChatSystemPrompt', () => {
     expect(p).toContain('Dept-29');
     expect(p).not.toContain('Dept-30');
   });
+  it('affiche (aucune donnée) quand les stats sont vides', () => {
+    const p = buildSuiviChatSystemPrompt({ ...base, byCountry: [], byRegion: [], breakdownDept: [] });
+    expect(p).toContain('(aucune donnée)');
+    expect(p).toContain('Campagne test');
+  });
 });

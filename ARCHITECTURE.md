@@ -230,6 +230,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/digital/[campaignId]/cp-detail` | GET | IRIS dans un code postal |
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
+| `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
 | Route | Methode | Description |
@@ -475,7 +476,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_codes_postaux_bbox` | Polygones CP dans bbox | `api/digital/codes-postaux/` |
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
-| `get_campaign_stats_by_field` | Stats par champ | `api/admin/campaigns/[id]/` |
+| `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
 
 ### Radio
 | RPC | Description | Appelee depuis |
