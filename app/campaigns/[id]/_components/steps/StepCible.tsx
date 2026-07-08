@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Étape 1/4 — Cible : le « où » et le « qui ». Catalogue d'indicateurs
+ * Étape 1/5 — Cible : le « où » et le « qui ». Catalogue d'indicateurs
  * (Audience/Comportement/Contexte) + seuil dans l'unité de l'indicateur +
  * aperçu count, OU zones de la galerie (Mes zones). Panier multi-cibles.
  * Vide = national. L'intensité de sur-pondération reste ici.
@@ -153,7 +153,7 @@ export function StepCible({
     <StepShell
       title="Cible"
       stepNumber={1}
-      totalSteps={4}
+      totalSteps={5}
       memo={{
         paragraphs: [
           <>Une cible = une <B>zone</B> + un <B>curseur</B> : « les zones où l&apos;indicateur dépasse (ou reste sous) le seuil que TU fixes ».</>,

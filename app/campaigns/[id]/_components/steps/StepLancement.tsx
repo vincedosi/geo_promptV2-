@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Étape 4/4 — Lancement : récapitulatif + CTA qui crée réellement la
+ * Étape 5/5 — Lancement : récapitulatif + CTA qui crée réellement la
  * stratégie de bidding (POST /api/bidding/strategies), puis l'active
  * (PATCH status='active') pour déverrouiller le Pilotage immédiatement.
  *
@@ -104,8 +104,9 @@ export function StepLancement({
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
+  const noChannel = draft.channels.dsps.length === 0 && draft.channels.socials.length === 0;
   const invalid = (draft.cibles.length > 1 && !ownerOrgId)
-    || !draft.totalBudget || !draft.startDate || !draft.endDate;
+    || !draft.totalBudget || !draft.startDate || !draft.endDate || noChannel;
 
   async function handleArm() {
     if (invalid) return;
@@ -176,6 +177,12 @@ export function StepLancement({
         return;
       }
 
+      // Persistance des canaux — non bloquant : la stratégie est déjà créée/mise à jour.
+      await adminFetch(`/api/campaigns/${campaignId}/channels`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft.channels),
+      }).catch(() => { /* non bloquant : la stratégie est déjà créée */ });
+
       const actRes = await adminFetch(`/api/bidding/strategies/${strategyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -200,8 +207,8 @@ export function StepLancement({
   return (
     <StepShell
       title="Lancement"
-      stepNumber={4}
-      totalSteps={4}
+      stepNumber={5}
+      totalSteps={5}
       memo={{
         paragraphs: [
           <>Au lancement, la campagne passe en <strong style={{ color: C.text, fontWeight: 500 }}>Pilotage</strong> : tu suis le pacing plan-vs-réel en direct.</>,
@@ -218,6 +225,11 @@ export function StepLancement({
             onClick={handleArm}
             disabled={submitting || invalid}
           />
+          {noChannel && (
+            <span style={{ marginLeft: 'auto', fontFamily: fInter, fontSize: 11, color: 'var(--warning)' }}>
+              Choisis au moins un DSP ou un réseau à l&apos;étape Canaux
+            </span>
+          )}
         </>
       }
     >
@@ -239,6 +251,13 @@ export function StepLancement({
           sub={EXECUTION_MODE_META[draft.executionMode].sub}
         />
       </div>
+
+      {(draft.channels.dsps.length > 0 || draft.channels.socials.length > 0 || draft.channels.ad_server) && (
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginTop: 8 }}>
+          Canaux : {[...draft.channels.dsps, ...draft.channels.socials].join(', ') || '—'}
+          {draft.channels.ad_server ? ` · ad server ${draft.channels.ad_server}` : ''}
+        </div>
+      )}
     </StepShell>
   );
 }

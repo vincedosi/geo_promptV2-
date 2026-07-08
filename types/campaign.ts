@@ -18,6 +18,8 @@ export interface DspCampaign {
   created_by: string | null;
   /** Correction manuelle du statut de cycle de vie (paused/ended/archived), ou null si aucune. */
   status_override: 'paused' | 'ended' | 'archived' | null;
+  /** Sous-clés namespacées (media_plan, channels…) — voir `lib/campaigns/channels.ts`. */
+  geo_strategy?: Record<string, unknown> | null;
 }
 
 export interface DspCampaignData {

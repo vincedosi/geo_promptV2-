@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge';
 import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/status';
+import type { CampaignChannels } from '@/lib/campaigns/channels';
 import type { CampaignDetail } from '@/types/campaign';
 import {
   C, fInter, fMono, fmtDate, fmtNum,
@@ -105,6 +106,7 @@ export function CampaignOverview({
   if (!detail) return null;
 
   const { campaign: camp, stats, data } = detail;
+  const channels = (camp.geo_strategy as { channels?: CampaignChannels } | null | undefined)?.channels ?? null;
 
   const today = new Date().toISOString().slice(0, 10);
   const status = effectiveCampaignStatus(camp, today);
@@ -201,6 +203,14 @@ export function CampaignOverview({
           color={matchedIris > 0 ? C.green : C.textDim}
         />
       </div>
+
+      {channels && (channels.dsps?.length || channels.socials?.length || channels.ad_server) && (
+        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginBottom: 16 }}>
+          <span style={{ color: C.textDim }}>Canaux : </span>
+          {[...(channels.dsps ?? []), ...(channels.socials ?? [])].join(', ') || '—'}
+          {channels.ad_server ? ` · ad server ${channels.ad_server}` : ''}
+        </div>
+      )}
 
       {/* Organisations liées */}
       <OrganizationsSection campaignId={id} />

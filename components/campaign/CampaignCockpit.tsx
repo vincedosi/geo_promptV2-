@@ -6,6 +6,7 @@ import { adminFetch } from '@/lib/admin-fetch';
 import type { CampaignDetail } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from '@/app/campaigns/[id]/_components/FilAriane';
 import { StepCible } from '@/app/campaigns/[id]/_components/steps/StepCible';
+import { StepCanaux } from '@/app/campaigns/[id]/_components/steps/StepCanaux';
 import { StepBudget } from '@/app/campaigns/[id]/_components/steps/StepBudget';
 import { StepStrategie } from '@/app/campaigns/[id]/_components/steps/StepStrategie';
 import { StepLancement } from '@/app/campaigns/[id]/_components/steps/StepLancement';
@@ -16,6 +17,7 @@ import { C, fInter } from './_shared';
 // ── Fil d'Ariane cockpit — étapes "programmer" ───────────────────────────────────
 const COCKPIT_STEPS: FilArianeStep[] = [
   { key: 'cible', label: 'Cible' },
+  { key: 'canaux', label: 'Canaux' },
   { key: 'budget', label: 'Budget' },
   { key: 'strategie', label: 'Stratégie' },
   { key: 'lancement', label: 'Lancement' },
@@ -23,8 +25,8 @@ const COCKPIT_STEPS: FilArianeStep[] = [
 const COCKPIT_STEP_KEYS = new Set(COCKPIT_STEPS.map((s) => s.key));
 
 type CockpitView = 'overview' | 'prog';
-type ProgStepKey = 'cible' | 'budget' | 'strategie' | 'lancement';
-const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'budget', 'strategie', 'lancement'];
+type ProgStepKey = 'cible' | 'canaux' | 'budget' | 'strategie' | 'lancement';
+const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'canaux', 'budget', 'strategie', 'lancement'];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export function CampaignCockpit({
@@ -179,6 +181,9 @@ export function CampaignCockpit({
         <>
           {progStep === 'cible' && (
             <StepCible draft={draft} setDraft={setDraft} campaignId={id} onNext={goProgNext} />
+          )}
+          {progStep === 'canaux' && (
+            <StepCanaux draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
           )}
           {progStep === 'budget' && (
             <StepBudget draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />

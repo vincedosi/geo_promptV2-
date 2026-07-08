@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Étape 3/4 — Stratégie : le « comment ». Autonomie de l'agent ML qui tient
+ * Étape 4/5 — Stratégie : le « comment ». Autonomie de l'agent ML qui tient
  * l'enchère jour après jour. Écrit `execution_mode` dans le brouillon.
  */
 import type { ExecutionMode, StepProps } from './types';
@@ -14,8 +14,8 @@ export function StepStrategie({ draft, setDraft, onPrev, onNext }: StepProps & {
   return (
     <StepShell
       title="Stratégie"
-      stepNumber={3}
-      totalSteps={4}
+      stepNumber={4}
+      totalSteps={5}
       memo={{
         paragraphs: [
           <>La cible dit <B>où</B> viser ; la stratégie dit <B>de combien</B> pousser l&apos;enchère jour après jour.</>,
