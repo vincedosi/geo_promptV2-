@@ -21,6 +21,7 @@ import { resolveImportScope } from '@/lib/campaigns/import-scope';
 export const dynamic = 'force-dynamic';
 
 const BATCH_SIZE = 50;
+const MAX_UPLOAD = 25 * 1024 * 1024; // 25 Mo
 
 const ImportFieldsSchema = z.object({
   // Plus d'enum hardcodé : on accepte n'importe quelle string ; loadMappings()
@@ -69,6 +70,12 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file');
   if (!(file instanceof File)) {
     return badRequest('Fichier manquant');
+  }
+  if (file.size > MAX_UPLOAD) {
+    return new Response(
+      JSON.stringify({ error: `Fichier trop volumineux (limite : ${MAX_UPLOAD / 1024 / 1024} Mo)` }),
+      { status: 413, headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   const parsedFields = ImportFieldsSchema.safeParse({

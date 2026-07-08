@@ -17,6 +17,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 const PREVIEW_ROWS = 30;
+const MAX_UPLOAD = 25 * 1024 * 1024; // 25 Mo
 
 export async function POST(request: NextRequest) {
   const profile = await requireAdmin(request);
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
 
   if (!file) {
     return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 });
+  }
+  if (file.size > MAX_UPLOAD) {
+    return NextResponse.json(
+      { error: `Fichier trop volumineux (limite : ${MAX_UPLOAD / 1024 / 1024} Mo)` },
+      { status: 413 },
+    );
   }
 
   try {

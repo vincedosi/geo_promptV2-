@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 // Temp directory for uploaded files
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
+const MAX_UPLOAD = 25 * 1024 * 1024; // 25 Mo par fichier
 
 function ensureTempDir() {
   if (!fs.existsSync(TEMP_DIR)) {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file types
+    // Validate file types + taille AVANT toute lecture en mémoire
     const allowedExts = ['csv', 'txt', 'tsv', 'xlsx', 'xls', 'xlsm', 'geojson', 'json', 'shp', 'dbf', 'prj', 'shx'];
     for (const file of files) {
       const ext = file.name.toLowerCase().split('.').pop() || '';
@@ -89,6 +90,12 @@ export async function POST(request: NextRequest) {
             error: `Format non supporté: .${ext}\nFormats acceptés: ${allowedExts.join(', ')}`,
           },
           { status: 400 }
+        );
+      }
+      if (file.size > MAX_UPLOAD) {
+        return NextResponse.json(
+          { success: false, error: `Fichier trop volumineux: ${file.name} (limite : ${MAX_UPLOAD / 1024 / 1024} Mo)` },
+          { status: 413 }
         );
       }
     }

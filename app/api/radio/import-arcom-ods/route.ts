@@ -13,6 +13,8 @@ import { parseArcomODS, aggregateByRadio } from '@/lib/radio/arcom-ods-parser';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
+const MAX_UPLOAD = 25 * 1024 * 1024; // 25 Mo
+
 export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
@@ -21,6 +23,12 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file') as File | null;
   if (!file) {
     return Response.json({ error: 'Fichier .ods requis (champ "file")' }, { status: 400 });
+  }
+  if (file.size > MAX_UPLOAD) {
+    return Response.json(
+      { error: `Fichier trop volumineux (limite : ${MAX_UPLOAD / 1024 / 1024} Mo)` },
+      { status: 413 },
+    );
   }
 
   const supabase = createAdminClient();
