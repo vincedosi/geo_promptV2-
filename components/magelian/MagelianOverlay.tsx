@@ -43,6 +43,8 @@ export function MagelianOverlay() {
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fetchedRef = useRef(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [canToggleDemo, setCanToggleDemo] = useState(false);
   // Instant d'ouverture : évite que le mousedown du clic d'ouverture (ou un
   // event synthétique de la carte) referme aussitôt l'overlay via click-outside.
   const openedAtRef = useRef(0);
@@ -90,6 +92,29 @@ export function MagelianOverlay() {
       }
     })();
   }, [open]);
+
+  // Charge l'état du mode démo (case admin) à chaque ouverture.
+  useEffect(() => {
+    if (!open) return;
+    adminFetch('/api/user/demo-mode', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { setDemoMode(!!d.demo_mode); setCanToggleDemo(!!d.can_toggle); } })
+      .catch(() => {});
+  }, [open]);
+
+  const toggleDemo = useCallback(async (on: boolean) => {
+    setDemoMode(on); // optimiste
+    try {
+      const r = await adminFetch('/api/user/demo-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on }),
+      });
+      if (!r.ok) setDemoMode(!on); // rollback
+    } catch {
+      setDemoMode(!on);
+    }
+  }, []);
 
   // Esc ferme l'overlay
   useEffect(() => {
@@ -197,6 +222,28 @@ export function MagelianOverlay() {
         >
           MAGELIAN
         </span>
+        {canToggleDemo && (
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginRight: 8,
+              cursor: 'pointer',
+              fontFamily: fInter,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={demoMode}
+              onChange={(e) => { void toggleDemo(e.target.checked); }}
+              style={{ accentColor: 'var(--brand-teal)' }}
+            />
+            Mode démo
+          </label>
+        )}
         <button
           type="button"
           onClick={handleClose}
