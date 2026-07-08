@@ -22,6 +22,43 @@ export const maxDuration = 300; // 5 minutes pour les gros datasets
 const CHUNK_SIZE = 500;
 const MAX_FEATURES = 250_000; // Sécurité mémoire
 const FETCH_TIMEOUT_MS = 90_000;
+const MAX_REDIRECTS = 3;
+
+// Validation URL : prévenir les SSRF (Server-Side Request Forgery).
+// Réutilisée pour l'URL initiale ET pour chaque Location de redirection
+// (fetch() suit les 3xx par défaut sans revalider la cible).
+const ALLOWED_DOMAINS = [
+  'data.gouv.fr',
+  'static.data.gouv.fr',
+  'tabular-api.data.gouv.fr',
+  'geo.api.gouv.fr',
+  'services.arcgis.com',
+  'geo.brest-metropole.fr',
+  'opendata.reseaux-energies.fr',
+  'public.opendatasoft.com',
+];
+
+function validateGeojsonUrl(raw: string): { ok: true; url: URL } | { ok: false; error: string } {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return { ok: false, error: 'URL invalide (URL malformée)' };
+  }
+  if (url.protocol !== 'https:') {
+    return { ok: false, error: 'geojsonUrl doit utiliser HTTPS' };
+  }
+  const isAllowed = ALLOWED_DOMAINS.some(
+    (d) => url.hostname === d || url.hostname.endsWith('.' + d)
+  );
+  if (!isAllowed) {
+    return {
+      ok: false,
+      error: `Domaine non autorisé: ${url.hostname}. Domaines acceptés: ${ALLOWED_DOMAINS.join(', ')}`,
+    };
+  }
+  return { ok: true, url };
+}
 
 // ─── Types des événements streamés ──────────────────────────────────────────
 
@@ -106,32 +143,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Validation URL : prévenir les SSRF (Server-Side Request Forgery)
-  const ALLOWED_DOMAINS = [
-    'data.gouv.fr',
-    'static.data.gouv.fr',
-    'tabular-api.data.gouv.fr',
-    'geo.api.gouv.fr',
-    'services.arcgis.com',
-    'geo.brest-metropole.fr',
-    'opendata.reseaux-energies.fr',
-    'public.opendatasoft.com',
-  ];
-  try {
-    const parsedUrl = new URL(geojsonUrl);
-    if (parsedUrl.protocol !== 'https:') {
-      return Response.json({ error: 'geojsonUrl doit utiliser HTTPS' }, { status: 400 });
-    }
-    const isAllowed = ALLOWED_DOMAINS.some(
-      (d) => parsedUrl.hostname === d || parsedUrl.hostname.endsWith('.' + d)
-    );
-    if (!isAllowed) {
-      return Response.json(
-        { error: `Domaine non autorisé: ${parsedUrl.hostname}. Domaines acceptés: ${ALLOWED_DOMAINS.join(', ')}` },
-        { status: 400 }
-      );
-    }
-  } catch {
-    return Response.json({ error: 'geojsonUrl invalide (URL malformée)' }, { status: 400 });
+  const initialCheck = validateGeojsonUrl(geojsonUrl);
+  if (!initialCheck.ok) {
+    return Response.json({ error: initialCheck.error }, { status: 400 });
   }
 
   const encoder = new TextEncoder();
@@ -164,10 +178,31 @@ export async function POST(req: NextRequest) {
 
         let response: Response;
         try {
-          response = await fetch(geojsonUrl, {
-            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            headers: { 'Accept': 'application/geo+json, application/json, */*' },
-          });
+          let currentUrl = geojsonUrl;
+          for (let hop = 0; ; hop++) {
+            if (hop > MAX_REDIRECTS) {
+              throw new Error(`Trop de redirections (max ${MAX_REDIRECTS})`);
+            }
+            // Revalider CHAQUE URL (initiale + chaque Location de redirection)
+            // contre la même whitelist — fetch() suit les 3xx sans revalider.
+            const hopCheck = validateGeojsonUrl(currentUrl);
+            if (!hopCheck.ok) {
+              throw new Error(`Redirection vers une cible non autorisée : ${hopCheck.error}`);
+            }
+            const res = await fetch(currentUrl, {
+              signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+              headers: { 'Accept': 'application/geo+json, application/json, */*' },
+              redirect: 'manual',
+            });
+            if (res.status >= 300 && res.status < 400) {
+              const location = res.headers.get('location');
+              if (!location) throw new Error('Redirection sans en-tête Location');
+              currentUrl = new URL(location, currentUrl).toString();
+              continue;
+            }
+            response = res;
+            break;
+          }
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           send({ type: 'error', message: `Téléchargement échoué: ${msg}` });

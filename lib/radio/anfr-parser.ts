@@ -15,8 +15,38 @@ import type { EmetteurRadioInsert } from './types';
 
 const DATASET_API = 'https://www.data.gouv.fr/api/1/datasets/donnees-sur-les-installations-radioelectriques-de-plus-de-5-watts-1/';
 const ALLOWED_HOSTS = ['www.data.gouv.fr', 'static.data.gouv.fr', 'files.data.gouv.fr', 'data.gouv.fr'];
+const MAX_REDIRECTS = 3;
 
 type ProgressCallback = (phase: string, current: number, total: number) => void;
+
+/** Whitelist SSRF réutilisée pour l'URL initiale ET pour chaque Location de redirection. */
+function isAllowedAnfrHost(hostname: string): boolean {
+  return ALLOWED_HOSTS.some((h) => hostname === h || hostname.endsWith('.' + h));
+}
+
+/**
+ * fetch() qui revalide le hostname à CHAQUE saut de redirection (fetch suit
+ * les 3xx par défaut sans revalider la cible — un domaine whitelisté peut
+ * rediriger vers une IP interne). Boucle bornée à MAX_REDIRECTS.
+ */
+async function fetchWithSsrfGuard(url: string, opts: RequestInit): Promise<Response> {
+  let currentUrl = url;
+  for (let hop = 0; ; hop++) {
+    if (hop > MAX_REDIRECTS) throw new Error(`Trop de redirections (max ${MAX_REDIRECTS})`);
+    const parsed = new URL(currentUrl);
+    if (!isAllowedAnfrHost(parsed.hostname)) {
+      throw new Error(`Domaine non autorisé: ${parsed.hostname}`);
+    }
+    const res = await fetch(currentUrl, { ...opts, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location) throw new Error('Redirection sans en-tête Location');
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+    return res;
+  }
+}
 
 function parseCoord(degStr: string | undefined, minStr: string | undefined, secStr: string | undefined, dirStr: string | undefined): number | null {
   const deg = parseFloat(degStr ?? '');
@@ -46,7 +76,7 @@ export async function downloadAndParseAnfr(
 
   // 1. Find latest ZIP URLs
   onProgress?.('Recherche des fichiers ANFR...', 0, 1);
-  const datasetRes = await fetch(DATASET_API, {
+  const datasetRes = await fetchWithSsrfGuard(DATASET_API, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
@@ -63,10 +93,10 @@ export async function downloadAndParseAnfr(
 
   if (!dataZip?.url) throw new Error('Aucun fichier ZIP data trouvé dans le dataset ANFR');
 
-  // Validate URLs
+  // Validate URLs (échec rapide avant tout téléchargement)
   for (const res of [dataZip, refZip].filter(Boolean)) {
     const u = new URL(res!.url);
-    if (!ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) {
+    if (!isAllowedAnfrHost(u.hostname)) {
       throw new Error(`Domaine non autorisé: ${u.hostname}`);
     }
   }
@@ -80,7 +110,7 @@ export async function downloadAndParseAnfr(
     signal: AbortSignal.timeout(300_000),
   };
 
-  const dataRes = await fetch(dataZip.url, fetchOpts);
+  const dataRes = await fetchWithSsrfGuard(dataZip.url, fetchOpts);
   if (!dataRes.ok) throw new Error(`Téléchargement data ZIP: HTTP ${dataRes.status}`);
   const dataBuf = await dataRes.arrayBuffer();
   onProgress?.(`ZIP principal téléchargé (${(dataBuf.byteLength / 1024 / 1024).toFixed(1)} Mo)`, 1, 2);
@@ -89,7 +119,7 @@ export async function downloadAndParseAnfr(
   let exploitantMap = new Map<string, string>(); // ADM_ID → ADM_LB_NOM
   if (refZip?.url) {
     onProgress?.('Téléchargement du ZIP de référence...', 1, 2);
-    const refRes = await fetch(refZip.url, fetchOpts);
+    const refRes = await fetchWithSsrfGuard(refZip.url, fetchOpts);
     if (refRes.ok) {
       const refBuf = await refRes.arrayBuffer();
       const refZipObj = await JSZip.loadAsync(refBuf);

@@ -20,9 +20,10 @@ export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300;
 
-const BATCH_SIZE    = 50;
-const PAGE_SIZE     = 1000;
-const FETCH_TIMEOUT = 60_000;
+const BATCH_SIZE     = 50;
+const PAGE_SIZE      = 1000;
+const FETCH_TIMEOUT  = 60_000;
+const MAX_REDIRECTS  = 3;
 
 // ─── SSRF protection : domaines ArcGIS autorisés ─────────────────────────────
 const ALLOWED_ARCGIS_DOMAINS = [
@@ -33,13 +34,21 @@ const ALLOWED_ARCGIS_DOMAINS = [
 ];
 
 function isPrivateHost(hostname: string): boolean {
-  if (hostname === 'localhost' || hostname === '[::1]') return true;
-  if (hostname.startsWith('127.') || hostname.startsWith('10.')) return true;
-  if (hostname.startsWith('192.168.')) return true;
-  if (hostname.startsWith('169.254.')) return true;
+  let h = hostname.toLowerCase();
+  // IPv4-mapped IPv6 (::ffff:127.0.0.1) → dévoiler l'IPv4 sous-jacente
+  if (h.startsWith('::ffff:')) h = h.slice('::ffff:'.length);
+  if (h === 'localhost' || h === '[::1]' || h === '::1') return true;
+  if (h.startsWith('127.') || h.startsWith('10.')) return true;
+  if (h.startsWith('192.168.')) return true;
+  if (h.startsWith('169.254.')) return true;
+  if (h.startsWith('0.')) return true; // 0.0.0.0/8
   // 172.16.0.0 - 172.31.255.255
-  const m = hostname.match(/^172\.(\d+)\./);
+  const m = h.match(/^172\.(\d+)\./);
   if (m && +m[1] >= 16 && +m[1] <= 31) return true;
+  // fc00::/7 (unique local IPv6)
+  if (/^f[cd][0-9a-f]{0,2}:/.test(h)) return true;
+  // fe80::/10 (link-local IPv6)
+  if (/^fe[89ab][0-9a-f]?:/.test(h)) return true;
   return false;
 }
 
@@ -256,9 +265,33 @@ export async function POST(req: NextRequest) {
 
           send({ type: 'status', message: `Page ${page} — offset ${offset}…` });
 
-          const resp = await fetch(url.toString(), {
-            signal: AbortSignal.timeout(FETCH_TIMEOUT),
-          });
+          // Revalider CHAQUE URL (initiale + chaque Location de redirection)
+          // contre la même whitelist — fetch() suit les 3xx sans revalider.
+          let resp: Response;
+          {
+            let currentUrl = url.toString();
+            for (let hop = 0; ; hop++) {
+              if (hop > MAX_REDIRECTS) {
+                throw new Error(`Trop de redirections (max ${MAX_REDIRECTS})`);
+              }
+              const hopCheck = validateArcgisUrl(currentUrl);
+              if (!hopCheck.ok) {
+                throw new Error(`Redirection vers une cible non autorisée : ${hopCheck.error}`);
+              }
+              const r = await fetch(currentUrl, {
+                signal: AbortSignal.timeout(FETCH_TIMEOUT),
+                redirect: 'manual',
+              });
+              if (r.status >= 300 && r.status < 400) {
+                const location = r.headers.get('location');
+                if (!location) throw new Error('Redirection sans en-tête Location');
+                currentUrl = new URL(location, currentUrl).toString();
+                continue;
+              }
+              resp = r;
+              break;
+            }
+          }
 
           if (!resp.ok) throw new Error(`ArcGIS HTTP ${resp.status}`);
 
