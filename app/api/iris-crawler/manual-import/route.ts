@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/auth';
 import { splitRow, computeDerived } from '@/lib/iris-crawler/storage';
 import { CORE_COLUMN_NAMES, classifyTarget } from '@/lib/iris-crawler/db-columns';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 import type { UploadSessionData } from '@/app/api/iris-crawler/manual-upload/route';
 
 export const dynamic = 'force-dynamic';
@@ -64,10 +65,18 @@ export async function POST(req: NextRequest) {
           return;
         }
 
+        // sessionId DOIT être un UUID (prévient le path traversal)
+        const sessionPath = resolveSafeJsonPath(UPLOAD_DIR, sessionId);
+        if (!sessionPath) {
+          send('error', 'sessionId invalide');
+          controller.close();
+          return;
+        }
+
         // Charger la session
         let session: UploadSessionData;
         try {
-          const raw = await fs.readFile(path.join(UPLOAD_DIR, `${sessionId}.json`), 'utf-8');
+          const raw = await fs.readFile(sessionPath, 'utf-8');
           session = JSON.parse(raw) as UploadSessionData;
         } catch {
           send('error', 'Session introuvable ou expirée. Ré-uploadez le fichier.');
@@ -205,7 +214,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Nettoyer la session temp
-        try { await fs.unlink(path.join(UPLOAD_DIR, `${sessionId}.json`)); } catch { /* ignore */ }
+        try { await fs.unlink(sessionPath); } catch { /* ignore */ }
 
         const mappedCols = Object.values(mapping).filter(v => v !== 'ignore');
         send('done',

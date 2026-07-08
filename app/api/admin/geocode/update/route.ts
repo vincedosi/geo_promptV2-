@@ -9,6 +9,7 @@ import os from 'os';
 import { geocodeSingle, scoreToStatus } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult, GeocodeReviewData } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +34,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Parametres manquants' }, { status: 400 });
     }
 
-    // Load geocode results
-    const geocodePath = path.join(GEOCODE_DIR, `${geocodeId}.json`);
+    // Load geocode results — geocodeId DOIT être un UUID (prévient le path traversal)
+    const geocodePath = resolveSafeJsonPath(GEOCODE_DIR, geocodeId);
+    if (!geocodePath) {
+      return NextResponse.json({ success: false, error: 'geocodeId invalide' }, { status: 400 });
+    }
     if (!fs.existsSync(geocodePath)) {
       return NextResponse.json(
         { success: false, error: 'Resultats de geocodage introuvables. Re-lancez le geocodage.' },

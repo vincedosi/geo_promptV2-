@@ -10,6 +10,7 @@ import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
 import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,11 @@ export async function POST(request: NextRequest) {
     // Load precomputed geocode results if available
     let preGeocodedResults: GeocodeDetailedResult[] | undefined;
     if (config.geocodeId) {
-      const geocodePath = path.join(GEOCODE_DIR, `${config.geocodeId}.json`);
+      // geocodeId DOIT être un UUID (prévient le path traversal)
+      const geocodePath = resolveSafeJsonPath(GEOCODE_DIR, config.geocodeId);
+      if (!geocodePath) {
+        return NextResponse.json({ success: false, error: 'geocodeId invalide' }, { status: 400 });
+      }
       if (fs.existsSync(geocodePath)) {
         const geocodeData = JSON.parse(fs.readFileSync(geocodePath, 'utf-8'));
         // Only pass results for rows in the test range
