@@ -49,3 +49,72 @@ export async function checkCampaignAccess(
     ? 'ok'
     : 'forbidden';
 }
+
+/**
+ * Accès à une stratégie de bidding : via sa campagne
+ * (`bidding_strategies.campaign_id → dsp_campaigns.organization_id`).
+ * Même règle owner-ou-lié + super_admin que les campagnes.
+ */
+export async function checkStrategyAccess(
+  supabase: SupabaseClient,
+  profile: { role: string; organization_id: string | null },
+  strategyId: string,
+): Promise<CampaignAccess> {
+  const { data, error } = await supabase
+    .from('bidding_strategies')
+    .select('campaign_id')
+    .eq('id', strategyId)
+    .maybeSingle();
+  if (error) console.error('[strategy-access] strategie:', error.message);
+  if (!data?.campaign_id) return 'not_found';
+  return checkCampaignAccess(supabase, profile, data.campaign_id as string);
+}
+
+/**
+ * Décision pure d'accès à une zone custom : super_admin global, sinon l'org
+ * active doit être l'org propriétaire de la zone (`custom_geo_zones.org_id`).
+ * Pas de pivot pour les zones (une zone appartient à une seule org).
+ */
+export function resolveZoneAccess(
+  role: string,
+  userOrgId: string | null,
+  zoneOrgId: string | null,
+): boolean {
+  if (role === 'super_admin') return true;
+  if (!userOrgId || zoneOrgId === null) return false;
+  return userOrgId === zoneOrgId;
+}
+
+/** Vérifie l'accès à une zone custom en base (1 lookup PK indexé). */
+export async function checkZoneAccess(
+  supabase: SupabaseClient,
+  profile: { role: string; organization_id: string | null },
+  zoneId: string,
+): Promise<CampaignAccess> {
+  const { data, error } = await supabase
+    .from('custom_geo_zones')
+    .select('org_id')
+    .eq('id', zoneId)
+    .maybeSingle();
+  if (error) console.error('[zone-access] zone:', error.message);
+  if (!data) return 'not_found';
+  return resolveZoneAccess(profile.role, profile.organization_id, (data as { org_id: string | null }).org_id)
+    ? 'ok'
+    : 'forbidden';
+}
+
+/**
+ * Décision pure : un utilisateur peut-il ÉCRIRE/LIRE pour une org cible passée
+ * par le client (org_id d'un body/query) ? super_admin partout, sinon l'org
+ * cible doit être sa propre org active. Empêche un membre d'agir « au nom »
+ * d'une autre org.
+ */
+export function resolveOrgWriteAccess(
+  role: string,
+  userOrgId: string | null,
+  targetOrgId: string | null,
+): boolean {
+  if (role === 'super_admin') return true;
+  if (!userOrgId || !targetOrgId) return false;
+  return userOrgId === targetOrgId;
+}

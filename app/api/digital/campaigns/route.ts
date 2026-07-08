@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const profile = await getUserFromRequest(authHeader);
 
+  // Auth OBLIGATOIRE : sans profil, `orgId` restait null → la RPC renvoyait
+  // TOUTES les campagnes de toutes les orgs (fuite non authentifiée). Fix.
+  if (!profile) {
+    return NextResponse.json({ error: 'Authentification requise.' }, { status: 401 });
+  }
+
   // Determine org filter
   let orgId: string | null = null;
   if (profile && !isSuperAdmin(profile)) {
