@@ -197,19 +197,22 @@ export function StepCible({
 
       {/* Familles */}
       <FieldBlock label="Construire une cible">
-        <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--border-subtle)', marginBottom: 10 }}>
+        <select
+          value={famille}
+          onChange={(e) => { setFamille(e.target.value as CibleIndicator['famille'] | 'zones'); setSelected(null); }}
+          aria-label="Type de cible"
+          style={{
+            width: '100%', marginBottom: 10,
+            background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+            padding: '8px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, color: 'var(--text-primary)',
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+        >
           {[...FAMILLES, { key: 'zones' as const, label: 'Mes zones' }].map((f) => (
-            <button key={f.key} onClick={() => { setFamille(f.key); setSelected(null); }}
-              style={{
-                background: 'transparent', border: 'none',
-                borderBottom: famille === f.key ? '2px solid var(--brand-teal)' : '2px solid transparent',
-                padding: '8px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, fontWeight: 500,
-                color: famille === f.key ? 'var(--text-primary)' : 'var(--text-tertiary)', cursor: 'pointer',
-              }}>
-              {f.label}
-            </button>
+            <option key={f.key} value={f.key}>{f.label}</option>
           ))}
-        </div>
+        </select>
 
         {famille === 'zones' ? (
           <OptsList>
