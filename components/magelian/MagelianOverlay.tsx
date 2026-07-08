@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
 import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
+import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
@@ -18,7 +19,7 @@ const EXIT_DURATION_MS = 200;
 /** Campagne démo à préférer par défaut si présente dans la liste. */
 const DEMO_CAMPAIGN_ID = 'dccc0000-0000-4000-8000-000000000002';
 
-type MagelianTab = 'creation' | 'suivi';
+type MagelianTab = 'creation' | 'suivi' | 'apercu';
 
 interface CampaignRef {
   id: string;
@@ -229,6 +230,7 @@ export function MagelianOverlay() {
       >
         {([
           ['suivi', 'Suivi campagne'],
+          ['apercu', 'Aperçu'],
           ['creation', 'Création campagne'],
         ] as const).map(([key, label]) => (
           <button
@@ -307,6 +309,16 @@ export function MagelianOverlay() {
         {tab === 'suivi' && (
           selectedId ? (
             <CampaignSuivi key={selectedId} campaignId={selectedId} />
+          ) : campaigns !== null ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
+            </div>
+          ) : null
+        )}
+
+        {tab === 'apercu' && (
+          selectedId ? (
+            <CampaignOverview key={selectedId} campaignId={selectedId} embedded />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».

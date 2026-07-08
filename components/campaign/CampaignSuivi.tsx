@@ -10,7 +10,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
-import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -115,9 +114,6 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Aperçu campagne (KPI + organisations + données) ── */}
-      <CampaignOverview campaignId={campaignId} embedded />
-
       <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
         {/* ── Colonne bilan ── */}
         <div style={{ flex: '1 1 380px', minWidth: 320 }}>
