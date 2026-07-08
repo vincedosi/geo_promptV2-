@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
 
   const orgId = new URL(request.url).searchParams.get('org_id');
   if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 });
+  // Scope org : un membre ne peut demander les stats que de sa propre org.
+  if (!resolveOrgWriteAccess(profile.role, profile.organization_id, orgId)) {
+    return NextResponse.json({ error: 'forbidden_org' }, { status: 403 });
+  }
 
   const supabase = createNoCacheAdminClient();
   const { data, error } = await supabase.rpc('get_custom_geo_zones_stats', { p_org_id: orgId });

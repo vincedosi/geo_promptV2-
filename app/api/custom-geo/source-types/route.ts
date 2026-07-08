@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,10 @@ export async function GET(request: NextRequest) {
 
   const orgId = new URL(request.url).searchParams.get('org_id');
   if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 });
+  // Scope org : un membre ne peut interroger que sa propre org.
+  if (!resolveOrgWriteAccess(profile.role, profile.organization_id, orgId)) {
+    return NextResponse.json({ error: 'forbidden_org' }, { status: 403 });
+  }
 
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('list_custom_geo_source_types', { p_org_id: orgId });
