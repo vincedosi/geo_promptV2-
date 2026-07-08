@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { checkStrategyAccess } from '@/lib/campaigns/access';
+import { checkStrategyAccess, checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,6 +205,13 @@ export async function PATCH(
   // Si status change → status_changed_at
   if (body.status !== undefined && body.status !== cur.status) {
     updates.status_changed_at = new Date().toISOString();
+  }
+
+  // Scope org sur une zone (ré)assignée : interdit de pointer la zone d'une
+  // autre org via un PATCH (contournement de checkZoneAccess). Cf. audit sécurité.
+  if ('zone_id' in updates && updates.zone_id) {
+    const zoneAccess = await checkZoneAccess(supabase, profile, updates.zone_id as string);
+    if (zoneAccess !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
   }
 
   if (Object.keys(updates).length === 0 && !body.subzones) {

@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -170,6 +170,13 @@ export async function POST(request: NextRequest) {
 
   const campaignAccess = await checkCampaignAccess(supabase, profile, body.campaign_id);
   if (campaignAccess !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
+  // Scope org sur la zone rattachée : empêche de pointer la zone d'une autre org
+  // (sondage de géométrie confidentielle + blocage de suppression). Cf. audit sécurité.
+  if (body.scope_type === 'custom_zone' && body.zone_id) {
+    const zoneAccess = await checkZoneAccess(supabase, profile, body.zone_id);
+    if (zoneAccess !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
+  }
 
   // 1. Eligibilité : campagne non-Adform
   const { data: campaign, error: cErr } = await supabase
