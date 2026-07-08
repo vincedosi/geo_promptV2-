@@ -37,6 +37,20 @@ describe('resolveChannelAvailability', () => {
     expect(out.every((r) => r.available)).toBe(true);
     expect(out.find((r) => r.code === 'dv360')!.connected).toBe(false);
   });
+  it('exclut les canaux inactifs (active=false)', () => {
+    const withInactive: ChannelRow[] = [
+      ...REG,
+      { code: 'inactif', label: 'Canal off', category: 'dsp', connection_provider: 'inactif', active: false },
+    ];
+    const out = resolveChannelAvailability(withInactive, ['inactif'], true);
+    expect(out.find((r) => r.code === 'inactif')).toBeUndefined();
+  });
+  it('trie par catégorie puis par label', () => {
+    const out = resolveChannelAvailability(REG, [], true);
+    const keys = out.map((r) => `${r.category}/${r.label}`);
+    const sorted = [...keys].sort((a, b) => a.localeCompare(b));
+    expect(keys).toEqual(sorted);
+  });
 });
 
 describe('validateSelection', () => {
@@ -59,5 +73,9 @@ describe('validateSelection', () => {
   it('refuse un code inconnu', () => {
     expect(validateSelection({ dsps: ['nope'], socials: [], ad_server: null }, REG, [], true))
       .toEqual({ ok: false, badCode: 'nope' });
+  });
+  it('réel : refuse un réseau social non connecté', () => {
+    expect(validateSelection({ dsps: [], socials: ['meta'], ad_server: null }, REG, [], false))
+      .toEqual({ ok: false, badCode: 'meta' });
   });
 });
