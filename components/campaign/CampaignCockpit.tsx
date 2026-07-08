@@ -238,7 +238,7 @@ function ActionButton({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; embedded?: boolean }) {
+export function CampaignCockpit({ campaignId, embedded, initialView }: { campaignId: string; embedded?: boolean; initialView?: CockpitView }) {
   const id = campaignId;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -254,7 +254,7 @@ export function CampaignCockpit({ campaignId, embedded }: { campaignId: string; 
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
   const [strategyLoaded, setStrategyLoaded] = useState(false);
-  const [view, setView] = useState<CockpitView>('overview');
+  const [view, setView] = useState<CockpitView>(initialView ?? 'overview');
 
   // Brouillon Programmer (Cible/Budget/Stratégie/Lancement) — un seul
   // objet local, préservé tant que la page n'est pas rechargée.

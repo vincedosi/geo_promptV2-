@@ -38,7 +38,7 @@ export function MagelianOverlay() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  const [tab, setTab] = useState<MagelianTab>('creation');
+  const [tab, setTab] = useState<MagelianTab>('suivi');
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fetchedRef = useRef(false);
@@ -65,7 +65,7 @@ export function MagelianOverlay() {
   // Reset l'onglet actif à chaque nouvelle ouverture + horodate l'ouverture.
   useEffect(() => {
     if (open) {
-      setTab('creation');
+      setTab('suivi');
       openedAtRef.current = Date.now();
     }
   }, [open]);
@@ -228,8 +228,8 @@ export function MagelianOverlay() {
         }}
       >
         {([
-          ['creation', 'Création campagne'],
           ['suivi', 'Suivi campagne'],
+          ['creation', 'Création campagne'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -296,7 +296,7 @@ export function MagelianOverlay() {
       >
         {tab === 'creation' && (
           selectedId ? (
-            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded />
+            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded initialView="prog" />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
