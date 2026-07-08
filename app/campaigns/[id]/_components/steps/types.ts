@@ -8,6 +8,8 @@
  */
 import type { Dispatch, SetStateAction } from 'react';
 import type { CibleZoneRef } from '@/lib/cibles/draft';
+import type { CampaignChannels } from '@/lib/campaigns/channels';
+import { EMPTY_CHANNELS } from '@/lib/campaigns/channels';
 
 export type Intensity = 'doux' | 'marque' | 'fort';
 export type ScopeType = 'national' | 'custom_zone';
@@ -17,6 +19,8 @@ export interface ProgDraft {
   intensity: Intensity;
   /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
   cibles: CibleZoneRef[];
+  /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
+  channels: CampaignChannels;
   totalBudget: number | null;
   forecastCpm: number | null;
   startDate: string; // 'YYYY-MM-DD' ou ''
@@ -27,6 +31,7 @@ export interface ProgDraft {
 export const DEFAULT_PROG_DRAFT: ProgDraft = {
   intensity: 'marque',
   cibles: [],
+  channels: EMPTY_CHANNELS,
   totalBudget: null,
   forecastCpm: null,
   startDate: '',
