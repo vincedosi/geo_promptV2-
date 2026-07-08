@@ -26,9 +26,12 @@ async function loadContext(
   if (!camp) return null;
   const [regRes, connRes, profRes] = await Promise.all([
     supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active').eq('active', true),
-    supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'active'),
+    supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'connected'),
     supabase.from('profiles').select('demo_mode').eq('id', userId).maybeSingle(),
   ]);
+  if (regRes.error) console.error('[campaigns/channels] registry:', regRes.error.message);
+  if (connRes.error) console.error('[campaigns/channels] connexions:', connRes.error.message);
+  if (profRes.error) console.error('[campaigns/channels] profil:', profRes.error.message);
   const catalog = (regRes.data ?? []) as ChannelRow[];
   const connectedProviders = ((connRes.data ?? []) as Array<{ provider: string }>).map((c) => c.provider);
   const gs = (camp.geo_strategy ?? {}) as Record<string, unknown>;
