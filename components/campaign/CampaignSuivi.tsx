@@ -10,9 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
-import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge';
-import { effectiveCampaignStatus } from '@/lib/campaigns/status';
-import type { CampaignDetail } from '@/types/campaign';
+import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -26,15 +24,7 @@ const SUGGESTIONS = [
   'Quelles zones sous-performent par rapport à leur population ?',
 ];
 
-function fmtNum(n: number) { return n.toLocaleString('fr-FR'); }
-function fmtDate(d: string | null) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-
 export function CampaignSuivi({ campaignId }: { campaignId: string }) {
-  const [detail, setDetail] = useState<CampaignDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(true);
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
   const [strategyLoaded, setStrategyLoaded] = useState(false);
@@ -47,14 +37,6 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoadingDetail(true);
-      try {
-        const res = await adminFetch(`/api/admin/campaigns/${campaignId}?page=1`, { cache: 'no-store' });
-        if (!cancelled && res.ok) setDetail(await res.json());
-      } catch { /* ignore */ }
-      if (!cancelled) setLoadingDetail(false);
-    })();
     (async () => {
       try {
         const r = await adminFetch('/api/bidding/strategies', { cache: 'no-store' });
@@ -131,179 +113,151 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
     }
   }, [campaignId, input, messages, sending]);
 
-  const camp = detail?.campaign ?? null;
-  const today = new Date().toISOString().slice(0, 10);
-
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
-      {/* ── Colonne bilan ── */}
-      <div style={{ flex: '1 1 380px', minWidth: 320 }}>
-        <div style={{
-          background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
-          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-          <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Bilan</span>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ── Aperçu campagne (KPI + organisations + données) ── */}
+      <CampaignOverview campaignId={campaignId} embedded />
 
-        {loadingDetail || !strategyLoaded ? (
-          <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>Chargement…</div>
-        ) : strategyId && strategyStatus === 'completed' ? (
-          <FinalReport strategyId={strategyId} />
-        ) : (
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}>
+        {/* ── Colonne bilan ── */}
+        <div style={{ flex: '1 1 380px', minWidth: 320 }}>
           <div style={{
-            background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)',
-            borderRadius: 8, padding: '20px 18px',
+            background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
+            padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
           }}>
-            {camp && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 14, color: 'var(--text-primary)' }}>{camp.name}</span>
-                  <CampaignStatusBadge status={effectiveCampaignStatus(camp, today)} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Tracked ads</div>
-                    <div style={{ fontFamily: fMono, fontSize: 16, color: 'var(--text-primary)' }}>{fmtNum(camp.total_tracked_ads ?? 0)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Période</div>
-                    <div style={{ fontFamily: fMono, fontSize: 13, color: 'var(--text-secondary)', paddingTop: 3 }}>
-                      {fmtDate(camp.date_start)} → {fmtDate(camp.date_end)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Lignes</div>
-                    <div style={{ fontFamily: fMono, fontSize: 16, color: 'var(--text-primary)' }}>{fmtNum(detail?.data.total ?? 0)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)' }}>Pays</div>
-                    <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-secondary)', paddingTop: 3 }}>
-                      {camp.countries?.join(', ') ?? '—'}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-              {strategyId
-                ? 'Le bilan complet sera disponible à la fin de la campagne (stratégie encore en cours).'
-                : 'Aucune stratégie de bidding rattachée — le bilan complet sera disponible pour les campagnes pilotées.'}
-              {' '}En attendant, interroge la campagne via le chat ci-contre.
-            </div>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+            <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Bilan</span>
           </div>
-        )}
-      </div>
 
-      {/* ── Colonne chat ── */}
-      <div style={{ flex: '1 1 380px', minWidth: 320, display: 'flex', flexDirection: 'column' }}>
-        <div style={{
-          background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
-          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-          <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Interroger la campagne</span>
-        </div>
-
-        <div
-          ref={scrollRef}
-          style={{
-            flex: 1, minHeight: 260, maxHeight: 420, overflowY: 'auto', padding: 12,
-            background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8,
-            display: 'flex', flexDirection: 'column', gap: 8,
-          }}
-        >
-          {messages.length === 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
-              <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 2 }}>
-                Pose une question sur ce qu&apos;il s&apos;est passé dans cette campagne :
+          {!strategyLoaded ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>Chargement…</div>
+          ) : strategyId && strategyStatus === 'completed' ? (
+            <FinalReport strategyId={strategyId} />
+          ) : (
+            <div style={{
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)',
+              borderRadius: 8, padding: '20px 18px',
+            }}>
+              <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+                {strategyId
+                  ? 'Le bilan complet sera disponible à la fin de la campagne (stratégie encore en cours).'
+                  : 'Aucune stratégie de bidding rattachée — le bilan complet sera disponible pour les campagnes pilotées.'}
+                {' '}En attendant, interroge la campagne via le chat ci-contre.
               </div>
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => { void send(s); }}
-                  disabled={sending}
-                  style={{
-                    textAlign: 'left', background: 'var(--bg-surface)',
-                    border: '0.5px solid var(--border-subtle)', borderRadius: 8,
-                    padding: '10px 12px', fontFamily: fInter, fontSize: 12,
-                    color: 'var(--text-secondary)', cursor: sending ? 'not-allowed' : 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-30)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-                >
-                  {s}
-                </button>
-              ))}
             </div>
           )}
-          {messages.map((m, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                maxWidth: '85%', padding: '8px 12px', borderRadius: 8,
-                background: m.role === 'user' ? 'var(--brand-teal)' : 'var(--bg-surface)',
-                color: m.role === 'user' ? 'var(--bg-primary)' : 'var(--text-primary)',
-                border: m.role === 'user' ? 'none' : '0.5px solid var(--border-subtle)',
-                fontFamily: fInter, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-              }}>
-                {m.content || (m.pending ? '…' : '')}
-              </div>
-            </div>
-          ))}
         </div>
 
-        {chatError && (
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--danger)' }}>{chatError}</span>
-            <button
-              type="button"
-              onClick={() => setChatError(null)}
-              style={{
-                background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 4,
-                padding: '2px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', cursor: 'pointer',
-              }}
-            >
-              ok
-            </button>
+        {/* ── Colonne chat ── */}
+        <div style={{ flex: '1 1 380px', minWidth: 320, display: 'flex', flexDirection: 'column' }}>
+          <div style={{
+            background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
+            padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+            <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Interroger la campagne</span>
           </div>
-        )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input
-            type="text"
-            name="campaign-suivi-message"
-            autoComplete="off"
-            spellCheck={false}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            disabled={sending}
-            placeholder="Pose une question sur la campagne…"
+          <div
+            ref={scrollRef}
             style={{
-              flex: 1, padding: '8px 12px', fontFamily: fInter, fontSize: 13,
-              background: 'var(--bg-level-2)', color: 'var(--text-primary)',
-              border: '0.5px solid var(--border-subtle)', borderRadius: 6, outline: 'none',
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-          />
-          <button
-            type="button"
-            onClick={() => { void send(); }}
-            disabled={sending || !input.trim()}
-            aria-label="Envoyer"
-            style={{
-              width: 36, height: 36, borderRadius: '50%', border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: sending || !input.trim() ? 'var(--bg-level-2)' : 'var(--brand-teal)',
-              color: sending || !input.trim() ? 'var(--text-tertiary)' : 'var(--bg-primary)',
-              cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', flexShrink: 0,
+              flex: 1, minHeight: 260, maxHeight: 420, overflowY: 'auto', padding: 12,
+              background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 8,
+              display: 'flex', flexDirection: 'column', gap: 8,
             }}
           >
-            <Send size={14} />
-          </button>
+            {messages.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
+                <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 2 }}>
+                  Pose une question sur ce qu&apos;il s&apos;est passé dans cette campagne :
+                </div>
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => { void send(s); }}
+                    disabled={sending}
+                    style={{
+                      textAlign: 'left', background: 'var(--bg-surface)',
+                      border: '0.5px solid var(--border-subtle)', borderRadius: 8,
+                      padding: '10px 12px', fontFamily: fInter, fontSize: 12,
+                      color: 'var(--text-secondary)', cursor: sending ? 'not-allowed' : 'pointer',
+                      transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-30)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '85%', padding: '8px 12px', borderRadius: 8,
+                  background: m.role === 'user' ? 'var(--brand-teal)' : 'var(--bg-surface)',
+                  color: m.role === 'user' ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  border: m.role === 'user' ? 'none' : '0.5px solid var(--border-subtle)',
+                  fontFamily: fInter, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                }}>
+                  {m.content || (m.pending ? '…' : '')}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {chatError && (
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: fMono, fontSize: 11, color: 'var(--danger)' }}>{chatError}</span>
+              <button
+                type="button"
+                onClick={() => setChatError(null)}
+                style={{
+                  background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 4,
+                  padding: '2px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-tertiary)', cursor: 'pointer',
+                }}
+              >
+                ok
+              </button>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <input
+              type="text"
+              name="campaign-suivi-message"
+              autoComplete="off"
+              spellCheck={false}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+              disabled={sending}
+              placeholder="Pose une question sur la campagne…"
+              style={{
+                flex: 1, padding: '8px 12px', fontFamily: fInter, fontSize: 13,
+                background: 'var(--bg-level-2)', color: 'var(--text-primary)',
+                border: '0.5px solid var(--border-subtle)', borderRadius: 6, outline: 'none',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+            />
+            <button
+              type="button"
+              onClick={() => { void send(); }}
+              disabled={sending || !input.trim()}
+              aria-label="Envoyer"
+              style={{
+                width: 36, height: 36, borderRadius: '50%', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: sending || !input.trim() ? 'var(--bg-level-2)' : 'var(--brand-teal)',
+                color: sending || !input.trim() ? 'var(--text-tertiary)' : 'var(--bg-primary)',
+                cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', flexShrink: 0,
+              }}
+            >
+              <Send size={14} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
