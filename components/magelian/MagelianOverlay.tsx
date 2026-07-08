@@ -296,7 +296,7 @@ export function MagelianOverlay() {
       >
         {tab === 'creation' && (
           selectedId ? (
-            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded initialView="prog" />
+            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded initialView="prog" wizardOnly />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
