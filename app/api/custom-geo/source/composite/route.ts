@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -25,6 +26,18 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
 
   const supabase = createAdminClient();
+
+  // Chaque zone membre doit être accessible à l'org active. Vérif par lots de
+  // 3 (contrainte Nano : max 3 requêtes Supabase parallèles) plutôt qu'un
+  // Promise.all global sur les 20 zones max autorisées.
+  for (let i = 0; i < parsed.data.zone_ids.length; i += 3) {
+    const batch = parsed.data.zone_ids.slice(i, i + 3);
+    const results = await Promise.all(batch.map((zoneId) => checkZoneAccess(supabase, profile, zoneId)));
+    if (results.some((r) => r !== 'ok')) {
+      return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
+    }
+  }
+
   const { data, error } = await supabase.rpc('get_composite_zone_geometry', {
     p_zone_ids: parsed.data.zone_ids,
   });

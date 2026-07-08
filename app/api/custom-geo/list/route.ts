@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
 
   if (!orgId) {
     return NextResponse.json({ error: 'org_id required' }, { status: 400 });
+  }
+
+  if (!resolveOrgWriteAccess(profile.role, profile.organization_id, orgId)) {
+    return NextResponse.json({ error: 'forbidden_org' }, { status: 403 });
   }
 
   const supabase = createNoCacheAdminClient();

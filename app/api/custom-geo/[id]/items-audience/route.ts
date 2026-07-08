@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -32,6 +33,11 @@ export async function GET(
   if (!profile) return authUnauthorized();
 
   const supabase = createAdminClient();
+
+  // Garde IDOR AVANT toute lecture (y compris le chemin cache ci-dessous, qui
+  // renvoyait auparavant sans vérif d'org).
+  const access = await checkZoneAccess(supabase, profile, params.id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   // 1. Cache (calculé une fois par zone — invalidé seulement par recalcul)
   const { data: zone, error } = await supabase

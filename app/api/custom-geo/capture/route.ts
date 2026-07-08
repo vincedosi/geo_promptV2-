@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -66,6 +67,10 @@ export async function POST(request: NextRequest) {
       { error: 'invalid_body', issues: parsed.error.issues },
       { status: 400 },
     );
+  }
+
+  if (!resolveOrgWriteAccess(profile.role, profile.organization_id, parsed.data.org_id)) {
+    return NextResponse.json({ error: 'forbidden_org' }, { status: 403 });
   }
 
   const supabase = createAdminClient();

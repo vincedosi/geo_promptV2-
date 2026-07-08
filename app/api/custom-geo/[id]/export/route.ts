@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/auth';
 import { mapPostalCodesToGeoIds, GEO_POSTAL_FR_VERSION } from '@/lib/digital/dv360-geo';
 import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/digital/dv360-bidding-script';
 import { toSlug } from '@/lib/custom-geo/slug';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,9 @@ export async function GET(
   const format = searchParams.get('format') ?? 'csv_cp';
 
   const supabase = createAdminClient();
+
+  const access = await checkZoneAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   // Get zone name for filename
   const { data: zone } = await supabase

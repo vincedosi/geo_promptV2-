@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,9 @@ export async function GET(
   }
 
   const supabase = createAdminClient();
+
+  const access = await checkZoneAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   const { data, error } = await supabase
     .from('custom_geo_zone_codes')

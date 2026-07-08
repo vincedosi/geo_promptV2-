@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,9 @@ export async function GET(
 
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const access = await checkZoneAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   const { data, error } = await supabase
     .from('custom_geo_zones')
@@ -113,6 +117,10 @@ export async function PATCH(
   }
 
   const supabase = createAdminClient();
+
+  const access = await checkZoneAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
+
   const { error } = await supabase
     .from('custom_geo_zones')
     .update(updates)
@@ -136,6 +144,9 @@ export async function DELETE(
 
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const access = await checkZoneAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   // Garde-fou : interdit de supprimer une zone référencée par une stratégie
   // de bidding, ou membre d'une zone composite existante.

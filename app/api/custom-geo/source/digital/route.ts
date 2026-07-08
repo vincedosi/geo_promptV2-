@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -28,6 +29,10 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
 
   const supabase = createAdminClient();
+
+  const access = await checkCampaignAccess(supabase, profile, parsed.data.campaign_id);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
   const { data, error } = await supabase.rpc('get_digital_zone_geometry', {
     p_campaign_id: parsed.data.campaign_id,
     p_scale: parsed.data.scale,
