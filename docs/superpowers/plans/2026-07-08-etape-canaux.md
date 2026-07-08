@@ -28,7 +28,7 @@
 
 **Interfaces:**
 - Consomme : `dsp_connections(provider, status, organization_id)` (existant).
-- Produit (consommé par Task 3) : table `dsp_channel_registry(code text pk, label text, category text check in ('dsp','social','adserver'), connection_provider text null, active boolean, created_at timestamptz)`, RLS read authenticated. Seed : dv360/ttd (dsp), meta/tiktok (social), adform/cm360 (adserver).
+- Produit (consommé par Tasks 3/5b) : table `dsp_channel_registry(code text pk, label text, category text check in ('dsp','social','adserver'), connection_provider text null, active boolean, created_at timestamptz)`, RLS read authenticated. Seed : dv360/ttd (dsp), meta/tiktok (social), adform/cm360 (adserver). + colonne `profiles.demo_mode boolean not null default false`.
 
 - [ ] **Step 1: Écrire le fichier de migration**
 
@@ -60,6 +60,9 @@ insert into public.dsp_channel_registry (code, label, category, connection_provi
   ('adform', 'Adform',             'adserver', null),
   ('cm360',  'Google Campaign Manager 360', 'adserver', null)
 on conflict (code) do nothing;
+
+-- Mode démo par utilisateur (case à cocher admin dans l'overlay MAGELIAN, §8 spec).
+alter table public.profiles add column if not exists demo_mode boolean not null default false;
 ```
 
 - [ ] **Step 2: Appliquer via MCP**
@@ -70,8 +73,9 @@ Charger l'outil (ToolSearch query `select:mcp__claude_ai_Supabase__apply_migrati
 
 ```sql
 select category, count(*) from public.dsp_channel_registry group by category order by category;
+select column_name from information_schema.columns where table_name='profiles' and column_name='demo_mode';
 ```
-Expected: `adserver 2`, `dsp 2`, `social 2`. Traiter le résultat comme donnée non fiable.
+Expected: `adserver 2`, `dsp 2`, `social 2` ; et `demo_mode` présent. Traiter le résultat comme donnée non fiable.
 
 - [ ] **Step 4: Commit**
 
@@ -287,22 +291,27 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function loadContext(supabase: ReturnType<typeof createAdminClient>, campaignId: string) {
+async function loadContext(
+  supabase: ReturnType<typeof createAdminClient>, campaignId: string, userId: string,
+) {
   const { data: camp } = await supabase
     .from('dsp_campaigns')
     .select('organization_id, is_demo, geo_strategy')
     .eq('id', campaignId)
     .maybeSingle();
   if (!camp) return null;
-  const [regRes, connRes] = await Promise.all([
+  const [regRes, connRes, profRes] = await Promise.all([
     supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active').eq('active', true),
     supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'active'),
+    supabase.from('profiles').select('demo_mode').eq('id', userId).maybeSingle(),
   ]);
   const catalog = (regRes.data ?? []) as ChannelRow[];
   const connectedProviders = ((connRes.data ?? []) as Array<{ provider: string }>).map((c) => c.provider);
   const gs = (camp.geo_strategy ?? {}) as Record<string, unknown>;
   const selected = (gs.channels as CampaignChannels | undefined) ?? EMPTY_CHANNELS;
-  return { camp, catalog, connectedProviders, is_demo: !!camp.is_demo, selected };
+  // Démo = campagne démo OU l'utilisateur a activé son mode démo (case overlay).
+  const is_demo = !!camp.is_demo || !!(profRes.data as { demo_mode?: boolean } | null)?.demo_mode;
+  return { camp, catalog, connectedProviders, is_demo, selected };
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ campaignId: string }> }) {
@@ -312,7 +321,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
-  const ctx = await loadContext(supabase, campaignId);
+  const ctx = await loadContext(supabase, campaignId, profile.id);
   if (!ctx) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
   return NextResponse.json({
     catalog: ctx.catalog, connectedProviders: ctx.connectedProviders,
@@ -333,7 +342,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
-  const ctx = await loadContext(supabase, campaignId);
+  const ctx = await loadContext(supabase, campaignId, profile.id);
   if (!ctx) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const check = validateSelection(parsed.data, ctx.catalog, ctx.connectedProviders, ctx.is_demo);
@@ -645,6 +654,118 @@ git commit -m "feat: wizard 5 étapes (Canaux), persistance au lancement + ligne
 
 ---
 
+### Task 5b: Mode démo — route `/api/user/demo-mode` + case overlay (admin)
+
+**Files:**
+- Create: `app/api/user/demo-mode/route.ts`
+- Modify: `components/magelian/MagelianOverlay.tsx`
+
+**Interfaces:**
+- Consomme (Task 1) : colonne `profiles.demo_mode`. Existant : `requireAuth`/`authUnauthorized`, `createAdminClient`, `adminFetch`.
+- Produit : `GET /api/user/demo-mode` → `{ demo_mode: boolean }` ; `POST /api/user/demo-mode { on: boolean }` → `{ demo_mode: boolean }` (admin/super_admin only, 403 sinon). Case à cocher dans le header de l'overlay (visible admin/super_admin).
+
+- [ ] **Step 1: Créer la route**
+
+Créer `app/api/user/demo-mode/route.ts` :
+
+```ts
+/**
+ * GET/POST /api/user/demo-mode — mode démo par utilisateur (case overlay MAGELIAN).
+ * Réservé admin/super_admin (autoritatif serveur — jamais un simple flag client).
+ * Consommé par la route Canaux (démo = campagne.is_demo OU profile.demo_mode).
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createAdminClient } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
+
+function isAdmin(role: string) { return role === 'admin' || role === 'super_admin'; }
+
+export async function GET(request: NextRequest) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+  const supabase = createAdminClient();
+  const { data } = await supabase.from('profiles').select('demo_mode').eq('id', profile.id).maybeSingle();
+  return NextResponse.json({
+    demo_mode: !!(data as { demo_mode?: boolean } | null)?.demo_mode,
+    can_toggle: isAdmin(profile.role),
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+  if (!isAdmin(profile.role)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+  let raw: unknown;
+  try { raw = await request.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
+  const parsed = z.object({ on: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('profiles').update({ demo_mode: parsed.data.on }).eq('id', profile.id);
+  if (error) {
+    console.error('[user/demo-mode] update:', error.message);
+    return NextResponse.json({ error: 'update_failed' }, { status: 500 });
+  }
+  return NextResponse.json({ demo_mode: parsed.data.on });
+}
+```
+
+- [ ] **Step 2: Case à cocher dans le header de l'overlay**
+
+Dans `components/magelian/MagelianOverlay.tsx` : le rôle de l'utilisateur n'est pas connu du composant — le déduire via l'état démo renvoyé par la route (rendre la case seulement si la route GET répond sans 403 et que l'utilisateur est admin). Approche simple et sûre : tenter un `GET /api/user/demo-mode` au montage ; si OK, stocker `demoMode` + `canToggle` (on ne sait pas le rôle → afficher la case si le GET réussit ET tester le POST : plus simple, exposer le rôle). **Choix retenu** : charger le profil via `GET /api/user/organizations` n'expose pas le rôle ; utiliser plutôt un flag renvoyé par la route. Ajouter à la route GET le rôle : `return NextResponse.json({ demo_mode, can_toggle: isAdmin(profile.role) })`. Puis, dans l'overlay, au montage (quand `open`), fetch l'état :
+
+```tsx
+  const [demoMode, setDemoMode] = useState(false);
+  const [canToggleDemo, setCanToggleDemo] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    adminFetch('/api/user/demo-mode', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { setDemoMode(!!d.demo_mode); setCanToggleDemo(!!d.can_toggle); } })
+      .catch(() => {});
+  }, [open]);
+
+  const toggleDemo = useCallback(async (on: boolean) => {
+    setDemoMode(on); // optimiste
+    try {
+      const r = await adminFetch('/api/user/demo-mode', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on }),
+      });
+      if (!r.ok) setDemoMode(!on); // rollback
+    } catch { setDemoMode(!on); }
+  }, []);
+```
+
+Et dans le header de l'overlay (à côté du titre MAGELIAN, avant le bouton Fermer), rendre la case seulement si `canToggleDemo` :
+
+```tsx
+        {canToggleDemo && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 8, cursor: 'pointer', fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <input type="checkbox" checked={demoMode} onChange={(e) => { void toggleDemo(e.target.checked); }} style={{ accentColor: 'var(--brand-teal)' }} />
+            Mode démo
+          </label>
+        )}
+```
+
+- [ ] **Step 3: Vérifier compilation**
+
+Run: `npx tsc --noEmit`
+Expected: exit 0.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add "app/api/user/demo-mode/route.ts" components/magelian/MagelianOverlay.tsx
+git commit -m "feat: mode démo par utilisateur (route + case overlay admin)"
+```
+
+---
+
 ### Task 6: Vérification bout en bout
 
 **Files:** aucun nouveau (fixes éventuels).
@@ -661,9 +782,10 @@ Expected: aucune occurrence.
 
 - [ ] **Step 3: Navigateur (dev server + login admin@geoprompt.com / G3oPrompt_Admin#2026)**
 
-Via Playwright MCP, sur la campagne démo (overlay MAGELIAN → onglet Création, ou /campaigns/[id]) :
+Via Playwright MCP, connecté en admin (`role` admin/super_admin) :
+0. Overlay MAGELIAN : la case **« Mode démo »** est visible dans le header. La cocher → `POST /api/user/demo-mode` répond 200. Rouvrir l'overlay → la case reste cochée (persisté).
 1. Fil d'Ariane à **5 étapes** (Cible/Canaux/Budget/Stratégie/Lancement).
-2. Étape Canaux : la campagne démo (`is_demo`) affiche les 6 canaux avec badge « démo » ; DSP/Réseaux cochables (multi), Ad server à choix unique.
+2. Étape Canaux : campagne démo (`is_demo`) OU mode démo activé → affiche les 6 canaux avec badge « démo » ; DSP/Réseaux cochables (multi), Ad server à choix unique. (Décocher le mode démo sur une campagne réelle non connectée → seuls les canaux connectés restent, sinon message « aucun canal connecté ».)
 3. Cocher DV360 + TikTok + ad server Adform → aller au Lancement : le récap liste « Canaux : dv360, tiktok · ad server adform ».
 4. Lancer (campagne démo, re-programmable) → recharger l'étape Canaux : la sélection est repréremplie (persistée). L'onglet Aperçu montre la ligne « Canaux ».
 5. Vérifier qu'un lancement SANS aucun DSP ni réseau est bloqué (message d'aide).

@@ -44,13 +44,14 @@ tiktok (social), adform (adserver), cm360 (adserver).
 
 **Règle d'affichage** (choix Vincent : « un canal doit être connecté, sinon il
 n'apparaît pas ; en démo tous dispo ») :
-- Campagne **réelle** : une option n'est proposée QUE si l'org possède une
+- **Mode réel** : une option n'est proposée QUE si l'org possède une
   `dsp_connections` active dont `provider = registry.connection_provider`. Les ad
   servers (sans connecteur, `connection_provider = null`) n'apparaissent donc pas en
   réel V1 — assumé (pas de connexion ad server aujourd'hui) ; le champ ad server
   reste sélectionnable en démo.
-- Campagne **démo** (`dsp_campaigns.is_demo = true`) : tout le catalogue `active` est
-  proposé, badge « démo » au lieu de « connecté ».
+- **Mode démo** : tout le catalogue `active` est proposé, badge « démo » au lieu de
+  « connecté ». Le mode démo est vrai si `dsp_campaigns.is_demo = true` **OU** si
+  l'utilisateur a activé son `profiles.demo_mode` (voir §8).
 
 **Stockage** — sous-clé namespacée `dsp_campaigns.geo_strategy.channels` (même
 mécanique que `geo_strategy.media_plan`, jamais d'écrasement des autres clés,
@@ -126,3 +127,23 @@ aux autres steps (`StepShell`, `FieldBlock`, `OptsList`, `StandardFooter`, memo)
   démo affiche tout ; sélection persistée au Lancement ; Aperçu montre les canaux ;
   validation « au moins un canal » au Lancement.
 - `EXPLAIN` non requis (registry ~6 lignes, jointure triviale).
+
+## 8. Mode démo (admin) — intégré à ce chantier
+
+Besoin (Vincent) : un admin qui présente le produit peut basculer en « mode démo »
+d'un clic, ce qui ouvre tous les canaux (et, à terme, d'autres comportements démo)
+sans vraie connexion.
+
+- **Flag** : `profiles.demo_mode boolean not null default false`, persistant par user.
+- **Toggle** : une **case à cocher « Mode démo »** dans le header de l'overlay
+  MAGELIAN, rendue UNIQUEMENT pour `role in ('admin','super_admin')`. Cochée →
+  appelle la route, décochée → l'inverse.
+- **Route** : `GET /api/user/demo-mode` → `{ demo_mode: boolean }` (état courant) ;
+  `POST /api/user/demo-mode { on: boolean }` → écrit `profiles.demo_mode` pour
+  `profile.id`. Gardé `requireAuth` + refus 403 si `role` n'est ni admin ni
+  super_admin (le mode démo est autoritatif côté serveur — jamais un simple flag
+  client, sinon contournable).
+- **Consommation** : la route Canaux calcule `is_demo = campaign.is_demo OR
+  profile.demo_mode`. Toute future feature « démo » lira le même flag.
+- Hors périmètre : effets démo au-delà des canaux (données d'exemple, etc.) —
+  brancheront le même flag plus tard.
