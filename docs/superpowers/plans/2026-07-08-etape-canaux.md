@@ -302,7 +302,7 @@ async function loadContext(
   if (!camp) return null;
   const [regRes, connRes, profRes] = await Promise.all([
     supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active').eq('active', true),
-    supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'active'),
+    supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'connected'),
     supabase.from('profiles').select('demo_mode').eq('id', userId).maybeSingle(),
   ]);
   const catalog = (regRes.data ?? []) as ChannelRow[];
