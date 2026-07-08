@@ -22,6 +22,7 @@ import { downloadZoneExport, triggerBlobDownload } from '@/lib/custom-geo/downlo
 import { toSlug } from '@/lib/custom-geo/slug';
 import { normalizeShares, proportionalShares } from '@/lib/custom-geo/media-plan';
 import { CIBLE_GROUPS, CIBLE_UNIT, CIBLE_LABEL, type CibleKey } from '@/lib/custom-geo/cibles';
+import { csvEscapeCell } from '@/lib/csv/escape';
 import type { AudienceStats, CustomGeoZoneFull } from '@/types/custom-geo';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -345,7 +346,10 @@ export function ZoneMediaPlanPanel({ zones, topOffset, onClose }: Props) {
   // ── Export CSV du tableau (partage client/collègue) ───────────────────────
   const exportTableCsv = useCallback(() => {
     const sep = ';'; // séparateur FR (Excel)
-    const esc = (v: string) => (/[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    // Echappement anti-injection formule + délimiteur (lib/csv/escape.ts) :
+    // un nom de zone commençant par = + - @ (ou tab/CR) est neutralisé,
+    // sinon Excel/LibreOffice l'interprète comme une formule à l'ouverture.
+    const esc = (v: string) => csvEscapeCell(v, sep);
     const num = (n: number | null, d = 0) => (n == null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }));
     const campaignName = campaigns.find(c => c.id === campaignId)?.name ?? '';
     const meta = [

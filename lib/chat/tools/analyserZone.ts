@@ -114,13 +114,28 @@ export async function analyserZone(
     }
 
     if (departement) {
+      // Deux requêtes paramétrées distinctes (ilike puis eq) plutôt qu'un
+      // .or() avec interpolation brute : postgrest-js n'échappe rien dans
+      // .or(), ce qui permettait d'injecter des clauses de filtre arbitraires
+      // via un argument de function-calling LLM non validé. .ilike()/.eq()
+      // passent la valeur en paramètre de requête, sans ce risque.
       await fetchAllPages((from, to) => {
         let q = supabase.from('poi_france').select(SELECT_COLS)
-          .or(`departement.ilike.%${departement}%,code_departement.eq.${departement}`)
+          .ilike('departement', `%${departement}%`)
           .range(from, to);
         if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
         return applyOrgFilter(q);
       });
+      if (poisMap.size === 0) {
+        await fetchAllPages((from, to) => {
+          let q = supabase.from('poi_france').select(SELECT_COLS)
+            .eq('code_departement', departement.toUpperCase())
+            .range(from, to);
+          if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
+          return applyOrgFilter(q);
+        });
+        if (poisMap.size > 0) console.log(`[chat] departement code fallback: ${poisMap.size} résultats pour "${departement}"`);
+      }
     }
 
     if (ville) {

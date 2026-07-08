@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { csvEscapeCell } from '@/lib/csv/escape';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,14 +53,13 @@ export async function GET(
       columns = ['reference_panneau', 'regie', 'type_panneau', 'ville', 'code_postal', 'departement', 'region', 'lat', 'lng', 'actif'];
     }
 
-    // Build CSV
+    // Build CSV (échappement anti-injection formule + délimiteur : lib/csv/escape.ts)
     const csvLines = [columns.join(';')];
     for (const row of rows) {
       const line = columns.map((col) => {
         const val = row[col];
         if (val === null || val === undefined) return '';
-        const str = String(val).replace(/"/g, '""');
-        return str.includes(';') || str.includes('"') || str.includes('\n') ? `"${str}"` : str;
+        return csvEscapeCell(String(val), ';');
       });
       csvLines.push(line.join(';'));
     }
