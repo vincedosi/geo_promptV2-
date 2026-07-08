@@ -17,9 +17,12 @@ import {
   aggregateByZone, computeGlobalKpis, type ComparisonRow,
 } from '@/lib/bidding-ml/comparison';
 import { resolvePrimaryMetric, resolveWeightingTarget, getMetricLabels } from '@/lib/bidding-ml/metric-labels';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const limiter = createRateLimiter({ max: 10, window: '60 s', prefix: 'geo:rl:strat-chat' });
 
 export async function GET(
   request: NextRequest,
@@ -61,6 +64,9 @@ export async function POST(
 
   const access = await checkStrategyAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
 
   if (body.reset) {
     await supabase.from('agent_chat_messages').delete().eq('strategy_id', id);

@@ -19,9 +19,12 @@ import {
 } from '@/lib/bidding-ml/comparison';
 import { computeTargetingKpis } from '@/lib/bidding-ml/targeting-kpis';
 import { resolvePrimaryMetric, resolveWeightingTarget, getMetricLabels } from '@/lib/bidding-ml/metric-labels';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
+
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:reco' });
 
 const ProposedActionSchema = z.discriminatedUnion('type', [
   z.object({
@@ -102,6 +105,9 @@ export async function POST(
 
   const access = await checkStrategyAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
 
   const [stratRes, cmpRes] = await Promise.all([
     supabase

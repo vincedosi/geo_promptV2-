@@ -9,6 +9,7 @@ import { trimHistory } from '@/lib/chat/trim-history';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { orgContextStorage } from '@/lib/chat/tools/orgContext';
+import { createRateLimiter, getClientKey } from '@/lib/api/rate-limit';
 
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
@@ -39,6 +40,11 @@ const upstashRatelimit = (
 
 // Fallback in-memory (dev local sans Upstash configuré)
 const RL_MAP: Map<string, { count: number; resetAt: number }> = new Map();
+
+// Rate-limit PAR UTILISATEUR authentifié (en plus du rate-limit IP ci-dessus) —
+// protège le coût LLM si un même compte multiplie les requêtes derrière des IP
+// différentes (proxy, mobile, etc.). Clé = userId:IP.
+const chatUserLimiter = createRateLimiter({ max: 10, window: '60 s', prefix: 'geo:rl:chat-user' });
 
 async function checkRateLimit(ip: string): Promise<{ ok: boolean; retrySec: number }> {
   if (upstashRatelimit) {
@@ -100,6 +106,16 @@ export async function POST(request: NextRequest) {
       getSessionOrg(request),
       getDistinctCategories(),
     ]);
+
+    // Rate-limit par utilisateur authentifié (10 req/60s) — vient s'ajouter au
+    // rate-limit IP existant ci-dessus (protection coût LLM par compte).
+    const userRl = await chatUserLimiter(`${session?.userId ?? 'anon'}:${getClientKey(request)}`);
+    if (!userRl.ok) {
+      return new Response(
+        JSON.stringify({ error: `RATE_LIMIT:${userRl.retrySec}` }),
+        { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(userRl.retrySec) } }
+      );
+    }
 
     // getOrgSourceIds dépend de session — reste séquentiel
     const orgSourceIds = await getOrgSourceIds(session);

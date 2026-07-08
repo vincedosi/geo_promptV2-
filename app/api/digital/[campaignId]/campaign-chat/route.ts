@@ -16,9 +16,12 @@ import {
   type StatRow, type JournalLine, type StrategyMeta,
 } from '@/lib/campaigns/suivi-chat';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const limiter = createRateLimiter({ max: 10, window: '60 s', prefix: 'geo:rl:camp-chat' });
 
 function toStatRows(rows: unknown, labelKeys: string[]): StatRow[] {
   if (!Array.isArray(rows)) return [];
@@ -57,6 +60,9 @@ export async function POST(
   // Scope org : 404 uniforme (ne pas divulguer l'existence à une autre org).
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
 
   const { data: campaign, error: campaignError } = await supabase
     .from('dsp_campaigns')

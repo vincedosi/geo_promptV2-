@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createModel } from '@/lib/chat/providers';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:analysis' });
 
 // POST /api/analysis
 // Body: { ville, kpis, tiers, top_panneaux, radar, profile_nom, context? }
 export async function POST(req: NextRequest) {
+  const profile = await requireAuth(req);
+  if (!profile) return authUnauthorized();
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(req)}`);
+  if (!ok) return rateLimitResponse(retrySec);
+
   try {
     const body = await req.json();
     const { ville, kpis, tiers, top_panneaux, radar, profile_nom, context } = body;

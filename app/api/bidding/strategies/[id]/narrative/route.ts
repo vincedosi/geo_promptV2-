@@ -26,9 +26,12 @@ import {
 } from '@/lib/bidding-ml/comparison';
 import { computeTargetingKpis } from '@/lib/bidding-ml/targeting-kpis';
 import { resolvePrimaryMetric, resolveWeightingTarget, getMetricLabels } from '@/lib/bidding-ml/metric-labels';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
+
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:narrative' });
 
 const NarrativeSchema = z.object({
   narrative: z.string().min(40).max(600),
@@ -68,6 +71,9 @@ export async function POST(
 
   const access = await checkStrategyAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
 
   // 1. Charge meta + objective + comparison rows
   const [stratRes, cmpRes] = await Promise.all([

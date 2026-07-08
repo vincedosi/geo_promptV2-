@@ -21,9 +21,12 @@ import { createModel } from '@/lib/chat/providers';
 import { aggregateByZone, computeGlobalKpis, type ComparisonRow } from '@/lib/bidding-ml/comparison';
 import { computeTargetingKpis } from '@/lib/bidding-ml/targeting-kpis';
 import { resolvePrimaryMetric, resolveWeightingTarget, getMetricLabels } from '@/lib/bidding-ml/metric-labels';
+import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
+
+const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:final-report' });
 
 const ReportSchema = z.object({
   performance: z.string().min(40).max(800),
@@ -57,6 +60,9 @@ export async function POST(
 
   const access = await checkStrategyAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
+  const { ok, retrySec } = await limiter(`${profile.id}:${getClientKey(request)}`);
+  if (!ok) return rateLimitResponse(retrySec);
 
   const cached = CACHE.get(id);
   if (cached && cached.expires_at > Date.now()) {
