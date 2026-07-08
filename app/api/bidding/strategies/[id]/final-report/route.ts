@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { generateObject } from 'ai';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 import { createModel } from '@/lib/chat/providers';
 import { aggregateByZone, computeGlobalKpis, type ComparisonRow } from '@/lib/bidding-ml/comparison';
 import { computeTargetingKpis } from '@/lib/bidding-ml/targeting-kpis';
@@ -52,12 +53,16 @@ export async function POST(
   if (!profile) return authUnauthorized();
   const { id } = await params;
 
+  const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const cached = CACHE.get(id);
   if (cached && cached.expires_at > Date.now()) {
     return NextResponse.json({ ...cached.payload, cached: true });
   }
 
-  const supabase = createAdminClient();
   const [stratRes, cmpRes, snapsRes, recosRes] = await Promise.all([
     supabase.from('bidding_strategies')
       .select('id, name, algorithm_code, objective_code, weighting_mode, in_zone_weights, status, activated_at, status_changed_at, total_budget, currency, init_preset_code')

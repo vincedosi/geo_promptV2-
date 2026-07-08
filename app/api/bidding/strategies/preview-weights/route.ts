@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,9 @@ export async function POST(request: NextRequest) {
   // Charger les CPs de la zone (si applicable)
   const inZoneSet = new Set<string>();
   if (body.scope_type === 'custom_zone' && body.zone_id) {
+    const zoneAccess = await checkZoneAccess(supabase, profile, body.zone_id);
+    if (zoneAccess !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
+
     const { data: zoneCps, error: zErr } = await supabase
       .from('custom_geo_zone_codes')
       .select('code')

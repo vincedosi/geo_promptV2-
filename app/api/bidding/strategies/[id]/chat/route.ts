@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 import { createModel } from '@/lib/chat/providers';
 import {
   aggregateByZone, computeGlobalKpis, type ComparisonRow,
@@ -28,6 +29,10 @@ export async function GET(
   if (!profile) return authUnauthorized();
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('agent_chat_messages')
     .select('*')
@@ -53,6 +58,9 @@ export async function POST(
   }
 
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
 
   if (body.reset) {
     await supabase.from('agent_chat_messages').delete().eq('strategy_id', id);

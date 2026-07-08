@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,10 @@ export async function GET(
   if (!profile) return authUnauthorized();
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('agent_autonomy_settings')
     .select('autonomy_enabled, autonomy_level, autonomy_max_curve_delta_pct, autonomy_max_budget_delta_pct, autonomy_max_actions_per_day')
@@ -62,6 +67,10 @@ export async function PUT(
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
 
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data: existing } = await supabase
     .from('agent_autonomy_settings')
     .select('id')

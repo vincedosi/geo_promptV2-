@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, strategyId);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('bidding_zone_config_proposals')
     .select(
@@ -61,6 +66,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, body.strategy_id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('bidding_zone_config_proposals')
     .insert({

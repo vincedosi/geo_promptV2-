@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,12 +33,16 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: prop } = await supabase
     .from('bidding_zone_config_proposals')
-    .select('status')
+    .select('status, strategy_id')
     .eq('id', id)
     .single();
   if (!prop) {
     return NextResponse.json({ error: 'Proposition introuvable' }, { status: 404 });
   }
+
+  const access = await checkStrategyAccess(supabase, profile, prop.strategy_id);
+  if (access !== 'ok') return NextResponse.json({ error: 'Proposition introuvable' }, { status: 404 });
+
   if (prop.status !== 'pending') {
     return NextResponse.json(
       { error: `Proposition en status=${prop.status} (attendu: pending)` },

@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,15 +84,54 @@ export async function GET(request: NextRequest) {
   if (!profile) return authUnauthorized();
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('bidding_strategies')
-    .select(`
+
+  const SELECT = `
       id, name, description, campaign_id, algorithm_code, objective_code,
       execution_mode, scope_type, zone_id, status, start_date, end_date,
       advertiser, brand, inventory_type, weighting_mode, init_preset_code,
       total_budget, currency, kpi_target, is_demo, created_at, updated_at,
       dsp_campaigns!inner ( id, name, dsp_source, is_demo, advertiser )
-    `)
+    `;
+
+  // Scope org (IDOR fix — Critique #6) : super_admin voit tout. Sinon,
+  // on résout l'ensemble des campaign_id accessibles à l'org active
+  // (propriétaire OU liée via campaign_organizations) en 2 requêtes
+  // parallèles, puis on filtre les stratégies par cet ensemble en mémoire.
+  // Évite un appel checkCampaignAccess par stratégie (borné par la
+  // contrainte Nano : max 3 requêtes Supabase parallèles).
+  if (profile.role !== 'super_admin') {
+    if (!profile.organization_id) {
+      return NextResponse.json({ strategies: [] });
+    }
+    const [ownedRes, linkedRes] = await Promise.all([
+      supabase.from('dsp_campaigns').select('id').eq('organization_id', profile.organization_id),
+      supabase.from('campaign_organizations').select('campaign_id').eq('organization_id', profile.organization_id),
+    ]);
+    if (ownedRes.error) return NextResponse.json({ error: ownedRes.error.message }, { status: 500 });
+    if (linkedRes.error) return NextResponse.json({ error: linkedRes.error.message }, { status: 500 });
+
+    const accessibleCampaignIds = Array.from(new Set([
+      ...(ownedRes.data ?? []).map(r => r.id as string),
+      ...(linkedRes.data ?? []).map(r => r.campaign_id as string),
+    ]));
+
+    if (accessibleCampaignIds.length === 0) {
+      return NextResponse.json({ strategies: [] });
+    }
+
+    const { data, error } = await supabase
+      .from('bidding_strategies')
+      .select(SELECT)
+      .in('campaign_id', accessibleCampaignIds)
+      .order('created_at', { ascending: false });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ strategies: data ?? [] });
+  }
+
+  const { data, error } = await supabase
+    .from('bidding_strategies')
+    .select(SELECT)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -127,6 +167,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  const campaignAccess = await checkCampaignAccess(supabase, profile, body.campaign_id);
+  if (campaignAccess !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   // 1. Eligibilité : campagne non-Adform
   const { data: campaign, error: cErr } = await supabase

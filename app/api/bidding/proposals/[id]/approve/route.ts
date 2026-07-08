@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,10 @@ export async function POST(
   if (propErr || !prop) {
     return NextResponse.json({ error: 'Proposition introuvable' }, { status: 404 });
   }
+
+  const access = await checkStrategyAccess(supabase, profile, prop.strategy_id);
+  if (access !== 'ok') return NextResponse.json({ error: 'Proposition introuvable' }, { status: 404 });
+
   if (prop.status !== 'pending' && prop.status !== 'approved') {
     return NextResponse.json(
       { error: `Proposition en status=${prop.status} (attendu: pending|approved)` },

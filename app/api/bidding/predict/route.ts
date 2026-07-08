@@ -6,6 +6,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 import { predictForStrategy } from '@/lib/bidding-ml/client';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +27,10 @@ export async function POST(request: NextRequest) {
   if (!strategyId) {
     return NextResponse.json({ error: 'strategy_id manquant' }, { status: 400 });
   }
+
+  const supabase = createAdminClient();
+  const access = await checkStrategyAccess(supabase, profile, strategyId);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
 
   try {
     const result = await predictForStrategy(strategyId, body.days);

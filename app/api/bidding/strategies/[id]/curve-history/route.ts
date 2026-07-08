@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkStrategyAccess } from '@/lib/campaigns/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,10 @@ export async function GET(
   if (!profile) return authUnauthorized();
   const { id } = await params;
   const supabase = createAdminClient();
+
+  const access = await checkStrategyAccess(supabase, profile, id);
+  if (access !== 'ok') return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });
+
   const { data, error } = await supabase
     .from('bidding_curve_history')
     .select('id, applied_at, curve, delta_pct, triggered_by, reason, reference_id')
