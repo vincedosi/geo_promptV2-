@@ -1,0 +1,63 @@
+import { describe, it, expect } from 'vitest';
+import {
+  CampaignChannelsSchema, resolveChannelAvailability, validateSelection,
+  EMPTY_CHANNELS, type ChannelRow,
+} from '@/lib/campaigns/channels';
+
+const REG: ChannelRow[] = [
+  { code: 'dv360', label: 'Google DV360', category: 'dsp', connection_provider: 'dv360', active: true },
+  { code: 'ttd', label: 'The Trade Desk', category: 'dsp', connection_provider: null, active: true },
+  { code: 'meta', label: 'Meta', category: 'social', connection_provider: 'meta', active: true },
+  { code: 'adform', label: 'Adform', category: 'adserver', connection_provider: null, active: true },
+];
+
+describe('CampaignChannelsSchema', () => {
+  it('accepte une sélection valide et EMPTY', () => {
+    expect(CampaignChannelsSchema.safeParse(EMPTY_CHANNELS).success).toBe(true);
+    expect(CampaignChannelsSchema.safeParse({ dsps: ['dv360'], socials: [], ad_server: 'adform' }).success).toBe(true);
+  });
+  it('rejette ad_server non-string/non-null et dsps > 10', () => {
+    expect(CampaignChannelsSchema.safeParse({ dsps: [], socials: [], ad_server: 5 }).success).toBe(false);
+    expect(CampaignChannelsSchema.safeParse({ dsps: Array(11).fill('x'), socials: [], ad_server: null }).success).toBe(false);
+  });
+});
+
+describe('resolveChannelAvailability', () => {
+  it('réel : seulement les connectés sont available', () => {
+    const out = resolveChannelAvailability(REG, ['dv360'], false);
+    const dv = out.find((r) => r.code === 'dv360')!;
+    const ttd = out.find((r) => r.code === 'ttd')!;
+    const meta = out.find((r) => r.code === 'meta')!;
+    expect(dv.connected).toBe(true); expect(dv.available).toBe(true);
+    expect(ttd.connected).toBe(false); expect(ttd.available).toBe(false);
+    expect(meta.available).toBe(false); // meta connu mais org pas connectée
+  });
+  it('démo : tout est available', () => {
+    const out = resolveChannelAvailability(REG, [], true);
+    expect(out.every((r) => r.available)).toBe(true);
+    expect(out.find((r) => r.code === 'dv360')!.connected).toBe(false);
+  });
+});
+
+describe('validateSelection', () => {
+  it('réel : refuse un code non connecté', () => {
+    expect(validateSelection({ dsps: ['ttd'], socials: [], ad_server: null }, REG, ['dv360'], false))
+      .toEqual({ ok: false, badCode: 'ttd' });
+  });
+  it('réel : accepte un connecté', () => {
+    expect(validateSelection({ dsps: ['dv360'], socials: [], ad_server: null }, REG, ['dv360'], false))
+      .toEqual({ ok: true });
+  });
+  it('refuse un code de mauvaise catégorie (dsp mis en ad_server)', () => {
+    expect(validateSelection({ dsps: [], socials: [], ad_server: 'dv360' }, REG, ['dv360'], true))
+      .toEqual({ ok: false, badCode: 'dv360' });
+  });
+  it('démo : accepte tout code du registre', () => {
+    expect(validateSelection({ dsps: ['ttd'], socials: ['meta'], ad_server: 'adform' }, REG, [], true))
+      .toEqual({ ok: true });
+  });
+  it('refuse un code inconnu', () => {
+    expect(validateSelection({ dsps: ['nope'], socials: [], ad_server: null }, REG, [], true))
+      .toEqual({ ok: false, badCode: 'nope' });
+  });
+});
