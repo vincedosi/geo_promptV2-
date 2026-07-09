@@ -1178,6 +1178,14 @@ export async function POST(
 }
 ```
 
+CORRECTION (review Task 4) : dans le code ci-dessus, la boucle `log_strategy_change`
+doit s'exécuter APRÈS le bloc d'écriture `geo_strategy.channels` (qui alimente
+`changesLog` avec `channels`/`channel_budgets`), gardée par `changesLog.length > 0`
+— sinon ces champs ne sont jamais audités et une réallocation de budget à total
+constant saute tout l'audit. La lecture registry doit échouer en 500
+`registry_unavailable` (avant toute écriture) ; les lectures providers/snapshot/
+connections doivent logger leurs erreurs. Implémenté ainsi (commit fa6e28b).
+
 NOTE exécuteur : si l'import de `INTENSITY_CURVES` depuis `app/campaigns/[id]/_components/steps/types` casse le build serveur (fichier importé par des composants client mais sans directive `'use client'` propre — vérifier), créer `lib/campaigns/intensity.ts` avec `Intensity`, `INTENSITY_CURVES`, `TARGET_VARIABLE_CODE` déplacés, et ré-exporter depuis `types.ts` pour ne pas casser le wizard.
 
 - [ ] **Step 5: Type-check + tests + commit**
