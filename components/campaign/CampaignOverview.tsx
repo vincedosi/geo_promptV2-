@@ -118,7 +118,25 @@ export function CampaignOverview({
     );
   }
 
-  if (!detail) return null;
+  if (!detail) {
+    return (
+      <div style={{ background: 'transparent', minHeight: 0, padding: 24 }}>
+        <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim, marginBottom: 12 }}>
+          Impossible de charger la campagne. Vérifie que le serveur répond, puis réessaie.
+        </div>
+        <button
+          onClick={() => fetchDetail(page)}
+          style={{
+            background: 'transparent', border: '0.5px solid var(--brand-teal)',
+            color: 'var(--brand-teal)', borderRadius: 6, padding: '8px 16px',
+            fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+          }}
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   const { campaign: camp, stats, data } = detail;
   const channels = (camp.geo_strategy as { channels?: CampaignChannels } | null | undefined)?.channels ?? null;
