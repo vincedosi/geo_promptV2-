@@ -204,7 +204,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
         <button
           type="button"
           data-magelian-trigger
-          onClick={openOverlay}
+          onClick={() => openOverlay()}
           className="group flex w-full items-center gap-2.5 rounded-md px-3 py-[9px] text-[13px] font-medium transition-colors duration-150"
           style={{
             background: 'var(--brand-teal-10)',

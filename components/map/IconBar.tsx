@@ -87,7 +87,7 @@ export function IconBar({
       <button
         type="button"
         data-magelian-trigger
-        onClick={openOverlay}
+        onClick={() => openOverlay()}
         title="MAGELIAN"
         style={{
           width: 40,
