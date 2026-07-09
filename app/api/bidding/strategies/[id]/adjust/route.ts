@@ -25,7 +25,7 @@ import type { WeightedBiddingTier } from '@/lib/digital/dv360-bidding-script';
 import type { Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import type { DspProvider } from '@/types/dsp';
-import { INTENSITY_CURVES, TARGET_VARIABLE_CODE } from '@/app/campaigns/[id]/_components/steps/types';
+import { INTENSITY_CURVES, TARGET_VARIABLE_CODE } from '@/components/campaign/wizard/steps/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
