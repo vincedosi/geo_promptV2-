@@ -122,6 +122,7 @@ function titleForAction(intent: string): string {
     case 'mode_change': return "Changement de mode d'exécution";
     case 'convergence': return 'Convergence détectée';
     case 'end_of_campaign': return 'Fin de campagne';
+    case 'manual_adjust': return 'Ajustement manuel';
     default: return intent;
   }
 }
