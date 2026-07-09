@@ -382,7 +382,7 @@ export function MagelianOverlay() {
 
         {tab === 'apercu' && (
           selectedId ? (
-            <CampaignOverview key={selectedId} campaignId={selectedId} embedded />
+            <CampaignOverview key={selectedId} campaignId={selectedId} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».

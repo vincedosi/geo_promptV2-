@@ -173,7 +173,7 @@ export function CampaignCockpit({
       </div>
 
       {view === 'overview' && (
-        <CampaignOverview campaignId={id} embedded={embedded} onDeleted={() => router.push('/campaigns')} />
+        <CampaignOverview campaignId={id} onDeleted={() => router.push('/campaigns')} />
       )}
 
       {view === 'prog' && (

@@ -7,11 +7,10 @@
  * (page, onglet actif, override de statut, confirmation de suppression).
  *
  * Utilisé :
- * - embarqué dans CampaignCockpit (view "overview", page /campaigns/[id])
+ * - embarqué dans CampaignCockpit (view "overview")
  * - embarqué dans CampaignSuivi (onglet "Suivi campagne" de l'overlay MAGELIAN)
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -28,10 +27,9 @@ import {
 type OverviewTab = 'pays' | 'regions' | 'departements' | 'donnees';
 
 export function CampaignOverview({
-  campaignId, embedded, onDeleted,
-}: { campaignId: string; embedded?: boolean; onDeleted?: () => void }) {
+  campaignId, onDeleted,
+}: { campaignId: string; onDeleted?: () => void }) {
   const id = campaignId;
-  const router = useRouter();
   const { toast: toastApi } = useToast();
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
@@ -69,11 +67,10 @@ export function CampaignOverview({
         setDetail(data);
       } else {
         toastApi.error('Erreur', 'Campagne introuvable');
-        router.push('/campaigns');
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [id, router, toastApi]);
+  }, [id, toastApi]);
 
   useEffect(() => { fetchDetail(page); }, [fetchDetail, page]);
 
@@ -83,8 +80,7 @@ export function CampaignOverview({
       const res = await adminFetch(`/api/admin/campaigns/${id}`, { method: 'DELETE' });
       if (res.ok) {
         toastApi.success('Campagne supprimée');
-        if (onDeleted) onDeleted();
-        else router.push('/campaigns');
+        onDeleted?.();
       } else {
         toastApi.error('Erreur', 'Suppression échouée');
       }
@@ -116,7 +112,7 @@ export function CampaignOverview({
 
   if (loading && !detail) {
     return (
-      <div style={{ background: embedded ? 'transparent' : C.bg, minHeight: embedded ? 0 : '100vh', padding: 24 }}>
+      <div style={{ background: 'transparent', minHeight: 0, padding: 24 }}>
         <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim }}>Chargement…</div>
       </div>
     );
@@ -135,6 +131,7 @@ export function CampaignOverview({
   const matchedIris = stats.by_department.reduce((sum, d) => sum + d.row_count, 0);
   const pctMatched = franceRows > 0 ? Math.round((matchedIris / franceRows) * 100) : 0;
   const totalPages = Math.ceil(data.total / 50);
+  const hasActiveStrategy = Boolean(strategyId) && strategyStatus === 'active';
 
   // ── Tab data ──────────────────────────────────────────────────────────────
   const tabs = [
@@ -145,21 +142,10 @@ export function CampaignOverview({
   ];
 
   return (
-    <div style={{ background: embedded ? 'transparent' : C.bg, minHeight: embedded ? 0 : '100vh', padding: embedded ? 0 : 24 }}>
+    <div style={{ background: 'transparent', minHeight: 0, padding: 0 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          {!embedded && (
-            <button
-              onClick={() => router.push('/campaigns')}
-              style={{
-                background: 'transparent', border: 'none', color: C.textDim,
-                fontFamily: fInter, fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 8,
-              }}
-            >
-              ← Campagnes DSP
-            </button>
-          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 500, color: C.text, margin: 0 }}>
               {camp.name}
@@ -179,8 +165,15 @@ export function CampaignOverview({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {strategyId && strategyStatus === 'active' && status === 'en_cours' && (
-            <ActionButton label="Ajuster" variant="teal" onClick={() => setAdjustOpen(true)} disabled={overridePending} />
+          {status === 'en_cours' && (
+            <span title={!hasActiveStrategy ? "Lance d'abord une stratégie de pilotage (onglet Création campagne) pour pouvoir ajuster." : undefined}>
+              <ActionButton
+                label="Ajuster"
+                variant="teal"
+                onClick={() => setAdjustOpen(true)}
+                disabled={overridePending || !hasActiveStrategy}
+              />
+            </span>
           )}
           {status === 'en_cours' && (
             <>
