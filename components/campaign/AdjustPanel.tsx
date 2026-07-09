@@ -8,7 +8,7 @@
  * (POST /api/bidding/strategies/[id]/adjust) — raison obligatoire, récap des
  * pushes par canal (poussé / simulé / échec / ignoré) au retour.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
@@ -81,6 +81,23 @@ export function AdjustPanel({
   // Hint budget (spec §5b) : campagnes créées avant le modèle par canal — la
   // stratégie a un total_budget global mais aucune ligne channelBudgets.
   const [strategyTotalBudget, setStrategyTotalBudget] = useState<number | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  // Capture de initialChanges à l'ouverture du panneau uniquement — pas comme
+  // dépendance de l'effet de chargement ci-dessous : un appelant qui passerait
+  // un littéral objet inline (nouvelle identité à chaque render parent)
+  // provoquerait sinon un re-fetch des 2 appels réseau à chaque render.
+  const initialChangesRef = useRef(initialChanges);
+  useEffect(() => {
+    if (open) initialChangesRef.current = initialChanges;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Focus le conteneur du dialogue à l'ouverture (baseline a11y — pas de focus
+  // trap complet, hors scope).
+  useEffect(() => {
+    if (open) dialogRef.current?.focus();
+  }, [open]);
 
   // Chargement initial : stratégie + canaux (2 appels), org + zones en lazy.
   useEffect(() => {
@@ -113,7 +130,7 @@ export function AdjustPanel({
         setStrategyTotalBudget(typeof s.total_budget === 'number' ? s.total_budget : null);
         setInitial(base);
         // Pré-remplissage externe (proposition de l'agent) : merge sur l'état courant.
-        const ic = initialChanges ?? {};
+        const ic = initialChangesRef.current ?? {};
         setState({
           ...base,
           channelBudgets: { ...base.channelBudgets, ...((ic.channel_budgets as Record<string, number>) ?? {}) },
@@ -127,7 +144,11 @@ export function AdjustPanel({
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, campaignId, strategyId, initialChanges]);
+    // initialChanges volontairement absent des deps : capturé une fois à
+    // l'ouverture via initialChangesRef (voir effet ci-dessus) pour éviter un
+    // re-fetch à chaque render parent si la prop est un littéral inline.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, campaignId, strategyId]);
 
   // Org + zones custom (pour la section Cible) — lazy, une fois le panneau ouvert.
   useEffect(() => {
@@ -226,13 +247,17 @@ export function AdjustPanel({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-label="Ajuster la campagne"
+      aria-modal="true"
+      tabIndex={-1}
       style={{
         position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 16px', overflowY: 'auto',
       }}
       onClick={(e) => { if (e.target === e.currentTarget && !submitting) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !submitting) onClose(); }}
     >
       <div style={{
         width: 'min(680px, 100%)', background: C.card, border: `0.5px solid ${C.border}`,
@@ -349,6 +374,7 @@ export function AdjustPanel({
                   ))}
                 </div>
                 <select
+                  aria-label="Ajouter une zone existante"
                   value=""
                   onChange={(e) => {
                     const z = zonesList.find((x) => x.id === e.target.value);
@@ -402,6 +428,7 @@ export function AdjustPanel({
                           key={k}
                           type="text"
                           placeholder={lab}
+                          aria-label={lab}
                           value={state.links.dv360?.[k] ?? ''}
                           onChange={(e) => setState((p) => p ? {
                             ...p,
@@ -429,6 +456,7 @@ export function AdjustPanel({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Raison de l'ajustement (obligatoire — alimente le journal)"
+                aria-label="Raison de l'ajustement"
                 style={{
                   background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6,
                   padding: '10px 12px', fontFamily: fInter, fontSize: 13, color: C.text, outline: 'none',
