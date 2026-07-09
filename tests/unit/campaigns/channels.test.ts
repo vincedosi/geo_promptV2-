@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   CampaignChannelsSchema, resolveChannelAvailability, validateSelection,
-  EMPTY_CHANNELS, type ChannelRow,
+  EMPTY_CHANNELS, sumBudgets, pruneBudgets,
+  type ChannelRow,
 } from '@/lib/campaigns/channels';
 
 const REG: ChannelRow[] = [
@@ -77,5 +78,25 @@ describe('validateSelection', () => {
   it('réel : refuse un réseau social non connecté', () => {
     expect(validateSelection({ dsps: [], socials: ['meta'], ad_server: null }, REG, [], false))
       .toEqual({ ok: false, badCode: 'meta' });
+  });
+});
+
+describe('budgets par canal', () => {
+  it('sumBudgets additionne les lignes et ignore les valeurs non finies', () => {
+    expect(sumBudgets({ dv360: 30000, tiktok: 15000 })).toBe(45000);
+    expect(sumBudgets({})).toBe(0);
+    expect(sumBudgets(undefined)).toBe(0);
+    expect(sumBudgets({ dv360: 100, bad: Number.NaN })).toBe(100);
+  });
+
+  it('pruneBudgets purge les lignes des canaux retirés', () => {
+    const sel = { dsps: ['dv360'], socials: [], ad_server: 'adform' as string | null };
+    expect(pruneBudgets({ dv360: 30000, tiktok: 15000 }, sel)).toEqual({ dv360: 30000 });
+  });
+
+  it("pruneBudgets garde les lignes des socials et tolère l'absence de budgets", () => {
+    const sel = { dsps: ['dv360'], socials: ['tiktok'], ad_server: null };
+    expect(pruneBudgets({ dv360: 1, tiktok: 2 }, sel)).toEqual({ dv360: 1, tiktok: 2 });
+    expect(pruneBudgets(undefined, sel)).toEqual({});
   });
 });

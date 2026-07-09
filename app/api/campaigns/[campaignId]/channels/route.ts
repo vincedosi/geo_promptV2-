@@ -10,10 +10,17 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import {
   CampaignChannelsSchema, validateSelection, EMPTY_CHANNELS,
-  type ChannelRow, type CampaignChannels,
+  ChannelBudgetsSchema, DspLinksSchema, pruneBudgets,
+  type ChannelRow, type CampaignChannels, type StoredChannels,
+  type ChannelBudgets, type DspLinks,
 } from '@/lib/campaigns/channels';
 
 export const dynamic = 'force-dynamic';
+
+const PutBodySchema = CampaignChannelsSchema.extend({
+  budgets: ChannelBudgetsSchema.optional(),
+  links: DspLinksSchema.optional(),
+});
 
 async function loadContext(
   supabase: ReturnType<typeof createAdminClient>, campaignId: string, userId: string,
@@ -35,7 +42,7 @@ async function loadContext(
   const catalog = (regRes.data ?? []) as ChannelRow[];
   const connectedProviders = ((connRes.data ?? []) as Array<{ provider: string }>).map((c) => c.provider);
   const gs = (camp.geo_strategy ?? {}) as Record<string, unknown>;
-  const selected = (gs.channels as CampaignChannels | undefined) ?? EMPTY_CHANNELS;
+  const selected = (gs.channels as StoredChannels | undefined) ?? EMPTY_CHANNELS;
   // Démo = campagne démo OU l'utilisateur a activé son mode démo (case overlay).
   const is_demo = !!camp.is_demo || !!(profRes.data as { demo_mode?: boolean } | null)?.demo_mode;
   return { camp, catalog, connectedProviders, is_demo, selected };
@@ -63,7 +70,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   let raw: unknown;
   try { raw = await request.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
-  const parsed = CampaignChannelsSchema.safeParse(raw);
+  const parsed = PutBodySchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
 
   const supabase = createAdminClient();
@@ -72,12 +79,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const ctx = await loadContext(supabase, campaignId, profile.id);
   if (!ctx) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
-  const check = validateSelection(parsed.data, ctx.catalog, ctx.connectedProviders, ctx.is_demo);
+  const sel = { dsps: parsed.data.dsps, socials: parsed.data.socials, ad_server: parsed.data.ad_server };
+  const check = validateSelection(sel, ctx.catalog, ctx.connectedProviders, ctx.is_demo);
   if (!check.ok) return NextResponse.json({ error: 'channel_not_available', code: check.badCode }, { status: 400 });
 
-  // Merge non destructif : préserve media_plan et autres sous-clés de geo_strategy.
+  // Merge non destructif : préserve media_plan etc., ET les sous-clés budgets/links
+  // quand le client ne les renvoie pas (ex. StepCanaux qui ne gère que la sélection).
   const gs = (ctx.camp.geo_strategy ?? {}) as Record<string, unknown>;
-  const nextGeoStrategy = { ...gs, channels: parsed.data };
+  const prev = (gs.channels ?? {}) as StoredChannels;
+  const budgets = pruneBudgets(parsed.data.budgets ?? prev.budgets, sel);
+  const links: DspLinks | undefined = parsed.data.links ?? prev.links;
+  const nextChannels: StoredChannels = { ...sel, budgets, ...(links ? { links } : {}) };
+  const nextGeoStrategy = { ...gs, channels: nextChannels };
   const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: nextGeoStrategy }).eq('id', campaignId);
   if (error) {
     console.error('[campaigns/channels] update:', error.message);

@@ -56,3 +56,46 @@ export function validateSelection(
   if (sel.ad_server !== null && !check(sel.ad_server, 'adserver')) return { ok: false, badCode: sel.ad_server };
   return { ok: true };
 }
+
+// ── Budgets par canal & liens DSP (geo_strategy.channels.budgets / .links) ─────
+/** Une ligne de budget (€) par canal DSP/social sélectionné. Global = somme. */
+export type ChannelBudgets = Record<string, number>;
+
+export interface Dv360Links {
+  advertiser_id?: string;
+  insertion_order_id?: string;
+  algorithm_id?: string;
+}
+export interface DspLinks { dv360?: Dv360Links }
+
+/** Forme complète stockée dans geo_strategy.channels. */
+export interface StoredChannels extends CampaignChannels {
+  budgets?: ChannelBudgets;
+  links?: DspLinks;
+}
+
+export const ChannelBudgetsSchema = z.record(
+  z.string().min(1).max(50),
+  z.number().min(0).finite(),
+);
+
+export const DspLinksSchema = z.object({
+  dv360: z.object({
+    advertiser_id: z.string().max(50).optional(),
+    insertion_order_id: z.string().max(50).optional(),
+    algorithm_id: z.string().max(50).optional(),
+  }).optional(),
+});
+
+/** Somme des lignes budget (0 si vide/absent). */
+export function sumBudgets(budgets: ChannelBudgets | null | undefined): number {
+  return Object.values(budgets ?? {}).reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+}
+
+/** Garde uniquement les lignes des canaux encore sélectionnés (purge au retrait). */
+export function pruneBudgets(
+  budgets: ChannelBudgets | null | undefined, sel: CampaignChannels,
+): ChannelBudgets {
+  const allowed = new Set([...sel.dsps, ...sel.socials]);
+  return Object.fromEntries(Object.entries(budgets ?? {}).filter(([code]) => allowed.has(code)));
+}
