@@ -133,6 +133,15 @@ export function MagelianOverlay() {
     }
   }, []);
 
+  // Après suppression d'une campagne : retire de la liste et sélectionne la suivante.
+  const handleCampaignDeleted = useCallback(() => {
+    setCampaigns((prev) => {
+      const next = (prev ?? []).filter((c) => c.id !== selectedId);
+      setSelectedId(next[0]?.id ?? null);
+      return next;
+    });
+  }, [selectedId]);
+
   // Esc ferme l'overlay
   useEffect(() => {
     if (!open) return;
@@ -362,7 +371,7 @@ export function MagelianOverlay() {
       >
         {tab === 'creation' && (
           selectedId ? (
-            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded initialView="prog" wizardOnly />
+            <CampaignCockpit key={selectedId} campaignId={selectedId} initialView="prog" wizardOnly onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
@@ -382,7 +391,7 @@ export function MagelianOverlay() {
 
         {tab === 'apercu' && (
           selectedId ? (
-            <CampaignOverview key={selectedId} campaignId={selectedId} />
+            <CampaignOverview key={selectedId} campaignId={selectedId} onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».

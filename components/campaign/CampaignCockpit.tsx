@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { CampaignDetail } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from '@/components/campaign/wizard/FilAriane';
@@ -30,10 +30,9 @@ const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'canaux', 'budget', 'strategie'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export function CampaignCockpit({
-  campaignId, embedded, initialView, wizardOnly,
-}: { campaignId: string; embedded?: boolean; initialView?: CockpitView; wizardOnly?: boolean }) {
+  campaignId, initialView, wizardOnly, onDeleted,
+}: { campaignId: string; initialView?: CockpitView; wizardOnly?: boolean; onDeleted?: () => void }) {
   const id = campaignId;
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
@@ -138,7 +137,7 @@ export function CampaignCockpit({
 
   if (loading && !detail) {
     return (
-      <div style={{ background: embedded ? 'transparent' : C.bg, minHeight: embedded ? 0 : '100vh', padding: 24 }}>
+      <div style={{ background: 'transparent', minHeight: 0, padding: 24 }}>
         <div style={{ fontFamily: fInter, fontSize: 13, color: C.textDim }}>Chargement…</div>
       </div>
     );
@@ -149,7 +148,7 @@ export function CampaignCockpit({
   const { campaign: camp } = detail;
 
   return (
-    <div style={{ background: embedded ? 'transparent' : C.bg, minHeight: embedded ? 0 : '100vh', padding: embedded ? 0 : 24 }}>
+    <div style={{ background: 'transparent', minHeight: 0, padding: 0 }}>
       {/* Fil d'Ariane cockpit — toujours visible */}
       <div style={{ marginBottom: 20 }}>
         {!wizardOnly && view !== 'overview' && (
@@ -173,7 +172,7 @@ export function CampaignCockpit({
       </div>
 
       {view === 'overview' && (
-        <CampaignOverview campaignId={id} onDeleted={() => router.push('/campaigns')} />
+        <CampaignOverview campaignId={id} onDeleted={onDeleted} />
       )}
 
       {view === 'prog' && (
