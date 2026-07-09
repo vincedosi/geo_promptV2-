@@ -77,6 +77,9 @@ Règles :
 - Cite les chiffres exacts depuis les données ci-dessous, ne les invente jamais.
 - Si la donnée demandée est absente du contexte, dis clairement « je n'ai pas cette donnée ».
 - Aucune action destructive proposée.
+- Si l'utilisateur demande une recommandation d'action ET que tu identifies un ajustement concret et chiffré, termine ta réponse par UNE seule ligne, exactement au format :
+[PROPOSITION_AJUSTEMENT]{"reason":"<pourquoi en une phrase>","changes":{...}}
+  Clés autorisées dans changes : channel_budgets (objet code canal → € ), forecast_cpm, start_date, end_date, execution_mode (monitor_only|suggest|auto), intensity (doux|marque|fort). JSON compact sur une seule ligne, aucune autre clé. N'émets JAMAIS cette ligne pour une simple question d'analyse.
 
 DONNÉES CAMPAGNE (seule source de vérité) :
 - Nom : ${campaign.name}
@@ -96,4 +99,25 @@ Croisement départements × indicateur INSEE (top ${MAX_BREAKDOWN_ROWS}, JSON br
 ${breakdownDept.slice(0, MAX_BREAKDOWN_ROWS).map((r) => `  ${JSON.stringify(r)}`).join('\n') || '  (aucune donnée)'}
 
 ${strategyBlock}`;
+}
+
+// ── Proposition d'ajustement (protocole marker dans le flux texte) ──────────────
+export const ADJUST_MARKER = '[PROPOSITION_AJUSTEMENT]';
+
+export interface AdjustProposal { reason: string; changes: Record<string, unknown> }
+
+/** Extrait la ligne [PROPOSITION_AJUSTEMENT]{json} d'une réponse du chat. */
+export function parseAdjustProposal(text: string): { clean: string; proposal: AdjustProposal | null } {
+  const idx = text.lastIndexOf(ADJUST_MARKER);
+  if (idx === -1) return { clean: text, proposal: null };
+  const clean = text.slice(0, idx).replace(/\n+$/, '');
+  try {
+    const parsed = JSON.parse(text.slice(idx + ADJUST_MARKER.length).trim()) as AdjustProposal;
+    if (typeof parsed.reason !== 'string' || typeof parsed.changes !== 'object' || parsed.changes === null) {
+      return { clean, proposal: null };
+    }
+    return { clean, proposal: parsed };
+  } catch {
+    return { clean, proposal: null };
+  }
 }

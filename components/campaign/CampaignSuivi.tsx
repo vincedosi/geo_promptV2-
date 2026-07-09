@@ -10,11 +10,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
+import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
+import { AdjustPanel } from './AdjustPanel';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-interface Msg { role: 'user' | 'assistant'; content: string; pending?: boolean }
+interface Msg { role: 'user' | 'assistant'; content: string; pending?: boolean; proposal?: AdjustProposal | null }
 
 const SUGGESTIONS = [
   'Quelles zones ont le mieux performé ?',
@@ -32,6 +34,7 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [adjustProposal, setAdjustProposal] = useState<AdjustProposal | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -104,6 +107,12 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
           return copy;
         });
       }
+      const { clean, proposal } = parseAdjustProposal(acc);
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = { role: 'assistant', content: clean, pending: false, proposal };
+        return copy;
+      });
     } catch (e) {
       setChatError(e instanceof Error ? e.message : String(e));
       setMessages((m) => m.filter((x) => !x.pending));
@@ -189,7 +198,15 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
               </div>
             )}
             {messages.map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  flexDirection: m.role === 'user' ? 'row' : 'column',
+                  justifyContent: m.role === 'user' ? 'flex-end' : undefined,
+                  alignItems: m.role === 'user' ? undefined : 'flex-start',
+                }}
+              >
                 <div style={{
                   maxWidth: '85%', padding: '8px 12px', borderRadius: 8,
                   background: m.role === 'user' ? 'var(--brand-teal)' : 'var(--bg-surface)',
@@ -199,6 +216,27 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
                 }}>
                   {m.content || (m.pending ? '…' : '')}
                 </div>
+                {m.role === 'assistant' && m.proposal && strategyId && strategyStatus === 'active' && (
+                  <div style={{
+                    marginTop: 6, border: '0.5px solid var(--brand-teal-30)', borderRadius: 8,
+                    padding: '10px 12px', background: 'var(--bg-surface)',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>
+                      Proposition : {m.proposal.reason}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustProposal(m.proposal ?? null)}
+                      style={{
+                        background: 'transparent', border: '0.5px solid var(--brand-teal)', borderRadius: 6,
+                        padding: '6px 12px', fontFamily: fInter, fontSize: 12, color: 'var(--brand-teal)', cursor: 'pointer',
+                      }}
+                    >
+                      Ouvrir dans Ajuster
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -256,6 +294,18 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
           </div>
         </div>
       </div>
+
+      {strategyId && adjustProposal && (
+        <AdjustPanel
+          campaignId={campaignId}
+          strategyId={strategyId}
+          open
+          onClose={() => setAdjustProposal(null)}
+          onApplied={() => setAdjustProposal(null)}
+          initialChanges={adjustProposal.changes}
+          initialReason={adjustProposal.reason}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CampaignChatBodySchema, truncateHistory, buildSuiviChatSystemPrompt,
-  MAX_HISTORY_TURNS, type ChatTurn,
+  MAX_HISTORY_TURNS, type ChatTurn, parseAdjustProposal,
 } from '@/lib/campaigns/suivi-chat';
 
 describe('CampaignChatBodySchema', () => {
@@ -97,5 +97,24 @@ describe('buildSuiviChatSystemPrompt', () => {
     const p = buildSuiviChatSystemPrompt({ ...base, byCountry: [], byRegion: [], breakdownDept: [] });
     expect(p).toContain('(aucune donnée)');
     expect(p).toContain('Campagne test');
+  });
+});
+
+describe('parseAdjustProposal', () => {
+  it('extrait la proposition et nettoie le texte', () => {
+    const raw = 'Le CPM est trop haut sur dv360.\n[PROPOSITION_AJUSTEMENT]{"reason":"CPM trop haut","changes":{"forecast_cpm":5.5}}';
+    const { clean, proposal } = parseAdjustProposal(raw);
+    expect(clean).toBe('Le CPM est trop haut sur dv360.');
+    expect(proposal?.reason).toBe('CPM trop haut');
+    expect(proposal?.changes.forecast_cpm).toBe(5.5);
+  });
+  it('texte sans marker → proposal null, texte inchangé', () => {
+    const { clean, proposal } = parseAdjustProposal('Réponse simple.');
+    expect(clean).toBe('Réponse simple.');
+    expect(proposal).toBeNull();
+  });
+  it('JSON invalide après le marker → proposal null, marker retiré', () => {
+    const { proposal } = parseAdjustProposal('Texte\n[PROPOSITION_AJUSTEMENT]{pas du json');
+    expect(proposal).toBeNull();
   });
 });
