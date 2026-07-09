@@ -255,6 +255,23 @@ Sans nouvelle table :
   `simulated` ; connecteur absent → `skipped` ; links absents → `skipped`.
 - Génération du payload DV360 simulé (script pondéré + delta budget).
 
+## 9b. Corrections post-review finale (09/07)
+
+- **§3 garde « changes non vide » corrigée** : un ajustement `links` seul (saisir
+  les IDs DV360 sans rien changer d'autre — le chemin de déblocage DV360 décrit
+  en §5) est VALIDE. Règle : `changes` non vide OU `links` présent.
+- **Somme filtrée** : le budget global (wizard, panneau, recap) ne somme que les
+  lignes des canaux ACTUELLEMENT sélectionnés — une ligne orpheline d'un canal
+  désélectionné ne compte jamais (sinon `total_budget` divergerait des lignes
+  stockées après purge serveur).
+- **Limitation zone→push (assumée V1)** : le snapshot v+1 est une COPIE de
+  l'ancienne géographie ; quand la cible change, le script custom bidding n'est
+  PAS poussé (détail explicite « zone modifiée : script non poussé — régénère le
+  plan média avant de pousser »). Régénérer les lignes de plan depuis la
+  nouvelle zone = follow-up.
+- **Follow-up DB** : index d'unicité `campaign_plan_snapshot (campaign_id,
+  version, item_id, postal_code)` contre la course de version (max+1 sans lock).
+
 ## 10. Ce qui ne change pas
 
 `PATCH /api/bidding/strategies/[id]` (mécanique interne réutilisée, contrat
