@@ -68,12 +68,31 @@ campagnes est déjà chargée par l'overlay, le param ne fait que pré-sélectio
 bouton retour) deviennent du code mort une fois la page supprimée — elles sont retirées
 et la prop `embedded` supprimée (toujours true).
 
-## B — Nettoyage panneau Réglages (`SettingsOverlay.tsx`)
+## B — Panneau Réglages = back office admin (`SettingsOverlay.tsx`)
+
+> Vision (Vincent, 09/07) : le mediaplanner travaille dans les overlays de la carte ;
+> l'admin gère le reste depuis l'onglet config/Réglages. Droits par rôle (user / admin /
+> super admin) à venir — hors périmètre ici.
 
 Conservé : Fond de carte · Vues sauvegardées · Capturer zone custom · Apparence (thème).
-Supprimé : section « Navigation » entière (`NAV_LINKS`, imports d'icônes associés).
-Les pages admin restent accessibles par la sidebar (`AppSidebar`), qui ne change pas
-(hors retrait du lien Portfolio).
+
+La section « Navigation » est renommée **« Back office »** et recentrée sur l'admin :
+
+- Organisations (workspaces) → `/admin/organizations`
+- Utilisateurs → `/admin/users`
+- Import POI → `/admin/import`
+- Import Shapefile → `/admin/carreaux-import`
+- Import OOH → `/admin/ooh-import`
+- IRIS crawler → `/dashboard/iris-crawler`
+- Radio FM/DAB+ → `/admin/radio`
+- Connexions API → `/admin/api`
+- Sources → `/admin/sources`
+- Imports (historique) → `/admin/imports`
+- Health check → `/admin/health`
+
+Retirés de la liste : « Dashboard » et « Campagnes » (le portfolio disparaît ; les
+campagnes vivent dans l'overlay MAGELIAN). Le lien « Zones custom » sort de cette
+section (métier, pas admin) et reste accessible via la sidebar / rail Zones.
 
 ## C — Bouton Ajuster toujours visible (Aperçu)
 
