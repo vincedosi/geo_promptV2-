@@ -21,7 +21,8 @@ export interface ProgDraft {
   cibles: CibleZoneRef[];
   /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
   channels: CampaignChannels;
-  totalBudget: number | null;
+  /** Une ligne de budget (€) par canal DSP/social sélectionné. Global = somme. */
+  channelBudgets: Record<string, number>;
   forecastCpm: number | null;
   startDate: string; // 'YYYY-MM-DD' ou ''
   endDate: string;   // 'YYYY-MM-DD' ou ''
@@ -32,12 +33,18 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   intensity: 'marque',
   cibles: [],
   channels: EMPTY_CHANNELS,
-  totalBudget: null,
+  channelBudgets: {},
   forecastCpm: null,
   startDate: '',
   endDate: '',
   executionMode: 'auto',
 };
+
+/** Budget global du brouillon = somme des lignes par canal (null si 0 — rien saisi). */
+export function draftTotalBudget(d: ProgDraft): number | null {
+  const sum = Object.values(d.channelBudgets).reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+  return sum > 0 ? Math.round(sum * 100) / 100 : null;
+}
 
 export interface StepProps {
   draft: ProgDraft;

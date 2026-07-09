@@ -93,7 +93,6 @@ export function CampaignCockpit({
           ...prev,
           intensity: inferIntensity(s.in_zone_weights) ?? prev.intensity,
           cibles: s.zone_id ? [{ id: s.zone_id, name: s.zone_name ?? 'Zone de la stratégie', sourceType: 'custom' }] : [],
-          totalBudget: s.total_budget ?? prev.totalBudget,
           forecastCpm: s.forecast_cpm ?? prev.forecastCpm,
           startDate: s.start_date ? String(s.start_date).slice(0, 10) : prev.startDate,
           endDate: s.end_date ? String(s.end_date).slice(0, 10) : prev.endDate,
@@ -186,7 +185,7 @@ export function CampaignCockpit({
             <StepCanaux draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
           )}
           {progStep === 'budget' && (
-            <StepBudget draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
+            <StepBudget draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
           )}
           {progStep === 'strategie' && (
             <StepStrategie draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />

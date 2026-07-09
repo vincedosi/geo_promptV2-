@@ -16,46 +16,13 @@
 import { useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
+import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { StepProps } from './types';
 import {
   EXECUTION_MODE_META, INTENSITY_CURVES, INTENSITY_META, TARGET_VARIABLE_CODE,
-  fmtDateShort, fmtEUR,
+  draftTotalBudget, fmtDateShort, fmtEUR,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell } from './ui';
-
-/** n=0 → national ; n=1 → zone directe ; n>1 → crée la composite (géométrie union + save). */
-async function resolveFinalZone(
-  cibles: { id: string; name: string }[],
-  orgId: string | null,
-): Promise<{ scope_type: 'national' | 'custom_zone'; zone_id: string | null }> {
-  if (cibles.length === 0) return { scope_type: 'national', zone_id: null };
-  if (cibles.length === 1) return { scope_type: 'custom_zone', zone_id: cibles[0].id };
-  if (!orgId) throw new Error('Organisation introuvable pour fusionner les zones cibles');
-  const geoRes = await adminFetch('/api/custom-geo/source/composite', {
-    method: 'POST', cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ zone_ids: cibles.map((c) => c.id) }),
-  });
-  if (!geoRes.ok) throw new Error('Fusion des zones cibles échouée');
-  const geo = await geoRes.json();
-  const saveRes = await adminFetch('/api/custom-geo/save', {
-    method: 'POST', cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: `Cible composite (${cibles.length} zones) — ${new Date().toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`,
-      source_type: 'composite',
-      source_metadata: { kind: 'composite', member_zone_ids: cibles.map((c) => c.id) },
-      geometry: geo.geometry,
-      org_id: orgId,
-    }),
-  });
-  if (!saveRes.ok) throw new Error('Sauvegarde de la zone composite échouée');
-  if (saveRes.status === 207) {
-    throw new Error('Zone composite créée mais résolution des codes échouée — relance le lancement.');
-  }
-  const saved = await saveRes.json();
-  return { scope_type: 'custom_zone', zone_id: saved.zone_id };
-}
 
 interface Props extends StepProps {
   campaignId: string;
@@ -105,8 +72,9 @@ export function StepLancement({
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
   const noChannel = draft.channels.dsps.length === 0 && draft.channels.socials.length === 0;
+  const totalBudget = draftTotalBudget(draft);
   const invalid = (draft.cibles.length > 1 && !ownerOrgId)
-    || !draft.totalBudget || !draft.startDate || !draft.endDate || noChannel;
+    || !totalBudget || !draft.startDate || !draft.endDate || noChannel;
 
   async function handleArm() {
     if (invalid) return;
@@ -123,7 +91,7 @@ export function StepLancement({
         out_zone_weights: {},
         scope_type,
         zone_id,
-        total_budget: draft.totalBudget,
+        total_budget: totalBudget,
         forecast_cpm: draft.forecastCpm,
         currency: 'EUR' as const,
         execution_mode: draft.executionMode,
@@ -180,7 +148,7 @@ export function StepLancement({
       // Persistance des canaux — non bloquant : la stratégie est déjà créée/mise à jour.
       await adminFetch(`/api/campaigns/${campaignId}/channels`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft.channels),
+        body: JSON.stringify({ ...draft.channels, budgets: draft.channelBudgets }),
       }).catch(() => { /* non bloquant : la stratégie est déjà créée */ });
 
       const actRes = await adminFetch(`/api/bidding/strategies/${strategyId}`, {
@@ -243,8 +211,10 @@ export function StepLancement({
           sub={`Taux d'abstention (2022) sur ${cibleTitle}`}
         />
         <RecapRow
-          title={`${fmtEUR(draft.totalBudget)} · CPM ${draft.forecastCpm != null ? draft.forecastCpm.toLocaleString('fr-FR') + ' €' : '—'}`}
-          sub={`${fmtDateShort(draft.startDate)} → ${fmtDateShort(draft.endDate)}`}
+          title={`${fmtEUR(totalBudget)} · CPM ${draft.forecastCpm != null ? draft.forecastCpm.toLocaleString('fr-FR') + ' €' : '—'}`}
+          sub={`${fmtDateShort(draft.startDate)} → ${fmtDateShort(draft.endDate)} · ${
+            Object.entries(draft.channelBudgets).map(([c, v]) => `${c} ${v.toLocaleString('fr-FR')} €`).join(' · ') || 'répartition non saisie'
+          }`}
         />
         <RecapRow
           title={EXECUTION_MODE_META[draft.executionMode].title}
