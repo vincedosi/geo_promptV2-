@@ -26,7 +26,7 @@ import type { WeightedBiddingTier } from '@/lib/digital/dv360-bidding-script';
 import type { Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import type { DspProvider } from '@/types/dsp';
-import { INTENSITY_CURVES, TARGET_VARIABLE_CODE, type Intensity } from '@/app/campaigns/[id]/_components/steps/types';
+import { INTENSITY_CURVES, TARGET_VARIABLE_CODE } from '@/app/campaigns/[id]/_components/steps/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -108,18 +108,22 @@ export async function POST(
     dsps: prevChannels.dsps ?? [], socials: prevChannels.socials ?? [], ad_server: prevChannels.ad_server ?? null,
   };
 
-  const { data: regRows } = await supabase
+  const { data: regRows, error: regErr } = await supabase
     .from('dsp_channel_registry')
     .select('code, label, category, connection_provider, active')
     .eq('active', true);
+  if (regErr) {
+    console.error('[adjust] registry:', regErr.message);
+    return NextResponse.json({ error: 'registry_unavailable' }, { status: 500 });
+  }
   const catalog = (regRows ?? []) as ChannelRow[];
 
-  const { data: connProvRows } = await supabase
-    .from('dsp_connections').select('provider')
-    .eq('organization_id', campaign.organization_id).eq('status', 'connected');
-  const connectedProviders = ((connProvRows ?? []) as Array<{ provider: string }>).map((c) => c.provider);
-
   if (changes.channels) {
+    const { data: connProvRows, error: connProvErr } = await supabase
+      .from('dsp_connections').select('provider')
+      .eq('organization_id', campaign.organization_id).eq('status', 'connected');
+    if (connProvErr) console.error('[adjust] connected-providers:', connProvErr.message);
+    const connectedProviders = ((connProvRows ?? []) as Array<{ provider: string }>).map((c) => c.provider);
     const check = validateSelection(sel, catalog, connectedProviders, isDemo);
     if (!check.ok) return NextResponse.json({ error: 'channel_not_available', code: check.badCode }, { status: 400 });
   }
@@ -146,7 +150,7 @@ export async function POST(
   if (changes.intensity !== undefined) {
     push('in_zone_weights', strategy.in_zone_weights, {
       mode: 'by_insee_variable', variable_code: TARGET_VARIABLE_CODE,
-      curve: INTENSITY_CURVES[changes.intensity as Intensity],
+      curve: INTENSITY_CURVES[changes.intensity],
     });
   }
   if (changes.zone !== undefined) {
@@ -166,13 +170,6 @@ export async function POST(
       });
       if (rpcErr) return NextResponse.json({ error: `apply_zone_weights: ${rpcErr.message}` }, { status: 500 });
     }
-    for (const ch of changesLog) {
-      await supabase.rpc('log_strategy_change', {
-        p_strategy_id: id, p_change_type: 'adjusted', p_field_path: ch.field,
-        p_old_value: ch.old as never, p_new_value: ch.new as never,
-        p_reason: reason, p_triggered_by: 'user',
-      });
-    }
   }
 
   // ── Canaux + budgets + links → geo_strategy.channels (merge non destructif) ──
@@ -188,6 +185,17 @@ export async function POST(
     if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
     if (changes.channels) changesLog.push({ field: 'channels', old: { dsps: prevChannels.dsps, socials: prevChannels.socials, ad_server: prevChannels.ad_server }, new: sel });
     if (budgetsChanged) changesLog.push({ field: 'channel_budgets', old: prevBudgets, new: nextBudgets });
+  }
+
+  // ── Audit : une ligne strategy_changes par champ modifié (y compris canaux/budgets) ──
+  if (changesLog.length > 0) {
+    for (const ch of changesLog) {
+      await supabase.rpc('log_strategy_change', {
+        p_strategy_id: id, p_change_type: 'adjusted', p_field_path: ch.field,
+        p_old_value: ch.old as never, p_new_value: ch.new as never,
+        p_reason: reason, p_triggered_by: 'user',
+      });
+    }
   }
 
   // ── Snapshot v+1 (RPC serveur — copie du dernier plan avec budgets/cpm/période à jour)
@@ -208,10 +216,11 @@ export async function POST(
   const tiersByDsp = new Map<string, WeightedBiddingTier[]>();
   let zoneName = 'Zone de la stratégie';
   if (snapshotVersion != null) {
-    const { data: snapRows } = await supabase
+    const { data: snapRows, error: snapErr } = await supabase
       .from('campaign_plan_snapshot')
       .select('dsp, zone_name, item_id, item_name, item_weight, postal_code')
       .eq('campaign_id', campaign.id).eq('version', snapshotVersion).limit(5000);
+    if (snapErr) console.error('[adjust] snapshot-rows:', snapErr.message);
     const byKey = new Map<string, { dsp: string; name: string; score: number; cps: string[] }>();
     for (const r of (snapRows ?? []) as Array<{ dsp: string; zone_name: string; item_id: string; item_name: string; item_weight: number; postal_code: string }>) {
       zoneName = r.zone_name || zoneName;
@@ -233,11 +242,12 @@ export async function POST(
     .map((code) => providerByCode.get(code)).filter((p): p is string => !!p))];
   let connByProvider = new Map<string, Dv360ConnectionRow>();
   if (neededProviders.length > 0) {
-    const { data: connRows } = await supabase
+    const { data: connRows, error: connErr } = await supabase
       .from('dsp_connections')
       .select('provider, auth_method, credentials_encrypted, oauth_refresh_token_encrypted, oauth_client_id, oauth_client_secret_encrypted')
       .eq('organization_id', campaign.organization_id).eq('status', 'connected')
       .in('provider', neededProviders);
+    if (connErr) console.error('[adjust] connections:', connErr.message);
     connByProvider = new Map(((connRows ?? []) as Array<Dv360ConnectionRow & { provider: string }>)
       .map((c) => [c.provider, c]));
   }
