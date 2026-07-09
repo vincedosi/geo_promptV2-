@@ -76,6 +76,11 @@ export function MagelianOverlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Deep-link reçu overlay déjà ouvert : applique l'onglet demandé.
+  useEffect(() => {
+    if (open && request?.tab) setTab(request.tab);
+  }, [open, request]);
+
   // Charge la liste des campagnes une seule fois (lazy, à la première ouverture).
   useEffect(() => {
     if (!open || fetchedRef.current) return;

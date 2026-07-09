@@ -14,17 +14,18 @@ function MagelianDeepLinkInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { openOverlay } = useMagelianOverlay();
-  const handledRef = useRef(false);
+  const lastHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (pathname !== '/map') {
-      handledRef.current = false;
+      lastHandledRef.current = null;
       return;
     }
-    if (handledRef.current) return;
-    const req = parseMagelianParams(new URLSearchParams(searchParams.toString()));
+    const qs = searchParams.toString();
+    if (!qs || qs === lastHandledRef.current) return;
+    const req = parseMagelianParams(new URLSearchParams(qs));
     if (!req) return;
-    handledRef.current = true;
+    lastHandledRef.current = qs;
     openOverlay(req);
     router.replace('/map', { scroll: false });
   }, [pathname, searchParams, openOverlay, router]);
