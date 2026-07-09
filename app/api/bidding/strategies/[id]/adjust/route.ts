@@ -281,18 +281,28 @@ export async function POST(
   }
 
   // ── Événement consolidé → journal + chat (bidding_agent_actions) ─────────────
+  // action_taken et trigger_source sont des énumérations contraintes en base
+  // (CHECK), PAS du texte libre :
+  //   - action_taken : none/suggested/auto_applied/human_approved/human_rejected
+  //     → un ajustement manuel appliqué immédiatement par l'utilisateur = 'human_approved'
+  //       (même sémantique que app/api/agent/apply-recommendation/route.ts).
+  //   - trigger_source : user_chat/proactive/api (cf. lib/agent/types.ts TriggerSource)
+  //     → ce panneau n'est pas le chat, donc 'api'.
+  // Le résumé des champs modifiés part dans recommendations.summary pour ne pas
+  // perdre l'info (action_taken/trigger_source ne peuvent plus la porter).
   const summary = changesLog.map((c) => c.field).join(', ') || 'canaux/links';
   const { error: actErr } = await supabase.from('bidding_agent_actions').insert({
     strategy_id: id,
     intent: 'manual_adjust',
-    trigger_source: 'user',
+    trigger_source: 'api',
     agent_response: reason,
     recommendations: {
+      summary,
       changes: changesLog,
       pushes: pushes.map((p) => ({ channel: p.channel, status: p.status, detail: p.detail })),
       snapshot_version: snapshotVersion,
     },
-    action_taken: `Ajustement : ${summary}`,
+    action_taken: 'human_approved',
     applied_at: new Date().toISOString(),
   });
   if (actErr) console.error('[adjust] bidding_agent_actions:', actErr.message);
