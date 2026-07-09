@@ -134,13 +134,12 @@ export function MagelianOverlay() {
   }, []);
 
   // Après suppression d'une campagne : retire de la liste et sélectionne la suivante.
+  // Pas d'updater fonctionnel : setState imbriqué dans un updater viole la pureté React.
   const handleCampaignDeleted = useCallback(() => {
-    setCampaigns((prev) => {
-      const next = (prev ?? []).filter((c) => c.id !== selectedId);
-      setSelectedId(next[0]?.id ?? null);
-      return next;
-    });
-  }, [selectedId]);
+    const next = (campaigns ?? []).filter((c) => c.id !== selectedId);
+    setCampaigns(next);
+    setSelectedId(next[0]?.id ?? null);
+  }, [campaigns, selectedId]);
 
   // Esc ferme l'overlay
   useEffect(() => {
