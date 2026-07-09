@@ -1,22 +1,37 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import type { MagelianDeepLinkRequest } from './deep-link';
 
 interface MagelianOverlayState {
   open: boolean;
-  openOverlay: () => void;
+  /** Demande d'ouverture ciblée (deep-link) — consommée puis effacée par l'overlay. */
+  request: MagelianDeepLinkRequest | null;
+  openOverlay: (options?: MagelianDeepLinkRequest) => void;
   closeOverlay: () => void;
+  clearRequest: () => void;
 }
 
 const MagelianOverlayContext = createContext<MagelianOverlayState | null>(null);
 
 export function MagelianOverlayProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [request, setRequest] = useState<MagelianDeepLinkRequest | null>(null);
 
-  const openOverlay = useCallback(() => setOpen(true), []);
-  const closeOverlay = useCallback(() => setOpen(false), []);
+  const openOverlay = useCallback((options?: MagelianDeepLinkRequest) => {
+    setRequest(options ?? null);
+    setOpen(true);
+  }, []);
+  const closeOverlay = useCallback(() => {
+    setOpen(false);
+    setRequest(null);
+  }, []);
+  const clearRequest = useCallback(() => setRequest(null), []);
 
-  const value = useMemo(() => ({ open, openOverlay, closeOverlay }), [open, openOverlay, closeOverlay]);
+  const value = useMemo(
+    () => ({ open, request, openOverlay, closeOverlay, clearRequest }),
+    [open, request, openOverlay, closeOverlay, clearRequest]
+  );
 
   return (
     <MagelianOverlayContext.Provider value={value}>

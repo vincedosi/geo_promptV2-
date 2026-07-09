@@ -4,11 +4,8 @@ import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRouter } from 'next/navigation';
 import {
-  LayoutDashboard,
-  Layers as LayersIcon,
   FileUp,
   Radio as RadioIcon,
-  Target,
   Plug,
   Activity,
   Database,
@@ -40,15 +37,22 @@ interface NavLink {
   icon: LucideIcon;
 }
 
-const NAV_LINKS: NavLink[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/map/custom-geo', label: 'Zones custom', icon: LayersIcon },
-  { href: '/admin/import', label: 'Import POI', icon: FileUp },
-  { href: '/admin/radio', label: 'Radio FM/DAB+', icon: RadioIcon },
-  { href: '/campaigns', label: 'Campagnes', icon: Target },
-  { href: '/admin/api', label: 'Connexions API', icon: Plug },
+/**
+ * Back office (admin) — vision 09/07 : le mediaplanner travaille dans les overlays
+ * de la carte ; l'admin gère workspaces, données et connexions depuis cet onglet.
+ * Droits par rôle (user / admin / super admin) à venir.
+ */
+const BACK_OFFICE_LINKS: NavLink[] = [
+  { href: '/admin/organizations', label: 'Organisations (workspaces)', icon: Users },
   { href: '/admin/users', label: 'Utilisateurs', icon: Users },
+  { href: '/admin/import', label: 'Import POI', icon: FileUp },
+  { href: '/admin/carreaux-import', label: 'Import Shapefile', icon: FileUp },
+  { href: '/admin/ooh-import', label: 'Import OOH', icon: FileUp },
+  { href: '/dashboard/iris-crawler', label: 'IRIS crawler', icon: Database },
+  { href: '/admin/radio', label: 'Radio FM/DAB+', icon: RadioIcon },
+  { href: '/admin/api', label: 'Connexions API', icon: Plug },
   { href: '/admin/sources', label: 'Sources', icon: Database },
+  { href: '/admin/imports', label: 'Historique imports', icon: FileUp },
   { href: '/admin/health', label: 'Health check', icon: Activity },
 ];
 
@@ -186,11 +190,11 @@ export function SettingsOverlay({
         </div>
       </section>
 
-      {/* Navigation */}
+      {/* Back office */}
       <section>
-        <h4 style={sectionTitleStyle}>Navigation</h4>
+        <h4 style={sectionTitleStyle}>Back office</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {NAV_LINKS.map(link => {
+          {BACK_OFFICE_LINKS.map(link => {
             const Icon = link.icon;
             return (
               <button

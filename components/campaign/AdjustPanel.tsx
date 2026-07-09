@@ -16,11 +16,11 @@ import type { ChannelRow, StoredChannels, CampaignChannels, DspLinks } from '@/l
 import {
   INTENSITY_META, EXECUTION_MODE_META, inferIntensity, fmtEUR,
   type Intensity, type ExecutionMode,
-} from '@/app/campaigns/[id]/_components/steps/types';
+} from '@/components/campaign/wizard/steps/types';
 import {
   C, fInter, fMono, FieldBlock, NumberField, DateField, OptionRow, OptsList,
   GhostButton, PrimaryButton, Row2,
-} from '@/app/campaigns/[id]/_components/steps/ui';
+} from '@/components/campaign/wizard/steps/ui';
 
 interface PushLine { channel: string; status: 'pushed' | 'simulated' | 'failed' | 'skipped'; detail: string }
 

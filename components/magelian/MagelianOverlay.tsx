@@ -9,6 +9,7 @@ import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
 import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
 import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 import { useMagelianOverlay } from './MagelianOverlayContext';
+import type { MagelianTab } from './deep-link';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
 const fInter = "'Inter', system-ui, sans-serif";
@@ -19,15 +20,13 @@ const EXIT_DURATION_MS = 200;
 /** Campagne démo à préférer par défaut si présente dans la liste. */
 const DEMO_CAMPAIGN_ID = 'dccc0000-0000-4000-8000-000000000002';
 
-type MagelianTab = 'creation' | 'suivi' | 'apercu';
-
 interface CampaignRef {
   id: string;
   name: string;
 }
 
 export function MagelianOverlay() {
-  const { open, closeOverlay } = useMagelianOverlay();
+  const { open, request, closeOverlay, clearRequest } = useMagelianOverlay();
   // Sur /map il n'y a pas de sidebar 240px mais le rail d'icônes 48px :
   // l'overlay se cale à droite du rail (56) au lieu de la sidebar (256).
   const pathname = usePathname();
@@ -48,6 +47,9 @@ export function MagelianOverlay() {
   // Instant d'ouverture : évite que le mousedown du clic d'ouverture (ou un
   // event synthétique de la carte) referme aussitôt l'overlay via click-outside.
   const openedAtRef = useRef(0);
+  // Le fetch ne tourne qu'une fois : capture la requête courante sans re-déclencher l'effet.
+  const requestRef = useRef(request);
+  useEffect(() => { requestRef.current = request; }, [request]);
 
   const handleClose = useCallback(() => {
     if (closing) return;
@@ -65,13 +67,19 @@ export function MagelianOverlay() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Reset l'onglet actif à chaque nouvelle ouverture + horodate l'ouverture.
+  // Reset l'onglet actif à chaque nouvelle ouverture (deep-link prioritaire) + horodate.
   useEffect(() => {
     if (open) {
-      setTab('suivi');
+      setTab(request?.tab ?? 'suivi');
       openedAtRef.current = Date.now();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Deep-link reçu overlay déjà ouvert : applique l'onglet demandé.
+  useEffect(() => {
+    if (open && request?.tab) setTab(request.tab);
+  }, [open, request]);
 
   // Charge la liste des campagnes une seule fois (lazy, à la première ouverture).
   useEffect(() => {
@@ -85,13 +93,22 @@ export function MagelianOverlay() {
           ? data.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))
           : [];
         setCampaigns(list);
-        const preferred = list.find((c) => c.id === DEMO_CAMPAIGN_ID);
+        const wanted = list.find((c) => c.id === requestRef.current?.campaignId);
+        const preferred = wanted ?? list.find((c) => c.id === DEMO_CAMPAIGN_ID);
         setSelectedId(preferred?.id ?? list[0]?.id ?? null);
       } catch {
         setCampaigns([]);
       }
     })();
   }, [open]);
+
+  // Deep-link : pré-sélectionne la campagne demandée dès que la liste est disponible.
+  useEffect(() => {
+    if (!open || !request?.campaignId || campaigns === null) return;
+    const found = campaigns.find((c) => c.id === request.campaignId);
+    if (found) setSelectedId(found.id);
+    clearRequest();
+  }, [open, request, campaigns, clearRequest]);
 
   // Charge l'état du mode démo (case admin) à chaque ouverture.
   useEffect(() => {
@@ -115,6 +132,14 @@ export function MagelianOverlay() {
       setDemoMode(!on);
     }
   }, []);
+
+  // Après suppression d'une campagne : retire de la liste et sélectionne la suivante.
+  // Pas d'updater fonctionnel : setState imbriqué dans un updater viole la pureté React.
+  const handleCampaignDeleted = useCallback(() => {
+    const next = (campaigns ?? []).filter((c) => c.id !== selectedId);
+    setCampaigns(next);
+    setSelectedId(next[0]?.id ?? null);
+  }, [campaigns, selectedId]);
 
   // Esc ferme l'overlay
   useEffect(() => {
@@ -345,7 +370,7 @@ export function MagelianOverlay() {
       >
         {tab === 'creation' && (
           selectedId ? (
-            <CampaignCockpit key={selectedId} campaignId={selectedId} embedded initialView="prog" wizardOnly />
+            <CampaignCockpit key={selectedId} campaignId={selectedId} initialView="prog" wizardOnly onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».
@@ -365,7 +390,7 @@ export function MagelianOverlay() {
 
         {tab === 'apercu' && (
           selectedId ? (
-            <CampaignOverview key={selectedId} campaignId={selectedId} embedded />
+            <CampaignOverview key={selectedId} campaignId={selectedId} onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».

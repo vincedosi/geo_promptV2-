@@ -88,7 +88,7 @@ export async function loadMappings(dspSource: string): Promise<SourceMapping[]> 
 
 /**
  * Liste les DSP qui ont au moins un mapping configuré. Drive le dropdown UI
- * `app/campaigns` (CampaignImportDialog). Cache 5 min.
+ * d'import de campagne (`/admin/campaigns`). Cache 5 min.
  */
 export async function listAvailableDsps(): Promise<string[]> {
   const now = Date.now();

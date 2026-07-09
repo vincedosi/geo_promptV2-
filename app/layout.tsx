@@ -9,6 +9,7 @@ import { TopRightChrome } from '@/components/layout/TopRightChrome'
 import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
 import { MagelianOverlayProvider } from '@/components/magelian/MagelianOverlayContext'
 import { MagelianOverlay } from '@/components/magelian/MagelianOverlay'
+import { MagelianDeepLink } from '@/components/magelian/MagelianDeepLink'
 
 export const metadata: Metadata = {
   title: 'MAGELIAN — Geospatial intelligence',
@@ -59,6 +60,7 @@ export default function RootLayout({
                 <AgentTrigger />
                 <AgentPanel />
                 <MagelianOverlay />
+                <MagelianDeepLink />
               </MagelianOverlayProvider>
             </AgentProvider>
           </ToastProvider>
