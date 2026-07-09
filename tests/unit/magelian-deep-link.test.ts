@@ -27,4 +27,9 @@ describe('parseMagelianParams', () => {
     expect(parseMagelianParams(new URLSearchParams('campaign=x&tab=suivi')))
       .toEqual({ campaignId: 'x', tab: 'suivi' });
   });
+
+  it("n'intercepte pas les URLs adressées à un autre overlay", () => {
+    expect(parseMagelianParams(new URLSearchParams('overlay=pilotage&action=new&campaign=x'))).toBeNull();
+    expect(parseMagelianParams(new URLSearchParams('overlay=pilotage&campaign=x&tab=suivi'))).toBeNull();
+  });
 });

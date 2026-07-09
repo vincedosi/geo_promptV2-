@@ -10,6 +10,9 @@ export interface MagelianDeepLinkRequest {
 const TABS: readonly MagelianTab[] = ['creation', 'suivi', 'apercu'];
 
 export function parseMagelianParams(params: URLSearchParams): MagelianDeepLinkRequest | null {
+  // URL adressée à un autre overlay (ex. ?overlay=pilotage&action=new&campaign=<id>) :
+  // ne pas intercepter, même si un param campaign est présent.
+  if (params.get('overlay')) return null;
   const campaignId = params.get('campaign') ?? undefined;
   const rawTab = params.get('tab');
   const tab = TABS.includes(rawTab as MagelianTab) ? (rawTab as MagelianTab) : undefined;
