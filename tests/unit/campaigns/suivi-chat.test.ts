@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CampaignChatBodySchema, truncateHistory, buildSuiviChatSystemPrompt,
-  MAX_HISTORY_TURNS, type ChatTurn, parseAdjustProposal,
+  MAX_HISTORY_TURNS, type ChatTurn, parseAdjustProposal, ADJUST_MARKER,
 } from '@/lib/campaigns/suivi-chat';
 
 describe('CampaignChatBodySchema', () => {
@@ -114,7 +114,15 @@ describe('parseAdjustProposal', () => {
     expect(proposal).toBeNull();
   });
   it('JSON invalide après le marker → proposal null, marker retiré', () => {
-    const { proposal } = parseAdjustProposal('Texte\n[PROPOSITION_AJUSTEMENT]{pas du json');
+    const { clean, proposal } = parseAdjustProposal('Texte\n[PROPOSITION_AJUSTEMENT]{pas du json');
+    expect(proposal).toBeNull();
+    expect(clean).toBe('Texte');
+    expect(clean).not.toContain(ADJUST_MARKER);
+  });
+  it('marker cité en pleine phrase (pas en début de ligne) → ignoré', () => {
+    const raw = 'Le format [PROPOSITION_AJUSTEMENT]{"x":1} sert à proposer des ajustements.';
+    const { clean, proposal } = parseAdjustProposal(raw);
+    expect(clean).toBe(raw);
     expect(proposal).toBeNull();
   });
 });

@@ -108,7 +108,12 @@ export interface AdjustProposal { reason: string; changes: Record<string, unknow
 
 /** Extrait la ligne [PROPOSITION_AJUSTEMENT]{json} d'une réponse du chat. */
 export function parseAdjustProposal(text: string): { clean: string; proposal: AdjustProposal | null } {
-  const idx = text.lastIndexOf(ADJUST_MARKER);
+  // Le marker ne compte que s'il ouvre une ligne (début de texte ou après \n) —
+  // une occurrence citée en pleine phrase ne doit pas tronquer la réponse.
+  let idx = text.lastIndexOf(ADJUST_MARKER);
+  while (idx > 0 && text[idx - 1] !== '\n') {
+    idx = text.lastIndexOf(ADJUST_MARKER, idx - 1);
+  }
   if (idx === -1) return { clean: text, proposal: null };
   const clean = text.slice(0, idx).replace(/\n+$/, '');
   try {
