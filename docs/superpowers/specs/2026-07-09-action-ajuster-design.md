@@ -10,10 +10,18 @@
 
 ## 1. Objectif & périmètre
 
-Sur une campagne avec stratégie **active**, permettre d'ajuster **budget, CPM,
-dates, mode d'exécution, intensité, cible (zones), canaux** dans un panneau
-compact pré-rempli, en un seul geste : enregistrer → journaliser → re-snapshotter
-le plan → **pousser le bidding via API** vers les canaux de la campagne.
+Sur une campagne avec stratégie **active**, permettre d'ajuster **budgets par
+canal, CPM, dates, mode d'exécution, intensité, cible (zones), canaux** dans un
+panneau compact pré-rempli, en un seul geste : enregistrer → journaliser →
+re-snapshotter le plan → **pousser le bidding via API** vers les canaux de la
+campagne.
+
+**Changement de modèle budget (demande Vincent 09/07)** : le budget n'est plus
+une valeur globale saisie — il se fixe **par ligne, un budget par DSP et par
+plateforme sociale sélectionnés**. Le « budget global » devient la **somme des
+lignes**, en lecture seule. Ce modèle s'applique au panneau Ajuster ET au wizard
+(StepBudget vient après StepCanaux, les canaux sont connus). L'ad server n'a pas
+de ligne budget (c'est de la mesure).
 
 Hors périmètre V1 : exécution autonome par l'agent (il voit et propose
 seulement), connecteurs réels autres que DV360 (TTD/Meta → `skipped`, TikTok →
@@ -33,8 +41,12 @@ best-effort que `CampaignCockpit.tsx:52-63`.
 repliables **pré-remplies avec les valeurs actuelles** (stratégie +
 `geo_strategy`) :
 
-1. **Budget & période** (ouverte par défaut) — budget total, CPM prévisionnel,
-   dates de vague.
+1. **Budget & période** (ouverte par défaut) — **une ligne de budget par DSP et
+   par réseau social sélectionné** (label + input €, JetBrains Mono), un total
+   « Budget global » calculé en lecture seule, le CPM prévisionnel et les dates
+   de vague. Ajouter/retirer un canal dans la section Canaux fait
+   apparaître/disparaître sa ligne (retrait = ligne enlevée après confirmation
+   visuelle du nouveau total).
 2. **Mode d'exécution** — observer / suggérer / automatique.
 3. **Intensité du ciblage** — doux / marqué / fort (courbes `INTENSITY_CURVES`).
 4. **Cible** — panier de cibles actuel (retirer/ajouter, contrôles compacts
@@ -66,7 +78,9 @@ Protégée comme les routes bidding existantes (auth + scope org),
 {
   reason: string,               // min 3
   changes: {                    // uniquement les champs modifiés
-    total_budget?: number,      // > 0
+    channel_budgets?: Record<string, number>,  // code canal → € (≥ 0) ;
+                                // total_budget = somme, calculé SERVEUR — le
+                                // client n'envoie jamais de budget global
     forecast_cpm?: number,      // > 0
     start_date?: string, end_date?: string,   // cohérence start <= end
     execution_mode?: 'monitor_only' | 'suggest' | 'auto',
@@ -91,9 +105,11 @@ Orchestration serveur, séquentielle (Nano : jamais >3 requêtes parallèles) :
    `change_type='adjusted'` et la `reason`. Intensité/cible → la courbe/zone
    change → `apply_zone_weights_to_strategy` se redéclenche (comportement
    existant, assumé).
-4. **Canaux** : si fournis, même validation/écriture que `PUT /channels`
-   (logique partagée `lib/campaigns/channels.ts`, zéro duplication). `links`
-   mergés dans `geo_strategy.channels.links` (merge non destructif).
+4. **Canaux & budgets** : si fournis, même validation/écriture que
+   `PUT /channels` (logique partagée `lib/campaigns/channels.ts`, zéro
+   duplication). `channel_budgets` → `geo_strategy.channels.budgets` +
+   `total_budget` = somme recalculée serveur (§5b). `links` mergés dans
+   `geo_strategy.channels.links` (merge non destructif).
 5. **Snapshot v+1** de `campaign_plan_snapshot` : le pacing plan-vs-réel compare
    désormais au plan ajusté (la vague continue, la référence change à partir de
    maintenant).
@@ -112,8 +128,10 @@ jamais de push), le connecteur produit/transmet :
 
 - **Script custom bidding pondéré** régénéré via
   `buildWeightedZoneBiddingScript` (existant) avec les poids du snapshot v+1.
-- **Delta budget** quand il a changé. Le CPM prévisionnel ne se pousse pas :
-  c'est un paramètre de plan interne (pacing), pas un réglage DSP.
+- **Delta budget du canal** quand sa ligne a changé — chaque connecteur reçoit
+  **son** budget (`channel_budgets[channel]`), jamais le global. Le CPM
+  prévisionnel ne se pousse pas : c'est un paramètre de plan interne (pacing),
+  pas un réglage DSP.
 
 ## 5. Connecteurs (`lib/dsp/push/`)
 
@@ -159,6 +177,38 @@ Saisie dans la section Canaux du panneau. Jamais bloquant si absent.
 **Traçabilité** : chaque tentative → 1 ligne `dsp_api_logs` (table existante,
 RLS org) : action `bidding_push`, statut, latence, erreur, `payload_summary`.
 
+## 5b. Modèle budget par canal (panneau ET wizard)
+
+**Stockage** — sous-clé `geo_strategy.channels.budgets` (merge non destructif,
+même mécanique que `channels`/`links`) :
+
+```json
+{ "channels": { "dsps": ["dv360"], "socials": ["tiktok"], "ad_server": "adform",
+                "budgets": { "dv360": 30000, "tiktok": 15000 } } }
+```
+
+`bidding_strategies.total_budget` reste la **somme des lignes, calculée
+serveur** — sémantique inchangée pour le pacing/plan média, qui continuent de
+lire le total. Aucune migration de colonne.
+
+**Règles** :
+- une ligne par canal de `dsps` + `socials` ; l'ad server n'en a pas ;
+- clés de `budgets` ⊆ canaux sélectionnés (validation serveur) ; retirer un
+  canal purge sa ligne ; total > 0 exigé au lancement/ajustement, ligne à 0
+  autorisée ;
+- campagne existante sans `budgets` (créée avant ce modèle) : le panneau
+  pré-remplit des lignes vides avec un hint « Répartis le budget actuel
+  (45 000 €) entre les canaux » — on ne devine pas la répartition.
+
+**Wizard aligné sur le même modèle** :
+- `StepBudget` : une ligne € par canal sélectionné à l'étape Canaux
+  (`draft.channelBudgets: Record<code, number>`), « Budget global » calculé en
+  lecture seule ; `draft.totalBudget` devient dérivé (somme).
+- `StepLancement` : persiste `channel_budgets` → `geo_strategy.channels.budgets`
+  et `total_budget` = somme dans la stratégie ; le récap affiche la répartition
+  (« Budget : 45 000 € — dv360 30 000, tiktok 15 000 »).
+- Prefill « Reprogrammer » : lit `channels.budgets` existant.
+
 ## 6. Historisation & journal
 
 Sans nouvelle table :
@@ -198,6 +248,8 @@ Sans nouvelle table :
 
 - Diff builder du panneau : ne soumettre que le modifié ; diff vide → bouton
   désactivé.
+- Budgets par canal : somme calculée serveur, clés ⊆ canaux sélectionnés,
+  purge de la ligne au retrait d'un canal, total > 0.
 - Validation Zod du payload adjust (bornes, dates, raison).
 - Résolution des connecteurs : démo → `simulated` ; pas de connexion →
   `simulated` ; connecteur absent → `skipped` ; links absents → `skipped`.
