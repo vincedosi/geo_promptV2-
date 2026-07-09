@@ -183,3 +183,69 @@ export async function listAdvertisers(
   };
   return (data.advertisers ?? []).map((a) => ({ id: a.advertiserId, name: a.displayName }));
 }
+
+/**
+ * Upload d'un script custom bidding (3 appels : uploadScript → media upload →
+ * scripts.create). L'algorithme (links.algorithm_id) doit exister côté DV360.
+ */
+export async function uploadCustomBiddingScript(
+  accessToken: string,
+  advertiserId: string,
+  algorithmId: string,
+  script: string,
+): Promise<{ scriptName: string }> {
+  const auth = { Authorization: `Bearer ${accessToken}` };
+  const refRes = await fetch(
+    `${DV360_BASE}/customBiddingAlgorithms/${encodeURIComponent(algorithmId)}:uploadScript?advertiserId=${encodeURIComponent(advertiserId)}`,
+    { headers: auth, cache: 'no-store' },
+  );
+  if (!refRes.ok) throw new Error(`DV360 uploadScript ref ${refRes.status} : ${(await refRes.text()).slice(0, 300)}`);
+  const ref = (await refRes.json()) as { resourceName?: string };
+  if (!ref.resourceName) throw new Error('DV360 uploadScript : resourceName absent.');
+
+  const upRes = await fetch(
+    `https://displayvideo.googleapis.com/upload/media/${ref.resourceName}?uploadType=media`,
+    { method: 'POST', headers: { ...auth, 'Content-Type': 'text/plain' }, cache: 'no-store', body: script },
+  );
+  if (!upRes.ok) throw new Error(`DV360 media upload ${upRes.status} : ${(await upRes.text()).slice(0, 300)}`);
+
+  const createRes = await fetch(
+    `${DV360_BASE}/customBiddingAlgorithms/${encodeURIComponent(algorithmId)}/scripts?advertiserId=${encodeURIComponent(advertiserId)}`,
+    {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ script: { resource: { resourceName: ref.resourceName } } }),
+    },
+  );
+  if (!createRes.ok) throw new Error(`DV360 scripts.create ${createRes.status} : ${(await createRes.text()).slice(0, 300)}`);
+  const created = (await createRes.json()) as { name?: string };
+  return { scriptName: created.name ?? '' };
+}
+
+/**
+ * Met à jour le budget d'un insertion order : lit l'IO, remplace le montant du
+ * DERNIER segment de budget, PATCH avec updateMask ciblé.
+ */
+export async function patchInsertionOrderBudget(
+  accessToken: string,
+  advertiserId: string,
+  insertionOrderId: string,
+  budgetAmountMicros: number,
+): Promise<void> {
+  const auth = { Authorization: `Bearer ${accessToken}` };
+  const base = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/insertionOrders/${encodeURIComponent(insertionOrderId)}`;
+  const getRes = await fetch(base, { headers: auth, cache: 'no-store' });
+  if (!getRes.ok) throw new Error(`DV360 insertionOrders.get ${getRes.status} : ${(await getRes.text()).slice(0, 300)}`);
+  const io = (await getRes.json()) as { budget?: { budgetUnit?: string; budgetSegments?: Array<Record<string, unknown>> } };
+  const segments = io.budget?.budgetSegments ?? [];
+  if (segments.length === 0) throw new Error('DV360 : insertion order sans segment de budget.');
+  segments[segments.length - 1] = { ...segments[segments.length - 1], budgetAmountMicros: String(budgetAmountMicros) };
+  const patchRes = await fetch(`${base}?updateMask=budget.budgetSegments`, {
+    method: 'PATCH',
+    headers: { ...auth, 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: JSON.stringify({ budget: { ...io.budget, budgetSegments: segments } }),
+  });
+  if (!patchRes.ok) throw new Error(`DV360 insertionOrders.patch ${patchRes.status} : ${(await patchRes.text()).slice(0, 300)}`);
+}
