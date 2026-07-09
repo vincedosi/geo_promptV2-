@@ -10,16 +10,15 @@
  * Nano : orchestration séquentielle, jamais >3 requêtes en parallèle.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkStrategyAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { effectiveCampaignStatus } from '@/lib/campaigns/status';
 import {
-  CampaignChannelsSchema, ChannelBudgetsSchema, DspLinksSchema,
   validateSelection, pruneBudgets, sumBudgets,
   type ChannelRow, type StoredChannels, type CampaignChannels, type DspLinks,
 } from '@/lib/campaigns/channels';
+import { AdjustSchema } from '@/lib/campaigns/adjust-schema';
 import { runPush } from '@/lib/dsp/push';
 import type { BiddingPushResult } from '@/lib/dsp/push/types';
 import type { WeightedBiddingTier } from '@/lib/digital/dv360-bidding-script';
@@ -30,24 +29,6 @@ import { INTENSITY_CURVES, TARGET_VARIABLE_CODE } from '@/app/campaigns/[id]/_co
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-const AdjustSchema = z.object({
-  reason: z.string().min(3).max(2000),
-  changes: z.object({
-    channel_budgets: ChannelBudgetsSchema.optional(),
-    forecast_cpm: z.number().positive().optional(),
-    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    execution_mode: z.enum(['monitor_only', 'suggest', 'auto']).optional(),
-    intensity: z.enum(['doux', 'marque', 'fort']).optional(),
-    zone: z.object({
-      scope_type: z.enum(['national', 'custom_zone']),
-      zone_id: z.string().uuid().nullable(),
-    }).optional(),
-    channels: CampaignChannelsSchema.optional(),
-  }).refine((o) => Object.keys(o).length > 0, { message: 'aucun_changement' }),
-  links: DspLinksSchema.optional(),
-});
 
 const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(['dv360', 'meta', 'tiktok', 'ttd']);
 
@@ -213,9 +194,16 @@ export async function POST(
   snapshotVersion = dup?.new_version ?? null;
 
   // ── Tiers pour le script pondéré (depuis le snapshot v+1, borné) ─────────────
+  // Limitation connue : duplicate_plan_snapshot copie le DERNIER plan existant
+  // (campaign_plan_snapshot), qui cible encore l'ANCIENNE zone tant que le plan
+  // média n'a pas été régénéré sur la nouvelle géo. Si `changes.zone` est fourni
+  // ici, un script construit depuis ce snapshot serait donc stale (mauvais CP).
+  // On saute la lecture du snapshot (tiersByDsp reste vide → moins d'I/O) et on
+  // ne pousse aucun script tant que le plan média n'a pas été régénéré côté UI.
+  const zoneChanged = changes.zone !== undefined;
   const tiersByDsp = new Map<string, WeightedBiddingTier[]>();
   let zoneName = 'Zone de la stratégie';
-  if (snapshotVersion != null) {
+  if (snapshotVersion != null && !zoneChanged) {
     const { data: snapRows, error: snapErr } = await supabase
       .from('campaign_plan_snapshot')
       .select('dsp, zone_name, item_id, item_name, item_weight, postal_code')
@@ -268,6 +256,9 @@ export async function POST(
       links: nextLinks ?? null,
       isDemo,
     });
+    if (zoneChanged) {
+      result.detail = `${result.detail} · zone modifiée : script non poussé — régénère le plan média avant de pousser`;
+    }
     pushes.push(result);
     if (provider && KNOWN_PROVIDERS.has(provider) && campaign.organization_id) {
       await logDspEvent({

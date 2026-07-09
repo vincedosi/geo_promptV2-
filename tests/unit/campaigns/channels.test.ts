@@ -99,4 +99,9 @@ describe('budgets par canal', () => {
     expect(pruneBudgets({ dv360: 1, tiktok: 2 }, sel)).toEqual({ dv360: 1, tiktok: 2 });
     expect(pruneBudgets(undefined, sel)).toEqual({});
   });
+
+  it("pruneBudgets purge une ligne d'ad_server (budgets ne portent que sur dsps+socials)", () => {
+    const sel = { dsps: ['dv360'], socials: [], ad_server: 'adform' as string | null };
+    expect(pruneBudgets({ dv360: 1, adform: 5 }, sel)).toEqual({ dv360: 1 });
+  });
 });

@@ -40,9 +40,12 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   executionMode: 'auto',
 };
 
-/** Budget global du brouillon = somme des lignes par canal (null si 0 — rien saisi). */
+/** Budget global du brouillon = somme des lignes des canaux ENCORE sélectionnés (null si 0 — rien saisi). */
 export function draftTotalBudget(d: ProgDraft): number | null {
-  const sum = Object.values(d.channelBudgets).reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+  const allowed = new Set([...d.channels.dsps, ...d.channels.socials]);
+  const sum = Object.entries(d.channelBudgets)
+    .filter(([code]) => allowed.has(code))
+    .reduce((s, [, v]) => s + (Number.isFinite(v) ? v : 0), 0);
   return sum > 0 ? Math.round(sum * 100) / 100 : null;
 }
 

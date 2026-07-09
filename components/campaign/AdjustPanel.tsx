@@ -174,10 +174,13 @@ export function AdjustPanel({
   }, [open, campaignId]);
 
   const labels = useMemo(() => Object.fromEntries(catalog.map((c) => [c.code, c.label])), [catalog]);
-  const total = useMemo(
-    () => state ? Object.values(state.channelBudgets).reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0) : 0,
-    [state],
-  );
+  const total = useMemo(() => {
+    if (!state) return 0;
+    const allowed = new Set([...state.channels.dsps, ...state.channels.socials]);
+    return Object.entries(state.channelBudgets)
+      .filter(([code]) => allowed.has(code))
+      .reduce((s, [, v]) => s + (Number.isFinite(v) ? v : 0), 0);
+  }, [state]);
   // Hint budget (spec §5b) : toutes les lignes vides mais un total_budget global > 0
   // (campagne créée avant le modèle par canal) — invite à répartir ce montant.
   const showBudgetHint = total <= 0

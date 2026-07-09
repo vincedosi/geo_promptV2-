@@ -213,7 +213,9 @@ export function StepLancement({
         <RecapRow
           title={`${fmtEUR(totalBudget)} · CPM ${draft.forecastCpm != null ? draft.forecastCpm.toLocaleString('fr-FR') + ' €' : '—'}`}
           sub={`${fmtDateShort(draft.startDate)} → ${fmtDateShort(draft.endDate)} · ${
-            Object.entries(draft.channelBudgets).map(([c, v]) => `${c} ${v.toLocaleString('fr-FR')} €`).join(' · ') || 'répartition non saisie'
+            Object.entries(draft.channelBudgets)
+              .filter(([c]) => [...draft.channels.dsps, ...draft.channels.socials].includes(c))
+              .map(([c, v]) => `${c} ${v.toLocaleString('fr-FR')} €`).join(' · ') || 'répartition non saisie'
           }`}
         />
         <RecapRow
