@@ -1,9 +1,9 @@
 /**
- * /custom-bidding — absorbé par le cockpit campagne (app/campaigns/[id]).
- * La liste des stratégies vit désormais dans le portfolio /campaigns.
+ * /custom-bidding — absorbé par l'overlay MAGELIAN.
+ * La gestion vit dans l'overlay MAGELIAN de /map.
  */
 import { redirect } from 'next/navigation';
 
 export default function Page() {
-  redirect('/campaigns');
+  redirect('/map');
 }

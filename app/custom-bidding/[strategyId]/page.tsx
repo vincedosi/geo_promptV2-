@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * /custom-bidding/[strategyId] — absorbé par le cockpit campagne.
+ * /custom-bidding/[strategyId] — absorbé par l'overlay MAGELIAN.
  * Résout la campagne rattachée à la stratégie puis redirige vers
- * app/campaigns/[id] en vue Pilotage. Les _components restent utilisés
- * par le cockpit (import direct de FinalReport).
+ * /map?campaign=<id>&tab=apercu. Les _components restent utilisés
+ * par PilotageOverlay et CampaignSuivi — NE PAS les déplacer.
  */
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -21,9 +21,9 @@ export default function Page() {
       .then(j => {
         if (cancelled) return;
         const cid = j?.campaign?.id ?? j?.strategy?.campaign_id ?? null;
-        router.replace(cid ? `/campaigns/${cid}` : '/campaigns');
+        router.replace(cid ? `/map?campaign=${cid}&tab=apercu` : '/map');
       })
-      .catch(() => { if (!cancelled) router.replace('/campaigns'); });
+      .catch(() => { if (!cancelled) router.replace('/map'); });
     return () => { cancelled = true; };
   }, [strategyId, router]);
 

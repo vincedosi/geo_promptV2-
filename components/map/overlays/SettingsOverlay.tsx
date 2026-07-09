@@ -45,7 +45,7 @@ const NAV_LINKS: NavLink[] = [
   { href: '/map/custom-geo', label: 'Zones custom', icon: LayersIcon },
   { href: '/admin/import', label: 'Import POI', icon: FileUp },
   { href: '/admin/radio', label: 'Radio FM/DAB+', icon: RadioIcon },
-  { href: '/campaigns', label: 'Campagnes', icon: Target },
+  { href: '/map?tab=suivi', label: 'Gestion campagnes', icon: Target },
   { href: '/admin/api', label: 'Connexions API', icon: Plug },
   { href: '/admin/users', label: 'Utilisateurs', icon: Users },
   { href: '/admin/sources', label: 'Sources', icon: Database },

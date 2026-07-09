@@ -3,11 +3,11 @@
 import { usePathname } from 'next/navigation';
 import { SessionBadge } from '@/components/SessionBadge';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { PillarSwitch } from '@/components/layout/PillarSwitch';
 
 export function TopRightChrome() {
   const pathname = usePathname();
   const onMap = pathname?.startsWith('/map');
+  if (onMap) return null; // sur /map, le chrome vit dans le banner de la carte
   return (
     <div
       style={{
@@ -15,9 +15,8 @@ export function TopRightChrome() {
         display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px',
       }}
     >
-      <PillarSwitch />
-      {!onMap && <ThemeToggle />}
-      {!onMap && <SessionBadge />}
+      <ThemeToggle />
+      <SessionBadge />
     </div>
   );
 }

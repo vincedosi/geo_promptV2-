@@ -43,7 +43,7 @@ const navItems: NavSection[] = [
   {
     section: 'Campagnes',
     items: [
-      { href: '/campaigns', label: 'Portfolio', icon: Target },
+      { href: '/map?tab=suivi', label: 'Gestion campagnes', icon: Target },
     ],
   },
   {
