@@ -19,8 +19,8 @@ import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { StepProps } from './types';
 import {
-  EXECUTION_MODE_META, INTENSITY_CURVES, INTENSITY_META, TARGET_VARIABLE_CODE,
-  draftTotalBudget, fmtDateShort, fmtEUR,
+  EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
+  draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell } from './ui';
 
@@ -30,6 +30,8 @@ interface Props extends StepProps {
   existingStrategyId: string | null;
   onPrev: () => void;
   onCompleted: () => void;
+  /** Appelé après renommage réussi de la campagne (répercute le nom dans l'overlay). */
+  onRenamed?: (name: string) => void;
 }
 
 function RecapRow({ title, sub }: { title: string; sub: string }) {
@@ -48,7 +50,7 @@ function RecapRow({ title, sub }: { title: string; sub: string }) {
 }
 
 export function StepLancement({
-  draft, campaignId, campaignName, existingStrategyId, onPrev, onCompleted,
+  draft, campaignId, campaignName, existingStrategyId, onPrev, onCompleted, onRenamed,
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -73,20 +75,34 @@ export function StepLancement({
     : draft.cibles.map((c) => c.name).join(' + ');
   const noChannel = draft.channels.dsps.length === 0 && draft.channels.socials.length === 0;
   const totalBudget = draftTotalBudget(draft);
+  const finalName = draft.name.trim() || campaignName;
   const invalid = (draft.cibles.length > 1 && !ownerOrgId)
-    || !totalBudget || !draft.startDate || !draft.endDate || noChannel;
+    || !totalBudget || !draft.startDate || !draft.endDate || noChannel || !finalName;
 
   async function handleArm() {
     if (invalid) return;
     setSubmitting(true);
     try {
+      // Nom saisi à l'étape Cible → persisté ici (best-effort : la campagne
+      // reste armable même si le renommage échoue).
+      if (finalName !== campaignName) {
+        try {
+          const rn = await adminFetch(`/api/admin/campaigns/${campaignId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: finalName }),
+          });
+          if (rn.ok) onRenamed?.(finalName);
+        } catch { /* non bloquant */ }
+      }
+
       const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
       const commonFields = {
         weighting_mode: 'by_insee_variable' as const,
         in_zone_weights: {
           mode: 'by_insee_variable',
           variable_code: TARGET_VARIABLE_CODE,
-          curve: INTENSITY_CURVES[draft.intensity],
+          curve: pressureCurve(draft.pressure),
         },
         out_zone_weights: {},
         scope_type,
@@ -105,7 +121,7 @@ export function StepLancement({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             campaign_id: campaignId,
-            name: `Pilotage — ${campaignName}`,
+            name: `Pilotage — ${finalName}`,
             algorithm_code: 'thompson_sampling',
             objective_code: 'maximize_leads',
             ...commonFields,
@@ -207,7 +223,11 @@ export function StepLancement({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <RecapRow
-          title={`Cible · ${INTENSITY_META[draft.intensity].title}`}
+          title={finalName}
+          sub={finalName !== campaignName ? `Sera renommée (actuellement « ${campaignName} »)` : 'Nom de la campagne'}
+        />
+        <RecapRow
+          title={`Cible · pression ${fmtMult(draft.pressure)}`}
           sub={`Taux d'abstention (2022) sur ${cibleTitle}`}
         />
         <RecapRow

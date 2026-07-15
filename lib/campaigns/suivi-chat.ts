@@ -79,7 +79,7 @@ Règles :
 - Aucune action destructive proposée.
 - Si l'utilisateur demande une recommandation d'action ET que tu identifies un ajustement concret et chiffré, termine ta réponse par UNE seule ligne, exactement au format :
 [PROPOSITION_AJUSTEMENT]{"reason":"<pourquoi en une phrase>","changes":{...}}
-  Clés autorisées dans changes : channel_budgets (objet code canal → € ), forecast_cpm, start_date, end_date, execution_mode (monitor_only|suggest|auto), intensity (doux|marque|fort). JSON compact sur une seule ligne, aucune autre clé. N'émets JAMAIS cette ligne pour une simple question d'analyse.
+  Clés autorisées dans changes : channel_budgets (objet code canal → € ), forecast_cpm, start_date, end_date, execution_mode (monitor_only|suggest|auto), pressure (nombre 1 à 3 — multiplicateur d'enchère max sur les zones cibles). JSON compact sur une seule ligne, aucune autre clé. N'émets JAMAIS cette ligne pour une simple question d'analyse.
 
 DONNÉES CAMPAGNE (seule source de vérité) :
 - Nom : ${campaign.name}

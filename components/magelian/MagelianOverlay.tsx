@@ -141,6 +141,11 @@ export function MagelianOverlay() {
     setSelectedId(next[0]?.id ?? null);
   }, [campaigns, selectedId]);
 
+  // Après renommage au Lancement : répercute le nom dans le sélecteur.
+  const handleCampaignRenamed = useCallback((name: string) => {
+    setCampaigns((prev) => prev ? prev.map((c) => (c.id === selectedId ? { ...c, name } : c)) : prev);
+  }, [selectedId]);
+
   // Esc ferme l'overlay
   useEffect(() => {
     if (!open) return;
@@ -290,6 +295,39 @@ export function MagelianOverlay() {
         </button>
       </div>
 
+      {/* Sélecteur de campagne — au-dessus des onglets : on choisit LA campagne,
+          puis on navigue entre ses vues (Suivi/Aperçu/Création). */}
+      <div style={{ padding: '12px 16px 10px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <label
+          htmlFor="magelian-campaign-select"
+          style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}
+        >
+          Campagne
+        </label>
+        <select
+          id="magelian-campaign-select"
+          value={selectedId ?? ''}
+          onChange={(e) => setSelectedId(e.target.value || null)}
+          disabled={!campaigns || campaigns.length === 0}
+          style={{
+            background: 'var(--bg-level-2)',
+            border: '0.5px solid var(--border-subtle)',
+            borderRadius: 6,
+            padding: '8px 12px',
+            fontFamily: fInter,
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            minWidth: 260,
+          }}
+        >
+          {campaigns === null && <option value="">Chargement…</option>}
+          {campaigns !== null && campaigns.length === 0 && <option value="">Aucune campagne</option>}
+          {campaigns?.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Tab bar */}
       <div
         style={{
@@ -327,38 +365,6 @@ export function MagelianOverlay() {
         ))}
       </div>
 
-      {/* Sélecteur de campagne — partagé entre Création et Suivi */}
-      <div style={{ padding: '12px 20px 0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <label
-          htmlFor="magelian-campaign-select"
-          style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}
-        >
-          Campagne
-        </label>
-        <select
-          id="magelian-campaign-select"
-          value={selectedId ?? ''}
-          onChange={(e) => setSelectedId(e.target.value || null)}
-          disabled={!campaigns || campaigns.length === 0}
-          style={{
-            background: 'var(--bg-level-2)',
-            border: '0.5px solid var(--border-subtle)',
-            borderRadius: 6,
-            padding: '8px 12px',
-            fontFamily: fInter,
-            fontSize: 13,
-            color: 'var(--text-primary)',
-            minWidth: 260,
-          }}
-        >
-          {campaigns === null && <option value="">Chargement…</option>}
-          {campaigns !== null && campaigns.length === 0 && <option value="">Aucune campagne</option>}
-          {campaigns?.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Body scrollable */}
       <div
         style={{
@@ -370,7 +376,7 @@ export function MagelianOverlay() {
       >
         {tab === 'creation' && (
           selectedId ? (
-            <CampaignCockpit key={selectedId} campaignId={selectedId} initialView="prog" wizardOnly onDeleted={handleCampaignDeleted} />
+            <CampaignCockpit key={selectedId} campaignId={selectedId} initialView="prog" wizardOnly onDeleted={handleCampaignDeleted} onRenamed={handleCampaignRenamed} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne disponible. Crée d&apos;abord une campagne depuis « Campagnes DSP ».

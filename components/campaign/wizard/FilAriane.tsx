@@ -59,9 +59,12 @@ interface NodeSpec {
 
 export function FilAriane({ steps, phases = [], activeKey, currentStepIndex, unlockedPiloter = false, onSelect }: FilArianeProps) {
   const programmerNodes: NodeSpec[] = steps.map((s, i) => {
+    // L'étape ACTIVE prime toujours : la bulle où on se trouve est colorée,
+    // même si l'étape est déjà « faite » (stratégie existante → tout en ✓).
     let state: NodeState = 'upcoming';
-    if (i < currentStepIndex) state = 'done';
-    else if (i === currentStepIndex || s.key === activeKey) state = 'active';
+    if (s.key === activeKey) state = 'active';
+    else if (i < currentStepIndex) state = 'done';
+    else if (!activeKey && i === currentStepIndex) state = 'active';
     return {
       key: s.key,
       label: s.label,

@@ -1,17 +1,21 @@
 'use client';
 
 /**
- * Étape 2/5 — Canaux : le « où ça tourne ». DSP + réseaux sociaux (multi) +
- * ad server (unique). Filtré aux connexions de l'org ; tout dispo en démo.
- * Écrit `channels` dans le brouillon ; la persistance se fait au Lancement.
+ * Étape 2/5 — Canaux & budgets : le « où ça tourne » et le « combien par canal ».
+ * DSP + réseaux sociaux (multi) + ad server (unique), filtrés aux connexions de
+ * l'org (tout dispo en démo). Chaque canal sélectionné porte SA ligne de budget
+ * en face de lui — budget global = somme en lecture seule — plus la période.
+ * Écrit `channels`, `channelBudgets`, `startDate`, `endDate` dans le brouillon ;
+ * la persistance se fait au Lancement.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
-  resolveChannelAvailability, type ChannelRow, type ResolvedChannel,
+  resolveChannelAvailability, type ChannelRow, type ResolvedChannel, type StoredChannels,
 } from '@/lib/campaigns/channels';
 import type { StepProps } from './types';
-import { B, C, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell, fInter } from './ui';
+import { draftTotalBudget, fmtEUR } from './types';
+import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
   const teal = kind === 'connecté';
@@ -25,12 +29,46 @@ function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
   );
 }
 
+/**
+ * Champ budget inline dans la ligne de canal — stoppe la propagation pour que
+ * cliquer/taper dans le champ ne désélectionne pas le canal (OptionRow radio).
+ */
+function RowBudgetInput({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <span
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+    >
+      <input
+        type="number"
+        min={0}
+        step={100}
+        value={value ?? ''}
+        placeholder="budget"
+        aria-label="Budget du canal (€)"
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        onFocus={(e) => { e.currentTarget.style.borderColor = C.teal50; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
+        style={{
+          width: 110, background: C.elevated,
+          borderWidth: 0.5, borderStyle: 'solid', borderColor: C.border, borderRadius: 6,
+          padding: '6px 8px', fontFamily: fMono, fontSize: 13, color: C.text,
+          outline: 'none', textAlign: 'right', transition: 'border-color 0.15s',
+        }}
+      />
+      <span style={{ fontFamily: fMono, fontSize: 12, color: C.textDim }}>€</span>
+    </span>
+  );
+}
+
 export function StepCanaux({
   draft, setDraft, campaignId, onPrev, onNext,
 }: StepProps & { campaignId: string; onPrev: () => void; onNext: () => void }) {
   const [catalog, setCatalog] = useState<ChannelRow[] | null>(null);
   const [connected, setConnected] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
+  const prefilledRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,12 +80,22 @@ export function StepCanaux({
         setCatalog(d.catalog ?? []);
         setConnected(d.connectedProviders ?? []);
         setIsDemo(!!d.is_demo);
-        // Préremplit le brouillon depuis le stocké (une fois, si vide).
-        setDraft((prev) => {
-          const s = d.selected;
-          const empty = prev.channels.dsps.length === 0 && prev.channels.socials.length === 0 && prev.channels.ad_server === null;
-          return empty && s ? { ...prev, channels: s } : prev;
-        });
+        // Préremplit le brouillon depuis le stocké (une fois, si vide) :
+        // canaux sélectionnés ET lignes de budget (reprogrammation).
+        if (!prefilledRef.current) {
+          prefilledRef.current = true;
+          const s = d.selected as StoredChannels | undefined;
+          setDraft((prev) => {
+            const emptyChannels = prev.channels.dsps.length === 0 && prev.channels.socials.length === 0 && prev.channels.ad_server === null;
+            const emptyBudgets = Object.keys(prev.channelBudgets).length === 0;
+            if (!s || (!emptyChannels && !emptyBudgets)) return prev;
+            return {
+              ...prev,
+              channels: emptyChannels ? { dsps: s.dsps ?? [], socials: s.socials ?? [], ad_server: s.ad_server ?? null } : prev.channels,
+              channelBudgets: emptyBudgets ? { ...(s.budgets ?? {}) } : prev.channelBudgets,
+            };
+          });
+        }
       } catch { if (!cancelled) setCatalog([]); }
     })();
     return () => { cancelled = true; };
@@ -68,25 +116,43 @@ export function StepCanaux({
     ...prev,
     channels: { ...prev.channels, ad_server: prev.channels.ad_server === code ? null : code },
   }));
+  const setBudget = (code: string, v: number | null) => setDraft((prev) => {
+    const next = { ...prev.channelBudgets };
+    if (v == null) delete next[code]; else next[code] = v;
+    return { ...prev, channelBudgets: next };
+  });
 
   const emptyMsg = catalog !== null && avail.length === 0;
+  const total = draftTotalBudget(draft);
+  const hasSelection = draft.channels.dsps.length > 0 || draft.channels.socials.length > 0;
+  const nextDisabled = !hasSelection || !total || !draft.startDate || !draft.endDate;
 
   return (
     <StepShell
-      title="Canaux"
+      title="Canaux & budgets"
       stepNumber={2}
       totalSteps={5}
       memo={{
         paragraphs: [
-          <>Le <B>« où ça tourne »</B> : sur quels DSP et réseaux la campagne diffuse, et avec quel ad server on mesure.</>,
+          <>Le <B>« où ça tourne »</B> et le <B>« combien »</B> : chaque canal sélectionné porte sa ligne de budget. Le global n&apos;est que la somme.</>,
           <>On ne propose que les canaux <B>connectés</B> à ton organisation (tout est ouvert en démo).</>,
         ],
         tip: 'L\'ad server sert à vérifier la diffusion réelle — la boucle DSP ↔ mesure.',
         mini: [3, 2, 1],
       }}
-      footer={<StandardFooter onPrev={onPrev} nextLabel="Continuer →" onNext={onNext} />}
+      footer={
+        <StandardFooter
+          onPrev={onPrev}
+          nextLabel="Continuer →"
+          onNext={onNext}
+          nextDisabled={nextDisabled}
+          hint={nextDisabled ? 'canal + budget + période requis' : undefined}
+        />
+      }
     >
-      <Lead>Déclare les plateformes de diffusion et l&apos;ad server de la campagne.</Lead>
+      <Lead>
+        Déclare les plateformes de diffusion, le budget de chacune et la période. MAGELIAN pace la dépense pour ne jamais dépasser.
+      </Lead>
 
       {catalog === null && <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim }}>Chargement…</div>}
 
@@ -100,29 +166,47 @@ export function StepCanaux({
         <>
           <FieldBlock label="DSP">
             <OptsList>
-              {dsps.map((r) => (
-                <OptionRow key={r.code}
-                  selected={draft.channels.dsps.includes(r.code)}
-                  onClick={() => toggle('dsps', r.code)}
-                  title={r.label} sub={r.category.toUpperCase()}
-                  value={<Badge kind={r.connected ? 'connecté' : 'démo'} />} />
-              ))}
+              {dsps.map((r) => {
+                const selected = draft.channels.dsps.includes(r.code);
+                return (
+                  <OptionRow key={r.code}
+                    selected={selected}
+                    onClick={() => toggle('dsps', r.code)}
+                    title={r.label} sub={r.category.toUpperCase()}
+                    value={selected
+                      ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
+                      : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                );
+              })}
               {dsps.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun DSP disponible.</div>}
             </OptsList>
           </FieldBlock>
 
           <FieldBlock label="Réseaux sociaux">
             <OptsList>
-              {socials.map((r) => (
-                <OptionRow key={r.code}
-                  selected={draft.channels.socials.includes(r.code)}
-                  onClick={() => toggle('socials', r.code)}
-                  title={r.label} sub="Social"
-                  value={<Badge kind={r.connected ? 'connecté' : 'démo'} />} />
-              ))}
+              {socials.map((r) => {
+                const selected = draft.channels.socials.includes(r.code);
+                return (
+                  <OptionRow key={r.code}
+                    selected={selected}
+                    onClick={() => toggle('socials', r.code)}
+                    title={r.label} sub="Social"
+                    value={selected
+                      ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
+                      : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                );
+              })}
               {socials.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun réseau disponible.</div>}
             </OptsList>
           </FieldBlock>
+
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderTop: `0.5px solid ${C.border}`, padding: '10px 2px 0', marginBottom: 18,
+          }}>
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>Budget global (somme)</span>
+            <span style={{ fontFamily: fMono, fontSize: 15, color: C.text }}>{fmtEUR(total)}</span>
+          </div>
 
           <FieldBlock label="Ad server (mesure)">
             <OptsList>
@@ -135,6 +219,13 @@ export function StepCanaux({
               ))}
               {adservers.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun ad server disponible.</div>}
             </OptsList>
+          </FieldBlock>
+
+          <FieldBlock label="Période">
+            <Row2>
+              <DateField label="Début" value={draft.startDate} onChange={(v) => setDraft((prev) => ({ ...prev, startDate: v }))} />
+              <DateField label="Fin" value={draft.endDate} onChange={(v) => setDraft((prev) => ({ ...prev, endDate: v }))} />
+            </Row2>
           </FieldBlock>
         </>
       )}

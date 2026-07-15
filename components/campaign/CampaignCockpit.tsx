@@ -7,10 +7,10 @@ import type { CampaignDetail } from '@/types/campaign';
 import { FilAriane, type FilArianeStep } from '@/components/campaign/wizard/FilAriane';
 import { StepCible } from '@/components/campaign/wizard/steps/StepCible';
 import { StepCanaux } from '@/components/campaign/wizard/steps/StepCanaux';
-import { StepBudget } from '@/components/campaign/wizard/steps/StepBudget';
+import { StepPression } from '@/components/campaign/wizard/steps/StepPression';
 import { StepStrategie } from '@/components/campaign/wizard/steps/StepStrategie';
 import { StepLancement } from '@/components/campaign/wizard/steps/StepLancement';
-import { DEFAULT_PROG_DRAFT, inferIntensity, type ProgDraft } from '@/components/campaign/wizard/steps/types';
+import { DEFAULT_PROG_DRAFT, pressureFromCurve, type ProgDraft } from '@/components/campaign/wizard/steps/types';
 import { CampaignOverview } from './CampaignOverview';
 import { C, fInter } from './_shared';
 
@@ -18,20 +18,20 @@ import { C, fInter } from './_shared';
 const COCKPIT_STEPS: FilArianeStep[] = [
   { key: 'cible', label: 'Cible' },
   { key: 'canaux', label: 'Canaux' },
-  { key: 'budget', label: 'Budget' },
+  { key: 'pression', label: 'Pression' },
   { key: 'strategie', label: 'Stratégie' },
   { key: 'lancement', label: 'Lancement' },
 ];
 const COCKPIT_STEP_KEYS = new Set(COCKPIT_STEPS.map((s) => s.key));
 
 type CockpitView = 'overview' | 'prog';
-type ProgStepKey = 'cible' | 'canaux' | 'budget' | 'strategie' | 'lancement';
-const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'canaux', 'budget', 'strategie', 'lancement'];
+type ProgStepKey = 'cible' | 'canaux' | 'pression' | 'strategie' | 'lancement';
+const PROG_STEP_ORDER: ProgStepKey[] = ['cible', 'canaux', 'pression', 'strategie', 'lancement'];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export function CampaignCockpit({
-  campaignId, initialView, wizardOnly, onDeleted,
-}: { campaignId: string; initialView?: CockpitView; wizardOnly?: boolean; onDeleted?: () => void }) {
+  campaignId, initialView, wizardOnly, onDeleted, onRenamed,
+}: { campaignId: string; initialView?: CockpitView; wizardOnly?: boolean; onDeleted?: () => void; onRenamed?: (name: string) => void }) {
   const id = campaignId;
   const searchParams = useSearchParams();
 
@@ -66,15 +66,16 @@ export function CampaignCockpit({
     fetchStrategy();
   }, [id, fetchStrategy]);
 
-  // Préremplit les dates du brouillon depuis la campagne (une fois, si non renseignées).
+  // Préremplit nom + dates du brouillon depuis la campagne (si non renseignés).
   useEffect(() => {
     const camp = detail?.campaign;
     if (!camp) return;
-    setDraft((prev) => (prev.startDate || prev.endDate) ? prev : {
+    setDraft((prev) => ({
       ...prev,
-      startDate: camp.date_start ? camp.date_start.slice(0, 10) : prev.startDate,
-      endDate: camp.date_end ? camp.date_end.slice(0, 10) : prev.endDate,
-    });
+      name: prev.name || camp.name || '',
+      startDate: prev.startDate || (camp.date_start ? camp.date_start.slice(0, 10) : ''),
+      endDate: prev.endDate || (camp.date_end ? camp.date_end.slice(0, 10) : ''),
+    }));
   }, [detail]);
 
   // Préremplissage best-effort depuis une stratégie déjà existante (édition/re-programmation).
@@ -90,7 +91,7 @@ export function CampaignCockpit({
         const s = d.strategy ?? {};
         setDraft((prev) => ({
           ...prev,
-          intensity: inferIntensity(s.in_zone_weights) ?? prev.intensity,
+          pressure: pressureFromCurve(s.in_zone_weights) ?? prev.pressure,
           cibles: s.zone_id ? [{ id: s.zone_id, name: s.zone_name ?? 'Zone de la stratégie', sourceType: 'custom' }] : [],
           forecastCpm: s.forecast_cpm ?? prev.forecastCpm,
           startDate: s.start_date ? String(s.start_date).slice(0, 10) : prev.startDate,
@@ -201,8 +202,8 @@ export function CampaignCockpit({
           {progStep === 'canaux' && (
             <StepCanaux draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
           )}
-          {progStep === 'budget' && (
-            <StepBudget draft={draft} setDraft={setDraft} campaignId={id} onPrev={goProgPrev} onNext={goProgNext} />
+          {progStep === 'pression' && (
+            <StepPression draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
           )}
           {progStep === 'strategie' && (
             <StepStrategie draft={draft} setDraft={setDraft} onPrev={goProgPrev} onNext={goProgNext} />
@@ -215,7 +216,8 @@ export function CampaignCockpit({
               campaignName={camp.name}
               existingStrategyId={strategyId}
               onPrev={goProgPrev}
-              onCompleted={() => { fetchStrategy(); setView('overview'); }}
+              onRenamed={onRenamed}
+              onCompleted={() => { fetchDetail(); fetchStrategy(); setView('overview'); }}
             />
           )}
         </>

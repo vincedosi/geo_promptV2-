@@ -16,6 +16,9 @@ export const AdjustSchema = z.object({
     start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     execution_mode: z.enum(['monitor_only', 'suggest', 'auto']).optional(),
+    /** Pression sur la cible : multiplicateur d'enchère max (×1 → ×3). Prime sur `intensity`. */
+    pressure: z.number().min(1).max(3).optional(),
+    /** Compat : anciens presets (chat IA, appels historiques). */
     intensity: z.enum(['doux', 'marque', 'fort']).optional(),
     zone: z.object({
       scope_type: z.enum(['national', 'custom_zone']),

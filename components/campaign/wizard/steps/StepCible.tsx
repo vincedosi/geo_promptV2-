@@ -4,18 +4,16 @@
  * Étape 1/5 — Cible : le « où » et le « qui ». Catalogue d'indicateurs
  * (Audience/Comportement/Contexte) + seuil dans l'unité de l'indicateur +
  * aperçu count, OU zones de la galerie (Mes zones). Panier multi-cibles.
- * Vide = national. L'intensité de sur-pondération reste ici.
+ * Vide = national. La pression de sur-pondération a son étape dédiée (Pression).
  * La fusion en composite se fait au Lancement (pas ici).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { buildCibleMetadata, buildCibleName, type CibleIndicator } from '@/lib/cibles/naming';
 import { addCible, removeCible, type CibleZoneRef } from '@/lib/cibles/draft';
-import type { Intensity, StepProps } from './types';
-import { INTENSITY_META } from './types';
+import type { StepProps } from './types';
 import { B, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
 
-const INTENSITIES: Intensity[] = ['doux', 'marque', 'fort'];
 const FAMILLES: Array<{ key: CibleIndicator['famille']; label: string }> = [
   { key: 'audience', label: 'Audience' },
   { key: 'comportement', label: 'Comportement' },
@@ -169,6 +167,25 @@ export function StepCible({
         concentre la diffusion dessus.
       </Lead>
 
+      {/* Nom de la campagne — persisté au Lancement s'il a changé */}
+      <FieldBlock label="Nom de la campagne">
+        <input
+          type="text"
+          value={draft.name}
+          onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+          placeholder="Nom affiché partout (sélecteur, suivi, exports)"
+          aria-label="Nom de la campagne"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+            padding: '10px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+            color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
+          }}
+          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
+          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+        />
+      </FieldBlock>
+
       {/* Panier */}
       <FieldBlock label={`Ma cible (${draft.cibles.length || 'national'})`}>
         {draft.cibles.length === 0 ? (
@@ -295,20 +312,6 @@ export function StepCible({
         </FieldBlock>
       )}
 
-      {/* Intensité (inchangé) */}
-      <FieldBlock label="Intensité du ciblage">
-        <OptsList>
-          {INTENSITIES.map((i) => (
-            <OptionRow
-              key={i}
-              selected={draft.intensity === i}
-              onClick={() => setDraft((prev) => ({ ...prev, intensity: i }))}
-              title={INTENSITY_META[i].title}
-              sub={INTENSITY_META[i].sub}
-            />
-          ))}
-        </OptsList>
-      </FieldBlock>
     </StepShell>
   );
 }

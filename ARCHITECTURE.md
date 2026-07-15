@@ -70,13 +70,13 @@ genesis_app/
 ├── components/                 # Composants React partages
 │   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── campaign/               # Gestion campagne (embarquee dans l'overlay MAGELIAN)
-│   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux→Budget→Strategie→Lancement)
+│   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Ajuster/Pause/Cloturer/Archiver/Supprimer)
 │   │   ├── CampaignSuivi.tsx   # Bilan + chat IA suivi campagne
-│   │   ├── AdjustPanel.tsx     # Panneau Ajuster (budgets par canal, push DSP)
-│   │   └── wizard/             # Etapes du wizard (ex app/campaigns/[id]/_components)
+│   │   ├── AdjustPanel.tsx     # Panneau Ajuster (budgets par canal, pression, push DSP)
+│   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
 │   ├── magelian/               # Overlay MAGELIAN (Creation/Suivi/Apercu) + deep-link
-│   │   ├── MagelianOverlay.tsx # Overlay plein ecran, selecteur campagne, 3 onglets
+│   │   ├── MagelianOverlay.tsx # Overlay plein ecran, selecteur campagne AU-DESSUS des 3 onglets
 │   │   ├── MagelianDeepLink.tsx# Lit /map?campaign=&tab=, ouvre l'overlay, nettoie l'URL
 │   │   └── deep-link.ts        # parseMagelianParams (ignore ?overlay= des autres overlays)
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE

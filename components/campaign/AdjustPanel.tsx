@@ -3,7 +3,7 @@
 /**
  * AdjustPanel — action « Ajuster » : modale compacte pour modifier une campagne
  * LANCÉE (stratégie active) sans repasser le wizard. Sections pré-remplies :
- * budgets PAR CANAL (global = somme), CPM, dates, mode, intensité, cible, canaux
+ * budgets PAR CANAL (global = somme), CPM, dates, mode, pression, cible, canaux
  * (+ liens DV360). Diff, pas re-saisie : seul le modifié part au serveur
  * (POST /api/bidding/strategies/[id]/adjust) — raison obligatoire, récap des
  * pushes par canal (poussé / simulé / échec / ignoré) au retour.
@@ -14,9 +14,10 @@ import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { ChannelRow, StoredChannels, CampaignChannels, DspLinks } from '@/lib/campaigns/channels';
 import {
-  INTENSITY_META, EXECUTION_MODE_META, inferIntensity, fmtEUR,
+  EXECUTION_MODE_META, fmtEUR, fmtMult, intensityToPressure, pressureFromCurve,
   type Intensity, type ExecutionMode,
 } from '@/components/campaign/wizard/steps/types';
+import { PressureControl } from '@/components/campaign/wizard/steps/PressureControl';
 import {
   C, fInter, fMono, FieldBlock, NumberField, DateField, OptionRow, OptsList,
   GhostButton, PrimaryButton, Row2,
@@ -30,7 +31,8 @@ interface PanelState {
   startDate: string;
   endDate: string;
   executionMode: ExecutionMode;
-  intensity: Intensity;
+  /** Pression sur la cible (multiplicateur d'enchère max, ×1 → ×3). */
+  pressure: number;
   cibles: { id: string; name: string }[];
   channels: CampaignChannels;
   links: DspLinks;
@@ -121,7 +123,7 @@ export function AdjustPanel({
           startDate: s.start_date ? String(s.start_date).slice(0, 10) : '',
           endDate: s.end_date ? String(s.end_date).slice(0, 10) : '',
           executionMode: (s.execution_mode ?? 'auto') as ExecutionMode,
-          intensity: inferIntensity(s.in_zone_weights) ?? 'marque',
+          pressure: pressureFromCurve(s.in_zone_weights) ?? 2.2,
           cibles: s.zone_id ? [{ id: s.zone_id, name: 'Zone de la stratégie' }] : [],
           channels: { dsps: stored.dsps ?? [], socials: stored.socials ?? [], ad_server: stored.ad_server ?? null },
           links: stored.links ?? {},
@@ -138,7 +140,9 @@ export function AdjustPanel({
           startDate: (ic.start_date as string | undefined) ?? base.startDate,
           endDate: (ic.end_date as string | undefined) ?? base.endDate,
           executionMode: (ic.execution_mode as ExecutionMode | undefined) ?? base.executionMode,
-          intensity: (ic.intensity as Intensity | undefined) ?? base.intensity,
+          // Le chat IA peut proposer une pression numérique ou un ancien preset (compat).
+          pressure: (ic.pressure as number | undefined)
+            ?? (ic.intensity ? intensityToPressure(ic.intensity as Intensity) : base.pressure),
         });
       } catch { /* best-effort */ }
       if (!cancelled) setLoading(false);
@@ -202,7 +206,7 @@ export function AdjustPanel({
     if (initial.startDate !== state.startDate && state.startDate) { changes.start_date = state.startDate; out.push(`début ${state.startDate}`); }
     if (initial.endDate !== state.endDate && state.endDate) { changes.end_date = state.endDate; out.push(`fin ${state.endDate}`); }
     if (initial.executionMode !== state.executionMode) { changes.execution_mode = state.executionMode; out.push(`mode ${EXECUTION_MODE_META[state.executionMode].title}`); }
-    if (initial.intensity !== state.intensity) { changes.intensity = state.intensity; out.push(`intensité ${INTENSITY_META[state.intensity].title}`); }
+    if (initial.pressure !== state.pressure) { changes.pressure = state.pressure; out.push(`pression ${fmtMult(state.pressure)}`); }
     if (JSON.stringify(initial.cibles.map((c) => c.id)) !== JSON.stringify(state.cibles.map((c) => c.id))) {
       changes.__cibles = state.cibles; out.push(`cible (${state.cibles.length || 'national'})`);
     }
@@ -347,14 +351,12 @@ export function AdjustPanel({
               </OptsList>
             </Section>
 
-            <Section title="Intensité du ciblage">
-              <OptsList>
-                {(Object.keys(INTENSITY_META) as Intensity[]).map((i) => (
-                  <OptionRow key={i} selected={state.intensity === i}
-                    title={INTENSITY_META[i].title} sub={INTENSITY_META[i].sub}
-                    onClick={() => setState((p) => p ? { ...p, intensity: i } : p)} />
-                ))}
-              </OptsList>
+            <Section title="Pression sur la cible">
+              <PressureControl
+                pressure={state.pressure}
+                onPressureChange={(v) => setState((p) => p ? { ...p, pressure: v } : p)}
+                cpm={state.forecastCpm}
+              />
             </Section>
 
             <Section title="Cible">

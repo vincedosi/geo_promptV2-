@@ -25,7 +25,7 @@ import type { WeightedBiddingTier } from '@/lib/digital/dv360-bidding-script';
 import type { Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import type { DspProvider } from '@/types/dsp';
-import { INTENSITY_CURVES, TARGET_VARIABLE_CODE } from '@/components/campaign/wizard/steps/types';
+import { INTENSITY_CURVES, TARGET_VARIABLE_CODE, pressureCurve } from '@/components/campaign/wizard/steps/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -128,10 +128,14 @@ export async function POST(
   if (changes.start_date !== undefined) push('start_date', strategy.start_date ? String(strategy.start_date).slice(0, 10) : null, changes.start_date);
   if (changes.end_date !== undefined) push('end_date', strategy.end_date ? String(strategy.end_date).slice(0, 10) : null, changes.end_date);
   if (changes.execution_mode !== undefined) push('execution_mode', strategy.execution_mode, changes.execution_mode);
-  if (changes.intensity !== undefined) {
+  // Pression numérique (prime) ou ancien preset d'intensité (compat) → courbe.
+  const newCurve = changes.pressure !== undefined
+    ? pressureCurve(changes.pressure)
+    : changes.intensity !== undefined ? INTENSITY_CURVES[changes.intensity] : undefined;
+  if (newCurve !== undefined) {
     push('in_zone_weights', strategy.in_zone_weights, {
       mode: 'by_insee_variable', variable_code: TARGET_VARIABLE_CODE,
-      curve: INTENSITY_CURVES[changes.intensity],
+      curve: newCurve,
     });
   }
   if (changes.zone !== undefined) {

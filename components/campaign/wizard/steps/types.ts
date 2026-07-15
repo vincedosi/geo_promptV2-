@@ -16,7 +16,10 @@ export type ScopeType = 'national' | 'custom_zone';
 export type ExecutionMode = 'monitor_only' | 'suggest' | 'auto';
 
 export interface ProgDraft {
-  intensity: Intensity;
+  /** Nom de la campagne — pré-rempli, persisté au Lancement (PATCH) s'il a changé. */
+  name: string;
+  /** Pression sur la cible : multiplicateur d'enchère max (×1 = uniforme, ×3 = concentration max). */
+  pressure: number;
   /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
   cibles: CibleZoneRef[];
   /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
@@ -30,7 +33,8 @@ export interface ProgDraft {
 }
 
 export const DEFAULT_PROG_DRAFT: ProgDraft = {
-  intensity: 'marque',
+  name: '',
+  pressure: 2.2,
   cibles: [],
   channels: EMPTY_CHANNELS,
   channelBudgets: {},
@@ -57,7 +61,41 @@ export interface StepProps {
 /** La seule variable INSEE de ciblage disponible pour l'instant. */
 export const TARGET_VARIABLE_CODE = 'abstention_pres_2022';
 
-/** Courbes de pondération (x = taux d'abstention %, y = multiplicateur d'enchère). */
+/** Bornes de la pression sur la cible (multiplicateur d'enchère max). */
+export const PRESSURE_MIN = 1;
+export const PRESSURE_MAX = 3;
+export const PRESSURE_STEP = 0.05;
+
+export function clampPressure(m: number): number {
+  if (!Number.isFinite(m)) return PRESSURE_MIN;
+  return Math.min(PRESSURE_MAX, Math.max(PRESSURE_MIN, Math.round(m * 100) / 100));
+}
+
+/**
+ * Courbe de pondération générée depuis la pression (x = taux d'abstention %,
+ * y = multiplicateur d'enchère) : ×1/M sur les zones hors cible, ×1 au milieu,
+ * ×M sur les zones les plus cibles. M=1 → pression uniforme.
+ */
+export function pressureCurve(m: number): { x: number; y: number }[] {
+  const p = clampPressure(m);
+  const lo = Math.round((1 / p) * 100) / 100;
+  return [
+    { x: 20, y: lo },
+    { x: 30, y: 1.0 },
+    { x: 45, y: p },
+  ];
+}
+
+/** Best-effort : retrouve la pression (multiplicateur max) depuis une courbe déjà enregistrée. */
+export function pressureFromCurve(inZoneWeights: unknown): number | null {
+  const curve = (inZoneWeights as { curve?: { x: number; y: number }[] } | null | undefined)?.curve;
+  if (!curve || curve.length === 0) return null;
+  const max = Math.max(...curve.map((pt) => (typeof pt?.y === 'number' ? pt.y : 0)));
+  if (!Number.isFinite(max) || max <= 0) return null;
+  return clampPressure(max);
+}
+
+/** Compat : anciens presets « doux/marqué/fort » (chat IA, stratégies historiques). */
 export const INTENSITY_CURVES: Record<Intensity, { x: number; y: number }[]> = {
   doux: [
     { x: 25, y: 0.8 },
@@ -75,20 +113,14 @@ export const INTENSITY_CURVES: Record<Intensity, { x: number; y: number }[]> = {
   ],
 };
 
-export const INTENSITY_META: Record<Intensity, { title: string; sub: string }> = {
-  doux: { title: 'Ciblage doux', sub: 'Sur-pondération légère des zones à forte abstention' },
-  marque: { title: 'Ciblage marqué', sub: 'Réglage par défaut — bon compromis reach / focus' },
-  fort: { title: 'Ciblage fort', sub: 'Concentre l’essentiel du budget sur les zones décrochées' },
-};
+/** Compat : convertit un ancien preset d'intensité en pression numérique. */
+export function intensityToPressure(i: Intensity): number {
+  return clampPressure(Math.max(...INTENSITY_CURVES[i].map((pt) => pt.y)));
+}
 
-/** Best-effort : retrouve le preset d'intensité depuis une courbe déjà enregistrée. */
-export function inferIntensity(inZoneWeights: unknown): Intensity | null {
-  const curve = (inZoneWeights as { curve?: { x: number; y: number }[] } | null | undefined)?.curve;
-  if (!curve) return null;
-  for (const key of Object.keys(INTENSITY_CURVES) as Intensity[]) {
-    if (JSON.stringify(INTENSITY_CURVES[key]) === JSON.stringify(curve)) return key;
-  }
-  return null;
+/** Format ×2,2 (fr-FR). */
+export function fmtMult(m: number): string {
+  return '×' + m.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 export const EXECUTION_MODE_META: Record<ExecutionMode, { title: string; sub: string }> = {
