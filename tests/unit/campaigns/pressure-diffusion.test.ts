@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  pressureCurve, diffusionOutZoneWeights, diffusionCurveFloor,
+  pressureCurve, diffusionOutZoneWeights, diffusionCurveFloor, resolveDownloadStrategyId,
 } from '@/components/campaign/wizard/steps/types';
 
 describe('pressureCurve', () => {
@@ -33,6 +33,22 @@ describe('diffusionOutZoneWeights', () => {
   it('sans zone cible : {} quel que soit le choix (national pur)', () => {
     expect(diffusionOutZoneWeights('zones_only', false)).toEqual({});
     expect(diffusionOutZoneWeights('national_boost', false)).toEqual({});
+  });
+});
+
+describe('resolveDownloadStrategyId', () => {
+  it('stratégie existante déjà active → téléchargements disponibles sans re-créer', () => {
+    // Bug 15/07 : boutons grisés au retour sur l'étape Lancement d'une campagne déjà créée
+    expect(resolveDownloadStrategyId(null, 'strat-1', true)).toBe('strat-1');
+  });
+
+  it('stratégie existante non active → indisponible tant que pas créée', () => {
+    expect(resolveDownloadStrategyId(null, 'strat-1', false)).toBeNull();
+    expect(resolveDownloadStrategyId(null, null, true)).toBeNull();
+  });
+
+  it('création dans le montage courant → prioritaire', () => {
+    expect(resolveDownloadStrategyId('strat-2', 'strat-1', false)).toBe('strat-2');
   });
 });
 

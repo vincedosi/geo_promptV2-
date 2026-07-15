@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark, Sparkles } from 'lucide-react';
+import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 
@@ -83,36 +83,35 @@ export function IconBar({
         transition: 'transform 200ms var(--ease-out, ease)',
       }}
     >
-      {/* Bouton MAGELIAN — ouvre l'overlay campagne (Création + Suivi) */}
+      {/* Bouton MAGELIAN — tuile de marque (teal plein + hexagone sombre, comme
+          le bouton send du design system), ouvre l'overlay campagne. */}
       <button
         type="button"
         data-magelian-trigger
         onClick={() => openOverlay()}
-        title="MAGELIAN"
+        title="MAGELIAN — cockpit campagne"
+        aria-label="MAGELIAN — cockpit campagne"
         style={{
           width: 40,
-          height: showLabels ? 44 : 40,
-          borderRadius: 8,
+          height: 40,
+          borderRadius: 10,
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 2,
-          background: 'rgba(78,205,196,0.08)',
-          border: '0.5px solid var(--brand-teal)',
+          background: 'var(--brand-teal)',
+          border: 'none',
           cursor: 'pointer',
-          color: 'var(--brand-teal)',
+          color: 'var(--bg-primary)',
           transition: 'background-color 150ms var(--ease-hover, ease)',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.16)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.08)'; }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--brand-teal-hover)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--brand-teal)'; }}
       >
-        <Sparkles size={20} strokeWidth={1.5} />
-        {showLabels && (
-          <span style={{ fontSize: 9, fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, lineHeight: 1, color: 'inherit' }}>
-            MAGELIAN
-          </span>
-        )}
+        {/* Hexagone MAGELIAN — même motif que le logo */}
+        <svg width="19" height="19" viewBox="0 0 28 28" fill="none" aria-hidden>
+          <path d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="14" cy="14" r="2.5" fill="currentColor" />
+        </svg>
       </button>
       <div style={{ width: 24, height: 0.5, background: 'var(--border-subtle, #1a1a1a)', margin: '4px 0' }} />
 

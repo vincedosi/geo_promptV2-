@@ -3,9 +3,11 @@
 /**
  * Étape 5/5 — Lancement : récapitulatif + CTA qui crée réellement la
  * stratégie de bidding (POST /api/bidding/strategies), puis l'active
- * (PATCH status='active'). Après armement, l'étape reste affichée : les
+ * (PATCH status='active'). Après création, l'étape reste affichée : les
  * fichiers custom bidding par canal (GET /strategies/[id]/export?channel=)
- * se téléchargent ici, puis CTA « Aller au pilotage ».
+ * se téléchargent ici, puis CTA « Aller au pilotage ». Ils restent
+ * disponibles au retour sur l'étape si la stratégie est déjà active
+ * (prop existingStrategyActive).
  *
  * Diffusion (étape Pression) : zones strictes → out_zone exclusion (×0) ;
  * national avec surpression → out_zone uniform ×1 + courbe bornée à ≥1.
@@ -27,6 +29,7 @@ import {
   DIFFUSION_META, EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
   diffusionCurveFloor, diffusionOutZoneWeights,
   draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
+  resolveDownloadStrategyId,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButton } from './ui';
 
@@ -34,6 +37,10 @@ interface Props extends StepProps {
   campaignId: string;
   campaignName: string;
   existingStrategyId: string | null;
+  /** true si la stratégie existante est déjà active — les téléchargements custom
+   *  bidding sont alors disponibles sans re-créer (l'état local ne survit pas
+   *  aux allers-retours entre étapes). */
+  existingStrategyActive?: boolean;
   onPrev: () => void;
   onCompleted: () => void;
   /** Appelé après renommage réussi de la campagne (répercute le nom dans l'overlay). */
@@ -108,13 +115,17 @@ function BiddingFileRow({
 }
 
 export function StepLancement({
-  draft, campaignId, campaignName, existingStrategyId, onPrev, onCompleted, onRenamed,
+  draft, campaignId, campaignName, existingStrategyId, existingStrategyActive,
+  onPrev, onCompleted, onRenamed,
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
-  // Renseigné après armement réussi — déverrouille les téléchargements custom bidding.
+  // Renseigné après création réussie dans CE montage du composant.
   const [armedStrategyId, setArmedStrategyId] = useState<string | null>(null);
+  const downloadStrategyId = resolveDownloadStrategyId(
+    armedStrategyId, existingStrategyId, !!existingStrategyActive,
+  );
 
   // Org propriétaire de la campagne — nécessaire pour sauvegarder la zone
   // composite quand le panier de cibles contient plusieurs zones.
@@ -233,7 +244,7 @@ export function StepLancement({
       const actRes = await adminFetch(`/api/bidding/strategies/${strategyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active', reason: 'Armée depuis le cockpit' }),
+        body: JSON.stringify({ status: 'active', reason: 'Créée depuis le cockpit' }),
       });
       const actData = await actRes.json().catch(() => ({}));
       if (!actRes.ok) {
@@ -242,7 +253,7 @@ export function StepLancement({
         return;
       }
 
-      toastApi.success('Campagne armée', 'La stratégie est active — fichiers custom bidding disponibles.');
+      toastApi.success('Campagne créée', 'La stratégie est active — fichiers custom bidding disponibles.');
       setArmedStrategyId(strategyId);
     } catch (err) {
       toastApi.error('Erreur réseau', err instanceof Error ? err.message : undefined);
@@ -261,14 +272,14 @@ export function StepLancement({
           <>Au lancement, la campagne passe en <strong style={{ color: C.text, fontWeight: 500 }}>Pilotage</strong> : tu suis le pacing plan-vs-réel en direct.</>,
           <>Le Bilan se remplit tout seul et sera lisible à la fin de la campagne.</>,
         ],
-        tip: 'Armer une campagne ne la fige pas — le pilotage reste vivant, tu peux reprogrammer ensuite.',
+        tip: 'Créer la campagne ne la fige pas — le pilotage reste vivant, tu peux reprogrammer ensuite.',
         mini: [2, 3, 4],
       }}
       footer={
         armedStrategyId ? (
           <>
             <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--success)' }}>
-              ✓ Campagne armée
+              ✓ Campagne créée
             </span>
             <span style={{ marginLeft: 'auto' }}>
               <PrimaryButton label="Aller au pilotage →" onClick={onCompleted} />
@@ -278,7 +289,7 @@ export function StepLancement({
           <>
             <GhostButton label="← Retour" onClick={onPrev} disabled={submitting} />
             <PrimaryButton
-              label={submitting ? 'Armement…' : 'Armer la campagne →'}
+              label={submitting ? 'Création…' : 'Créer la campagne →'}
               onClick={handleArm}
               disabled={submitting || invalid}
             />
@@ -292,7 +303,7 @@ export function StepLancement({
       }
     >
       <Lead>
-        Récapitulatif avant d&apos;armer la campagne. Tout est réversible : tu pourras repasser une étape à tout moment.
+        Récapitulatif avant de créer la campagne. Tout est réversible : tu pourras repasser une étape à tout moment.
       </Lead>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -334,9 +345,9 @@ export function StepLancement({
               Fichiers custom bidding
             </span>
             <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-              {armedStrategyId
+              {downloadStrategyId
                 ? 'Un fichier par canal, fidèle à la pression et au mode de diffusion'
-                : 'Disponibles après l’armement'}
+                : 'Disponibles après la création de la campagne'}
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -344,7 +355,7 @@ export function StepLancement({
               <BiddingFileRow
                 key={code}
                 channelCode={code}
-                strategyId={armedStrategyId}
+                strategyId={downloadStrategyId}
                 toastError={(t, s) => toastApi.error(t, s)}
               />
             ))}

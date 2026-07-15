@@ -115,6 +115,20 @@ export function diffusionCurveFloor(diffusion: Diffusion, hasZones: boolean): nu
   return hasZones && diffusion === 'national_boost' ? 1.0 : undefined;
 }
 
+/**
+ * Stratégie utilisable pour les téléchargements custom bidding (étape
+ * Lancement) : celle créée dans le montage courant, sinon la stratégie
+ * existante si elle est déjà active — l'état local ne survit pas aux
+ * allers-retours entre étapes du wizard.
+ */
+export function resolveDownloadStrategyId(
+  armedId: string | null,
+  existingId: string | null,
+  existingActive: boolean,
+): string | null {
+  return armedId ?? (existingActive ? existingId : null);
+}
+
 export const DIFFUSION_META: Record<Diffusion, { title: string; sub: string; recap: string }> = {
   zones_only: {
     title: 'Zones strictes',

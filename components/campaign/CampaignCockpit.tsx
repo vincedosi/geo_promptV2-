@@ -215,6 +215,7 @@ export function CampaignCockpit({
               campaignId={id}
               campaignName={camp.name}
               existingStrategyId={strategyId}
+              existingStrategyActive={strategyStatus === 'active'}
               onPrev={goProgPrev}
               onRenamed={onRenamed}
               onCompleted={() => { fetchDetail(); fetchStrategy(); setView('overview'); }}

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Activity,
+  ArrowUpRight,
   Database,
   FileUp,
   Layers,
@@ -12,7 +13,6 @@ import {
   Monitor,
   Plug,
   Radio,
-  Sparkles,
   Target,
   Upload,
   Users,
@@ -171,17 +171,17 @@ function SidebarContent({ pathname }: { pathname: string }) {
           >
             <path
               d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z"
-              stroke="#4ecdc4"
+              stroke="var(--brand-teal)"
               strokeWidth="1"
               fill="none"
             />
             <path
               d="M14 7L20.5 10.5V17.5L14 21L7.5 17.5V10.5L14 7Z"
-              stroke="#4ecdc4"
+              stroke="var(--brand-teal)"
               strokeWidth="0.5"
               fill="rgba(78,205,196,0.06)"
             />
-            <circle cx="14" cy="14" r="2" fill="#4ecdc4" opacity="0.5" />
+            <circle cx="14" cy="14" r="2" fill="var(--brand-teal)" opacity="0.5" />
           </svg>
           <img
             src="/magelian-icon.svg"
@@ -199,21 +199,31 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       <Separator style={{ background: 'var(--border-subtle)', height: '0.5px' }} />
 
-      {/* ── MAGELIAN — ouvre l'overlay cockpit campagne ───────────────────────── */}
+      {/* ── MAGELIAN — CTA principal, ouvre l'overlay cockpit campagne ─────────── */}
       <div className="px-3 pt-3">
         <button
           type="button"
           data-magelian-trigger
           onClick={() => openOverlay()}
-          className="group flex w-full items-center gap-2.5 rounded-md px-3 py-[9px] text-[13px] font-medium transition-colors duration-150"
+          className="group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[12.5px] font-medium transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--brand-teal-50)]"
           style={{
-            background: 'var(--brand-teal-10)',
-            border: '0.5px solid var(--brand-teal-30)',
-            color: 'var(--brand-teal)',
+            background: 'var(--text-primary)',
+            color: 'var(--bg-primary)',
+            border: 'none',
+            letterSpacing: '0.03em',
           }}
         >
-          <Sparkles size={16} strokeWidth={1.75} className="shrink-0" />
+          {/* Hexagone MAGELIAN — même motif que le logo, en currentColor */}
+          <svg width="15" height="15" viewBox="0 0 28 28" fill="none" aria-hidden className="shrink-0">
+            <path d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="14" cy="14" r="2.5" fill="currentColor" />
+          </svg>
           <span className="flex-1 text-left leading-none">MAGELIAN</span>
+          <ArrowUpRight
+            size={14}
+            strokeWidth={1.75}
+            className="shrink-0 opacity-40 transition-transform duration-150 group-hover:translate-x-[1px] group-hover:-translate-y-[1px]"
+          />
         </button>
       </div>
 
