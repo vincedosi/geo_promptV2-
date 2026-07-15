@@ -15,6 +15,7 @@ import {
 } from '@/lib/campaigns/channels';
 import type { StepProps } from './types';
 import { draftTotalBudget, fmtEUR } from './types';
+import { Dv360LinkPanel } from './Dv360LinkPanel';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -88,11 +89,13 @@ export function StepCanaux({
           setDraft((prev) => {
             const emptyChannels = prev.channels.dsps.length === 0 && prev.channels.socials.length === 0 && prev.channels.ad_server === null;
             const emptyBudgets = Object.keys(prev.channelBudgets).length === 0;
-            if (!s || (!emptyChannels && !emptyBudgets)) return prev;
+            const emptyLinks = Object.keys(prev.channelLinks).length === 0;
+            if (!s || (!emptyChannels && !emptyBudgets && !emptyLinks)) return prev;
             return {
               ...prev,
               channels: emptyChannels ? { dsps: s.dsps ?? [], socials: s.socials ?? [], ad_server: s.ad_server ?? null } : prev.channels,
               channelBudgets: emptyBudgets ? { ...(s.budgets ?? {}) } : prev.channelBudgets,
+              channelLinks: emptyLinks ? { ...(s.links ?? {}) } : prev.channelLinks,
             };
           });
         }
@@ -181,6 +184,33 @@ export function StepCanaux({
               {dsps.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun DSP disponible.</div>}
             </OptsList>
           </FieldBlock>
+
+          {/* Liaison DV360 — visible si le canal dv360 est sélectionné ET que
+              l'org a une vraie connexion (en démo pure, rien à lister). */}
+          {(() => {
+            const dv360Row = resolved.find((r) => r.connection_provider === 'dv360');
+            const dv360Selected = dv360Row ? draft.channels.dsps.includes(dv360Row.code) : false;
+            if (!dv360Row || !dv360Selected) return null;
+            if (!dv360Row.connected) {
+              return (
+                <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, margin: '0 0 18px' }}>
+                  Liaison DV360 indisponible sans connexion — configure-la dans Réglages → Connexions API.
+                  L&apos;export fichier reste disponible au Lancement.
+                </div>
+              );
+            }
+            return (
+              <div style={{ marginBottom: 18 }}>
+                <Dv360LinkPanel
+                  campaignId={campaignId}
+                  links={draft.channelLinks.dv360}
+                  onChange={(dv360) => setDraft((prev) => ({
+                    ...prev, channelLinks: { ...prev.channelLinks, dv360 },
+                  }))}
+                />
+              </div>
+            );
+          })()}
 
           <FieldBlock label="Réseaux sociaux">
             <OptsList>

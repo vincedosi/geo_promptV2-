@@ -184,6 +184,49 @@ export async function listAdvertisers(
   return (data.advertisers ?? []).map((a) => ({ id: a.advertiserId, name: a.displayName }));
 }
 
+/** Campagnes DV360 d'un annonceur (liaison wizard — pas d'archivées). */
+export async function listCampaigns(
+  accessToken: string,
+  advertiserId: string,
+): Promise<{ id: string; name: string }[]> {
+  const filter = encodeURIComponent('entityStatus!="ENTITY_STATUS_ARCHIVED"');
+  const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/campaigns?pageSize=100&filter=${filter}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`DV360 campaigns.list ${res.status} : ${body.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    campaigns?: { campaignId: string; displayName: string }[];
+  };
+  return (data.campaigns ?? []).map((c) => ({ id: c.campaignId, name: c.displayName }));
+}
+
+/** Insertion orders d'une campagne DV360 (niveau où budget et bidding se pilotent). */
+export async function listInsertionOrders(
+  accessToken: string,
+  advertiserId: string,
+  campaignId: string,
+): Promise<{ id: string; name: string }[]> {
+  const filter = encodeURIComponent(`campaignId="${campaignId}"`);
+  const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/insertionOrders?pageSize=100&filter=${filter}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`DV360 insertionOrders.list ${res.status} : ${body.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    insertionOrders?: { insertionOrderId: string; displayName: string }[];
+  };
+  return (data.insertionOrders ?? []).map((io) => ({ id: io.insertionOrderId, name: io.displayName }));
+}
+
 /**
  * Upload d'un script custom bidding (3 appels : uploadScript → media upload →
  * scripts.create). L'algorithme (links.algorithm_id) doit exister côté DV360.

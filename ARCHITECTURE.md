@@ -299,6 +299,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/dsp/tiktok/oauth/callback` | GET | Callback OAuth TikTok (verif state HMAC, echange auth_code → access token longue duree chiffre) |
 | `/api/admin/dsp/tiktok/test` | POST | Test connexion TikTok (oauth2/advertiser/get) |
 | `/api/admin/dsp/logs` | GET | Logs appels DSP par org (pagines) |
+| `/api/dsp/dv360/resources` | GET | Listing cascade liaison DV360 de l'etape Canaux (requireAuth, PAS admin) : `?campaignId=` → annonceurs du partner de la connexion de l'org proprietaire, `+advertiserId=` → campagnes DV360, `+dv360CampaignId=` → insertion orders — alimente `geo_strategy.channels.links.dv360` (IDs + noms), consomme par le push bidding |
 
 ### Administration generale (protegees par `requireAdmin()`)
 | Route | Methode | Description |

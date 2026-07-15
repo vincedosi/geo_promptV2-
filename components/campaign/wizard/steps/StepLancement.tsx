@@ -238,7 +238,9 @@ export function StepLancement({
       // Persistance des canaux — non bloquant : la stratégie est déjà créée/mise à jour.
       await adminFetch(`/api/campaigns/${campaignId}/channels`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft.channels, budgets: draft.channelBudgets }),
+        body: JSON.stringify({
+          ...draft.channels, budgets: draft.channelBudgets, links: draft.channelLinks,
+        }),
       }).catch(() => { /* non bloquant : la stratégie est déjà créée */ });
 
       const actRes = await adminFetch(`/api/bidding/strategies/${strategyId}`, {
@@ -335,6 +337,19 @@ export function StepLancement({
         <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginTop: 8 }}>
           Canaux : {[...draft.channels.dsps, ...draft.channels.socials].join(', ') || '—'}
           {draft.channels.ad_server ? ` · ad server ${draft.channels.ad_server}` : ''}
+          {draft.channels.dsps.includes('dv360') && (
+            <>
+              {' · '}
+              {draft.channelLinks.dv360?.insertion_order_id ? (
+                <span style={{ color: 'var(--success)' }}>
+                  DV360 lié ({draft.channelLinks.dv360.campaign_name ?? draft.channelLinks.dv360.campaign_id}
+                  {draft.channelLinks.dv360.insertion_order_name ? ` → ${draft.channelLinks.dv360.insertion_order_name}` : ''})
+                </span>
+              ) : (
+                <span style={{ color: C.textDim }}>DV360 non lié — push bidding indisponible, export fichier OK</span>
+              )}
+            </>
+          )}
         </div>
       )}
 

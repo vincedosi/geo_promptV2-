@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CampaignChannelsSchema, resolveChannelAvailability, validateSelection,
-  EMPTY_CHANNELS, sumBudgets, pruneBudgets,
+  EMPTY_CHANNELS, sumBudgets, pruneBudgets, pruneLinks, DspLinksSchema,
   type ChannelRow,
 } from '@/lib/campaigns/channels';
 
@@ -103,5 +103,28 @@ describe('budgets par canal', () => {
   it("pruneBudgets purge une ligne d'ad_server (budgets ne portent que sur dsps+socials)", () => {
     const sel = { dsps: ['dv360'], socials: [], ad_server: 'adform' as string | null };
     expect(pruneBudgets({ dv360: 1, adform: 5 }, sel)).toEqual({ dv360: 1 });
+  });
+});
+
+describe('liaisons DSP (links)', () => {
+  const providerByCode: Record<string, string | null> = { dv360: 'dv360', tiktok: 'tiktok', ttd: null };
+  const dv360Link = { advertiser_id: '123', campaign_id: '456', insertion_order_id: '789' };
+
+  it('pruneLinks garde la liaison du provider dont le canal est sélectionné', () => {
+    const sel = { dsps: ['dv360'], socials: [], ad_server: null };
+    expect(pruneLinks({ dv360: dv360Link }, sel, providerByCode)).toEqual({ dv360: dv360Link });
+  });
+
+  it('pruneLinks purge la liaison quand le canal est retiré', () => {
+    const sel = { dsps: ['ttd'], socials: ['tiktok'], ad_server: null };
+    expect(pruneLinks({ dv360: dv360Link }, sel, providerByCode)).toEqual({});
+    expect(pruneLinks(undefined, sel, providerByCode)).toEqual({});
+  });
+
+  it('DspLinksSchema accepte les IDs + noms d’affichage DV360', () => {
+    const parsed = DspLinksSchema.safeParse({
+      dv360: { ...dv360Link, advertiser_name: 'ACME', campaign_name: 'Q3', insertion_order_name: 'IO 1' },
+    });
+    expect(parsed.success).toBe(true);
   });
 });

@@ -10,9 +10,8 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import {
   CampaignChannelsSchema, validateSelection, EMPTY_CHANNELS,
-  ChannelBudgetsSchema, DspLinksSchema, pruneBudgets,
-  type ChannelRow, type CampaignChannels, type StoredChannels,
-  type ChannelBudgets, type DspLinks,
+  ChannelBudgetsSchema, DspLinksSchema, pruneBudgets, pruneLinks,
+  type ChannelRow, type StoredChannels,
 } from '@/lib/campaigns/channels';
 
 export const dynamic = 'force-dynamic';
@@ -88,8 +87,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const gs = (ctx.camp.geo_strategy ?? {}) as Record<string, unknown>;
   const prev = (gs.channels ?? {}) as StoredChannels;
   const budgets = pruneBudgets(parsed.data.budgets ?? prev.budgets, sel);
-  const links: DspLinks | undefined = parsed.data.links ?? prev.links;
-  const nextChannels: StoredChannels = { ...sel, budgets, ...(links ? { links } : {}) };
+  const providerByCode = Object.fromEntries(ctx.catalog.map((c) => [c.code, c.connection_provider]));
+  const links = pruneLinks(parsed.data.links ?? prev.links, sel, providerByCode);
+  const nextChannels: StoredChannels = {
+    ...sel, budgets, ...(Object.keys(links).length ? { links } : {}),
+  };
   const nextGeoStrategy = { ...gs, channels: nextChannels };
   const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: nextGeoStrategy }).eq('id', campaignId);
   if (error) {

@@ -63,9 +63,15 @@ export type ChannelBudgets = Record<string, number>;
 
 export interface Dv360Links {
   advertiser_id?: string;
+  advertiser_name?: string;
+  campaign_id?: string;
+  campaign_name?: string;
   insertion_order_id?: string;
+  insertion_order_name?: string;
   algorithm_id?: string;
 }
+/** Une entrée par provider (clé = connection_provider du registre). DV360 seul
+ *  aujourd'hui ; TikTok/Meta/TTD s'ajoutent ici quand leur connexion arrive. */
 export interface DspLinks { dv360?: Dv360Links }
 
 /** Forme complète stockée dans geo_strategy.channels. */
@@ -82,10 +88,35 @@ export const ChannelBudgetsSchema = z.record(
 export const DspLinksSchema = z.object({
   dv360: z.object({
     advertiser_id: z.string().max(50).optional(),
+    advertiser_name: z.string().max(200).optional(),
+    campaign_id: z.string().max(50).optional(),
+    campaign_name: z.string().max(200).optional(),
     insertion_order_id: z.string().max(50).optional(),
+    insertion_order_name: z.string().max(200).optional(),
     algorithm_id: z.string().max(50).optional(),
   }).optional(),
 });
+
+/**
+ * Garde uniquement les liaisons des providers dont un canal est encore
+ * sélectionné (purge au retrait du canal, comme pruneBudgets).
+ * `providerByCode` = code canal → connection_provider (registre).
+ */
+export function pruneLinks(
+  links: DspLinks | null | undefined,
+  sel: CampaignChannels,
+  providerByCode: Record<string, string | null>,
+): DspLinks {
+  if (!links) return {};
+  const selectedProviders = new Set(
+    [...sel.dsps, ...sel.socials]
+      .map((code) => providerByCode[code])
+      .filter((p): p is string => !!p),
+  );
+  return Object.fromEntries(
+    Object.entries(links).filter(([provider]) => selectedProviders.has(provider)),
+  ) as DspLinks;
+}
 
 /** Somme des lignes budget (0 si vide/absent). */
 export function sumBudgets(budgets: ChannelBudgets | null | undefined): number {

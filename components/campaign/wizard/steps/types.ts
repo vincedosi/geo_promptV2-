@@ -8,7 +8,7 @@
  */
 import type { Dispatch, SetStateAction } from 'react';
 import type { CibleZoneRef } from '@/lib/cibles/draft';
-import type { CampaignChannels } from '@/lib/campaigns/channels';
+import type { CampaignChannels, DspLinks } from '@/lib/campaigns/channels';
 import { EMPTY_CHANNELS } from '@/lib/campaigns/channels';
 
 export type Intensity = 'doux' | 'marque' | 'fort';
@@ -30,6 +30,8 @@ export interface ProgDraft {
   channels: CampaignChannels;
   /** Une ligne de budget (€) par canal DSP/social sélectionné. Global = somme. */
   channelBudgets: Record<string, number>;
+  /** Liaison plateforme par provider (DV360 : annonceur → campagne → insertion order). */
+  channelLinks: DspLinks;
   forecastCpm: number | null;
   startDate: string; // 'YYYY-MM-DD' ou ''
   endDate: string;   // 'YYYY-MM-DD' ou ''
@@ -43,6 +45,7 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   diffusion: 'zones_only',
   channels: EMPTY_CHANNELS,
   channelBudgets: {},
+  channelLinks: {},
   forecastCpm: null,
   startDate: '',
   endDate: '',
