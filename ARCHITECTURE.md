@@ -244,6 +244,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
 | `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
 | `/api/bidding/strategies/[id]/adjust` | POST | Action « Ajuster » : patch partiel stratégie (budgets PAR CANAL — global = somme serveur), snapshot v+1 (RPC duplicate_plan_snapshot), push bidding par connecteur (lib/dsp/push : DV360 réel / simulé / skipped), journal consolidé bidding_agent_actions intent=manual_adjust + dsp_api_logs |
+| `/api/bidding/strategies/[id]/export` | GET | Fichier custom bidding « fidèle à la pression » par canal (`?channel=` du dsp_channel_registry) : scores par CP interpolés sur la courbe INSEE, 5 paliers quantiles, hors-zone 0 (zones strictes) ou 1 (national+surpression) — dv360 script .py / tiktok fiche / autres CSV `postal_code;score` (lib/digital/bidding-export.ts, étape 5 Lancement) |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
 | Route | Methode | Description |

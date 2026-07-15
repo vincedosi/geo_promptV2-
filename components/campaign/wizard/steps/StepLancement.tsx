@@ -3,7 +3,12 @@
 /**
  * Étape 5/5 — Lancement : récapitulatif + CTA qui crée réellement la
  * stratégie de bidding (POST /api/bidding/strategies), puis l'active
- * (PATCH status='active') pour déverrouiller le Pilotage immédiatement.
+ * (PATCH status='active'). Après armement, l'étape reste affichée : les
+ * fichiers custom bidding par canal (GET /strategies/[id]/export?channel=)
+ * se téléchargent ici, puis CTA « Aller au pilotage ».
+ *
+ * Diffusion (étape Pression) : zones strictes → out_zone exclusion (×0) ;
+ * national avec surpression → out_zone uniform ×1 + courbe bornée à ≥1.
  *
  * Résout ici le `zone_id` final à partir du panier `draft.cibles` :
  * vide → national, une zone → directe, plusieurs → fusion en zone composite
@@ -19,10 +24,11 @@ import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { StepProps } from './types';
 import {
-  EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
+  DIFFUSION_META, EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
+  diffusionCurveFloor, diffusionOutZoneWeights,
   draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
 } from './types';
-import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell } from './ui';
+import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButton } from './ui';
 
 interface Props extends StepProps {
   campaignId: string;
@@ -49,12 +55,66 @@ function RecapRow({ title, sub }: { title: string; sub: string }) {
   );
 }
 
+/** Ligne de téléchargement du fichier custom bidding d'un canal. */
+function BiddingFileRow({
+  channelCode, strategyId, toastError,
+}: {
+  channelCode: string;
+  strategyId: string | null;
+  toastError: (title: string, sub?: string) => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!strategyId || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await adminFetch(`/api/bidding/strategies/${strategyId}/export?channel=${encodeURIComponent(channelCode)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toastError('Génération impossible', data.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? `custom_bidding_${channelCode}.txt`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toastError('Erreur réseau', err instanceof Error ? err.message : undefined);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+      border: `0.5px solid ${C.border}`, borderRadius: 8,
+    }}>
+      <span style={{ flex: 1, fontFamily: fMono, fontSize: 12.5, color: C.text }}>{channelCode}</span>
+      <TealButton
+        label={downloading ? 'Génération…' : 'Télécharger'}
+        onClick={handleDownload}
+        disabled={!strategyId || downloading}
+      />
+    </div>
+  );
+}
+
 export function StepLancement({
   draft, campaignId, campaignName, existingStrategyId, onPrev, onCompleted, onRenamed,
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
+  // Renseigné après armement réussi — déverrouille les téléchargements custom bidding.
+  const [armedStrategyId, setArmedStrategyId] = useState<string | null>(null);
 
   // Org propriétaire de la campagne — nécessaire pour sauvegarder la zone
   // composite quand le panier de cibles contient plusieurs zones.
@@ -97,14 +157,17 @@ export function StepLancement({
       }
 
       const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
+      const hasZones = draft.cibles.length > 0;
       const commonFields = {
         weighting_mode: 'by_insee_variable' as const,
         in_zone_weights: {
           mode: 'by_insee_variable',
           variable_code: TARGET_VARIABLE_CODE,
-          curve: pressureCurve(draft.pressure),
+          // En national+surpression, la courbe est bornée à ≥1 : le hors-zone
+          // est à ×1, le bas de la cible ne doit pas passer dessous.
+          curve: pressureCurve(draft.pressure, diffusionCurveFloor(draft.diffusion, hasZones)),
         },
-        out_zone_weights: {},
+        out_zone_weights: diffusionOutZoneWeights(draft.diffusion, hasZones),
         scope_type,
         zone_id,
         total_budget: totalBudget,
@@ -179,8 +242,8 @@ export function StepLancement({
         return;
       }
 
-      toastApi.success('Campagne armée', 'La stratégie est active — direction le pilotage.');
-      onCompleted();
+      toastApi.success('Campagne armée', 'La stratégie est active — fichiers custom bidding disponibles.');
+      setArmedStrategyId(strategyId);
     } catch (err) {
       toastApi.error('Erreur réseau', err instanceof Error ? err.message : undefined);
     } finally {
@@ -202,19 +265,30 @@ export function StepLancement({
         mini: [2, 3, 4],
       }}
       footer={
-        <>
-          <GhostButton label="← Retour" onClick={onPrev} disabled={submitting} />
-          <PrimaryButton
-            label={submitting ? 'Armement…' : 'Armer la campagne →'}
-            onClick={handleArm}
-            disabled={submitting || invalid}
-          />
-          {noChannel && (
-            <span style={{ marginLeft: 'auto', fontFamily: fInter, fontSize: 11, color: 'var(--warning)' }}>
-              Choisis au moins un DSP ou un réseau à l&apos;étape Canaux
+        armedStrategyId ? (
+          <>
+            <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--success)' }}>
+              ✓ Campagne armée
             </span>
-          )}
-        </>
+            <span style={{ marginLeft: 'auto' }}>
+              <PrimaryButton label="Aller au pilotage →" onClick={onCompleted} />
+            </span>
+          </>
+        ) : (
+          <>
+            <GhostButton label="← Retour" onClick={onPrev} disabled={submitting} />
+            <PrimaryButton
+              label={submitting ? 'Armement…' : 'Armer la campagne →'}
+              onClick={handleArm}
+              disabled={submitting || invalid}
+            />
+            {noChannel && (
+              <span style={{ marginLeft: 'auto', fontFamily: fInter, fontSize: 11, color: 'var(--warning)' }}>
+                Choisis au moins un DSP ou un réseau à l&apos;étape Canaux
+              </span>
+            )}
+          </>
+        )
       }
     >
       <Lead>
@@ -228,7 +302,9 @@ export function StepLancement({
         />
         <RecapRow
           title={`Cible · pression ${fmtMult(draft.pressure)}`}
-          sub={`Taux d'abstention (2022) sur ${cibleTitle}`}
+          sub={`Taux d'abstention (2022) sur ${cibleTitle}${
+            draft.cibles.length > 0 ? ` · ${DIFFUSION_META[draft.diffusion].recap}` : ''
+          }`}
         />
         <RecapRow
           title={`${fmtEUR(totalBudget)} · CPM ${draft.forecastCpm != null ? draft.forecastCpm.toLocaleString('fr-FR') + ' €' : '—'}`}
@@ -248,6 +324,31 @@ export function StepLancement({
         <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginTop: 8 }}>
           Canaux : {[...draft.channels.dsps, ...draft.channels.socials].join(', ') || '—'}
           {draft.channels.ad_server ? ` · ad server ${draft.channels.ad_server}` : ''}
+        </div>
+      )}
+
+      {[...draft.channels.dsps, ...draft.channels.socials].length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.text }}>
+              Fichiers custom bidding
+            </span>
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
+              {armedStrategyId
+                ? 'Un fichier par canal, fidèle à la pression et au mode de diffusion'
+                : 'Disponibles après l’armement'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[...draft.channels.dsps, ...draft.channels.socials].map((code) => (
+              <BiddingFileRow
+                key={code}
+                channelCode={code}
+                strategyId={armedStrategyId}
+                toastError={(t, s) => toastApi.error(t, s)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </StepShell>

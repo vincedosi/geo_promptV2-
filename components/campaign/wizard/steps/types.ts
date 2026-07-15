@@ -14,6 +14,8 @@ import { EMPTY_CHANNELS } from '@/lib/campaigns/channels';
 export type Intensity = 'doux' | 'marque' | 'fort';
 export type ScopeType = 'national' | 'custom_zone';
 export type ExecutionMode = 'monitor_only' | 'suggest' | 'auto';
+/** Diffusion hors de la cible : coupée (zones strictes) ou France entière à la base ×1. */
+export type Diffusion = 'zones_only' | 'national_boost';
 
 export interface ProgDraft {
   /** Nom de la campagne — pré-rempli, persisté au Lancement (PATCH) s'il a changé. */
@@ -22,6 +24,8 @@ export interface ProgDraft {
   pressure: number;
   /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
   cibles: CibleZoneRef[];
+  /** Diffusion hors cible — ignorée si le panier est vide (national pur). */
+  diffusion: Diffusion;
   /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
   channels: CampaignChannels;
   /** Une ligne de budget (€) par canal DSP/social sélectionné. Global = somme. */
@@ -36,6 +40,7 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   name: '',
   pressure: 2.2,
   cibles: [],
+  diffusion: 'zones_only',
   channels: EMPTY_CHANNELS,
   channelBudgets: {},
   forecastCpm: null,
@@ -73,18 +78,55 @@ export function clampPressure(m: number): number {
 
 /**
  * Courbe de pondération générée depuis la pression (x = taux d'abstention %,
- * y = multiplicateur d'enchère) : ×1/M sur les zones hors cible, ×1 au milieu,
- * ×M sur les zones les plus cibles. M=1 → pression uniforme.
+ * y = multiplicateur d'enchère) : ×1/M sur les CP les moins cibles, ×1 au milieu,
+ * ×M sur les CP les plus cibles. M=1 → pression uniforme.
+ *
+ * `floor` (optionnel) borne le bas de la courbe : en diffusion nationale avec
+ * surpression, le hors-zone est à ×1 — sans floor, le bas de la cible
+ * enchérirait MOINS que le hors-zone (incohérent). floor=1 → courbe ×1 → ×M.
  */
-export function pressureCurve(m: number): { x: number; y: number }[] {
+export function pressureCurve(m: number, floor?: number): { x: number; y: number }[] {
   const p = clampPressure(m);
   const lo = Math.round((1 / p) * 100) / 100;
+  const f = (y: number) => (floor != null ? Math.max(floor, y) : y);
   return [
-    { x: 20, y: lo },
-    { x: 30, y: 1.0 },
-    { x: 45, y: p },
+    { x: 20, y: f(lo) },
+    { x: 30, y: f(1.0) },
+    { x: 45, y: f(p) },
   ];
 }
+
+/**
+ * `out_zone_weights` de la stratégie selon la diffusion choisie.
+ * Sans zone cible (national pur), la notion n'existe pas → {}.
+ */
+export function diffusionOutZoneWeights(
+  diffusion: Diffusion,
+  hasZones: boolean,
+): Record<string, unknown> {
+  if (!hasZones) return {};
+  return diffusion === 'zones_only'
+    ? { mode: 'exclusion' }
+    : { mode: 'uniform', value: 1.0 };
+}
+
+/** Floor de la courbe de pression selon la diffusion (voir pressureCurve). */
+export function diffusionCurveFloor(diffusion: Diffusion, hasZones: boolean): number | undefined {
+  return hasZones && diffusion === 'national_boost' ? 1.0 : undefined;
+}
+
+export const DIFFUSION_META: Record<Diffusion, { title: string; sub: string; recap: string }> = {
+  zones_only: {
+    title: 'Zones strictes',
+    sub: 'Diffusion coupée hors de tes zones (×0) — tout le budget reste sur la cible',
+    recap: 'zones strictes',
+  },
+  national_boost: {
+    title: 'National avec surpression',
+    sub: 'Toute la France à la base ×1, tes zones boostées jusqu’au multiplicateur choisi',
+    recap: 'national + surpression',
+  },
+};
 
 /** Best-effort : retrouve la pression (multiplicateur max) depuis une courbe déjà enregistrée. */
 export function pressureFromCurve(inZoneWeights: unknown): number | null {

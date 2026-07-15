@@ -4,11 +4,13 @@
  * Étape 3/5 — Pression : le pilier MAGELIAN. Combien la cible pèse dans
  * l'enchère par rapport au reste du territoire — un multiplicateur quantifié
  * (×1 = uniforme, ×3 = concentration max), pilotable par le slider OU par les
- * CPM min/max en euros (bidirectionnel). Écrit `pressure` et `forecastCpm`
+ * CPM min/max en euros (bidirectionnel). Écrit `pressure`, `forecastCpm` et
+ * `diffusion` (zones strictes ×0 hors cible / national avec surpression ×1)
  * dans le brouillon ; la courbe d'enchère est générée au Lancement.
  */
-import type { StepProps } from './types';
-import { B, Lead, StandardFooter, StepShell } from './ui';
+import type { Diffusion, StepProps } from './types';
+import { DIFFUSION_META } from './types';
+import { B, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
 import { PressureControl } from './PressureControl';
 
 export function StepPression({
@@ -40,6 +42,24 @@ export function StepPression({
         cpm={draft.forecastCpm}
         onCpmChange={(v) => setDraft((prev) => ({ ...prev, forecastCpm: v }))}
       />
+
+      {draft.cibles.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <FieldBlock label="Et en dehors de la cible ?">
+            <OptsList>
+              {(['zones_only', 'national_boost'] as Diffusion[]).map((d) => (
+                <OptionRow
+                  key={d}
+                  selected={draft.diffusion === d}
+                  title={DIFFUSION_META[d].title}
+                  sub={DIFFUSION_META[d].sub}
+                  onClick={() => setDraft((prev) => ({ ...prev, diffusion: d }))}
+                />
+              ))}
+            </OptsList>
+          </FieldBlock>
+        </div>
+      )}
     </StepShell>
   );
 }
