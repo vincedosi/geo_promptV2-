@@ -4,7 +4,10 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { createAdminClient } from '@/lib/auth';
+import { defaultCampaignName, MAGELIAN_SOURCE } from '@/lib/campaigns/blank-campaign';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -117,4 +120,48 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json(items, { headers: { 'Cache-Control': 'no-store' } });
+}
+
+const CreateSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  organization_id: z.string().uuid().optional(),
+});
+
+export async function POST(request: NextRequest) {
+  const profile = await requireAdmin(request);
+  if (!profile) return adminUnauthorized();
+
+  let raw: unknown;
+  try { raw = await request.json(); } catch { raw = {}; }
+  const parsed = CreateSchema.safeParse(raw ?? {});
+  if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+
+  const orgId = parsed.data.organization_id ?? profile.organization_id;
+  if (!orgId) return NextResponse.json({ error: 'organization_required' }, { status: 400 });
+  if (profile.role !== 'super_admin' && orgId !== profile.organization_id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const supabase = createAdminClient();
+  const { data: campaign, error } = await supabase
+    .from('dsp_campaigns')
+    .insert({
+      name: parsed.data.name ?? defaultCampaignName(new Date()),
+      dsp_source: MAGELIAN_SOURCE,
+      organization_id: orgId,
+      created_by: profile.id,
+      total_tracked_ads: 0,
+      total_unique_impressions: 0,
+    })
+    .select('id, name')
+    .single();
+  if (error || !campaign) {
+    console.error('[POST /api/admin/campaigns]', error?.message);
+    return NextResponse.json({ error: 'create_failed' }, { status: 500 });
+  }
+  await supabase.from('campaign_organizations').upsert(
+    { campaign_id: campaign.id, organization_id: orgId, added_by: profile.id },
+    { onConflict: 'campaign_id,organization_id', ignoreDuplicates: true },
+  );
+  return NextResponse.json({ campaign }, { status: 201 });
 }
