@@ -66,13 +66,15 @@ export function CampaignCockpit({
     fetchStrategy();
   }, [id, fetchStrategy]);
 
-  // Préremplit nom + dates du brouillon depuis la campagne (si non renseignés).
+  // Préremplit nom + annonceur/produit + dates du brouillon depuis la campagne (si non renseignés).
   useEffect(() => {
     const camp = detail?.campaign;
     if (!camp) return;
     setDraft((prev) => ({
       ...prev,
       name: prev.name || camp.name || '',
+      advertiser: prev.advertiser || camp.advertiser || '',
+      product: prev.product || camp.product || '',
       startDate: prev.startDate || (camp.date_start ? camp.date_start.slice(0, 10) : ''),
       endDate: prev.endDate || (camp.date_end ? camp.date_end.slice(0, 10) : ''),
     }));
@@ -214,6 +216,8 @@ export function CampaignCockpit({
               setDraft={setDraft}
               campaignId={id}
               campaignName={camp.name}
+              campaignAdvertiser={camp.advertiser ?? ''}
+              campaignProduct={camp.product ?? ''}
               existingStrategyId={strategyId}
               existingStrategyActive={strategyStatus === 'active'}
               onPrev={goProgPrev}

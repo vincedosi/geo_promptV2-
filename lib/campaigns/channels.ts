@@ -3,6 +3,14 @@
  * Le catalogue vient de dsp_channel_registry ; le « connecté » de dsp_connections.
  */
 import { z } from 'zod';
+import type { DspLinks, LinkLevel } from './platform-links';
+
+// Liaison plateforme générique — définie dans platform-links.ts, ré-exportée
+// ici pour les importeurs historiques (routes, schémas, panels).
+export {
+  DspLinksSchema, PlatformLinksSchema, pruneLinks, linksComplete, linksSummary,
+} from './platform-links';
+export type { DspLinks, Dv360Links, LinkLevel, PlatformLinks } from './platform-links';
 
 export type ChannelCategory = 'dsp' | 'social' | 'adserver';
 
@@ -12,6 +20,8 @@ export interface ChannelRow {
   category: ChannelCategory;
   connection_provider: string | null;
   active: boolean;
+  /** Niveaux de liaison plateforme du registre (cascade API ou saisie manuelle). */
+  link_levels?: LinkLevel[] | null;
 }
 
 export interface CampaignChannels {
@@ -61,19 +71,6 @@ export function validateSelection(
 /** Une ligne de budget (€) par canal DSP/social sélectionné. Global = somme. */
 export type ChannelBudgets = Record<string, number>;
 
-export interface Dv360Links {
-  advertiser_id?: string;
-  advertiser_name?: string;
-  campaign_id?: string;
-  campaign_name?: string;
-  insertion_order_id?: string;
-  insertion_order_name?: string;
-  algorithm_id?: string;
-}
-/** Une entrée par provider (clé = connection_provider du registre). DV360 seul
- *  aujourd'hui ; TikTok/Meta/TTD s'ajoutent ici quand leur connexion arrive. */
-export interface DspLinks { dv360?: Dv360Links }
-
 /** Forme complète stockée dans geo_strategy.channels. */
 export interface StoredChannels extends CampaignChannels {
   budgets?: ChannelBudgets;
@@ -84,39 +81,6 @@ export const ChannelBudgetsSchema = z.record(
   z.string().min(1).max(50),
   z.number().min(0).finite(),
 );
-
-export const DspLinksSchema = z.object({
-  dv360: z.object({
-    advertiser_id: z.string().max(50).optional(),
-    advertiser_name: z.string().max(200).optional(),
-    campaign_id: z.string().max(50).optional(),
-    campaign_name: z.string().max(200).optional(),
-    insertion_order_id: z.string().max(50).optional(),
-    insertion_order_name: z.string().max(200).optional(),
-    algorithm_id: z.string().max(50).optional(),
-  }).optional(),
-});
-
-/**
- * Garde uniquement les liaisons des providers dont un canal est encore
- * sélectionné (purge au retrait du canal, comme pruneBudgets).
- * `providerByCode` = code canal → connection_provider (registre).
- */
-export function pruneLinks(
-  links: DspLinks | null | undefined,
-  sel: CampaignChannels,
-  providerByCode: Record<string, string | null>,
-): DspLinks {
-  if (!links) return {};
-  const selectedProviders = new Set(
-    [...sel.dsps, ...sel.socials]
-      .map((code) => providerByCode[code])
-      .filter((p): p is string => !!p),
-  );
-  return Object.fromEntries(
-    Object.entries(links).filter(([provider]) => selectedProviders.has(provider)),
-  ) as DspLinks;
-}
 
 /** Somme des lignes budget (0 si vide/absent). */
 export function sumBudgets(budgets: ChannelBudgets | null | undefined): number {

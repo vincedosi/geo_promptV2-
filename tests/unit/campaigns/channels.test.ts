@@ -106,19 +106,18 @@ describe('budgets par canal', () => {
   });
 });
 
-describe('liaisons DSP (links)', () => {
-  const providerByCode: Record<string, string | null> = { dv360: 'dv360', tiktok: 'tiktok', ttd: null };
+describe('liaisons DSP (links) — ré-export depuis platform-links', () => {
   const dv360Link = { advertiser_id: '123', campaign_id: '456', insertion_order_id: '789' };
 
-  it('pruneLinks garde la liaison du provider dont le canal est sélectionné', () => {
+  it('pruneLinks garde la liaison du canal encore sélectionné (clé = code)', () => {
     const sel = { dsps: ['dv360'], socials: [], ad_server: null };
-    expect(pruneLinks({ dv360: dv360Link }, sel, providerByCode)).toEqual({ dv360: dv360Link });
+    expect(pruneLinks({ dv360: dv360Link }, sel)).toEqual({ dv360: dv360Link });
   });
 
   it('pruneLinks purge la liaison quand le canal est retiré', () => {
     const sel = { dsps: ['ttd'], socials: ['tiktok'], ad_server: null };
-    expect(pruneLinks({ dv360: dv360Link }, sel, providerByCode)).toEqual({});
-    expect(pruneLinks(undefined, sel, providerByCode)).toEqual({});
+    expect(pruneLinks({ dv360: dv360Link }, sel)).toEqual({});
+    expect(pruneLinks(undefined, sel)).toEqual({});
   });
 
   it('DspLinksSchema accepte les IDs + noms d’affichage DV360', () => {

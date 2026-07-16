@@ -53,7 +53,12 @@
       "Bash(python build_xlsx2.py)",
       "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
       "Bash(python build_xlsx3.py)",
-      "Bash(python build_xlsx4.py)"
+      "Bash(python build_xlsx4.py)",
+      "Bash(mv inspect.py dump_wb.py)",
+      "Bash(python dump_wb.py)",
+      "Bash(pip install *)",
+      "Bash(python eval_model.py)",
+      "Bash(python inject_values.py)"
     ]
   }
 }

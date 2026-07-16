@@ -15,7 +15,9 @@ import {
 } from '@/lib/campaigns/channels';
 import type { StepProps } from './types';
 import { draftTotalBudget, fmtEUR } from './types';
+import type { PlatformLinks } from '@/lib/campaigns/platform-links';
 import { Dv360LinkPanel } from './Dv360LinkPanel';
+import { PlatformLinkPanel } from './PlatformLinkPanel';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -124,6 +126,9 @@ export function StepCanaux({
     if (v == null) delete next[code]; else next[code] = v;
     return { ...prev, channelBudgets: next };
   });
+  const setLinks = (code: string, entry: PlatformLinks) => setDraft((prev) => ({
+    ...prev, channelLinks: { ...prev.channelLinks, [code]: entry },
+  }));
 
   const emptyMsg = catalog !== null && avail.length === 0;
   const total = draftTotalBudget(draft);
@@ -185,33 +190,6 @@ export function StepCanaux({
             </OptsList>
           </FieldBlock>
 
-          {/* Liaison DV360 — visible si le canal dv360 est sélectionné ET que
-              l'org a une vraie connexion (en démo pure, rien à lister). */}
-          {(() => {
-            const dv360Row = resolved.find((r) => r.connection_provider === 'dv360');
-            const dv360Selected = dv360Row ? draft.channels.dsps.includes(dv360Row.code) : false;
-            if (!dv360Row || !dv360Selected) return null;
-            if (!dv360Row.connected) {
-              return (
-                <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, margin: '0 0 18px' }}>
-                  Liaison DV360 indisponible sans connexion — configure-la dans Réglages → Connexions API.
-                  L&apos;export fichier reste disponible au Lancement.
-                </div>
-              );
-            }
-            return (
-              <div style={{ marginBottom: 18 }}>
-                <Dv360LinkPanel
-                  campaignId={campaignId}
-                  links={draft.channelLinks.dv360}
-                  onChange={(dv360) => setDraft((prev) => ({
-                    ...prev, channelLinks: { ...prev.channelLinks, dv360 },
-                  }))}
-                />
-              </div>
-            );
-          })()}
-
           <FieldBlock label="Réseaux sociaux">
             <OptsList>
               {socials.map((r) => {
@@ -250,6 +228,45 @@ export function StepCanaux({
               {adservers.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun ad server disponible.</div>}
             </OptsList>
           </FieldBlock>
+
+          {/* Liaisons plateformes — un panel par canal sélectionné dont le registre
+              définit des niveaux : cascade API si la connexion de l'org sait lister
+              (DV360), saisie manuelle Nom + ID sinon (démo / connexion absente).
+              Même structure channelLinks[code] dans les deux cas. */}
+          {(() => {
+            const selectedCodes = [
+              ...draft.channels.dsps, ...draft.channels.socials,
+              ...(draft.channels.ad_server ? [draft.channels.ad_server] : []),
+            ];
+            const linkable = resolved.filter(
+              (r) => selectedCodes.includes(r.code) && (r.link_levels?.length ?? 0) > 0,
+            );
+            if (linkable.length === 0) return null;
+            return (
+              <FieldBlock label="Liaisons plateformes (optionnel)">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {linkable.map((r) => (
+                    r.connection_provider === 'dv360' && r.connected ? (
+                      <Dv360LinkPanel
+                        key={r.code}
+                        campaignId={campaignId}
+                        links={draft.channelLinks[r.code]}
+                        onChange={(entry) => setLinks(r.code, entry)}
+                      />
+                    ) : (
+                      <PlatformLinkPanel
+                        key={r.code}
+                        channelLabel={r.label}
+                        levels={r.link_levels ?? []}
+                        links={draft.channelLinks[r.code]}
+                        onChange={(entry) => setLinks(r.code, entry)}
+                      />
+                    )
+                  ))}
+                </div>
+              </FieldBlock>
+            );
+          })()}
 
           <FieldBlock label="Période">
             <Row2>

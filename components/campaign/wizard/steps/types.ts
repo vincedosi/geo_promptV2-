@@ -20,6 +20,10 @@ export type Diffusion = 'zones_only' | 'national_boost';
 export interface ProgDraft {
   /** Nom de la campagne — pré-rempli, persisté au Lancement (PATCH) s'il a changé. */
   name: string;
+  /** Annonceur (marque) — identité déclarée, persistée au Lancement comme le nom. */
+  advertiser: string;
+  /** Produit/offre mis en avant — persisté au Lancement comme le nom. */
+  product: string;
   /** Pression sur la cible : multiplicateur d'enchère max (×1 = uniforme, ×3 = concentration max). */
   pressure: number;
   /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
@@ -40,6 +44,8 @@ export interface ProgDraft {
 
 export const DEFAULT_PROG_DRAFT: ProgDraft = {
   name: '',
+  advertiser: '',
+  product: '',
   pressure: 2.2,
   cibles: [],
   diffusion: 'zones_only',

@@ -36,6 +36,9 @@ import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButt
 interface Props extends StepProps {
   campaignId: string;
   campaignName: string;
+  /** Annonceur/produit actuels de la campagne — pour ne PATCHer que ce qui a changé. */
+  campaignAdvertiser?: string;
+  campaignProduct?: string;
   existingStrategyId: string | null;
   /** true si la stratégie existante est déjà active — les téléchargements custom
    *  bidding sont alors disponibles sans re-créer (l'état local ne survit pas
@@ -115,7 +118,8 @@ function BiddingFileRow({
 }
 
 export function StepLancement({
-  draft, campaignId, campaignName, existingStrategyId, existingStrategyActive,
+  draft, campaignId, campaignName, campaignAdvertiser, campaignProduct,
+  existingStrategyId, existingStrategyActive,
   onPrev, onCompleted, onRenamed,
 }: Props) {
   const { toast: toastApi } = useToast();
@@ -144,6 +148,13 @@ export function StepLancement({
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
+  // Canaux (hors DV360, qui a son wording push) dont une liaison est renseignée.
+  const otherLinkedCodes = [
+    ...draft.channels.dsps, ...draft.channels.socials,
+    ...(draft.channels.ad_server ? [draft.channels.ad_server] : []),
+  ].filter((code) => code !== 'dv360'
+    && Object.values(draft.channelLinks[code] ?? {}).some((v) => typeof v === 'string' && v.trim() !== ''));
+  const identitySub = [draft.advertiser.trim(), draft.product.trim()].filter(Boolean).join(' · ');
   const noChannel = draft.channels.dsps.length === 0 && draft.channels.socials.length === 0;
   const totalBudget = draftTotalBudget(draft);
   const finalName = draft.name.trim() || campaignName;
@@ -154,16 +165,20 @@ export function StepLancement({
     if (invalid) return;
     setSubmitting(true);
     try {
-      // Nom saisi à l'étape Cible → persisté ici (best-effort : la campagne
-      // reste armable même si le renommage échoue).
-      if (finalName !== campaignName) {
+      // Nom + annonceur/produit saisis à l'étape Cible → persistés ici
+      // (best-effort : la campagne reste armable même si le PATCH échoue).
+      const identity: Record<string, string> = {};
+      if (finalName !== campaignName) identity.name = finalName;
+      if (draft.advertiser.trim() !== (campaignAdvertiser ?? '')) identity.advertiser = draft.advertiser.trim();
+      if (draft.product.trim() !== (campaignProduct ?? '')) identity.product = draft.product.trim();
+      if (Object.keys(identity).length > 0) {
         try {
           const rn = await adminFetch(`/api/admin/campaigns/${campaignId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: finalName }),
+            body: JSON.stringify(identity),
           });
-          if (rn.ok) onRenamed?.(finalName);
+          if (rn.ok && identity.name) onRenamed?.(finalName);
         } catch { /* non bloquant */ }
       }
 
@@ -311,7 +326,10 @@ export function StepLancement({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <RecapRow
           title={finalName}
-          sub={finalName !== campaignName ? `Sera renommée (actuellement « ${campaignName} »)` : 'Nom de la campagne'}
+          sub={[
+            finalName !== campaignName ? `Sera renommée (actuellement « ${campaignName} »)` : 'Nom de la campagne',
+            identitySub,
+          ].filter(Boolean).join(' · ')}
         />
         <RecapRow
           title={`Cible · pression ${fmtMult(draft.pressure)}`}
@@ -348,6 +366,12 @@ export function StepLancement({
               ) : (
                 <span style={{ color: C.textDim }}>DV360 non lié — push bidding indisponible, export fichier OK</span>
               )}
+            </>
+          )}
+          {otherLinkedCodes.length > 0 && (
+            <>
+              {' · '}
+              <span style={{ color: 'var(--success)' }}>liaison renseignée : {otherLinkedCodes.join(', ')}</span>
             </>
           )}
         </div>

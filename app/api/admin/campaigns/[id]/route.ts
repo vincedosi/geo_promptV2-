@@ -116,7 +116,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const { organization_id, name } = body;
+  const { organization_id, name, advertiser, product } = body;
 
   const supabase = createAdminClient();
 
@@ -143,6 +143,15 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   if (organization_id !== undefined) updates.organization_id = organization_id;
   if (name !== undefined) updates.name = name;
+  // Identité déclarée au wizard (étape Cible) — chaîne vide = effacement (null).
+  for (const [key, value] of Object.entries({ advertiser, product })) {
+    if (value === undefined) continue;
+    if (value !== null && typeof value !== 'string') {
+      return NextResponse.json({ error: `${key} invalide` }, { status: 400 });
+    }
+    const trimmed = typeof value === 'string' ? value.trim().slice(0, 200) : null;
+    updates[key] = trimmed || null;
+  }
 
   if ('status_override' in body) {
     const parsed = StatusOverrideSchema.safeParse(body.status_override);

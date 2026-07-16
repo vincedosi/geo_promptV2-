@@ -9,6 +9,8 @@ export interface DspCampaign {
   name: string;
   dsp_source: string;
   advertiser: string | null;
+  /** Produit/offre mis en avant — déclaré au wizard (étape Cible). */
+  product: string | null;
   date_start: string | null;
   date_end: string | null;
   total_tracked_ads: number;

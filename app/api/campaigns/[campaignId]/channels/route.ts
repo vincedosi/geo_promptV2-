@@ -31,7 +31,7 @@ async function loadContext(
     .maybeSingle();
   if (!camp) return null;
   const [regRes, connRes, profRes] = await Promise.all([
-    supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active').eq('active', true),
+    supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active, link_levels').eq('active', true),
     supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'connected'),
     supabase.from('profiles').select('demo_mode').eq('id', userId).maybeSingle(),
   ]);
@@ -87,8 +87,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const gs = (ctx.camp.geo_strategy ?? {}) as Record<string, unknown>;
   const prev = (gs.channels ?? {}) as StoredChannels;
   const budgets = pruneBudgets(parsed.data.budgets ?? prev.budgets, sel);
-  const providerByCode = Object.fromEntries(ctx.catalog.map((c) => [c.code, c.connection_provider]));
-  const links = pruneLinks(parsed.data.links ?? prev.links, sel, providerByCode);
+  const links = pruneLinks(parsed.data.links ?? prev.links, sel);
   const nextChannels: StoredChannels = {
     ...sel, budgets, ...(Object.keys(links).length ? { links } : {}),
   };

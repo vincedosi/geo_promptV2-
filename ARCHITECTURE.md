@@ -379,7 +379,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### Campagnes DSP
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `dsp_campaigns` | Campagnes DSP (Adform, DV360...) | nom, source, dates, pays, tracked_ads |
+| `dsp_campaigns` | Campagnes DSP (Adform, DV360...) | nom, source, dates, pays, tracked_ads, advertiser + product (identité déclarée au wizard, PATCHée au Lancement) |
+| `dsp_channel_registry` | Catalogue des canaux (dsp/social/adserver) | code, label, connection_provider, `link_levels` jsonb = hiérarchie de liaison par canal (annonceur → campagne → IO/ad group/placement) — rendue en cascade API si connecté, en saisie manuelle sinon (sql/104) |
 | `dsp_campaign_data` | Lignes d'impressions DSP | Unicite via index EXPRESSION `idx_dsp_data_unique` sur (campaign_id, COALESCE(date), COALESCE(postal_code), COALESCE(city), COALESCE(media)) — 5 colonnes, NULL=egal. **Non inferable par `onConflict` PostgREST** : pour un import idempotent, faire DELETE cible + insert (pas d'upsert). |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |

@@ -12,7 +12,30 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { buildCibleMetadata, buildCibleName, type CibleIndicator } from '@/lib/cibles/naming';
 import { addCible, removeCible, type CibleZoneRef } from '@/lib/cibles/draft';
 import type { StepProps } from './types';
-import { B, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
+import { B, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell } from './ui';
+
+/** Champ texte du wizard (nom, annonceur, produit) — style commun. */
+function TextInput({ value, placeholder, ariaLabel, onChange }: {
+  value: string; placeholder: string; ariaLabel: string; onChange: (v: string) => void;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      style={{
+        width: '100%', boxSizing: 'border-box',
+        background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
+        padding: '10px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+        color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
+      }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+    />
+  );
+}
 
 const FAMILLES: Array<{ key: CibleIndicator['famille']; label: string }> = [
   { key: 'audience', label: 'Audience' },
@@ -167,24 +190,34 @@ export function StepCible({
         concentre la diffusion dessus.
       </Lead>
 
-      {/* Nom de la campagne — persisté au Lancement s'il a changé */}
+      {/* Nom + annonceur/produit — persistés au Lancement s'ils ont changé */}
       <FieldBlock label="Nom de la campagne">
-        <input
-          type="text"
+        <TextInput
           value={draft.name}
-          onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+          onChange={(v) => setDraft((prev) => ({ ...prev, name: v }))}
           placeholder="Nom affiché partout (sélecteur, suivi, exports)"
-          aria-label="Nom de la campagne"
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
-            padding: '10px 12px', fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
-            color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--brand-teal-50)'; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+          ariaLabel="Nom de la campagne"
         />
       </FieldBlock>
+
+      <Row2>
+        <FieldBlock label="Annonceur">
+          <TextInput
+            value={draft.advertiser}
+            onChange={(v) => setDraft((prev) => ({ ...prev, advertiser: v }))}
+            placeholder="Marque ou société annonceur"
+            ariaLabel="Annonceur"
+          />
+        </FieldBlock>
+        <FieldBlock label="Produit">
+          <TextInput
+            value={draft.product}
+            onChange={(v) => setDraft((prev) => ({ ...prev, product: v }))}
+            placeholder="Produit ou offre mis en avant"
+            ariaLabel="Produit"
+          />
+        </FieldBlock>
+      </Row2>
 
       {/* Panier */}
       <FieldBlock label={`Ma cible (${draft.cibles.length || 'national'})`}>
