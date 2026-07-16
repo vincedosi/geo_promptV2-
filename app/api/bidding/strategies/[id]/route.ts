@@ -6,6 +6,9 @@
  *   → édition champ-par-champ avec audit trail dans strategy_changes.
  *     Si weighting_mode/in_zone_weights/out_zone_weights changent → relance
  *     apply_zone_weights_to_strategy() et regénère bidding_zone_configs.
+ *     Avant cette RPC : matérialisation lazy de l'indicateur de la courbe
+ *     (in_zone_weights.variable_code) si périmé (> 30 j) via RPC
+ *     materialize_indicator_cp_values() — échec → 422 { error: 'indicator_not_ready' }.
  *
  * DELETE /api/bidding/strategies/[id]
  *   → soft-archive : status='archived' + status_changed_at + audit log.

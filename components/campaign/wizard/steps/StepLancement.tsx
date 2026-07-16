@@ -188,11 +188,16 @@ export function StepLancement({
 
       const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
       const hasZones = draft.cibles.length > 0;
+      // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
+      // abstention en national pur — voir buildInZoneWeights). weighting_mode
+      // DOIT suivre le mode réel de la courbe : sinon resolveWeightingTarget()
+      // (lib/bidding-ml/metric-labels.ts) cherche un variable_code absent en
+      // mode uniform et le Pilotage perd le ciblage sans erreur visible.
+      const inZoneWeights = buildInZoneWeights(draft);
+      const weightingMode = (inZoneWeights as { mode?: string }).mode === 'uniform' ? 'uniform' as const : 'by_insee_variable' as const;
       const commonFields = {
-        weighting_mode: 'by_insee_variable' as const,
-        // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
-        // abstention en national pur — voir buildInZoneWeights).
-        in_zone_weights: buildInZoneWeights(draft),
+        weighting_mode: weightingMode,
+        in_zone_weights: inZoneWeights,
         out_zone_weights: diffusionOutZoneWeights(draft.diffusion, hasZones),
         scope_type,
         zone_id,

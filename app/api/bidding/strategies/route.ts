@@ -11,6 +11,9 @@
  *   3. Check conflit (pas de stratégie active existante)
  *   4. INSERT bidding_strategies avec toutes les colonnes A4.7
  *   5. INSERT batch bidding_strategy_subzones si fourni
+ *   5bis. Matérialisation lazy : si in_zone_weights.variable_code est fourni et périmé
+ *         (> 30 j / absent de indicator_cp_values), RPC materialize_indicator_cp_values()
+ *         avant l'étape suivante — échec → 422 { error: 'indicator_not_ready' }.
  *   6. RPC apply_zone_weights_to_strategy() pour générer les bidding_zone_configs
  *   7. INSERT agent_autonomy_settings si autonomy_override fourni
  *   8. UPDATE draft → consumed si consume_draft_id fourni
