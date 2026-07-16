@@ -141,6 +141,23 @@ export function MagelianOverlay() {
     setSelectedId(next[0]?.id ?? null);
   }, [campaigns, selectedId]);
 
+  // Crée une campagne vierge (dsp_source='magelian') puis ouvre le wizard dessus.
+  const [creating, setCreating] = useState(false);
+  const handleCreateCampaign = useCallback(async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const res = await adminFetch('/api/admin/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.campaign) return;
+      setCampaigns((prev) => [{ id: d.campaign.id, name: d.campaign.name }, ...(prev ?? [])]);
+      setSelectedId(d.campaign.id);
+      setTab('creation');
+    } finally {
+      setCreating(false);
+    }
+  }, [creating]);
+
   // Après renommage au Lancement : répercute le nom dans le sélecteur.
   const handleCampaignRenamed = useCallback((name: string) => {
     setCampaigns((prev) => prev ? prev.map((c) => (c.id === selectedId ? { ...c, name } : c)) : prev);
@@ -326,6 +343,18 @@ export function MagelianOverlay() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => { void handleCreateCampaign(); }}
+          disabled={creating}
+          style={{
+            background: 'transparent', border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)',
+            borderRadius: 6, padding: '8px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500,
+            cursor: creating ? 'wait' : 'pointer',
+          }}
+        >
+          {creating ? 'Création…' : '+ Nouvelle campagne'}
+        </button>
       </div>
 
       {/* Tab bar */}
