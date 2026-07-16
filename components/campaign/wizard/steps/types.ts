@@ -87,7 +87,7 @@ export function clampPressure(m: number): number {
 }
 
 /**
- * Courbe de pondération générée depuis la pression (x = taux d'abstention %,
+ * Courbe de pondération générée depuis la pression (x = valeur de l'indicateur (domaine paramétré),
  * y = multiplicateur d'enchère) : ×1/M sur les CP les moins cibles, ×1 au milieu,
  * ×M sur les CP les plus cibles. M=1 → pression uniforme.
  *

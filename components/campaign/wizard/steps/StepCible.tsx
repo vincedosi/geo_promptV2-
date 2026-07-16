@@ -173,7 +173,7 @@ export function StepCible({
     } finally {
       setMaterializing(false);
     }
-  }, [selected, orgId, operator, threshold, materializing, setDraft]);
+  }, [selected, orgId, operator, threshold, materializing, preview, setDraft]);
 
   const familyIndicators = indicators?.filter((i) => i.famille === famille) ?? [];
 
