@@ -17,6 +17,7 @@ import {
 } from '@/lib/dsp-mapping/types';
 import type { CampaignImportEvent } from '@/types/campaign';
 import { resolveImportScope } from '@/lib/campaigns/import-scope';
+import { findMatchingCampaign } from '@/lib/campaigns/import-match';
 
 export const dynamic = 'force-dynamic';
 
@@ -196,6 +197,31 @@ export async function POST(request: NextRequest) {
           total: totalRows,
           message: `${totalRows} lignes détectées, ${parsed.countries.length} pays`,
         });
+
+        // Auto-rattachement : sans campaign_id explicite, chercher une campagne de l'org
+        // dont la liaison du canal source (ou le nom) référence la campagne du fichier.
+        if (!existingCampaign && campaignName) {
+          const { data: candidates } = await supabase
+            .from('dsp_campaigns')
+            .select('id, name, dsp_source, geo_strategy, organization_id')
+            .eq('organization_id', organizationId)
+            .limit(200);
+          const match = findMatchingCampaign((candidates ?? []) as never, dspSource, campaignName);
+          if (match) {
+            const { data: camp } = await supabase
+              .from('dsp_campaigns')
+              .select('id, organization_id, dsp_source')
+              .eq('id', match.id)
+              .single();
+            if (camp) {
+              existingCampaign = camp;
+              send({
+                type: 'progress', processed: 0, total: totalRows,
+                message: `Données rattachées à la campagne existante « ${match.name} » (via ${match.matchedBy === 'link' ? 'liaison plateforme' : 'nom identique'})`,
+              });
+            }
+          }
+        }
 
         // ── Cibler la campagne : existante (append) ou nouvelle ─────────
         // supabase est déjà créé avant le stream (pré-vérif campaign_id).
