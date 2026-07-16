@@ -28,10 +28,8 @@ import { toSlug } from '@/lib/custom-geo/slug';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-/** Sources des variables INSEE par CP (miroir de /api/insee-variables/[code]/values). */
-const VARIABLE_SOURCES: Record<string, { table: string; cpCol: string; valCol: string }> = {
-  abstention_pres_2022: { table: 'dataset_abstention_2022', cpCol: 'code_postal', valCol: 'taux_abstention' },
-};
+// Toutes les variables lisent indicator_cp_values (matérialisée au Lancement).
+const INDICATOR_SOURCE = { table: 'indicator_cp_values', cpCol: 'postal_code', valCol: 'value' } as const;
 
 const CHUNK = 200;
 const PAGE = 1000;
@@ -105,18 +103,16 @@ export async function GET(
     }
   }
 
-  // ── Valeurs INSEE par CP ──────────────────────────────────────────────────────
+  // ── Valeurs indicateur par CP ──────────────────────────────────────────────────
   const values: Record<string, number> = {};
-  const source = target.variableCode ? VARIABLE_SOURCES[target.variableCode] : null;
-  if (curve && target.variableCode && !source) {
-    return NextResponse.json({ error: 'unsupported_variable', variable: target.variableCode }, { status: 422 });
-  }
+  const source = target.variableCode ? INDICATOR_SOURCE : null;
   if (source) {
     if (zoneCps) {
       for (let i = 0; i < zoneCps.length; i += CHUNK) {
         const { data, error } = await supabase
           .from(source.table)
           .select(`${source.cpCol}, ${source.valCol}`)
+          .eq('indicator_code', target.variableCode)
           .in(source.cpCol, zoneCps.slice(i, i + CHUNK));
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         for (const r of (data ?? []) as unknown as Array<Record<string, unknown>>) {
@@ -129,6 +125,7 @@ export async function GET(
         const { data, error } = await supabase
           .from(source.table)
           .select(`${source.cpCol}, ${source.valCol}`)
+          .eq('indicator_code', target.variableCode)
           .range(from, from + PAGE - 1);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
@@ -136,6 +133,9 @@ export async function GET(
         if (rows.length < PAGE) break;
         from += PAGE;
       }
+    }
+    if (curve && Object.keys(values).length === 0) {
+      return NextResponse.json({ error: 'indicator_not_materialized', variable: target.variableCode }, { status: 422 });
     }
   }
 
