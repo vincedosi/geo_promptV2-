@@ -25,7 +25,7 @@ import type { WeightedBiddingTier } from '@/lib/digital/dv360-bidding-script';
 import type { Dv360ConnectionRow } from '@/lib/dsp/dv360/client';
 import { logDspEvent } from '@/lib/dsp/logger';
 import type { DspProvider } from '@/types/dsp';
-import { INTENSITY_CURVES, TARGET_VARIABLE_CODE, pressureCurve } from '@/components/campaign/wizard/steps/types';
+import { INTENSITY_CURVES, pressureCurve } from '@/components/campaign/wizard/steps/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -133,8 +133,10 @@ export async function POST(
     ? pressureCurve(changes.pressure)
     : changes.intensity !== undefined ? INTENSITY_CURVES[changes.intensity] : undefined;
   if (newCurve !== undefined) {
+    const existingWeights = (strategy.in_zone_weights ?? {}) as { variable_code?: string };
+    const preservedVariable = existingWeights.variable_code ?? 'abstention_pres_2022';
     push('in_zone_weights', strategy.in_zone_weights, {
-      mode: 'by_insee_variable', variable_code: TARGET_VARIABLE_CODE,
+      mode: 'by_insee_variable', variable_code: preservedVariable,
       curve: newCurve,
     });
   }

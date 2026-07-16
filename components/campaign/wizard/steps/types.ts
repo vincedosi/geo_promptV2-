@@ -28,6 +28,8 @@ export interface ProgDraft {
   pressure: number;
   /** Panier de zones cibles (vide = national). Le zone_id final (directe ou composite) se calcule au Lancement. */
   cibles: CibleZoneRef[];
+  /** Variable INSEE choisie pour piloter la courbe de pression (code si plusieurs indicateurs; null sinon). */
+  pressureVariable: string | null;
   /** Diffusion hors cible — ignorée si le panier est vide (national pur). */
   diffusion: Diffusion;
   /** Canaux déclarés (DSP/réseaux/ad server). Persistés au Lancement. */
@@ -48,6 +50,7 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   product: '',
   pressure: 2.2,
   cibles: [],
+  pressureVariable: null,
   diffusion: 'zones_only',
   channels: EMPTY_CHANNELS,
   channelBudgets: {},
@@ -72,8 +75,6 @@ export interface StepProps {
   setDraft: Dispatch<SetStateAction<ProgDraft>>;
 }
 
-/** La seule variable INSEE de ciblage disponible pour l'instant. */
-export const TARGET_VARIABLE_CODE = 'abstention_pres_2022';
 
 /** Bornes de la pression sur la cible (multiplicateur d'enchère max). */
 export const PRESSURE_MIN = 1;
@@ -93,16 +94,41 @@ export function clampPressure(m: number): number {
  * `floor` (optionnel) borne le bas de la courbe : en diffusion nationale avec
  * surpression, le hors-zone est à ×1 — sans floor, le bas de la cible
  * enchérirait MOINS que le hors-zone (incohérent). floor=1 → courbe ×1 → ×M.
+ *
+ * `domain` (optionnel) : bornes de l'indicateur. Par défaut : [10, 60] (abstention).
+ * x calculé comme : min + frac * (max - min).
  */
-export function pressureCurve(m: number, floor?: number): { x: number; y: number }[] {
+export function pressureCurve(
+  m: number,
+  floor?: number,
+  domain?: { min: number; max: number },
+): { x: number; y: number }[] {
   const p = clampPressure(m);
   const lo = Math.round((1 / p) * 100) / 100;
   const f = (y: number) => (floor != null ? Math.max(floor, y) : y);
+  const { min, max } = domain ?? { min: 10, max: 60 }; // défaut = bornes registre abstention
+  const range = max - min;
+  const x = (frac: number) => Math.round((min + frac * range) * 100) / 100;
   return [
-    { x: 20, y: f(lo) },
-    { x: 30, y: f(1.0) },
-    { x: 45, y: f(p) },
+    { x: x(0.2), y: f(lo) },
+    { x: x(0.4), y: f(1.0) },
+    { x: x(0.7), y: f(p) },
   ];
+}
+
+/** Indicateurs distincts portés par le panier de cibles (ordre du panier). */
+export function resolvePressureIndicators(
+  cibles: CibleZoneRef[],
+): Array<{ code: string; label: string; min: number; max: number }> {
+  const seen = new Set<string>();
+  const out: Array<{ code: string; label: string; min: number; max: number }> = [];
+  for (const c of cibles) {
+    if (c.indicator && !seen.has(c.indicator.code)) {
+      seen.add(c.indicator.code);
+      out.push(c.indicator);
+    }
+  }
+  return out;
 }
 
 /**

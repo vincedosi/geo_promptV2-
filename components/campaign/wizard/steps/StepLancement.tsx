@@ -26,7 +26,7 @@ import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { StepProps } from './types';
 import {
-  DIFFUSION_META, EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
+  DIFFUSION_META, EXECUTION_MODE_META,
   diffusionCurveFloor, diffusionOutZoneWeights,
   draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
   resolveDownloadStrategyId,
@@ -188,7 +188,7 @@ export function StepLancement({
         weighting_mode: 'by_insee_variable' as const,
         in_zone_weights: {
           mode: 'by_insee_variable',
-          variable_code: TARGET_VARIABLE_CODE,
+          variable_code: draft.pressureVariable ?? 'abstention_pres_2022',
           // En national+surpression, la courbe est bornée à ≥1 : le hors-zone
           // est à ×1, le bas de la cible ne doit pas passer dessous.
           curve: pressureCurve(draft.pressure, diffusionCurveFloor(draft.diffusion, hasZones)),

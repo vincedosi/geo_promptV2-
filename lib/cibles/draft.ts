@@ -1,5 +1,13 @@
 /** Zones cibles — manipulation pure du panier de cibles du brouillon wizard. */
-export interface CibleZoneRef { id: string; name: string; sourceType: string }
+export interface CibleZoneRef {
+  id: string;
+  name: string;
+  sourceType: string;
+  /** Indicateur d'origine (cibles indicator_threshold) — pilote la variable de pression. */
+  indicator?: { code: string; label: string; min: number; max: number };
+  /** Population couverte (preview au moment de la matérialisation) — forecast. */
+  population?: number | null;
+}
 
 export function addCible(list: CibleZoneRef[], ref: CibleZoneRef): CibleZoneRef[] {
   return list.some((c) => c.id === ref.id) ? list : [...list, ref];
