@@ -150,6 +150,24 @@ export function diffusionCurveFloor(diffusion: Diffusion, hasZones: boolean): nu
   return hasZones && diffusion === 'national_boost' ? 1.0 : undefined;
 }
 
+/** in_zone_weights de la stratégie : courbe sur l'indicateur de la cible,
+ *  uniforme si la cible n'a pas d'indicateur, abstention en national pur (historique). */
+export function buildInZoneWeights(d: ProgDraft): Record<string, unknown> {
+  const hasZones = d.cibles.length > 0;
+  const floor = diffusionCurveFloor(d.diffusion, hasZones);
+  const indicators = resolvePressureIndicators(d.cibles);
+  const chosen = indicators.find((i) => i.code === d.pressureVariable) ?? indicators[0] ?? null;
+  if (hasZones && !chosen) {
+    return { mode: 'uniform', value: clampPressure(d.pressure) };
+  }
+  const variable = chosen ?? { code: 'abstention_pres_2022', label: '', min: 10, max: 60 };
+  return {
+    mode: 'by_insee_variable',
+    variable_code: variable.code,
+    curve: pressureCurve(d.pressure, floor, { min: variable.min, max: variable.max }),
+  };
+}
+
 /**
  * Stratégie utilisable pour les téléchargements custom bidding (étape
  * Lancement) : celle créée dans le montage courant, sinon la stratégie

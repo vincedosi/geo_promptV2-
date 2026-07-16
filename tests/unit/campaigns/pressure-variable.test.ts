@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pressureCurve, resolvePressureIndicators } from '@/components/campaign/wizard/steps/types';
+import { buildInZoneWeights, pressureCurve, resolvePressureIndicators } from '@/components/campaign/wizard/steps/types';
 import type { CibleZoneRef } from '@/lib/cibles/draft';
 
 const IND = { code: 'rev_median', label: 'Revenu médian', min: 10000, max: 45000 };
@@ -33,5 +33,22 @@ describe('resolvePressureIndicators', () => {
   it('panier vide ou sans indicateur → []', () => {
     expect(resolvePressureIndicators([])).toEqual([]);
     expect(resolvePressureIndicators([cible({})])).toEqual([]);
+  });
+});
+
+describe('buildInZoneWeights', () => {
+  const base = { pressure: 2, diffusion: 'zones_only' as const };
+  it('cible avec indicateur → by_insee_variable sur cet indicateur, courbe à ses bornes', () => {
+    const w = buildInZoneWeights({ ...base, cibles: [cible({ indicator: IND })], pressureVariable: 'rev_median' } as never);
+    expect(w).toMatchObject({ mode: 'by_insee_variable', variable_code: 'rev_median' });
+    expect((w.curve as { x: number }[]).map((p) => p.x)).toEqual([17000, 24000, 34500]);
+  });
+  it('cible sans indicateur → uniform à la pression', () => {
+    const w = buildInZoneWeights({ ...base, cibles: [cible({})], pressureVariable: null } as never);
+    expect(w).toEqual({ mode: 'uniform', value: 2 });
+  });
+  it('national pur (panier vide) → by_insee_variable abstention (comportement historique)', () => {
+    const w = buildInZoneWeights({ ...base, cibles: [], pressureVariable: null } as never);
+    expect(w).toMatchObject({ mode: 'by_insee_variable', variable_code: 'abstention_pres_2022' });
   });
 });

@@ -9,8 +9,8 @@
  * dans le brouillon ; la courbe d'enchère est générée au Lancement.
  */
 import type { Diffusion, StepProps } from './types';
-import { DIFFUSION_META } from './types';
-import { B, FieldBlock, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
+import { DIFFUSION_META, resolvePressureIndicators } from './types';
+import { B, C, FieldBlock, fInter, Lead, OptionRow, OptsList, StandardFooter, StepShell } from './ui';
 import { PressureControl } from './PressureControl';
 
 export function StepPression({
@@ -35,6 +35,35 @@ export function StepPression({
         Le <B>« combien de fois plus »</B> : le multiplicateur d&apos;enchère appliqué aux zones cibles,
         en chiffres — multiplicateur et CPM en euros.
       </Lead>
+
+      {(() => {
+        const indicators = resolvePressureIndicators(draft.cibles);
+        if (draft.cibles.length > 0 && indicators.length === 0) {
+          return (
+            <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, marginBottom: 16 }}>
+              Ta cible ne porte pas d&apos;indicateur (zones dessinées) — la pression s&apos;applique
+              uniformément (×{draft.pressure.toLocaleString('fr-FR')}) dans la cible.
+            </div>
+          );
+        }
+        if (indicators.length === 0) return null; // national pur : abstention historique, rien à choisir
+        return (
+          <FieldBlock label="Pression sur">
+            {indicators.length === 1 ? (
+              <div style={{ fontFamily: fInter, fontSize: 13, color: C.text }}>{indicators[0].label}</div>
+            ) : (
+              <select
+                value={draft.pressureVariable ?? indicators[0].code}
+                onChange={(e) => setDraft((prev) => ({ ...prev, pressureVariable: e.target.value }))}
+                aria-label="Indicateur de pression"
+                style={{ width: '100%', background: C.elevated, border: `0.5px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontFamily: fInter, fontSize: 13, color: C.text }}
+              >
+                {indicators.map((i) => <option key={i.code} value={i.code}>{i.label}</option>)}
+              </select>
+            )}
+          </FieldBlock>
+        );
+      })()}
 
       <PressureControl
         pressure={draft.pressure}

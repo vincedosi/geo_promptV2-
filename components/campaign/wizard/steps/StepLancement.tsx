@@ -27,9 +27,9 @@ import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import type { StepProps } from './types';
 import {
   DIFFUSION_META, EXECUTION_MODE_META,
-  diffusionCurveFloor, diffusionOutZoneWeights,
-  draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
-  resolveDownloadStrategyId,
+  buildInZoneWeights, diffusionOutZoneWeights,
+  draftTotalBudget, fmtDateShort, fmtEUR, fmtMult,
+  resolveDownloadStrategyId, resolvePressureIndicators,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButton } from './ui';
 
@@ -148,6 +148,10 @@ export function StepLancement({
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
+  const pressureIndicators = resolvePressureIndicators(draft.cibles);
+  const pressureIndicatorLabel = pressureIndicators.find((i) => i.code === draft.pressureVariable)?.label
+    ?? pressureIndicators[0]?.label
+    ?? (draft.cibles.length > 0 ? 'pression uniforme' : "Taux d'abstention (2022)");
   // Canaux (hors DV360, qui a son wording push) dont une liaison est renseignée.
   const otherLinkedCodes = [
     ...draft.channels.dsps, ...draft.channels.socials,
@@ -186,13 +190,9 @@ export function StepLancement({
       const hasZones = draft.cibles.length > 0;
       const commonFields = {
         weighting_mode: 'by_insee_variable' as const,
-        in_zone_weights: {
-          mode: 'by_insee_variable',
-          variable_code: draft.pressureVariable ?? 'abstention_pres_2022',
-          // En national+surpression, la courbe est bornée à ≥1 : le hors-zone
-          // est à ×1, le bas de la cible ne doit pas passer dessous.
-          curve: pressureCurve(draft.pressure, diffusionCurveFloor(draft.diffusion, hasZones)),
-        },
+        // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
+        // abstention en national pur — voir buildInZoneWeights).
+        in_zone_weights: buildInZoneWeights(draft),
         out_zone_weights: diffusionOutZoneWeights(draft.diffusion, hasZones),
         scope_type,
         zone_id,
@@ -333,7 +333,7 @@ export function StepLancement({
         />
         <RecapRow
           title={`Cible · pression ${fmtMult(draft.pressure)}`}
-          sub={`Taux d'abstention (2022) sur ${cibleTitle}${
+          sub={`${pressureIndicatorLabel} sur ${cibleTitle}${
             draft.cibles.length > 0 ? ` · ${DIFFUSION_META[draft.diffusion].recap}` : ''
           }`}
         />
