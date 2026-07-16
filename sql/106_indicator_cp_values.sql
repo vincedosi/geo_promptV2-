@@ -15,6 +15,10 @@ CREATE POLICY "icv_read_auth" ON public.indicator_cp_values
 
 -- Matérialise un indicateur : IRIS → commune (code_commune) → CP (postal_code_commune),
 -- moyenne pondérée par population. Échelle 'cp' (abstention/pollen/atmo) : copie directe.
+-- Branche iris_column : fallback communal pour les communes sans vrais IRIS (is_true_iris=false
+-- partout) — couverture nationale au lieu des ~1900 communes urbaines subdivisées en IRIS.
+-- Pas de double comptage : une commune contribue soit par ses vrais IRIS, soit par sa ligne
+-- communale unique, jamais les deux (mis à jour par la migration `materialize_icv_commune_fallback`).
 CREATE OR REPLACE FUNCTION public.materialize_indicator_cp_values(p_indicator_code text)
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -41,7 +45,9 @@ BEGIN
               sum(%s * coalesce(i.population,0)) / nullif(sum(coalesce(i.population,0)),0)
          FROM iris i
          JOIN postal_code_commune pcc ON pcc.code_commune = i.code_commune
-        WHERE i.is_true_iris AND %s IS NOT NULL
+        WHERE %s IS NOT NULL
+          AND (i.is_true_iris OR NOT EXISTS (
+                SELECT 1 FROM iris t WHERE t.code_commune = i.code_commune AND t.is_true_iris))
         GROUP BY pcc.code_postal
        HAVING sum(coalesce(i.population,0)) > 0',
       p_indicator_code, v_expr, v_expr);
