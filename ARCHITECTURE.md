@@ -275,7 +275,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 ### Administration campagnes (protegees par `requireAdmin()`)
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/admin/campaigns` | GET | Liste campagnes avec stats agregees |
+| `/api/admin/campaigns` | GET/POST | Liste campagnes avec stats agregees ; POST = naissance d'une campagne vierge du wizard (dsp_source `magelian`, nom par defaut date en Europe/Paris, org du createur) |
+| `/api/admin/campaigns/attachable` | GET | Imports rattachables a une campagne du wizard (`?exclude=` — donnees sans strategie de bidding, scope org) |
+| `/api/admin/campaigns/[id]/absorb` | POST | Fusionne un import orphelin dans la campagne (donnees + dates + totaux, cible SANS donnees uniquement — 409 sinon), puis supprime la coquille source |
 | `/api/admin/campaigns/preview` | POST | Preview mapping fichier AVANT import |
 | `/api/admin/campaigns/import` | POST | Import SSE streaming |
 | `/api/admin/campaigns/populate-postal` | POST | Peuple ref La Poste |
@@ -387,6 +389,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `dsp_campaign_data` | Lignes d'impressions DSP | Unicite via index EXPRESSION `idx_dsp_data_unique` sur (campaign_id, COALESCE(date), COALESCE(postal_code), COALESCE(city), COALESCE(media)) — 5 colonnes, NULL=egal. **Non inferable par `onConflict` PostgREST** : pour un import idempotent, faire DELETE cible + insert (pas d'upsert). |
 | `campaign_organizations` | Liaison N:N campaigns/orgs | campaign_id, organization_id |
 | `postal_code_commune` | Referentiel La Poste | ~35k lignes, code postal -> commune |
+| `indicator_cp_values` | Valeurs d'indicateurs INSEE par code postal (pression sur la cible) | Materialisation lazy par indicateur (RPC ci-dessous), agregation IRIS -> CP avec fallback communal ; consommee par apply_zone_weights_to_strategy et l'export custom bidding |
 | `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method, client OAuth optionnel par org (`oauth_client_id` + `oauth_client_secret_encrypted`, fallback env) |
 | `dsp_api_logs` | Logs appels/connexion/jobs DSP | RLS par org, action + status + latency + error |
 
@@ -497,6 +500,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
 | `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
 | `duplicate_plan_snapshot` | Copie serveur du dernier snapshot de plan en v+1 (budgets par dsp, cpm, période) | `api/bidding/strategies/[id]/adjust/` |
+| `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/` |
+| `apply_zone_weights_to_strategy` | Bid multipliers par CP d'une strategie — generalise (sql/106) : courbe sur N'IMPORTE quel indicateur de `indicator_cp_values` via `variable_code`, uniforme sans indicateur | `api/bidding/strategies/` (POST/PATCH) |
 
 ### Radio
 | RPC | Description | Appelee depuis |
