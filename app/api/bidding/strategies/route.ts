@@ -329,6 +329,13 @@ export async function POST(request: NextRequest) {
     p_triggered_by: 'user',
   });
 
+  // Rollups de suivi (cockpit) : in_target/planned_share dépendent du plan
+  // qui vient d'être généré — best-effort, jamais bloquant.
+  const { error: rollupErr } = await supabase.rpc('refresh_campaign_rollups', {
+    p_campaign_id: body.campaign_id,
+  });
+  if (rollupErr) console.error('[strategies POST] refresh_campaign_rollups:', rollupErr.message);
+
   return NextResponse.json(
     { strategy: created, n_zone_configs_created: nConfigs ?? 0 },
     { status: 201 },

@@ -51,6 +51,7 @@ import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
+import { SuiviMapLayer } from '@/app/map/_components/SuiviMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 import type { ZoneData, BattleResult } from '@/types/spatial';
@@ -1683,6 +1684,7 @@ export default function MapPage() {
         onCpDataStatus={(status, date) => { setCivicCpStatus(status); setCivicCpDate(date); }}
         onLoadingChange={setCivicLoading}
       />
+      <SuiviMapLayer mapRef={mapRef} />
       <CaptureLayers
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}

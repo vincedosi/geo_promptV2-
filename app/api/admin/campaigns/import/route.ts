@@ -412,6 +412,12 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        // ── Rollups de suivi (cockpit) — best-effort, jamais bloquant ───
+        send({ type: 'rollups', message: 'Agrégats de suivi…' });
+        const { error: rollupErr } = await supabase
+          .rpc('refresh_campaign_rollups', { p_campaign_id: campaignId });
+        if (rollupErr) console.error('[import] refresh_campaign_rollups:', rollupErr.message);
+
         // ── Final count ─────────────────────────────────────────────────
         const { count: matchedCount } = await supabase
           .from('dsp_campaign_data')

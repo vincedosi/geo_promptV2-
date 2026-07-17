@@ -71,6 +71,7 @@ export type CampaignImportEvent =
   | { type: 'parsing'; message: string }
   | { type: 'progress'; processed: number; total: number; message: string }
   | { type: 'matching'; matched: number; total_france: number; message: string }
+  | { type: 'rollups'; message: string }
   | { type: 'complete'; report: CampaignImportReport }
   | { type: 'error'; message: string };
 

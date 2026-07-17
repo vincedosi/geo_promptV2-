@@ -54,5 +54,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { error: delErr } = await supabase.from('dsp_campaigns').delete().eq('id', sourceId);
   if (delErr) console.error('[absorb] coquille non supprimée:', delErr.message);
 
+  // Rollups de suivi (cockpit) — best-effort, jamais bloquant.
+  const { error: rollupErr } = await supabase.rpc('refresh_campaign_rollups', { p_campaign_id: id });
+  if (rollupErr) console.error('[absorb] refresh_campaign_rollups:', rollupErr.message);
+
   return NextResponse.json({ moved: source.total_tracked_ads ?? 0 });
 }
