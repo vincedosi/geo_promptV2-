@@ -76,7 +76,10 @@ genesis_app/
 │   │   ├── AdjustPanel.tsx     # Panneau Ajuster (budgets par canal, pression, push DSP)
 │   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
 │   ├── magelian/               # Overlay MAGELIAN (Creation/Suivi/Apercu) + deep-link
-│   │   ├── MagelianOverlay.tsx # Overlay plein ecran, selecteur campagne AU-DESSUS des 3 onglets
+│   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Creation/Suivi/Apercu ; selecteur
+│   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
+│   │   ├── CreationHall.tsx    # Hall de l'onglet Creation : nouvelle campagne, reprendre une
+│   │   │                       # coquille (badge brouillon, suppression), modifier une lancee
 │   │   ├── MagelianDeepLink.tsx# Lit /map?campaign=&tab=, ouvre l'overlay, nettoie l'URL
 │   │   └── deep-link.ts        # parseMagelianParams (ignore ?overlay= des autres overlays)
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
