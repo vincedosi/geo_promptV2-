@@ -13,6 +13,7 @@ import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/Final
 import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
 import type { SuiviPayload } from '@/lib/campaigns/suivi-metrics';
 import { SuiviCockpit } from './suivi/SuiviCockpit';
+import { SuiviCharts } from './suivi/SuiviCharts';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -161,7 +162,10 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
           ) : strategyId && strategyStatus === 'completed' ? (
             <FinalReport strategyId={strategyId} />
           ) : strategyId && suivi ? (
-            <SuiviCockpit payload={suivi} />
+            <>
+              <SuiviCockpit payload={suivi} />
+              <SuiviCharts payload={suivi} />
+            </>
           ) : strategyId && !suiviError ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Calcul du suivi…
