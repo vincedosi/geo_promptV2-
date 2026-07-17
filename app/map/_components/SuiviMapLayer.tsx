@@ -47,9 +47,9 @@ function readToneColors(): { ok: string; warn: string; bad: string; teal: string
   };
 }
 
-function fillColorExpression(metric: SuiviMapMetric, forecastCpm: number | null): unknown {
+function fillColorExpression(metric: SuiviMapMetric, forecastCpm: number | null): maplibregl.ExpressionSpecification {
   const c = readToneColors();
-  const v = ['coalesce', ['get', 'value'], -1];
+  const v: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'value'], -1];
   if (metric === 'hold') {
     return ['case',
       ['<', v, 0], 'rgba(0,0,0,0)',
@@ -122,8 +122,7 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
         map.addLayer({
           id: FILL_ID, type: 'fill', source: SOURCE_ID,
           paint: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            'fill-color': fillColorExpression(active.metric, active.forecastCpm) as any,
+            'fill-color': fillColorExpression(active.metric, active.forecastCpm),
             'fill-opacity': 0.55,
           },
         });
