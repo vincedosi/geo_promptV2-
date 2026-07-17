@@ -29,10 +29,10 @@ import { ChannelHubRecap } from './ChannelHubRecap';
 import { ForecastStrip } from './ForecastStrip';
 import type { StepProps } from './types';
 import {
-  DIFFUSION_META, EXECUTION_MODE_META,
+  DIFFUSION_META, EXECUTION_MODE_META, PACING_META,
   buildInZoneWeights, diffusionOutZoneWeights,
   draftTotalBudget, fmtDateShort, fmtEUR, fmtMult,
-  resolveDownloadStrategyId, resolvePressureIndicators,
+  resolveDownloadStrategyId, resolvePressureIndicators, strategyFieldsFromDraft,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButton } from './ui';
 
@@ -168,6 +168,25 @@ export function StepLancement({
     })();
   }, [campaignId]);
 
+  // Libellé FR de l'objectif choisi (catalogue 8 lignes, 1 appel gardé par ref).
+  const [objectiveLabel, setObjectiveLabel] = useState<string | null>(null);
+  const objectivesRef = useRef(false);
+  useEffect(() => {
+    if (objectivesRef.current) return;
+    objectivesRef.current = true;
+    (async () => {
+      try {
+        const res = await adminFetch('/api/bidding/objectives', { cache: 'no-store' });
+        const d = res.ok ? await res.json() : null;
+        const match = (d?.objectives ?? []).find(
+          (o: { code: string; display_name: string; display_name_fr: string | null }) => o.code === draft.objective,
+        );
+        if (match) setObjectiveLabel(match.display_name_fr ?? match.display_name);
+      } catch { /* récap sans libellé — le code fait foi */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
@@ -229,6 +248,8 @@ export function StepLancement({
         forecast_cpm: draft.forecastCpm,
         currency: 'EUR' as const,
         execution_mode: draft.executionMode,
+        // Objectif, KPI cible, capping fréquence, pacing (étape Stratégie).
+        ...strategyFieldsFromDraft(draft),
       };
 
       let strategyId = existingStrategyId;
@@ -241,7 +262,6 @@ export function StepLancement({
             campaign_id: campaignId,
             name: `Pilotage — ${finalName}`,
             algorithm_code: 'thompson_sampling',
-            objective_code: 'maximize_leads',
             ...commonFields,
             start_date: draft.startDate || undefined,
             end_date: draft.endDate || undefined,
@@ -379,7 +399,14 @@ export function StepLancement({
         />
         <RecapRow
           title={EXECUTION_MODE_META[draft.executionMode].title}
-          sub={EXECUTION_MODE_META[draft.executionMode].sub}
+          sub={[
+            EXECUTION_MODE_META[draft.executionMode].sub,
+            `Objectif : ${objectiveLabel ?? draft.objective}`,
+            draft.freqCapImps != null && draft.freqCapImps > 0 && draft.freqCapDays != null && draft.freqCapDays > 0
+              ? `Cap ${draft.freqCapImps} imps / ${draft.freqCapDays} j`
+              : null,
+            `Pacing : ${PACING_META[draft.pacing].title.toLowerCase()}`,
+          ].filter(Boolean).join(' · ')}
         />
       </div>
 

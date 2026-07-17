@@ -42,6 +42,15 @@ export interface ProgDraft {
   startDate: string; // 'YYYY-MM-DD' ou ''
   endDate: string;   // 'YYYY-MM-DD' ou ''
   executionMode: ExecutionMode;
+  /** Objectif d'optimisation (bidding_objectives.code). */
+  objective: string;
+  /** KPI cible chiffré, dans l'unité de l'objectif (null = pas de cible). */
+  kpiTarget: number | null;
+  /** Capping fréquence : X impressions / Y jours (les 2 requis, sinon ignoré). */
+  freqCapImps: number | null;
+  freqCapDays: number | null;
+  /** Rythme de dépense. */
+  pacing: 'even' | 'front_loaded' | 'back_loaded';
 }
 
 export const DEFAULT_PROG_DRAFT: ProgDraft = {
@@ -59,7 +68,34 @@ export const DEFAULT_PROG_DRAFT: ProgDraft = {
   startDate: '',
   endDate: '',
   executionMode: 'auto',
+  objective: 'maximize_leads',
+  kpiTarget: null,
+  freqCapImps: null,
+  freqCapDays: null,
+  pacing: 'even',
 };
+
+export const PACING_META: Record<'even' | 'front_loaded' | 'back_loaded', { title: string; sub: string }> = {
+  even: { title: 'Régulier', sub: 'Dépense lissée sur toute la période' },
+  front_loaded: { title: 'Départ fort', sub: 'Accélère au début, ralentit ensuite' },
+  back_loaded: { title: 'Montée en puissance', sub: 'Démarre doucement, accélère vers la fin' },
+};
+
+/** Champs stratégie (POST/PATCH /api/bidding/strategies) portés par l'étape Stratégie. */
+export function strategyFieldsFromDraft(d: ProgDraft): {
+  objective_code: string; kpi_target: number | null;
+  frequency_cap_imps: number | null; frequency_cap_period_days: number | null;
+  pacing_strategy: 'even' | 'front_loaded' | 'back_loaded';
+} {
+  const capComplete = d.freqCapImps != null && d.freqCapImps > 0 && d.freqCapDays != null && d.freqCapDays > 0;
+  return {
+    objective_code: d.objective || 'maximize_leads',
+    kpi_target: d.kpiTarget,
+    frequency_cap_imps: capComplete ? d.freqCapImps : null,
+    frequency_cap_period_days: capComplete ? d.freqCapDays : null,
+    pacing_strategy: d.pacing,
+  };
+}
 
 /** Budget global du brouillon = somme des lignes des canaux ENCORE sélectionnés (null si 0 — rien saisi). */
 export function draftTotalBudget(d: ProgDraft): number | null {
