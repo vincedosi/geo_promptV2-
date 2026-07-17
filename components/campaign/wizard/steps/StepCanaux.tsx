@@ -18,6 +18,7 @@ import { draftTotalBudget, fmtEUR } from './types';
 import type { PlatformLinks } from '@/lib/campaigns/platform-links';
 import { Dv360LinkPanel } from './Dv360LinkPanel';
 import { PlatformLinkPanel } from './PlatformLinkPanel';
+import { AbsorbPanel } from './AbsorbPanel';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -267,6 +268,8 @@ export function StepCanaux({
               </FieldBlock>
             );
           })()}
+
+          {draft.channels.ad_server && <AbsorbPanel campaignId={campaignId} />}
 
           <FieldBlock label="Période">
             <Row2>
