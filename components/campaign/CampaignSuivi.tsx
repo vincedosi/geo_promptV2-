@@ -14,6 +14,7 @@ import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-
 import type { SuiviPayload } from '@/lib/campaigns/suivi-metrics';
 import { SuiviCockpit } from './suivi/SuiviCockpit';
 import { SuiviCharts } from './suivi/SuiviCharts';
+import { SuiviTable } from './suivi/SuiviTable';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -165,6 +166,7 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
             <>
               <SuiviCockpit payload={suivi} />
               <SuiviCharts payload={suivi} />
+              <SuiviTable payload={suivi} campaignId={campaignId} />
             </>
           ) : strategyId && !suiviError ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
