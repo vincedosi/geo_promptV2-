@@ -28,7 +28,15 @@ const SUGGESTIONS = [
   'Quelles zones sous-performent par rapport à leur population ?',
 ];
 
-export function CampaignSuivi({ campaignId }: { campaignId: string }) {
+export function CampaignSuivi({
+  campaignId, mapAvailable, onShowedMap,
+}: {
+  campaignId: string;
+  /** true sur /map — le bouton « Voir sur la carte » n'a de sens que là. */
+  mapAvailable?: boolean;
+  /** Appelé après le dispatch de la couche carte (l'overlay se replie). */
+  onShowedMap?: () => void;
+}) {
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
   const [strategyLoaded, setStrategyLoaded] = useState(false);
@@ -164,7 +172,15 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
             <FinalReport strategyId={strategyId} />
           ) : strategyId && suivi ? (
             <>
-              <SuiviCockpit payload={suivi} />
+              <SuiviCockpit
+                payload={suivi}
+                onShowMap={mapAvailable ? (metric) => {
+                  window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
+                    detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
+                  }));
+                  onShowedMap?.();
+                } : undefined}
+              />
               <SuiviCharts payload={suivi} />
               <SuiviTable payload={suivi} campaignId={campaignId} />
             </>

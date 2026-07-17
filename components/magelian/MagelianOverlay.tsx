@@ -517,7 +517,7 @@ export function MagelianOverlay() {
 
         {tab === 'suivi' && (
           selectedId ? (
-            <CampaignSuivi key={selectedId} campaignId={selectedId} />
+            <CampaignSuivi key={selectedId} campaignId={selectedId} mapAvailable={onMap} onShowedMap={handleClose} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
