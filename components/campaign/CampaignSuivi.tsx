@@ -11,7 +11,6 @@ import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
 import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
-import { AdjustPanel } from './AdjustPanel';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -34,7 +33,6 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [adjustProposal, setAdjustProposal] = useState<AdjustProposal | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -227,13 +225,13 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setAdjustProposal(m.proposal ?? null)}
+                      onClick={() => window.location.assign(`/map?campaign=${campaignId}&tab=creation`)}
                       style={{
                         background: 'transparent', border: '0.5px solid var(--brand-teal)', borderRadius: 6,
                         padding: '6px 12px', fontFamily: fInter, fontSize: 12, color: 'var(--brand-teal)', cursor: 'pointer',
                       }}
                     >
-                      Ouvrir dans Ajuster
+                      Modifier dans Programmer
                     </button>
                   </div>
                 )}
@@ -295,17 +293,6 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
         </div>
       </div>
 
-      {strategyId && adjustProposal && (
-        <AdjustPanel
-          campaignId={campaignId}
-          strategyId={strategyId}
-          open
-          onClose={() => setAdjustProposal(null)}
-          onApplied={() => setAdjustProposal(null)}
-          initialChanges={adjustProposal.changes}
-          initialReason={adjustProposal.reason}
-        />
-      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Hall de l'onglet « Création campagne » de l'overlay MAGELIAN
+ * Hall de l'onglet « Programmer » de l'overlay MAGELIAN
  * (spec 2026-07-17) : point d'entrée de la production de campagne.
  * - CTA « Nouvelle campagne » (naissance d'une coquille + wizard) ;
  * - « Reprendre une création » : coquilles magelian sans stratégie, badge

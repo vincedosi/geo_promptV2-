@@ -403,7 +403,7 @@ export function MagelianOverlay() {
         }}
       >
         {([
-          ['creation', 'Création campagne'],
+          ['creation', 'Programmer'],
           ['suivi', 'Suivi campagne'],
           ['apercu', 'Aperçu'],
         ] as const).map(([key, label]) => (
@@ -520,7 +520,7 @@ export function MagelianOverlay() {
             <CampaignSuivi key={selectedId} campaignId={selectedId} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Création campagne.
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
             </div>
           ) : null
         )}
@@ -530,7 +530,7 @@ export function MagelianOverlay() {
             <CampaignOverview key={selectedId} campaignId={selectedId} onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Création campagne.
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
             </div>
           ) : null
         )}

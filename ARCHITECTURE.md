@@ -71,14 +71,14 @@ genesis_app/
 │   ├── AppSidebar.tsx          # Sidebar navigation MAGELIAN
 │   ├── campaign/               # Gestion campagne (embarquee dans l'overlay MAGELIAN)
 │   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
-│   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Ajuster/Pause/Cloturer/Archiver/Supprimer)
-│   │   ├── CampaignSuivi.tsx   # Bilan + chat IA suivi campagne
-│   │   ├── AdjustPanel.tsx     # Panneau Ajuster (budgets par canal, pression, push DSP)
+│   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
+│   │   │                       # la modification passe par l'onglet Programmer (wizard)
+│   │   ├── CampaignSuivi.tsx   # Bilan + chat IA suivi campagne (proposition d'ajustement → renvoi Programmer)
 │   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
-│   ├── magelian/               # Overlay MAGELIAN (Creation/Suivi/Apercu) + deep-link
-│   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Creation/Suivi/Apercu ; selecteur
+│   ├── magelian/               # Overlay MAGELIAN (Programmer/Suivi/Apercu) + deep-link
+│   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Programmer/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
-│   │   ├── CreationHall.tsx    # Hall de l'onglet Creation : nouvelle campagne, reprendre une
+│   │   ├── CreationHall.tsx    # Hall de l'onglet Programmer : nouvelle campagne, reprendre une
 │   │   │                       # coquille (badge brouillon, suppression), modifier une lancee
 │   │   ├── MagelianDeepLink.tsx# Lit /map?campaign=&tab=, ouvre l'overlay, nettoie l'URL
 │   │   └── deep-link.ts        # parseMagelianParams (ignore ?overlay= des autres overlays)
@@ -246,7 +246,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
 | `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
-| `/api/bidding/strategies/[id]/adjust` | POST | Action « Ajuster » : patch partiel stratégie (budgets PAR CANAL — global = somme serveur), snapshot v+1 (RPC duplicate_plan_snapshot), push bidding par connecteur (lib/dsp/push : DV360 réel / simulé / skipped), journal consolidé bidding_agent_actions intent=manual_adjust + dsp_api_logs |
 | `/api/bidding/strategies/[id]/export` | GET | Fichier custom bidding « fidèle à la pression » par canal (`?channel=` du dsp_channel_registry) : scores par CP interpolés sur la courbe INSEE, 5 paliers quantiles, hors-zone 0 (zones strictes) ou 1 (national+surpression) — dv360 script .py / tiktok fiche / autres CSV `postal_code;score` (lib/digital/bidding-export.ts, étape 5 Lancement) |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
@@ -499,7 +498,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
 | `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
-| `duplicate_plan_snapshot` | Copie serveur du dernier snapshot de plan en v+1 (budgets par dsp, cpm, période) | `api/bidding/strategies/[id]/adjust/` |
 | `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/` |
 | `apply_zone_weights_to_strategy` | Bid multipliers par CP d'une strategie — generalise (sql/106) : courbe sur N'IMPORTE quel indicateur de `indicator_cp_values` via `variable_code`, uniforme sans indicateur | `api/bidding/strategies/` (POST/PATCH) |
 

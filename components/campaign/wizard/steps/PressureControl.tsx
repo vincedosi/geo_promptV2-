@@ -2,7 +2,7 @@
 
 /**
  * PressureControl — le réglage « Pression sur la cible », quantifié et
- * bidirectionnel. Partagé entre l'étape Pression du wizard et AdjustPanel.
+ * bidirectionnel. Utilisé par l'étape Pression du wizard.
  *
  * Trois façons synchronisées de piloter la même valeur (le multiplicateur
  * d'enchère max M, borné ×1 → ×3) :
