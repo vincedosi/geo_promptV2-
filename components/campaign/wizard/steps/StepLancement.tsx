@@ -50,6 +50,8 @@ interface Props extends StepProps {
   onCompleted: () => void;
   /** Appelé après renommage réussi de la campagne (répercute le nom dans l'overlay). */
   onRenamed?: (name: string) => void;
+  /** Appelé après un lancement réussi — le cockpit purge le brouillon autosauvé. */
+  onLaunched?: () => void;
 }
 
 function RecapRow({ title, sub }: { title: string; sub: string }) {
@@ -122,7 +124,7 @@ function BiddingFileRow({
 export function StepLancement({
   draft, campaignId, campaignName, campaignAdvertiser, campaignProduct,
   existingStrategyId, existingStrategyActive,
-  onPrev, onCompleted, onRenamed,
+  onPrev, onCompleted, onRenamed, onLaunched,
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -298,6 +300,7 @@ export function StepLancement({
 
       toastApi.success('Campagne créée', 'La stratégie est active — fichiers custom bidding disponibles.');
       setArmedStrategyId(strategyId);
+      onLaunched?.();
     } catch (err) {
       toastApi.error('Erreur réseau', err instanceof Error ? err.message : undefined);
     } finally {
