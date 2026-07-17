@@ -295,6 +295,15 @@ export async function PATCH(
     }
   }
 
+  // Rollups de suivi (cockpit) : le plan (in_target/planned_share) ou
+  // l'activation ont pu changer — best-effort, jamais bloquant.
+  if (weightChanged || ('status' in updates && updates.status === 'active')) {
+    const { error: rollupErr } = await supabase.rpc('refresh_campaign_rollups', {
+      p_campaign_id: current.campaign_id,
+    });
+    if (rollupErr) console.error('[strategies PATCH] refresh_campaign_rollups:', rollupErr.message);
+  }
+
   // Audit : 1 row par champ modifié
   for (const ch of changes) {
     const changeType = (() => {
