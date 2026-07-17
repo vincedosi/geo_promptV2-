@@ -14,11 +14,12 @@ import {
   resolveChannelAvailability, type ChannelRow, type ResolvedChannel, type StoredChannels,
 } from '@/lib/campaigns/channels';
 import type { StepProps } from './types';
-import { draftTotalBudget, fmtEUR } from './types';
+import { draftTotalBudget, fmtEUR, linksSelectionHash } from './types';
 import type { PlatformLinks } from '@/lib/campaigns/platform-links';
 import { Dv360LinkPanel } from './Dv360LinkPanel';
 import { PlatformLinkPanel } from './PlatformLinkPanel';
 import { AbsorbPanel } from './AbsorbPanel';
+import { ChannelHubRecap } from './ChannelHubRecap';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -72,6 +73,7 @@ export function StepCanaux({
   const [catalog, setCatalog] = useState<ChannelRow[] | null>(null);
   const [connected, setConnected] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
+  const [confirmedHash, setConfirmedHash] = useState<string | null>(null);
   const prefilledRef = useRef(false);
 
   useEffect(() => {
@@ -134,7 +136,8 @@ export function StepCanaux({
   const emptyMsg = catalog !== null && avail.length === 0;
   const total = draftTotalBudget(draft);
   const hasSelection = draft.channels.dsps.length > 0 || draft.channels.socials.length > 0;
-  const nextDisabled = !hasSelection || !total || !draft.startDate || !draft.endDate;
+  const currentHash = linksSelectionHash(draft.channels, draft.channelLinks);
+  const nextDisabled = !hasSelection || !total || !draft.startDate || !draft.endDate || confirmedHash !== currentHash;
 
   return (
     <StepShell
@@ -155,7 +158,7 @@ export function StepCanaux({
           nextLabel="Continuer →"
           onNext={onNext}
           nextDisabled={nextDisabled}
-          hint={nextDisabled ? 'canal + budget + période requis' : undefined}
+          hint={nextDisabled ? 'canal + budget + période + confirmation des liaisons requis' : undefined}
         />
       }
     >
@@ -270,6 +273,21 @@ export function StepCanaux({
           })()}
 
           {draft.channels.ad_server && <AbsorbPanel campaignId={campaignId} />}
+
+          {hasSelection && (
+            <FieldBlock label="Récapitulatif du câblage">
+              <ChannelHubRecap draft={draft} resolved={resolved} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontFamily: fInter, fontSize: 12.5, color: C.text }}>
+                <input
+                  type="checkbox"
+                  checked={confirmedHash === currentHash}
+                  onChange={(e) => setConfirmedHash(e.target.checked ? currentHash : null)}
+                  style={{ accentColor: 'var(--brand-teal)' }}
+                />
+                Je confirme ces liaisons
+              </label>
+            </FieldBlock>
+          )}
 
           <FieldBlock label="Période">
             <Row2>

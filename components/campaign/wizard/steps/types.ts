@@ -75,6 +75,23 @@ export interface StepProps {
   setDraft: Dispatch<SetStateAction<ProgDraft>>;
 }
 
+/** Empreinte canonique de la sélection canaux + liaisons — la coche de
+ *  confirmation (étape Canaux) se réinitialise dès qu'elle change. */
+export function linksSelectionHash(channels: CampaignChannels, links: DspLinks): string {
+  const sortedLinks = Object.fromEntries(
+    Object.entries(links)
+      .filter(([, v]) => v && Object.keys(v).length > 0)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, Object.fromEntries(Object.entries(v ?? {}).sort(([a], [b]) => a.localeCompare(b)))]),
+  );
+  return JSON.stringify({
+    d: [...channels.dsps].sort(),
+    s: [...channels.socials].sort(),
+    a: channels.ad_server,
+    l: sortedLinks,
+  });
+}
+
 
 /** Bornes de la pression sur la cible (multiplicateur d'enchère max). */
 export const PRESSURE_MIN = 1;
