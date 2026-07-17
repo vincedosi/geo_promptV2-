@@ -20,10 +20,12 @@
  * on ré-arme celle-ci via PATCH plutôt que de tenter un POST (qui renverrait
  * un 409 conflit) — "re-arming" simple, sans sur-ingénierie.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
+import { resolveChannelAvailability, type ResolvedChannel } from '@/lib/campaigns/channels';
+import { ChannelHubRecap } from './ChannelHubRecap';
 import type { StepProps } from './types';
 import {
   DIFFUSION_META, EXECUTION_MODE_META,
@@ -125,6 +127,11 @@ export function StepLancement({
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
+  // Seconde validation des liaisons (le hub condensé ci-dessous) — exigée
+  // avant le CTA de création, en plus de la coche de l'étape Canaux.
+  const [linksVerified, setLinksVerified] = useState(false);
+  const [resolved, setResolved] = useState<ResolvedChannel[]>([]);
+  const catalogRef = useRef(false);
   // Renseigné après création réussie dans CE montage du composant.
   const [armedStrategyId, setArmedStrategyId] = useState<string | null>(null);
   const downloadStrategyId = resolveDownloadStrategyId(
@@ -145,6 +152,19 @@ export function StepLancement({
     return () => { cancelled = true; };
   }, [campaignId]);
 
+  // Catalogue résolu — uniquement pour les labels du hub de câblage (1 appel, gardé par ref).
+  useEffect(() => {
+    if (catalogRef.current) return;
+    catalogRef.current = true;
+    (async () => {
+      try {
+        const res = await adminFetch(`/api/campaigns/${campaignId}/channels`, { cache: 'no-store' });
+        const d = res.ok ? await res.json() : null;
+        if (d) setResolved(resolveChannelAvailability(d.catalog ?? [], d.connectedProviders ?? [], !!d.is_demo));
+      } catch { /* hub sans détail de labels */ }
+    })();
+  }, [campaignId]);
+
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
@@ -163,7 +183,8 @@ export function StepLancement({
   const totalBudget = draftTotalBudget(draft);
   const finalName = draft.name.trim() || campaignName;
   const invalid = (draft.cibles.length > 1 && !ownerOrgId)
-    || !totalBudget || !draft.startDate || !draft.endDate || noChannel || !finalName;
+    || !totalBudget || !draft.startDate || !draft.endDate || noChannel || !finalName
+    || !linksVerified;
 
   async function handleArm() {
     if (invalid) return;
@@ -379,6 +400,16 @@ export function StepLancement({
               <span style={{ color: 'var(--success)' }}>liaison renseignée : {otherLinkedCodes.join(', ')}</span>
             </>
           )}
+        </div>
+      )}
+
+      {(draft.channels.dsps.length > 0 || draft.channels.socials.length > 0) && (
+        <div style={{ marginTop: 14 }}>
+          <ChannelHubRecap draft={draft} resolved={resolved} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontFamily: fInter, fontSize: 12.5, color: C.text }}>
+            <input type="checkbox" checked={linksVerified} onChange={(e) => setLinksVerified(e.target.checked)} style={{ accentColor: 'var(--brand-teal)' }} />
+            Liaisons vérifiées — deuxième validation
+          </label>
         </div>
       )}
 
