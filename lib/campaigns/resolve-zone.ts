@@ -1,7 +1,7 @@
 /**
  * Résolution de la zone finale d'une stratégie depuis un panier de cibles.
  * n=0 → national ; n=1 → zone directe ; n>1 → crée la composite (union + save).
- * Extrait verbatim de StepLancement — partagé wizard / AdjustPanel.
+ * Extrait verbatim de StepLancement (wizard).
  * CLIENT uniquement (adminFetch).
  */
 import { adminFetch } from '@/lib/admin-fetch';

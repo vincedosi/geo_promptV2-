@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('bidding_objectives')
-    .select('code, display_name, optimization_direction, formula, required_metrics, display_order')
+    .select('code, display_name, display_name_fr, description, unit, optimization_direction, formula, required_metrics, display_order')
     .eq('is_enabled', true)
     .order('display_order', { ascending: true });
 

@@ -11,6 +11,7 @@ import { StepPression } from '@/components/campaign/wizard/steps/StepPression';
 import { StepStrategie } from '@/components/campaign/wizard/steps/StepStrategie';
 import { StepLancement } from '@/components/campaign/wizard/steps/StepLancement';
 import { DEFAULT_PROG_DRAFT, pressureFromCurve, type ProgDraft } from '@/components/campaign/wizard/steps/types';
+import { useDraftAutosave } from '@/components/campaign/wizard/useDraftAutosave';
 import { CampaignOverview } from './CampaignOverview';
 import { C, fInter } from './_shared';
 
@@ -43,9 +44,27 @@ export function CampaignCockpit({
   const [view, setView] = useState<CockpitView>(initialView ?? 'overview');
 
   // Brouillon Programmer (Cible/Budget/Stratégie/Lancement) — un seul
-  // objet local, préservé tant que la page n'est pas rechargée.
+  // objet local, autosauvé côté serveur (bidding_strategy_drafts) et
+  // restauré au retour sur le wizard.
   const [progStep, setProgStep] = useState<ProgStepKey>('cible');
   const [draft, setDraft] = useState<ProgDraft>(DEFAULT_PROG_DRAFT);
+  const [draftBanner, setDraftBanner] = useState<{ savedAt: string } | null>(null);
+  // true dès qu'un brouillon serveur a été appliqué — le préremplissage depuis
+  // une stratégie existante ne doit alors plus écraser les champs restaurés.
+  const restoredAppliedRef = useRef(false);
+  const { restored, discard } = useDraftAutosave(
+    id, draft, PROG_STEP_ORDER.indexOf(progStep) + 1, view === 'prog',
+  );
+
+  useEffect(() => { restoredAppliedRef.current = false; setDraftBanner(null); }, [id]);
+  useEffect(() => {
+    if (!restored || restoredAppliedRef.current) return;
+    restoredAppliedRef.current = true;
+    setDraft(restored.draft);
+    const stepKey = PROG_STEP_ORDER[Math.min(PROG_STEP_ORDER.length, Math.max(1, restored.step)) - 1];
+    setProgStep(stepKey);
+    setDraftBanner({ savedAt: restored.savedAt });
+  }, [restored]);
 
   // Stratégie de bidding rattachée à cette campagne (si elle existe).
   const fetchStrategy = useCallback(async () => {
@@ -91,6 +110,8 @@ export function CampaignCockpit({
         if (!r.ok) return;
         const d = await r.json();
         const s = d.strategy ?? {};
+        // Un brouillon restauré (plus récent que la stratégie) a priorité.
+        if (restoredAppliedRef.current) return;
         setDraft((prev) => ({
           ...prev,
           pressure: pressureFromCurve(s.in_zone_weights) ?? prev.pressure,
@@ -123,6 +144,29 @@ export function CampaignCockpit({
   const progIndex = PROG_STEP_ORDER.indexOf(progStep);
   const goProgPrev = useCallback(() => setProgStep(PROG_STEP_ORDER[Math.max(0, progIndex - 1)]), [progIndex]);
   const goProgNext = useCallback(() => setProgStep(PROG_STEP_ORDER[Math.min(PROG_STEP_ORDER.length - 1, progIndex + 1)]), [progIndex]);
+
+  // « Repartir de zéro » : jette le brouillon serveur et repart du défaut
+  // pré-rempli depuis la campagne (nom/annonceur/produit/dates).
+  const handleDiscardDraft = useCallback(async () => {
+    await discard();
+    setDraftBanner(null);
+    const camp = detail?.campaign;
+    setDraft({
+      ...DEFAULT_PROG_DRAFT,
+      name: camp?.name ?? '',
+      advertiser: camp?.advertiser ?? '',
+      product: camp?.product ?? '',
+      startDate: camp?.date_start ? camp.date_start.slice(0, 10) : '',
+      endDate: camp?.date_end ? camp.date_end.slice(0, 10) : '',
+    });
+    setProgStep('cible');
+  }, [discard, detail]);
+
+  // Lancement réussi → le brouillon n'a plus lieu d'être.
+  const handleLaunched = useCallback(() => {
+    setDraftBanner(null);
+    void discard();
+  }, [discard]);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -198,6 +242,15 @@ export function CampaignCockpit({
 
       {view === 'prog' && (
         <>
+          {draftBanner && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', border: '0.5px solid var(--border-subtle)', borderRadius: 6, margin: '0 0 10px', fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
+              Brouillon restauré ({new Date(draftBanner.savedAt).toLocaleString('fr-FR')})
+              <button type="button" onClick={() => { void handleDiscardDraft(); }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--brand-teal)', fontFamily: fInter, fontSize: 12, cursor: 'pointer', padding: 0 }}>
+                Repartir de zéro
+              </button>
+            </div>
+          )}
           {progStep === 'cible' && (
             <StepCible draft={draft} setDraft={setDraft} campaignId={id} onNext={goProgNext} />
           )}
@@ -222,6 +275,7 @@ export function CampaignCockpit({
               existingStrategyActive={strategyStatus === 'active'}
               onPrev={goProgPrev}
               onRenamed={onRenamed}
+              onLaunched={handleLaunched}
               onCompleted={() => { fetchDetail(); fetchStrategy(); setView('overview'); }}
             />
           )}

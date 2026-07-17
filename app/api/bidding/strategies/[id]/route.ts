@@ -6,6 +6,9 @@
  *   → édition champ-par-champ avec audit trail dans strategy_changes.
  *     Si weighting_mode/in_zone_weights/out_zone_weights changent → relance
  *     apply_zone_weights_to_strategy() et regénère bidding_zone_configs.
+ *     Avant cette RPC : matérialisation lazy de l'indicateur de la courbe
+ *     (in_zone_weights.variable_code) si périmé (> 30 j) via RPC
+ *     materialize_indicator_cp_values() — échec → 422 { error: 'indicator_not_ready' }.
  *
  * DELETE /api/bidding/strategies/[id]
  *   → soft-archive : status='archived' + status_changed_at + audit log.
@@ -263,6 +266,25 @@ export async function PATCH(
   if (weightChanged) {
     const newInWeights = (updates.in_zone_weights as Record<string, unknown>) ?? cur.in_zone_weights ?? {};
     const newOutWeights = (updates.out_zone_weights as Record<string, unknown>) ?? cur.out_zone_weights ?? {};
+
+    // L'indicateur de la courbe doit être matérialisé par CP (frais < 30 j) avant l'application.
+    const varCode = (newInWeights as { variable_code?: string }).variable_code;
+    if (varCode) {
+      const { data: fresh } = await supabase
+        .from('indicator_cp_values')
+        .select('computed_at')
+        .eq('indicator_code', varCode)
+        .limit(1)
+        .maybeSingle();
+      const stale = !fresh || Date.now() - new Date(fresh.computed_at).getTime() > 30 * 24 * 3600 * 1000;
+      if (stale) {
+        const { error: matErr } = await supabase.rpc('materialize_indicator_cp_values', { p_indicator_code: varCode });
+        if (matErr) {
+          return NextResponse.json({ error: 'indicator_not_ready', detail: matErr.message }, { status: 422 });
+        }
+      }
+    }
+
     const { error: rpcErr } = await supabase.rpc('apply_zone_weights_to_strategy', {
       p_strategy_id: id,
       p_in_weights: newInWeights,

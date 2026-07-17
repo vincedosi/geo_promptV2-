@@ -11,6 +11,9 @@
  *   3. Check conflit (pas de stratégie active existante)
  *   4. INSERT bidding_strategies avec toutes les colonnes A4.7
  *   5. INSERT batch bidding_strategy_subzones si fourni
+ *   5bis. Matérialisation lazy : si in_zone_weights.variable_code est fourni et périmé
+ *         (> 30 j / absent de indicator_cp_values), RPC materialize_indicator_cp_values()
+ *         avant l'étape suivante — échec → 422 { error: 'indicator_not_ready' }.
  *   6. RPC apply_zone_weights_to_strategy() pour générer les bidding_zone_configs
  *   7. INSERT agent_autonomy_settings si autonomy_override fourni
  *   8. UPDATE draft → consumed si consume_draft_id fourni
@@ -269,6 +272,24 @@ export async function POST(request: NextRequest) {
     const { error: szErr } = await supabase.from('bidding_strategy_subzones').insert(subzoneRows);
     if (szErr) {
       return NextResponse.json({ error: `subzones: ${szErr.message}` }, { status: 500 });
+    }
+  }
+
+  // L'indicateur de la courbe doit être matérialisé par CP (frais < 30 j) avant l'application.
+  const varCode = (body.in_zone_weights as { variable_code?: string }).variable_code;
+  if (varCode) {
+    const { data: fresh } = await supabase
+      .from('indicator_cp_values')
+      .select('computed_at')
+      .eq('indicator_code', varCode)
+      .limit(1)
+      .maybeSingle();
+    const stale = !fresh || Date.now() - new Date(fresh.computed_at).getTime() > 30 * 24 * 3600 * 1000;
+    if (stale) {
+      const { error: matErr } = await supabase.rpc('materialize_indicator_cp_values', { p_indicator_code: varCode });
+      if (matErr) {
+        return NextResponse.json({ error: 'indicator_not_ready', detail: matErr.message }, { status: 422 });
+      }
     }
   }
 

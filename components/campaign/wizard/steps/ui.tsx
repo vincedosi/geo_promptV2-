@@ -159,7 +159,8 @@ export function NumberField({
   );
 }
 
-/** Champ date — même look que NumberField. */
+/** Champ date — même look que NumberField. Un clic n'importe où dans le champ
+ *  ouvre le calendrier natif (showPicker) : pas de saisie segment par segment. */
 export function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
@@ -170,9 +171,10 @@ export function DateField({ label, value, onChange }: { label: string; value: st
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* navigateur sans showPicker : saisie clavier */ } }}
         onFocus={(e) => { e.currentTarget.style.borderColor = C.teal50; }}
         onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
-        style={{ ...inputBase, fontFamily: fMono, fontSize: 13, colorScheme: 'dark' }}
+        style={{ ...inputBase, fontFamily: fMono, fontSize: 13, colorScheme: 'dark', cursor: 'pointer' }}
       />
     </div>
   );

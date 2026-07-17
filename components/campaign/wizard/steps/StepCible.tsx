@@ -157,7 +157,14 @@ export function StepCible({
       const saved = await saveRes.json();
       setDraft((prev) => ({
         ...prev,
-        cibles: addCible(prev.cibles, { id: saved.zone_id, name, sourceType: 'indicator_threshold' }),
+        cibles: addCible(prev.cibles, {
+          id: saved.zone_id, name, sourceType: 'indicator_threshold',
+          indicator: {
+            code: selected.indicator_code, label: selected.label,
+            min: selected.slider_min, max: selected.slider_max,
+          },
+          population: preview?.population ?? null,
+        }),
       }));
       setSelected(null);
       setPreview(null);
@@ -166,7 +173,7 @@ export function StepCible({
     } finally {
       setMaterializing(false);
     }
-  }, [selected, orgId, operator, threshold, materializing, setDraft]);
+  }, [selected, orgId, operator, threshold, materializing, preview, setDraft]);
 
   const familyIndicators = indicators?.filter((i) => i.famille === famille) ?? [];
 

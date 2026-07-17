@@ -20,16 +20,19 @@
  * on ré-arme celle-ci via PATCH plutôt que de tenter un POST (qui renverrait
  * un 409 conflit) — "re-arming" simple, sans sur-ingénierie.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
+import { resolveChannelAvailability, type ResolvedChannel } from '@/lib/campaigns/channels';
+import { ChannelHubRecap } from './ChannelHubRecap';
+import { ForecastStrip } from './ForecastStrip';
 import type { StepProps } from './types';
 import {
-  DIFFUSION_META, EXECUTION_MODE_META, TARGET_VARIABLE_CODE,
-  diffusionCurveFloor, diffusionOutZoneWeights,
-  draftTotalBudget, fmtDateShort, fmtEUR, fmtMult, pressureCurve,
-  resolveDownloadStrategyId,
+  DIFFUSION_META, EXECUTION_MODE_META, PACING_META,
+  buildInZoneWeights, diffusionOutZoneWeights,
+  draftTotalBudget, fmtDateShort, fmtEUR, fmtMult,
+  resolveDownloadStrategyId, resolvePressureIndicators, strategyFieldsFromDraft,
 } from './types';
 import { fInter, fMono, C, GhostButton, Lead, PrimaryButton, StepShell, TealButton } from './ui';
 
@@ -48,6 +51,8 @@ interface Props extends StepProps {
   onCompleted: () => void;
   /** Appelé après renommage réussi de la campagne (répercute le nom dans l'overlay). */
   onRenamed?: (name: string) => void;
+  /** Appelé après un lancement réussi — le cockpit purge le brouillon autosauvé. */
+  onLaunched?: () => void;
 }
 
 function RecapRow({ title, sub }: { title: string; sub: string }) {
@@ -120,11 +125,16 @@ function BiddingFileRow({
 export function StepLancement({
   draft, campaignId, campaignName, campaignAdvertiser, campaignProduct,
   existingStrategyId, existingStrategyActive,
-  onPrev, onCompleted, onRenamed,
+  onPrev, onCompleted, onRenamed, onLaunched,
 }: Props) {
   const { toast: toastApi } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
+  // Seconde validation des liaisons (le hub condensé ci-dessous) — exigée
+  // avant le CTA de création, en plus de la coche de l'étape Canaux.
+  const [linksVerified, setLinksVerified] = useState(false);
+  const [resolved, setResolved] = useState<ResolvedChannel[]>([]);
+  const catalogRef = useRef(false);
   // Renseigné après création réussie dans CE montage du composant.
   const [armedStrategyId, setArmedStrategyId] = useState<string | null>(null);
   const downloadStrategyId = resolveDownloadStrategyId(
@@ -145,9 +155,45 @@ export function StepLancement({
     return () => { cancelled = true; };
   }, [campaignId]);
 
+  // Catalogue résolu — uniquement pour les labels du hub de câblage (1 appel, gardé par ref).
+  useEffect(() => {
+    if (catalogRef.current) return;
+    catalogRef.current = true;
+    (async () => {
+      try {
+        const res = await adminFetch(`/api/campaigns/${campaignId}/channels`, { cache: 'no-store' });
+        const d = res.ok ? await res.json() : null;
+        if (d) setResolved(resolveChannelAvailability(d.catalog ?? [], d.connectedProviders ?? [], !!d.is_demo));
+      } catch { /* hub sans détail de labels */ }
+    })();
+  }, [campaignId]);
+
+  // Libellé FR de l'objectif choisi (catalogue 8 lignes, 1 appel gardé par ref).
+  const [objectiveLabel, setObjectiveLabel] = useState<string | null>(null);
+  const objectivesRef = useRef(false);
+  useEffect(() => {
+    if (objectivesRef.current) return;
+    objectivesRef.current = true;
+    (async () => {
+      try {
+        const res = await adminFetch('/api/bidding/objectives', { cache: 'no-store' });
+        const d = res.ok ? await res.json() : null;
+        const match = (d?.objectives ?? []).find(
+          (o: { code: string; display_name: string; display_name_fr: string | null }) => o.code === draft.objective,
+        );
+        if (match) setObjectiveLabel(match.display_name_fr ?? match.display_name);
+      } catch { /* récap sans libellé — le code fait foi */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const cibleTitle = draft.cibles.length === 0
     ? 'National (métropole + DROM)'
     : draft.cibles.map((c) => c.name).join(' + ');
+  const pressureIndicators = resolvePressureIndicators(draft.cibles);
+  const pressureIndicatorLabel = pressureIndicators.find((i) => i.code === draft.pressureVariable)?.label
+    ?? pressureIndicators[0]?.label
+    ?? (draft.cibles.length > 0 ? 'pression uniforme' : "Taux d'abstention (2022)");
   // Canaux (hors DV360, qui a son wording push) dont une liaison est renseignée.
   const otherLinkedCodes = [
     ...draft.channels.dsps, ...draft.channels.socials,
@@ -159,7 +205,8 @@ export function StepLancement({
   const totalBudget = draftTotalBudget(draft);
   const finalName = draft.name.trim() || campaignName;
   const invalid = (draft.cibles.length > 1 && !ownerOrgId)
-    || !totalBudget || !draft.startDate || !draft.endDate || noChannel || !finalName;
+    || !totalBudget || !draft.startDate || !draft.endDate || noChannel || !finalName
+    || !linksVerified;
 
   async function handleArm() {
     if (invalid) return;
@@ -184,15 +231,16 @@ export function StepLancement({
 
       const { scope_type, zone_id } = await resolveFinalZone(draft.cibles, ownerOrgId);
       const hasZones = draft.cibles.length > 0;
+      // Courbe sur l'indicateur réellement ciblé (ou uniforme sans indicateur,
+      // abstention en national pur — voir buildInZoneWeights). weighting_mode
+      // DOIT suivre le mode réel de la courbe : sinon resolveWeightingTarget()
+      // (lib/bidding-ml/metric-labels.ts) cherche un variable_code absent en
+      // mode uniform et le Pilotage perd le ciblage sans erreur visible.
+      const inZoneWeights = buildInZoneWeights(draft);
+      const weightingMode = (inZoneWeights as { mode?: string }).mode === 'uniform' ? 'uniform' as const : 'by_insee_variable' as const;
       const commonFields = {
-        weighting_mode: 'by_insee_variable' as const,
-        in_zone_weights: {
-          mode: 'by_insee_variable',
-          variable_code: TARGET_VARIABLE_CODE,
-          // En national+surpression, la courbe est bornée à ≥1 : le hors-zone
-          // est à ×1, le bas de la cible ne doit pas passer dessous.
-          curve: pressureCurve(draft.pressure, diffusionCurveFloor(draft.diffusion, hasZones)),
-        },
+        weighting_mode: weightingMode,
+        in_zone_weights: inZoneWeights,
         out_zone_weights: diffusionOutZoneWeights(draft.diffusion, hasZones),
         scope_type,
         zone_id,
@@ -200,6 +248,8 @@ export function StepLancement({
         forecast_cpm: draft.forecastCpm,
         currency: 'EUR' as const,
         execution_mode: draft.executionMode,
+        // Objectif, KPI cible, capping fréquence, pacing (étape Stratégie).
+        ...strategyFieldsFromDraft(draft),
       };
 
       let strategyId = existingStrategyId;
@@ -212,7 +262,6 @@ export function StepLancement({
             campaign_id: campaignId,
             name: `Pilotage — ${finalName}`,
             algorithm_code: 'thompson_sampling',
-            objective_code: 'maximize_leads',
             ...commonFields,
             start_date: draft.startDate || undefined,
             end_date: draft.endDate || undefined,
@@ -272,6 +321,7 @@ export function StepLancement({
 
       toastApi.success('Campagne créée', 'La stratégie est active — fichiers custom bidding disponibles.');
       setArmedStrategyId(strategyId);
+      onLaunched?.();
     } catch (err) {
       toastApi.error('Erreur réseau', err instanceof Error ? err.message : undefined);
     } finally {
@@ -323,6 +373,8 @@ export function StepLancement({
         Récapitulatif avant de créer la campagne. Tout est réversible : tu pourras repasser une étape à tout moment.
       </Lead>
 
+      <ForecastStrip draft={draft} />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <RecapRow
           title={finalName}
@@ -333,7 +385,7 @@ export function StepLancement({
         />
         <RecapRow
           title={`Cible · pression ${fmtMult(draft.pressure)}`}
-          sub={`Taux d'abstention (2022) sur ${cibleTitle}${
+          sub={`${pressureIndicatorLabel} sur ${cibleTitle}${
             draft.cibles.length > 0 ? ` · ${DIFFUSION_META[draft.diffusion].recap}` : ''
           }`}
         />
@@ -347,7 +399,14 @@ export function StepLancement({
         />
         <RecapRow
           title={EXECUTION_MODE_META[draft.executionMode].title}
-          sub={EXECUTION_MODE_META[draft.executionMode].sub}
+          sub={[
+            EXECUTION_MODE_META[draft.executionMode].sub,
+            `Objectif : ${objectiveLabel ?? draft.objective}`,
+            draft.freqCapImps != null && draft.freqCapImps > 0 && draft.freqCapDays != null && draft.freqCapDays > 0
+              ? `Cap ${draft.freqCapImps} imps / ${draft.freqCapDays} j`
+              : null,
+            `Pacing : ${PACING_META[draft.pacing].title.toLowerCase()}`,
+          ].filter(Boolean).join(' · ')}
         />
       </div>
 
@@ -374,6 +433,16 @@ export function StepLancement({
               <span style={{ color: 'var(--success)' }}>liaison renseignée : {otherLinkedCodes.join(', ')}</span>
             </>
           )}
+        </div>
+      )}
+
+      {(draft.channels.dsps.length > 0 || draft.channels.socials.length > 0) && (
+        <div style={{ marginTop: 14 }}>
+          <ChannelHubRecap draft={draft} resolved={resolved} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontFamily: fInter, fontSize: 12.5, color: C.text }}>
+            <input type="checkbox" checked={linksVerified} onChange={(e) => setLinksVerified(e.target.checked)} style={{ accentColor: 'var(--brand-teal)' }} />
+            Liaisons vérifiées — deuxième validation
+          </label>
         </div>
       )}
 

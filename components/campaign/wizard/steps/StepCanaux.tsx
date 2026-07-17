@@ -8,16 +8,18 @@
  * Écrit `channels`, `channelBudgets`, `startDate`, `endDate` dans le brouillon ;
  * la persistance se fait au Lancement.
  */
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
   resolveChannelAvailability, type ChannelRow, type ResolvedChannel, type StoredChannels,
 } from '@/lib/campaigns/channels';
 import type { StepProps } from './types';
-import { draftTotalBudget, fmtEUR } from './types';
+import { draftTotalBudget, fmtEUR, linksSelectionHash } from './types';
 import type { PlatformLinks } from '@/lib/campaigns/platform-links';
-import { Dv360LinkPanel } from './Dv360LinkPanel';
-import { PlatformLinkPanel } from './PlatformLinkPanel';
+import { AbsorbPanel } from './AbsorbPanel';
+import { ChannelHubRecap } from './ChannelHubRecap';
+import { ChannelLinkAccordion } from './ChannelLinkAccordion';
+import { ForecastStrip } from './ForecastStrip';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -71,6 +73,7 @@ export function StepCanaux({
   const [catalog, setCatalog] = useState<ChannelRow[] | null>(null);
   const [connected, setConnected] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
+  const [confirmedHash, setConfirmedHash] = useState<string | null>(null);
   const prefilledRef = useRef(false);
 
   useEffect(() => {
@@ -133,7 +136,8 @@ export function StepCanaux({
   const emptyMsg = catalog !== null && avail.length === 0;
   const total = draftTotalBudget(draft);
   const hasSelection = draft.channels.dsps.length > 0 || draft.channels.socials.length > 0;
-  const nextDisabled = !hasSelection || !total || !draft.startDate || !draft.endDate;
+  const currentHash = linksSelectionHash(draft.channels, draft.channelLinks);
+  const nextDisabled = !hasSelection || !total || !draft.startDate || !draft.endDate || confirmedHash !== currentHash;
 
   return (
     <StepShell
@@ -154,7 +158,7 @@ export function StepCanaux({
           nextLabel="Continuer →"
           onNext={onNext}
           nextDisabled={nextDisabled}
-          hint={nextDisabled ? 'canal + budget + période requis' : undefined}
+          hint={nextDisabled ? 'canal + budget + période + confirmation des liaisons requis' : undefined}
         />
       }
     >
@@ -177,13 +181,19 @@ export function StepCanaux({
               {dsps.map((r) => {
                 const selected = draft.channels.dsps.includes(r.code);
                 return (
-                  <OptionRow key={r.code}
-                    selected={selected}
-                    onClick={() => toggle('dsps', r.code)}
-                    title={r.label} sub={r.category.toUpperCase()}
-                    value={selected
-                      ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
-                      : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                  <Fragment key={r.code}>
+                    <OptionRow
+                      selected={selected}
+                      onClick={() => toggle('dsps', r.code)}
+                      title={r.label} sub={r.category.toUpperCase()}
+                      value={selected
+                        ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
+                        : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                    {selected && (r.link_levels?.length ?? 0) > 0 && (
+                      <ChannelLinkAccordion channel={r} campaignId={campaignId}
+                        links={draft.channelLinks[r.code]} onChange={(entry) => setLinks(r.code, entry)} />
+                    )}
+                  </Fragment>
                 );
               })}
               {dsps.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun DSP disponible.</div>}
@@ -195,13 +205,19 @@ export function StepCanaux({
               {socials.map((r) => {
                 const selected = draft.channels.socials.includes(r.code);
                 return (
-                  <OptionRow key={r.code}
-                    selected={selected}
-                    onClick={() => toggle('socials', r.code)}
-                    title={r.label} sub="Social"
-                    value={selected
-                      ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
-                      : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                  <Fragment key={r.code}>
+                    <OptionRow
+                      selected={selected}
+                      onClick={() => toggle('socials', r.code)}
+                      title={r.label} sub="Social"
+                      value={selected
+                        ? <RowBudgetInput value={draft.channelBudgets[r.code] ?? null} onChange={(v) => setBudget(r.code, v)} />
+                        : <Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                    {selected && (r.link_levels?.length ?? 0) > 0 && (
+                      <ChannelLinkAccordion channel={r} campaignId={campaignId}
+                        links={draft.channelLinks[r.code]} onChange={(entry) => setLinks(r.code, entry)} />
+                    )}
+                  </Fragment>
                 );
               })}
               {socials.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun réseau disponible.</div>}
@@ -216,57 +232,45 @@ export function StepCanaux({
             <span style={{ fontFamily: fMono, fontSize: 15, color: C.text }}>{fmtEUR(total)}</span>
           </div>
 
+          <ForecastStrip draft={draft} />
+
           <FieldBlock label="Ad server (mesure)">
             <OptsList>
-              {adservers.map((r) => (
-                <OptionRow key={r.code}
-                  selected={draft.channels.ad_server === r.code}
-                  onClick={() => pickAdServer(r.code)}
-                  title={r.label} sub="Ad server"
-                  value={<Badge kind={r.connected ? 'connecté' : 'démo'} />} />
-              ))}
+              {adservers.map((r) => {
+                const selected = draft.channels.ad_server === r.code;
+                return (
+                  <Fragment key={r.code}>
+                    <OptionRow
+                      selected={selected}
+                      onClick={() => pickAdServer(r.code)}
+                      title={r.label} sub="Ad server"
+                      value={<Badge kind={r.connected ? 'connecté' : 'démo'} />} />
+                    {selected && (r.link_levels?.length ?? 0) > 0 && (
+                      <ChannelLinkAccordion channel={r} campaignId={campaignId}
+                        links={draft.channelLinks[r.code]} onChange={(entry) => setLinks(r.code, entry)} />
+                    )}
+                  </Fragment>
+                );
+              })}
               {adservers.length === 0 && <div style={{ fontSize: 12, color: C.textDim }}>Aucun ad server disponible.</div>}
             </OptsList>
+            {draft.channels.ad_server && <AbsorbPanel campaignId={campaignId} />}
           </FieldBlock>
 
-          {/* Liaisons plateformes — un panel par canal sélectionné dont le registre
-              définit des niveaux : cascade API si la connexion de l'org sait lister
-              (DV360), saisie manuelle Nom + ID sinon (démo / connexion absente).
-              Même structure channelLinks[code] dans les deux cas. */}
-          {(() => {
-            const selectedCodes = [
-              ...draft.channels.dsps, ...draft.channels.socials,
-              ...(draft.channels.ad_server ? [draft.channels.ad_server] : []),
-            ];
-            const linkable = resolved.filter(
-              (r) => selectedCodes.includes(r.code) && (r.link_levels?.length ?? 0) > 0,
-            );
-            if (linkable.length === 0) return null;
-            return (
-              <FieldBlock label="Liaisons plateformes (optionnel)">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {linkable.map((r) => (
-                    r.connection_provider === 'dv360' && r.connected ? (
-                      <Dv360LinkPanel
-                        key={r.code}
-                        campaignId={campaignId}
-                        links={draft.channelLinks[r.code]}
-                        onChange={(entry) => setLinks(r.code, entry)}
-                      />
-                    ) : (
-                      <PlatformLinkPanel
-                        key={r.code}
-                        channelLabel={r.label}
-                        levels={r.link_levels ?? []}
-                        links={draft.channelLinks[r.code]}
-                        onChange={(entry) => setLinks(r.code, entry)}
-                      />
-                    )
-                  ))}
-                </div>
-              </FieldBlock>
-            );
-          })()}
+          {hasSelection && (
+            <FieldBlock label="Récapitulatif du câblage">
+              <ChannelHubRecap draft={draft} resolved={resolved} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontFamily: fInter, fontSize: 12.5, color: C.text }}>
+                <input
+                  type="checkbox"
+                  checked={confirmedHash === currentHash}
+                  onChange={(e) => setConfirmedHash(e.target.checked ? currentHash : null)}
+                  style={{ accentColor: 'var(--brand-teal)' }}
+                />
+                Je confirme ces liaisons
+              </label>
+            </FieldBlock>
+          )}
 
           <FieldBlock label="Période">
             <Row2>

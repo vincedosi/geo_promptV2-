@@ -18,7 +18,6 @@ import { CampaignStatusBadge } from '@/components/campaigns/CampaignStatusBadge'
 import { effectiveCampaignStatus, type StatusOverride } from '@/lib/campaigns/status';
 import type { CampaignChannels } from '@/lib/campaigns/channels';
 import type { CampaignDetail } from '@/types/campaign';
-import { AdjustPanel } from './AdjustPanel';
 import {
   C, fInter, fMono, fmtDate, fmtNum,
   StatCard, StatsTable, DataTable, OrganizationsSection, ActionButton,
@@ -39,24 +38,6 @@ export function CampaignOverview({
   const [deleting, setDeleting] = useState(false);
   const [overridePending, setOverridePending] = useState(false);
   const [activeTab, setActiveTab] = useState<OverviewTab>('pays');
-  const [strategyId, setStrategyId] = useState<string | null>(null);
-  const [strategyStatus, setStrategyStatus] = useState<string | null>(null);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await adminFetch('/api/bidding/strategies', { cache: 'no-store' });
-        const d = r.ok ? await r.json() : { strategies: [] };
-        const match = (d.strategies ?? []).find(
-          (s: { campaign_id: string; status?: string }) => s.campaign_id === id,
-        );
-        if (!cancelled) { setStrategyId(match?.id ?? null); setStrategyStatus(match?.status ?? null); }
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
 
   const fetchDetail = useCallback(async (p: number) => {
     setLoading(true);
@@ -149,7 +130,6 @@ export function CampaignOverview({
   const matchedIris = stats.by_department.reduce((sum, d) => sum + d.row_count, 0);
   const pctMatched = franceRows > 0 ? Math.round((matchedIris / franceRows) * 100) : 0;
   const totalPages = Math.ceil(data.total / 50);
-  const hasActiveStrategy = Boolean(strategyId) && strategyStatus === 'active';
 
   // ── Tab data ──────────────────────────────────────────────────────────────
   const tabs = [
@@ -183,16 +163,6 @@ export function CampaignOverview({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {status === 'en_cours' && (
-            <span title={!hasActiveStrategy ? "Lance d'abord une stratégie de pilotage (onglet Création campagne) pour pouvoir ajuster." : undefined}>
-              <ActionButton
-                label="Ajuster"
-                variant="teal"
-                onClick={() => setAdjustOpen(true)}
-                disabled={overridePending || !hasActiveStrategy}
-              />
-            </span>
-          )}
           {status === 'en_cours' && (
             <>
               <ActionButton label="Mettre en pause" onClick={() => setOverride('paused')} disabled={overridePending} />
@@ -326,16 +296,6 @@ export function CampaignOverview({
             </div>
           )}
         </>
-      )}
-
-      {strategyId && (
-        <AdjustPanel
-          campaignId={id}
-          strategyId={strategyId}
-          open={adjustOpen}
-          onClose={() => setAdjustOpen(false)}
-          onApplied={() => { fetchDetail(page); }}
-        />
       )}
 
       {/* Delete confirmation */}
