@@ -11,6 +11,8 @@ import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
 import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
+import type { SuiviPayload } from '@/lib/campaigns/suivi-metrics';
+import { SuiviCockpit } from './suivi/SuiviCockpit';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -34,6 +36,26 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Cockpit de suivi en vol : payload agrégé serveur (rollups), un seul fetch.
+  const [suivi, setSuivi] = useState<SuiviPayload | null>(null);
+  const [suiviError, setSuiviError] = useState(false);
+  const suiviFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!strategyId || strategyStatus === 'completed') return;
+    if (suiviFetchedRef.current === campaignId) return;
+    suiviFetchedRef.current = campaignId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' });
+        if (!res.ok) { if (!cancelled) setSuiviError(true); return; }
+        const d = (await res.json()) as SuiviPayload;
+        if (!cancelled) setSuivi(d);
+      } catch { if (!cancelled) setSuiviError(true); }
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, strategyId, strategyStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,13 +151,21 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
             padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
           }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-            <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>Bilan</span>
+            <span style={{ fontFamily: fInter, fontWeight: 500, fontSize: 12, color: 'var(--text-primary)' }}>
+              {strategyId && strategyStatus === 'completed' ? 'Bilan' : 'Suivi'}
+            </span>
           </div>
 
           {!strategyLoaded ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>Chargement…</div>
           ) : strategyId && strategyStatus === 'completed' ? (
             <FinalReport strategyId={strategyId} />
+          ) : strategyId && suivi ? (
+            <SuiviCockpit payload={suivi} />
+          ) : strategyId && !suiviError ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Calcul du suivi…
+            </div>
           ) : (
             <div style={{
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)',
@@ -143,8 +173,8 @@ export function CampaignSuivi({ campaignId }: { campaignId: string }) {
             }}>
               <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
                 {strategyId
-                  ? 'Le bilan complet sera disponible à la fin de la campagne (stratégie encore en cours).'
-                  : 'Aucune stratégie de bidding rattachée — le bilan complet sera disponible pour les campagnes pilotées.'}
+                  ? 'Suivi indisponible pour le moment — réessaie en rouvrant l’onglet.'
+                  : 'Aucune stratégie de bidding rattachée — le suivi en vol et le bilan sont disponibles pour les campagnes pilotées.'}
                 {' '}En attendant, interroge la campagne via le chat ci-contre.
               </div>
             </div>
