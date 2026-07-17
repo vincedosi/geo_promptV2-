@@ -20,6 +20,7 @@ import { Dv360LinkPanel } from './Dv360LinkPanel';
 import { PlatformLinkPanel } from './PlatformLinkPanel';
 import { AbsorbPanel } from './AbsorbPanel';
 import { ChannelHubRecap } from './ChannelHubRecap';
+import { ForecastStrip } from './ForecastStrip';
 import { B, C, DateField, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell, fInter, fMono } from './ui';
 
 function Badge({ kind }: { kind: 'connecté' | 'démo' }) {
@@ -219,6 +220,8 @@ export function StepCanaux({
             <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>Budget global (somme)</span>
             <span style={{ fontFamily: fMono, fontSize: 15, color: C.text }}>{fmtEUR(total)}</span>
           </div>
+
+          <ForecastStrip draft={draft} />
 
           <FieldBlock label="Ad server (mesure)">
             <OptsList>

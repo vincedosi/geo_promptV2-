@@ -26,6 +26,7 @@ import { useToast } from '@/components/ui/geo-toast';
 import { resolveFinalZone } from '@/lib/campaigns/resolve-zone';
 import { resolveChannelAvailability, type ResolvedChannel } from '@/lib/campaigns/channels';
 import { ChannelHubRecap } from './ChannelHubRecap';
+import { ForecastStrip } from './ForecastStrip';
 import type { StepProps } from './types';
 import {
   DIFFUSION_META, EXECUTION_MODE_META,
@@ -351,6 +352,8 @@ export function StepLancement({
       <Lead>
         Récapitulatif avant de créer la campagne. Tout est réversible : tu pourras repasser une étape à tout moment.
       </Lead>
+
+      <ForecastStrip draft={draft} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <RecapRow
