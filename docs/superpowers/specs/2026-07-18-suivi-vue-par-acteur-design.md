@@ -70,6 +70,38 @@ atteinte_objectif(acteur) = impressions_adserver(acteur) ÷ expected_global × 1
   « mauvais »). Le panneau par acteur affiche la contribution sans ton
   d'alerte ; le ton vit sur la tuile objectif du cockpit.
 
+## Voir vite où l'objectif décroche — pilier 2 par CP
+
+Le media planner doit repérer **d'un coup d'œil** les zones où l'objectif n'est
+pas tenu (et inversement les sur-livrées), sans lire 12 000 CP. Score par CP :
+
+```
+objective_alignment(CP) = impressions(CP) ÷ (planned_share(CP) × expected_global) × 100
+```
+
+- **100 = pile sur l'objectif** ; `< 100` = zone **sous** l'objectif ; `> 100` =
+  zone **au-dessus**. Métrique **divergente centrée sur 100**.
+- **Définie uniquement sur les zones cibles** (`planned_share > 0`). Hors cible :
+  pas d'objectif → **grisé**, jamais de faux rouge.
+- Filtrable par acteur : `impressions(CP, acteurs) ÷ (planned_share × expected_global)`
+  → contribution de l'acteur à l'objectif de la zone (Σ acteurs = alignement plein).
+
+Deux surfaces, pas plus (simplicité) :
+
+1. **Carte divergente centrée sur 100 %** — nouveau mode `objectif` de la carte
+   suivi. Rouge = sous l'objectif, pâle ≈ 100 %, teal = au-dessus. La géographie
+   en une seconde. Réutilise l'infra `METRICS` déclarative de `SuiviMapLayer`
+   (on ajoute une entrée à **échelle divergente**, pas séquentielle).
+2. **Bandeau d'écarts** en tête du tableau départements : « **X zones sous
+   l'objectif · Y au-dessus** » + les **3-5 pires écarts** cliquables (drill CP).
+   Le planner obtient ses priorités d'action sans scanner la liste.
+
+**Distinction avec `hold_index` (pilier 1)** : `hold_index` = distribution
+**relative** (délivré ÷ réalisé global, renormalisé) → « la forme de la
+diffusion suit-elle le plan ? ». `objective_alignment` = **absolu** (délivré ÷
+objectif global) → « la zone atteint-elle son volume cible ? » (intègre le
+pacing). Les deux coexistent : hold = pression tenue, alignment = objectif tenu.
+
 ## Le modèle « acteur » (données)
 
 L'ad server (`dsp_campaign_data` → rollups) est la **source unifiée** : la seule
@@ -138,12 +170,22 @@ WITH cp AS (
   **Renormalisation** : `v_cp_total_imps` = somme du sous-ensemble → parts et
   `hold_index` renormalisés sur les acteurs cochés (pas d'effondrement mécanique).
 - `medias` : conservé (groupé par `media`, filtré par acteur).
+- **Pilier 2 par CP** : ajoute `objective_alignment` sur chaque ligne `depts`
+  (`SUM(impressions) ÷ (SUM(planned_share) × expected_global) × 100`, cible
+  uniquement), et un bloc `objective_zones` = `{ under: int, over: int }`
+  (nb de CP cibles avec `objective_alignment < 90` / `> 110`) pour le bandeau
+  d'écarts. `expected_global` = `objective.expected` déjà calculé.
 
 ### `get_campaign_suivi_map(…, p_actors text[] DEFAULT NULL)`
-CTE `total` + sélection CP filtrées par acteur, group-by-CP-first.
+CTE `total` + sélection CP filtrées par acteur, group-by-CP-first. **Nouveau
+`p_metric = 'objectif'`** : `impressions ÷ (planned_share × expected_global) ×
+100` (cible uniquement, hors cible → `value = NULL` → grisé). `expected_global`
+recalculé dans la fonction (mêmes règles que `get_campaign_suivi.objective`).
+Les métriques `hold`/`cpm` existantes inchangées.
 
 ### `get_campaign_suivi_cps(…, p_actors text[] DEFAULT NULL)`
-Idem, détail CP par acteur.
+Idem, détail CP par acteur. Ajoute `objective_alignment` par CP (même formule,
+cible uniquement) pour le drill du bandeau d'écarts.
 
 ### Nouveau : `get_campaign_actors(p_campaign_id uuid)`
 Liste **complète** des acteurs (non filtrée) — source du multi-select ET du
@@ -208,11 +250,26 @@ n'affiche que les acteurs cochés. Inséré entre `SuiviCockpit` et
 ### Carte
 `app/map/_components/SuiviMapLayer.tsx` + event `magelian:suivi-map` :
 `detail.actors?: string[]`. La couche passe `actors` à son fetch. « Voir sur la
-carte » propage la sélection courante.
+carte » propage la sélection courante. **Nouvelle entrée `METRICS.objectif`** :
+échelle **divergente centrée sur 100** (rouge `< 100` → pâle `≈ 100` → teal
+`> 100`, tokens `--danger` / neutre / `--brand-teal`), légende divergente,
+valeurs `null` (hors cible) grisées. Les entrées `hold`/`cpm` inchangées.
 
-### Types — `lib/campaigns/actor-metrics.ts` (nouveau)
-`ActorKind`, `ActorRow`, `ActorsPayload`, ré-export des formats. Testable Vitest
-pur (comme `suivi-metrics`).
+### Bandeau d'écarts objectif — dans `SuiviTable.tsx`
+En tête du tableau départements : « **X zones sous l'objectif · Y au-dessus** »
+(depuis `objective_zones` du payload), et une colonne **atteinte objectif**
+(`objective_alignment`, ton divergent autour de 100) sur les lignes dept/CP. Un
+bouton « Voir sur la carte » déclenche l'event carte en `metric = 'objectif'`.
+Le drill CP (`get_campaign_suivi_cps`) affiche la même colonne.
+
+### Types
+- `lib/campaigns/actor-metrics.ts` (nouveau) : `ActorKind`, `ActorRow`,
+  `ActorsPayload`, ré-export des formats. Testable Vitest pur.
+- `lib/campaigns/suivi-metrics.ts` (étendu) : `SuiviDeptRow`/`SuiviCpRow` gagnent
+  `objective_alignment: number | null` ; `SuiviPayload` gagne `objective_zones:
+  { under: number; over: number }`. Nouveau helper **`alignmentTone(v)`**
+  divergent, symétrique autour de 100 : `ok` 90–110 · `warn` 70–90 / 110–130 ·
+  `bad` ailleurs. Testé Vitest.
 
 ## Changements seed démo (`sql/112`)
 
@@ -252,8 +309,12 @@ En base ET en navigateur, sur la démo :
 - **Filtre = {tiktok}** : cockpit recalculé sur TikTok seul (CPM ~9,20 en tuile,
   parts/hold renormalisés, carte redessinée).
 - **Filtre = {dv360, ttd}** : pas de TikTok, CPM plus proche du prévu.
-- Tests Vitest : formats de `actor-metrics` ; test SQL de non-régression
-  (`p_actors = NULL` == payload actuel de `get_campaign_suivi`).
+- **Carte `objectif`** : Marseille/Lille en rouge (sous l'objectif), reste du
+  plan pâle/teal, hors cible grisé. Bandeau « X sous · Y au-dessus » cohérent
+  avec les deux départements problème.
+- Tests Vitest : formats + `alignmentTone` (divergent) ; test SQL de
+  non-régression (`p_actors = NULL` == payload actuel de `get_campaign_suivi`,
+  aux nouveaux champs `objective_alignment`/`objective_zones` près).
 
 ## Livrable
 
