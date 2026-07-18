@@ -101,6 +101,13 @@ END; $$;
 REVOKE ALL ON FUNCTION public.get_campaign_expected(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_campaign_expected(uuid) TO service_role;
 
+-- Nettoyage : l'ancienne signature 1-arg (sql/108) coexisterait comme overload
+-- distinct à côté de la nouvelle (uuid, text[] DEFAULT NULL) → ambiguïté Postgres
+-- sur tout appel à 1 argument (« is not unique »). On la supprime pour que
+-- get_campaign_suivi(uuid) résolve sans ambiguïté vers la nouvelle fonction
+-- (p_actors = NULL par défaut = non-régression stricte).
+DROP FUNCTION IF EXISTS public.get_campaign_suivi(uuid);
+
 -- 4) get_campaign_suivi : + p_actors (filtre), + objective_alignment/objective_zones.
 --    Sommes de délivrance filtrées par acteur ; parts/spend planifiés = PLAN
 --    (non filtrés). CTE `cp` = collapse par CP avec délivrance FILTRÉE dans le
