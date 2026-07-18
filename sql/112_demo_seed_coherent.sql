@@ -39,6 +39,15 @@ DECLARE
   v_under_factor numeric := 0.5;
   v_leak_cps     int := 400;
   v_leak_daily   int := 11;                          -- imps/jour/CP hors cible → fuite < seuil 5 %
+  -- Attribution acteur (chemin complet vue par acteur) : parts sommant à 1.
+  -- dsp/social = canaux déclarés ; 2 régies en direct (noms génériques).
+  v_actors jsonb := jsonb_build_array(
+    jsonb_build_object('actor', 'dv360',                 'w', 0.45),
+    jsonb_build_object('actor', 'ttd',                   'w', 0.11),
+    jsonb_build_object('actor', 'tiktok',                'w', 0.17),
+    jsonb_build_object('actor', 'Régie presse régionale','w', 0.17),
+    jsonb_build_object('actor', 'Régie TV connectée',    'w', 0.10));
+  v_n_actors int; v_regie_ok bool;
   v_plan_cnt     int;
   v_alerts       text[];
 BEGIN
@@ -76,7 +85,7 @@ BEGIN
   --    Marseille+Lille à v_under_factor, + fuite marginale. 1 passe, 1 INSERT.
   DELETE FROM dsp_campaign_data WHERE campaign_id = v_campaign;
 
-  INSERT INTO dsp_campaign_data (campaign_id, date, postal_code, country, media, impressions, clicks, spend, dsp_source)
+  INSERT INTO dsp_campaign_data (campaign_id, date, postal_code, country, media, actor, impressions, clicks, spend, dsp_source)
   WITH zones AS (
     SELECT z.postal_code, z.bid_multiplier AS bm, (z.bid_multiplier > 0) AS in_target,
            CASE WHEN LEFT(z.postal_code, 2) = ANY(v_under_depts) THEN v_under_factor ELSE 1.0 END AS factor
@@ -93,10 +102,13 @@ BEGIN
     -- fuite : v_leak_cps CP hors cible à v_leak_daily imps/jour (déterministe via md5)
     SELECT postal_code, v_leak_daily
     FROM (SELECT postal_code FROM zones WHERE NOT in_target ORDER BY md5(postal_code) LIMIT v_leak_cps) l
-  )
-  SELECT v_campaign, d::date, gen.postal_code, 'France', 'Display',
-         gen.day_imps, round(gen.day_imps * 0.002)::int, round(gen.day_imps * v_cpm / 1000.0, 2), 'ttd'
-  FROM gen CROSS JOIN generate_series(v_flight_start, v_data_end, '1 day') d;
+  ),
+  act AS (SELECT value->>'actor' AS actor, (value->>'w')::numeric AS w FROM jsonb_array_elements(v_actors))
+  SELECT v_campaign, d::date, gen.postal_code, 'France', 'Display', act.actor,
+         round(gen.day_imps * act.w)::int,
+         round(gen.day_imps * act.w * 0.002)::int,
+         round(gen.day_imps * act.w * v_cpm / 1000.0, 2), 'ttd'
+  FROM gen CROSS JOIN generate_series(v_flight_start, v_data_end, '1 day') d CROSS JOIN act;
 
   -- 4) rollups + 5) rapport DSP : délégués aux RPC (pas de ré-agrégation ici).
   PERFORM public.refresh_campaign_rollups(v_campaign);
@@ -110,5 +122,14 @@ BEGIN
   END IF;
   IF 'leak' = ANY(v_alerts) THEN
     RAISE EXCEPTION 'Seed incohérent : fuite hors cible au-dessus du seuil (alerte leak présente).';
+  END IF;
+
+  -- Assertion vue par acteur : ≥ 4 acteurs dont ≥ 1 régie.
+  SELECT jsonb_array_length(a -> 'actors'),
+         EXISTS (SELECT 1 FROM jsonb_array_elements(a -> 'actors') x WHERE x->>'kind' = 'régie')
+  INTO v_n_actors, v_regie_ok
+  FROM (SELECT public.get_campaign_actors(v_campaign) AS a) q;
+  IF v_n_actors < 4 OR NOT v_regie_ok THEN
+    RAISE EXCEPTION 'Seed incohérent : attendu ≥ 4 acteurs dont ≥ 1 régie (obtenu % acteurs, régie=%).', v_n_actors, v_regie_ok;
   END IF;
 END $$;
