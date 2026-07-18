@@ -422,3 +422,40 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.get_campaign_suivi_cps(uuid, text, text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_campaign_suivi_cps(uuid, text, text[]) TO service_role;
+
+-- 7) get_campaign_actors : liste des acteurs (multi-select + panneau). Kind
+--    dérivé de geo_strategy.channels (dsps/socials → dsp/social, sinon régie).
+CREATE OR REPLACE FUNCTION public.get_campaign_actors(p_campaign_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_catalog
+AS $$
+DECLARE
+  v_dsps text[]; v_socials text[]; v_expected numeric; v_total bigint; v_actors jsonb; v_obj_pct numeric;
+BEGIN
+  SELECT ARRAY(SELECT jsonb_array_elements_text(COALESCE(geo_strategy->'channels'->'dsps', '[]'::jsonb))),
+         ARRAY(SELECT jsonb_array_elements_text(COALESCE(geo_strategy->'channels'->'socials', '[]'::jsonb)))
+  INTO v_dsps, v_socials FROM dsp_campaigns WHERE id = p_campaign_id;
+
+  v_expected := public.get_campaign_expected(p_campaign_id);
+  SELECT COALESCE(SUM(impressions), 0) INTO v_total
+  FROM campaign_daily_rollup WHERE campaign_id = p_campaign_id;
+
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.impressions DESC), '[]'::jsonb) INTO v_actors
+  FROM (
+    SELECT actor,
+           CASE WHEN actor = ANY(v_dsps) THEN 'dsp'
+                WHEN actor = ANY(v_socials) THEN 'social'
+                ELSE 'régie' END AS kind,
+           SUM(impressions) AS impressions,
+           ROUND(SUM(spend), 2) AS spend,
+           CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(spend) / SUM(impressions) * 1000, 2) END AS cpm,
+           CASE WHEN v_total > 0 THEN ROUND(SUM(impressions)::numeric / v_total * 100, 1) END AS share_pct,
+           CASE WHEN v_expected > 0 THEN ROUND(SUM(impressions)::numeric / v_expected * 100, 1) END AS objective_attainment
+    FROM campaign_daily_rollup WHERE campaign_id = p_campaign_id
+    GROUP BY actor
+  ) t;
+
+  v_obj_pct := CASE WHEN v_expected > 0 THEN ROUND(v_total::numeric / v_expected * 100, 1) END;
+  RETURN jsonb_build_object('objective_pct', v_obj_pct, 'actors', v_actors);
+END; $$;
+REVOKE ALL ON FUNCTION public.get_campaign_actors(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_campaign_actors(uuid) TO service_role;
