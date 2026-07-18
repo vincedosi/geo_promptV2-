@@ -331,3 +331,50 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.get_campaign_suivi(uuid, text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_campaign_suivi(uuid, text[]) TO service_role;
+
+-- 5) get_campaign_suivi_map : + p_actors, + métrique 'objectif' (divergente 100).
+--    Nettoyage : l'ancienne signature 6-args (sql/109, sans text[]) coexisterait
+--    comme overload distinct à côté de la nouvelle (7 args, p_actors DEFAULT NULL)
+--    → ambiguïté Postgres sur tout appel à 6 args nommés (« is not unique »),
+--    notamment celui de app/api/digital/[campaignId]/suivi/map/route.ts. On la
+--    supprime pour que get_campaign_suivi_map(...) résolve sans ambiguïté vers
+--    la nouvelle fonction (p_actors = NULL par défaut = non-régression stricte).
+DROP FUNCTION IF EXISTS public.get_campaign_suivi_map(uuid, text, float8, float8, float8, float8);
+
+CREATE OR REPLACE FUNCTION public.get_campaign_suivi_map(
+  p_campaign_id uuid, p_metric text DEFAULT 'hold',
+  p_bbox_xmin float8 DEFAULT -5.5, p_bbox_ymin float8 DEFAULT 41.2,
+  p_bbox_xmax float8 DEFAULT 9.8, p_bbox_ymax float8 DEFAULT 51.2,
+  p_actors text[] DEFAULT NULL)
+RETURNS json LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog
+AS $$
+  WITH cp AS (
+    SELECT r.postal_code, BOOL_OR(r.in_target) AS in_target, MAX(r.planned_share) AS planned_share,
+           COALESCE(SUM(r.impressions) FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS impressions,
+           COALESCE(SUM(r.spend)       FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS spend
+    FROM campaign_cp_rollup r WHERE r.campaign_id = p_campaign_id
+    GROUP BY r.postal_code
+  ),
+  total AS (SELECT NULLIF(SUM(impressions), 0)::numeric AS imps FROM cp),
+  obj AS (SELECT public.get_campaign_expected(p_campaign_id) AS expected)
+  SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)
+  FROM (
+    SELECT cp.postal_code AS code, rcp.nom_principal AS nom, cp.in_target,
+           CASE
+             WHEN p_metric = 'cpm'
+               THEN CASE WHEN cp.impressions > 0 THEN ROUND(cp.spend / cp.impressions * 1000, 2) END
+             WHEN p_metric = 'objectif'
+               THEN CASE WHEN cp.in_target AND cp.planned_share > 0 AND obj.expected > 0
+                         THEN ROUND(cp.impressions / (cp.planned_share * obj.expected) * 100) END
+             ELSE CASE WHEN cp.planned_share > 0 AND total.imps IS NOT NULL
+                       THEN ROUND((cp.impressions / total.imps) / cp.planned_share * 100) END
+           END AS value,
+           ST_AsGeoJSON(rcp.geom_simplified)::json AS geometry
+    FROM cp
+    JOIN ref_codes_postaux rcp ON rcp.code_postal = cp.postal_code
+    CROSS JOIN total CROSS JOIN obj
+    WHERE rcp.geom_simplified && ST_MakeEnvelope(p_bbox_xmin, p_bbox_ymin, p_bbox_xmax, p_bbox_ymax, 4326)
+  ) t;
+$$;
+REVOKE ALL ON FUNCTION public.get_campaign_suivi_map(uuid, text, float8, float8, float8, float8, text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_campaign_suivi_map(uuid, text, float8, float8, float8, float8, text[]) TO service_role;
