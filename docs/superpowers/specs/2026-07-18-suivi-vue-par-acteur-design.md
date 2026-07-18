@@ -224,6 +224,9 @@ reste un chantier séparé — la dimension acteur posée ici le prépare.)
 
 Routes existantes : ajouter `?actors=a,b,c` (CSV, optionnel ; absent = tous).
 - `GET /api/digital/[campaignId]/suivi` → `p_actors` à `get_campaign_suivi`.
+- `GET /api/digital/[campaignId]/suivi/cps` → `p_actors` à
+  `get_campaign_suivi_cps` (le drill CP par département doit être filtré comme
+  le tableau parent — sinon le niveau 3 montre tous les acteurs).
 - Route carte suivi (event `magelian:suivi-map`) → `p_actors` à
   `get_campaign_suivi_map`.
 
