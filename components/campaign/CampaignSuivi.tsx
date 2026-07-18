@@ -17,6 +17,9 @@ import { SuiviCockpit } from './suivi/SuiviCockpit';
 import { SuiviCharts } from './suivi/SuiviCharts';
 import { SuiviTable } from './suivi/SuiviTable';
 import { ReconciliationPanel } from './suivi/ReconciliationPanel';
+import { ActorFilter } from './suivi/ActorFilter';
+import { ActorPanel } from './suivi/ActorPanel';
+import type { ActorsPayload } from '@/lib/campaigns/actor-metrics';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -49,25 +52,51 @@ export function CampaignSuivi({
   const [chatError, setChatError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Cockpit de suivi en vol : payload agrégé serveur (rollups), un seul fetch.
+  // Cockpit de suivi en vol : payload agrégé serveur (rollups).
   const [suivi, setSuivi] = useState<SuiviPayload | null>(null);
   const [suiviError, setSuiviError] = useState(false);
-  const suiviFetchedRef = useRef<string | null>(null);
+
+  // Vue par acteur : liste des acteurs (un seul fetch par campagne) + sélection.
+  const [actorsPayload, setActorsPayload] = useState<ActorsPayload | null>(null);
+  const [selectedActors, setSelectedActors] = useState<string[]>([]); // [] = tous
+
+  const actorsFetchedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!strategyId || strategyStatus === 'completed') return;
-    if (suiviFetchedRef.current === campaignId) return;
-    suiviFetchedRef.current = campaignId;
+    if (actorsFetchedRef.current === campaignId) return;
+    actorsFetchedRef.current = campaignId;
     let cancelled = false;
     (async () => {
       try {
-        const res = await adminFetch(`/api/digital/${campaignId}/suivi`, { cache: 'no-store' });
-        if (!res.ok) { if (!cancelled) setSuiviError(true); return; }
-        const d = (await res.json()) as SuiviPayload;
-        if (!cancelled) setSuivi(d);
-      } catch { if (!cancelled) setSuiviError(true); }
+        const res = await adminFetch(`/api/digital/${campaignId}/actors`, { cache: 'no-store' });
+        if (res.ok && !cancelled) setActorsPayload((await res.json()) as ActorsPayload);
+      } catch { /* panneau masqué si absent */ }
     })();
     return () => { cancelled = true; };
   }, [campaignId, strategyId, strategyStatus]);
+
+  // Refetch suivi filtré par acteurs — débounced, caché par clé campagne+acteurs.
+  const suiviCacheRef = useRef(new Map<string, SuiviPayload>());
+  useEffect(() => {
+    if (!strategyId || strategyStatus === 'completed') return;
+    const key = `${campaignId}|${[...selectedActors].sort().join(',')}`;
+    const cached = suiviCacheRef.current.get(key);
+    if (cached) { setSuivi(cached); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const q = selectedActors.length ? `?actors=${encodeURIComponent(selectedActors.join(','))}` : '';
+        const res = await adminFetch(`/api/digital/${campaignId}/suivi${q}`, { cache: 'no-store' });
+        if (!res.ok) { if (!cancelled) setSuiviError(true); return; }
+        const d = (await res.json()) as SuiviPayload;
+        if (!cancelled) { suiviCacheRef.current.set(key, d); setSuivi(d); }
+      } catch { if (!cancelled) setSuiviError(true); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [campaignId, strategyId, strategyStatus, selectedActors]);
+
+  // Réinitialise le filtre acteurs et le cache suivi au changement de campagne.
+  useEffect(() => { setSelectedActors([]); suiviCacheRef.current.clear(); }, [campaignId]);
 
   // Réconciliation DSP ⇔ ad server — un fetch dédié, rechargé après un pull.
   const [recon, setRecon] = useState<ReconciliationPayload | null>(null);
@@ -93,6 +122,19 @@ export function CampaignSuivi({
       await loadRecon();
     } finally { setPulling(false); }
   }, [campaignId, pulling, loadRecon]);
+
+  // Dispatch carte centralisé — couvre les métriques suivi (hold/cpm/objectif)
+  // et réconciliation (measure/dspcpm), acteurs sélectionnés inclus.
+  const showMap = useCallback((metric: 'hold' | 'cpm' | 'objectif' | 'measure' | 'dspcpm') => {
+    if (!mapAvailable) return;
+    window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
+      detail: {
+        campaignId, metric, forecastCpm: suivi?.cpm.forecast ?? null,
+        actors: selectedActors.length ? selectedActors : undefined,
+      },
+    }));
+    onShowedMap?.();
+  }, [campaignId, mapAvailable, onShowedMap, suivi, selectedActors]);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,29 +241,22 @@ export function CampaignSuivi({
             <FinalReport strategyId={strategyId} />
           ) : strategyId && suivi ? (
             <>
-              <SuiviCockpit
-                payload={suivi}
-                onShowMap={mapAvailable ? (metric) => {
-                  window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
-                    detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
-                  }));
-                  onShowedMap?.();
-                } : undefined}
-              />
+              {actorsPayload && (
+                <ActorFilter actors={actorsPayload.actors} selected={selectedActors} onChange={setSelectedActors} />
+              )}
+              <SuiviCockpit payload={suivi} onShowMap={mapAvailable ? showMap : undefined} />
+              {actorsPayload && (
+                <ActorPanel actors={actorsPayload.actors} selected={selectedActors} />
+              )}
               <ReconciliationPanel
                 payload={recon}
                 onPull={() => { void handlePull(); }}
                 pulling={pulling}
                 canPull={!!mapAvailable}
-                onShowMap={mapAvailable ? (metric) => {
-                  window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
-                    detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
-                  }));
-                  onShowedMap?.();
-                } : undefined}
+                onShowMap={mapAvailable ? showMap : undefined}
               />
               <SuiviCharts payload={suivi} />
-              <SuiviTable payload={suivi} campaignId={campaignId} />
+              <SuiviTable payload={suivi} campaignId={campaignId} actors={selectedActors} onShowMap={mapAvailable ? showMap : undefined} />
             </>
           ) : strategyId && !suiviError ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
