@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pacingTone, cpmTone, holdTone, toneColor, fmtPct, fmtCpm, fmtInt } from '@/lib/campaigns/suivi-metrics';
+import { pacingTone, cpmTone, holdTone, alignmentTone, toneColor, fmtPct, fmtCpm, fmtInt } from '@/lib/campaigns/suivi-metrics';
 
 describe('suivi-metrics tones', () => {
   it('pacing : 1,0 ok · 0,8 warn · 0,6 bad · null warn', () => {
@@ -27,6 +27,19 @@ describe('suivi-metrics tones', () => {
     expect(toneColor('ok')).toBe('var(--success)');
     expect(toneColor('warn')).toBe('var(--warning)');
     expect(toneColor('bad')).toBe('var(--danger)');
+  });
+});
+
+describe('alignmentTone (divergent autour de 100)', () => {
+  it('ok 90-110 · warn 70-90/110-130 · bad ailleurs · null warn', () => {
+    expect(alignmentTone(100)).toBe('ok');
+    expect(alignmentTone(90)).toBe('ok');
+    expect(alignmentTone(110)).toBe('ok');
+    expect(alignmentTone(80)).toBe('warn');
+    expect(alignmentTone(120)).toBe('warn');
+    expect(alignmentTone(50)).toBe('bad');
+    expect(alignmentTone(140)).toBe('bad');
+    expect(alignmentTone(null)).toBe('warn');
   });
 });
 

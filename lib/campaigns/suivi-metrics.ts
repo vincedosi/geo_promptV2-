@@ -36,6 +36,7 @@ export interface SuiviDeptRow {
   cpm: number | null;
   spend: number;
   delta7_pct: number | null;
+  objective_alignment: number | null;
 }
 
 export interface SuiviCpRow {
@@ -46,6 +47,7 @@ export interface SuiviCpRow {
   cpm: number | null;
   spend: number;
   delta7_pct: number | null;
+  objective_alignment: number | null;
 }
 
 export interface SuiviDaily {
@@ -89,6 +91,7 @@ export interface SuiviPayload {
     expected: number;
     pct: number | null;
   };
+  objective_zones: { under: number; over: number };
   alerts: SuiviAlert[];
   level1: SuiviLevel1Row[];
   depts: SuiviDeptRow[];
@@ -114,6 +117,14 @@ export function holdTone(index: number | null): SuiviTone {
   if (index == null) return 'warn';
   if (index >= 80) return 'ok';
   if (index >= 60) return 'warn';
+  return 'bad';
+}
+
+/** Alignement vs objectif : divergent, symétrique autour de 100 (proche = bon). */
+export function alignmentTone(v: number | null): SuiviTone {
+  if (v == null) return 'warn';
+  if (v >= 90 && v <= 110) return 'ok';
+  if ((v >= 70 && v < 90) || (v > 110 && v <= 130)) return 'warn';
   return 'bad';
 }
 
