@@ -74,8 +74,8 @@ genesis_app/
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
 │   │   │                       # la modification passe par l'onglet Programmer (wizard)
 │   │   ├── CampaignSuivi.tsx   # Cockpit de suivi en vol (tuiles/alertes/graphes/tableau via suivi/*)
-│   │   │                       # + bilan fin de campagne + chat IA (proposition → renvoi Programmer)
-│   │   ├── suivi/              # SuiviCockpit (tuiles + alertes), SuiviCharts, SuiviTable
+│   │   │                       # + reconciliation DSP ⇔ mesure + bilan + chat IA
+│   │   ├── suivi/              # SuiviCockpit, SuiviCharts, SuiviTable, ReconciliationPanel
 │   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
 │   ├── magelian/               # Overlay MAGELIAN (Programmer/Suivi/Apercu) + deep-link
 │   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Programmer/Suivi/Apercu ; selecteur
@@ -251,6 +251,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie) |
 | `/api/digital/[campaignId]/suivi/cps` | GET | Drill niveau 3 du tableau : les CP d'un departement (`?dept=`, max 500, pires indices d'abord) |
 | `/api/digital/[campaignId]/suivi/map` | GET | Choroplethe CP du suivi (`?metric=hold\|cpm&bbox=`) — features GeoJSON pour SuiviMapLayer |
+| `/api/digital/[campaignId]/reconcile` | GET | Payload de reconciliation DSP ⇔ ad server (taux de mesure global, composition de l'achat par canal, tendance) — lit campaign_dsp_report + rollups |
+| `/api/digital/[campaignId]/reconcile/pull` | POST | (Re)construit le rapport DSP (requireAdmin) : demo → RPC simulate_dsp_report ; prod → lib/dsp/report par canal connecte (API, skipped si non connecte — jamais d'import fichier) |
+| `/api/digital/[campaignId]/reconcile/map` | GET | Choroplethe CP de reconciliation (`?metric=measure\|dspcpm&bbox=`) — SuiviMapLayer source reconcile |
 | `/api/bidding/strategies/[id]/export` | GET | Fichier custom bidding « fidèle à la pression » par canal (`?channel=` du dsp_channel_registry) : scores par CP interpolés sur la courbe INSEE, 5 paliers quantiles, hors-zone 0 (zones strictes) ou 1 (national+surpression) — dv360 script .py / tiktok fiche / autres CSV `postal_code;score` (lib/digital/bidding-export.ts, étape 5 Lancement) |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
@@ -396,6 +399,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `indicator_cp_values` | Valeurs d'indicateurs INSEE par code postal (pression sur la cible) | Materialisation lazy par indicateur (RPC ci-dessous), agregation IRIS -> CP avec fallback communal ; consommee par apply_zone_weights_to_strategy et l'export custom bidding |
 | `campaign_daily_rollup` | Agregat quotidien par campagne (date × media : imps, clics, spend) | Rafraichi a l'import/absorb/armement — le cockpit de suivi ne scanne JAMAIS dsp_campaign_data. RLS deny-all (routes service role) |
 | `campaign_cp_rollup` | Agregat par CP (imps, spend, fenetres 7 j, in_target + planned_share du plan) | ~6-12k lignes/campagne — tableau, alertes et carte du suivi. RLS deny-all |
+| `campaign_dsp_report` | Flux DSP buy side pour la reconciliation (2 grains disjoints : date×canal + CP) | Alimente par API (lib/dsp/report) en prod, simulate_dsp_report en demo. format/creative_ref nullable (plomberie future). RLS deny-all |
 | `dsp_connections` | Credentials DSP par organisation | RLS par org, secrets chiffres AES-256-GCM, provider + method, client OAuth optionnel par org (`oauth_client_id` + `oauth_client_secret_encrypted`, fallback env) |
 | `dsp_api_logs` | Logs appels/connexion/jobs DSP | RLS par org, action + status + latency + error |
 
@@ -510,6 +514,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_campaign_suivi` | Payload jsonb complet du cockpit (pacing, cpm, pression, objectif, alertes, depts, daily) — seuils d'alerte constants sql/108 | `api/digital/[id]/suivi/` |
 | `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | `api/digital/[id]/suivi/cps/` |
 | `get_campaign_suivi_map` | Features CP (geometries ref_codes_postaux) pour la choroplethe hold/cpm | `api/digital/[id]/suivi/map/` |
+| `simulate_dsp_report` | Genere le rapport DSP demo (set-based depuis les rollups, part de budget, sur-declaration ×1,03) | `api/digital/[id]/reconcile/pull/` |
+| `get_campaign_reconciliation` | Payload reconciliation (global taux de mesure, par canal, tendance) | `api/digital/[id]/reconcile/` |
+| `get_campaign_reconciliation_map` | Features CP taux de mesure / CPM DSP pour la carte | `api/digital/[id]/reconcile/map/` |
 | `apply_zone_weights_to_strategy` | Bid multipliers par CP d'une strategie — generalise (sql/106) : courbe sur N'IMPORTE quel indicateur de `indicator_cp_values` via `variable_code`, uniforme sans indicateur | `api/bidding/strategies/` (POST/PATCH) |
 
 ### Radio

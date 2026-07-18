@@ -12,9 +12,11 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
 import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
 import type { SuiviPayload } from '@/lib/campaigns/suivi-metrics';
+import type { ReconciliationPayload } from '@/lib/campaigns/reconciliation-metrics';
 import { SuiviCockpit } from './suivi/SuiviCockpit';
 import { SuiviCharts } from './suivi/SuiviCharts';
 import { SuiviTable } from './suivi/SuiviTable';
+import { ReconciliationPanel } from './suivi/ReconciliationPanel';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -66,6 +68,31 @@ export function CampaignSuivi({
     })();
     return () => { cancelled = true; };
   }, [campaignId, strategyId, strategyStatus]);
+
+  // Réconciliation DSP ⇔ ad server — un fetch dédié, rechargé après un pull.
+  const [recon, setRecon] = useState<ReconciliationPayload | null>(null);
+  const [pulling, setPulling] = useState(false);
+  const reconFetchedRef = useRef<string | null>(null);
+  const loadRecon = useCallback(async () => {
+    try {
+      const res = await adminFetch(`/api/digital/${campaignId}/reconcile`, { cache: 'no-store' });
+      if (res.ok) setRecon((await res.json()) as ReconciliationPayload);
+    } catch { /* le panel affiche l'état vide */ }
+  }, [campaignId]);
+  useEffect(() => {
+    if (!strategyId || strategyStatus === 'completed') return;
+    if (reconFetchedRef.current === campaignId) return;
+    reconFetchedRef.current = campaignId;
+    void loadRecon();
+  }, [campaignId, strategyId, strategyStatus, loadRecon]);
+  const handlePull = useCallback(async () => {
+    if (pulling) return;
+    setPulling(true);
+    try {
+      await adminFetch(`/api/digital/${campaignId}/reconcile/pull`, { method: 'POST' });
+      await loadRecon();
+    } finally { setPulling(false); }
+  }, [campaignId, pulling, loadRecon]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +201,18 @@ export function CampaignSuivi({
             <>
               <SuiviCockpit
                 payload={suivi}
+                onShowMap={mapAvailable ? (metric) => {
+                  window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
+                    detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
+                  }));
+                  onShowedMap?.();
+                } : undefined}
+              />
+              <ReconciliationPanel
+                payload={recon}
+                onPull={() => { void handlePull(); }}
+                pulling={pulling}
+                canPull={!!mapAvailable}
                 onShowMap={mapAvailable ? (metric) => {
                   window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
                     detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
