@@ -171,7 +171,8 @@ BEGIN
   SELECT MAX(date) INTO v_as_of FROM campaign_daily_rollup WHERE campaign_id = p_campaign_id;
   IF v_as_of IS NULL OR s.start_date IS NULL OR s.end_date IS NULL OR s.end_date <= s.start_date THEN
     RETURN NULL; END IF;
-  v_time := LEAST(1, GREATEST(0, (v_as_of - s.start_date + 1)::numeric / (s.end_date - s.start_date + 1)));
+  -- Arrondi identique à sql/108 (temps % à 1 décimale) → non-régression stricte.
+  v_time := ROUND(LEAST(1, GREATEST(0, (v_as_of - s.start_date + 1)::numeric / (s.end_date - s.start_date + 1))) * 100, 1) / 100;
   IF s.kpi_target IS NOT NULL AND s.kpi_target > 0 AND s.objective_code = 'maximize_impressions' THEN
     v_expected := s.kpi_target * v_time;
   ELSIF s.total_budget IS NOT NULL AND s.forecast_cpm IS NOT NULL AND s.forecast_cpm > 0 THEN
@@ -297,11 +298,18 @@ BEGIN
       'detail', 'CPM prévu : ' || ROUND(s.forecast_cpm, 2) || ' €');
   END IF;
 
+  -- Collapse par CP AVANT le ratio (cp_rollup est per-acteur depuis Task 1).
+  WITH cp AS (
+    SELECT postal_code, in_target, planned_share,
+           COALESCE(SUM(impressions) FILTER (WHERE p_actors IS NULL OR actor = ANY(p_actors)), 0) AS impressions,
+           COALESCE(SUM(spend)       FILTER (WHERE p_actors IS NULL OR actor = ANY(p_actors)), 0) AS spend
+    FROM campaign_cp_rollup WHERE campaign_id = p_campaign_id
+    GROUP BY postal_code, in_target, planned_share
+  )
   SELECT COUNT(*) AS n, COALESCE(SUM(spend), 0) AS sp, COALESCE(SUM(impressions), 0) AS im
   INTO v_under
-  FROM campaign_cp_rollup
-  WHERE campaign_id = p_campaign_id AND in_target AND planned_share > 0
-    AND (p_actors IS NULL OR actor = ANY(p_actors))
+  FROM cp
+  WHERE in_target AND planned_share > 0
     AND (impressions::numeric / NULLIF(v_cp_total_imps, 0)) / planned_share * 100 < 70;
   IF v_under.n > 0 THEN
     v_alerts := v_alerts || jsonb_build_object('kind', 'zones_under', 'severity', 'warning',
