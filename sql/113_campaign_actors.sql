@@ -378,3 +378,47 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.get_campaign_suivi_map(uuid, text, float8, float8, float8, float8, text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_campaign_suivi_map(uuid, text, float8, float8, float8, float8, text[]) TO service_role;
+
+-- 6) get_campaign_suivi_cps : + p_actors, + objective_alignment par CP.
+--    Nettoyage : l'ancienne signature 2-args (sql/109, sans text[]) coexisterait
+--    comme overload distinct à côté de la nouvelle (3 args, p_actors DEFAULT NULL)
+--    → ambiguïté Postgres sur tout appel à 2 args nommés (« is not unique »),
+--    notamment celui de app/api/digital/[campaignId]/suivi/cps/route.ts. On la
+--    supprime pour que get_campaign_suivi_cps(...) résolve sans ambiguïté vers
+--    la nouvelle fonction (p_actors = NULL par défaut = non-régression stricte).
+DROP FUNCTION IF EXISTS public.get_campaign_suivi_cps(uuid, text);
+
+CREATE OR REPLACE FUNCTION public.get_campaign_suivi_cps(
+  p_campaign_id uuid, p_dept text, p_actors text[] DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog
+AS $$
+  WITH cp AS (
+    SELECT r.postal_code, BOOL_OR(r.in_target) AS in_target, MAX(r.planned_share) AS planned_share,
+           COALESCE(SUM(r.impressions) FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS impressions,
+           COALESCE(SUM(r.spend)       FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS spend,
+           COALESCE(SUM(r.imps_7d)     FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS imps_7d,
+           COALESCE(SUM(r.imps_prev7d) FILTER (WHERE p_actors IS NULL OR r.actor = ANY(p_actors)), 0) AS imps_prev7d,
+           r.dept
+    FROM campaign_cp_rollup r WHERE r.campaign_id = p_campaign_id
+    GROUP BY r.postal_code, r.dept
+  ),
+  total AS (SELECT NULLIF(SUM(impressions), 0)::numeric AS imps FROM cp),
+  obj AS (SELECT public.get_campaign_expected(p_campaign_id) AS expected)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.hold_index ASC NULLS LAST), '[]'::jsonb)
+  FROM (
+    SELECT cp.postal_code, cp.in_target, cp.impressions,
+           CASE WHEN cp.planned_share > 0 AND total.imps IS NOT NULL
+                THEN ROUND((cp.impressions / total.imps) / cp.planned_share * 100) END AS hold_index,
+           CASE WHEN cp.in_target AND cp.planned_share > 0 AND obj.expected > 0
+                THEN ROUND(cp.impressions / (cp.planned_share * obj.expected) * 100) END AS objective_alignment,
+           CASE WHEN cp.impressions > 0 THEN ROUND(cp.spend / cp.impressions * 1000, 2) END AS cpm,
+           ROUND(cp.spend, 2) AS spend,
+           CASE WHEN cp.imps_prev7d > 0
+                THEN ROUND((cp.imps_7d - cp.imps_prev7d)::numeric / cp.imps_prev7d * 100, 1) END AS delta7_pct
+    FROM cp CROSS JOIN total CROSS JOIN obj
+    WHERE cp.dept = p_dept
+    LIMIT 500
+  ) t;
+$$;
+REVOKE ALL ON FUNCTION public.get_campaign_suivi_cps(uuid, text, text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_campaign_suivi_cps(uuid, text, text[]) TO service_role;
