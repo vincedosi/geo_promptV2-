@@ -10,5 +10,6 @@ describe('actor-metrics', () => {
   it('nom affiché : fallback pour acteur vide', () => {
     expect(actorDisplayName('dv360')).toBe('dv360');
     expect(actorDisplayName('')).toBe('Non attribué');
+    expect(actorDisplayName('   ')).toBe('Non attribué');
   });
 });

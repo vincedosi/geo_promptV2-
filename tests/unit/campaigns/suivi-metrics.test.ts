@@ -40,6 +40,10 @@ describe('alignmentTone (divergent autour de 100)', () => {
     expect(alignmentTone(50)).toBe('bad');
     expect(alignmentTone(140)).toBe('bad');
     expect(alignmentTone(null)).toBe('warn');
+    expect(alignmentTone(70)).toBe('warn');
+    expect(alignmentTone(130)).toBe('warn');
+    expect(alignmentTone(69.9)).toBe('bad');
+    expect(alignmentTone(130.1)).toBe('bad');
   });
 });
 
