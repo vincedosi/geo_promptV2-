@@ -21,12 +21,13 @@ const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
 type SuiviMapSource = 'suivi' | 'reconcile';
-type SuiviMapMetric = 'hold' | 'cpm' | 'measure' | 'dspcpm';
+type SuiviMapMetric = 'hold' | 'cpm' | 'objectif' | 'measure' | 'dspcpm';
 
 export interface SuiviMapEventDetail {
   campaignId: string;
   metric: SuiviMapMetric;
   forecastCpm: number | null;
+  actors?: string[];
 }
 
 interface FeatureRow {
@@ -57,6 +58,11 @@ function tieredFill(c: Tone, low: number, high: number): maplibregl.ExpressionSp
   return ['case', ['<', V, 0], TRANSPARENT, ['<', V, low], c.bad, ['<', V, high], c.warn, c.ok];
 }
 const flatFill = (c: Tone): maplibregl.ExpressionSpecification => ['case', ['<', V, 0], TRANSPARENT, c.teal];
+
+/** Divergent centré sur 100 : < 70 bad, 70–90 warn, 90–110 ok, > 110 teal (grisé si absent). */
+function divergingFill(c: Tone): maplibregl.ExpressionSpecification {
+  return ['case', ['<', V, 0], TRANSPARENT, ['<', V, 70], c.bad, ['<', V, 90], c.warn, ['<=', V, 110], c.ok, c.teal];
+}
 const eur = (v: number) => `${v.toFixed(2).replace('.', ',')} €`;
 
 /**
@@ -86,6 +92,12 @@ const METRICS: Record<SuiviMapMetric, MetricConfig> = {
     legend: (c, f) => (f == null || f <= 0)
       ? [[c.teal, 'CPM réel (pas de prévu)']]
       : [[c.ok, '≤ prévu +10 %'], [c.warn, 'prévu +10–25 %'], [c.bad, '> prévu +25 %']],
+  },
+  objectif: {
+    source: 'suivi', label: 'Atteinte objectif',
+    format: (v) => `${v} % de l'objectif`,
+    fill: (c) => divergingFill(c),
+    legend: (c) => [[c.bad, '< 70 % (nettement sous)'], [c.warn, '70–90 % (sous)'], [c.ok, '90–110 % (sur l\'objectif)'], [c.teal, '> 110 % (au-dessus)']],
   },
   measure: {
     source: 'reconcile', label: 'Taux de mesure',
@@ -140,8 +152,9 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
     setLoading(true);
     (async () => {
       try {
+        const actorsQ = active.actors?.length ? `&actors=${encodeURIComponent(active.actors.join(','))}` : '';
         const res = await adminFetch(
-          `/api/digital/${active.campaignId}/${cfg.source}/map?metric=${active.metric}`,
+          `/api/digital/${active.campaignId}/${cfg.source}/map?metric=${active.metric}${actorsQ}`,
           { cache: 'no-store' },
         );
         const d = res.ok ? await res.json() : null;
