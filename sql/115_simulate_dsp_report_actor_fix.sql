@@ -1,6 +1,8 @@
 -- ============================================================
 -- 115 — simulate_dsp_report : agrège par date AVANT le CROSS JOIN canaux
 -- ============================================================
+-- NOTE : superseded par sql/116 (réconciliation actor-aware) — cette version
+-- conflait le volume régie dans les canaux DSP.
 -- Contexte : sql/113 (rollups par acteur) a fait grouper campaign_daily_rollup
 -- par (date, media, actor) — une campagne avec plusieurs acteurs a désormais
 -- PLUSIEURS lignes par date (une par acteur), alors que simulate_dsp_report
