@@ -22,12 +22,15 @@ export async function GET(
     return NextResponse.json({ error: 'invalid_dept' }, { status: 400 });
   }
 
+  const actorsRaw = request.nextUrl.searchParams.get('actors');
+  const pActors = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : null;
+
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const { data, error } = await supabase.rpc('get_campaign_suivi_cps', {
-    p_campaign_id: campaignId, p_dept: dept,
+    p_campaign_id: campaignId, p_dept: dept, p_actors: pActors,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ cps: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });

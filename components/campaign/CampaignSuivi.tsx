@@ -96,6 +96,9 @@ export function CampaignSuivi({
   }, [campaignId, strategyId, strategyStatus, selectedActors]);
 
   // Réinitialise le filtre acteurs et le cache suivi au changement de campagne.
+  // Reset acteurs + cache au changement de campagne. Le refetch débouncé re-run
+  // aussi sur campaignId : son cleanup annule le timer « acteurs périmés » avant
+  // les 300 ms, donc aucune requête pour la mauvaise campagne n'est émise.
   useEffect(() => { setSelectedActors([]); suiviCacheRef.current.clear(); }, [campaignId]);
 
   // Réconciliation DSP ⇔ ad server — un fetch dédié, rechargé après un pull.

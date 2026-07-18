@@ -27,6 +27,8 @@ export function ActorFilter({
   const toggle = (actor: string) => {
     const base = allSelected ? all : selected;
     const next = base.includes(actor) ? base.filter((a) => a !== actor) : [...base, actor];
+    // [] = tous (le parent n'envoie pas de param). Décocher le dernier acteur
+    // retombe donc sur « tous » plutôt que sur un état vide (sans signification).
     onChange(next.length === all.length ? [] : next); // [] = tous (pas de param)
   };
 
