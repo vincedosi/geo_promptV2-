@@ -18,6 +18,7 @@ AS $$
 DECLARE
   v_channels text[];
   v_budgets jsonb;
+  v_demo_cpm jsonb;
   v_total_budget numeric;
   v_daily int := 0; v_cp int := 0;
 BEGIN
@@ -25,8 +26,9 @@ BEGIN
            SELECT jsonb_array_elements_text(COALESCE(geo_strategy->'channels'->'dsps','[]'::jsonb))
            UNION
            SELECT jsonb_array_elements_text(COALESCE(geo_strategy->'channels'->'socials','[]'::jsonb))),
-         COALESCE(geo_strategy->'channels'->'budgets', '{}'::jsonb)
-    INTO v_channels, v_budgets
+         COALESCE(geo_strategy->'channels'->'budgets', '{}'::jsonb),
+         COALESCE(geo_strategy->'channels'->'demo_cpm', '{}'::jsonb)
+    INTO v_channels, v_budgets, v_demo_cpm
   FROM dsp_campaigns WHERE id = p_campaign_id;
 
   IF v_channels IS NULL OR array_length(v_channels, 1) IS NULL THEN
@@ -44,8 +46,10 @@ BEGIN
            CASE WHEN v_total_budget > 0
                 THEN COALESCE((v_budgets->>c)::numeric, 0) / v_total_budget
                 ELSE 1.0 / array_length(v_channels, 1) END AS share,
-           CASE c WHEN 'dv360' THEN 6.1 WHEN 'ttd' THEN 6.4
-                  WHEN 'tiktok' THEN 6.0 WHEN 'meta' THEN 6.6 ELSE 6.2 END AS cpm
+           -- CPM : override démo (geo_strategy.channels.demo_cpm) sinon défaut par canal.
+           COALESCE((v_demo_cpm->>c)::numeric,
+                    CASE c WHEN 'dv360' THEN 6.1 WHEN 'ttd' THEN 6.4
+                           WHEN 'tiktok' THEN 6.0 WHEN 'meta' THEN 6.6 ELSE 6.2 END) AS cpm
     FROM unnest(v_channels) c
   )
   INSERT INTO campaign_dsp_report
