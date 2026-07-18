@@ -23,11 +23,14 @@ export async function GET(
   if (!profile) return authUnauthorized();
   const { campaignId } = await params;
 
+  const actorsRaw = request.nextUrl.searchParams.get('actors');
+  const pActors = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : null;
+
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
-  let { data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId });
+  let { data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (data?.error === 'no_strategy') {
@@ -36,7 +39,7 @@ export async function GET(
   if (data?.error === 'no_rollup') {
     const { error: refreshErr } = await supabase.rpc('refresh_campaign_rollups', { p_campaign_id: campaignId });
     if (refreshErr) return NextResponse.json({ error: refreshErr.message }, { status: 500 });
-    ({ data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId }));
+    ({ data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors }));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (data?.error) return NextResponse.json({ error: data.error }, { status: 409 });
   }
