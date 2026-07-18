@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * SuiviMapLayer — choroplèthe CP du cockpit de suivi (spec 2026-07-17).
- * Activée par l'événement `magelian:suivi-map` (dispatché par l'onglet Suivi
- * de l'overlay MAGELIAN, qui se replie ensuite) : detail =
- * { campaignId, metric: 'hold'|'cpm', forecastCpm }.
+ * SuiviMapLayer — choroplèthe CP du cockpit de suivi (spec 2026-07-17) et de
+ * la réconciliation DSP ⇔ mesure (spec 2026-07-18). Activée par l'événement
+ * `magelian:suivi-map` : detail = { campaignId, source?, metric, forecastCpm }.
  *
- * Métriques : indice de tenue du plan (paliers holdTone 60/80) ou CPM réel
- * (paliers vs CPM prévu ×1,10/×1,25 — teal uni si pas de prévu). Couleurs
- * lues des tokens CSS au runtime (MapLibre ne résout pas var()). Légende
- * flottante avec toggle de métrique et fermeture — pattern CivicHealthMapLayer.
+ * source 'suivi' (défaut) → /suivi/map, métriques 'hold'|'cpm' ;
+ * source 'reconcile'      → /reconcile/map, métriques 'measure'|'dspcpm'.
+ * Couleurs lues des tokens CSS au runtime (MapLibre ne résout pas var()).
+ * Légende flottante avec toggle de métrique et fermeture — pattern
+ * CivicHealthMapLayer.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
@@ -21,10 +21,12 @@ const LINE_ID = 'suivi-campaign-zones-line';
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
-type SuiviMapMetric = 'hold' | 'cpm';
+type SuiviMapSource = 'suivi' | 'reconcile';
+type SuiviMapMetric = 'hold' | 'cpm' | 'measure' | 'dspcpm';
 
 export interface SuiviMapEventDetail {
   campaignId: string;
+  source?: SuiviMapSource;
   metric: SuiviMapMetric;
   forecastCpm: number | null;
 }
@@ -57,6 +59,18 @@ function fillColorExpression(metric: SuiviMapMetric, forecastCpm: number | null)
       ['<', v, 80], c.warn,
       c.ok];
   }
+  if (metric === 'measure') {
+    return ['case',
+      ['<', v, 0], 'rgba(0,0,0,0)',
+      ['<', v, 85], c.bad,
+      ['<', v, 95], c.warn,
+      c.ok];
+  }
+  if (metric === 'dspcpm') {
+    // Pas de référence prévue par CP côté DSP : teal uni au-dessus de 0.
+    return ['case', ['<', v, 0], 'rgba(0,0,0,0)', c.teal];
+  }
+  // 'cpm' (suivi) : vs CPM prévu.
   if (forecastCpm == null || forecastCpm <= 0) {
     return ['case', ['<', v, 0], 'rgba(0,0,0,0)', c.teal];
   }
@@ -102,8 +116,9 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
     setLoading(true);
     (async () => {
       try {
+        const endpoint = (active.source ?? 'suivi') === 'reconcile' ? 'reconcile' : 'suivi';
         const res = await adminFetch(
-          `/api/digital/${active.campaignId}/suivi/map?metric=${active.metric}`,
+          `/api/digital/${active.campaignId}/${endpoint}/map?metric=${active.metric}`,
           { cache: 'no-store' },
         );
         const d = res.ok ? await res.json() : null;
@@ -135,9 +150,14 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
           if (!f) return;
           const p = f.properties as { code: string; nom: string | null; in_target: boolean | string; value: number | null };
           const inTarget = p.in_target === true || p.in_target === 'true';
-          const valueLabel = active.metric === 'cpm'
-            ? (p.value != null ? `${Number(p.value).toFixed(2).replace('.', ',')} €` : '—')
-            : (p.value != null ? `${p.value} % du plan` : '—');
+          const isCurrency = active.metric === 'cpm' || active.metric === 'dspcpm';
+          const valueLabel = p.value == null ? '—'
+            : isCurrency ? `${Number(p.value).toFixed(2).replace('.', ',')} €`
+            : active.metric === 'measure' ? `${p.value} % mesuré`
+            : `${p.value} % du plan`;
+          const metricLabel = active.metric === 'cpm' ? 'CPM'
+            : active.metric === 'dspcpm' ? 'CPM DSP'
+            : active.metric === 'measure' ? 'Taux de mesure' : 'Tenue';
           if (popupRef.current) popupRef.current.remove();
           popupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '240px' })
             .setLngLat(e.lngLat)
@@ -145,7 +165,7 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
               `<div style="font-family:${fInter};font-size:12px;">`
               + `<strong>${p.code}</strong>${p.nom ? ` · ${p.nom}` : ''}`
               + `${inTarget ? ' · <span style="color:var(--brand-teal)">cible</span>' : ''}<br/>`
-              + `<span style="font-family:${fMono};font-size:11px;">${active.metric === 'cpm' ? 'CPM' : 'Tenue'} : ${valueLabel}</span>`
+              + `<span style="font-family:${fMono};font-size:11px;">${metricLabel} : ${valueLabel}</span>`
               + `</div>`,
             )
             .addTo(map);
@@ -171,6 +191,10 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
   );
   const c = readToneColors();
   const hasForecast = active.forecastCpm != null && active.forecastCpm > 0;
+  const isRecon = (active.source ?? 'suivi') === 'reconcile';
+  const toggles: Array<{ metric: SuiviMapMetric; label: string }> = isRecon
+    ? [{ metric: 'measure', label: 'Taux de mesure' }, { metric: 'dspcpm', label: 'CPM DSP' }]
+    : [{ metric: 'hold', label: 'Tenue du plan' }, { metric: 'cpm', label: 'CPM' }];
 
   return (
     <div style={{
@@ -181,7 +205,7 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)' }} />
         <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>
-          Suivi campagne {loading ? '· chargement…' : ''}
+          {isRecon ? 'Réconciliation' : 'Suivi campagne'} {loading ? '· chargement…' : ''}
         </span>
         <button
           type="button"
@@ -192,38 +216,47 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
         </button>
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['hold', 'cpm'] as const).map((m) => (
+        {toggles.map((t) => (
           <button
-            key={m}
+            key={t.metric}
             type="button"
-            onClick={() => setActive({ ...active, metric: m })}
+            onClick={() => setActive({ ...active, metric: t.metric })}
             style={{
               background: 'transparent', borderRadius: 6, padding: '4px 10px',
-              border: `0.5px solid ${active.metric === m ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-              color: active.metric === m ? 'var(--brand-teal)' : 'var(--text-secondary)',
+              border: `0.5px solid ${active.metric === t.metric ? 'var(--brand-teal)' : 'var(--border-default)'}`,
+              color: active.metric === t.metric ? 'var(--brand-teal)' : 'var(--text-secondary)',
               fontFamily: fInter, fontSize: 11, cursor: 'pointer',
             }}
           >
-            {m === 'hold' ? 'Tenue du plan' : 'CPM'}
+            {t.label}
           </button>
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {active.metric === 'hold' ? (
+        {active.metric === 'hold' && (
           <>
             {legendRow(c.ok, '≥ 80 % du plan')}
             {legendRow(c.warn, '60–80 %')}
             {legendRow(c.bad, '< 60 %')}
           </>
-        ) : hasForecast ? (
+        )}
+        {active.metric === 'measure' && (
           <>
-            {legendRow(c.ok, `≤ prévu +10 %`)}
+            {legendRow(c.ok, '≥ 95 % mesuré')}
+            {legendRow(c.warn, '85–95 %')}
+            {legendRow(c.bad, '< 85 %')}
+          </>
+        )}
+        {active.metric === 'dspcpm' && legendRow(c.teal, 'CPM DSP réel par CP')}
+        {active.metric === 'cpm' && (hasForecast ? (
+          <>
+            {legendRow(c.ok, '≤ prévu +10 %')}
             {legendRow(c.warn, 'prévu +10–25 %')}
             {legendRow(c.bad, '> prévu +25 %')}
           </>
         ) : (
           legendRow(c.teal, 'CPM réel (pas de prévu)')
-        )}
+        ))}
       </div>
     </div>
   );
