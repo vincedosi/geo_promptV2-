@@ -88,9 +88,9 @@ SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_source text;
-  v_dsp_imps bigint; v_dsp_spend numeric;
+  v_dsp_imps bigint := 0; v_dsp_spend numeric := 0;
   v_as_imps bigint; v_as_as_of date;
-  v_global jsonb; v_by_channel jsonb; v_daily jsonb;
+  v_by_channel jsonb;
 BEGIN
   SELECT source INTO v_source
   FROM campaign_dsp_report WHERE campaign_id = p_campaign_id LIMIT 1;
@@ -98,49 +98,38 @@ BEGIN
     RETURN jsonb_build_object('has_dsp_report', false);
   END IF;
 
-  SELECT COALESCE(SUM(impressions), 0), COALESCE(SUM(spend), 0)
-    INTO v_dsp_imps, v_dsp_spend
-  FROM campaign_dsp_report WHERE campaign_id = p_campaign_id AND date IS NOT NULL;
+  -- Un seul balayage du grain daily : by_channel + totaux globaux dérivés ensemble
+  -- (share_pct via window sur le total, pas de re-scan pour le global).
+  SELECT COALESCE(SUM(imps), 0), COALESCE(SUM(spend), 0),
+         COALESCE(jsonb_agg(
+           jsonb_build_object('channel', channel, 'impressions', imps, 'spend', spend,
+                              'cpm', cpm, 'share_pct', share_pct)
+           ORDER BY imps DESC), '[]'::jsonb)
+  INTO v_dsp_imps, v_dsp_spend, v_by_channel
+  FROM (
+    SELECT channel, SUM(impressions) AS imps, round(SUM(spend), 2) AS spend,
+           CASE WHEN SUM(impressions) > 0 THEN round(SUM(spend) / SUM(impressions) * 1000, 2) END AS cpm,
+           CASE WHEN SUM(SUM(impressions)) OVER () > 0
+                THEN round(SUM(impressions)::numeric / SUM(SUM(impressions)) OVER () * 100, 1) END AS share_pct
+    FROM campaign_dsp_report
+    WHERE campaign_id = p_campaign_id AND date IS NOT NULL
+    GROUP BY channel
+  ) t;
 
   SELECT COALESCE(SUM(impressions), 0), MAX(date)
     INTO v_as_imps, v_as_as_of
   FROM campaign_daily_rollup WHERE campaign_id = p_campaign_id;
 
-  v_global := jsonb_build_object(
-    'dsp_impressions', v_dsp_imps,
-    'adserver_impressions', v_as_imps,
-    'measure_rate', CASE WHEN v_dsp_imps > 0 THEN round(v_as_imps::numeric / v_dsp_imps * 100, 1) END,
-    'gap_pct', CASE WHEN v_dsp_imps > 0 THEN round((v_dsp_imps - v_as_imps)::numeric / v_dsp_imps * 100, 1) END,
-    'dsp_spend', round(v_dsp_spend, 2),
-    'dsp_cpm', CASE WHEN v_dsp_imps > 0 THEN round(v_dsp_spend / v_dsp_imps * 1000, 2) END);
-
-  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.impressions DESC), '[]'::jsonb) INTO v_by_channel
-  FROM (
-    SELECT channel, SUM(impressions) AS impressions, round(SUM(spend), 2) AS spend,
-           CASE WHEN SUM(impressions) > 0 THEN round(SUM(spend) / SUM(impressions) * 1000, 2) END AS cpm,
-           CASE WHEN v_dsp_imps > 0 THEN round(SUM(impressions)::numeric / v_dsp_imps * 100, 1) END AS share_pct
-    FROM campaign_dsp_report WHERE campaign_id = p_campaign_id AND date IS NOT NULL
-    GROUP BY channel
-  ) t;
-
-  -- Pré-agréger chaque côté par date AVANT de joindre (le rollup ad server est
-  -- par date×media : joindre brut multiplierait les lignes en multi-média).
-  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.date), '[]'::jsonb) INTO v_daily
-  FROM (
-    SELECT a.date,
-           a.imps AS adserver_impressions,
-           COALESCE(dsp.imps, 0) AS dsp_impressions,
-           round(COALESCE(dsp.spend, 0), 2) AS dsp_spend
-    FROM (SELECT date, SUM(impressions) AS imps
-          FROM campaign_daily_rollup WHERE campaign_id = p_campaign_id GROUP BY date) a
-    LEFT JOIN (SELECT date, SUM(impressions) AS imps, SUM(spend) AS spend
-               FROM campaign_dsp_report WHERE campaign_id = p_campaign_id AND date IS NOT NULL
-               GROUP BY date) dsp ON dsp.date = a.date
-  ) t;
-
   RETURN jsonb_build_object(
     'has_dsp_report', true, 'source', v_source, 'as_of', v_as_as_of,
-    'global', v_global, 'by_channel', v_by_channel, 'daily', v_daily);
+    'global', jsonb_build_object(
+      'dsp_impressions', v_dsp_imps,
+      'adserver_impressions', v_as_imps,
+      'measure_rate', CASE WHEN v_dsp_imps > 0 THEN round(v_as_imps::numeric / v_dsp_imps * 100, 1) END,
+      'gap_pct', CASE WHEN v_dsp_imps > 0 THEN round((v_dsp_imps - v_as_imps)::numeric / v_dsp_imps * 100, 1) END,
+      'dsp_spend', round(v_dsp_spend, 2),
+      'dsp_cpm', CASE WHEN v_dsp_imps > 0 THEN round(v_dsp_spend / v_dsp_imps * 1000, 2) END),
+    'by_channel', v_by_channel);
 END;
 $$;
 REVOKE ALL ON FUNCTION public.get_campaign_reconciliation(uuid) FROM PUBLIC, anon, authenticated;

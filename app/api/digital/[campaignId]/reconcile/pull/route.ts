@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { runReport } from '@/lib/dsp/report';
 
 export const dynamic = 'force-dynamic';
@@ -23,14 +24,15 @@ export async function POST(
   const { campaignId } = await params;
 
   const supabase = createAdminClient();
+  // Scope org via le helper partagé (honore le pivot campaign_organizations, 404 uniforme).
+  const access = await checkCampaignAccess(supabase, profile, campaignId);
+  if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+
   const { data: camp } = await supabase
     .from('dsp_campaigns')
     .select('id, name, is_demo, organization_id, geo_strategy, date_start, date_end')
     .eq('id', campaignId).maybeSingle();
   if (!camp) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
-  if (profile.role !== 'super_admin' && camp.organization_id !== profile.organization_id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   // Démo : génération SQL set-based (pas de connecteur, pas de fichier).
   if (camp.is_demo) {

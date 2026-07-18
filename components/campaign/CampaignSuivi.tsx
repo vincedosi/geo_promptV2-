@@ -215,7 +215,7 @@ export function CampaignSuivi({
                 canPull={!!mapAvailable}
                 onShowMap={mapAvailable ? (metric) => {
                   window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
-                    detail: { campaignId, source: 'reconcile', metric, forecastCpm: suivi.cpm.forecast },
+                    detail: { campaignId, metric, forecastCpm: suivi.cpm.forecast },
                   }));
                   onShowedMap?.();
                 } : undefined}

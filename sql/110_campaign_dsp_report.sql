@@ -22,7 +22,11 @@ CREATE TABLE IF NOT EXISTS public.campaign_dsp_report (
   clicks       bigint NOT NULL DEFAULT 0,
   spend        numeric NOT NULL DEFAULT 0,
   source       text NOT NULL DEFAULT 'api',
-  pulled_at    timestamptz NOT NULL DEFAULT now()
+  pulled_at    timestamptz NOT NULL DEFAULT now(),
+  -- Invariant des 2 grains (ferme le trou de double-comptage) :
+  --   daily : date NOT NULL, postal_code=''  |  CP : date NULL, channel=''
+  CONSTRAINT chk_campaign_dsp_report_grain
+    CHECK ((date IS NOT NULL AND postal_code = '') OR (date IS NULL AND channel = ''))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_dsp_report_unique
   ON public.campaign_dsp_report (

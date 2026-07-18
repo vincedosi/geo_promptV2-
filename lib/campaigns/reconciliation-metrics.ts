@@ -14,13 +14,6 @@ export interface ReconChannelRow {
   share_pct: number | null;
 }
 
-export interface ReconDaily {
-  date: string;
-  dsp_impressions: number;
-  adserver_impressions: number;
-  dsp_spend: number;
-}
-
 export interface ReconciliationPayload {
   has_dsp_report: boolean;
   source?: 'api' | 'simulated' | 'skipped';
@@ -34,7 +27,6 @@ export interface ReconciliationPayload {
     dsp_cpm: number | null;
   };
   by_channel?: ReconChannelRow[];
-  daily?: ReconDaily[];
 }
 
 export function measureRateTone(rate: number | null): SuiviTone {
