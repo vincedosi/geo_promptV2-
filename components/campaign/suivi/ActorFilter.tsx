@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { actorDisplayName, actorKindLabel, type ActorRow } from '@/lib/campaigns/actor-metrics';
+import { actorDisplayName, actorKindLabel, isAllActors, type ActorRow } from '@/lib/campaigns/actor-metrics';
 
 const fInter = "'Inter', system-ui, sans-serif";
 
@@ -21,7 +21,7 @@ export function ActorFilter({
   if (actors.length <= 1) return null; // rien à filtrer
 
   const all = actors.map((a) => a.actor);
-  const allSelected = selected.length === 0 || selected.length === all.length;
+  const allSelected = isAllActors(selected, all.length);
   const label = allSelected ? 'Tous les acteurs' : `${selected.length} acteur${selected.length > 1 ? 's' : ''}`;
 
   const toggle = (actor: string) => {

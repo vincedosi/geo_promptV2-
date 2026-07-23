@@ -21,7 +21,7 @@ const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
 
 type SuiviMapSource = 'suivi' | 'reconcile';
-type SuiviMapMetric = 'hold' | 'cpm' | 'objectif' | 'measure' | 'dspcpm';
+export type SuiviMapMetric = 'hold' | 'cpm' | 'objectif' | 'measure' | 'dspcpm';
 
 export interface SuiviMapEventDetail {
   campaignId: string;
@@ -75,6 +75,10 @@ interface MetricConfig {
   format: (v: number) => string;
   fill: (c: Tone, forecastCpm: number | null) => maplibregl.ExpressionSpecification;
   legend: (c: Tone, forecastCpm: number | null) => Array<[string, string]>;
+  /** Métrique masquée sous filtre acteur partiel : sa valeur devient une
+   *  contribution (lit l'objectif GLOBAL, pas la part de l'acteur) → trompeuse
+   *  rendue comme une atteinte absolue. Cohérent avec le masquage SuiviTable. */
+  hiddenUnderPartialActors?: true;
 }
 
 const METRICS: Record<SuiviMapMetric, MetricConfig> = {
@@ -94,7 +98,7 @@ const METRICS: Record<SuiviMapMetric, MetricConfig> = {
       : [[c.ok, '≤ prévu +10 %'], [c.warn, 'prévu +10–25 %'], [c.bad, '> prévu +25 %']],
   },
   objectif: {
-    source: 'suivi', label: 'Atteinte objectif',
+    source: 'suivi', label: 'Atteinte objectif', hiddenUnderPartialActors: true,
     format: (v) => `${v} % de l'objectif`,
     fill: (c) => divergingFill(c),
     legend: (c) => [[c.bad, '< 70 % (nettement sous)'], [c.warn, '70–90 % (sous)'], [c.ok, '90–110 % (sur l\'objectif)'], [c.teal, '> 110 % (au-dessus)']],
@@ -214,12 +218,12 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
 
   const cfg = METRICS[active.metric];
   const c = readToneColors();
-  // Sous filtre acteur partiel, l'atteinte objectif lit l'objectif GLOBAL (pas la
-  // part de l'acteur) → on retire l'onglet « objectif » pour ne pas rendre une
-  // contribution comme une atteinte absolue (cohérent avec le masquage SuiviTable).
+  // Sous filtre acteur partiel, on retire les métriques marquées
+  // hiddenUnderPartialActors (règle portée par la table METRICS, pas par un test
+  // de nom de métrique ici) — cf. commentaire de MetricConfig.
   const partialActors = !!active.actors?.length;
   const toggles = METRIC_KEYS.filter(
-    (m) => METRICS[m].source === cfg.source && !(m === 'objectif' && partialActors),
+    (m) => METRICS[m].source === cfg.source && !(METRICS[m].hiddenUnderPartialActors && partialActors),
   );
 
   return (

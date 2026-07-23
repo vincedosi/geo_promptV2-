@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { parseActorsParam } from '@/lib/campaigns/actor-metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,10 +34,7 @@ export async function GET(
   }
   const { metric, bbox } = parsed.data;
 
-  // ?actors= vide/blanc ⇒ null (« tous »), jamais [] (que le RPC lit « aucun acteur »).
-  const actorsRaw = sp.get('actors');
-  const actorsList = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : [];
-  const pActors = actorsList.length ? actorsList : null;
+  const pActors = parseActorsParam(sp);
 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);

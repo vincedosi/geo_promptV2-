@@ -8,7 +8,7 @@
  */
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import {
-  actorDisplayName, actorKindLabel, fmtCpm, fmtInt, fmtPct,
+  actorDisplayName, actorKindLabel, fmtCpm, fmtInt, fmtPct, isAllActors,
   type ActorRow,
 } from '@/lib/campaigns/actor-metrics';
 
@@ -20,7 +20,7 @@ const headStyle = { padding: '7px 10px', fontFamily: fInter, fontSize: 10, textT
 
 export function ActorPanel({ actors, selected }: { actors: ActorRow[]; selected: string[] }) {
   if (actors.length <= 1) return null;
-  const allSelected = selected.length === 0 || selected.length === actors.length;
+  const allSelected = isAllActors(selected, actors.length);
   const rows = allSelected ? actors : actors.filter((a) => selected.includes(a.actor));
   if (rows.length === 0) return null;
   const chart = rows.map((a) => ({ name: actorDisplayName(a.actor), value: a.impressions }));

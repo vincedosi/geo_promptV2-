@@ -19,7 +19,8 @@ import { SuiviTable } from './suivi/SuiviTable';
 import { ReconciliationPanel } from './suivi/ReconciliationPanel';
 import { ActorFilter } from './suivi/ActorFilter';
 import { ActorPanel } from './suivi/ActorPanel';
-import type { ActorsPayload } from '@/lib/campaigns/actor-metrics';
+import { actorsKey, type ActorsPayload } from '@/lib/campaigns/actor-metrics';
+import type { SuiviMapMetric } from '@/app/map/_components/SuiviMapLayer';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -79,7 +80,7 @@ export function CampaignSuivi({
   const suiviCacheRef = useRef(new Map<string, SuiviPayload>());
   useEffect(() => {
     if (!strategyId || strategyStatus === 'completed') return;
-    const key = `${campaignId}|${[...selectedActors].sort().join(',')}`;
+    const key = `${campaignId}|${actorsKey(selectedActors)}`;
     const cached = suiviCacheRef.current.get(key);
     if (cached) { setSuivi(cached); return; }
     let cancelled = false;
@@ -95,7 +96,6 @@ export function CampaignSuivi({
     return () => { cancelled = true; clearTimeout(t); };
   }, [campaignId, strategyId, strategyStatus, selectedActors]);
 
-  // Réinitialise le filtre acteurs et le cache suivi au changement de campagne.
   // Reset acteurs + cache au changement de campagne. Le refetch débouncé re-run
   // aussi sur campaignId : son cleanup annule le timer « acteurs périmés » avant
   // les 300 ms, donc aucune requête pour la mauvaise campagne n'est émise.
@@ -128,7 +128,7 @@ export function CampaignSuivi({
 
   // Dispatch carte centralisé — couvre les métriques suivi (hold/cpm/objectif)
   // et réconciliation (measure/dspcpm), acteurs sélectionnés inclus.
-  const showMap = useCallback((metric: 'hold' | 'cpm' | 'objectif' | 'measure' | 'dspcpm') => {
+  const showMap = useCallback((metric: SuiviMapMetric) => {
     if (!mapAvailable) return;
     window.dispatchEvent(new CustomEvent('magelian:suivi-map', {
       detail: {

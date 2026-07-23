@@ -9,12 +9,13 @@
  *              (GET /suivi/cps?dept=), cache en ref, jamais plus de 500 lignes.
  * Anti-12 000 CP : on ne montre jamais la liste complète des CP.
  */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
   fmtCpm, fmtInt, fmtPct, holdTone, alignmentTone, toneColor,
-  type SuiviCpRow, type SuiviPayload,
+  type SuiviCpRow, type SuiviPayload, type SuiviTone,
 } from '@/lib/campaigns/suivi-metrics';
+import { actorsKey } from '@/lib/campaigns/actor-metrics';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -28,22 +29,12 @@ const headStyle = {
   letterSpacing: '0.05em', color: 'var(--text-tertiary)', textAlign: 'right' as const,
 };
 
-function HoldBadge({ value }: { value: number | null }) {
+/** Badge « x % » coloré par ton (tenue du plan ou atteinte objectif). */
+function ToneBadge({ value, tone }: { value: number | null; tone: SuiviTone }) {
   return (
     <span style={{
       fontFamily: fMono, fontSize: 11, padding: '1px 7px', borderRadius: 4,
-      border: `0.5px solid ${toneColor(holdTone(value))}`, color: toneColor(holdTone(value)),
-    }}>
-      {value != null ? `${value} %` : '—'}
-    </span>
-  );
-}
-
-function AlignBadge({ value }: { value: number | null }) {
-  return (
-    <span style={{
-      fontFamily: fMono, fontSize: 11, padding: '1px 7px', borderRadius: 4,
-      border: `0.5px solid ${toneColor(alignmentTone(value))}`, color: toneColor(alignmentTone(value)),
+      border: `0.5px solid ${toneColor(tone)}`, color: toneColor(tone),
     }}>
       {value != null ? `${value} %` : '—'}
     </span>
@@ -73,6 +64,9 @@ export function SuiviTable({
   const cpCacheRef = useRef(new Map<string, SuiviCpRow[]>());
   // Compteur de rendu forcé après remplissage du cache (la ref ne re-rend pas).
   const [, setCpVersion] = useState(0);
+  // Clé de cache des acteurs, stable entre l'écriture (toggleDept) et la lecture
+  // (boucle de rendu) — un seul calcul par changement de sélection.
+  const aKey = useMemo(() => actorsKey(actors), [actors]);
 
   const toggleDept = async (dept: string) => {
     const next = new Set(openDepts);
@@ -83,7 +77,7 @@ export function SuiviTable({
     }
     next.add(dept);
     setOpenDepts(next);
-    const cacheKey = `${dept}|${[...actors].sort().join(',')}`;
+    const cacheKey = `${dept}|${aKey}`;
     if (!cpCacheRef.current.has(cacheKey)) {
       setLoadingDept(dept);
       try {
@@ -164,7 +158,7 @@ export function SuiviTable({
 
             {depts.map((d) => {
               const open = openDepts.has(d.dept);
-              const cacheKey = `${d.dept}|${[...actors].sort().join(',')}`;
+              const cacheKey = `${d.dept}|${aKey}`;
               const cps = cpCacheRef.current.get(cacheKey);
               return [
                 <tr
@@ -182,8 +176,8 @@ export function SuiviTable({
                     )}
                   </td>
                   <td style={cellStyle}>{fmtInt(d.impressions)}</td>
-                  <td style={cellStyle}><HoldBadge value={d.hold_index} /></td>
-                  {showObjective && <td style={cellStyle}><AlignBadge value={d.objective_alignment} /></td>}
+                  <td style={cellStyle}><ToneBadge value={d.hold_index} tone={holdTone(d.hold_index)} /></td>
+                  {showObjective && <td style={cellStyle}><ToneBadge value={d.objective_alignment} tone={alignmentTone(d.objective_alignment)} /></td>}
                   <td style={cellStyle}>{fmtCpm(d.cpm)}</td>
                   <td style={cellStyle}>{fmtInt(d.spend)} €</td>
                   <td style={cellStyle}>{fmtDelta(d.delta7_pct)}</td>
@@ -196,8 +190,8 @@ export function SuiviTable({
                           {c.in_target && <span style={{ marginLeft: 8, color: 'var(--brand-teal)', fontSize: 10 }}>●</span>}
                         </td>
                         <td style={cellStyle}>{fmtInt(c.impressions)}</td>
-                        <td style={cellStyle}><HoldBadge value={c.hold_index} /></td>
-                        {showObjective && <td style={cellStyle}><AlignBadge value={c.objective_alignment} /></td>}
+                        <td style={cellStyle}><ToneBadge value={c.hold_index} tone={holdTone(c.hold_index)} /></td>
+                        {showObjective && <td style={cellStyle}><ToneBadge value={c.objective_alignment} tone={alignmentTone(c.objective_alignment)} /></td>}
                         <td style={cellStyle}>{fmtCpm(c.cpm)}</td>
                         <td style={cellStyle}>{fmtInt(c.spend)} €</td>
                         <td style={cellStyle}>{fmtDelta(c.delta7_pct)}</td>
