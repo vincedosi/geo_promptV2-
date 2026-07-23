@@ -22,8 +22,10 @@ export async function GET(
     return NextResponse.json({ error: 'invalid_dept' }, { status: 400 });
   }
 
+  // ?actors= vide/blanc ⇒ null (« tous »), jamais [] (que le RPC lit « aucun acteur »).
   const actorsRaw = request.nextUrl.searchParams.get('actors');
-  const pActors = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : null;
+  const actorsList = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : [];
+  const pActors = actorsList.length ? actorsList : null;
 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);

@@ -23,8 +23,10 @@ export async function GET(
   if (!profile) return authUnauthorized();
   const { campaignId } = await params;
 
+  // ?actors= vide/blanc ⇒ null (« tous »), jamais [] (que le RPC lit « aucun acteur »).
   const actorsRaw = request.nextUrl.searchParams.get('actors');
-  const pActors = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : null;
+  const actorsList = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : [];
+  const pActors = actorsList.length ? actorsList : null;
 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);

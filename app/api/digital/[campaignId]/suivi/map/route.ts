@@ -33,8 +33,10 @@ export async function GET(
   }
   const { metric, bbox } = parsed.data;
 
+  // ?actors= vide/blanc ⇒ null (« tous »), jamais [] (que le RPC lit « aucun acteur »).
   const actorsRaw = sp.get('actors');
-  const pActors = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : null;
+  const actorsList = actorsRaw ? actorsRaw.split(',').map((a) => a.trim()).filter(Boolean) : [];
+  const pActors = actorsList.length ? actorsList : null;
 
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
