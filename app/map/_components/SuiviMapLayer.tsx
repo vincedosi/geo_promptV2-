@@ -214,7 +214,13 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
 
   const cfg = METRICS[active.metric];
   const c = readToneColors();
-  const toggles = METRIC_KEYS.filter((m) => METRICS[m].source === cfg.source);
+  // Sous filtre acteur partiel, l'atteinte objectif lit l'objectif GLOBAL (pas la
+  // part de l'acteur) → on retire l'onglet « objectif » pour ne pas rendre une
+  // contribution comme une atteinte absolue (cohérent avec le masquage SuiviTable).
+  const partialActors = !!active.actors?.length;
+  const toggles = METRIC_KEYS.filter(
+    (m) => METRICS[m].source === cfg.source && !(m === 'objectif' && partialActors),
+  );
 
   return (
     <div style={{

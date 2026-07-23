@@ -259,7 +259,18 @@ export function CampaignSuivi({
                 onShowMap={mapAvailable ? showMap : undefined}
               />
               <SuiviCharts payload={suivi} />
-              <SuiviTable payload={suivi} campaignId={campaignId} actors={selectedActors} onShowMap={mapAvailable ? showMap : undefined} />
+              {/* Filtre partiel (sous-ensemble strict — ActorFilter retombe sur []
+                  quand tout est coché) → l'atteinte objectif par zone lit
+                  l'objectif GLOBAL, pas la part de l'acteur : on masque le bloc
+                  objectif (bandeau + colonne + onglet carte) pour ne pas afficher
+                  la contribution d'un acteur comme une atteinte absolue. */}
+              <SuiviTable
+                payload={suivi}
+                campaignId={campaignId}
+                actors={selectedActors}
+                onShowMap={mapAvailable ? showMap : undefined}
+                showObjective={selectedActors.length === 0}
+              />
             </>
           ) : strategyId && !suiviError ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>

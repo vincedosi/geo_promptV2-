@@ -56,12 +56,16 @@ function fmtDelta(v: number | null): string {
 }
 
 export function SuiviTable({
-  payload, campaignId, actors, onShowMap,
+  payload, campaignId, actors, onShowMap, showObjective = true,
 }: {
   payload: SuiviPayload;
   campaignId: string;
   actors: string[];
   onShowMap?: (metric: 'objectif') => void;
+  /** false sous filtre acteur partiel : l'atteinte objectif par zone lit
+   *  l'objectif GLOBAL (pas la part de l'acteur) → afficher la contribution
+   *  d'un acteur comme une atteinte absolue est trompeur. On masque le bloc. */
+  showObjective?: boolean;
 }) {
   const [openDepts, setOpenDepts] = useState<Set<string>>(new Set());
   const [visibleDepts, setVisibleDepts] = useState(20);
@@ -105,26 +109,28 @@ export function SuiviTable({
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px', flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <strong style={{ color: 'var(--danger)' }}>{payload.objective_zones.under}</strong> zones sous l&apos;objectif
-          {' · '}
-          <strong style={{ color: 'var(--brand-teal)' }}>{payload.objective_zones.over}</strong> au-dessus
-        </span>
-        {onShowMap && (
-          <button
-            type="button"
-            onClick={() => onShowMap('objectif')}
-            style={{
-              marginLeft: 'auto', background: 'transparent', border: '0.5px solid var(--brand-teal)',
-              color: 'var(--brand-teal)', borderRadius: 6, padding: '5px 12px',
-              fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
-            }}
-          >
-            Voir l&apos;objectif sur la carte
-          </button>
-        )}
-      </div>
+      {showObjective && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px', flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--danger)' }}>{payload.objective_zones.under}</strong> zones sous l&apos;objectif
+            {' · '}
+            <strong style={{ color: 'var(--brand-teal)' }}>{payload.objective_zones.over}</strong> au-dessus
+          </span>
+          {onShowMap && (
+            <button
+              type="button"
+              onClick={() => onShowMap('objectif')}
+              style={{
+                marginLeft: 'auto', background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                color: 'var(--brand-teal)', borderRadius: 6, padding: '5px 12px',
+                fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              Voir l&apos;objectif sur la carte
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ overflowX: 'auto', border: '0.5px solid var(--border-subtle)', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -133,7 +139,7 @@ export function SuiviTable({
               <th style={{ ...headStyle, textAlign: 'left' }}>Zone</th>
               <th style={headStyle}>Impressions</th>
               <th style={headStyle}>Tenue du plan</th>
-              <th style={headStyle}>Atteinte objectif</th>
+              {showObjective && <th style={headStyle}>Atteinte objectif</th>}
               <th style={headStyle}>CPM</th>
               <th style={headStyle}>Spend</th>
               <th style={headStyle}>Δ 7 j</th>
@@ -149,7 +155,7 @@ export function SuiviTable({
                 <td style={cellStyle}>
                   {fmtPct(l.share_real)} <span style={{ color: 'var(--text-tertiary)' }}>/ plan {fmtPct(l.share_plan)}</span>
                 </td>
-                <td style={cellStyle}>—</td>
+                {showObjective && <td style={cellStyle}>—</td>}
                 <td style={cellStyle}>{fmtCpm(l.cpm)}</td>
                 <td style={cellStyle}>{fmtInt(l.spend)} €</td>
                 <td style={cellStyle}>—</td>
@@ -177,7 +183,7 @@ export function SuiviTable({
                   </td>
                   <td style={cellStyle}>{fmtInt(d.impressions)}</td>
                   <td style={cellStyle}><HoldBadge value={d.hold_index} /></td>
-                  <td style={cellStyle}><AlignBadge value={d.objective_alignment} /></td>
+                  {showObjective && <td style={cellStyle}><AlignBadge value={d.objective_alignment} /></td>}
                   <td style={cellStyle}>{fmtCpm(d.cpm)}</td>
                   <td style={cellStyle}>{fmtInt(d.spend)} €</td>
                   <td style={cellStyle}>{fmtDelta(d.delta7_pct)}</td>
@@ -191,7 +197,7 @@ export function SuiviTable({
                         </td>
                         <td style={cellStyle}>{fmtInt(c.impressions)}</td>
                         <td style={cellStyle}><HoldBadge value={c.hold_index} /></td>
-                        <td style={cellStyle}><AlignBadge value={c.objective_alignment} /></td>
+                        {showObjective && <td style={cellStyle}><AlignBadge value={c.objective_alignment} /></td>}
                         <td style={cellStyle}>{fmtCpm(c.cpm)}</td>
                         <td style={cellStyle}>{fmtInt(c.spend)} €</td>
                         <td style={cellStyle}>{fmtDelta(c.delta7_pct)}</td>
@@ -201,7 +207,7 @@ export function SuiviTable({
                 ...(open && loadingDept === d.dept
                   ? [(
                       <tr key={`${d.dept}-loading`}>
-                        <td colSpan={7} style={{ ...cellStyle, textAlign: 'left', paddingLeft: 34, fontFamily: fInter, color: 'var(--text-tertiary)' }}>
+                        <td colSpan={showObjective ? 7 : 6} style={{ ...cellStyle, textAlign: 'left', paddingLeft: 34, fontFamily: fInter, color: 'var(--text-tertiary)' }}>
                           Chargement des CP…
                         </td>
                       </tr>
