@@ -9,12 +9,13 @@
  *              (GET /suivi/cps?dept=), cache en ref, jamais plus de 500 lignes.
  * Anti-12 000 CP : on ne montre jamais la liste complète des CP.
  */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import {
-  fmtCpm, fmtInt, fmtPct, holdTone, toneColor,
-  type SuiviCpRow, type SuiviPayload,
+  fmtCpm, fmtInt, fmtPct, holdTone, alignmentTone, toneColor,
+  type SuiviCpRow, type SuiviPayload, type SuiviTone,
 } from '@/lib/campaigns/suivi-metrics';
+import { actorsKey } from '@/lib/campaigns/actor-metrics';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -28,11 +29,12 @@ const headStyle = {
   letterSpacing: '0.05em', color: 'var(--text-tertiary)', textAlign: 'right' as const,
 };
 
-function HoldBadge({ value }: { value: number | null }) {
+/** Badge « x % » coloré par ton (tenue du plan ou atteinte objectif). */
+function ToneBadge({ value, tone }: { value: number | null; tone: SuiviTone }) {
   return (
     <span style={{
       fontFamily: fMono, fontSize: 11, padding: '1px 7px', borderRadius: 4,
-      border: `0.5px solid ${toneColor(holdTone(value))}`, color: toneColor(holdTone(value)),
+      border: `0.5px solid ${toneColor(tone)}`, color: toneColor(tone),
     }}>
       {value != null ? `${value} %` : '—'}
     </span>
@@ -44,13 +46,27 @@ function fmtDelta(v: number | null): string {
   return `${v > 0 ? '+' : ''}${fmtPct(v)}`;
 }
 
-export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; campaignId: string }) {
+export function SuiviTable({
+  payload, campaignId, actors, onShowMap, showObjective = true,
+}: {
+  payload: SuiviPayload;
+  campaignId: string;
+  actors: string[];
+  onShowMap?: (metric: 'objectif') => void;
+  /** false sous filtre acteur partiel : l'atteinte objectif par zone lit
+   *  l'objectif GLOBAL (pas la part de l'acteur) → afficher la contribution
+   *  d'un acteur comme une atteinte absolue est trompeur. On masque le bloc. */
+  showObjective?: boolean;
+}) {
   const [openDepts, setOpenDepts] = useState<Set<string>>(new Set());
   const [visibleDepts, setVisibleDepts] = useState(20);
   const [loadingDept, setLoadingDept] = useState<string | null>(null);
   const cpCacheRef = useRef(new Map<string, SuiviCpRow[]>());
   // Compteur de rendu forcé après remplissage du cache (la ref ne re-rend pas).
   const [, setCpVersion] = useState(0);
+  // Clé de cache des acteurs, stable entre l'écriture (toggleDept) et la lecture
+  // (boucle de rendu) — un seul calcul par changement de sélection.
+  const aKey = useMemo(() => actorsKey(actors), [actors]);
 
   const toggleDept = async (dept: string) => {
     const next = new Set(openDepts);
@@ -61,12 +77,14 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
     }
     next.add(dept);
     setOpenDepts(next);
-    if (!cpCacheRef.current.has(dept)) {
+    const cacheKey = `${dept}|${aKey}`;
+    if (!cpCacheRef.current.has(cacheKey)) {
       setLoadingDept(dept);
       try {
-        const res = await adminFetch(`/api/digital/${campaignId}/suivi/cps?dept=${dept}`, { cache: 'no-store' });
+        const actorsQ = actors.length ? `&actors=${encodeURIComponent(actors.join(','))}` : '';
+        const res = await adminFetch(`/api/digital/${campaignId}/suivi/cps?dept=${dept}${actorsQ}`, { cache: 'no-store' });
         const d = res.ok ? await res.json() : { cps: [] };
-        cpCacheRef.current.set(dept, d.cps ?? []);
+        cpCacheRef.current.set(cacheKey, d.cps ?? []);
         setCpVersion((v) => v + 1);
       } finally {
         setLoadingDept(null);
@@ -85,6 +103,29 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
         </span>
       </div>
 
+      {showObjective && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px', flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--danger)' }}>{payload.objective_zones.under}</strong> zones sous l&apos;objectif
+            {' · '}
+            <strong style={{ color: 'var(--brand-teal)' }}>{payload.objective_zones.over}</strong> au-dessus
+          </span>
+          {onShowMap && (
+            <button
+              type="button"
+              onClick={() => onShowMap('objectif')}
+              style={{
+                marginLeft: 'auto', background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                color: 'var(--brand-teal)', borderRadius: 6, padding: '5px 12px',
+                fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              Voir l&apos;objectif sur la carte
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto', border: '0.5px solid var(--border-subtle)', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -92,6 +133,7 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
               <th style={{ ...headStyle, textAlign: 'left' }}>Zone</th>
               <th style={headStyle}>Impressions</th>
               <th style={headStyle}>Tenue du plan</th>
+              {showObjective && <th style={headStyle}>Atteinte objectif</th>}
               <th style={headStyle}>CPM</th>
               <th style={headStyle}>Spend</th>
               <th style={headStyle}>Δ 7 j</th>
@@ -107,6 +149,7 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
                 <td style={cellStyle}>
                   {fmtPct(l.share_real)} <span style={{ color: 'var(--text-tertiary)' }}>/ plan {fmtPct(l.share_plan)}</span>
                 </td>
+                {showObjective && <td style={cellStyle}>—</td>}
                 <td style={cellStyle}>{fmtCpm(l.cpm)}</td>
                 <td style={cellStyle}>{fmtInt(l.spend)} €</td>
                 <td style={cellStyle}>—</td>
@@ -115,7 +158,8 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
 
             {depts.map((d) => {
               const open = openDepts.has(d.dept);
-              const cps = cpCacheRef.current.get(d.dept);
+              const cacheKey = `${d.dept}|${aKey}`;
+              const cps = cpCacheRef.current.get(cacheKey);
               return [
                 <tr
                   key={d.dept}
@@ -132,7 +176,8 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
                     )}
                   </td>
                   <td style={cellStyle}>{fmtInt(d.impressions)}</td>
-                  <td style={cellStyle}><HoldBadge value={d.hold_index} /></td>
+                  <td style={cellStyle}><ToneBadge value={d.hold_index} tone={holdTone(d.hold_index)} /></td>
+                  {showObjective && <td style={cellStyle}><ToneBadge value={d.objective_alignment} tone={alignmentTone(d.objective_alignment)} /></td>}
                   <td style={cellStyle}>{fmtCpm(d.cpm)}</td>
                   <td style={cellStyle}>{fmtInt(d.spend)} €</td>
                   <td style={cellStyle}>{fmtDelta(d.delta7_pct)}</td>
@@ -145,7 +190,8 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
                           {c.in_target && <span style={{ marginLeft: 8, color: 'var(--brand-teal)', fontSize: 10 }}>●</span>}
                         </td>
                         <td style={cellStyle}>{fmtInt(c.impressions)}</td>
-                        <td style={cellStyle}><HoldBadge value={c.hold_index} /></td>
+                        <td style={cellStyle}><ToneBadge value={c.hold_index} tone={holdTone(c.hold_index)} /></td>
+                        {showObjective && <td style={cellStyle}><ToneBadge value={c.objective_alignment} tone={alignmentTone(c.objective_alignment)} /></td>}
                         <td style={cellStyle}>{fmtCpm(c.cpm)}</td>
                         <td style={cellStyle}>{fmtInt(c.spend)} €</td>
                         <td style={cellStyle}>{fmtDelta(c.delta7_pct)}</td>
@@ -155,7 +201,7 @@ export function SuiviTable({ payload, campaignId }: { payload: SuiviPayload; cam
                 ...(open && loadingDept === d.dept
                   ? [(
                       <tr key={`${d.dept}-loading`}>
-                        <td colSpan={6} style={{ ...cellStyle, textAlign: 'left', paddingLeft: 34, fontFamily: fInter, color: 'var(--text-tertiary)' }}>
+                        <td colSpan={showObjective ? 7 : 6} style={{ ...cellStyle, textAlign: 'left', paddingLeft: 34, fontFamily: fInter, color: 'var(--text-tertiary)' }}>
                           Chargement des CP…
                         </td>
                       </tr>

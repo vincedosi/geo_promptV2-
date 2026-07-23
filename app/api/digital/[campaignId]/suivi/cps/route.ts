@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { parseActorsParam } from '@/lib/campaigns/actor-metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,14 @@ export async function GET(
     return NextResponse.json({ error: 'invalid_dept' }, { status: 400 });
   }
 
+  const pActors = parseActorsParam(request.nextUrl.searchParams);
+
   const supabase = createAdminClient();
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const { data, error } = await supabase.rpc('get_campaign_suivi_cps', {
-    p_campaign_id: campaignId, p_dept: dept,
+    p_campaign_id: campaignId, p_dept: dept, p_actors: pActors,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ cps: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });

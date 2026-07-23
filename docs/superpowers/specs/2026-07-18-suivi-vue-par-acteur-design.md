@@ -202,17 +202,31 @@ RETURNS jsonb  -- {
 
 Trié par `impressions DESC`. `SECURITY DEFINER`, service_role only.
 
-### Réconciliation (secondaire) — inchangée en v1
-`get_campaign_reconciliation` / `_map` et `simulate_dsp_report` **ne sont pas
-modifiées** dans ce sous-projet. Le panneau réconciliation reste global et
-inchangé. (Un score de réconciliation par acteur ad-server ↔ DSP ↔ plateforme
-est un chantier séparé — la dimension acteur posée ici le rendra facile plus
-tard, mais c'est hors périmètre v1.)
+### Réconciliation (secondaire) — rendue « actor-aware » par nécessité
+Le panneau réconciliation reste **secondaire** (pas de nouvelle feature, pas de
+score par acteur — ça reste hors périmètre v1). MAIS la dimension acteur (rollups
+per-acteur) a cassé ses lectures : il a fallu les corriger pour ne pas régresser
+une feature livrée (sql/116, découvert en review Task 6) :
+- `get_campaign_reconciliation_map` agrégeait mal les rollups devenus per-acteur
+  → fan-out N× des features (carte dupliquée). Corrigé : agrégation par CP.
+- `simulate_dsp_report` répartissait le TOTAL (régies incluses) sur les canaux
+  DSP par budget → conflation du volume régie dans les canaux programmatiques.
+  Corrigé : rapport DSP = **programmatique + non attribué** uniquement (par canal
+  = délivrance propre de l'acteur + volume `actor=''` × part de budget, ×1,03),
+  **régies exclues** ; mesuré ad server scopé `actor='' OR actor ∈ canaux`
+  (no-op = total pour les campagnes non taguées → non-régression stricte).
+- `get_campaign_reconciliation.adserver_impressions` scopé de même.
+
+(Un vrai score de réconciliation **par acteur** ad-server ↔ DSP ↔ plateforme
+reste un chantier séparé — la dimension acteur posée ici le prépare.)
 
 ## Changements API
 
 Routes existantes : ajouter `?actors=a,b,c` (CSV, optionnel ; absent = tous).
 - `GET /api/digital/[campaignId]/suivi` → `p_actors` à `get_campaign_suivi`.
+- `GET /api/digital/[campaignId]/suivi/cps` → `p_actors` à
+  `get_campaign_suivi_cps` (le drill CP par département doit être filtré comme
+  le tableau parent — sinon le niveau 3 montre tous les acteurs).
 - Route carte suivi (event `magelian:suivi-map`) → `p_actors` à
   `get_campaign_suivi_map`.
 

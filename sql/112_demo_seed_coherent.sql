@@ -2,6 +2,9 @@
 -- 112 — Seed démo cohérent : « élections, campagne en vol à corriger »
 -- ============================================================
 -- Appliqué le 2026-07-18 via MCP Supabase (durci après revue qualité).
+-- Re-tuné le 2026-07-23 : CPM mesuré PAR ACTEUR (TikTok 9,20 € vs ~5,7-6,3 €),
+-- moyenne pondérée = 6,50 € → cockpit/pacing/réconciliation inchangés ; la démo
+-- « vue par acteur » montre enfin l'acteur dont le CPM dérape (+ 2 assertions).
 --
 -- Régénère TOUTE la démo pilotage (campagne dccc0000-…-0002, stratégie
 -- dccc0000-…-0012) de façon cohérente — remplace le Frankenstein précédent.
@@ -10,8 +13,13 @@
 -- Récit : campagne en vol (avril d'un flight 01/04→31/05, as_of = max(date)),
 -- 3 problèmes cohérents :
 --   1. pacing en retard (~40 % du budget à 49 % du temps → indice 0,80 → alerte)
---   2. CPM TikTok qui dérive (9,20 € vs 6,50 € — visible dans la réconciliation,
---      via geo_strategy.channels.demo_cpm lu par simulate_dsp_report, sql/111)
+--   2. CPM TikTok qui dérive (9,20 € vs 6,50 €), visible sur DEUX plans :
+--      - mesuré / ad server : CPM par acteur dans le seed (moyenne pondérée par
+--        les parts = 6,50 € → cockpit/pacing intacts), lu par get_campaign_actors
+--        → le panneau « Par acteur » montre TikTok à 9,20 € vs ~5,7-6,3 € ailleurs,
+--        et filtrer TikTok fait remonter l'alerte CPM du suivi (>forecast×1,25).
+--      - déclaré / DSP : geo_strategy.channels.demo_cpm lu par simulate_dsp_report
+--        (sql/116) → réconciliation. Les deux sources restent découplées.
 --   3. Marseille (13) + Lille (59) sous-délivrés à v_under_factor du plan
 --      (alerte zones_under + carte « tenue du plan » rouge)
 -- Fuite hors cible silencieuse (< seuil d'alerte 5 %).
@@ -39,6 +47,20 @@ DECLARE
   v_under_factor numeric := 0.5;
   v_leak_cps     int := 400;
   v_leak_daily   int := 11;                          -- imps/jour/CP hors cible → fuite < seuil 5 %
+  -- Attribution acteur (chemin complet vue par acteur) : parts (w) sommant à 1,
+  -- + CPM mesuré par acteur (cpm). dsp/social = canaux déclarés ; 2 régies en
+  -- direct (noms génériques). INVARIANT : Σ(w × cpm) = v_cpm (6,50) → le spend
+  -- total, le pacing et la tuile CPM cockpit (non filtrée) sont inchangés ; seule
+  -- la RÉPARTITION du spend entre acteurs change. TikTok dérape à 9,20 €, les
+  -- autres compensent sous 6,50 € (l'assertion de fin verrouille les deux).
+  v_actors jsonb := jsonb_build_array(
+    jsonb_build_object('actor', 'dv360',                 'w', 0.45, 'cpm', 5.90),
+    jsonb_build_object('actor', 'ttd',                   'w', 0.11, 'cpm', 6.20),
+    jsonb_build_object('actor', 'tiktok',                'w', 0.17, 'cpm', 9.20),
+    jsonb_build_object('actor', 'Régie presse régionale','w', 0.17, 'cpm', 5.70),
+    jsonb_build_object('actor', 'Régie TV connectée',    'w', 0.10, 'cpm', 6.30));
+  v_max_cpm_actor text; v_max_cpm numeric; v_global_cpm numeric;
+  v_n_actors int; v_regie_ok bool;
   v_plan_cnt     int;
   v_alerts       text[];
 BEGIN
@@ -76,7 +98,7 @@ BEGIN
   --    Marseille+Lille à v_under_factor, + fuite marginale. 1 passe, 1 INSERT.
   DELETE FROM dsp_campaign_data WHERE campaign_id = v_campaign;
 
-  INSERT INTO dsp_campaign_data (campaign_id, date, postal_code, country, media, impressions, clicks, spend, dsp_source)
+  INSERT INTO dsp_campaign_data (campaign_id, date, postal_code, country, media, actor, impressions, clicks, spend, dsp_source)
   WITH zones AS (
     SELECT z.postal_code, z.bid_multiplier AS bm, (z.bid_multiplier > 0) AS in_target,
            CASE WHEN LEFT(z.postal_code, 2) = ANY(v_under_depts) THEN v_under_factor ELSE 1.0 END AS factor
@@ -93,10 +115,15 @@ BEGIN
     -- fuite : v_leak_cps CP hors cible à v_leak_daily imps/jour (déterministe via md5)
     SELECT postal_code, v_leak_daily
     FROM (SELECT postal_code FROM zones WHERE NOT in_target ORDER BY md5(postal_code) LIMIT v_leak_cps) l
-  )
-  SELECT v_campaign, d::date, gen.postal_code, 'France', 'Display',
-         gen.day_imps, round(gen.day_imps * 0.002)::int, round(gen.day_imps * v_cpm / 1000.0, 2), 'ttd'
-  FROM gen CROSS JOIN generate_series(v_flight_start, v_data_end, '1 day') d;
+  ),
+  act AS (SELECT value->>'actor' AS actor, (value->>'w')::numeric AS w,
+                 (value->>'cpm')::numeric AS cpm FROM jsonb_array_elements(v_actors))
+  SELECT v_campaign, d::date, gen.postal_code, 'France', 'Display', act.actor,
+         round(gen.day_imps * act.w)::int,
+         round(gen.day_imps * act.w * 0.002)::int,
+         -- spend = imps acteur × CPM acteur (mesuré) ; moyenne pondérée = v_cpm.
+         round(gen.day_imps * act.w * act.cpm / 1000.0, 2), 'ttd'
+  FROM gen CROSS JOIN generate_series(v_flight_start, v_data_end, '1 day') d CROSS JOIN act;
 
   -- 4) rollups + 5) rapport DSP : délégués aux RPC (pas de ré-agrégation ici).
   PERFORM public.refresh_campaign_rollups(v_campaign);
@@ -110,5 +137,34 @@ BEGIN
   END IF;
   IF 'leak' = ANY(v_alerts) THEN
     RAISE EXCEPTION 'Seed incohérent : fuite hors cible au-dessus du seuil (alerte leak présente).';
+  END IF;
+
+  -- Assertion vue par acteur : ≥ 4 acteurs dont ≥ 1 régie.
+  SELECT jsonb_array_length(a -> 'actors'),
+         EXISTS (SELECT 1 FROM jsonb_array_elements(a -> 'actors') x WHERE x->>'kind' = 'régie')
+  INTO v_n_actors, v_regie_ok
+  FROM (SELECT public.get_campaign_actors(v_campaign) AS a) q;
+  IF v_n_actors < 4 OR NOT v_regie_ok THEN
+    RAISE EXCEPTION 'Seed incohérent : attendu ≥ 4 acteurs dont ≥ 1 régie (obtenu % acteurs, régie=%).', v_n_actors, v_regie_ok;
+  END IF;
+
+  -- Assertion CPM par acteur : TikTok doit être l'acteur le plus cher et dériver
+  -- au-delà du seuil d'alerte (forecast × 1,25 = 8,125) → le panneau « Par acteur »
+  -- raconte l'histoire, et filtrer TikTok fait remonter l'alerte CPM du suivi.
+  SELECT x->>'actor', (x->>'cpm')::numeric
+  INTO v_max_cpm_actor, v_max_cpm
+  FROM jsonb_array_elements(public.get_campaign_actors(v_campaign) -> 'actors') x
+  ORDER BY (x->>'cpm')::numeric DESC LIMIT 1;
+  IF v_max_cpm_actor IS DISTINCT FROM 'tiktok' OR v_max_cpm < v_cpm * 1.25 THEN
+    RAISE EXCEPTION 'Seed incohérent : TikTok attendu acteur CPM max au-dessus du seuil d''alerte (obtenu %=% €, seuil % €).',
+      v_max_cpm_actor, v_max_cpm, ROUND(v_cpm * 1.25, 2);
+  END IF;
+
+  -- Assertion non-régression cockpit : la tuile CPM (suivi non filtré) reste ~6,50
+  -- (la moyenne pondérée par acteur ne doit PAS avoir bougé la vue globale).
+  v_global_cpm := (public.get_campaign_suivi(v_campaign) -> 'cpm' ->> 'real')::numeric;
+  IF v_global_cpm IS NULL OR v_global_cpm < v_cpm - 0.05 OR v_global_cpm > v_cpm + 0.05 THEN
+    RAISE EXCEPTION 'Seed incohérent : CPM cockpit global % € hors de [% ; %] (dérive de la moyenne pondérée).',
+      v_global_cpm, v_cpm - 0.05, v_cpm + 0.05;
   END IF;
 END $$;
