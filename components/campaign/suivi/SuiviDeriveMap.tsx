@@ -30,6 +30,7 @@ import {
   type DeriveFeature, type DeriveMesh, type DeriveMetric,
 } from '@/lib/campaigns/derive-metrics';
 import { MeshSelector } from './MeshSelector';
+import { DeriveTable } from './DeriveTable';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -287,6 +288,22 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
 
     useImperativeHandle(ref, () => ({ flyToCode, getMap: () => mapRef.current }), [flyToCode]);
 
+    // Export PNG (Task 7) — verbatim du plan : le buffer WebGL est préservé
+    // (canvasContextAttributes.preserveDrawingBuffer posé à l'init, Task 6),
+    // `once('render')` garantit un canvas à jour avant la capture.
+    const exportPng = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      map.once('render', () => {
+        const url = map.getCanvas().toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `derive-${mesh}-${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
+      });
+      map.triggerRepaint();
+    }, [mesh]);
+
     const fetchMesh: FetchMesh = mesh === 'national' ? 'region' : mesh;
     const meshWord = fetchMesh === 'cp' ? 'CP' : meshLabel(fetchMesh).toLowerCase();
 
@@ -371,6 +388,18 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
                 ))}
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={exportPng}
+              style={{
+                background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                color: 'var(--brand-teal)', borderRadius: 6, padding: '5px 12px',
+                fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              Exporter en PNG
+            </button>
           </div>
         </div>
 
@@ -382,10 +411,18 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
           }}
         />
 
-        {/* Slot Task 7 : tableau des zones (get_campaign_derive_ranked) + bouton export
-            PNG. Branché sur `ref` (flyToCode / getMap) et sur { mesh, metric, threshold,
-            actors } déjà levés par ce composant — Task 8 lève l'état si le tableau doit
-            vivre hors de ce panneau. */}
+        {/* Task 7 : tableau classé des zones (get_campaign_derive_ranked), synchronisé
+            sur { mesh, metric, threshold, actors } déjà levés par ce composant. Le clic
+            ligne recentre la carte via `flyToCode` (même instance, pas de ref externe
+            nécessaire ici) — Task 8 lève l'état si le tableau doit vivre hors panneau. */}
+        <DeriveTable
+          campaignId={campaignId}
+          mesh={mesh}
+          metric={metric}
+          actors={actors}
+          threshold={threshold}
+          onRowClick={flyToCode}
+        />
       </div>
     );
   },
