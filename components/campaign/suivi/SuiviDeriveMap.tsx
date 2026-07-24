@@ -61,7 +61,7 @@ function fillExpr(threshold: number): maplibregl.ExpressionSpecification {
   return ['case',
     ['<', V, 0], TRANSPARENT,
     ['<', V, threshold], c.bad,
-    ['<=', V, 100], c.warn,
+    ['<', V, 100], c.warn,
     ['<=', V, 110], c.ok,
     c.teal];
 }
@@ -211,7 +211,10 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
           .finally(() => { if (!ac.signal.aborted) setLoading(false); });
       }, 300);
 
-      return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        abortRef.current?.abort();
+      };
     }, [campaignId, mesh, metric, actors, actorsK]);
 
     // Rendu des features sur la carte (source/layers créés une fois, puis setData).
@@ -284,7 +287,8 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
 
     useImperativeHandle(ref, () => ({ flyToCode, getMap: () => mapRef.current }), [flyToCode]);
 
-    const meshWord = mesh === 'cp' ? 'CP' : meshLabel(mesh).toLowerCase();
+    const fetchMesh: FetchMesh = mesh === 'national' ? 'region' : mesh;
+    const meshWord = fetchMesh === 'cp' ? 'CP' : meshLabel(fetchMesh).toLowerCase();
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
