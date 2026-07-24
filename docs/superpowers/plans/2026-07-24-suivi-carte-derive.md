@@ -127,7 +127,7 @@ BEGIN
              ('974','04', 1.3, -81.15, 71.73),
              ('976','06', 2.5, -121.75, 74.6)
            ) v(dept, region, s, tx, ty)
-           WHERE (p_mesh = 'region' AND v.region = g.code) OR (p_mesh <> 'region' AND v.dept = g.code)
+           WHERE (p_mesh = 'region' AND v.region = g.code) OR (p_mesh <> 'region' AND v.dept = LEFT(g.code, 3))
            LIMIT 1)
         ELSE g.g
       END AS g

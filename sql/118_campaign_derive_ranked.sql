@@ -59,7 +59,7 @@ BEGIN
            s.in_target, s.value, s.imps AS impressions
     FROM scored s
     ORDER BY s.value ASC NULLS LAST
-    LIMIT CASE WHEN p_mesh='cp' THEN p_limit ELSE 200 END
+    LIMIT CASE WHEN p_mesh='cp' THEN LEAST(p_limit, 500) ELSE 200 END
   ) t;
   RETURN v_out;
 END; $$;
