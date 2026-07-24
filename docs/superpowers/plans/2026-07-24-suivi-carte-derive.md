@@ -74,28 +74,28 @@ BEGIN
   ),
   -- 2) Regroupement à la maille : (code, nom, in_target, planned_share sommé, imps sommées).
   mesh AS (
-    SELECT code, nom, BOOL_OR(in_target) AS in_target,
-           SUM(planned_share) AS planned_share, SUM(imps) AS imps
+    SELECT x.code,
+           BOOL_OR(x.in_target) AS in_target,
+           SUM(x.planned_share) AS planned_share, SUM(x.imps) AS imps
     FROM (
       SELECT CASE p_mesh
                WHEN 'cp' THEN cp.postal_code
                WHEN 'region' THEN cp.code_region
                ELSE cp.code_dept END AS code,
-             cp.postal_code, cp.in_target, cp.planned_share, cp.imps
+             cp.in_target, cp.planned_share, cp.imps
       FROM cp
     ) x
-    JOIN LATERAL (SELECT x.code) k(code) ON true
-    LEFT JOIN LATERAL (
-      SELECT CASE p_mesh
-        WHEN 'cp' THEN (SELECT nom_principal FROM ref_codes_postaux WHERE code_postal = x.code)
-        WHEN 'region' THEN (SELECT nom_region FROM ref_regions WHERE code_region = x.code)
-        ELSE (SELECT nom_dept FROM ref_departements WHERE code_dept = x.code) END AS nom
-    ) n ON true
-    GROUP BY code, nom
+    WHERE x.code IS NOT NULL
+    GROUP BY x.code
   ),
-  -- 3) Géométrie de la maille + reprojection DROM en insets.
+  -- 3) Nom + géométrie de la maille + reprojection DROM en insets.
   geo AS (
-    SELECT m.code, m.nom, m.in_target,
+    SELECT m.code,
+           CASE p_mesh
+             WHEN 'cp' THEN (SELECT nom_principal FROM ref_codes_postaux WHERE code_postal = m.code)
+             WHEN 'region' THEN (SELECT nom_region FROM ref_regions WHERE code_region = m.code)
+             ELSE (SELECT nom_dept FROM ref_departements WHERE code_dept = m.code) END AS nom,
+           m.in_target,
            CASE
              WHEN p_metric = 'objectif' THEN
                CASE WHEN m.in_target AND m.planned_share > 0 AND v_expected > 0
