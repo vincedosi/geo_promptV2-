@@ -55,6 +55,8 @@ scripts/benchmarking/**/__pycache__/
 server.log
 .playwright-mcp/
 .claude/skills/agent-browser/
+# Brainstorm/SDD superpowers (maquettes, plans de travail, rapports — local uniquement)
+.superpowers/
 # Screenshots de tests à la racine (ne touche pas aux PNG versionnés sous docs/assets/)
 /*.png
 
