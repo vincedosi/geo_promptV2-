@@ -19,6 +19,7 @@ import { SuiviTable } from './suivi/SuiviTable';
 import { ReconciliationPanel } from './suivi/ReconciliationPanel';
 import { ActorFilter } from './suivi/ActorFilter';
 import { ActorPanel } from './suivi/ActorPanel';
+import { SuiviDeriveMap } from './suivi/SuiviDeriveMap';
 import { actorsKey, type ActorsPayload } from '@/lib/campaigns/actor-metrics';
 import type { SuiviMapMetric } from '@/app/map/_components/SuiviMapLayer';
 
@@ -60,6 +61,9 @@ export function CampaignSuivi({
   // Vue par acteur : liste des acteurs (un seul fetch par campagne) + sélection.
   const [actorsPayload, setActorsPayload] = useState<ActorsPayload | null>(null);
   const [selectedActors, setSelectedActors] = useState<string[]>([]); // [] = tous
+
+  // Sous-onglets de la colonne bilan : vue d'ensemble vs. carte de dérive.
+  const [subTab, setSubTab] = useState<'overview' | 'derive'>('overview');
 
   const actorsFetchedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -247,30 +251,64 @@ export function CampaignSuivi({
               {actorsPayload && (
                 <ActorFilter actors={actorsPayload.actors} selected={selectedActors} onChange={setSelectedActors} />
               )}
-              <SuiviCockpit payload={suivi} onShowMap={mapAvailable ? showMap : undefined} />
-              {actorsPayload && (
-                <ActorPanel actors={actorsPayload.actors} selected={selectedActors} />
+
+              <div style={{ display: 'flex', gap: 16, borderBottom: '0.5px solid var(--border-subtle)', marginBottom: 16 }}>
+                {([
+                  ['overview', 'Vue d’ensemble'],
+                  ['derive', 'Carte de dérive'],
+                ] as [typeof subTab, string][]).map(([key, label]) => {
+                  const active = subTab === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSubTab(key)}
+                      style={{
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        padding: '0 0 8px 0', fontFamily: fInter, fontWeight: 500, fontSize: 12,
+                        color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                        borderBottom: active ? '2px solid var(--brand-teal)' : '2px solid transparent',
+                        marginBottom: -1, transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {subTab === 'overview' ? (
+                <>
+                  <SuiviCockpit payload={suivi} onShowMap={mapAvailable ? showMap : undefined} />
+                  {actorsPayload && (
+                    <ActorPanel actors={actorsPayload.actors} selected={selectedActors} />
+                  )}
+                  <ReconciliationPanel
+                    payload={recon}
+                    onPull={() => { void handlePull(); }}
+                    pulling={pulling}
+                    canPull={!!mapAvailable}
+                    onShowMap={mapAvailable ? showMap : undefined}
+                  />
+                  <SuiviCharts payload={suivi} />
+                  {/* Filtre partiel (sous-ensemble strict — ActorFilter retombe sur []
+                      quand tout est coché) → l'atteinte objectif par zone lit
+                      l'objectif GLOBAL, pas la part de l'acteur : on masque le bloc
+                      objectif (bandeau + colonne + onglet carte) pour ne pas afficher
+                      la contribution d'un acteur comme une atteinte absolue. */}
+                  <SuiviTable
+                    payload={suivi}
+                    campaignId={campaignId}
+                    actors={selectedActors}
+                    onShowMap={mapAvailable ? showMap : undefined}
+                    showObjective={selectedActors.length === 0}
+                  />
+                </>
+              ) : (
+                <SuiviDeriveMap campaignId={campaignId} actors={selectedActors} />
               )}
-              <ReconciliationPanel
-                payload={recon}
-                onPull={() => { void handlePull(); }}
-                pulling={pulling}
-                canPull={!!mapAvailable}
-                onShowMap={mapAvailable ? showMap : undefined}
-              />
-              <SuiviCharts payload={suivi} />
-              {/* Filtre partiel (sous-ensemble strict — ActorFilter retombe sur []
-                  quand tout est coché) → l'atteinte objectif par zone lit
-                  l'objectif GLOBAL, pas la part de l'acteur : on masque le bloc
-                  objectif (bandeau + colonne + onglet carte) pour ne pas afficher
-                  la contribution d'un acteur comme une atteinte absolue. */}
-              <SuiviTable
-                payload={suivi}
-                campaignId={campaignId}
-                actors={selectedActors}
-                onShowMap={mapAvailable ? showMap : undefined}
-                showObjective={selectedActors.length === 0}
-              />
             </>
           ) : strategyId && !suiviError ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
