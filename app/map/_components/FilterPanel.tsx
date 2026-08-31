@@ -488,9 +488,11 @@ function MultiDropdown({
             <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Search size={12} style={{ color: C.textDim, flexShrink: 0 }} />
               <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+                aria-label="Rechercher"
                 placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 12, color: C.text }} />
               {search && (
-                <span onClick={() => setSearch('')} style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0 }}>✕</span>
+                <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche"
+                  style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0, background: 'transparent', border: 'none', padding: 0, lineHeight: 1 }}>✕</button>
               )}
             </div>
           )}

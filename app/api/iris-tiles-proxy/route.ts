@@ -1,9 +1,9 @@
-import { logger } from '@/lib/logger';
 /**
  * GET /api/iris-tiles-proxy
  * Proxy PMTiles depuis GitHub Releases — forward les Range requests.
  * GitHub Releases ne sert pas les headers CORS, ce proxy les ajoute.
  */
+import { logger } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 
 const PMTILES_URL =

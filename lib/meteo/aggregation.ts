@@ -1,3 +1,11 @@
+/**
+ * MAGELIAN — agregation des series meteo sur une periode.
+ *
+ * `aggregatePeriod()` applique a une serie la fonction propre a la variable
+ * (cf. METEO_AGGREGATION) apres avoir ecarte les valeurs nulles ou NaN :
+ * cumuler des precipitations et moyenner une temperature ne sont pas la
+ * meme operation.
+ */
 import type { MeteoStats, MeteoVariable } from './types';
 import { METEO_AGGREGATION, METEO_UNIT } from './types';
 

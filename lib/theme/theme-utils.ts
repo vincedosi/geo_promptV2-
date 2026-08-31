@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — resolution du theme clair/sombre.
+ *
+ * `resolveInitialTheme()` lit la preference persistee et retombe sur
+ * 'dark', theme par defaut du design system. Prend un StorageLike plutot
+ * que localStorage directement, pour rester testable et sans acces DOM.
+ */
 export type Theme = 'dark' | 'light'
 
 export const STORAGE_KEY = 'magelian-theme'

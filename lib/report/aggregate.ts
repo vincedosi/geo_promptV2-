@@ -1,3 +1,11 @@
+/**
+ * MAGELIAN — construction du bilan de campagne.
+ *
+ * Agrege les snapshots de versions successives d'une strategie en un
+ * CampaignReport : courbe de convergence, comparatif avant/apres par zone,
+ * synthese budgetaire et KPIs. Consomme le pacing calcule par
+ * lib/pacing/compute et la tolerance de convergence de lib/demo/constants.
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computePacing, type PacingItemInput } from '@/lib/pacing/compute';
 import { CONVERGENCE_TOLERANCE } from '@/lib/demo/constants';

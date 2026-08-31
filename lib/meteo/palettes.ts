@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — palettes de choroplethe meteo.
+ *
+ * Cinq paliers par variable, du plus faible au plus eleve. Temperature et
+ * vent utilisent une echelle divergente (froid -> chaud), precipitations et
+ * ensoleillement une echelle sequentielle.
+ */
 import type { MeteoStats, MeteoVariable } from './types';
 
 export const METEO_PALETTES: Record<

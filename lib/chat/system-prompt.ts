@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — prompt systeme du copilote et dictionnaire d'indicateurs.
+ *
+ * CHORO_INDICATORS mappe un terme naturel vers une colonne Filosofi et son
+ * label FR. Les cles sont en minuscules, conformement aux cles de
+ * carreaux_filosofi.metadata : toute divergence de casse casse le lookup.
+ */
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
 // Mapping : terme naturel → colonne Filosofi + label FR
