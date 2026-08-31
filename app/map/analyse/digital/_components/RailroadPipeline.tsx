@@ -8,7 +8,6 @@ const fMono = "'JetBrains Mono', monospace";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Campaign { id: string; name: string; total_tracked_ads: number; total_unique_impressions?: number; }
-interface MediaItem { media: string; total_impressions: number; }
 export interface CustomZoneOption { id: string; name: string; source_type: string; feature_count_iris: number; feature_count_cp: number; }
 
 interface RailroadPipelineProps {

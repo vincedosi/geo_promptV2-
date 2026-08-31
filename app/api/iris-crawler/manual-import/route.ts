@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { createAdminClient } from '@/lib/auth';
 import { splitRow, computeDerived } from '@/lib/iris-crawler/storage';
-import { CORE_COLUMN_NAMES, classifyTarget } from '@/lib/iris-crawler/db-columns';
+import { classifyTarget } from '@/lib/iris-crawler/db-columns';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 import type { UploadSessionData } from '@/app/api/iris-crawler/manual-upload/route';

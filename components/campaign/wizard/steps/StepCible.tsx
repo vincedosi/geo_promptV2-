@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { buildCibleMetadata, buildCibleName, type CibleIndicator } from '@/lib/cibles/naming';
-import { addCible, removeCible, type CibleZoneRef } from '@/lib/cibles/draft';
+import { addCible, removeCible } from '@/lib/cibles/draft';
 import type { StepProps } from './types';
 import { B, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell } from './ui';
 

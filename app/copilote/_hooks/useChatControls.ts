@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useMemo, FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import type { UIMessage } from 'ai';
 import { createClient } from '@supabase/supabase-js';
 import type { ZoneData } from '@/types/spatial';
 import type { Provider } from './useProviderSelector';

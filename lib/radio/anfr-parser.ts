@@ -59,16 +59,6 @@ function parseCoord(degStr: string | undefined, minStr: string | undefined, secS
   return decimal;
 }
 
-function parseCsvFromZip(zip: JSZip, pattern: string): Record<string, string>[] {
-  let found: JSZip.JSZipObject | null = null;
-  zip.forEach((path, file) => {
-    if (!file.dir && path.toUpperCase().includes(pattern.toUpperCase())) found = file;
-  });
-  if (!found) throw new Error(`${pattern} introuvable dans le ZIP`);
-  // JSZip async not available here, we need to use the sync approach
-  // Actually we return a promise — caller must await
-  return []; // placeholder, real implementation below
-}
 
 export async function downloadAndParseAnfr(
   onProgress?: ProgressCallback,

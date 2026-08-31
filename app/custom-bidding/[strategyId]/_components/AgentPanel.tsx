@@ -11,7 +11,6 @@ import { AgentRecommendations } from './AgentRecommendations';
 import { AgentDrifts } from './AgentDrifts';
 import { AgentChat } from './AgentChat';
 import { AgentAutoPilot } from './AgentAutoPilot';
-import { AgentLogs } from './AgentLogs';
 import { CampaignJournal } from './CampaignJournal';
 import { FinalReport } from './FinalReport';
 

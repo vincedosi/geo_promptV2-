@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
-import postgres from 'postgres';
 
 export const dynamic = 'force-dynamic';
 

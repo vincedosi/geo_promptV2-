@@ -118,12 +118,6 @@ const inputBase: CSSProperties = {
   boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.15s',
 };
 
-function withFocusHandlers(el: HTMLElement) {
-  return {
-    onFocus: () => { el.style.borderColor = C.teal50; },
-    onBlur: () => { el.style.borderColor = C.border; },
-  };
-}
 
 /** Champ numérique (budget, CPM) — style Input du DESIGN_SYSTEM, focus teal. */
 export function NumberField({

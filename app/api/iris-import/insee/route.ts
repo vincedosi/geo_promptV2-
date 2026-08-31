@@ -100,12 +100,6 @@ function safeInt(val: string): number | null {
   return isNaN(n) ? null : Math.round(n);
 }
 
-function safeFloat(val: string): number | null {
-  const v = (val ?? '').trim().replace(',', '.');
-  if (!v || ['s', 'ns', 'NS', 'nd', 'ND'].includes(v)) return null;
-  const n = parseFloat(v);
-  return isNaN(n) ? null : n;
-}
 
 function irisCode(row: Record<string, string>): string {
   return (row['IRIS'] ?? row['iris'] ?? '').trim();

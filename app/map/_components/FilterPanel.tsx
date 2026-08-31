@@ -60,8 +60,6 @@ const C = {
 };
 const fInter    = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = fInter;
-const fOrbitron = fInter;
 
 // ─── Radio search autocomplete ────────────────────────────────────────────────
 function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: string) => void }) {
@@ -1186,7 +1184,6 @@ export function FilterPanel({
     setIsoDurations(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
   };
 
-  const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
