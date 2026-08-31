@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient }         from '@/lib/auth';
 import { getRegionNameMap }          from '@/lib/geo/region-lookup-server';
 
@@ -34,6 +35,9 @@ function perPoiCacheKey(category: string, poiId: string, level: number, mode: st
 }
 
 export async function POST(req: NextRequest) {
+  const _profile = await requireAuth(req);
+  if (!_profile) return authUnauthorized();
+
   try {
     const body = await req.json() as {
       category:        string;

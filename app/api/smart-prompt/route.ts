@@ -4,7 +4,8 @@
  * Reçoit un message utilisateur → route via Mistral → exécute l'agent → retourne SmartPromptResponse
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { orchestrate }  from '@/lib/smart-prompt/orchestrator';
 import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
@@ -14,7 +15,10 @@ export const maxDuration = 30;
 
 const limiter = createRateLimiter({ max: 5, window: '60 s', prefix: 'geo:rl:smart' });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const _profile = await requireAuth(req);
+  if (!_profile) return authUnauthorized();
+
   const { ok, retrySec } = await limiter(getClientKey(req));
   if (!ok) return rateLimitResponse(retrySec);
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
 
@@ -7,6 +8,9 @@ export const dynamic = 'force-dynamic';
 const SOUS_CATS_VALIDES = ['bus', 'tram', 'metro', 'train'] as const;
 
 export async function GET(req: NextRequest) {
+  const _profile = await requireAuth(req);
+  if (!_profile) return authUnauthorized();
+
   const p = req.nextUrl.searchParams;
   const west  = parseFloat(p.get('west')  ?? '-5.2');
   const south = parseFloat(p.get('south') ?? '41.0');

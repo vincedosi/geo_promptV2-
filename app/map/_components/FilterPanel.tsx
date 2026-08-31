@@ -33,7 +33,7 @@ import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/level
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
-import { adminFetch } from '@/lib/admin-fetch';
+import { adminFetch, authFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
@@ -761,7 +761,7 @@ export function FilterPanel({
     if (fetchedNaturesRef.current.has(poiType)) return;
     fetchedNaturesRef.current.add(poiType);
     try {
-      const res = await fetch(`/api/map/poi-natures?categorie=${encodeURIComponent(poiType)}`);
+      const res = await authFetch(`/api/map/poi-natures?categorie=${encodeURIComponent(poiType)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data.natures) && data.natures.length > 0) {
@@ -1250,7 +1250,7 @@ export function FilterPanel({
     setV2Checking(true);
     setV2CacheStatus(null);
     try {
-      const res  = await fetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(battleV2Paliers)) });
+      const res  = await authFetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(battleV2Paliers)) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setV2CacheStatus(data);
@@ -1266,7 +1266,7 @@ export function FilterPanel({
     setOrsChecking(true);
     setOrsCacheStatus(null);
     try {
-      const res  = await fetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(isoDurations)) });
+      const res  = await authFetch('/api/isochrone-cache-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildCheckParams(isoDurations)) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setOrsCacheStatus(data);
@@ -1346,7 +1346,7 @@ export function FilterPanel({
       setV2FillPct(100);
       setBattleV2Log(prev => [...prev, `> ✓ Cache rempli (${v2FillRings || '?'} isochrones) — lancement Bataille V2...`]);
       // Re-vérifier le statut cache
-      const checkRes = await fetch('/api/isochrone-cache-check', {
+      const checkRes = await authFetch('/api/isochrone-cache-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildCheckParams(battleV2Paliers)),

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -6,6 +7,9 @@ export const dynamic = 'force-dynamic';
 // GET /api/map/poi-natures?categorie=lycee
 // Retourne les valeurs distinctes de metadata->>'libelle_nature' pour une catégorie POI
 export async function GET(req: NextRequest) {
+  const _profile = await requireAuth(req);
+  if (!_profile) return authUnauthorized();
+
   const categorie = req.nextUrl.searchParams.get('categorie');
   if (!categorie) return NextResponse.json({ natures: [] });
 

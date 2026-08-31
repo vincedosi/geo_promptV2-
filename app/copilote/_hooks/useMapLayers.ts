@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { authFetch } from '@/lib/admin-fetch';
 import maplibregl from 'maplibre-gl';
 import {
   ISOCHRONE_COLORS,
@@ -508,7 +509,7 @@ export function useMapLayers({
     }
 
     // Lazy fetch : une seule colonne à la fois, mise en cache pour éviter re-fetch
-    fetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`)
+    authFetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`)
       .then(r => r.ok ? r.json() as Promise<IrisStats> : null)
       .then((stats: IrisStats | null) => {
         if (!stats) return;

@@ -2,12 +2,16 @@
  * GET /api/radio/stats
  * KPIs radio via RPC get_radio_stats(). Accessible à tous les authentifiés.
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const _profile = await requireAuth(req);
+  if (!_profile) return authUnauthorized();
+
   // service_role needed because RLS is SELECT-only for authenticated,
   // but this route is behind middleware getSession() check
   const supabase = createAdminClient();
