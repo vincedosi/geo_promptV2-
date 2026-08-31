@@ -7,6 +7,7 @@
 import type { TransportStats } from '../_lib/types';
 import { C, fontMono, fontInter } from '../_lib/theme';
 import { Spinner } from './ui';
+import { btnGhostStyle } from '../_lib/styles';
 
 interface TransportPanelProps {
   transportStats: TransportStats | null;
@@ -14,11 +15,10 @@ interface TransportPanelProps {
   showTransportTable: boolean;
   /** Setter React complet : le panneau utilise la forme updater `v => !v`. */
   setShowTransportTable: React.Dispatch<React.SetStateAction<boolean>>;
-  fetchTransportStats: () => void;
-  btnGhostStyle: React.CSSProperties;
+  fetchTransportStats: () => void;
 }
 
-export function TransportPanel({ transportStats, transportLoading, showTransportTable, setShowTransportTable, fetchTransportStats, btnGhostStyle }: TransportPanelProps) {
+export function TransportPanel({ transportStats, transportLoading, showTransportTable, setShowTransportTable, fetchTransportStats }: TransportPanelProps) {
       const green2 = '#22c55e';
       const green2Dim = 'rgba(34,197,94,0.10)';
       const green2Border = 'rgba(34,197,94,0.25)';
