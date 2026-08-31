@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -80,11 +81,11 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
       if (isCp && cpPopMin > 0) url += `&pop_min=${cpPopMin}`;
       if (selectedMedia.length > 0) url += `&media=${selectedMedia.join(',')}`;
       if (parentType && parentCode) url += `&parent_type=${parentType}&parent_code=${encodeURIComponent(parentCode)}`;
-      console.log(`[Breakdown] fetching: ${url}`);
+      logger.debug('Breakdown', `fetching: ${url}`);
       const res = await adminFetch(url);
       if (res.ok) {
         const data = await res.json();
-        console.log(`[Breakdown] agg=${agg} parent=${parentType ?? '-'}/${parentCode ?? '-'} rows=${data.length} first_nom=${data[0]?.nom ?? 'N/A'}`);
+        logger.debug('Breakdown', `agg=${agg} parent=${parentType ?? '-'}/${parentCode ?? '-'} rows=${data.length} first_nom=${data[0]?.nom ?? 'N/A'}`);
         setBreakdownData(data);
       }
     } catch (err: unknown) { console.error('[analysis]', err); }
@@ -96,7 +97,7 @@ export function AnalysisPanel({ campaignId, scale, popField, selectedMedia, metr
   // Click handler — drills down when region or dept is clicked, propagates to map if given
   const handleBarClick = useCallback((code: string) => {
     const row = breakdownData.find(r => r.code === code);
-    console.log('[drilldown] handleBarClick', { code, currentAggregation, foundRow: !!row, rowsTotal: breakdownData.length });
+    logger.debug('drilldown', `handleBarClick ${{ code, currentAggregation, foundRow: !!row, rowsTotal: breakdownData.length }}`);
     if (row) {
       if (currentAggregation === 'region') {
         setDrillPath([{ type: 'region', code, nom: row.nom }]);

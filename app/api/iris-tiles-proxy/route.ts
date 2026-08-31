@@ -3,6 +3,7 @@
  * Proxy PMTiles depuis GitHub Releases — forward les Range requests.
  * GitHub Releases ne sert pas les headers CORS, ce proxy les ajoute.
  */
+import { logger } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 
 const PMTILES_URL =
@@ -18,8 +19,8 @@ export async function GET(request: Request) {
   if (range) headers['Range'] = range;
 
   const upstream = await fetch(PMTILES_URL, { headers, redirect: 'follow' });
-  console.log('[PROXY] GitHub response status:', upstream.status);
-  console.log('[PROXY] GitHub response url:', upstream.url);
+  logger.debug('PROXY', `GitHub response status ${upstream.status}`);
+  logger.debug('PROXY', `GitHub response url ${upstream.url}`);
 
   const resHeaders: Record<string, string> = {
     'Content-Type':                'application/octet-stream',

@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — types et constantes du domaine meteo.
+ *
+ * Source de verite pour les variables Open-Meteo exploitees, leur fonction
+ * d'agregation (METEO_AGGREGATION : somme, moyenne ou max selon la nature
+ * de la variable) et leur unite d'affichage (METEO_UNIT).
+ */
 export type MeteoVariable =
   | 'precipitation'
   | 'temperature_2m'

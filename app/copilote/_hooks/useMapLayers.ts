@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
@@ -242,20 +243,20 @@ export function useMapLayers({
   // ── Setters directs — applique immédiatement sans passer par les effects ──
 
   const setCarreauxPalette = useCallback((paletteId: string) => {
-    console.log('[palette] click', paletteId, 'map:', !!mapRef.current);
+    logger.debug('palette', `click ${paletteId} map: ${!!mapRef.current}`);
     _setCarreauxPalette(paletteId);
     const map = mapRef.current;
     if (!map) { console.warn('[palette] no map'); return; }
     const ind = carreauxIndicateurRef.current;
     const r = carreauxRangeRef.current;
-    console.log('[palette] range:', r, 'ind:', ind, 'layer exists:', !!map.getLayer('carreaux-mvt-fill'));
+    logger.debug('palette', `range ${r} ind: ${ind} layer exists: ${!!map.getLayer('carreaux-mvt-fill')}`);
     if (r && r.p95 > r.p5) {
       applyCarreauxColor(map, paletteId, r.ind, r.p5, r.p95);
-      console.log('[palette] applied from cache');
+      logger.debug('palette', 'applied from cache');
     } else {
       if (!map.getLayer('carreaux-mvt-fill')) { console.warn('[palette] layer not found'); return; }
       const feats = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
-      console.log('[palette] queried features:', feats.length);
+      logger.debug('palette', `queried features ${feats.length}`);
       const values = feats
         .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
         .filter(v => v > 0);
@@ -267,7 +268,7 @@ export function useMapLayers({
         carreauxRangeRef.current = { ind, p5, p95 };
         setCarreauxRange({ p5, p95 });
         applyCarreauxColor(map, paletteId, ind, p5, p95);
-        console.log('[palette] applied from query, p5:', p5, 'p95:', p95);
+        logger.debug('palette', `applied from query, p5 ${p5} p95: ${p95}`);
       }
     }
   }, [mapRef, applyCarreauxColor]);
@@ -688,7 +689,7 @@ export function useMapLayers({
     poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[]
   ) => {
     const map = mapRef.current;
-    console.log('[applyIsochroneBattle] called — map:', !!map, '| features:', ringData?.features?.length);
+    logger.debug('applyIsochroneBattle', `called — map ${!!map} | features: ${ringData?.features?.length}`);
     if (!map) return;
 
     const poiColorMap = new Map<string, string>();
@@ -721,7 +722,7 @@ export function useMapLayers({
     partialRingsRef.current = [];
 
     const ringSrc = map.getSource('battle-rings') as maplibregl.GeoJSONSource | undefined;
-    console.log('[applyIsochroneBattle] ringSrc:', !!ringSrc, '| styledRings:', styledRings.length);
+    logger.debug('applyIsochroneBattle', `ringSrc ${!!ringSrc} | styledRings: ${styledRings.length}`);
     if (!ringSrc) return;
     ringSrc.setData({ type: 'FeatureCollection', features: styledRings } as GeoJSON.FeatureCollection);
     map.triggerRepaint();
@@ -807,7 +808,7 @@ export function useMapLayers({
         }
       }
       if (extended) {
-        console.log('[applyIsochroneBattle] fitBounds called');
+        logger.debug('applyIsochroneBattle', 'fitBounds called');
         map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 1200 });
       }
     }

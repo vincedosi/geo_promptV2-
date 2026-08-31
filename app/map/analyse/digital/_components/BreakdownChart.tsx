@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 
@@ -59,7 +60,7 @@ export function BreakdownChart({ data, aggregation, metric = 'impressions', onBa
           <Bar dataKey="ecart" radius={[2, 2, 2, 2]} onClick={(data) => {
             const d = data as { code?: string; payload?: { code?: string } };
             const code = d?.payload?.code ?? d?.code;
-            console.log('[drilldown] BreakdownChart bar clicked:', { code, data });
+            logger.debug('drilldown', `BreakdownChart bar clicked ${{ code, data }}`);
             if (code) onBarClick?.(code);
           }} style={{ cursor: aggregation === 'cp' ? 'default' : 'pointer' }}>
             {sorted.map((entry) => (

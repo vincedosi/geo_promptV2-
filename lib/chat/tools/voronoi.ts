@@ -4,6 +4,7 @@
  */
 
 import { createAdminClient } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import type { VoronoiFeature } from './types';
 
 export async function voronoiAnalysis(
@@ -32,7 +33,7 @@ export async function voronoiAnalysis(
   }
 
   const features = Array.isArray(data) ? (data as VoronoiFeature[]) : [];
-  console.log(`[chat/voronoi] "${category}" metro=${metropolitaine} ville=${filtre_ville} region=${filtre_region} dept=${filtre_dept} → ${features.length} polygones`);
+  logger.debug('chat/voronoi', `"${category}" metro=${metropolitaine} ville=${filtre_ville} region=${filtre_region} dept=${filtre_dept} → ${features.length} polygones`);
 
   const pois = features
     .map(f => ({

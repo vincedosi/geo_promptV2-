@@ -21,6 +21,7 @@
  * Pour cp (~13 batchs) la progression est visible côté client sous forme de barre.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { createHash } from 'crypto';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
@@ -311,7 +312,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
   // ── Cache lookup ─────────────────────────────────────────────────────
   const cached = await readCacheFile(cacheKey, isFuture);
   if (cached) {
-    console.log(`[meteo-geo] cache HIT ${q.scale}/${q.variable} ${q.startDate}→${q.endDate}`);
+    logger.debug('meteo-geo', `cache HIT ${q.scale}/${q.variable} ${q.startDate}→${q.endDate}`);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
@@ -369,9 +370,7 @@ export async function GET(request: NextRequest): Promise<NextResponse | Response
     batches.push(points.slice(i, i + MAX_POINTS_PER_BATCH));
   }
   const totalBatches = batches.length;
-  console.log(
-    `[meteo-geo] cache MISS ${q.scale}/${q.variable} zones=${zones.length} points=${points.length} batches=${totalBatches}`,
-  );
+  logger.debug('meteo-geo', `cache MISS ${q.scale}/${q.variable} zones=${zones.length} points=${points.length} batches=${totalBatches}`);
 
   // ── Streaming NDJSON ─────────────────────────────────────────────────
   const encoder = new TextEncoder();

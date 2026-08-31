@@ -8,6 +8,7 @@
  */
 
 import { createAdminClient }          from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import { resolveCityCenter }           from '../geo-resolver';
 import { CHORO_INDICATORS }            from '@/lib/chat/system-prompt';
 import type { AgentResult, DemoStats } from '../types';
@@ -150,7 +151,7 @@ export async function runDemographieAgent(
     const resolvedIndicateur = validIndicateurs.includes(indicateur) ? indicateur : 'ind_18_24';
     const sb = createAdminClient();
 
-    console.log('[demographie] ranking →', { resolvedIndicateur, rayon_km, limit });
+    logger.debug('demographie', `ranking → ${{ resolvedIndicateur, rayon_km, limit }}`);
     const t0 = Date.now();
 
     const { data, error } = await sb.rpc('smart_demographie_top_villes', {
@@ -159,14 +160,14 @@ export async function runDemographieAgent(
       p_limit:      limit,
     });
 
-    console.log('[demographie] ranking RPC took', Date.now() - t0, 'ms — error:', error?.message ?? 'none');
+    logger.debug('demographie', `ranking RPC took ${Date.now() - t0} ms — error: ${error?.message ?? 'none'}`);
 
     if (error) {
       return { agent: 'demographie', success: false, error: error.message };
     }
 
     const rows = (data ?? []) as TopVilleRow[];
-    console.log('[demographie] ranking rows:', rows.length);
+    logger.debug('demographie', `ranking rows ${rows.length}`);
 
     if (!rows.length) {
       return { agent: 'demographie', success: false, error: 'Aucune ville trouvée pour cet indicateur.' };

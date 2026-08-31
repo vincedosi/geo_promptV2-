@@ -21,7 +21,6 @@ const fmtEur = (n: number) =>
   n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const fmtSignedPct = (n: number, digits = 1) =>
   `${n >= 0 ? '+' : ''}${n.toFixed(digits)}%`;
-const fmtSharePct = (n: number, digits = 0) => `${(n * 100).toFixed(digits)}%`;
 const fmtSignedEur = (n: number) =>
   `${n >= 0 ? '+' : ''}${fmtEur(n)}`;
 

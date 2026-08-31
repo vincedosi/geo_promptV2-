@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { useRef, useState } from 'react';
 import type { UIMessage } from 'ai';
@@ -55,7 +56,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
       setSaveName('');
       setShowSavePanel(false);
       loadSavedMaps();
-      console.log(`[Copilote] Carte sauvegardée: "${saveName}" (${data.id})`);
+      logger.info('Copilote', `Carte sauvegardée: "${saveName}" (${data.id})`);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -107,7 +108,7 @@ export function useSavedMaps({ zoneData, setZoneData }: UseSavedMapsOpts) {
       }
 
       setShowLoadPanel(false);
-      console.log(`[Copilote] Carte chargée: "${data.name}"`);
+      logger.info('Copilote', `Carte chargée: "${data.name}"`);
     } catch (err: unknown) {
       console.error('[Copilote] Erreur chargement carte:', err);
     }

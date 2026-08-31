@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 /**
  * @file app/map/page.tsx — page principale carte MAGELIAN
@@ -22,7 +23,7 @@
  *   - Lire docs/known_tech_debt.md avant refactor structurel
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -32,7 +33,7 @@ import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilot
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
 import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
-import { METEO_LABEL, METEO_UNIT, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+import { METEO_LABEL, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
 const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
@@ -56,8 +57,6 @@ import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMedia
 import dynamic from 'next/dynamic';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
-import { SessionBadge }    from '@/components/SessionBadge';
-import { ThemeToggle }     from '@/components/ThemeToggle';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
@@ -1284,7 +1283,7 @@ export default function MapPage() {
         }
         if (evt.type === 'result') {
           const battleGeo = evt.battleGeoJSON as { features?: GeoJSON.Feature[] } | undefined;
-          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', battleGeo?.features?.length);
+          logger.debug('handleApplyBattle', `result received — nb_rings ${evt.nb_rings} | features: ${battleGeo?.features?.length}`);
           onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
           if (battleGeo?.features && battleGeo.features.length > 0) {
             mapLayers.applyIsochroneBattle(battleGeo as { type: string; features: GeoJSON.Feature[] }, (evt.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null, category, poisForMap);

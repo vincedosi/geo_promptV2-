@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * MAGELIAN — sauvegarde automatique du brouillon du wizard de strategie.
+ *
+ * Persiste l'etape courante et les donnees saisies au fil de la frappe, de
+ * facon a ce qu'une navigation ou un rechargement ne perde pas le travail
+ * en cours. Passe par adminFetch : la route est protegee par un guard
+ * serveur qui lit le header Authorization.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import type { WizardDraftData } from './types';

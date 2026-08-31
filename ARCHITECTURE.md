@@ -52,7 +52,8 @@ genesis_app/
 │   │   ├── radio/              # Admin emetteurs radio FM/DAB+
 │   │   ├── sources/            # Gestion des sources de donnees
 │   │   └── users/              # Gestion utilisateurs multi-tenant
-│   ├── copilote/               # Interface principale : chat IA + carte MapLibre
+│   ├── copilote/               # Composants/hooks/lib du chat IA + carte, consommes
+│   │                           # par /map (plus de page propre depuis 825af5a)
 │   │   ├── _components/        # ChatPanel, MapPanel, PromptsPanel, ZoneCard...
 │   │   ├── _hooks/             # useMapInit, useMapLayers, useChatControls...
 │   │   └── _lib/               # constants.ts (circleGeoJSON, getCatColor)
@@ -188,7 +189,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/chat` | POST | Copilote — streaming LLM + function calling |
 | `/api/smart-prompt` | POST | Multi-agents Mistral (orchestrateur + agents specialises) |
 | `/api/providers/status` | GET | Disponibilite providers IA |
-| `/api/analysis` | POST | Analyse complete zone |
 
 ### Donnees cartographiques
 | Route | Methode | Description |
@@ -197,9 +197,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/map/categories` | GET | Categories POI distinctes |
 | `/api/map/ooh` | POST | Panneaux OOH dans bbox |
 | `/api/map/transport` | GET | Donnees transport |
-| `/api/map/tmja` | GET | Trafic moyen journalier |
 | `/api/map/poi-natures` | GET | Natures de POI |
-| `/api/carreaux` | GET/POST | Carreaux Filosofi dans bbox |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) |
 | `/api/iris-tiles/[z]/[x]/[y]` | GET | Tuiles MVT zones IRIS |
 | `/api/iris-tiles-proxy` | GET | Proxy CORS pour PMTiles IRIS (GitHub Releases) |
@@ -285,9 +283,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/campaigns` | GET/POST | Liste campagnes avec stats agregees ; POST = naissance d'une campagne vierge du wizard (dsp_source `magelian`, nom par defaut date en Europe/Paris, org du createur) |
 | `/api/admin/campaigns/attachable` | GET | Imports rattachables a une campagne du wizard (`?exclude=` — donnees sans strategie de bidding, scope org) |
 | `/api/admin/campaigns/[id]/absorb` | POST | Fusionne un import orphelin dans la campagne (donnees + dates + totaux, cible SANS donnees uniquement — 409 sinon), puis supprime la coquille source |
-| `/api/admin/campaigns/preview` | POST | Preview mapping fichier AVANT import |
 | `/api/admin/campaigns/import` | POST | Import SSE streaming |
-| `/api/admin/campaigns/populate-postal` | POST | Peuple ref La Poste |
 | `/api/admin/campaigns/[id]` | GET/DELETE/PATCH | Detail/suppression/modification campagne |
 | `/api/admin/campaigns/[id]/match-iris` | POST | Relance matching IRIS |
 | `/api/admin/campaigns/[id]/organizations` | GET/POST | Gestion orgs campagne |
@@ -342,7 +338,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/poi-manage` | GET/POST/DELETE | Gestion POI |
 | `/api/admin/poi-samples` | GET | Echantillons POI |
 | `/api/admin/civic-ingest` | POST | Ingestion nationale pollen + qualite de l'air → `pollen_map_daily` + `atmo_map_daily` (WFS public Atmo, NDJSON streaming) — aussi cron Inngest `civic-daily-ingest` 05h30 |
-| `/api/admin/refresh-ville-stats` | POST | Refresh stats villes |
 | `/api/admin/sync-iris-system` | POST | Sync systeme IRIS |
 | `/api/admin/trigger-pmtiles` | POST | Declenchement generation PMTiles |
 | `/api/admin/transport-stats` | GET | Stats transport |
@@ -468,13 +463,13 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_voronoi_by_category` | Voronoi par categorie, clippe France | `lib/chat/tools/voronoi.ts` |
-| `refresh_ville_stats_chunk` | Refresh stats villes par batch | `api/admin/refresh-ville-stats/` |
+| `refresh_ville_stats_chunk` | Refresh stats villes par batch | *orpheline* (route supprimee 08/2026) |
 
 ### Carreaux & Tuiles
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_carreaux` | Carreaux dans bbox avec indicateur | `api/carreaux/` |
-| `get_carreaux_by_zoom` | Carreaux adaptes au zoom | `api/carreaux/dynamic/` |
+| `get_carreaux` | Carreaux dans bbox avec indicateur | *orpheline* (route supprimee 08/2026) |
+| `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT) | `api/tiles/` |
 | `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | `api/iris-tiles/` |

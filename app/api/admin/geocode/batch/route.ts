@@ -5,6 +5,7 @@
  * Returns detailed geocode results with scores + status for review.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     const parsed = parseFile(buffer, fileName);
     const totalRows = parsed.rows.length;
 
-    console.log(`[GEOCODE-BATCH] Starting batch geocoding: ${totalRows} rows`);
+    logger.info('GEOCODE-BATCH', `Starting batch geocoding: ${totalRows} rows`);
 
     // Build address rows from parsed data
     const addressRows = parsed.rows.map((row) => ({
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       red: results.filter((r) => r.status === 'red').length,
     };
 
-    console.log(`[GEOCODE-BATCH] Done: ${stats.green} green, ${stats.orange} orange, ${stats.red} red`);
+    logger.info('GEOCODE-BATCH', `Done: ${stats.green} green, ${stats.orange} orange, ${stats.red} red`);
 
     // Save results to temp file for later use by dry-run/execute
     const geocodeId = randomUUID().slice(0, 12);

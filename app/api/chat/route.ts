@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { logger } from '@/lib/logger';
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import { hasDatagouvKeywords, loadDatagouvTools, DATAGOUV_SYSTEM_ADDENDUM } from '@/lib/mcp/datagouv';
@@ -120,9 +121,7 @@ export async function POST(request: NextRequest) {
     // getOrgSourceIds dépend de session — reste séquentiel
     const orgSourceIds = await getOrgSourceIds(session);
 
-    console.log('[CHAT] pre-LLM:', Date.now() - t0, 'ms |',
-      'session:', session?.orgId ?? 'null', session?.role ?? 'no-session',
-      '| sources:', orgSourceIds === null ? 'all' : orgSourceIds.length);
+    logger.debug('CHAT', `pre-LLM ${Date.now() - t0} ms | session: ${session?.orgId ?? 'null'} ${session?.role ?? 'no-session'} | sources: ${orgSourceIds === null ? 'all' : orgSourceIds.length}`);
 
     const body = await request.json() as {
       messages: UIMessage[]; forceRecalculate?: boolean; provider?: Provider;
@@ -164,7 +163,7 @@ export async function POST(request: NextRequest) {
         google: { thinkingConfig: { thinkingBudget: 0 } },
       } : undefined,
       onFinish: ({ usage }) => {
-        console.log(`[CHAT] LLM total: ${Date.now() - t1}ms | tokens — in:${usage.inputTokens} out:${usage.outputTokens}`);
+        logger.info('CHAT', `LLM total: ${Date.now() - t1}ms | tokens — in:${usage.inputTokens} out:${usage.outputTokens}`);
       },
     }));
 

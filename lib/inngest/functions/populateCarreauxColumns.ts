@@ -7,6 +7,7 @@
  */
 
 import { inngest }           from '../client';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 
 export const populateCarreauxColumns = inngest.createFunction(
@@ -29,7 +30,7 @@ export const populateCarreauxColumns = inngest.createFunction(
           p_batch_size: 100000,
         });
         if (error) throw new Error(error.message);
-        console.log(`[populate-carreaux] batch ${batch} — ${data} lignes mises à jour`);
+        logger.info('populate-carreaux', `batch ${batch} — ${data} lignes mises à jour`);
         return data as number;
       });
 
@@ -38,7 +39,7 @@ export const populateCarreauxColumns = inngest.createFunction(
       batch++;
     }
 
-    console.log(`[populate-carreaux] terminé — ${total} lignes au total`);
+    logger.info('populate-carreaux', `terminé — ${total} lignes au total`);
     return { total };
   }
 );

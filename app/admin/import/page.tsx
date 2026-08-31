@@ -177,7 +177,6 @@ export default function ImportUniverselPage() {
     const files = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
 
     // Display first file name in UI (or bundle name for Shapefile)
-    const displayName = files.length === 1 ? files[0].name : `${files.length} fichiers`;
     setFile(files[0]); // Store primary file reference
     setIsParsing(true);
     setParseResult(null);
@@ -558,20 +557,6 @@ export default function ImportUniverselPage() {
     boxSizing: 'border-box',
   };
 
-  const btnPrimary: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    background: C.accentDim,
-    border: `1px solid ${C.borderLight}`,
-    borderRadius: 2,
-    color: 'var(--bg-primary)',
-    padding: '7px 16px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-  };
 
   const btnSuccess: React.CSSProperties = {
     fontFamily: fontInter,

@@ -69,7 +69,9 @@ export async function POST(
     return NextResponse.json({ ...cached.payload, cached: true });
   }
 
-  const [stratRes, cmpRes, snapsRes, recosRes] = await Promise.all([
+  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md) -> 3 puis 1.
+  // La RPC de comparaison est la plus lourde, elle reste dans le 1er lot.
+  const [stratRes, cmpRes, snapsRes] = await Promise.all([
     supabase.from('bidding_strategies')
       .select('id, name, algorithm_code, objective_code, weighting_mode, in_zone_weights, status, activated_at, status_changed_at, total_budget, currency, init_preset_code')
       .eq('id', id)
@@ -79,11 +81,12 @@ export async function POST(
       .select('applied_at, curve, triggered_by, reason')
       .eq('strategy_id', id)
       .order('applied_at', { ascending: true }),
-    supabase.from('agent_recommendations')
-      .select('title, status, applied_at, category')
-      .eq('strategy_id', id)
-      .order('generated_at', { ascending: true }),
   ]);
+
+  const recosRes = await supabase.from('agent_recommendations')
+    .select('title, status, applied_at, category')
+    .eq('strategy_id', id)
+    .order('generated_at', { ascending: true });
 
   if (stratRes.error || !stratRes.data) {
     return NextResponse.json({ error: 'strategy_not_found' }, { status: 404 });

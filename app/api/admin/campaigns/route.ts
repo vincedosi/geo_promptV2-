@@ -3,6 +3,7 @@
  * List all DSP campaigns with aggregated stats via SQL.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
 
   const { data: campaigns, error } = await campaignsQuery;
 
-  console.log('[campaigns] found:', campaigns?.length, activeOrg ? `(org ${activeOrg})` : '(all orgs)');
+  logger.debug('campaigns', `found ${campaigns?.length} ${activeOrg ? `(org ${activeOrg})` : '(all orgs)'}`);
 
   if (error) {
     console.error('[GET /api/admin/campaigns] DB error:', error.message);

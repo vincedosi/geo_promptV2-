@@ -9,7 +9,7 @@
  *
  * Design : OverlayPanel-friendly, dark minimal, teal #4ecdc4.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import { Search, X, Eye, EyeOff, Trash2, FileDown, Music2 } from 'lucide-react';
 import { useSession } from '@/lib/auth-client';

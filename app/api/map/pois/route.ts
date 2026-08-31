@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg, type SessionOrg } from '@/lib/auth/getSessionOrg';
 import { resolveCategory, normVille } from '@/lib/geo/locations';
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     const allowedSourceIds = await getOrgSourceIds(session, supabase);
     if (allowedSourceIds !== null && allowedSourceIds.length === 0) {
       // Org configurée mais aucune source → aucun POI accessible
-      console.log('[map/pois] Org sans sources configurées — résultat vide');
+      logger.debug('map/pois', 'Org sans sources configurées — résultat vide');
       return NextResponse.json({
         ville: ville ?? 'France',
         region: null, departement: null, categorie_poi: poi_types[0] ?? null,
@@ -263,7 +264,7 @@ export async function POST(req: NextRequest) {
       categories,
     };
 
-    console.log(`[api/map/pois] ${pois.length} POIs — types: ${poi_types.join(', ')} — lieu: ${locationLabel}`);
+    logger.debug('api/map/pois', `${pois.length} POIs — types: ${poi_types.join(', ')} — lieu: ${locationLabel}`);
     return NextResponse.json(zoneData);
 
   } catch (err: unknown) {

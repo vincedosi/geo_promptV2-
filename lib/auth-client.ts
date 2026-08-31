@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * MAGELIAN — helpers d'authentification cote CLIENT.
+ *
+ * Expose un client Supabase navigateur en singleton (les cookies HttpOnly
+ * sont geres par @supabase/ssr) et quatre hooks React : useSession,
+ * useSignIn, useSignUp, useSignOut.
+ *
+ * A ne jamais importer cote serveur : utiliser `@/lib/auth` pour cela.
+ */
 import { createBrowserClient } from "@supabase/ssr";
 import { useState, useEffect, useCallback } from "react";
 

@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — fabrique de modeles LLM du copilote.
+ *
+ * `createModel()` renvoie le modele du provider demande : Gemini 2.5 Flash
+ * par defaut (thinking desactive, cout minimal), Mistral Small en repli.
+ * Les cles proviennent de l'environnement, jamais du client.
+ */
 import { createMistral } from '@ai-sdk/mistral';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 

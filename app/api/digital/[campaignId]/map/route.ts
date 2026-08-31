@@ -4,6 +4,7 @@
  * Auth: requireAuth + scope org campagne.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
@@ -98,7 +99,7 @@ export async function GET(
     rows = [];
   }
 
-  console.log(`[digital/map] campaign=${campaignId} scale=${scale} pop=${popField} features=${rows.length}`);
+  logger.debug('digital/map', `campaign=${campaignId} scale=${scale} pop=${popField} features=${rows.length}`);
 
   const fc: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',

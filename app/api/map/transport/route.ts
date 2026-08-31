@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
 
@@ -69,6 +70,6 @@ export async function GET(req: NextRequest) {
     categories:       { arret_transport: pois.length },
   };
 
-  console.log(`[api/map/transport] ${pois.length} arrêts dans bbox [${west.toFixed(2)},${south.toFixed(2)},${east.toFixed(2)},${north.toFixed(2)}]`);
+  logger.debug('api/map/transport', `${pois.length} arrêts dans bbox [${west.toFixed(2)},${south.toFixed(2)},${east.toFixed(2)},${north.toFixed(2)}]`);
   return NextResponse.json(zoneData);
 }

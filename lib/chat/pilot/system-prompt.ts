@@ -1,3 +1,10 @@
+/**
+ * MAGELIAN — prompt systeme du copilote de pilotage de campagne.
+ *
+ * Construit l'instruction de la boucle plan -> mesure -> correction ->
+ * convergence, selon le mode d'autonomie ('guide' ou 'autonome') qui
+ * determine le plafond de correction par tour (`stepCapFor`).
+ */
 import { MAX_ROUNDS, CONVERGENCE_TOLERANCE, STEP_CAP_GUIDE, STEP_CAP_AUTONOME } from '@/lib/demo/constants';
 
 export type PilotMode = 'guide' | 'autonome';

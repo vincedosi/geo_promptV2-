@@ -77,7 +77,6 @@ const C = {
   red:       'var(--danger)',
 };
 
-const fontOrbitron = "'Inter', system-ui, sans-serif";
 const fontMichroma = "'Inter', system-ui, sans-serif";
 const fontMono     = "'JetBrains Mono', monospace";
 const fontInter    = "'Inter', system-ui, sans-serif";
@@ -218,11 +217,6 @@ const SMART_KEYWORDS = [
   /\bles plus\b/i,                             // "les plus nombreux"
 ];
 
-function detectSmartMode(text: string): boolean {
-  return false; // V2 : SMART désactivé — tout passe par CHAT (system prompt v2 + 11 outils function calling)
-  // eslint-disable-next-line no-unreachable
-  return SMART_KEYWORDS.some(re => re.test(text));
-}
 
 type SmartModeState = 'auto' | 'smart' | 'chat';
 

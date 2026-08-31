@@ -3,6 +3,7 @@
  * Campaign detail with stats breakdown, or delete campaign.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { StatusOverrideSchema } from '@/lib/campaigns/status';
@@ -93,11 +94,11 @@ export async function DELETE(
     .eq('id', id)
     .select();
 
-  console.log('[DELETE campaign]', id, '→ deleted:', deleted?.length, 'error:', error?.message, 'count:', count);
+  logger.debug('DELETE campaign', `${id} → deleted: ${deleted?.length} error: ${error?.message} count: ${count}`);
 
   // Verify it's really gone
   const { data: check } = await supabase.from('dsp_campaigns').select('id').eq('id', id);
-  console.log('[DELETE campaign] verify after delete:', check?.length, 'remaining');
+  logger.debug('DELETE campaign', `verify after delete ${check?.length} remaining`);
 
   if (error) {
     console.error('[DELETE /api/admin/campaigns]', error.message);

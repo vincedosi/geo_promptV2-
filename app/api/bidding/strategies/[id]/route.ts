@@ -102,7 +102,9 @@ export async function GET(
     return NextResponse.json({ error: 'Stratégie introuvable' }, { status: 404 });
   }
 
-  const [campaignResp, objectiveResp, activeModelResp, subzonesResp, autonomyResp] = await Promise.all([
+  // ⛔ Nano : max 3 appels Supabase simultanes (CLAUDE.md). Ces 5 lectures sont
+  // unitaires et indexees, mais la limite est absolue -> deux lots de 3 puis 2.
+  const [campaignResp, objectiveResp, activeModelResp] = await Promise.all([
     supabase
       .from('dsp_campaigns')
       .select('id,name,dsp_source,advertiser,date_start,date_end,is_demo,total_tracked_ads,total_unique_impressions')
@@ -119,6 +121,9 @@ export async function GET(
       .eq('strategy_id', id)
       .eq('is_active', true)
       .maybeSingle(),
+  ]);
+
+  const [subzonesResp, autonomyResp] = await Promise.all([
     supabase
       .from('bidding_strategy_subzones')
       .select('id, name, postal_codes, multiplier, display_order')

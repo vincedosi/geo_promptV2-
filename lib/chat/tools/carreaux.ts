@@ -4,6 +4,7 @@
  */
 
 import { getCoordsForVille } from '@/lib/geo/locations';
+import { logger } from '@/lib/logger';
 import { CHORO_INDICATORS }  from '@/lib/chat/system-prompt';
 
 export function afficherCarreaux(args: Record<string, unknown>) {
@@ -18,7 +19,7 @@ export function afficherCarreaux(args: Record<string, unknown>) {
   const coordonnees = ville ? getCoordsForVille(ville) : { lat: 48.3904, lng: -4.4861 };
   const rayon_km    = args.rayon_km ? Number(args.rayon_km) : undefined;
 
-  console.log(`[chat] afficher_carreaux → col="${resolvedCol}" label="${resolvedLabel}" ville="${ville ?? 'n/a'}"`);
+  logger.debug('chat', `afficher_carreaux → col="${resolvedCol}" label="${resolvedLabel}" ville="${ville ?? 'n/a'}"`);
 
   return {
     action:           'afficher_carreaux' as const,

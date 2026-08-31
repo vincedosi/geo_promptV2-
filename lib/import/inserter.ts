@@ -4,6 +4,7 @@
  * Chaque INSERT → log OK / SKIP / ERR envoyé au client via callback
  */
 import { createAdminClient } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { enrichMissingGeo } from './geo-enricher';
 import type { ProcessedRow, LogCallback } from './types';
@@ -103,7 +104,7 @@ export async function insertRows(
 ): Promise<{ inserted: number; ignored: number; errors: number; firstError?: string }> {
 
   const startMsg = `====== START: ${rows.length} lignes, type="${dataType}" (Supabase JS) ======`;
-  console.log(`\n[INSERTER] ${startMsg}`);
+  logger.info('INSERTER', startMsg);
   onLog?.('info', startMsg);
 
   // Test connexion via Supabase
@@ -113,7 +114,7 @@ export async function insertRows(
     const { error } = await supabase.from(tableName).select('id').limit(1);
     if (error) throw error;
     const connMsg = `Connexion Supabase OK — table "${tableName}"`;
-    console.log(`[INSERTER] ${connMsg}`);
+    logger.info('INSERTER', `${connMsg}`);
     onLog?.('info', connMsg);
   } catch (connErr) {
     const connErrMsg = `Connexion Supabase ECHOUEE: ${connErr instanceof Error ? connErr.message : String(connErr)}`;
@@ -135,7 +136,7 @@ export async function insertRows(
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
 
     const batchMsg = `--- Batch ${batchNum}/${totalBatches} (lignes ${i}–${i + batch.length - 1}) ---`;
-    console.log(`[INSERTER] ${batchMsg}`);
+    logger.info('INSERTER', `${batchMsg}`);
     onLog?.('info', batchMsg);
 
     try {
@@ -146,7 +147,7 @@ export async function insertRows(
       if (result.firstError && !firstError) firstError = result.firstError;
 
       const batchSummary = `Batch ${batchNum} termine: +${result.inserted} inseres, ${result.ignored} ignores, ${result.errors} erreurs`;
-      console.log(`[INSERTER] ${batchSummary}`);
+      logger.info('INSERTER', `${batchSummary}`);
       onLog?.('info', batchSummary);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -168,7 +169,7 @@ export async function insertRows(
   }
 
   const endMsg = `====== FIN: inserted=${totalInserted}, ignored=${totalIgnored}, errors=${totalErrors} ======`;
-  console.log(`[INSERTER] ${endMsg}`);
+  logger.info('INSERTER', `${endMsg}`);
   onLog?.('info', endMsg);
 
   // Invalider le cache des catégories pour que les nouvelles catégories soient visibles immédiatement
@@ -198,5 +199,5 @@ export async function insertRows(
  */
 export async function closeConnection() {
   // No persistent connection to close with Supabase JS
-  console.log('[INSERTER] Supabase JS — pas de connexion à fermer');
+  logger.info('INSERTER', 'Supabase JS — pas de connexion à fermer');
 }

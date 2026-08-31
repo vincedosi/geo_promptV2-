@@ -5,6 +5,7 @@
  * DELETE : Supprime la source + toutes ses données
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
@@ -142,7 +143,7 @@ export async function DELETE(
         try {
           await supabase.rpc('drop_carreaux_table', { table_name: tableName });
           deletedCarreaux = true;
-          console.log(`[delete-source] Table carreaux '${tableName}' supprimée`);
+          logger.debug('delete-source', `Table carreaux '${tableName}' supprimée`);
         } catch (dropErr: unknown) {
           console.error(`[delete-source] Erreur DROP table '${tableName}':`, dropErr instanceof Error ? dropErr.message : String(dropErr));
           // Fallback: try deleting directly if RPC doesn't exist
@@ -156,14 +157,14 @@ export async function DELETE(
         .delete()
         .eq('data_source_id', id);
       deletedPoi = poiResult.count || 0;
-      console.log('[delete-source] POI delete result:', poiResult.error?.message || 'OK', 'count:', deletedPoi);
+      logger.debug('delete-source', `POI delete result ${poiResult.error?.message || 'OK'} count: ${deletedPoi}`);
 
       const panneauxResult = await supabase
         .from('panneaux_affichage')
         .delete()
         .eq('data_source_id', id);
       deletedPanneaux = panneauxResult.count || 0;
-      console.log('[delete-source] Panneaux delete result:', panneauxResult.error?.message || 'OK');
+      logger.debug('delete-source', `Panneaux delete result ${panneauxResult.error?.message || 'OK'}`);
     }
 
     // Supprimer l'entrée data_sources
@@ -177,7 +178,7 @@ export async function DELETE(
       throw sourceResult.error;
     }
 
-    console.log('[delete-source] Source deleted successfully:', id);
+    logger.debug('delete-source', `Source deleted successfully ${id}`);
 
     return NextResponse.json({
       success: true,

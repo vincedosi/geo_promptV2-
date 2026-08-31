@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { useState } from 'react';
 
@@ -70,7 +71,7 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
           </thead>
           <tbody>
             {top.map((row, i) => (
-              <tr key={row.code} onClick={() => { console.log('[drilldown] ActionListTable row clicked:', row.code); onRowClick?.(row.code); }}
+              <tr key={row.code} onClick={() => { logger.debug('drilldown', `ActionListTable row clicked ${row.code}`); onRowClick?.(row.code); }}
                 style={{ cursor: canDrill ? 'pointer' : 'default', borderBottom: '0.5px solid var(--bg-level-2)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = canDrill ? 'var(--bg-level-2)' : 'transparent'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}

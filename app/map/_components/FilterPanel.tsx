@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 /**
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
@@ -59,8 +60,6 @@ const C = {
 };
 const fInter    = "'Inter', system-ui, sans-serif";
 const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-const fMichroma = fInter;
-const fOrbitron = fInter;
 
 // ─── Radio search autocomplete ────────────────────────────────────────────────
 function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: string) => void }) {
@@ -489,9 +488,11 @@ function MultiDropdown({
             <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Search size={12} style={{ color: C.textDim, flexShrink: 0 }} />
               <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+                aria-label="Rechercher"
                 placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 12, color: C.text }} />
               {search && (
-                <span onClick={() => setSearch('')} style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0 }}>✕</span>
+                <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche"
+                  style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0, background: 'transparent', border: 'none', padding: 0, lineHeight: 1 }}>✕</button>
               )}
             </div>
           )}
@@ -1185,7 +1186,6 @@ export function FilterPanel({
     setIsoDurations(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
   };
 
-  const modeLabel = (id: string) => ISO_MODES.find(m => m.id === id)?.label ?? id;
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const send = (text: string) => { if (!isLoading) sendMessage(text); };
@@ -1229,7 +1229,7 @@ export function FilterPanel({
   const handleVoronoi = () => {
     if (!exactlyOnePOI) return;
     const msg = `Fais le Voronoi des ${selectedPOI[0]} ${territoire}`;
-    console.log('[FilterPanel] handleVoronoi →', msg, '| isLoading:', isLoading);
+    logger.debug('FilterPanel', `handleVoronoi → ${msg} | isLoading: ${isLoading}`);
     send(msg);
   };
 
@@ -1380,7 +1380,7 @@ export function FilterPanel({
       metropolitaine:    !selectedRegions.includes('dom'),
       force_recalculate: force,
     };
-    console.log('[FilterPanel] handleBattle → direct API', params);
+    logger.debug('FilterPanel', `handleBattle → direct API ${params}`);
     const territoireLabel = params.filtre_ville
       ?? (selectedDepts.length > 0 ? `${selectedDepts.length} dept(s)` : null)
       ?? (selectedRegions.length > 0 ? selectedRegions.map(code => REF_REGIONS.find(r => r.code_region === code)?.nom_region ?? code).join(' + ') : null)
