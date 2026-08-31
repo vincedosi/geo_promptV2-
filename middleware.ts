@@ -19,14 +19,16 @@ const PROTECTED_API_PREFIXES = [
   '/api/map/poi-natures',
   '/api/map/ooh',
   '/api/map/transport',
-  '/api/map/tmja',
   // Note: /api/map/categories est public intentionnellement (données non sensibles)
   '/api/admin',
   '/api/iris-crawler',
+  // Tuiles vectorielles : les trois familles sont traitées à l'identique.
+  // MapLibre les requête en same-origin, les cookies de session sont donc
+  // transmis — c'est déjà le cas de /api/tiles, en service et fonctionnel.
   '/api/iris-tiles-proxy',
   '/api/tiles',
-  '/api/analysis',
-  '/api/carreaux',
+  '/api/iris-tiles',
+  '/api/tmja-tiles',
   '/api/iris',
   '/api/iris-import',
   '/api/isochrone-battle',
@@ -36,6 +38,9 @@ const PROTECTED_API_PREFIXES = [
   '/api/saved-maps',
   '/api/smart-prompt',
   '/api/radio',
+  // Referentiel geo : consommé par lib/geo/use-ref-geo.ts en
+  // fetch(..., { credentials: 'include' }) — les cookies sont transmis.
+  '/api/ref',
 ];
 
 const PROTECTED_PAGE_PREFIXES = [
@@ -136,8 +141,8 @@ export const config = {
     '/api/iris-crawler/:path*',
     '/api/iris-tiles-proxy/:path*',
     '/api/tiles/:path*',
-    '/api/analysis/:path*',
-    '/api/carreaux/:path*',
+    '/api/iris-tiles/:path*',
+    '/api/tmja-tiles/:path*',
     '/api/iris/:path*',
     '/api/iris-import/:path*',
     '/api/isochrone-battle/:path*',
@@ -147,5 +152,6 @@ export const config = {
     '/api/saved-maps/:path*',
     '/api/smart-prompt/:path*',
     '/api/radio/:path*',
+    '/api/ref/:path*',
   ],
 };
