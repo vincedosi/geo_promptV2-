@@ -33,17 +33,12 @@ async function getAccessToken(): Promise<string | null> {
   const { data: { session } } = await sb.auth.getSession();
   return session?.access_token ?? null;
 }
+
 /**
  * fetch() enrichi du header Authorization: Bearer <token>.
  * Signature identique à fetch() standard — drop-in replacement.
- *
- * À utiliser pour TOUTE route API protégée par un guard serveur
- * (`requireAuth` / `requireAdmin` / `requireDspAccess`), qu'elle soit
- * sous /api/admin ou non : les guards lisent le header Authorization et
- * n'ont aucun fallback cookie. Un `fetch()` nu sur une route gardée
- * renvoie donc systématiquement 401.
  */
-export async function authFetch(
+export async function adminFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
@@ -60,9 +55,3 @@ export async function authFetch(
 
   return fetch(url, { ...options, headers });
 }
-
-/**
- * Alias historique de `authFetch`, conservé pour les ~89 call sites
- * existants sous /api/admin. Les nouveaux appels utilisent `authFetch`.
- */
-export const adminFetch = authFetch;

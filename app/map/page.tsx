@@ -26,7 +26,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { adminFetch, authFetch } from '@/lib/admin-fetch';
+import { adminFetch } from '@/lib/admin-fetch';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
@@ -392,7 +392,7 @@ export default function MapPage() {
     if (!selectedIrisCode) return;
     setIrisDetailLoading(true);
     setSelectedIrisData(prev => prev?.code_iris === selectedIrisCode ? prev : null);
-    authFetch(`/api/iris/detail?code_iris=${encodeURIComponent(selectedIrisCode)}`)
+    fetch(`/api/iris/detail?code_iris=${encodeURIComponent(selectedIrisCode)}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
       .then((d: IrisDetailData) => { setSelectedIrisData(d); setIrisDetailLoading(false); })
       .catch(() => { setIrisDetailLoading(false); });
@@ -409,7 +409,7 @@ export default function MapPage() {
     if (!map) return;
     const b = map.getBounds();
     const url = `/api/map/transport?west=${b.getWest().toFixed(4)}&south=${b.getSouth().toFixed(4)}&east=${b.getEast().toFixed(4)}&north=${b.getNorth().toFixed(4)}${types.length ? `&types=${types.join(',')}` : ''}`;
-    const res = await authFetch(url);
+    const res = await fetch(url);
     if (!res.ok) return;
     const data = await res.json();
     if (data?.pois) setZoneData(data);
@@ -931,7 +931,7 @@ export default function MapPage() {
     setError(null);
     setZoneData(null);
     try {
-      const res = await authFetch('/api/map/ooh', {
+      const res = await fetch('/api/map/ooh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ regies: regies ?? [] }),

@@ -7,7 +7,6 @@
  */
 
 import { useState, useCallback } from 'react';
-import { authFetch } from '@/lib/admin-fetch';
 import type { SmartPromptResponse } from '@/lib/smart-prompt/types';
 
 export interface UseSmartPromptState {
@@ -29,7 +28,7 @@ export function useSmartPrompt() {
     setState({ loading: true, response: null, error: null });
 
     try {
-      const res = await authFetch('/api/smart-prompt', {
+      const res = await fetch('/api/smart-prompt', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ message }),

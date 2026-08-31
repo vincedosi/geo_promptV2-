@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const _profile = await requireAuth(req);
-  if (!_profile) return authUnauthorized();
-
   try {
     const body = await req.json();
     const { regies } = body as { regies?: string[] };

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -11,9 +10,6 @@ const ALLOWED_IRIS_COLUMNS = IRIS_DB_COLUMN_NAMES;
 
 // GET /api/iris/stats?colonne=pop_15_29&bbox=...&level=iris|dept
 export async function GET(req: NextRequest) {
-  const _profile = await requireAuth(req);
-  if (!_profile) return authUnauthorized();
-
   const { searchParams } = req.nextUrl;
 
   const colonne           = searchParams.get('colonne') ?? '';

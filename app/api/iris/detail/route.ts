@@ -3,7 +3,6 @@
  * Retourne toutes les colonnes socio-démographiques d'un IRIS donné.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 
@@ -15,9 +14,6 @@ const SELECT_COLS = [
 ].join(', ');
 
 export async function GET(req: NextRequest) {
-  const _profile = await requireAuth(req);
-  if (!_profile) return authUnauthorized();
-
   const code_iris = req.nextUrl.searchParams.get('code_iris') ?? '';
   if (!code_iris || !/^\d{9}$/.test(code_iris)) {
     return NextResponse.json({ error: 'code_iris invalide' }, { status: 400 });
