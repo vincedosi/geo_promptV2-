@@ -9,16 +9,23 @@ export async function GET(req: NextRequest) {
   if (!profile) return adminUnauthorized();
   const supabase = createAdminClient();
 
-  const [arretTotal, ceremaCount, osmCount, panneaux] = await Promise.all([
-    // Arrêts transport — COUNT exact (évite le plafond PostgREST 5 000 lignes)
-    supabase.from('poi_france').select('*', { count: 'exact', head: true }).eq('categorie', 'arret_transport'),
-    // Flux CEREMA — COUNT exact
-    supabase.from('comptages_routiers').select('*', { count: 'exact', head: true }).eq('source', 'tmja_rrn_national'),
-    // Flux OSM — COUNT exact
-    supabase.from('comptages_routiers').select('*', { count: 'exact', head: true }).eq('source', 'osm_highway_proxy'),
-    // Scoring panneaux (3 905 lignes — récupération complète)
-    supabase.from('panneaux_affichage').select('ville, score_transport, score_flux_routier, score_ooh_total').limit(5000),
-  ]);
+  // ⛔ Nano : ces trois COUNT exact portent sur des tables volumineuses
+  // (poi_france ~285k arrets, comptages_routiers ~408k lignes x2). Les lancer
+  // en parallele est exactement le motif de l'incident du 08/04 consigne dans
+  // CLAUDE.md (3 COUNT sur 280k lignes -> timeout). On les SEQUENCE donc :
+  // memes requetes, memes resultats, concurrence ramenee a 1.
+  // Arrêts transport — COUNT exact (évite le plafond PostgREST 5 000 lignes)
+  const arretTotal = await supabase
+    .from('poi_france').select('*', { count: 'exact', head: true }).eq('categorie', 'arret_transport');
+  // Flux CEREMA — COUNT exact
+  const ceremaCount = await supabase
+    .from('comptages_routiers').select('*', { count: 'exact', head: true }).eq('source', 'tmja_rrn_national');
+  // Flux OSM — COUNT exact
+  const osmCount = await supabase
+    .from('comptages_routiers').select('*', { count: 'exact', head: true }).eq('source', 'osm_highway_proxy');
+  // Scoring panneaux (3 905 lignes — récupération complète)
+  const panneaux = await supabase
+    .from('panneaux_affichage').select('ville, score_transport, score_flux_routier, score_ooh_total').limit(5000);
 
   // Sources connues — agrégation directe depuis les counts
   const arretsBySource: Record<string, number> = {

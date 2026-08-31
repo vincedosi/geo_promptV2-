@@ -45,7 +45,6 @@ const PROTECTED_API_PREFIXES = [
 
 const PROTECTED_PAGE_PREFIXES = [
   '/map',
-  '/copilote',
   '/dashboard',
   '/campaigns',
   '/admin',
@@ -130,7 +129,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/map/:path*',
-    '/copilote/:path*',
     '/dashboard/:path*',
     '/campaigns/:path*',
     '/admin/:path*',

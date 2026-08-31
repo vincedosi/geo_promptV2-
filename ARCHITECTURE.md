@@ -52,7 +52,8 @@ genesis_app/
 │   │   ├── radio/              # Admin emetteurs radio FM/DAB+
 │   │   ├── sources/            # Gestion des sources de donnees
 │   │   └── users/              # Gestion utilisateurs multi-tenant
-│   ├── copilote/               # Interface principale : chat IA + carte MapLibre
+│   ├── copilote/               # Composants/hooks/lib du chat IA + carte, consommes
+│   │                           # par /map (plus de page propre depuis 825af5a)
 │   │   ├── _components/        # ChatPanel, MapPanel, PromptsPanel, ZoneCard...
 │   │   ├── _hooks/             # useMapInit, useMapLayers, useChatControls...
 │   │   └── _lib/               # constants.ts (circleGeoJSON, getCatColor)
