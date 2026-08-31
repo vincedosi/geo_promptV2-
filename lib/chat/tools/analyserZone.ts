@@ -5,6 +5,7 @@
  */
 
 import { createAdminClient } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import {
   fetchIsochrones, buildIsochCacheKey, ORS_MAX_POIS_CHAT,
   type PoiRow, type IsochroneCacheCtx,
@@ -109,7 +110,7 @@ export async function analyserZone(
           if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
           return applyOrgFilter(q);
         });
-        if (poisMap.size > 0) console.log(`[chat] region→ville fallback: ${poisMap.size} résultats pour "${region}"`);
+        if (poisMap.size > 0) logger.debug('chat', `region→ville fallback: ${poisMap.size} résultats pour "${region}"`);
       }
     }
 
@@ -134,7 +135,7 @@ export async function analyserZone(
           if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
           return applyOrgFilter(q);
         });
-        if (poisMap.size > 0) console.log(`[chat] departement code fallback: ${poisMap.size} résultats pour "${departement}"`);
+        if (poisMap.size > 0) logger.debug('chat', `departement code fallback: ${poisMap.size} résultats pour "${departement}"`);
       }
     }
 
@@ -152,7 +153,7 @@ export async function analyserZone(
           if (resolvedCategory) q = q.eq('categorie', resolvedCategory);
           return applyOrgFilter(q);
         });
-        if (poisMap.size > 0) console.log(`[chat] ville→region fallback: ${poisMap.size} résultats pour "${ville}"`);
+        if (poisMap.size > 0) logger.debug('chat', `ville→region fallback: ${poisMap.size} résultats pour "${ville}"`);
       }
 
       if (rayon_metres) {
@@ -203,7 +204,7 @@ export async function analyserZone(
       ville:     locationLabel,
       categorie: resolvedCategory ?? categorie_poi ?? undefined,
     };
-    console.log(`[isochrone] Calcul: ${pois.length} POIs, ${isochrone_minutes}min, mode=${isochrone_mode}, key=${cacheKey}`);
+    logger.debug('isochrone', `Calcul: ${pois.length} POIs, ${isochrone_minutes}min, mode=${isochrone_mode}, key=${cacheKey}`);
     isochroneGeoJSON = await fetchIsochrones(pois, isochrone_minutes, isochrone_mode, cacheCtx, ORS_MAX_POIS_CHAT, options.forceRecalculate);
   }
 
@@ -211,7 +212,7 @@ export async function analyserZone(
   const couleur_overrides = couleur && cat ? { [cat]: couleur } : undefined;
 
   const catLabel = resolvedCategory ? ` [${resolvedCategory}]` : '';
-  console.log(`[chat] analyser_zone_pois(${locationLabel}${catLabel}) → ${pois.length} POIs`);
+  logger.debug('chat', `analyser_zone_pois(${locationLabel}${catLabel}) → ${pois.length} POIs`);
 
   return {
     ville:           locationLabel,

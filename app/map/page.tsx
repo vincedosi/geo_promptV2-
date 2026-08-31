@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 /**
  * @file app/map/page.tsx — page principale carte MAGELIAN
@@ -1284,7 +1285,7 @@ export default function MapPage() {
         }
         if (evt.type === 'result') {
           const battleGeo = evt.battleGeoJSON as { features?: GeoJSON.Feature[] } | undefined;
-          console.log('[handleApplyBattle] result received — nb_rings:', evt.nb_rings, '| features:', battleGeo?.features?.length);
+          logger.debug('handleApplyBattle', `result received — nb_rings ${evt.nb_rings} | features: ${battleGeo?.features?.length}`);
           onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
           if (battleGeo?.features && battleGeo.features.length > 0) {
             mapLayers.applyIsochroneBattle(battleGeo as { type: string; features: GeoJSON.Feature[] }, (evt.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null, category, poisForMap);

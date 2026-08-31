@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
   }
 
   const featureCount = (data as { features?: unknown[] } | null)?.features?.length ?? 0;
-  console.log(`[api/map/tmja] ${featureCount} tronçons dans bbox [${west.toFixed(2)},${south.toFixed(2)},${east.toFixed(2)},${north.toFixed(2)}]`);
+  logger.debug('api/map/tmja', `${featureCount} tronçons dans bbox [${west.toFixed(2)},${south.toFixed(2)},${east.toFixed(2)},${north.toFixed(2)}]`);
 
   return new Response(JSON.stringify(data ?? { type: 'FeatureCollection', features: [] }), {
     headers: { 'Content-Type': 'application/json' },

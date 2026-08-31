@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * lib/chat/tools/isochrones.ts
  * Outils isochrone_battle (ORS live) et isochrone_battle_v2 (cache ST_Difference).
@@ -70,7 +71,7 @@ export async function isochroneBattleV2(args: Record<string, unknown>) {
 
     const nb_features = (result.nb_features as number) ?? 0;
     const nb_pois     = (result.nb_pois     as number) ?? 0;
-    console.log(`[chat/isochrone_battle_v2] "${category}" → ${nb_features} features, ${nb_pois} POIs`);
+    logger.debug('chat/isochrone_battle_v2', `"${category}" → ${nb_features} features, ${nb_pois} POIs`);
 
     return {
       category, mode, paliers, metropolitaine,
@@ -132,7 +133,7 @@ export async function isochroneBattle(
     }
 
     const data = await res.json();
-    console.log(`[chat/isochrone_battle] "${category}" → ${data.nb_features ?? 0} features, ${data.nb_pois ?? 0} POIs`);
+    logger.debug('chat/isochrone_battle', `"${category}" → ${data.nb_features ?? 0} features, ${data.nb_pois ?? 0} POIs`);
     return data;
 
   } catch (error) {

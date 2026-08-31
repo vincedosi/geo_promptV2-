@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       categories,
     };
 
-    console.log(`[api/map/ooh] ${pois.length} panneaux — régies: ${regies?.join(', ') ?? 'toutes'}`);
+    logger.debug('api/map/ooh', `${pois.length} panneaux — régies: ${regies?.join(', ') ?? 'toutes'}`);
     return NextResponse.json(zoneData);
 
   } catch (err: unknown) {

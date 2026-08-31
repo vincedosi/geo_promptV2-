@@ -3,6 +3,7 @@
  * Dry-run: validate first N rows with mapping + geolocation
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
         // Only pass results for rows in the test range
         preGeocodedResults = (geocodeData.results as GeocodeDetailedResult[])
           .filter((r) => r.rowIndex < limit);
-        console.log(`[DRY-RUN] Using precomputed geocode results (${preGeocodedResults.length} rows)`);
+        logger.debug('DRY-RUN', `Using precomputed geocode results (${preGeocodedResults.length} rows)`);
       }
     }
 

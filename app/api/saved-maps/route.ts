@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur de sauvegarde' }, { status: 500 });
   }
 
-  console.log(`[saved-maps] Carte sauvegardée: "${name}" (id=${data.id}, user=${profile.id})`);
+  logger.info('saved-maps', `Carte sauvegardée: "${name}" (id=${data.id}, user=${profile.id})`);
   return NextResponse.json({ id: data.id, created_at: data.created_at });
 }
 
@@ -132,6 +133,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur de suppression' }, { status: 500 });
   }
 
-  console.log(`[saved-maps] Carte supprimée: ${id} (user=${profile.id})`);
+  logger.info('saved-maps', `Carte supprimée: ${id} (user=${profile.id})`);
   return NextResponse.json({ ok: true });
 }

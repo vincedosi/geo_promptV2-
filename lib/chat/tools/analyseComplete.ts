@@ -8,6 +8,7 @@
  */
 
 import { createAdminClient }                     from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import { getCoordsForVille, getCoordsForRegion } from '@/lib/geo/locations';
 import { CHORO_INDICATORS }                      from '@/lib/chat/system-prompt';
 import { IRIS_DB_COLUMNS }                       from '@/lib/iris-crawler/db-columns';
@@ -163,7 +164,7 @@ export async function analyseComplete(args: Record<string, unknown>) {
     code_commune = communeData?.code_commune ?? null;
   }
 
-  console.log('[analyse_complete] source:', code_commune ? 'IRIS' : 'carreaux', 'commune:', code_commune);
+  logger.debug('analyse_complete', `source ${code_commune ? 'IRIS' : 'carreaux'} commune: ${code_commune}`);
 
   // ── Requêtes légères : panneaux + POI (parallèles dans tous les cas) ───────
   let panneauxQ = supabase
@@ -256,10 +257,8 @@ export async function analyseComplete(args: Record<string, unknown>) {
       .filter(p => p.count > 0)
       .sort((a, b) => b.count - a.count);
 
-    console.log(
-      `[chat] analyse_complete(${perimetre_type}, ${perimetre_value}, ${cible}) → ` +
-      `pop=${pop_totale}, iris=${irisStats.length}, panneaux=${panneaux.length}, poi=${poi_summary.length} catégories`,
-    );
+    logger.debug('chat', `analyse_complete(${perimetre_type}, ${perimetre_value}, ${cible}) → ` +
+      `pop=${pop_totale}, iris=${irisStats.length}, panneaux=${panneaux.length}, poi=${poi_summary.length} catégories`);
 
     return {
       type:               "analyse_complete",
@@ -382,10 +381,8 @@ export async function analyseComplete(args: Record<string, unknown>) {
     .filter(p => p.count > 0)
     .sort((a, b) => b.count - a.count);
 
-  console.log(
-    `[chat] analyse_complete(${perimetre_type}, ${perimetre_value}, ${cible}) → ` +
-    `pop=${popTotale}, panneaux=${panneaux.length}, poi=${poi_summary.length} catégories`,
-  );
+  logger.debug('chat', `analyse_complete(${perimetre_type}, ${perimetre_value}, ${cible}) → ` +
+    `pop=${popTotale}, panneaux=${panneaux.length}, poi=${poi_summary.length} catégories`);
 
   return {
     type:               "analyse_complete",

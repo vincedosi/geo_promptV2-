@@ -4,6 +4,7 @@
  */
 
 import { createAdminClient }    from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import { routePrompt }          from './router-prompt';
 import { runDemographieAgent }  from './agents/demographie';
 import type {
@@ -124,16 +125,16 @@ export async function orchestrate(
 ): Promise<SmartPromptResponse> {
   const registry = await loadRegistry();
 
-  console.log('[smart-prompt] orchestrate →', JSON.stringify(userMessage).slice(0, 80));
+  logger.debug('smart-prompt', `orchestrate → ${JSON.stringify(userMessage).slice(0, 80)}`);
   const t0 = Date.now();
 
   const decision = await routePrompt(userMessage, registry);
-  console.log('[smart-prompt] routing →', decision.agent, 'confidence:', decision.confidence, 'params:', JSON.stringify(decision.params));
-  console.log('[smart-prompt] routePrompt took', Date.now() - t0, 'ms');
+  logger.debug('smart-prompt', `routing → ${decision.agent} confidence: ${decision.confidence} params: ${JSON.stringify(decision.params)}`);
+  logger.debug('smart-prompt', `routePrompt took ${Date.now() - t0} ms`);
 
   const t1 = Date.now();
   const result = await executeAgent(decision.agent, decision.params);
-  console.log('[smart-prompt] executeAgent took', Date.now() - t1, 'ms — success:', result.success, result.error ?? '');
+  logger.debug('smart-prompt', `executeAgent took ${Date.now() - t1} ms — success: ${result.success} ${result.error ?? ''}`);
 
   // Log feedback (non-bloquant)
   logFeedback(

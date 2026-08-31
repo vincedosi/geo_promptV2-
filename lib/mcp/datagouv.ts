@@ -5,6 +5,7 @@
  * Uses native fetch (Streamable HTTP JSON-RPC) — no MCP SDK needed.
  */
 import { jsonSchema } from 'ai';
+import { logger } from '@/lib/logger';
 
 const MCP_URL     = 'https://mcp.data.gouv.fr/mcp';
 const MCP_TIMEOUT = 5_000; // ms — must stay fast (runs before Mistral call)
@@ -153,7 +154,7 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
     if (!initData?.result) {
       throw new Error(`MCP init: unexpected response: ${JSON.stringify(initData)}`);
     }
-    console.log(`[data.gouv MCP] initialized, session=${sessionId}, server=${initData.result?.serverInfo?.name ?? '?'}`);
+    logger.debug('data.gouv MCP', `initialized, session=${sessionId}, server=${initData.result?.serverInfo?.name ?? '?'}`);
 
     // 2. List tools (skip notifications/initialized — optional per spec)
     const { data: listData } = await mcpPost(sessionId, {
@@ -208,7 +209,7 @@ export async function loadDatagouvTools(): Promise<Record<string, unknown>> {
       };
     }
 
-    console.log(`[data.gouv MCP] ${mcpTools.length} tools loaded`);
+    logger.debug('data.gouv MCP', `${mcpTools.length} tools loaded`);
     return tools;
   } catch (err: unknown) {
     console.warn('[data.gouv MCP] Skipped (non-blocking):', err instanceof Error ? err.message : err);

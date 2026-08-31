@@ -3,6 +3,7 @@
  * Full import with Server-Sent Events (SSE) progress
  */
 import { NextRequest } from 'next/server';
+import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -203,13 +204,13 @@ export async function POST(request: NextRequest) {
         if (sqlError) {
           console.error('[EXECUTE] ⚠️  ERREUR SQL PREMIERE:', sqlError);
         }
-        console.log('[EXECUTE] Rapport final:', {
+        logger.info('EXECUTE', `Rapport final ${{
           total: totalRows,
           inserted: insertResult.inserted,
           ignored: insertResult.ignored + result.missingCoords,
           errors: insertResult.errors,
           firstError: sqlError,
-        });
+        }}`);
 
         // Invalider le cache des catégories pour que /map voit immédiatement la nouvelle catégorie
         if (insertResult.inserted > 0) invalidateCategoriesCache();

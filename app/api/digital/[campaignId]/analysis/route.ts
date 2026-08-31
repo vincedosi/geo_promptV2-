@@ -7,6 +7,7 @@
  * &limit=100
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
@@ -102,6 +103,6 @@ export async function GET(
   }
 
   const rows = typeof data === 'string' ? JSON.parse(data) : (data ?? []);
-  console.log(`[digital/analysis] type=breakdown agg=${aggregation} indicator=${indicator} rows=${rows.length} first_nom=${rows[0]?.nom ?? 'N/A'}`);
+  logger.debug('digital/analysis', `type=breakdown agg=${aggregation} indicator=${indicator} rows=${rows.length} first_nom=${rows[0]?.nom ?? 'N/A'}`);
   return NextResponse.json(rows, { headers: { 'Cache-Control': 'no-store' } });
 }

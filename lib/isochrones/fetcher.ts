@@ -5,6 +5,7 @@
  */
 
 import { createAdminClient } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 import type { PoiRow } from '@/types/poi';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ export async function fetchIsochrones(
       .single();
 
     if (cached) {
-      console.log(`[isochrone] Cache HIT: ${cacheCtx.cacheKey} (calculé le ${cached.created_at})`);
+      logger.debug('isochrone', `Cache HIT: ${cacheCtx.cacheKey} (calculé le ${cached.created_at})`);
       return {
         ...(cached.geojson as object),
         _fromCache: true,
@@ -96,9 +97,9 @@ export async function fetchIsochrones(
         _poiCount:  cached.poi_count,
       };
     }
-    console.log(`[isochrone] Cache MISS: ${cacheCtx.cacheKey} → calcul ORS`);
+    logger.debug('isochrone', `Cache MISS: ${cacheCtx.cacheKey} → calcul ORS`);
   } else {
-    console.log(`[isochrone] forceRecalculate=true → bypass cache pour ${cacheCtx.cacheKey}`);
+    logger.debug('isochrone', `forceRecalculate=true → bypass cache pour ${cacheCtx.cacheKey}`);
   }
 
   // ── Appel ORS par batches ───────────────────────────────────────────────
@@ -154,7 +155,7 @@ export async function fetchIsochrones(
           allFeatures.push(...data.features);
         }
         success = true;
-        console.log(`[isochrone] Batch ${batchNum}: ${data.features?.length ?? 0} polygones`);
+        logger.debug('isochrone', `Batch ${batchNum}: ${data.features?.length ?? 0} polygones`);
         break;
       } catch (e: unknown) {
         clearTimeout(timer);
@@ -190,7 +191,7 @@ export async function fetchIsochrones(
     } else if (clipped) {
       geojson = clipped as typeof rawGeojson;
       const nb = (geojson as { features?: unknown[] }).features?.length ?? 0;
-      console.log(`[isochrone] Clip France OK → ${nb} polygones retenus`);
+      logger.debug('isochrone', `Clip France OK → ${nb} polygones retenus`);
     }
   }
 
@@ -214,9 +215,9 @@ export async function fetchIsochrones(
   if (cacheErr) {
     console.error('[isochrone] Erreur sauvegarde cache:', cacheErr.message);
   } else {
-    console.log(`[isochrone] Cache sauvegardé: ${cacheCtx.cacheKey} (${allFeatures.length} polygones)`);
+    logger.debug('isochrone', `Cache sauvegardé: ${cacheCtx.cacheKey} (${allFeatures.length} polygones)`);
   }
 
-  console.log(`[isochrone] Total: ${allFeatures.length} polygones (${minutes}min, ${mode})`);
+  logger.debug('isochrone', `Total: ${allFeatures.length} polygones (${minutes}min, ${mode})`);
   return geojson;
 }

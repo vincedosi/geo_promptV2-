@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Erreur de chargement carreaux' }, { status: 500 });
     }
 
-    console.log('[api/carreaux POST] rows returned:', data?.length ?? 0);
+    logger.debug('api/carreaux POST', `rows returned ${data?.length ?? 0}`);
 
     const features = (data ?? []).map((r: { geometry: GeoJSON.Geometry; metadata: Record<string, unknown> }) => {
       // Normalize metadata keys to lowercase

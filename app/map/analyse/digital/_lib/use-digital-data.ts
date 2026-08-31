@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 import { adminFetch } from '@/lib/admin-fetch';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -106,7 +107,7 @@ export function useDigitalData(): DigitalData {
 
       // Mode "Zones personnalisees" (galerie /map/custom-geo)
       if (scale === 'custom_zone') {
-        console.log('[digital-data] fetchMap scale=custom_zone zoneId=', customZoneId);
+        logger.debug('digital-data', `fetchMap scale=custom_zone zoneId= ${customZoneId}`);
         if (!customZoneId) {
           setGeojson({ type: 'FeatureCollection', features: [] });
           setCustomZoneSummary(null);
@@ -119,7 +120,7 @@ export function useDigitalData(): DigitalData {
           throw new Error(`HTTP ${res.status} ${txt}`);
         }
         const data = await res.json() as { geojson: GeoJSON.FeatureCollection; summary: CustomZoneSummary | null };
-        console.log('[digital-data] custom_zone features=', data.geojson?.features?.length, 'pct_in_zone=', data.summary?.pct_in_zone);
+        logger.debug('digital-data', `custom_zone features= ${data.geojson?.features?.length} pct_in_zone= ${data.summary?.pct_in_zone}`);
         setGeojson(data.geojson);
         setCustomZoneSummary(data.summary);
         return;
@@ -192,12 +193,7 @@ export function useDigitalData(): DigitalData {
             setMeteoData(chunk.data);
             setMeteoMeta(chunk.meta);
             setMeteoProgress(null);
-            console.log(
-              '[digital-data] meteo done',
-              'zones=', Object.keys(chunk.data).length,
-              'variable=', chunk.meta.variable,
-              'cached=', chunk.meta.cachedAt !== null,
-            );
+            logger.debug('digital-data', `meteo done zones= ${Object.keys(chunk.data).length} variable= ${chunk.meta.variable} cached= ${chunk.meta.cachedAt !== null}`);
           } else if (chunk.status === 'error') {
             throw new Error(chunk.error);
           }

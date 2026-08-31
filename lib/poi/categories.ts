@@ -5,6 +5,7 @@
  * et cache le résultat 60 secondes côté serveur.
  */
 import { createAdminClient } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 let cachedCategories: string[] | null = null;
 let cacheTimestamp = 0;
@@ -57,7 +58,7 @@ export async function getDistinctCategories(): Promise<string[]> {
   cachedCategories = categories;
   cacheTimestamp = now;
 
-  console.log(`[categories] Refreshed (leapfrog): ${categories.length} catégories →`, categories.join(', '));
+  logger.debug('categories', `Refreshed (leapfrog): ${categories.length} catégories → ${categories.join(', ')}`);
   return categories;
 }
 

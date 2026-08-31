@@ -5,6 +5,7 @@
  */
 
 import { createAdminClient }                        from '@/lib/auth';
+import { logger }                                   from '@/lib/logger';
 import { getDistinctCategories }                    from '@/lib/poi/categories';
 import { CHORO_INDICATORS }                         from '@/lib/chat/system-prompt';
 import { getCoordsForVille, getCoordsForRegion }    from '@/lib/geo/locations';
@@ -78,10 +79,8 @@ export async function askConfiguration(args: Record<string, unknown>) {
     .sort((a, b) => b.count - a.count)
     .map(c => ({ id: c.cat, label: c.cat, count: c.count }));
 
-  console.log(
-    `[chat] ask_configuration(${perimetre_type}, ${perimetre_value}) → ` +
-    `${options_poi.length} catégories POI, ${options_cible.length} cibles démo`,
-  );
+  logger.debug('chat', `ask_configuration(${perimetre_type}, ${perimetre_value}) → ` +
+    `${options_poi.length} catégories POI, ${options_cible.length} cibles démo`);
 
   return {
     type:      "configuration_request",

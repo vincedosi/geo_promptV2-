@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@/lib/logger';
 
 /**
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
@@ -1229,7 +1230,7 @@ export function FilterPanel({
   const handleVoronoi = () => {
     if (!exactlyOnePOI) return;
     const msg = `Fais le Voronoi des ${selectedPOI[0]} ${territoire}`;
-    console.log('[FilterPanel] handleVoronoi →', msg, '| isLoading:', isLoading);
+    logger.debug('FilterPanel', `handleVoronoi → ${msg} | isLoading: ${isLoading}`);
     send(msg);
   };
 
@@ -1380,7 +1381,7 @@ export function FilterPanel({
       metropolitaine:    !selectedRegions.includes('dom'),
       force_recalculate: force,
     };
-    console.log('[FilterPanel] handleBattle → direct API', params);
+    logger.debug('FilterPanel', `handleBattle → direct API ${params}`);
     const territoireLabel = params.filtre_ville
       ?? (selectedDepts.length > 0 ? `${selectedDepts.length} dept(s)` : null)
       ?? (selectedRegions.length > 0 ? selectedRegions.map(code => REF_REGIONS.find(r => r.code_region === code)?.nom_region ?? code).join(' + ') : null)
