@@ -3,22 +3,27 @@ import { logger } from '@/lib/logger';
 
 /**
  * @file app/map/page.tsx — page principale carte MAGELIAN
- * @size ~2329 lignes (cf docs/known_tech_debt.md — refactor planifié,
- *       non splitté en A4.6.2 par décision produit pour réduire le risque pitch)
+ * @size ~1090 lignes (2329 avant le refactor du 31/08/2026 : les domaines
+ *       autonomes vivent maintenant dans app/map/_hooks/)
  *
- * @sections internes (ordre approximatif)
- *   1. Imports + dynamic loaders         (≈ 1-90)
- *   2. Helpers (esc, normToColor, …)     (≈ 91-230)
- *   3. State management (~70 useState)   (≈ 231-450)
- *   4. URL search params handlers (?customZone, ?layer=digital) (≈ 451-700)
- *   5. POI / battle / voronoi handlers   (≈ 701-1300)
- *   6. Radio + meteo handlers            (≈ 1301-1600)
- *   7. Render JSX (IconBar + OverlayPanel) (≈ 1601-2329)
+ * @sections internes
+ *   1. Imports + dynamic loaders
+ *   2. State transverse (overlays, périmètre, TMJA, civique, plan média)
+ *   3. Appels des hooks de domaine (cf ci-dessous)
+ *   4. Deep-links URL (?customZone, ?layer=digital, ?overlay=)
+ *   5. Marqueurs POI + effacement global des couches
+ *   6. Render JSX (MapTopBar + IconBar + OverlayPanel + panneaux latéraux)
+ *
+ * @hooks de domaine — app/map/_hooks/
+ *   - useRadioLayer       : émetteurs FM/DAB+, filtres, clusters/heatmap/couverture
+ *   - useMeteoLayer       : choroplèthe Open-Meteo par zones admin
+ *   - useIrisDetail       : clic sur iris-fill + fetch du détail IRIS
+ *   - useMapDirectActions : POI/OOH directs, isochrones, bataille (état inclus)
  *
  * @maintainers Pour étendre ce fichier :
- *   - NE PAS ajouter d'autres `useState` au top — extraire dans un hook
- *     dédié (ex: useBattleState(), useRadioState())
- *   - Les overlays (IconBar items) sont déjà bien isolés dans
+ *   - NE PAS ajouter de `useState` au top pour un nouveau domaine — créer un
+ *     hook dans `app/map/_hooks/`, appelé après `useMapInit`
+ *   - Les overlays (IconBar items) sont déjà isolés dans
  *     `components/map/overlays/`
  *   - Lire docs/known_tech_debt.md avant refactor structurel
  */
@@ -29,11 +34,14 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
-import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
+import { MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
-import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
-import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
-import { METEO_LABEL, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+import { useRadioLayer } from './_hooks/useRadioLayer';
+import { useMeteoLayer } from './_hooks/useMeteoLayer';
+import { useIrisDetail } from './_hooks/useIrisDetail';
+import { useMapDirectActions } from './_hooks/useMapDirectActions';
+import { useMapMarkers } from './_hooks/useMapMarkers';
+import { METEO_LABEL } from '@/lib/meteo/types';
 const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
@@ -68,12 +76,6 @@ import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
-// ─── HTML escape for popup content (prevents XSS from imported data) ─────────
-function esc(s: string | undefined | null): string {
-  if (!s) return '';
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
@@ -95,9 +97,6 @@ export default function MapPage() {
   const [perimeterVille,           setPerimeterVille]           = useState('');
   const [selectedBillboard, setSelectedBillboard] = useState<SelectedBillboard | null>(null);
   const [mapStyleUrl, setMapStyleUrl] = useState<string>(MAP_STYLE);
-  const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
-  const [battlePois,          setBattlePois]          = useState<POI[]>([]);
-  const [battleCacheKey,      setBattleCacheKey]      = useState<string | null>(null);
   const [densityMode,         setDensityMode]         = useState<boolean>(false);
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
@@ -106,11 +105,6 @@ export default function MapPage() {
   // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
   const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
 
-  // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
-  const [meteoVisible, setMeteoVisible] = useState(false);
-  const [meteoPanelOpen, setMeteoPanelOpen] = useState(false);
-  const [meteoZones, setMeteoZones] = useState<GeoJSON.FeatureCollection | null>(null);
-  const meteoZonesCacheRef = useRef<Record<string, GeoJSON.FeatureCollection>>({});
   // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
   // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
   const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
@@ -135,26 +129,6 @@ export default function MapPage() {
     prevPlanCountRef.current = zones.length;
     setPlanZones(zones);
   }, []);
-  // Radio FM/DAB+ — émetteurs
-  const [radioVisible,       setRadioVisible]       = useState(false);
-  const [radioHeatmapMode,   setRadioHeatmapMode]   = useState(false);
-  const [radioCoverageMode,  setRadioCoverageMode]  = useState(false);
-  const [radioGeoJSON,       setRadioGeoJSON]       = useState<GeoJSON.FeatureCollection | null>(null);
-  // Filtres multi-radios (dropdown searchable) + exclusions catégories
-  const [radioFilterIds,         setRadioFilterIds]         = useState<string[]>([]);
-  const [radioExcludeCategories, setRadioExcludeCategories] = useState<string[]>([]);
-  const [radioFilterOptions,     setRadioFilterOptions]     = useState<{
-    radios: Array<{ id: string; nom: string; cat: string | null }>;
-    categories: Array<{ value: string; label: string }>;
-  } | null>(null);
-  const [radioLoading,       setRadioLoading]       = useState(false);
-  const [radioSystemeFilter, setRadioSystemeFilter] = useState('');
-  const [radioSelectedId,    setRadioSelectedId]    = useState<string | null>(null);
-  const [radioSelectedNom,   setRadioSelectedNom]   = useState<string | null>(null);
-  const [radioCoverageColor, setRadioCoverageColor] = useState('#4ecdc4');
-  const [radioCoverageOpacity, setRadioCoverageOpacity] = useState(15);
-  const [radioBorderWidth,   setRadioBorderWidth]   = useState(0.5);
-  const [radioPointSize,     setRadioPointSize]     = useState(5);
   const searchParams = useSearchParams();
 
   // Pré-ouverture de l'overlay Pilotage ML depuis ?overlay=pilotage&action=...
@@ -182,13 +156,7 @@ export default function MapPage() {
     }
   }, [searchParams]);
 
-  const radioFetchRef = useRef<AbortController | null>(null);
 
-  // ── IRIS detail panel ──────────────────────────────────────────────────────
-  const [selectedIrisCode,   setSelectedIrisCode]   = useState<string | null>(null);
-  const [selectedIrisData,   setSelectedIrisData]   = useState<IrisDetailData | null>(null);
-  const [irisDetailLoading,  setIrisDetailLoading]  = useState(false);
-  const irisClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
 
   // ── Esc : si IconBar masquée, la ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
   useEffect(() => {
@@ -211,15 +179,40 @@ export default function MapPage() {
     localStorage.setItem('genesis_map_style', url);
   };
 
-  // Stocke le résultat de bataille pré-calculé (PostGIS) — appliqué uniquement sur clic "BATAILLE"
-  const pendingBattleRef = useRef<{
-    geoJSON: GeoJSON.FeatureCollection;
-    borders: GeoJSON.FeatureCollection;
-    category?: string;
-    poisForMap?: POI[];
-  } | null>(null);
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
+
+  // ── Météo : état, effets de synchronisation et actions (cf _hooks/useMeteoLayer) ──
+  const {
+    meteo,
+    meteoVisible,
+    meteoPanelOpen, setMeteoPanelOpen,
+    handleMeteoApply,
+    handleMeteoClear,
+  } = useMeteoLayer(mapRef, mapReady);
+
+  // ── Detail IRIS : clic sur la couche + fetch (cf _hooks/useIrisDetail) ────
+  const { selectedIrisCode, setSelectedIrisCode, selectedIrisData, setSelectedIrisData, irisDetailLoading } =
+    useIrisDetail(mapRef, mapReady);
+
+  // Couche Radio FM/DAB+ : etats, chargement et sync MapLibre (hook dedie).
+  const {
+    radioVisible, setRadioVisible,
+    radioHeatmapMode, setRadioHeatmapMode,
+    radioCoverageMode, setRadioCoverageMode,
+    radioGeoJSON,
+    radioFilterIds, setRadioFilterIds,
+    radioExcludeCategories, setRadioExcludeCategories,
+    radioFilterOptions,
+    radioLoading,
+    radioSystemeFilter, setRadioSystemeFilter,
+    radioSelectedId, setRadioSelectedId,
+    radioSelectedNom, setRadioSelectedNom,
+    radioCoverageColor, setRadioCoverageColor,
+    radioCoverageOpacity, setRadioCoverageOpacity,
+    radioBorderWidth, setRadioBorderWidth,
+    radioPointSize, setRadioPointSize,
+  } = useRadioLayer(mapRef, mapReady);
 
   // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
@@ -233,169 +226,6 @@ export default function MapPage() {
       );
     } catch { /* */ }
   }, [tmjaGeoJSON, tmjaHideLowTraffic, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Météo : hook data + sync source GeoJSON → choroplèthe zones admin ─────
-  const meteo = useMeteoData();
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const src = map.getSource('meteo-source') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-
-    const setMeteoLayersVisibility = (visible: boolean) => {
-      try {
-        map.setLayoutProperty('meteo-fill', 'visibility', visible ? 'visible' : 'none');
-        map.setLayoutProperty('meteo-outline', 'visibility', visible ? 'visible' : 'none');
-      } catch { /* */ }
-    };
-
-    if (meteo.data && meteo.meta && meteoZones) {
-      const features: GeoJSON.Feature[] = [];
-      for (const f of meteoZones.features) {
-        const code = String(f.properties?.code ?? '');
-        const v = meteo.data[code];
-        if (!v) continue;
-        features.push({
-          ...f,
-          properties: {
-            ...f.properties,
-            weather_value: v.value,
-            label: v.label,
-            unit: v.unit,
-          },
-        });
-      }
-      src.setData({ type: 'FeatureCollection', features });
-      try {
-        map.setPaintProperty('meteo-fill', 'fill-color',
-          buildMeteoColorExpr(meteo.meta.variable, meteo.meta.stats, 'weather_value') as maplibregl.ExpressionSpecification,
-        );
-      } catch { /* */ }
-      setMeteoLayersVisibility(meteoVisible);
-    } else {
-      src.setData({ type: 'FeatureCollection', features: [] });
-      setMeteoLayersVisibility(false);
-    }
-  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady]);
-
-  // Popup au clic sur une zone météo (nom + valeur + label qualitatif)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    const onClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      const p = f.properties as { nom?: string; weather_value?: number; unit?: string; label?: string };
-      const value = p.weather_value != null ? Number(p.weather_value) : null;
-      new maplibregl.Popup({ closeButton: false, maxWidth: '240px' })
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `<div style="font-family:Inter,sans-serif;font-size:12px;color:var(--text-primary)">` +
-          `<div style="font-weight:500;margin-bottom:2px">${p.nom ?? ''}</div>` +
-          (value != null
-            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${p.unit ?? ''}</div>`
-            : '') +
-          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${p.label}</div>` : '') +
-          `</div>`,
-        )
-        .addTo(map);
-    };
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { map.getCanvas().style.cursor = ''; };
-
-    map.on('click', 'meteo-fill', onClick);
-    map.on('mouseenter', 'meteo-fill', onEnter);
-    map.on('mouseleave', 'meteo-fill', onLeave);
-    return () => {
-      map.off('click', 'meteo-fill', onClick);
-      map.off('mouseenter', 'meteo-fill', onEnter);
-      map.off('mouseleave', 'meteo-fill', onLeave);
-    };
-  }, [mapReady]);
-
-  // Charge les polygones de zones (cache mémoire par échelle + cache 1j navigateur)
-  const ensureMeteoZones = useCallback(async (scale: MeteoScale) => {
-    const cached = meteoZonesCacheRef.current[scale];
-    if (cached) { setMeteoZones(cached); return; }
-    try {
-      const res = await adminFetch(`/api/meteo-geo/zones?scale=${scale}`, { cache: 'force-cache' });
-      if (!res.ok) return;
-      const fc = await res.json() as GeoJSON.FeatureCollection;
-      meteoZonesCacheRef.current[scale] = fc;
-      setMeteoZones(fc);
-    } catch { /* */ }
-  }, []);
-
-  const handleMeteoApply = useCallback(async (params: MeteoParams) => {
-    // Granularité choisie par l'utilisateur ; fallback heuristique par durée
-    // pour les appels sans scale (compatibilité).
-    const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
-    const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
-    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
-    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
-    let bbox: string | undefined;
-    if (scale === 'cp') {
-      const b = mapRef.current?.getBounds();
-      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
-    }
-    await ensureMeteoZones(scale);
-    const ok = await meteo.fetch(scale, { ...params, bbox });
-    if (ok) setMeteoVisible(true);
-    return ok;
-  }, [meteo, ensureMeteoZones]);
-
-  const handleMeteoClear = useCallback(() => {
-    meteo.clear();
-    setMeteoVisible(false);
-  }, [meteo]);
-
-  // ── IRIS detail — click handler ────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const LAYER = 'iris-fill';
-
-    // Remove previous handler if any
-    if (irisClickHandlerRef.current) {
-      try { map.off('click', LAYER, irisClickHandlerRef.current); } catch { /* ok */ }
-    }
-
-    const handler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      const feat = e.features?.[0];
-      if (!feat) return;
-      const code = feat.properties?.code_iris as string | undefined;
-      if (!code) return;
-      e.preventDefault?.();
-      setSelectedIrisCode(code);
-    };
-
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { map.getCanvas().style.cursor = ''; };
-
-    irisClickHandlerRef.current = handler;
-    map.on('click', LAYER, handler);
-    map.on('mouseenter', LAYER, onEnter);
-    map.on('mouseleave', LAYER, onLeave);
-
-    return () => {
-      try { map.off('click', LAYER, handler); } catch { /* ok */ }
-      try { map.off('mouseenter', LAYER, onEnter); } catch { /* ok */ }
-      try { map.off('mouseleave', LAYER, onLeave); } catch { /* ok */ }
-    };
-  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── IRIS detail — fetch on code change ─────────────────────────────────────
-  useEffect(() => {
-    if (!selectedIrisCode) return;
-    setIrisDetailLoading(true);
-    setSelectedIrisData(prev => prev?.code_iris === selectedIrisCode ? prev : null);
-    fetch(`/api/iris/detail?code_iris=${encodeURIComponent(selectedIrisCode)}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then((d: IrisDetailData) => { setSelectedIrisData(d); setIrisDetailLoading(false); })
-      .catch(() => { setIrisDetailLoading(false); });
-  }, [selectedIrisCode]);
 
   // ── flyTo helper ────────────────────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
@@ -422,195 +252,6 @@ export default function MapPage() {
     setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
   };
 
-  // ── Radio filter options — fetch lazy (au 1er toggle radio) ───────────────
-  // L'API renvoie {categories, groupes, radios_with_emetteurs} ; on transforme
-  // au shape attendu par FilterPanel : {categories, radios}.
-  useEffect(() => {
-    if (!radioVisible || radioFilterOptions) return;
-    let aborted = false;
-    adminFetch('/api/radio/filter-options')
-      .then(r => r.ok ? r.json() : null)
-      .then((data: { categories?: Array<{ value: string; label: string }>; radios_with_emetteurs?: Array<{ id: string; nom: string; cat: string | null }> } | null) => {
-        if (aborted || !data) return;
-        setRadioFilterOptions({
-          categories: Array.isArray(data.categories) ? data.categories : [],
-          radios:     Array.isArray(data.radios_with_emetteurs) ? data.radios_with_emetteurs : [],
-        });
-      })
-      .catch(() => {});
-    return () => { aborted = true; };
-  }, [radioVisible, radioFilterOptions]);
-
-  // ── Radio émetteurs — fetch + sync ─────────────────────────────────────────
-  const handleLoadRadio = useCallback(async () => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    setRadioLoading(true);
-    radioFetchRef.current?.abort();
-    const ctrl = new AbortController();
-    radioFetchRef.current = ctrl;
-    try {
-      const params = new URLSearchParams();
-      if (radioSelectedId) {
-        // Une radio précise sélectionnée → tous ses émetteurs (sans bbox)
-        params.set('radio_id', radioSelectedId);
-      } else if (radioCoverageMode) {
-        // Mode couverture (cercles) → fetch GLOBAL sans bbox.
-        // Sinon les cercles disparaissent au zoom in : un émetteur dont le
-        // centre sort du viewport perd son cercle alors que sa couverture
-        // (rayon jusqu'à 54km) intersecte encore la zone visible.
-        // 11k émetteurs ≈ 3-5MB GeoJSON, MapLibre gère sans souci.
-        params.set('limit', '15000');
-      } else {
-        // Mode clusters/heatmap → fetch viewport bbox (rapide, dynamique)
-        const b = map.getBounds();
-        params.set('bbox', `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`);
-      }
-      if (radioSystemeFilter) params.set('systeme', radioSystemeFilter);
-      // Multi-radios filter (dropdown searchable) + exclusions catégories
-      if (radioFilterIds.length > 0)         params.set('radio_ids', radioFilterIds.join(','));
-      if (radioExcludeCategories.length > 0) params.set('exclude_categories', radioExcludeCategories.join(','));
-      const res = await adminFetch(`/api/radio/emetteurs?${params}`, { signal: ctrl.signal });
-      if (!res.ok) return;
-      const data: GeoJSON.FeatureCollection = await res.json();
-      setRadioGeoJSON(data);
-
-      // FitBounds if specific radio selected
-      if (radioSelectedId && data.features.length > 0) {
-        let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
-        for (const f of data.features) {
-          if (f.geometry?.type === 'Point') {
-            const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-          }
-        }
-        if (minLng < maxLng) {
-          map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 1000 });
-        }
-      }
-    } catch (e: unknown) {
-      if ((e as Error).name !== 'AbortError') console.error('[radio]', e);
-    } finally {
-      setRadioLoading(false);
-    }
-  }, [mapReady, radioSystemeFilter, radioSelectedId, radioFilterIds, radioExcludeCategories, radioCoverageMode]);
-
-  // Sync radio GeoJSON → map source + layer visibility
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    const showClusters = radioVisible && !radioHeatmapMode;
-    const showHeatmap  = radioVisible && radioHeatmapMode;
-    const showPoints   = radioVisible && !radioHeatmapMode;
-
-    // Update source data
-    if (radioGeoJSON) {
-      const src = map.getSource('radio-emetteurs') as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData(radioGeoJSON);
-    }
-
-    // Toggle layer visibility
-    try { map.setLayoutProperty('radio-clusters', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('radio-cluster-count', 'visibility', showClusters ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('radio-points', 'visibility', showPoints ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('radio-heatmap', 'visibility', showHeatmap ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('radio-coverage-fill', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('radio-coverage-line', 'visibility', radioCoverageMode && radioVisible ? 'visible' : 'none'); } catch { /* */ }
-
-    // Sync paint properties for controls
-    try { map.setPaintProperty('radio-coverage-fill', 'fill-color', radioCoverageColor); } catch { /* */ }
-    try { map.setPaintProperty('radio-coverage-fill', 'fill-opacity', radioCoverageOpacity / 100); } catch { /* */ }
-    try { map.setPaintProperty('radio-coverage-line', 'line-color', radioCoverageColor); } catch { /* */ }
-    try { map.setPaintProperty('radio-coverage-line', 'line-opacity', Math.min(radioCoverageOpacity / 100 + 0.2, 1)); } catch { /* */ }
-    try { map.setPaintProperty('radio-coverage-line', 'line-width', radioBorderWidth); } catch { /* */ }
-
-    // Point size + highlight mode
-    if (radioSelectedId) {
-      try {
-        map.setPaintProperty('radio-points', 'circle-color', [
-          'case', ['==', ['get', 'radio_id'], radioSelectedId], 'var(--brand-teal)', '#4b5563',
-        ] as unknown as maplibregl.ExpressionSpecification);
-        map.setPaintProperty('radio-points', 'circle-opacity', [
-          'case', ['==', ['get', 'radio_id'], radioSelectedId], 1, 0.35,
-        ] as unknown as maplibregl.ExpressionSpecification);
-        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
-      } catch { /* */ }
-    } else {
-      try {
-        map.setPaintProperty('radio-points', 'circle-color', [
-          'match', ['get', 'portee'],
-          'nationale', '#3b82f6', 'locale', '#22c55e', 'autoroute', '#eab308', '#6b7280',
-        ] as unknown as maplibregl.ExpressionSpecification);
-        map.setPaintProperty('radio-points', 'circle-opacity', 0.9);
-        map.setPaintProperty('radio-points', 'circle-radius', radioPointSize);
-      } catch { /* */ }
-    }
-  }, [radioGeoJSON, radioVisible, radioHeatmapMode, radioCoverageMode, mapReady, radioCoverageColor, radioCoverageOpacity, radioBorderWidth, radioPointSize, radioSelectedId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load radio data when visible — different strategy for selected radio vs global view
-  const lastRadioBboxRef = useRef('');
-  useEffect(() => {
-    if (!radioVisible || !mapReady) return;
-    handleLoadRadio();
-
-    // Une radio précise OU mode couverture global → load once, pas de re-fetch
-    // sur moveend (sinon la couverture clignote au zoom).
-    if (radioSelectedId || radioCoverageMode) return;
-
-    // Mode clusters/heatmap : reload on moveend avec debounce + check bbox
-    const map = mapRef.current;
-    if (!map) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const debouncedMove = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const b = map.getBounds();
-        const newBbox = `${b.getWest().toFixed(2)},${b.getSouth().toFixed(2)},${b.getEast().toFixed(2)},${b.getNorth().toFixed(2)}`;
-        if (newBbox === lastRadioBboxRef.current) return; // bbox hasn't changed significantly
-        lastRadioBboxRef.current = newBbox;
-        handleLoadRadio();
-      }, 600);
-    };
-    map.on('moveend', debouncedMove);
-    return () => { map.off('moveend', debouncedMove); clearTimeout(timer); };
-  }, [radioVisible, mapReady, radioSelectedId, radioCoverageMode, handleLoadRadio]);
-
-  // Generate coverage circles client-side when coverage mode is active
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !radioCoverageMode || !radioGeoJSON) return;
-    const src = map.getSource('radio-coverage') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-
-    // Generate circles (limit to 500)
-    const features = radioGeoJSON.features.slice(0, 500);
-    const circles: GeoJSON.Feature[] = [];
-    for (const f of features) {
-      if (f.geometry.type !== 'Point') continue;
-      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-      const radius = Number((f.properties as Record<string, unknown>)?.rayon_couverture_m ?? 0);
-      if (!radius || radius < 100) continue;
-      // Simple circle approximation (64 segments)
-      const coords: [number, number][] = [];
-      for (let i = 0; i <= 64; i++) {
-        const angle = (i / 64) * 2 * Math.PI;
-        const dlat = (radius / 111320) * Math.cos(angle);
-        const dlng = (radius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
-        coords.push([lng + dlng, lat + dlat]);
-      }
-      circles.push({
-        type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [coords] },
-        properties: { color: 'var(--brand-teal)' },
-      });
-    }
-    src.setData({ type: 'FeatureCollection', features: circles });
-  }, [radioGeoJSON, radioCoverageMode, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const savedMaps = useSavedMaps({ zoneData, setZoneData });
   const mapLayers = useMapLayers({
     mapRef, mapReady,
@@ -619,6 +260,24 @@ export default function MapPage() {
     voronoiDataForSaveRef:    savedMaps.voronoiDataForSaveRef,
     setSaveName:              savedMaps.setSaveName,
   });
+
+  // ── Actions directes POI / OOH / isochrones + état de bataille
+  //    (cf _hooks/useMapDirectActions) ─────────────────────────────────────
+  const {
+    battleFeatures, setBattleFeatures,
+    battlePois, setBattlePois,
+    battleCacheKey, setBattleCacheKey,
+    pendingBattleRef,
+    handleDirectOOH,
+    handleDirectSearch,
+    handleDirectBattle,
+    handleFillIsochroneCache,
+    handleApplyBattle,
+    handleDirectBattleV2,
+  } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError);
+
+  // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
+  useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
   const providerSelector = useProviderSelector();
   const chat = useChatControls({
     setError,
@@ -728,7 +387,7 @@ export default function MapPage() {
     if (typeof window !== 'undefined' && window.location.search) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
+  }, [mapLayers, handleMeteoClear, mapRef, markersRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
   // Le polygon de la zone alimente le slot battleFeatures pour que Corrélation
@@ -805,570 +464,7 @@ export default function MapPage() {
     return () => { cancelled = true; };
   }, [searchParams, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Markers + flyTo ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) return;
-    const { lat, lng } = zoneData.coordonnees;
 
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-
-    const DENSITY_THRESHOLD = 500;
-    const useDensity = densityMode || zoneData.pois.length > DENSITY_THRESHOLD;
-    const useLayers  = !useDensity && zoneData.pois.length > 300;
-
-    const heatSrc = map.getSource('pois-heat') as maplibregl.GeoJSONSource | undefined;
-    if (heatSrc) {
-      heatSrc.setData({
-        type: 'FeatureCollection',
-        features: zoneData.pois.map(p => {
-          const ps = poiStyles[p.categorie];
-          const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-          return {
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-            properties: { id: p.id, categorie: p.categorie, nom: p.nom ?? '', color, lat: p.lat, lng: p.lng },
-          };
-        }),
-      });
-    }
-    try { map.setLayoutProperty('pois-heatmap', 'visibility', useDensity ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('pois-circles', 'visibility', (useLayers || useDensity) ? 'visible' : 'none'); } catch { /* */ }
-
-    // ── Couleur heatmap dynamique ──────────────────────────────────────────
-    if (useDensity) {
-      // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
-      const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      try {
-        map.setPaintProperty('pois-heatmap', 'heatmap-color', [
-          'interpolate', ['linear'], ['heatmap-density'],
-          0,    `rgba(${r},${g},${b},0)`,
-          0.15, `rgba(${r},${g},${b},0.25)`,
-          0.4,  `rgba(${r},${g},${b},0.55)`,
-          0.7,  `rgba(${r},${g},${b},0.82)`,
-          1,    `rgba(${r},${g},${b},1)`,
-        ]);
-      } catch { /* */ }
-    }
-
-    (map.getSource('zone-circle') as maplibregl.GeoJSONSource)?.setData({
-      type: 'FeatureCollection',
-      features: zoneData.rayon_metres ? [circleGeoJSON(lng, lat, zoneData.rayon_metres)] : [],
-    });
-    map.triggerRepaint();
-
-    const PIN_SIZE_PX: Record<string, number> = { Petite: 8, Standard: 12, Grosse: 16, Large: 22 };
-    if (!useDensity && !useLayers) {
-      zoneData.pois.forEach(p => {
-        const ps = poiStyles[p.categorie];
-        const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-        const sizePx = PIN_SIZE_PX[ps?.size ?? 'Standard'] ?? 12;
-        const rankVal = p.rank;
-        const el = document.createElement('div');
-        if (rankVal) {
-          el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
-          el.textContent = String(rankVal);
-        } else {
-          el.style.cssText = `width:${sizePx}px;height:${sizePx}px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
-        }
-        const nom = esc(p.nom || 'POI');
-        const audienceVal = p.audience;
-        const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="font-size:12px;padding:6px 8px;color:var(--text-secondary)">` +
-          (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-          `<strong style="color:var(--text-primary);font-size:13px">${nom}</strong><br/>` +
-          `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
-          (p.sous_categorie ? ` <span style="color:var(--text-tertiary);font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
-          (audienceVal != null ? `<br/><span style="color:var(--success);font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:var(--text-tertiary);font-size:11px">${esc(p.adresse)}</span>` : '') +
-          `</div>`
-        );
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
-        markersRef.current.push(marker);
-
-        if (p.categorie === 'panneaux' || p.categorie === 'top_ooh') {
-          el.addEventListener('click', () => {
-            setSelectedBillboard({ id: p.id, nom: p.nom ?? 'Panneau', lat: p.lat, lng: p.lng,
-              format: p.sous_categorie ?? undefined, score: p.score_ooh ?? null,
-              audience: p.audience ?? null, rank: p.rank ?? null, regie: p.adresse ?? undefined });
-          });
-        }
-      });
-    }
-
-    // Marqueur ville
-    const cityEl = document.createElement('div');
-    cityEl.style.cssText = 'width:10px;height:10px;background:var(--brand-teal);border:2px solid #fff;border-radius:2px';
-    markersRef.current.push(new maplibregl.Marker({ element: cityEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
-
-    if (zoneData.pois.length > 1) {
-      const lats = zoneData.pois.map(p => p.lat);
-      const lngs = zoneData.pois.map(p => p.lng);
-      map.fitBounds(
-        new maplibregl.LngLatBounds([Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]),
-        { padding: 40, maxZoom: useLayers ? 7 : 14, duration: 1200 }
-      );
-      return;
-    }
-    const r = zoneData.rayon_metres, rPoi = zoneData.rayon_poi_metres;
-    let zoom = 12;
-    if (rPoi) zoom = rPoi < 300 ? 15 : rPoi < 800 ? 14 : rPoi < 2000 ? 13 : 12;
-    else if (r) zoom = r < 1500 ? 14 : r < 4000 ? 13 : 11;
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
-  }, [zoneData, mapReady, densityMode, poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Note: no zoom-based opacity hiding on /map page — markers stay visible at all zoom levels.
-  // (FilterPanel sends national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
-
-  const handleDirectOOH = async (regies?: string[]) => {
-    setError(null);
-    setZoneData(null);
-    try {
-      const res = await fetch('/api/map/ooh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regies: regies ?? [] }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setError(err.error ?? `Erreur ${res.status}`);
-        return;
-      }
-      const data = await res.json();
-      if (data.error) setError(data.error);
-      else setZoneData(data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erreur réseau');
-    }
-  };
-
-  const handleDirectSearch = async (params: DirectPOISearchParams) => {
-    setError(null);
-    setZoneData(null);
-    try {
-      const res = await fetch('/api/map/pois', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-        signal: AbortSignal.timeout(25000),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        setError(err.error ?? `Erreur ${res.status}`);
-        return;
-      }
-      const data = await res.json();
-      if (data.error) setError(data.error);
-      else if (!data.pois?.length) setError(`Aucun POI trouvé pour "${params.poi_types.join(', ')}"`);
-      else setZoneData(data);
-    } catch (e: unknown) {
-      if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
-        setError('Base de données lente — réessayez dans quelques instants');
-      } else {
-        setError(e instanceof Error ? e.message : 'Erreur réseau');
-      }
-    }
-  };
-
-  const handleDirectBattle = async (
-    params: DirectBattleParams,
-    onProgress?: (msg: string, pct?: number) => void,
-  ): Promise<{ geometry: string; nb_pois: number; poiGroups: { id: string; nom: string; geometries: string[] }[]; battleRings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] }> => {
-    setError(null);
-    pendingBattleRef.current = null;
-    mapLayers.clearBattlePartialRings();
-    let battleData: BattleResult | null = null;
-    try {
-      const res = await fetch('/api/isochrone-battle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category:           params.category,
-          mode:               params.mode,
-          max_minutes:        params.max_minutes,
-          durations:          params.durations,
-          filtre_ville:       params.filtre_ville    ?? null,
-          filtre_regions:     params.filtre_regions  ?? null,
-          filtre_depts:       params.filtre_depts    ?? null,
-          metropolitaine:     params.metropolitaine,
-          force_recalculate:  params.force_recalculate ?? false,
-        }),
-      });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let evt: { type: string; message?: string; data?: BattleResult; rings?: unknown[]; total?: number; completed?: number; err?: number; status?: string } | null = null;
-          try { evt = JSON.parse(line); } catch { continue; }
-          if (!evt) continue;
-          if (evt.type === 'error') {
-            const raw = String(evt.message ?? 'Erreur inconnue');
-            throw new Error(raw.startsWith('<') ? 'Service temporairement indisponible (503/521)' : raw.slice(0, 200));
-          }
-          if (evt.type === 'result') { battleData = evt.data ?? null; continue; }
-          if (evt.type === 'partial_rings' && (evt.rings?.length ?? 0) > 0) {
-            // Afficher les anneaux bruts dès qu'ils arrivent (avant ST_Difference)
-            mapLayers.addBattlePartialRings(evt.rings! as Parameters<typeof mapLayers.addBattlePartialRings>[0]);
-            onProgress?.(`> ◆ +${evt.rings!.length} isochrones sur la carte`);
-          } else if (evt.type === 'pois_loaded') {
-            onProgress?.(`> ${evt.total ?? '?'} POIs trouvés — démarrage ORS...`);
-          } else if (evt.type === 'progress') {
-            if (evt.status === 'bataille_postgis') {
-              onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
-            } else {
-              const completed = evt.completed ?? 0;
-              const total = evt.total ?? 0;
-              const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-              const errInfo = (evt.err ?? 0) > 0 ? ` (${evt.err} erreurs ORS)` : '';
-              onProgress?.(`> ${completed}/${total} POIs traités — ${pct}%${errInfo}`);
-            }
-          }
-        }
-      }
-      reader.releaseLock();
-      if (!battleData) throw new Error('Réponse incomplète');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur réseau';
-      setError(`Isochrones — ${msg}`);
-      throw new Error(msg);
-    }
-    if (battleData!.error) {
-      // Tronquer les erreurs HTML (ex: page 521 Supabase/Cloudflare)
-      const rawErr: string = String(battleData!.error);
-      const cleanErr = rawErr.startsWith('<') ? 'Service temporairement indisponible (503/521)' : rawErr.slice(0, 200);
-      setError(`Isochrones — ${cleanErr}`);
-      throw new Error(battleData!.error);
-    }
-    // Afficher les isochrones bruts (rings) — couvre cache hit et ORS path.
-    // La bataille (ST_Difference) n'est déclenchée que sur clic du bouton BATAILLE.
-    if (battleData!.battleGeoJSON?.features?.length > 0) {
-      const rawRings = (battleData!.battleGeoJSON.features as GeoJSON.Feature[])
-        .filter((f) => !!f?.geometry)
-        .map((f) => {
-          const props = (f.properties ?? {}) as Record<string, unknown>;
-          return {
-            cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
-            nom:      String(props.nom ?? ''),
-            lat:      Number(props.lat ?? 0),
-            lng:      Number(props.lng ?? 0),
-            palier:   Number(props.palier ?? 0),
-            geojson:  f.geometry as object,
-          };
-        });
-      mapLayers.clearBattlePartialRings();
-      mapLayers.addBattlePartialRings(rawRings);
-      setBattleFeatures(battleData!.battleGeoJSON.features);
-    }
-    // poisForMap peut être absent des anciens caches v3 — fallback depuis les ring features
-    let poisForMap: { id: string; nom: string; lat: number; lng: number; categorie?: string; adresse?: string; ville?: string }[] = battleData!.poisForMap ?? [];
-    if (poisForMap.length === 0 && battleData!.battleGeoJSON?.features?.length > 0) {
-      const poisSeen = new Set<string>();
-      for (const f of battleData!.battleGeoJSON.features as GeoJSON.Feature[]) {
-        const p = (f?.properties ?? {}) as Record<string, unknown>;
-        const cid = String(p.cirfa_id ?? p.id ?? '');
-        const lat = Number(p.lat), lng = Number(p.lng);
-        if (cid && !poisSeen.has(cid) && !isNaN(lat) && !isNaN(lng) && lat && lng) {
-          poisSeen.add(cid);
-          poisForMap.push({ id: cid, nom: String(p.nom ?? ''), lat, lng, categorie: params.category, adresse: String(p.adresse ?? ''), ville: String(p.ville ?? '') });
-        }
-      }
-    }
-    if (battleData!.battleCacheKey) setBattleCacheKey(battleData!.battleCacheKey);
-    if (poisForMap.length > 0) {
-      const poisAsPOI: POI[] = poisForMap.map(p => ({ ...p, categorie: p.categorie ?? params.category }));
-      setBattlePois(poisAsPOI);
-      setZoneData({
-        coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
-        pois: poisAsPOI,
-        nb_pois: poisForMap.length,
-        categories: { [params.category]: poisForMap.length },
-        couleur_overrides: {},
-        ville: params.filtre_ville ?? '',
-        rayon_metres: null,
-        rayon_poi_metres: null,
-      });
-    }
-    // Fusionner tous les rings en un seul MultiPolygon simplifié (client-side, pas de Turf)
-    const allPolygons: number[][][][] = [];
-    // Grouper les géométries par cirfa_id pour le calcul couverture par POI
-    const groupMap = new Map<string, { nom: string; geoms: string[] }>();
-    for (const f of battleData!.battleGeoJSON?.features ?? []) {
-      if (f.properties?.feature_type !== 'ring') continue;
-      const geom = f.geometry;
-      if (!geom) continue;
-      if (geom.type === 'Polygon')      allPolygons.push(geom.coordinates);
-      else if (geom.type === 'MultiPolygon') allPolygons.push(...geom.coordinates);
-      const cid = String(f.properties?.cirfa_id ?? f.properties?.id ?? '');
-      const nom = String(f.properties?.nom ?? '');
-      if (cid) {
-        if (!groupMap.has(cid)) groupMap.set(cid, { nom, geoms: [] });
-        groupMap.get(cid)!.geoms.push(JSON.stringify(geom));
-      }
-    }
-    // Réduire à 3 décimales (~111m) pour alléger le payload (~10× moins de bytes)
-    const multiPoly = { type: 'MultiPolygon', coordinates: allPolygons };
-    const simplified = JSON.parse(JSON.stringify(multiPoly, (_, v) =>
-      typeof v === 'number' ? Math.round(v * 1000) / 1000 : v
-    ));
-    const geometry  = allPolygons.length > 0 ? JSON.stringify(simplified) : '';
-    const poiGroups = [...groupMap.entries()].map(([id, { nom, geoms }]) => ({ id, nom, geometries: geoms }));
-    // Convertir les ring features en RingEntry pour le bouton BATAILLE (Phase 2)
-    const battleRings = ((battleData!.battleGeoJSON?.features ?? []) as GeoJSON.Feature[])
-      .filter((f) => {
-        const ft = (f?.properties as Record<string, unknown> | null)?.feature_type;
-        return ft === 'ring' && !!f?.geometry;
-      })
-      .map((f) => {
-        const props = (f.properties ?? {}) as Record<string, unknown>;
-        return {
-          cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
-          nom:      String(props.nom ?? ''),
-          lat:      Number(props.lat ?? 0),
-          lng:      Number(props.lng ?? 0),
-          palier:   Number(props.palier ?? 0),
-          geojson:  JSON.stringify(f.geometry),
-        };
-      });
-    return { geometry, nb_pois: battleData!.nb_pois ?? 0, poiGroups, battleRings };
-  };
-
-  // Remplit le cache ORS sans écraser les POIs affichés sur la carte
-  const handleFillIsochroneCache = async (
-    params: FillIsochroneCacheParams,
-    onProgress?: (msg: string) => void,
-  ): Promise<void> => {
-    mapLayers.clearBattlePartialRings();
-    try {
-      const res = await fetch('/api/isochrone-battle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category:          params.category,
-          mode:              params.mode,
-          max_minutes:       params.max_minutes,
-          durations:         params.durations,
-          filtre_ville:      params.filtre_ville   ?? null,
-          filtre_regions:    params.filtre_regions ?? null,
-          filtre_depts:      params.filtre_depts   ?? null,
-          metropolitaine:    params.metropolitaine,
-          force_recalculate: false,
-        }),
-      });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let evt: Record<string, unknown>;
-          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-          if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue').slice(0, 200));
-          if (evt.type === 'partial_rings' && Array.isArray(evt.rings) && evt.rings.length > 0) {
-            mapLayers.addBattlePartialRings(evt.rings as Parameters<typeof mapLayers.addBattlePartialRings>[0]);
-            onProgress?.(`> ◆ +${(evt.rings as unknown[]).length} isochrones sur la carte`);
-          } else if (evt.type === 'pois_loaded') {
-            onProgress?.(`> ${evt.total} POIs trouvés — démarrage ORS...`);
-          } else if (evt.type === 'progress') {
-            if (evt.status === 'bataille_postgis') {
-              onProgress?.('> [BATAILLE] ST_Difference en cours (PostGIS)...');
-            } else {
-              const completed = Number(evt.completed ?? 0);
-              const total = Number(evt.total ?? 1);
-              const pct    = Math.round((completed / total) * 100);
-              const errCount = Number(evt.err ?? 0);
-              const errInfo = errCount > 0 ? ` (${errCount} erreurs ORS)` : '';
-              onProgress?.(`> ${completed}/${total} POIs traités — ${pct}%${errInfo}`);
-            }
-          }
-          // result: on affiche juste les rings finaux si disponibles (pas de setZoneData)
-          const evtData = evt.data as { battleGeoJSON?: { features?: GeoJSON.Feature[] } } | undefined;
-          if (evt.type === 'result' && evtData?.battleGeoJSON?.features && evtData.battleGeoJSON.features.length > 0) {
-            const rawRings = (evtData.battleGeoJSON.features as GeoJSON.Feature[])
-              .filter((f) => !!f?.geometry)
-              .map((f) => {
-                const props = (f.properties ?? {}) as Record<string, unknown>;
-                return {
-                  cirfa_id: String(props.cirfa_id ?? props.id ?? ''),
-                  nom:      String(props.nom ?? ''),
-                  lat:      Number(props.lat ?? 0),
-                  lng:      Number(props.lng ?? 0),
-                  palier:   Number(props.palier ?? 0),
-                  geojson:  f.geometry as object,
-                };
-              });
-            mapLayers.clearBattlePartialRings();
-            mapLayers.addBattlePartialRings(rawRings);
-          }
-        }
-      }
-      reader.releaseLock();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erreur réseau';
-      setError(`Cache fill — ${msg}`);
-      throw new Error(msg);
-    }
-  };
-
-  const handleApplyBattle = async (
-    rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[],
-    category?: string,
-    poisForMap?: { id: string; nom: string; lat: number; lng: number; adresse?: string; ville?: string }[],
-    onProgress?: (msg: string, pct: number) => void,
-  ): Promise<void> => {
-    setError(null);
-    // Priorité : utiliser le résultat pré-calculé (déjà fait par la route en Phase 5)
-    if (pendingBattleRef.current) {
-      const { geoJSON, borders, category: cat, poisForMap: pois } = pendingBattleRef.current;
-      mapLayers.applyIsochroneBattle(geoJSON, borders, cat ?? category, pois ?? poisForMap);
-      return;
-    }
-    // Stream NDJSON depuis apply-battle
-    const res = await fetch('/api/isochrone-battle/apply-battle', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ rings }),
-    });
-    if (!res.ok || !res.body) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      setError(`Bataille — ${err.error ?? `HTTP ${res.status}`}`);
-      return;
-    }
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const PCT: Record<string, number> = { clip: 15, clip_done: 45, battle: 50, done: 85 };
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let evt: Record<string, unknown>;
-        try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-        if (evt.type === 'error') {
-          setError(`Bataille — ${evt.message}`);
-          throw new Error(String(evt.message ?? 'Erreur inconnue'));
-        }
-        if (evt.type === 'progress') {
-          onProgress?.(String(evt.message ?? ''), PCT[String(evt.step ?? '')] ?? 50);
-        }
-        if (evt.type === 'result') {
-          const battleGeo = evt.battleGeoJSON as { features?: GeoJSON.Feature[] } | undefined;
-          logger.debug('handleApplyBattle', `result received — nb_rings ${evt.nb_rings} | features: ${battleGeo?.features?.length}`);
-          onProgress?.(`${evt.nb_rings} zones, ${evt.nb_borders} bordures`, 95);
-          if (battleGeo?.features && battleGeo.features.length > 0) {
-            mapLayers.applyIsochroneBattle(battleGeo as { type: string; features: GeoJSON.Feature[] }, (evt.battleBorders as { type: string; features: GeoJSON.Feature[] } | null) ?? null, category, poisForMap);
-            setBattleFeatures(battleGeo.features);
-          }
-        }
-      }
-    }
-    reader.releaseLock();
-  };
-
-  const handleDirectBattleV2 = async (
-    params: DirectBattleV2Params,
-    onProgress?: (msg: string) => void,
-  ): Promise<void> => {
-    setError(null);
-    mapLayers.clearBattlePartialRings();
-    try {
-      const res = await fetch('/api/isochrone-battle-v2', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(params),
-      });
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      type BattleV2Result = {
-        error?: string;
-        battleGeoJSON?: { type: string; features: GeoJSON.Feature[] };
-        poisForMap?: POI[];
-      };
-      let data: BattleV2Result | undefined;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let evt: Record<string, unknown>;
-          try { evt = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-          if (evt.type === 'error') throw new Error(String(evt.message ?? 'Erreur inconnue'));
-          if (evt.type === 'result') { data = evt.data as BattleV2Result; continue; }
-          if (evt.type === 'warning') onProgress?.(`> ! ${evt.message}`);
-          else if (evt.type === 'pois_loaded')  onProgress?.(`> ${evt.total} POIs chargés`);
-          else if (evt.type === 'rings_loaded') onProgress?.(`> ${evt.count} anneaux en cache (${evt.missing} manquants)`);
-          else if (evt.type === 'computing')    onProgress?.(`> ${evt.message}`);
-        }
-      }
-      reader.releaseLock();
-      if (!data) throw new Error('Réponse incomplète');
-      if (data.error) throw new Error(data.error);
-
-      // Afficher le résultat sur la carte
-      if (data.battleGeoJSON?.features && data.battleGeoJSON.features.length > 0) {
-        mapLayers.applyIsochroneBattle(data.battleGeoJSON, null, params.category, data.poisForMap);
-        setBattleFeatures(data.battleGeoJSON.features);
-      }
-
-      // Mettre à jour les POIs sur la carte
-      const poisForMap = data.poisForMap ?? [];
-      if (poisForMap.length > 0) {
-        setBattlePois(poisForMap);
-        setZoneData({
-          coordonnees: { lat: poisForMap[0].lat, lng: poisForMap[0].lng },
-          pois: poisForMap,
-          nb_pois: poisForMap.length,
-          categories: { [params.category]: poisForMap.length },
-          couleur_overrides: {},
-          ville: params.filtre_ville ?? '',
-          rayon_metres: null,
-          rayon_poi_metres: null,
-        });
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erreur réseau';
-      setError(`Bataille v2 — ${msg}`);
-      throw new Error(msg);
-    }
-  };
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
