@@ -32,9 +32,9 @@ import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useRadioLayer } from './_hooks/useRadioLayer';
-import { useMeteoData }        from '@/lib/meteo/use-meteo-data';
-import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
-import { METEO_LABEL, type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+import { useMeteoLayer } from './_hooks/useMeteoLayer';
+import { useIrisDetail } from './_hooks/useIrisDetail';
+import { METEO_LABEL } from '@/lib/meteo/types';
 const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
@@ -107,11 +107,6 @@ export default function MapPage() {
   // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
   const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
 
-  // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
-  const [meteoVisible, setMeteoVisible] = useState(false);
-  const [meteoPanelOpen, setMeteoPanelOpen] = useState(false);
-  const [meteoZones, setMeteoZones] = useState<GeoJSON.FeatureCollection | null>(null);
-  const meteoZonesCacheRef = useRef<Record<string, GeoJSON.FeatureCollection>>({});
   // Indicateurs civiques : variable INSEE active sur le layer choroplèthe par CP
   // (sous-section "Indicateurs civiques" dans Données terrain). null = layer désactivé.
   const [civicVariableCode, setCivicVariableCode] = useState<CivicVariableCode>(null);
@@ -164,11 +159,6 @@ export default function MapPage() {
   }, [searchParams]);
 
 
-  // ── IRIS detail panel ──────────────────────────────────────────────────────
-  const [selectedIrisCode,   setSelectedIrisCode]   = useState<string | null>(null);
-  const [selectedIrisData,   setSelectedIrisData]   = useState<IrisDetailData | null>(null);
-  const [irisDetailLoading,  setIrisDetailLoading]  = useState(false);
-  const irisClickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
 
   // ── Esc : si IconBar masquée, la ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
   useEffect(() => {
@@ -201,6 +191,19 @@ export default function MapPage() {
 
   const { mapContainerRef, mapRef, markersRef, mapReady } = useMapInit(zoneData, setSelectedBillboard, mapStyleUrl);
 
+  // ── Météo : état, effets de synchronisation et actions (cf _hooks/useMeteoLayer) ──
+  const {
+    meteo,
+    meteoVisible,
+    meteoPanelOpen, setMeteoPanelOpen,
+    handleMeteoApply,
+    handleMeteoClear,
+  } = useMeteoLayer(mapRef, mapReady);
+
+  // ── Detail IRIS : clic sur la couche + fetch (cf _hooks/useIrisDetail) ────
+  const { selectedIrisCode, setSelectedIrisCode, selectedIrisData, setSelectedIrisData, irisDetailLoading } =
+    useIrisDetail(mapRef, mapReady);
+
   // Couche Radio FM/DAB+ : etats, chargement et sync MapLibre (hook dedie).
   const {
     radioVisible, setRadioVisible,
@@ -232,169 +235,6 @@ export default function MapPage() {
       );
     } catch { /* */ }
   }, [tmjaGeoJSON, tmjaHideLowTraffic, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Météo : hook data + sync source GeoJSON → choroplèthe zones admin ─────
-  const meteo = useMeteoData();
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const src = map.getSource('meteo-source') as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-
-    const setMeteoLayersVisibility = (visible: boolean) => {
-      try {
-        map.setLayoutProperty('meteo-fill', 'visibility', visible ? 'visible' : 'none');
-        map.setLayoutProperty('meteo-outline', 'visibility', visible ? 'visible' : 'none');
-      } catch { /* */ }
-    };
-
-    if (meteo.data && meteo.meta && meteoZones) {
-      const features: GeoJSON.Feature[] = [];
-      for (const f of meteoZones.features) {
-        const code = String(f.properties?.code ?? '');
-        const v = meteo.data[code];
-        if (!v) continue;
-        features.push({
-          ...f,
-          properties: {
-            ...f.properties,
-            weather_value: v.value,
-            label: v.label,
-            unit: v.unit,
-          },
-        });
-      }
-      src.setData({ type: 'FeatureCollection', features });
-      try {
-        map.setPaintProperty('meteo-fill', 'fill-color',
-          buildMeteoColorExpr(meteo.meta.variable, meteo.meta.stats, 'weather_value') as maplibregl.ExpressionSpecification,
-        );
-      } catch { /* */ }
-      setMeteoLayersVisibility(meteoVisible);
-    } else {
-      src.setData({ type: 'FeatureCollection', features: [] });
-      setMeteoLayersVisibility(false);
-    }
-  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady]);
-
-  // Popup au clic sur une zone météo (nom + valeur + label qualitatif)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    const onClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      const p = f.properties as { nom?: string; weather_value?: number; unit?: string; label?: string };
-      const value = p.weather_value != null ? Number(p.weather_value) : null;
-      new maplibregl.Popup({ closeButton: false, maxWidth: '240px' })
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `<div style="font-family:Inter,sans-serif;font-size:12px;color:var(--text-primary)">` +
-          `<div style="font-weight:500;margin-bottom:2px">${p.nom ?? ''}</div>` +
-          (value != null
-            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${p.unit ?? ''}</div>`
-            : '') +
-          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${p.label}</div>` : '') +
-          `</div>`,
-        )
-        .addTo(map);
-    };
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { map.getCanvas().style.cursor = ''; };
-
-    map.on('click', 'meteo-fill', onClick);
-    map.on('mouseenter', 'meteo-fill', onEnter);
-    map.on('mouseleave', 'meteo-fill', onLeave);
-    return () => {
-      map.off('click', 'meteo-fill', onClick);
-      map.off('mouseenter', 'meteo-fill', onEnter);
-      map.off('mouseleave', 'meteo-fill', onLeave);
-    };
-  }, [mapReady]);
-
-  // Charge les polygones de zones (cache mémoire par échelle + cache 1j navigateur)
-  const ensureMeteoZones = useCallback(async (scale: MeteoScale) => {
-    const cached = meteoZonesCacheRef.current[scale];
-    if (cached) { setMeteoZones(cached); return; }
-    try {
-      const res = await adminFetch(`/api/meteo-geo/zones?scale=${scale}`, { cache: 'force-cache' });
-      if (!res.ok) return;
-      const fc = await res.json() as GeoJSON.FeatureCollection;
-      meteoZonesCacheRef.current[scale] = fc;
-      setMeteoZones(fc);
-    } catch { /* */ }
-  }, []);
-
-  const handleMeteoApply = useCallback(async (params: MeteoParams) => {
-    // Granularité choisie par l'utilisateur ; fallback heuristique par durée
-    // pour les appels sans scale (compatibilité).
-    const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
-    const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
-    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
-    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
-    let bbox: string | undefined;
-    if (scale === 'cp') {
-      const b = mapRef.current?.getBounds();
-      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
-    }
-    await ensureMeteoZones(scale);
-    const ok = await meteo.fetch(scale, { ...params, bbox });
-    if (ok) setMeteoVisible(true);
-    return ok;
-  }, [meteo, ensureMeteoZones]);
-
-  const handleMeteoClear = useCallback(() => {
-    meteo.clear();
-    setMeteoVisible(false);
-  }, [meteo]);
-
-  // ── IRIS detail — click handler ────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const LAYER = 'iris-fill';
-
-    // Remove previous handler if any
-    if (irisClickHandlerRef.current) {
-      try { map.off('click', LAYER, irisClickHandlerRef.current); } catch { /* ok */ }
-    }
-
-    const handler = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      const feat = e.features?.[0];
-      if (!feat) return;
-      const code = feat.properties?.code_iris as string | undefined;
-      if (!code) return;
-      e.preventDefault?.();
-      setSelectedIrisCode(code);
-    };
-
-    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
-    const onLeave = () => { map.getCanvas().style.cursor = ''; };
-
-    irisClickHandlerRef.current = handler;
-    map.on('click', LAYER, handler);
-    map.on('mouseenter', LAYER, onEnter);
-    map.on('mouseleave', LAYER, onLeave);
-
-    return () => {
-      try { map.off('click', LAYER, handler); } catch { /* ok */ }
-      try { map.off('mouseenter', LAYER, onEnter); } catch { /* ok */ }
-      try { map.off('mouseleave', LAYER, onLeave); } catch { /* ok */ }
-    };
-  }, [mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── IRIS detail — fetch on code change ─────────────────────────────────────
-  useEffect(() => {
-    if (!selectedIrisCode) return;
-    setIrisDetailLoading(true);
-    setSelectedIrisData(prev => prev?.code_iris === selectedIrisCode ? prev : null);
-    fetch(`/api/iris/detail?code_iris=${encodeURIComponent(selectedIrisCode)}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then((d: IrisDetailData) => { setSelectedIrisData(d); setIrisDetailLoading(false); })
-      .catch(() => { setIrisDetailLoading(false); });
-  }, [selectedIrisCode]);
 
   // ── flyTo helper ────────────────────────────────────────────────────────────
   const handleFlyTo = (lat: number, lng: number, zoom = 12) => {
