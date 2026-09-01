@@ -34,12 +34,13 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { adminFetch } from '@/lib/admin-fetch';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
-import { circleGeoJSON, getCatColor, MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
+import { MAP_STYLES, MAP_STYLE } from '@/app/copilote/_lib/constants';
 import { useMapInit }          from '@/app/copilote/_hooks/useMapInit';
 import { useRadioLayer } from './_hooks/useRadioLayer';
 import { useMeteoLayer } from './_hooks/useMeteoLayer';
 import { useIrisDetail } from './_hooks/useIrisDetail';
 import { useMapDirectActions } from './_hooks/useMapDirectActions';
+import { useMapMarkers } from './_hooks/useMapMarkers';
 import { METEO_LABEL } from '@/lib/meteo/types';
 const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
@@ -74,12 +75,6 @@ import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
-
-// ─── HTML escape for popup content (prevents XSS from imported data) ─────────
-function esc(s: string | undefined | null): string {
-  if (!s) return '';
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -280,6 +275,9 @@ export default function MapPage() {
     handleApplyBattle,
     handleDirectBattleV2,
   } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError);
+
+  // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
+  useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
   const providerSelector = useProviderSelector();
   const chat = useChatControls({
     setError,
@@ -389,7 +387,7 @@ export default function MapPage() {
     if (typeof window !== 'undefined' && window.location.search) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [mapLayers, handleMeteoClear, mapRef, markersRef]);
+  }, [mapLayers, handleMeteoClear, mapRef, markersRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charger une zone custom via ?customZone=<id> ──────────────────────────
   // Le polygon de la zone alimente le slot battleFeatures pour que Corrélation
@@ -466,126 +464,6 @@ export default function MapPage() {
     return () => { cancelled = true; };
   }, [searchParams, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Markers + flyTo ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || !zoneData || !zoneData.coordonnees) return;
-    const { lat, lng } = zoneData.coordonnees;
-
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-
-    const DENSITY_THRESHOLD = 500;
-    const useDensity = densityMode || zoneData.pois.length > DENSITY_THRESHOLD;
-    const useLayers  = !useDensity && zoneData.pois.length > 300;
-
-    const heatSrc = map.getSource('pois-heat') as maplibregl.GeoJSONSource | undefined;
-    if (heatSrc) {
-      heatSrc.setData({
-        type: 'FeatureCollection',
-        features: zoneData.pois.map(p => {
-          const ps = poiStyles[p.categorie];
-          const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-          return {
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-            properties: { id: p.id, categorie: p.categorie, nom: p.nom ?? '', color, lat: p.lat, lng: p.lng },
-          };
-        }),
-      });
-    }
-    try { map.setLayoutProperty('pois-heatmap', 'visibility', useDensity ? 'visible' : 'none'); } catch { /* */ }
-    try { map.setLayoutProperty('pois-circles', 'visibility', (useLayers || useDensity) ? 'visible' : 'none'); } catch { /* */ }
-
-    // ── Couleur heatmap dynamique ──────────────────────────────────────────
-    if (useDensity) {
-      // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
-      const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      try {
-        map.setPaintProperty('pois-heatmap', 'heatmap-color', [
-          'interpolate', ['linear'], ['heatmap-density'],
-          0,    `rgba(${r},${g},${b},0)`,
-          0.15, `rgba(${r},${g},${b},0.25)`,
-          0.4,  `rgba(${r},${g},${b},0.55)`,
-          0.7,  `rgba(${r},${g},${b},0.82)`,
-          1,    `rgba(${r},${g},${b},1)`,
-        ]);
-      } catch { /* */ }
-    }
-
-    (map.getSource('zone-circle') as maplibregl.GeoJSONSource)?.setData({
-      type: 'FeatureCollection',
-      features: zoneData.rayon_metres ? [circleGeoJSON(lng, lat, zoneData.rayon_metres)] : [],
-    });
-    map.triggerRepaint();
-
-    const PIN_SIZE_PX: Record<string, number> = { Petite: 8, Standard: 12, Grosse: 16, Large: 22 };
-    if (!useDensity && !useLayers) {
-      zoneData.pois.forEach(p => {
-        const ps = poiStyles[p.categorie];
-        const color = ps?.color ?? zoneData.couleur_overrides?.[p.categorie] ?? getCatColor(p.categorie);
-        const sizePx = PIN_SIZE_PX[ps?.size ?? 'Standard'] ?? 12;
-        const rankVal = p.rank;
-        const el = document.createElement('div');
-        if (rankVal) {
-          el.style.cssText = `width:22px;height:22px;background:${color};border:2px solid rgba(255,255,255,0.95);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;font-family:system-ui,sans-serif`;
-          el.textContent = String(rankVal);
-        } else {
-          el.style.cssText = `width:${sizePx}px;height:${sizePx}px;background:${color};border:2px solid rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4)`;
-        }
-        const nom = esc(p.nom || 'POI');
-        const audienceVal = p.audience;
-        const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-          `<div style="font-size:12px;padding:6px 8px;color:var(--text-secondary)">` +
-          (rankVal ? `<span style="color:#f59e0b;font-weight:700;font-size:13px">#${rankVal}</span> ` : '') +
-          `<strong style="color:var(--text-primary);font-size:13px">${nom}</strong><br/>` +
-          `<span style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
-          (p.sous_categorie ? ` <span style="color:var(--text-tertiary);font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
-          (audienceVal != null ? `<br/><span style="color:var(--success);font-size:12px;font-weight:600">+${Number(audienceVal).toLocaleString('fr-FR')} pers.</span>` : '') +
-          (p.adresse ? `<br/><span style="color:var(--text-tertiary);font-size:11px">${esc(p.adresse)}</span>` : '') +
-          `</div>`
-        );
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
-        markersRef.current.push(marker);
-
-        if (p.categorie === 'panneaux' || p.categorie === 'top_ooh') {
-          el.addEventListener('click', () => {
-            setSelectedBillboard({ id: p.id, nom: p.nom ?? 'Panneau', lat: p.lat, lng: p.lng,
-              format: p.sous_categorie ?? undefined, score: p.score_ooh ?? null,
-              audience: p.audience ?? null, rank: p.rank ?? null, regie: p.adresse ?? undefined });
-          });
-        }
-      });
-    }
-
-    // Marqueur ville
-    const cityEl = document.createElement('div');
-    cityEl.style.cssText = 'width:10px;height:10px;background:var(--brand-teal);border:2px solid #fff;border-radius:2px';
-    markersRef.current.push(new maplibregl.Marker({ element: cityEl, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
-
-    if (zoneData.pois.length > 1) {
-      const lats = zoneData.pois.map(p => p.lat);
-      const lngs = zoneData.pois.map(p => p.lng);
-      map.fitBounds(
-        new maplibregl.LngLatBounds([Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]),
-        { padding: 40, maxZoom: useLayers ? 7 : 14, duration: 1200 }
-      );
-      return;
-    }
-    const r = zoneData.rayon_metres, rPoi = zoneData.rayon_poi_metres;
-    let zoom = 12;
-    if (rPoi) zoom = rPoi < 300 ? 15 : rPoi < 800 ? 14 : rPoi < 2000 ? 13 : 12;
-    else if (r) zoom = r < 1500 ? 14 : r < 4000 ? 13 : 11;
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200 });
-  }, [zoneData, mapReady, densityMode, poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Note: no zoom-based opacity hiding on /map page — markers stay visible at all zoom levels.
-  // (FilterPanel sends national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
 
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
