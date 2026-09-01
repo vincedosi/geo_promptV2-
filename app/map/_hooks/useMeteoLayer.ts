@@ -74,7 +74,7 @@ export function useMeteoLayer(
       src.setData({ type: 'FeatureCollection', features: [] });
       setMeteoLayersVisibility(false);
     }
-  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady]);
+  }, [meteo.data, meteo.meta, meteoZones, meteoVisible, mapReady, mapRef]);
 
   // Popup au clic sur une zone météo (nom + valeur + label qualitatif)
   useEffect(() => {
@@ -110,7 +110,7 @@ export function useMeteoLayer(
       map.off('mouseenter', 'meteo-fill', onEnter);
       map.off('mouseleave', 'meteo-fill', onLeave);
     };
-  }, [mapReady]);
+  }, [mapReady, mapRef]);
 
   // Charge les polygones de zones (cache mémoire par échelle + cache 1j navigateur)
   const ensureMeteoZones = useCallback(async (scale: MeteoScale) => {
@@ -141,7 +141,7 @@ export function useMeteoLayer(
     const ok = await meteo.fetch(scale, { ...params, bbox });
     if (ok) setMeteoVisible(true);
     return ok;
-  }, [meteo, ensureMeteoZones]);
+  }, [meteo, ensureMeteoZones, mapRef]);
 
   const handleMeteoClear = useCallback(() => {
     meteo.clear();
