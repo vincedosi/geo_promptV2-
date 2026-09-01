@@ -30,6 +30,47 @@ function esc(s: string | undefined | null): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+ * Resout une couleur CSS en composantes RVB.
+ *
+ * Accepte un hex (#rgb ou #rrggbb), un rgb()/rgba(), ou un token du design
+ * system (`var(--brand-teal)`) — ce dernier est lu sur `:root`, jamais code
+ * en dur. Renvoie null si la valeur est illisible : l'appelant laisse alors
+ * la couleur definie dans le style MapLibre plutot que d'en inventer une.
+ */
+export function resolveCssRgb(color: string): { r: number; g: number; b: number } | null {
+  let value = color.trim();
+
+  const token = /^var\(\s*(--[\w-]+)\s*\)$/.exec(value);
+  if (token) {
+    if (typeof document === 'undefined') return null;
+    value = getComputedStyle(document.documentElement).getPropertyValue(token[1]).trim();
+  }
+
+  if (/^#[0-9a-f]{6}$/i.test(value)) {
+    return {
+      r: parseInt(value.slice(1, 3), 16),
+      g: parseInt(value.slice(3, 5), 16),
+      b: parseInt(value.slice(5, 7), 16),
+    };
+  }
+  if (/^#[0-9a-f]{3}$/i.test(value)) {
+    return {
+      r: parseInt(value[1] + value[1], 16),
+      g: parseInt(value[2] + value[2], 16),
+      b: parseInt(value[3] + value[3], 16),
+    };
+  }
+
+  const fn = /^rgba?\(([^)]+)\)$/i.exec(value);
+  if (fn) {
+    const [r, g, b] = fn[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    if ([r, g, b].every(n => Number.isFinite(n))) return { r, g, b };
+  }
+
+  return null;
+}
+
 export function useMapMarkers(
   mapRef: React.RefObject<maplibregl.Map | null>,
   markersRef: React.MutableRefObject<maplibregl.Marker[]>,
@@ -72,22 +113,25 @@ export function useMapMarkers(
 
     // ── Couleur heatmap dynamique ──────────────────────────────────────────
     if (useDensity) {
-      // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon violet accent
+      // Couleur de la catégorie affichée (1ère catégorie des POIs), sinon accent de marque.
+      // La valeur peut être un token du design system : la parser comme un hex
+      // donnerait rgba(10,NaN,-11,0) et MapLibre rejetterait toute l'expression.
       const firstCat = zoneData.pois[0]?.categorie;
-      const hex = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      try {
-        map.setPaintProperty('pois-heatmap', 'heatmap-color', [
-          'interpolate', ['linear'], ['heatmap-density'],
-          0,    `rgba(${r},${g},${b},0)`,
-          0.15, `rgba(${r},${g},${b},0.25)`,
-          0.4,  `rgba(${r},${g},${b},0.55)`,
-          0.7,  `rgba(${r},${g},${b},0.82)`,
-          1,    `rgba(${r},${g},${b},1)`,
-        ]);
-      } catch { /* */ }
+      const color = (firstCat && poiStyles[firstCat]?.color) ?? zoneData.couleur_overrides?.[firstCat ?? ''] ?? 'var(--brand-teal)';
+      const rgb = resolveCssRgb(color);
+      if (rgb) {
+        const { r, g, b } = rgb;
+        try {
+          map.setPaintProperty('pois-heatmap', 'heatmap-color', [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0,    `rgba(${r},${g},${b},0)`,
+            0.15, `rgba(${r},${g},${b},0.25)`,
+            0.4,  `rgba(${r},${g},${b},0.55)`,
+            0.7,  `rgba(${r},${g},${b},0.82)`,
+            1,    `rgba(${r},${g},${b},1)`,
+          ]);
+        } catch { /* */ }
+      }
     }
 
     (map.getSource('zone-circle') as maplibregl.GeoJSONSource)?.setData({
