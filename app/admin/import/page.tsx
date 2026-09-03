@@ -740,7 +740,7 @@ export default function ImportUniverselPage() {
                     Glissez un ou plusieurs fichiers ici ou cliquez pour selectionner
                   </div>
                   <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
-                    // formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)
+                    {'// formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)'}
                   </div>
                 </div>
               )}
@@ -914,7 +914,7 @@ export default function ImportUniverselPage() {
               {/* Standard fields */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                  // champs GENESIS → colonnes fichier
+                  {'// champs GENESIS → colonnes fichier'}
                 </div>
                 {genesisFields.map((field) => (
                   <ColSelect
@@ -930,7 +930,7 @@ export default function ImportUniverselPage() {
               {/* Geolocation section */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                 <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
-                  // geolocalisation
+                  {'// geolocalisation'}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                   {GEO_MODES.map((mode) => (
@@ -970,7 +970,7 @@ export default function ImportUniverselPage() {
                     <ColSelect label="Code postal" value={geoMapping.colCodePostal || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colCodePostal: v }))} sample />
                     <ColSelect label="Ville" value={geoMapping.colVille || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colVille: v }))} sample />
                     <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
-                      // geocodage via api-adresse.data.gouv.fr (BAN) — ~100ms/adresse
+                      {'// geocodage via api-adresse.data.gouv.fr (BAN) — ~100ms/adresse'}
                     </div>
                   </div>
                 )}
@@ -979,7 +979,7 @@ export default function ImportUniverselPage() {
                     <ColSelect label="X (Est)" value={geoMapping.colX || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colX: v }))} sample />
                     <ColSelect label="Y (Nord)" value={geoMapping.colY || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colY: v }))} sample />
                     <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
-                      // EPSG:2154 → EPSG:4326 via proj4
+                      {'// EPSG:2154 → EPSG:4326 via proj4'}
                     </div>
                   </div>
                 )}
@@ -1046,7 +1046,7 @@ export default function ImportUniverselPage() {
               </div>
               <div style={cardBody}>
                 <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                  // schema = toujours importe via champs GENESIS · cochez Importer pour metadata · Filtre = filtre carte
+                  {'// schema = toujours importe via champs GENESIS · cochez Importer pour metadata · Filtre = filtre carte'}
                 </div>
 
                 {/* Table header */}
@@ -1195,7 +1195,7 @@ export default function ImportUniverselPage() {
               </div>
               <div style={cardBody}>
                 <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
-                  // geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV
+                  {'// geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV'}
                 </div>
 
                 {/* Launch button */}
@@ -1510,7 +1510,7 @@ export default function ImportUniverselPage() {
                   {dryRunResult.samplePoints.length > 0 && (
                     <div style={{ marginTop: 14 }}>
                       <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 6 }}>
-                        // apercu carte — {dryRunResult.samplePoints.length} premiers points
+                        {'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}
                       </div>
                       <iframe
                         src={getMapPreviewUrl(dryRunResult.samplePoints)}
@@ -1701,7 +1701,7 @@ export default function ImportUniverselPage() {
                     fontFamily: fontMono,
                     fontSize: 10,
                   }}>
-                    <span style={{ color: C.muted, fontWeight: 700 }}>// JOURNAL EN DIRECT</span>
+                    <span style={{ color: C.muted, fontWeight: 700 }}>{'// JOURNAL EN DIRECT'}</span>
                     <span style={{ color: C.green }}>
                       OK {logLines.filter(l => l.level === 'info' && l.line.startsWith('[OK]')).length}
                     </span>
@@ -1761,7 +1761,7 @@ export default function ImportUniverselPage() {
 
         {/* Footer hint */}
         <div style={{ padding: '12px 0', fontFamily: fontMono, fontSize: 10, color: C.muted, borderTop: `1px solid ${C.border}` }}>
-          // Formats supportes: CSV, Excel (.xlsx), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)
+          {'// Formats supportes: CSV, Excel (.xlsx), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)'}
         </div>
       </div>
 

@@ -15,7 +15,7 @@ export function EmptyState() {
         Pas encore de zone personnalisee
       </div>
       <div style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.8, maxWidth: 320 }}>
-        Sauvegardez vos premieres zones depuis le module radio, les isochrones, la selection d'IRIS ou le dessin libre.
+        Sauvegardez vos premieres zones depuis le module radio, les isochrones, la selection d&apos;IRIS ou le dessin libre.
       </div>
     </div>
   );

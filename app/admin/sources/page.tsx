@@ -663,7 +663,7 @@ export default function SourcesPage() {
                 {/* AI Summary */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={sectionLabelStyle}>// resume IA</span>
+                    <span style={sectionLabelStyle}>{'// resume IA'}</span>
                     <button
                       onClick={() => handleGenerateSummary(selectedSource.id)}
                       disabled={isGeneratingSummary}
@@ -685,7 +685,7 @@ export default function SourcesPage() {
                 {/* Filter Fields */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={sectionLabelStyle}>// champs filtres</span>
+                    <span style={sectionLabelStyle}>{'// champs filtres'}</span>
                     <button
                       onClick={() => {
                         setShowFilterEdit(!showFilterEdit);
@@ -794,7 +794,7 @@ export default function SourcesPage() {
 
                 {/* Sharing */}
                 <div>
-                  <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>// partage</div>
+                  <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>{'// partage'}</div>
                   {(selectedSource.shared_with || []).length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                       {selectedSource.shared_with!.map((orgId) => {
@@ -842,7 +842,7 @@ export default function SourcesPage() {
                 {/* Edit */}
                 {showEdit && (
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                    <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>// modifier</div>
+                    <div style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>{'// modifier'}</div>
                     <label style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, display: 'block', marginBottom: 4 }}>Nom</label>
                     <input
                       value={editName}

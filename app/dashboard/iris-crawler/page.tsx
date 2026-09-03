@@ -654,7 +654,7 @@ function IrisInseeImportTab() {
           </button>
         </div>
         {history.length === 0 && !histLoading ? (
-          <div style={{ padding: '20px', fontFamily: fMono, fontSize: 9, color: C.textSec }}>Aucun import pour l'instant</div>
+          <div style={{ padding: '20px', fontFamily: fMono, fontSize: 9, color: C.textSec }}>Aucun import pour l&apos;instant</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 9, fontFamily: fMono }}>

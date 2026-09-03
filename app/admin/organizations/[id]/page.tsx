@@ -397,7 +397,7 @@ export default function WorkspacePage() {
       {/* ── Site Centric ── */}
       <Section title="Intégration Site Centric">
         <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginBottom: 14, lineHeight: 1.6 }}>
-          // Endpoint API Site Centric isolé pour ce workspace. Les données ne sont jamais partagées entre organisations.
+          {'// Endpoint API Site Centric isolé pour ce workspace. Les données ne sont jamais partagées entre organisations.'}
         </div>
         <Field label="URL endpoint API">
           <input style={inputStyle} value={siteCentricUrl} onChange={e => setSiteCentricUrl(e.target.value)} placeholder="https://api.sitecentric.fr/v2/..." />
@@ -626,7 +626,7 @@ export default function WorkspacePage() {
       {/* ── Sources disponibles (partage) ── */}
       <Section title={`Données disponibles (${availableSources.length})`}>
         <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textSec, marginBottom: 14, lineHeight: 1.6 }}>
-          // Sources importées dans d&apos;autres workspaces. Assigner une source donne accès en lecture à ce workspace.
+          {'// Sources importées dans d&apos;autres workspaces. Assigner une source donne accès en lecture à ce workspace.'}
         </div>
         {availableSources.length === 0 ? (
           <div style={{ fontFamily: fontMono, fontSize: 12, color: C.textDim }}>Aucune source disponible dans les autres workspaces</div>

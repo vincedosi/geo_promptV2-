@@ -94,7 +94,7 @@ export function Step5MLAgent({ data, onChange, onPresetApply, geoConfigured }: P
             <div className="flex items-start gap-2 p-3 rounded-md border border-border-subtle bg-bg-level-1 text-[11px] text-text-tertiary">
               <Lock className="h-3.5 w-3.5 text-text-tertiary mt-0.5 shrink-0" />
               <div>
-                <span className="text-text-secondary font-medium">Pondération déjà configurée à l'étape 2.</span>
+                <span className="text-text-secondary font-medium">Pondération déjà configurée à l&apos;étape 2.</span>
                 <span> Les presets rapides sont désactivés car vos multipliers détaillés (par sous-zone, tier ou CSV) prennent le dessus.</span>
               </div>
             </div>
@@ -124,7 +124,7 @@ export function Step5MLAgent({ data, onChange, onPresetApply, geoConfigured }: P
                 ))}
               </div>
               <p className="text-[11px] text-text-tertiary mt-2">
-                Configure une pondération initiale rapide. Les détails de l'étape 2 (sous-zones, tiers, CSV) écrasent ces valeurs si présents.
+                Configure une pondération initiale rapide. Les détails de l&apos;étape 2 (sous-zones, tiers, CSV) écrasent ces valeurs si présents.
               </p>
             </Field>
           )}

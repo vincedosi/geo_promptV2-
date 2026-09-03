@@ -720,7 +720,7 @@ export default function RadioAdminPage() {
       {tab === 'stats' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {auditLoading || !audit ? (
-            <div style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Chargement de l'audit...</div>
+            <div style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Chargement de l&apos;audit...</div>
           ) : (
             <>
               {/* ── Section 1: KPIs synthétiques ── */}

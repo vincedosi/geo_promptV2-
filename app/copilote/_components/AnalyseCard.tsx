@@ -320,7 +320,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
       {/* Tranches d'âge */}
       {tranchesData.length > 0 && (
         <>
-          <SectionTitle>Répartition par tranche d'âge</SectionTitle>
+          <SectionTitle>Répartition par tranche d&apos;âge</SectionTitle>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={tranchesData} layout="vertical" barSize={12}
               margin={{ top: 0, right: 40, left: 4, bottom: 0 }}>
@@ -371,7 +371,7 @@ export function AnalyseCard({ output, onFlyTo, onHighlightIris }: AnalyseCardPro
       {/* POI par catégorie */}
       {poiData.length > 1 && (
         <>
-          <SectionTitle>Points d'intérêt par catégorie</SectionTitle>
+          <SectionTitle>Points d&apos;intérêt par catégorie</SectionTitle>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={poiData} barSize={18}
               margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>

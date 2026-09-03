@@ -239,7 +239,7 @@ export default function Dv360Page() {
 
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
         {/* Méthode */}
-        <label style={{ fontFamily: fInter, fontSize: 12, color: C.textDim }}>Méthode d'authentification</label>
+        <label style={{ fontFamily: fInter, fontSize: 12, color: C.textDim }}>Méthode d&apos;authentification</label>
         <div style={{ display: 'flex', gap: 16, margin: '8px 0 16px' }}>
           {(['service_account', 'oauth'] as Method[]).map((m) => (
             <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: fInter, fontSize: 13, color: C.textSec, cursor: 'pointer' }}>
@@ -318,7 +318,7 @@ export default function Dv360Page() {
             disabled={busy}
             style={{ background: 'transparent', border: 'none', color: C.red, fontFamily: fInter, fontSize: 11, cursor: busy ? 'not-allowed' : 'pointer', textDecoration: 'underline', padding: 0, opacity: busy ? 0.5 : 1 }}
           >
-            Effacer les données d'authentification
+            Effacer les données d&apos;authentification
           </button>
         </div>
       )}
@@ -352,7 +352,7 @@ export default function Dv360Page() {
         />
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 4, maxHeight: 280, overflowY: 'auto' }}>
           {logs.length === 0 ? (
-            <span style={{ display: 'block', padding: 12, fontFamily: fMono, fontSize: 11, color: C.textDim }}>Aucun log pour l'instant.</span>
+            <span style={{ display: 'block', padding: 12, fontFamily: fMono, fontSize: 11, color: C.textDim }}>Aucun log pour l&apos;instant.</span>
           ) : (
             logs.map((l) => <LogLine key={l.id} log={l} />)
           )}
