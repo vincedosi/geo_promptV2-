@@ -3,10 +3,12 @@
 > Date : 2026-04-30 · Référencé par chantier A4.6.2
 > Révisé : 2026-08-31 (branche `chore/zero-tech-debt`) — items 2, 4 et 5 fermés,
 > chiffres remesurés.
-> Révisé : 2026-09-03 (branche `chore/drop-xlsx-exceljs`) — item 3 fermé
-> (xlsx retiré). De l'item 1, seul `FilterPanel.tsx` reste ouvert : les splits
-> de `admin/sources/page.tsx` et `map/page.tsx` ont été livrés le 2026-09-01.
-> Reste ouvert : item 1 (FilterPanel), item 6, item 8.
+> Révisé : 2026-09-03 — item 3 fermé (xlsx retiré, branche
+> `chore/drop-xlsx-exceljs`) puis item 1 fermé en entier : `FilterPanel.tsx`
+> splitté (branche `refactor/filter-panel-split`), après `admin/sources/page.tsx`
+> et `map/page.tsx` le 2026-09-01.
+> **Plus aucun fichier > 2000 lignes dans le projet.**
+> Reste ouvert : item 6, item 8.
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
 qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
@@ -26,75 +28,83 @@ qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
 | Routes API | 215, dont 3 réellement publiques (voir §4) |
 | Fichiers > 2000 lignes | 2 (et non 3 : `map/page.tsx` est à 1879) |
 
-## 1. Trois fichiers > 2000 lignes (refactor reporté)
+## 1. Trois fichiers > 2000 lignes — ✅ FERMÉ (2026-09-01 et 2026-09-03)
 
-Décision produit chantier A4.6.2 (D3) : ces 3 fichiers ont reçu un cleanup
-interne (any → typage, console.log à migrer, naming) mais **n'ont pas été
-splittés** en sous-composants. Le risque de régression pitch est trop élevé.
+Décision produit chantier A4.6.2 (D3) : ces 3 fichiers avaient reçu un cleanup
+interne (any → typage, console.log à migrer, naming) mais **n'avaient pas été
+splittés**, le risque de régression pitch étant jugé trop élevé.
 
-### `app/map/_components/FilterPanel.tsx` — 3789 lignes
+Ils l'ont été depuis, un par un, chacun vérifié en navigateur :
 
-**Pourquoi c'est gros** : composant central de la carte `/map` qui orchestre
-TOUS les filtres + les résultats des analyses. Onze sections logiques internes
-(POI / IRIS / Battle / Voronoi / Coverage / Corrélation / Scoring / Carreaux /
-TMJA / Radio / Meteo) qui partagent énormément de state.
+| Fichier | Avant | Après | Date |
+|---|---|---|---|
+| `app/admin/sources/page.tsx` | 2 544 | 928 | 2026-09-01 |
+| `app/map/page.tsx` | 2 329 | 974 | 2026-09-01 |
+| `app/map/_components/FilterPanel.tsx` | 3 651 | 1 816 | 2026-09-03 |
 
-**Risque refactor** : casser un sub-flow (ex: bataille V2 + custom zone +
-isochrone) qui croise plusieurs sections.
+### `app/map/_components/FilterPanel.tsx` — ✅ SPLITTÉ le 2026-09-03 (3651 → 1816 lignes)
 
-**Stratégie de refactor future (à faire dans chantier dédié)** :
-1. Extraire chaque section en `_components/<Section>Filter.tsx` avec props
-   stables (callbacks parents)
-2. Lifter le state commun dans un context `<FilterPanelContext>` plutôt que
-   ~150 props
-3. Cibler ~600 lignes de wrapper + 11 fichiers de ~250 lignes chacun
-4. **Smoke E2E manuel après chaque extraction** (cf risques.md A4.6.2 ⚠️ #2)
+**Ce qui était prévu** : 11 sous-composants + un `<FilterPanelContext>` pour
+remplacer ~150 props.
 
-**Effort estimé** : 1 chantier dédié 8-10 h Claude Code + tests E2E par Vince.
+**Ce qui a été fait, et pourquoi c'est différent** : le fichier était déjà
+partitionné en 4 blocs JSX par la prop `visibleCategory`
+(`perimeter` / `terrain` / `audience` / `analyses`), exactement alignés sur les
+overlays du rail `/map`. C'est cette frontière qui a été suivie — même découpe
+que le produit, et les props restent lisibles section par section (22 pour
+Périmètre, 5 à 27 pour les autres) sans contexte fourre-tout.
+
+19 fichiers dans `app/map/_components/filter-panel/` :
+
+| Fichier | Rôle |
+|---|---|
+| `tokens.ts`, `styles.ts`, `constants.ts` | tokens, helpers purs, constantes |
+| `poi-style.ts`, `analysis-types.ts` | types partagés (réexportés par FilterPanel) |
+| `FilterSectionHeader`, `MultiDropdown`, `RadioSearchInput` | sous-composants partagés |
+| `PerimeterSections` | les 4 sections de la catégorie Périmètre |
+| `PoiSection`, `OohSection`, `TransportSection`, `TmjaSection`, `RadioSection` | catégorie Terrain |
+| `CarreauxSection`, `IrisSection`, `CivicIndicatorsSection`, `CivicHealthSection`, `MeteoSection` | catégorie Audience |
+| `SpatialAnalysisIntro`, `VoronoiTool`, `BattleV2Tool`, `IsochronesTool` | catégorie Analyses |
+
+JSX déplacé verbatim à chaque étape : seule la résolution des variables change,
+de la fermeture lexicale vers des props. Les fichiers protégés
+(`app/api/isochrone-battle/**`, fonctions PostGIS `battle_*`) n'ont pas été
+touchés — seule l'UI de la bataille est découpée.
+
+**Vérification** : smoke test navigateur avec interactions réelles après chaque
+extraction, pas seulement une compilation. Référence des 4 overlays capturée
+avant toute modification. Points les plus probants : sélection Bretagne qui
+désélectionne « France Metro » (`setScope(null)` à travers le composant),
+choroplèthe d'abstention peinte sur la carte depuis `CivicIndicatorsSection`,
+et « VÉRIFIER CACHE » de `BattleV2Tool` qui remonte jusqu'à l'API et redescend
+(95 POIs / 665 isochrones / 570 en cache).
+
+**Reste possible** : les handlers du composant (`runCivicIngestStream`,
+`fetchCategories`/`fetchPoiNatures`, `handleBattle`/`handleBattleV2`,
+`onResizeMouseDown`) pourraient partir en hooks de domaine, comme sur
+`map/page.tsx`. Attention : ils ferment sur beaucoup de state local, une
+extraction naïve déplacerait le problème au lieu de le résoudre. À juger hook
+par hook.
 
 ---
 
-### `app/admin/sources/page.tsx` — 2831 lignes
+### `app/admin/sources/page.tsx` — ✅ SPLITTÉ le 2026-09-01 (2544 → 928 lignes)
 
-**Pourquoi c'est gros** : page back-office qui gère toutes les Data Sources
-MAGELIAN (POI, OOH, panneaux, radio, INSEE, etc.) avec 3 tabs (Liste / Détail /
-Imports) et un CRUD complet par source.
+Page back-office de toutes les Data Sources MAGELIAN (POI, OOH, panneaux,
+radio, INSEE) avec 3 tabs et un CRUD complet par source.
 
-**Risque refactor** : casser le flow d'import / export / suppression d'une
-source (utilisé en prod admin).
-
-**Stratégie de refactor future** :
-1. Extraire chaque tab : `_components/SourcesListTab.tsx` /
-   `_components/SourceDetailTab.tsx` / `_components/SourceImportsTab.tsx`
-2. Extraire les handlers CRUD : `_lib/sources-actions.ts` (createSource,
-   updateSource, deleteSource, exportSourceCSV)
-3. Cibler ~400 lignes orchestrateur + 3 tabs ~700 lignes chacun
-4. Smoke test : login admin → ouvrir chaque tab → faire un cycle CRUD complet
-
-**Effort estimé** : ~6-8 h Claude Code.
+Découpe livrée : 6 panels de domaine, 3 hooks de state et 3 modules lib.
+Les 9 tabs ont été re-vérifiés en navigateur après extraction.
 
 ---
 
-### `app/map/page.tsx` — 2329 lignes
+### `app/map/page.tsx` — ✅ SPLITTÉ le 2026-09-01 (2329 → 974 lignes)
 
-**Pourquoi c'est gros** : page principale carte qui :
-- Tient ~70 `useState` en top-level (battle, radio, meteo, coverage, etc.)
-- Gère 7 overlays (IconBar items)
-- Centralise les query params (?customZone, ?layer=digital, etc.)
-- Wire les hooks `useMapInit`, `useMapLayers`, `useChatControls` etc.
+Page principale carte : ~70 `useState` en top-level, 7 overlays, query params
+et wiring des hooks `useMapInit` / `useMapLayers` / `useChatControls`.
 
-**Risque refactor** : casser un overlay ou une URL handler — le map est la
-page la plus testée du pitch.
-
-**Stratégie de refactor future** :
-1. Extraire les `useState` thématiques dans des hooks dédiés :
-   `useBattleState()`, `useRadioState()`, `useMeteoState()`
-2. Extraire les handlers query params dans `_lib/url-state.ts`
-3. Cibler ~600 lignes orchestrateur principal + 5-6 hooks ~150 lignes chacun
-4. Smoke E2E pitch flow systématique (cliquer chaque icône IconBar, tester
-   chaque overlay)
-
-**Effort estimé** : ~8-10 h Claude Code.
+Découpe livrée : 5 hooks de domaine — `useRadioLayer`, `useMapDirectActions`,
+`useMapMarkers`, `useMeteoLayer`, `useIrisDetail`.
 
 ---
 
@@ -309,20 +319,27 @@ pourquoi elles sont conservées.
 | `admin/sources/page` split | 2 544 → 928 lignes (6 panels, 3 hooks, 3 modules lib) |
 | `map/page` split | 2 329 → 974 lignes (5 hooks de domaine) |
 
-### Fermé le 2026-09-03 (branche `chore/drop-xlsx-exceljs`)
+### Fermé le 2026-09-03
 
 | Item | Résolution |
 |---|---|
 | xlsx → exceljs (2 vuln. HIGH sans correctif) | dépendance retirée, lecteurs maison + 48 tests — cf. §3 |
+| `FilterPanel` split (3651 l.) | 3651 → 1816 lignes, 19 fichiers par catégorie d'overlay — cf. §1 |
 
 ### Ouvert
 
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
-| FilterPanel split (3651 l.) | 8-10 h | élevé | smoke E2E manuel Vince |
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 4 fichiers 1000-1800 lignes | 6-8 h | medium | smoke E2E manuel Vince |
+| 5 fichiers 1000-1816 lignes | 8-10 h | medium | smoke E2E manuel Vince |
 | 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
+
+Les 5 fichiers de plus de 1 000 lignes, mesurés le 2026-09-03 :
+`FilterPanel.tsx` (1 816 — reste ses handlers, cf. §1),
+`app/admin/import/page.tsx` (1 776),
+`app/admin/carreaux-import/page.tsx` (1 526),
+`components/map/overlays/PilotageOverlay.tsx` (1 217),
+`app/strategies/_components/steps/Step2Geography.tsx` (1 014).
 
 **Total restant : ~15-20 h**, dont l'essentiel est bloqué non par la
 difficulté technique mais par le besoin de validation manuelle en
