@@ -50,6 +50,10 @@ import { IrisSection } from './filter-panel/IrisSection';
 import { CivicIndicatorsSection } from './filter-panel/CivicIndicatorsSection';
 import { CivicHealthSection } from './filter-panel/CivicHealthSection';
 import { MeteoSection } from './filter-panel/MeteoSection';
+import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from './filter-panel/SpatialAnalysisIntro';
+import { VoronoiTool } from './filter-panel/VoronoiTool';
+import { BattleV2Tool } from './filter-panel/BattleV2Tool';
+import { IsochronesTool } from './filter-panel/IsochronesTool';
 import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
 import { MultiDropdown } from './filter-panel/MultiDropdown';
 import { RadioSearchInput } from './filter-panel/RadioSearchInput';
@@ -1662,52 +1666,11 @@ export function FilterPanel({
             <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}` }}>
             <div style={{ paddingBottom: 4 }}>
 
-              {/* Info encart — 0 POI sélectionné */}
-              {!hasAnyPOI && (
-                <div style={{
-                  padding: '14px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                }}>
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>
-                    Analyses spatiales disponibles
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                      { icon: '⬡', label: 'Voronoï géométrique', desc: 'Zones à vol d\'oiseau' },
-                      { icon: '◎', label: 'Isochrones routiers',  desc: 'Temps de trajet réel ORS' },
-                    ].map(tool => (
-                      <div key={tool.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                        <span style={{ fontSize: 14, color: C.textDim, flexShrink: 0, fontFamily: fMono }}>{tool.icon}</span>
-                        <div>
-                          <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>{tool.label}</div>
-                          <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 1 }}>{tool.desc}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 12, padding: '9px 11px', background: 'rgba(255,255,255,0.03)', border: `0.5px solid var(--border-default)`, borderRadius: 4 }}>
-                    <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec, marginBottom: 4 }}>
-                      Sélectionnez 1 seul type de POI
-                    </div>
-                    <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
-                      Isolez un réseau (ex: CIRFA) pour débloquer le calcul de zone de chalandise.
-                    </div>
-                  </div>
-                </div>
-              )}
+              {!hasAnyPOI && <SpatialAnalysisEmptyState />}
 
-              {/* Info encart — plusieurs POI sélectionnés */}
-              {selectedPOI.length > 1 && (
-                <div style={{ padding: '10px 12px', background: C.redDim, border: `0.5px solid ${C.redBorder}`, borderRadius: 4, marginTop: 4 }}>
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.red, marginBottom: 4 }}>! Trop de types sélectionnés</div>
-                  <div style={{ fontFamily: fInter, fontSize: 12, color: '#fca5a5', lineHeight: 1.5 }}>
-                    Les analyses spatiales nécessitent exactement 1 type de POI. Retirez {selectedPOI.length - 1} type{selectedPOI.length > 2 ? 's' : ''}.
-                  </div>
-                </div>
-              )}
+              {selectedPOI.length > 1 && <SpatialAnalysisTooManyPoi selectedCount={selectedPOI.length} />}
 
-              {/* Boutons analyses — visibles uniquement si exactement 1 POI */}
+              {/* Outils — visibles uniquement si exactement 1 POI */}
               {exactlyOnePOI && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
 
@@ -1723,442 +1686,71 @@ export function FilterPanel({
                     </div>
                   </div>
 
-                  {/* ── Voronoï Géométrique ── */}
-                  <div style={{ border: `0.5px solid ${showVoronoi ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={isLoading}
-                      onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); setShowBattleV2(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showVoronoi ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: voronoiVisible ? C.text : C.textSec }}>
-                        {voronoiVisible ? '✓ ' : ''}Voronoï géométrique
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showVoronoi ? '▲' : '▼'}</span>
-                    </button>
-                    {showVoronoi && (
-                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
-                          Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
-                        </div>
-                        <button style={primaryBtn('var(--text-primary)', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
-                          Lancer le calcul
-                        </button>
-                        {voronoiVisible && (
-                          <button style={pill(false, C.textSec)} onClick={() => setVoronoiVisible(false)}>
-                            Masquer le Voronoï
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <VoronoiTool
+                    showVoronoi={showVoronoi}
+                    setShowVoronoi={setShowVoronoi}
+                    setShowBattle={setShowBattle}
+                    setShowBattleV2={setShowBattleV2}
+                    isLoading={isLoading}
+                    voronoiVisible={voronoiVisible}
+                    setVoronoiVisible={setVoronoiVisible}
+                    handleVoronoi={handleVoronoi}
+                  />
 
-                  {/* ── Bataille V2 — cache only ── */}
-                  <div style={{ border: `0.5px solid ${showBattleV2 ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={battleV2Loading}
-                      onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattleV2 ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
-                        {battleVisible ? '✓ ' : ''}Bataille V2 (multi-paliers)
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattleV2 ? '▲' : '▼'}</span>
-                    </button>
-                  {showBattleV2 && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
-                        Lit le cache existant — <span style={{ color: C.text }}>aucun appel ORS</span>. Paliers manquants skippés.
-                        Lance d'abord les isochrones v1 pour remplir le cache.
-                      </div>
+                  <BattleV2Tool
+                    showBattleV2={showBattleV2}
+                    setShowBattleV2={setShowBattleV2}
+                    setShowBattle={setShowBattle}
+                    setShowVoronoi={setShowVoronoi}
+                    battleVisible={battleVisible}
+                    setBattleVisible={setBattleVisible}
+                    battleV2Paliers={battleV2Paliers}
+                    setBattleV2Paliers={setBattleV2Paliers}
+                    battleV2Loading={battleV2Loading}
+                    battleV2Log={battleV2Log}
+                    setBattleV2Log={setBattleV2Log}
+                    v2CacheStatus={v2CacheStatus}
+                    setV2CacheStatus={setV2CacheStatus}
+                    v2Checking={v2Checking}
+                    v2Filling={v2Filling}
+                    v2FillTotal={v2FillTotal}
+                    v2FillCompleted={v2FillCompleted}
+                    v2FillPct={v2FillPct}
+                    v2FillRings={v2FillRings}
+                    handleCheckV2={handleCheckV2}
+                    handleFillMissingV2={handleFillMissingV2}
+                    handleBattleV2={handleBattleV2}
+                  />
 
-                      {/* Sélection des paliers */}
-                      <div>
-                        <div style={{ ...labelStyle }}>
-                          Paliers — {battleV2Paliers.join(', ')} min
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {[10, 20, 30, 40, 50, 60, 90].map(p => (
-                            <button
-                              key={p}
-                              style={pill(battleV2Paliers.includes(p), 'var(--text-primary)')}
-                              onClick={() => {
-                                setV2CacheStatus(null);
-                                setBattleV2Paliers(prev =>
-                                  prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p].sort((a, b) => a - b)
-                                );
-                              }}
-                            >
-                              {p} min
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* ── Statut cache V2 ── */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* Barre de statut */}
-                        {v2CacheStatus && (
-                          <div style={{
-                            background: v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                            border: `0.5px solid ${v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
-                            borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
-                                {v2CacheStatus.total_pois} POIs · {v2CacheStatus.total_combos} isochrones
-                              </span>
-                              <span style={{ fontFamily: fMono, fontSize: 9, color: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
-                                {v2CacheStatus.missing_combos === 0
-                                  ? '✓ 100% en cache'
-                                  : `✕ ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 's' : ''} manquants`}
-                              </span>
-                            </div>
-                            {/* Barre de progression cache */}
-                            <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{
-                                height: '100%', borderRadius: 2,
-                                width: `${Math.round((v2CacheStatus.cached_combos / Math.max(v2CacheStatus.total_combos, 1)) * 100)}%`,
-                                background: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : '#22d3ee',
-                                transition: 'width 400ms linear',
-                              }} />
-                            </div>
-                            <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                              {v2CacheStatus.cached_combos}/{v2CacheStatus.total_combos} en cache
-                              {v2CacheStatus.missing_combos > 0 && ` · ${v2CacheStatus.missing_combos} à calculer`}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Bouton calculer manquants (si POIs sans cache) */}
-                        {v2CacheStatus && v2CacheStatus.missing_pois > 0 && (
-                          <button
-                            style={primaryBtn(C.amber, v2Filling || battleV2Loading)}
-                            disabled={v2Filling || battleV2Loading}
-                            onClick={handleFillMissingV2}
-                          >
-                            {v2Filling
-                              ? 'ORS EN COURS...'
-                              : `CALCULER ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 'S' : ''} MANQUANTS (ORS)`}
-                          </button>
-                        )}
-
-                        {/* Boutons lancer */}
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            style={primaryBtn('#6b7280', battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading)}
-                            disabled={battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading}
-                            onClick={handleCheckV2}
-                          >
-                            {v2Checking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
-                          </button>
-                          <button
-                            style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
-                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
-                            onClick={() => { setV2CacheStatus(null); handleBattleV2(false); }}
-                          >
-                            {battleV2Loading ? 'CALCUL...' : 'LANCER'}
-                          </button>
-                          <button
-                            style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
-                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
-                            onClick={() => { setV2CacheStatus(null); handleBattleV2(true); }}
-                          >
-                            FORCER
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* ── Barre de progression ORS fill ── */}
-                      {v2Filling && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {/* Header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            <span style={{ color: C.amber }}>
-                              {v2FillTotal > 0 ? `ORS — ${v2FillCompleted}/${v2FillTotal} POIs` : 'ORS — initialisation...'}
-                            </span>
-                            <span style={{ color: v2FillPct > 0 ? C.green : C.textDim }}>{v2FillPct}%</span>
-                          </div>
-                          {/* Barre principale */}
-                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%', borderRadius: 2,
-                              width: `${v2FillPct}%`,
-                              background: v2FillPct === 100 ? C.green : C.amber,
-                              transition: 'width 400ms linear',
-                            }} />
-                          </div>
-                          {/* Sous-stats */}
-                          <div style={{ display: 'flex', gap: 10, fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            {v2FillTotal > 0 && (
-                              <>
-                                <span style={{ color: C.green }}>↗ {v2FillRings} isochrones reçus</span>
-                                <span>·</span>
-                                <span>{v2FillTotal - v2FillCompleted} POIs restants</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Barre de progression Bataille V2 ── */}
-                      {battleV2Loading && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            <span style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>
-                              Bataille V2 — PostGIS ST_Difference...
-                            </span>
-                          </div>
-                          {/* Barre indéterminée */}
-                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
-                            <div style={{
-                              position: 'absolute', height: '100%', width: '40%',
-                              background: 'linear-gradient(90deg, transparent, var(--text-secondary), transparent)',
-                              animation: 'fpScan 1.8s linear infinite',
-                              borderRadius: 2,
-                            }} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Log terminal ── */}
-                      {battleV2Log.length > 0 && (
-                        <div style={{
-                          background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
-                          borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
-                          color: C.textDim, lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
-                          display: 'flex', flexDirection: 'column', gap: 1,
-                        }}>
-                          {battleV2Log.map((line, i) => (
-                            <div key={i} style={{
-                              color: line.startsWith('> ✓') ? C.green
-                                   : line.startsWith('> ✕') ? C.red
-                                   : line.startsWith('> !') ? C.amber
-                                   : line.startsWith('> ◆') ? C.textSec
-                                   : line.startsWith('> ORS') ? C.amber
-                                   : C.textDim,
-                            }}>{line}</div>
-                          ))}
-                          {(battleV2Loading || v2Filling) && <div style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>▌</div>}
-                        </div>
-                      )}
-
-                      {battleVisible && (
-                        <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleV2Log([]); }}>
-                          Masquer
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  </div>
-
-                  {/* ── Isochrones Routiers (ORS) ── */}
-                  <div style={{ border: `0.5px solid ${showBattle ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={battleLoading}
-                      onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattle ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
-                        {battleVisible ? '✓ ' : ''}Isochrones routiers (ORS)
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattle ? '▲' : '▼'}</span>
-                    </button>
-                    {showBattle && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 13 }}>
-
-                      {/* Durées */}
-                      <div>
-                        <div style={labelStyle}>
-                          Temps de trajet
-                          {isoDurations.length > 0 && <span style={{ color: C.textSec }}> — {isoDurations.join(', ')} min</span>}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {ISO_DURATIONS.map(d => (
-                            <button key={d} style={pill(isoDurations.includes(d), 'var(--text-primary)')} onClick={() => toggleDuration(d)}>
-                              {d} min
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 5, fontStyle: 'italic' }}>
-                          Anneaux concentriques — calculé via ORS directement, sans IA
-                        </div>
-                      </div>
-
-                      {/* ── Statut cache ORS ── */}
-                      {orsCacheStatus && (
-                        <div style={{
-                          background: orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                          border: `0.5px solid ${orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
-                          borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
-                              {orsCacheStatus.total_pois} POIs · {orsCacheStatus.total_combos} isochrones
-                            </span>
-                            <span style={{ fontFamily: fMono, fontSize: 9, color: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
-                              {orsCacheStatus.missing_combos === 0
-                                ? '✓ 100% en cache'
-                                : `${orsCacheStatus.missing_pois} POI${orsCacheStatus.missing_pois > 1 ? 's' : ''} à calculer`}
-                            </span>
-                          </div>
-                          <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%', borderRadius: 2,
-                              width: `${Math.round((orsCacheStatus.cached_combos / Math.max(orsCacheStatus.total_combos, 1)) * 100)}%`,
-                              background: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.red,
-                              transition: 'width 400ms linear',
-                            }} />
-                          </div>
-                          <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                            {orsCacheStatus.cached_combos}/{orsCacheStatus.total_combos} en cache
-                            {orsCacheStatus.missing_combos > 0 && ` · ORS calculera les ${orsCacheStatus.missing_combos} manquants automatiquement`}
-                          </div>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          style={primaryBtn('#6b7280', isoDurations.length === 0 || battleLoading || orsChecking)}
-                          disabled={isoDurations.length === 0 || battleLoading || orsChecking}
-                          onClick={handleCheckORS}
-                        >
-                          {orsChecking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
-                        </button>
-                        <button
-                          style={primaryBtn(C.red, isoDurations.length === 0 || battleLoading)}
-                          disabled={isoDurations.length === 0 || battleLoading}
-                          onClick={() => handleBattle(false)}
-                        >
-                          {battleLoading ? 'CALCUL ORS...' : 'LANCER'}
-                        </button>
-                        <button
-                          style={primaryBtn(C.amber, isoDurations.length === 0 || battleLoading)}
-                          disabled={isoDurations.length === 0 || battleLoading}
-                          onClick={() => handleBattle(true)}
-                        >
-                          RECALCULER
-                        </button>
-                      </div>
-
-                      {battleLog.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {/* ── Barre de progression ── */}
-                          {battleLoading && battleTotal > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                                <span style={{ color: battleProgress === 100 ? C.green : C.amber }}>
-                                  {battleProgress === 100 ? '✓ Terminé' : `ORS — ${battleCompleted}/${battleTotal} POIs`}
-                                </span>
-                                <span style={{ color: battleProgress > 0 ? C.green : C.textDim }}>{battleProgress}%</span>
-                              </div>
-                              <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{
-                                  height: '100%',
-                                  width: `${battleProgress}%`,
-                                  background: battleProgress === 100 ? C.green : C.textSec,
-                                  transition: 'width 400ms linear',
-                                  borderRadius: 2,
-                                }} />
-                              </div>
-                            </div>
-                          )}
-                          {/* ── Log terminal ── */}
-                          <div style={{
-                            background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
-                            borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
-                            color: C.textDim, lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
-                            display: 'flex', flexDirection: 'column', gap: 1,
-                          }}>
-                            {battleLog.map((line, i) => (
-                              <div key={i} style={{
-                                color: line.startsWith('> ✓') ? C.green
-                                     : line.startsWith('> ✕') ? C.red
-                                     : line.startsWith('> !') ? C.amber
-                                     : line.includes('[3/3]') ? C.green
-                                     : C.textDim,
-                              }}>{line}</div>
-                            ))}
-                            {battleLoading && (
-                              <div style={{ color: C.textDim, animation: 'fpBlink 1s linear infinite' }}>▌</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {battleVisible && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
-                            Masquer les isochrones
-                          </button>
-                          <button
-                            style={pill(battleOuterFillVisible, C.textSec)}
-                            onClick={() => setBattleOuterFillVisible(!battleOuterFillVisible)}
-                            title="Afficher/masquer le remplissage Voronoï résiduel (zones hors portée)"
-                          >
-                            {battleOuterFillVisible ? 'Voronoï ✓' : 'Voronoï'}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* ── Bouton BATAILLE (Phase 2 — ST_Difference) ────── */}
-                      {battleRings.length > 0 && !battleLoading && (
-                        <>
-                        <button
-                          style={{ ...pill(false, C.textSec), opacity: battleApplyLoading ? 0.5 : 1 }}
-                          disabled={battleApplyLoading}
-                          onClick={async () => {
-                            setBattleApplyLoading(true);
-                            setBattleApplyPct(0);
-                            setBattleLog(prev => [...prev, '> [BATAILLE] ST_Difference en cours…']);
-                            try {
-                              await onApplyBattle(
-                                battleRings,
-                                battleMeta?.categorie,
-                                undefined,
-                                (msg, pct) => {
-                                  setBattleLog(prev => [...prev, `> ${msg}`]);
-                                  setBattleApplyPct(pct);
-                                },
-                              );
-                              setBattleApplyPct(100);
-                              setBattleLog(prev => [...prev, '> ✓ Territoires découpés sans chevauchement']);
-                            } catch (e: unknown) {
-                              setBattleLog(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur bataille'}`]);
-                            } finally {
-                              setBattleApplyLoading(false);
-                            }
-                          }}
-                        >
-                          {battleApplyLoading ? `BATAILLE… ${battleApplyPct}%` : 'X BATAILLE (ST_Difference)'}
-                        </button>
-                        {/* Barre de progression BATAILLE */}
-                        {battleApplyLoading && (
-                          <div style={{ height: 3, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${battleApplyPct}%`,
-                              background: battleApplyPct === 100 ? C.green : C.textSec,
-                              transition: 'width 400ms linear, background-color 180ms var(--ease-out)',
-                            }} />
-                          </div>
-                        )}
-                        </>
-                      )}
-                    </div>
-                    )}
-                  </div>
+                  <IsochronesTool
+                    showBattle={showBattle}
+                    setShowBattle={setShowBattle}
+                    setShowVoronoi={setShowVoronoi}
+                    setShowBattleV2={setShowBattleV2}
+                    battleVisible={battleVisible}
+                    setBattleVisible={setBattleVisible}
+                    battleOuterFillVisible={battleOuterFillVisible}
+                    setBattleOuterFillVisible={setBattleOuterFillVisible}
+                    isoDurations={isoDurations}
+                    toggleDuration={toggleDuration}
+                    orsCacheStatus={orsCacheStatus}
+                    orsChecking={orsChecking}
+                    handleCheckORS={handleCheckORS}
+                    battleLoading={battleLoading}
+                    battleLog={battleLog}
+                    setBattleLog={setBattleLog}
+                    battleTotal={battleTotal}
+                    battleCompleted={battleCompleted}
+                    battleProgress={battleProgress}
+                    handleBattle={handleBattle}
+                    battleRings={battleRings}
+                    battleMeta={battleMeta}
+                    battleApplyLoading={battleApplyLoading}
+                    setBattleApplyLoading={setBattleApplyLoading}
+                    battleApplyPct={battleApplyPct}
+                    setBattleApplyPct={setBattleApplyPct}
+                    onApplyBattle={onApplyBattle}
+                  />
 
                 </div>
               )}
