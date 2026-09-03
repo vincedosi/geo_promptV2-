@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
 
         let parsed;
         try {
-          parsed = parseFile(buffer, fileName, mappings);
+          parsed = await parseFile(buffer, fileName, mappings);
         } catch (err) {
           if (err instanceof MissingRequiredColumnError) {
             send({

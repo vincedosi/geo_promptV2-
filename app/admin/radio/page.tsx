@@ -425,7 +425,7 @@ export default function RadioAdminPage() {
                 <input
                   ref={odsFileRef}
                   type="file"
-                  accept=".ods,.xlsx,.xls"
+                  accept=".ods,.xlsx"
                   style={{ display: 'none' }}
                   onChange={() => { /* trigger handled by button */ }}
                 />

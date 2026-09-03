@@ -9,7 +9,7 @@
  */
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { readXlsxSheetRows } from '@/lib/import/xlsx-reader';
 import { applyTransform } from './transformer';
 import {
   DataTypeCastError,
@@ -155,16 +155,27 @@ function parseCsv(buffer: Buffer): Record<string, string>[] {
   return result.data;
 }
 
-function parseXlsx(buffer: Buffer): Record<string, string>[] {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = workbook.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json<Record<string, string>>(sheet, {
-    defval: '',
-    raw: false,
-    dateNF: 'yyyy-mm-dd',
-  });
+/**
+ * Extensions Excel lisibles. Le binaire `.xls` (Excel 97-2003) est exclu :
+ * exceljs ne sait pas le décoder (cf. lib/import/xlsx-reader.ts).
+ */
+const EXCEL_EXTENSION = /\.(xlsx|xlsm)$/i;
+const LEGACY_XLS_EXTENSION = /\.xls$/i;
+
+/** Un `.xls` déposé malgré le filtre de l'UI doit être signalé, pas parsé de travers. */
+function rejectLegacyXls(fileName: string): void {
+  if (!LEGACY_XLS_EXTENSION.test(fileName)) return;
+  throw new Error(
+    'Le format binaire .xls (Excel 97-2003) n\'est plus supporté. ' +
+      'Ouvrez le fichier dans Excel ou LibreOffice et enregistrez-le en .xlsx.',
+  );
+}
+
+async function parseXlsx(buffer: Buffer): Promise<Record<string, string>[]> {
+  // Les cellules date sortent du lecteur en `yyyy-mm-dd`, seul format que
+  // `castToDataType` accepte pour un data_type `date`.
+  const rows = await readXlsxSheetRows(buffer, { defval: '', raw: false });
+  return rows as Record<string, string>[];
 }
 
 /**
@@ -172,13 +183,13 @@ function parseXlsx(buffer: Buffer): Record<string, string>[] {
  * → parseRow ligne par ligne. Les lignes en erreur sont loggées et skippées
  * (comportement Adform legacy). Les lignes valides sont retournées.
  */
-export function parseFile(
+export async function parseFile(
   buffer: Buffer,
   fileName: string,
   mappings: SourceMapping[],
-): ParseFileResult {
-  const isXlsx = /\.xlsx?$/i.test(fileName);
-  const rawRows = isXlsx ? parseXlsx(buffer) : parseCsv(buffer);
+): Promise<ParseFileResult> {
+  rejectLegacyXls(fileName);
+  const rawRows = EXCEL_EXTENSION.test(fileName) ? await parseXlsx(buffer) : parseCsv(buffer);
   const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
 
   const validation = validateCsvHeaders(headers, mappings);
@@ -242,14 +253,11 @@ export function parseFile(
 
 /* ─── Helper : extraire les headers seuls (sans parser les rows) ──── */
 
-export function readHeaders(buffer: Buffer, fileName: string): string[] {
-  const isXlsx = /\.xlsx?$/i.test(fileName);
-  if (isXlsx) {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
-    const ws = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '', raw: false });
+export async function readHeaders(buffer: Buffer, fileName: string): Promise<string[]> {
+  rejectLegacyXls(fileName);
+
+  if (EXCEL_EXTENSION.test(fileName)) {
+    const rows = await parseXlsx(buffer);
     return rows.length > 0 ? Object.keys(rows[0]) : [];
   }
   let text = buffer.toString('utf-8');

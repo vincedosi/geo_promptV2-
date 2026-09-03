@@ -25,6 +25,7 @@
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
 | Rate limiting | Upstash Redis | ^2.0 |
 | PDF export | @react-pdf/renderer | ^4.3 |
+| Lecture tableurs | exceljs (.xlsx/.xlsm) + lecteur .ods maison (jszip) | ^4.4 |
 | Graphiques | Recharts | ^3.8 |
 | Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) | ^3.4 |
 | Fonts | Inter (UI) + JetBrains Mono (donnees/code) | — |

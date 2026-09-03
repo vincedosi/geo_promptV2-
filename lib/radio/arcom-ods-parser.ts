@@ -4,7 +4,8 @@
  * Columns: Nom du service | Nom du titulaire | Catégorie | Type | Fréquence | Bloc
  */
 
-import * as XLSX from 'xlsx';
+import { readOdsSheetRows } from '@/lib/import/ods-reader';
+import { readXlsxSheetRows } from '@/lib/import/xlsx-reader';
 
 export interface ArcomRadioEntry {
   nom_service: string;
@@ -29,17 +30,22 @@ export interface ArcomRadioAggregated {
 }
 
 /**
- * Parse an Arcom ODS file buffer into individual entries.
+ * Parse an Arcom reference file buffer into individual entries.
+ *
+ * Le fichier officiel est publié en `.ods`, mais l'écran d'import accepte
+ * aussi un `.xlsx` : un opérateur qui réenregistre le fichier depuis Excel
+ * doit rester servi. Le format est choisi sur l'extension, `.ods` par défaut.
  */
-export function parseArcomODS(fileBuffer: Buffer): ArcomRadioEntry[] {
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) throw new Error('Fichier ODS vide — aucune feuille trouvée');
+export async function parseArcomODS(
+  fileBuffer: Buffer,
+  fileName?: string,
+): Promise<ArcomRadioEntry[]> {
+  const isExcel = fileName !== undefined && /\.(xlsx|xlsm)$/i.test(fileName);
+  const rows = (isExcel
+    ? await readXlsxSheetRows(fileBuffer, { defval: '', raw: true })
+    : await readOdsSheetRows(fileBuffer, { defval: '' })) as Record<string, string>[];
 
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
-
-  if (rows.length === 0) throw new Error('Fichier ODS vide — aucune ligne de données');
+  if (rows.length === 0) throw new Error('Fichier vide — aucune ligne de données');
 
   const results: ArcomRadioEntry[] = [];
   let skipped = 0;

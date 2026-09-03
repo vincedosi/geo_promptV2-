@@ -710,7 +710,7 @@ export default function ImportUniverselPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".csv,.xlsx,.xls,.geojson,.json,.txt,.tsv,.shp,.dbf,.prj,.shx"
+                accept=".csv,.xlsx,.geojson,.json,.txt,.tsv,.shp,.dbf,.prj,.shx"
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
                   if (files.length > 0) handleFileUpload(files);
@@ -1761,7 +1761,7 @@ export default function ImportUniverselPage() {
 
         {/* Footer hint */}
         <div style={{ padding: '12px 0', fontFamily: fontMono, fontSize: 10, color: C.muted, borderTop: `1px solid ${C.border}` }}>
-          // Formats supportes: CSV, Excel (.xlsx/.xls), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)
+          // Formats supportes: CSV, Excel (.xlsx), GeoJSON · Encodages: UTF-8, Latin-1 (auto-detecte)
         </div>
       </div>
 

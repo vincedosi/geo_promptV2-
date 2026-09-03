@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
         // Parse file
         send({ type: 'progress', message: 'Parsing du fichier...', processed: 0, total: 0 });
-        const parsed = parseFile(buffer, fileName);
+        const parsed = await parseFile(buffer, fileName);
         const totalRows = parsed.rows.length;
 
         send({
