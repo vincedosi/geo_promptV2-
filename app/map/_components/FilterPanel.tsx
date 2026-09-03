@@ -38,6 +38,8 @@ import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
 import { C, fInter, fMono } from './filter-panel/tokens';
+import { hexToRgb, inputFocusHandlers, inputStyle, labelStyle, pill, primaryBtn } from './filter-panel/styles';
+import { PerimeterSections } from './filter-panel/PerimeterSections';
 import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
 import { MultiDropdown } from './filter-panel/MultiDropdown';
 import { RadioSearchInput } from './filter-panel/RadioSearchInput';
@@ -1184,45 +1186,6 @@ export function FilterPanel({
     }
   };
 
-  // ── Style helpers ─────────────────────────────────────────────────────────
-  const hexToRgb = (hex: string): string => {
-    if (!hex.startsWith('#') || hex.length < 7) return '240,240,240';
-    return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
-  };
-
-  const pill = (active: boolean, color: string) => ({
-    fontFamily: fInter, fontSize: 11, padding: '5px 9px',
-    background: active ? `rgba(${hexToRgb(color)},0.12)` : C.bgInput,
-    border: `0.5px solid ${active ? color : C.border}`, borderRadius: 4,
-    color: active ? color : C.textDim, cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)', flexShrink: 0 as const,
-  });
-
-  const primaryBtn = (color: string, disabled = false) => ({
-    fontFamily: fInter, fontSize: 12,
-    padding: '9px 14px', width: '100%',
-    background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.10)`,
-    border: `0.5px solid ${disabled ? C.border : color}`, borderRadius: 4,
-    color: disabled ? C.textDim : color, cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-  });
-
-  const labelStyle = {
-    fontFamily: fInter, fontSize: 11, fontWeight: 500 as const,
-    color: C.textSec, marginBottom: 6,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    fontFamily: fInter, fontSize: 13, background: C.bgInput,
-    border: `0.5px solid ${C.border}`, borderRadius: 4,
-    color: C.text, padding: '7px 10px', outline: 'none', width: '100%',
-    transition: 'border-color 300ms var(--ease-out)',
-  };
-
-  const inputFocusHandlers = {
-    onFocus: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; },
-    onBlur: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = C.border; },
-  };
-
   // ── Tab config ────────────────────────────────────────────────────────────
   const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0);
 
@@ -1442,151 +1405,31 @@ export function FilterPanel({
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'perimeter') && (
-        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Scope global */}
-            {(!filterSearch || 'périmètre global'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Périmètre global" sectionKey="perimetre" open={sectionsOpen.perimetre !== false} onToggle={() => toggleSection('perimetre')} count={scope ? 1 : 0} searchTerm={filterSearch} />
-              {sectionsOpen.perimetre !== false && (
-              <div style={{ marginBottom: 12, transition: 'opacity 150ms var(--ease-hover)', animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ ...pill(scope === 'metro', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('metro')}>
-                  France Metro
-                </button>
-                <button style={{ ...pill(scope === 'all', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('all')}>
-                  France + DROM
-                </button>
-              </div>
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Régions */}
-            {(!filterSearch || 'région régions'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Régions" sectionKey="regions" open={sectionsOpen.regions !== false} onToggle={() => toggleSection('regions')} count={selectedRegions.length} searchTerm={filterSearch} />
-              {sectionsOpen.regions !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-                <button
-                  onClick={() => {
-                    const allCodes = REF_REGIONS.map(r => r.code_region);
-                    const allSelected = REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length;
-                    setSelectedRegions(allSelected ? [] : allCodes);
-                    setScope(null);
-                  }}
-                  style={{ fontFamily: fInter, fontSize: 11, color: REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? C.red : C.textSec, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  {REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
-                </button>
-              </div>
-              <MultiDropdown
-                label={REF_REGIONS.length === 0 ? 'Chargement…' : 'Toutes les régions'}
-                items={REF_REGIONS.map(r => ({ id: r.code_region, label: r.nom_region }))}
-                selected={selectedRegions}
-                onChange={codes => { setSelectedRegions(codes); if (codes.length > 0) setScope(null); }}
-              />
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Départements */}
-            {(!filterSearch || 'département départements'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Départements" sectionKey="departements" open={sectionsOpen.departements !== false} onToggle={() => toggleSection('departements')} count={selectedDepts.length} searchTerm={filterSearch} />
-              {sectionsOpen.departements !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <MultiDropdown
-                label={availableDepts.length === 0 ? 'Chargement…' : 'Tous les départements'}
-                items={availableDepts.map(d => ({ id: d.code_dept, label: `${d.code_dept} — ${d.nom_dept}` }))}
-                selected={selectedDepts}
-                onChange={codes => { setSelectedDepts(codes); if (codes.length > 0) setScope(null); }}
-                searchable
-              />
-              {selectedRegions.length === 0 && (
-                <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                  Filtrer d&apos;abord par région
-                </div>
-              )}
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Recherche locale */}
-            {(!filterSearch || 'recherche locale ville'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Recherche locale" sectionKey="recherche" open={sectionsOpen.recherche !== false} onToggle={() => toggleSection('recherche')} count={(ville ? 1 : 0) + (codePostal ? 1 : 0)} searchTerm={filterSearch} />
-              {sectionsOpen.recherche !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
-                  <input style={inputStyle} placeholder="ex: Brest" value={ville}
-                    onChange={e => { setVille(e.target.value); if (e.target.value) setScope(null); }} {...inputFocusHandlers} />
-                </div>
-                <div style={{ width: 80 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>Code postal</div>
-                  <input style={inputStyle} placeholder="29200" value={codePostal}
-                    onChange={e => setCodePostal(e.target.value)} maxLength={5} {...inputFocusHandlers} />
-                </div>
-              </div>
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Territoire summary */}
-            {hasTerritoire && (
-              <div style={{ padding: '10px 12px', background: C.greenDim, border: `0.5px solid rgba(61,255,160,0.2)`, borderRadius: 4 }}>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.green, marginBottom: 4 }}>
-                  Territoire sélectionné
-                </div>
-                <div style={{ fontFamily: fInter, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{territoire}</div>
-                <button
-                  onClick={() => { setScope(null); setSelectedRegions([]); setSelectedDepts([]); setVille(''); setCodePostal(''); }}
-                  style={{ marginTop: 8, fontFamily: fInter, fontSize: 11, color: C.textDim, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  ✕ Réinitialiser
-                </button>
-              </div>
-            )}
-
-            {/* Toggle territory mask : visible quand un filtre admin est actif */}
-            {adminScale !== null && adminCodes.length > 0 && (
-              <div style={{
-                padding: '10px 12px',
-                background: 'rgba(78,205,196,0.08)',
-                borderLeft: '2px solid var(--brand-teal)',
-                borderRadius: '0 4px 4px 0',
-              }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={territoryMaskEnabled}
-                    onChange={e => setTerritoryMaskEnabled(e.target.checked)}
-                    style={{ accentColor: 'var(--brand-teal)' }}
-                  />
-                  <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
-                    Afficher uniquement le territoire
-                  </span>
-                </label>
-                <p style={{ margin: '6px 0 0 22px', fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
-                  {adminScale === 'departement'
-                    ? 'Masque tout hors des départements selectionnes.'
-                    : adminScale === 'region'
-                    ? 'Masque tout hors des regions selectionnees.'
-                    : 'Masque tout hors du territoire selectionne.'}
-                </p>
-              </div>
-            )}
-
-          </div>
-        </CategoryGroup>
+          <PerimeterSections
+            isOverlayMode={isOverlayMode}
+            filterSearch={filterSearch}
+            sectionsOpen={sectionsOpen}
+            toggleSection={toggleSection}
+            scope={scope}
+            selectScope={selectScope}
+            setScope={setScope}
+            selectedRegions={selectedRegions}
+            setSelectedRegions={setSelectedRegions}
+            refRegions={REF_REGIONS}
+            selectedDepts={selectedDepts}
+            setSelectedDepts={setSelectedDepts}
+            availableDepts={availableDepts}
+            ville={ville}
+            setVille={setVille}
+            codePostal={codePostal}
+            setCodePostal={setCodePostal}
+            territoire={territoire}
+            hasTerritoire={hasTerritoire}
+            adminScale={adminScale}
+            adminCodes={adminCodes}
+            territoryMaskEnabled={territoryMaskEnabled}
+            setTerritoryMaskEnabled={setTerritoryMaskEnabled}
+          />
         )}
 
         {/* ════════════════════════════════════════
