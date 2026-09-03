@@ -45,6 +45,11 @@ import { OohSection } from './filter-panel/OohSection';
 import { TransportSection } from './filter-panel/TransportSection';
 import { TmjaSection } from './filter-panel/TmjaSection';
 import { RadioSection } from './filter-panel/RadioSection';
+import { CarreauxSection } from './filter-panel/CarreauxSection';
+import { IrisSection } from './filter-panel/IrisSection';
+import { CivicIndicatorsSection } from './filter-panel/CivicIndicatorsSection';
+import { CivicHealthSection } from './filter-panel/CivicHealthSection';
+import { MeteoSection } from './filter-panel/MeteoSection';
 import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
 import { MultiDropdown } from './filter-panel/MultiDropdown';
 import { RadioSearchInput } from './filter-panel/RadioSearchInput';
@@ -1548,596 +1553,82 @@ export function FilterPanel({
         <CategoryGroup title="Audience" color="var(--cat-socio)" colorRgb="91,155,213" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('carreaux')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Carreaux
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.carreaux && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <CarreauxSection
+              analyseOpen={analyseOpen}
+              toggleAnalyse={toggleAnalyse}
+              carreauxVisible={carreauxVisible}
+              carreauxLoaded={carreauxLoaded}
+              carreauxIndicateur={carreauxIndicateur}
+              carreauxPalette={carreauxPalette}
+              carreauxOpacity={carreauxOpacity}
+              carreauxRange={carreauxRange}
+              carreauxSelectedBucket={carreauxSelectedBucket}
+              setCarreauxVisible={setCarreauxVisible}
+              setCarreauxIndicateur={setCarreauxIndicateur}
+              setCarreauxPalette={setCarreauxPalette}
+              setCarreauxOpacity={setCarreauxOpacity}
+              setCarreauxSelectedBucket={setCarreauxSelectedBucket}
+            />
 
-              {/* Toggle visible */}
-              <button
-                onClick={() => setCarreauxVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
-                  Carreaux{carreauxLoaded ? ' ✓' : ''}
-                </span>
-              </button>
-
-              {/* Indicateur */}
-              <select
-                value={carreauxIndicateur ?? 'population_totale'}
-                onChange={e => setCarreauxIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
-                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
-                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {CARREAUX_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={carreauxOpacity ?? 0.72}
-                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Légende
-                  {carreauxSelectedBucket !== null && (
-                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
-                    >✕ Tout</button>
-                  )}
-                </div>
-                {(() => {
-                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
-                  if (carreauxRange) {
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => {
-                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                          const min = carreauxRange.p5 + i * step;
-                          const max = carreauxRange.p5 + (i + 1) * step;
-                          const isSelected = carreauxSelectedBucket === i;
-                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
-                          return (
-                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
-                            >
-                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
-                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
-                              </span>
-                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
-            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('iris')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                IRIS
-                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.iris && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setIrisVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
-                  Couche IRIS
-                </span>
-              </button>
-
-              {/* Toggle vrais IRIS uniquement */}
-              <button
-                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
-                  Vrais IRIS uniquement
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
-                </span>
-              </button>
-
-              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
-              <select
-                value={irisIndicateur ?? 'pop_15_29'}
-                onChange={e => setIrisIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(
-                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
-                    if (!acc.has(col.group)) acc.set(col.group, []);
-                    acc.get(col.group)!.push(col);
-                    return acc;
-                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
-                ).map(([group, cols]) => (
-                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
-                    {cols.map(col => (
-                      <option key={col.name} value={col.name}>{col.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {IRIS_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={irisOpacity ?? 0.45}
-                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((irisOpacity ?? 0.45) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
-                {(() => {
-                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
-                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
-                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }
-                  if (irisVisible && !irisStats) {
-                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
-                  }
-                  if (irisStats && !irisStats.col_exists) {
-                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
+            <IrisSection
+              analyseOpen={analyseOpen}
+              toggleAnalyse={toggleAnalyse}
+              irisVisible={irisVisible}
+              irisIndicateur={irisIndicateur}
+              irisPalette={irisPalette}
+              irisOpacity={irisOpacity}
+              irisStats={irisStats}
+              irisTrueOnly={irisTrueOnly}
+              setIrisVisible={setIrisVisible}
+              setIrisIndicateur={setIrisIndicateur}
+              setIrisPalette={setIrisPalette}
+              setIrisOpacity={setIrisOpacity}
+              setIrisTrueOnly={setIrisTrueOnly}
+            />
 
             {/* Sections contexte — blocs déplacés depuis Données terrain */}
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* ── Section : Indicateurs civiques ──────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader
-                label="Indicateurs civiques"
-                sectionKey="civic"
-                open={sectionsOpen.civic !== false}
-                onToggle={() => toggleSection('civic')}
-                count={civicVariableCode ? 1 : 0}
-                searchTerm={filterSearch}
-              />
-              {sectionsOpen.civic !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                <div style={{ ...labelStyle, marginBottom: 4 }}>Variable à afficher</div>
-                <div style={{ position: 'relative' }}>
-                  <select
-                    value={civicVariableCode ?? ''}
-                    onChange={(e) => onCivicVariableChange?.((e.target.value || null) as 'abstention_pres_2022' | null)}
-                    style={{
-                      width: '100%', padding: '8px 28px 8px 11px',
-                      background: C.bgInput,
-                      border: `0.5px solid ${civicVariableCode ? 'var(--brand-teal)' : C.border}`,
-                      borderRadius: 4,
-                      fontFamily: fInter, fontSize: 13,
-                      color: civicVariableCode ? 'var(--brand-teal)' : C.text,
-                      appearance: 'none', cursor: 'pointer', outline: 'none',
-                      transition: 'border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
-                    }}
-                  >
-                    <option value="">— Aucune (layer désactivé) —</option>
-                    <option value="abstention_pres_2022">🗳️ Taux d&apos;abstention (Présidentielle 2022)</option>
-                  </select>
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.textDim, fontSize: 10 }}>▾</span>
-                </div>
+            <CivicIndicatorsSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              civicVariableCode={civicVariableCode}
+              onCivicVariableChange={onCivicVariableChange}
+            />
 
-                {civicVariableCode === 'abstention_pres_2022' && (
-                  <>
-                    {/* Légende gradient */}
-                    <div style={{ marginTop: 10 }}>
-                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                        Légende
-                      </div>
-                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                        {[['#16a34a', 0.5], ['#84cc16', 1], ['#eab308', 1], ['#f97316', 1], ['#dc2626', 1.2], ['#7f1d1d', 0.8]].map(([color, weight], i) => (
-                          <div key={i} style={{ flex: weight as number, background: color as string }} />
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
-                        <span>10% (forte particip.)</span>
-                        <span>30%</span>
-                        <span>60% (forte abst.)</span>
-                      </div>
-                    </div>
+            <CivicHealthSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedIrisCommuneCode={selectedIrisCommuneCode}
+              selectedIrisCommuneName={selectedIrisCommuneName}
+              civicHealthLayer={civicHealthLayer}
+              onCivicHealthLayerChange={onCivicHealthLayerChange}
+              civicScale={civicScale}
+              onCivicScaleChange={onCivicScaleChange}
+              civicMetric={civicMetric}
+              onCivicMetricChange={onCivicMetricChange}
+              civicMinLevel={civicMinLevel}
+              onCivicMinLevelChange={onCivicMinLevelChange}
+              civicProgress={civicProgress}
+              civicLoading={civicLoading}
+              civicCpStatus={civicCpStatus}
+              civicCpDate={civicCpDate}
+              runCivicIngestStream={runCivicIngestStream}
+              civicIngestState={civicIngestState}
+            />
 
-                    {/* Source */}
-                    <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                      Source : data.gouv.fr — Ministère de l&apos;Intérieur · 6 186 codes postaux (France métro + DROM)
-                    </div>
-                  </>
-                )}
-              </div>
-              )}{/* fin collapsible civic */}
-            </div>
-
-            {/* ── Section : Santé environnementale (ATMO + pollen) ────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader
-                label="Santé environnementale"
-                sectionKey="civicHealth"
-                open={sectionsOpen.civicHealth === true}
-                onToggle={() => toggleSection('civicHealth')}
-                count={(selectedIrisCommuneCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)}
-                searchTerm={filterSearch}
-              />
-              {sectionsOpen.civicHealth === true && (
-                <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <HealthIndicatorCard
-                    codeCommune={selectedIrisCommuneCode ?? null}
-                    nomCommune={selectedIrisCommuneName ?? null}
-                  />
-
-                  {/* Choix de la couche — une seule active à la fois, re-clic pour masquer */}
-                  <div>
-                    <div style={{ ...labelStyle, marginBottom: 4 }}>Couche nationale</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {([['pollen', '🌾 Allergènes'], ['atmo', '🌬️ Qualité de l’air']] as const).map(([value, label]) => {
-                        const active = civicHealthLayer === value;
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => onCivicHealthLayerChange?.(active ? null : value)}
-                            title={active ? 'Masquer la couche' : 'Afficher la couche'}
-                            style={{
-                              flex: 1, padding: '8px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                              fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                              background: active ? 'rgba(78,205,196,0.1)' : 'transparent',
-                              border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                              color: active ? 'var(--brand-teal)' : C.textSec,
-                            }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {civicHealthLayer && (
-                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {/* Échelle des zones */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>Échelle</div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {([['departement', 'Département'], ['cp', 'Code postal']] as const).map(([value, label]) => (
-                            <button
-                              key={value}
-                              onClick={() => onCivicScaleChange?.(value)}
-                              style={{
-                                flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                                fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                                background: civicScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                                border: `0.5px solid ${civicScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                                color: civicScale === value ? 'var(--brand-teal)' : C.textSec,
-                              }}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Donnée CP absente : ingestion jamais lancée */}
-                      {civicScale === 'cp' && civicCpStatus === 'no_data' && (
-                        <div style={{
-                          padding: '8px 10px', borderRadius: 6,
-                          background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
-                        }}>
-                          <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginBottom: 6 }}>
-                            Aucune donnée nationale — l&apos;ingestion quotidienne n&apos;a pas encore tourné.
-                          </div>
-                          <button
-                            onClick={runCivicIngestStream}
-                            disabled={civicIngestState.running}
-                            style={{
-                              padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                              fontFamily: fInter, cursor: civicIngestState.running ? 'wait' : 'pointer',
-                              background: 'transparent', border: '0.5px solid var(--brand-teal)',
-                              color: 'var(--brand-teal)', opacity: civicIngestState.running ? 0.6 : 1,
-                            }}
-                          >
-                            {civicIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
-                          </button>
-                        </div>
-                      )}
-                      {(civicIngestState.message || civicIngestState.error) && (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: civicIngestState.error ? 'var(--danger)' : C.textDim }}>
-                          {civicIngestState.error ?? civicIngestState.message}
-                        </div>
-                      )}
-
-                      {/* Métrique filtrée — espèce (pollen) ou polluant (air) */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>
-                          {civicHealthLayer === 'pollen' ? 'Allergène' : 'Polluant'}
-                        </div>
-                        <select
-                          value={civicMetric}
-                          onChange={e => onCivicMetricChange?.(e.target.value)}
-                          style={{
-                            width: '100%', padding: '7px 11px', background: C.bgInput,
-                            border: '0.5px solid var(--border-subtle)', borderRadius: 6,
-                            fontFamily: fInter, fontSize: 12, color: C.text, cursor: 'pointer', outline: 'none',
-                          }}
-                        >
-                          <option value="global">Indice global</option>
-                          {civicHealthLayer === 'pollen' ? (
-                            <>
-                              <option value="ambroisie">Ambroisie</option>
-                              <option value="armoise">Armoise</option>
-                              <option value="aulne">Aulne</option>
-                              <option value="bouleau">Bouleau</option>
-                              <option value="graminees">Graminées</option>
-                              <option value="olivier">Olivier</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="no2">Dioxyde d&apos;azote (NO₂)</option>
-                              <option value="o3">Ozone (O₃)</option>
-                              <option value="pm10">Particules PM10</option>
-                              <option value="pm25">Particules fines PM2.5</option>
-                              <option value="so2">Dioxyde de soufre (SO₂)</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Seuil minimum — cœur du filtre zones à risque */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>Niveau minimum affiché</div>
-                        <select
-                          value={civicMinLevel}
-                          onChange={e => onCivicMinLevelChange?.(Number(e.target.value))}
-                          style={{
-                            width: '100%', padding: '7px 11px', background: C.bgInput,
-                            border: `0.5px solid ${civicMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
-                            borderRadius: 6, fontFamily: fInter, fontSize: 12,
-                            color: civicMinLevel > 0 ? 'var(--brand-teal)' : C.text,
-                            cursor: 'pointer', outline: 'none',
-                          }}
-                        >
-                          <option value={0}>Tous les niveaux</option>
-                          {civicHealthLayer === 'pollen' ? (
-                            <>
-                              <option value={3}>≥ modéré</option>
-                              <option value={4}>≥ élevé</option>
-                              <option value={5}>≥ très élevé</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value={3}>≥ dégradé</option>
-                              <option value={4}>≥ mauvais</option>
-                              <option value={5}>≥ très mauvais</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Chargement : stream département (compteur) ou fetch CP */}
-                      {civicScale === 'departement' && civicProgress && civicProgress.done < civicProgress.total ? (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                          Chargement… {civicProgress.done}/{civicProgress.total} départements
-                        </div>
-                      ) : civicLoading ? (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                          Chargement de la couche…
-                        </div>
-                      ) : null}
-
-                      {/* Légende : un libellé par niveau (1-6) */}
-                      <div>
-                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
-                          {civicHealthLayer === 'pollen' ? 'Indice pollen' : 'Indice ATMO'}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px' }}>
-                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => {
-                            const token = civicHealthLayer === 'pollen' ? `--pollen-level-${lvl}` : `--atmo-level-${lvl}`;
-                            const label = civicHealthLayer === 'pollen' ? POLLEN_LEVEL_LABELS[lvl] : ATMO_LEVEL_LABELS[lvl];
-                            const dimmed = civicMinLevel > 0 && lvl < civicMinLevel;
-                            return (
-                              <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: dimmed ? 0.3 : 1, transition: 'opacity 150ms var(--ease-hover)' }}>
-                                <span style={{ width: 10, height: 10, borderRadius: 2, background: `var(${token})`, flexShrink: 0 }} />
-                                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
-                                  {lvl} — {label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                        Source : Atmo France et les AASQA (ODbL) — {civicScale === 'cp'
-                          ? `max des communes par code postal${civicCpDate ? ` · données du ${civicCpDate}` : ''}`
-                          : '1 commune par département'} · clic sur une zone pour le détail {civicHealthLayer === 'pollen' ? 'par espèce' : 'par polluant'}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* ── Section : Météo ─────────────────────────────────────────── */}
             {onOpenMeteo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <FilterSectionHeader
-                  label="Météo"
-                  sectionKey="meteo"
-                  open={sectionsOpen.meteo !== false}
-                  onToggle={() => toggleSection('meteo')}
-                  count={meteoVisible ? 1 : 0}
-                  searchTerm={filterSearch}
-                />
-                {sectionsOpen.meteo !== false && (
-                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
-                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
-                    </div>
-                    {meteoVisible && meteoLabel && (
-                      <div style={{
-                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
-                        color: 'var(--brand-teal)',
-                        padding: '4px 8px',
-                        background: 'var(--bg-level-2)',
-                        border: '0.5px solid var(--brand-teal)',
-                        borderRadius: 4,
-                        marginBottom: 8,
-                      }}>
-                        {meteoLabel} actif
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
-                        onClick={onOpenMeteo}
-                      >
-                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
-                      </button>
-                      {meteoVisible && (
-                        <button
-                          style={pill(false, C.muted)}
-                          onClick={onClearMeteo}
-                          title="Masquer la couche météo"
-                        >Masquer</button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <MeteoSection
+                filterSearch={filterSearch}
+                sectionsOpen={sectionsOpen}
+                toggleSection={toggleSection}
+                meteoVisible={meteoVisible}
+                meteoLabel={meteoLabel}
+                onOpenMeteo={onOpenMeteo}
+                onClearMeteo={onClearMeteo}
+              />
             )}
 
             </div>
