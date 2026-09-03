@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { PacingCard } from './PacingCard';
@@ -11,7 +11,10 @@ const PILOT_TOOLS = ['tool-demarrer_pilotage', 'tool-mesurer', 'tool-corriger_en
 export function PilotChatPanel() {
   const [mode, setMode] = useState<'guide' | 'autonome'>('guide');
   const [input, setInput] = useState('');
-  const modeRef = useMemo(() => ({ current: mode }), []);
+  // `useRef` plutôt qu'un `useMemo(() => ({ current: mode }), [])` : c'était une
+  // ref écrite à la main, que le linter lisait comme un memo à la dépendance
+  // manquante. Même objet stable, même mise à jour à chaque render.
+  const modeRef = useRef(mode);
   modeRef.current = mode;
 
   const transport = useMemo(() => new DefaultChatTransport({

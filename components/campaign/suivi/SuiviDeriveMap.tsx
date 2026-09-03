@@ -166,6 +166,9 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
         map.remove();
         mapRef.current = null;
         mapReadyRef.current = false;
+        // Ref lue au demontage a dessein : on vide le cache des mailles deja
+        // cadrees, quelle que soit l'instance de carte courante.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
         boundedMeshesRef.current.clear();
       };
     }, []);
@@ -264,6 +267,10 @@ export const SuiviDeriveMap = forwardRef<SuiviDeriveMapHandle, SuiviDeriveMapPro
       };
 
       if (mapReadyRef.current) apply(); else map.once('load', apply);
+    // `threshold` volontairement hors deps : le seuil recolore la carte via
+    // l'effet suivant, sans refetch ni recadrage. L'inclure ici relancerait
+    // un fitBounds a chaque cran de seuil.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
     }, [features, mesh]);
 
     // Seuil : recolore la carte SANS refetch (fillExpr recalculée, pas d'appel réseau).

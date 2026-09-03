@@ -79,6 +79,7 @@ export function SplashScreen({ onComplete, minDuration = 2500 }: SplashScreenPro
           opacity: 0,
           animation: 'splash-text 0.5s ease-out 0.8s forwards',
         }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- logotype SVG : next/image n'optimise pas le SVG, et DESIGN_SYSTEM.md impose la balise img pour /magelian-icon.svg partout */}
           <img
             src="/magelian-icon.svg"
             alt="MAGELIAN"

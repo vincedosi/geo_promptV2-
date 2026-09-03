@@ -528,6 +528,10 @@ export function FilterPanel({
       })
       .finally(() => setCatsLoading(false));
   };
+  // Chargement unique au montage. NE PAS ajouter `fetchCategories` en
+  // dependance : la fonction est recreee a chaque render, l'effet
+  // rejouerait donc un fetch a chaque render — budget I/O Supabase Nano.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
   useEffect(() => { fetchCategories(); }, []);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
@@ -622,7 +626,13 @@ export function FilterPanel({
   const adminScale: 'region' | 'departement' | null =
     selectedDepts.length > 0 ? 'departement' :
     selectedRegions.length > 0 ? 'region' : null;
-  const adminCodes = adminScale === 'departement' ? selectedDepts : adminScale === 'region' ? selectedRegions : [];
+  // useMemo indispensable : sans lui, la branche `[]` fabrique un tableau neuf
+  // à chaque render, ce qui invalide `getAdminGeom` et fait rejouer l'effet du
+  // masque territoire (démontage/remontage des couches MapLibre) en continu.
+  const adminCodes = useMemo(
+    () => (adminScale === 'departement' ? selectedDepts : adminScale === 'region' ? selectedRegions : []),
+    [adminScale, selectedDepts, selectedRegions],
+  );
   const getAdminGeom = useCallback(async (): Promise<ContributedGeometry> => {
     if (!adminScale || adminCodes.length === 0) return null;
     const res = await adminFetch('/api/custom-geo/source/admin', {

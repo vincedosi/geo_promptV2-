@@ -187,6 +187,7 @@ export default function Dv360Page() {
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- logo SVG de provider : rien a optimiser pour next/image */}
         <img src={provider?.logo} alt="DV360" style={{ height: 28 }} />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: fMono, fontSize: 12, color: statusColor }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor }} />

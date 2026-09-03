@@ -6,6 +6,7 @@ export function ProviderPlaceholder({ providerKey }: { providerKey: DspProvider 
   const p = PROVIDERS.find((x) => x.key === providerKey)!;
   return (
     <div style={{ maxWidth: 560 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- logo SVG de provider : rien a optimiser pour next/image */}
       <img src={p.logo} alt={p.label} style={{ height: 28, marginBottom: 16 }} />
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24 }}>
         <p style={{ fontFamily: fInter, fontSize: 14, color: C.text, margin: 0 }}>
