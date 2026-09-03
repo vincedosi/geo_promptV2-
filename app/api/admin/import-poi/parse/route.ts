@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file types + taille AVANT toute lecture en mémoire
-    const allowedExts = ['csv', 'txt', 'tsv', 'xlsx', 'xls', 'xlsm', 'geojson', 'json', 'shp', 'dbf', 'prj', 'shx'];
+    const allowedExts = ['csv', 'txt', 'tsv', 'xlsx', 'xlsm', 'geojson', 'json', 'shp', 'dbf', 'prj', 'shx'];
     for (const file of files) {
       const ext = file.name.toLowerCase().split('.').pop() || '';
       if (!allowedExts.includes(ext)) {
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       fs.writeFileSync(tempPath, buffer);
 
       // Parse file
-      parsed = parseFile(buffer, file.name);
+      parsed = await parseFile(buffer, file.name);
       fileName = file.name;
 
       // Schedule cleanup

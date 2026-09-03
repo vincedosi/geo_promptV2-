@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const fileName = tempFiles[0];
 
     // Parse file
-    const parsed = parseFile(buffer, fileName);
+    const parsed = await parseFile(buffer, fileName);
     const totalRows = parsed.rows.length;
 
     logger.info('GEOCODE-BATCH', `Starting batch geocoding: ${totalRows} rows`);

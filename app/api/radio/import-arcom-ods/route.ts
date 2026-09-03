@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         await logger.info('PARSE', `Parsing du fichier ${file.name} (${(buffer.length / 1024).toFixed(0)} Ko)...`);
 
-        const entries = parseArcomODS(buffer);
+        const entries = await parseArcomODS(buffer, file.name);
         const aggregated = aggregateByRadio(entries);
 
         await logger.info('PARSE', `${entries.length} entrées parsées, ${aggregated.length} radios uniques`);

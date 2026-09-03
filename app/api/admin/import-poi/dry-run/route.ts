@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const fileName = tempFiles[0];
 
     // Parse file
-    const parsed = parseFile(buffer, fileName);
+    const parsed = await parseFile(buffer, fileName);
 
     // Apply limit (default 100 for dry-run)
     const limit = config.limit || 100;

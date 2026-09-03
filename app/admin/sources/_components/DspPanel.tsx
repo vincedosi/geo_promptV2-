@@ -114,7 +114,7 @@ export function DspPanel({ dsp }: DspPanelProps) {
                     onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setDspFile(f); }}
                     style={{ background: C.bgSurface, border: `0.5px dashed ${C.borderLight}`, borderRadius: 6, padding: '20px 16px', textAlign: 'center', cursor: 'pointer' }}
                   >
-                    <input ref={dspFileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={(e) => { if (e.target.files?.[0]) setDspFile(e.target.files[0]); }} />
+                    <input ref={dspFileRef} type="file" accept=".csv,.xlsx" style={{ display: 'none' }} onChange={(e) => { if (e.target.files?.[0]) setDspFile(e.target.files[0]); }} />
                     {dspFile
                       ? <span style={{ fontFamily: fontMono, fontSize: 12, color: C.accent }}>{dspFile.name}</span>
                       : <span style={{ fontFamily: fontInter, fontSize: 12, color: C.textSec }}>Glisser-déposer ou cliquer pour sélectionner</span>

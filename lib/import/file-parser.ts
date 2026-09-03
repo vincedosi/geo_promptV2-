@@ -1,10 +1,10 @@
 /**
  * GENESIS — Import Universel — File Parser
- * Parse CSV (papaparse), Excel (xlsx), GeoJSON, Shapefile
+ * Parse CSV (papaparse), Excel (exceljs), GeoJSON, Shapefile
  * Port TypeScript de genesis_etl/loader.py
  */
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { readXlsxSheetRows } from './xlsx-reader';
 
 export interface ParsedFile {
   rows: Record<string, string | null>[];
@@ -106,27 +106,15 @@ function parseCSV(buffer: Buffer): ParsedFile {
 }
 
 // ============================================================
-// Excel Parser (xlsx / SheetJS)
+// Excel Parser (exceljs — voir lib/import/xlsx-reader.ts)
 // ============================================================
 
-function parseExcel(buffer: Buffer, fileName: string): ParsedFile {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
-
-  // Find first non-empty sheet (matches Python loader.py _load_excel)
-  let sheetName = workbook.SheetNames[0];
-  for (const name of workbook.SheetNames) {
-    const sheet = workbook.Sheets[name];
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
-    if (data.length > 0) {
-      sheetName = name;
-      break;
-    }
-  }
-
-  const sheet = workbook.Sheets[sheetName];
-  const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+async function parseExcel(buffer: Buffer): Promise<ParsedFile> {
+  // `firstNonEmpty` reproduit le choix de feuille du loader.py Python.
+  const rawData = await readXlsxSheetRows(buffer, {
     defval: null,
     raw: false, // Return all values as strings
+    sheet: 'firstNonEmpty',
   });
 
   const rows: Record<string, string | null>[] = rawData.map((row) => {
@@ -146,13 +134,11 @@ function parseExcel(buffer: Buffer, fileName: string): ParsedFile {
     return cleaned;
   });
 
-  const ext = fileName.toLowerCase().endsWith('.xls') ? 'xls' : 'xlsx';
-
   return {
     rows,
     format: 'xlsx',
     encoding: 'binary',
-    separator: ext === 'xls' ? 'xls' : 'xlsx',
+    separator: 'xlsx',
     totalRows: rows.length,
   };
 }
@@ -343,7 +329,7 @@ export async function parseShapefile(bundle: ShapefileBundle): Promise<ParsedFil
 // Main entry point (single file formats)
 // ============================================================
 
-export function parseFile(buffer: Buffer, fileName: string): ParsedFile {
+export async function parseFile(buffer: Buffer, fileName: string): Promise<ParsedFile> {
   const ext = fileName.toLowerCase().split('.').pop() || '';
 
   switch (ext) {
@@ -353,9 +339,14 @@ export function parseFile(buffer: Buffer, fileName: string): ParsedFile {
       return parseCSV(buffer);
 
     case 'xlsx':
-    case 'xls':
     case 'xlsm':
-      return parseExcel(buffer, fileName);
+      return parseExcel(buffer);
+
+    case 'xls':
+      throw new Error(
+        'Le format binaire .xls (Excel 97-2003) n\'est plus supporté. ' +
+        'Ouvrez le fichier dans Excel ou LibreOffice et enregistrez-le en .xlsx.'
+      );
 
     case 'geojson':
     case 'json':
@@ -370,7 +361,7 @@ export function parseFile(buffer: Buffer, fileName: string): ParsedFile {
     default:
       throw new Error(
         `Format de fichier non supporté : .${ext}\n` +
-        'Formats acceptés : CSV, Excel (.xlsx/.xls), GeoJSON, Shapefile (.shp+.dbf+.prj+.shx)'
+        'Formats acceptés : CSV, Excel (.xlsx), GeoJSON, Shapefile (.shp+.dbf+.prj+.shx)'
       );
   }
 }

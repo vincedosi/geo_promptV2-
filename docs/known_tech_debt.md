@@ -2,7 +2,11 @@
 
 > Date : 2026-04-30 · Référencé par chantier A4.6.2
 > Révisé : 2026-08-31 (branche `chore/zero-tech-debt`) — items 2, 4 et 5 fermés,
-> chiffres remesurés. Les items 1, 3 et 6 restent ouverts.
+> chiffres remesurés.
+> Révisé : 2026-09-03 (branche `chore/drop-xlsx-exceljs`) — item 3 fermé
+> (xlsx retiré). De l'item 1, seul `FilterPanel.tsx` reste ouvert : les splits
+> de `admin/sources/page.tsx` et `map/page.tsx` ont été livrés le 2026-09-01.
+> Reste ouvert : item 1 (FilterPanel), item 6, item 8.
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
 qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
@@ -120,17 +124,49 @@ régression.
 
 ---
 
-## 3. xlsx → exceljs (vuln HIGH sans fix officiel)
+## 3. xlsx → exceljs — ✅ FERMÉ le 2026-09-03
 
-Voir `docs/cleanup/deps_audit.md`. `xlsx` (SheetJS) a 2 vulnérabilités HIGH
-publiées sans fix dispo (prototype pollution + ReDoS). Utilisé pour les
-imports/exports Excel dans `/admin/import-poi`, `/admin/carreaux-import`,
-`scripts/`.
+`xlsx` (SheetJS) portait 2 vulnérabilités HIGH sans correctif possible sur
+npm (prototype pollution GHSA-4r6h-8v6p-xvw6, ReDoS GHSA-5pgg-2g8v-p4x9) :
+l'éditeur a quitté le registre après la 0.18.5, et l'advisory couvre donc
+toutes les versions publiées.
 
-**Migration** : `exceljs` est compatible API et activement maintenu.
+La dépendance est retirée. Trois consommateurs, tous des parsers serveur
+derrière `requireAdmin()` :
 
-**Effort estimé** : ~4-6 h Claude Code (audit imports/exports, tests E2E des
-flows d'import).
+| Fichier | Remplacement |
+|---|---|
+| `lib/import/file-parser.ts` | `lib/import/xlsx-reader.ts` (exceljs) |
+| `lib/dsp-mapping/parser.ts` | `lib/import/xlsx-reader.ts` (exceljs) |
+| `lib/radio/arcom-ods-parser.ts` | `lib/import/ods-reader.ts` (jszip, maison) |
+
+**Pourquoi un lecteur ODS maison** : exceljs ne lit pas OpenDocument, et le
+fichier de référence Arcom n'existe qu'en `.ods`. Un ODS étant un zip
+contenant `content.xml`, le lecteur l'ouvre avec jszip (déjà en dépendance)
+et balaie le XML en linéaire, borné par `SHEET_LIMITS`.
+
+**Écarts de comportement assumés** :
+- les cellules date sortent en `yyyy-mm-dd` au lieu du format d'affichage du
+  fichier. SheetJS rendait « 1/15/26 », que `castToDataType` refusait : tout
+  `.xlsx` DSP à colonne date voyait **ses lignes entièrement rejetées** en
+  `validationErrors`. Bug latent corrigé au passage ;
+- le binaire `.xls` (Excel 97-2003) n'est plus lu — exceljs ne sait pas le
+  décoder. Décision produit du 2026-09-03 : format abandonné, erreur
+  explicite demandant une conversion en `.xlsx`, extension retirée des
+  `accept` de `/admin/import`, `/admin/radio` et du panneau DSP.
+
+**Solde npm audit** : plus aucune vulnérabilité sans correctif. exceljs
+apporte `uuid@8.3.2` (moderate, bornes de buffer sur v3/v5/v6 avec argument
+`buf`) — chemin non atteignable, exceljs n'appelle que `uuid.v4()`.
+
+**Couverture** : 48 tests sur `tests/unit/import/`,
+`tests/unit/campaigns/dsp-xlsx-parser.test.ts` et
+`tests/unit/radio/arcom-ods-parser.test.ts`, sur fixtures binaires écrites
+par SheetJS avant son retrait (cf. `tests/fixtures/parsers/README.md`).
+
+**Reste à vérifier en conditions réelles** : un import du fichier Arcom
+officiel et un import POI depuis un `.xlsx` produit par Excel — aucune
+fixture ne provient d'un vrai tableur.
 
 ---
 
@@ -266,19 +302,29 @@ pourquoi elles sont conservées.
 | `carreaux_1km` PK | fermé sans action — table vide, jamais lue, pas d'UPSERT |
 | `any` résiduels | aucun actionnable — 9 en fichiers protégés, 1 vendor, 3 écartés |
 
+### Fermé le 2026-09-01 (branche `refactor/split-gros-fichiers`)
+
+| Item | Résolution |
+|---|---|
+| `admin/sources/page` split | 2 544 → 928 lignes (6 panels, 3 hooks, 3 modules lib) |
+| `map/page` split | 2 329 → 974 lignes (5 hooks de domaine) |
+
+### Fermé le 2026-09-03 (branche `chore/drop-xlsx-exceljs`)
+
+| Item | Résolution |
+|---|---|
+| xlsx → exceljs (2 vuln. HIGH sans correctif) | dépendance retirée, lecteurs maison + 48 tests — cf. §3 |
+
 ### Ouvert
 
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | FilterPanel split (3651 l.) | 8-10 h | élevé | smoke E2E manuel Vince |
-| `admin/sources/page` split (2544 l.) | 6-8 h | medium | smoke E2E manuel Vince |
-| `map/page` split (1879 l.) | 8-10 h | élevé | smoke E2E manuel Vince |
-| xlsx → exceljs (2 vuln. HIGH) | 4-6 h | faible | test d'import après migration |
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 18 fichiers 500-1500 lignes | 6-8 h | medium | smoke E2E manuel Vince |
+| 4 fichiers 1000-1800 lignes | 6-8 h | medium | smoke E2E manuel Vince |
 | 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
 
-**Total restant : ~25-35 h**, dont l'essentiel est bloqué non par la
+**Total restant : ~15-20 h**, dont l'essentiel est bloqué non par la
 difficulté technique mais par le besoin de validation manuelle en
 navigateur après chaque extraction.
 
