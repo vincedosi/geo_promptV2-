@@ -325,6 +325,7 @@ pourquoi elles sont conservées.
 |---|---|
 | xlsx → exceljs (2 vuln. HIGH sans correctif) | dépendance retirée, lecteurs maison + 48 tests — cf. §3 |
 | `FilterPanel` split (3651 l.) | 3651 → 1816 lignes, 19 fichiers par catégorie d'overlay — cf. §1 |
+| `npm audit fix` | 22 → 17 vulnérabilités, lockfile seul ; les 17 restantes demandent un changement cassant et sont dev-only sauf `next` |
 
 ### Ouvert
 
@@ -333,6 +334,8 @@ pourquoi elles sont conservées.
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
 | 5 fichiers 1000-1816 lignes | 8-10 h | medium | smoke E2E manuel Vince |
 | 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
+| bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
+| 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
 
 Les 5 fichiers de plus de 1 000 lignes, mesurés le 2026-09-03 :
 `FilterPanel.tsx` (1 816 — reste ses handlers, cf. §1),
