@@ -3,23 +3,22 @@ import { logger } from '@/lib/logger';
 
 /**
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
- * @size ~3789 lignes (cf docs/known_tech_debt.md — refactor planifié, non
- *       splitté en A4.6.2 par décision produit pour réduire le risque pitch)
  *
- * @sections internes (ordre approximatif)
- *   1. Imports + types globaux           (≈ 1-140)
- *   2. Helpers locaux + constantes       (≈ 141-280)
- *   3. Props + interfaces FilterPanel    (≈ 281-550)
- *   4. State management (useState/useRef) (≈ 551-900)
- *   5. Custom geo capture hooks          (≈ 901-1050)
- *   6. POI handlers + isochrones         (≈ 1051-1500)
- *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
- *   8. Voronoi                           (≈ 1901-2200)
- *   9. Corrélation                       (≈ 2201-2700)
- *  10. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
+ * Rendu par /map dans l'overlay du rail, avec `visibleCategory` qui sélectionne
+ * un des 4 blocs de sections (perimeter / terrain / audience / analyses).
+ *
+ * @sections internes
+ *   1. Imports + types + props           (≈ 1-250)
+ *   2. State management (useState/useRef) (≈ 250-600)
+ *   3. Custom geo capture hooks          (≈ 600-750)
+ *   4. POI handlers + isochrones         (≈ 750-1200)
+ *   5. Bataille handlers (battle V1/V2)  (≈ 1200-1450)
+ *   6. Render JSX, 4 blocs par catégorie (≈ 1450-fin)
+ *
+ * @see ./filter-panel/ — sous-composants et tokens extraits (2026-09-03)
  *
  * @maintainers Pour étendre ce fichier sans le faire grossir :
- *   - NE PAS ajouter de nouveau gros bloc — extraire vers _components/
+ *   - NE PAS ajouter de nouveau gros bloc — extraire vers ./filter-panel/
  *   - Préférer un nouveau composant plutôt qu'un n-ième handler ici
  *   - Lire docs/known_tech_debt.md avant tout refactor structurel
  */
@@ -38,163 +37,11 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
+import { C, fInter, fMono } from './filter-panel/tokens';
+import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
+import { MultiDropdown } from './filter-panel/MultiDropdown';
+import { RadioSearchInput } from './filter-panel/RadioSearchInput';
 // ─── Equity indicator types ──────────────────────────────────────────────────
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const C = {
-  bg:        'var(--bg-primary)',
-  bgPanel:   'var(--bg-surface)',
-  bgInput:   'var(--bg-level-2)',
-  border:    'var(--border-subtle)',
-  text:      'var(--text-primary)',
-  textSec:   'var(--text-secondary)',
-  textDim:   'var(--text-tertiary)',
-  green:     'var(--success)',
-  greenDim:  'rgba(61,255,160,0.10)',
-  amber:     'var(--warning)',
-  amberDim:  'rgba(247,183,49,0.10)',
-  red:       'var(--danger)',
-  redDim:    'rgba(255,87,87,0.08)',
-  redBorder: 'rgba(255,87,87,0.25)',
-  muted:     'var(--text-tertiary)',
-};
-const fInter    = "'Inter', system-ui, sans-serif";
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-
-// ─── Radio search autocomplete ────────────────────────────────────────────────
-function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: string) => void }) {
-  const [query, setQuery] = React.useState('');
-  const [results, setResults] = React.useState<Array<{ id: string; nom: string; categorie_arcom: string | null }>>([]);
-  const [show, setShow] = React.useState(false);
-  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
-
-  const search = (q: string) => {
-    setQuery(q);
-    clearTimeout(timerRef.current);
-    if (q.length < 2) { setResults([]); setShow(false); return; }
-    timerRef.current = setTimeout(async () => {
-      try {
-        const res = await adminFetch(`/api/radio/stations?search=${encodeURIComponent(q)}&limit=8`);
-        if (!res.ok) return;
-        const d = await res.json();
-        setResults(d.stations ?? []);
-        setShow(true);
-      } catch { /* ignore */ }
-    }, 300);
-  };
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        value={query}
-        onChange={e => search(e.target.value)}
-        placeholder="Ex: NRJ, France Inter..."
-        style={{
-          width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
-          padding: '6px 10px', fontSize: 11, color: 'var(--text-primary)', outline: 'none',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          transition: 'border-color 150ms var(--ease-hover)',
-        }}
-        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; if (results.length) setShow(true); }}
-        onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; setTimeout(() => setShow(false), 200); }}
-      />
-      {show && results.length > 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-          background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 6,
-          marginTop: 4, maxHeight: 200, overflowY: 'auto',
-        }}>
-          {results.map(r => (
-            <button key={r.id} onMouseDown={() => { onSelect(r.id, r.nom); setQuery(r.nom); setShow(false); }} style={{
-              display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none',
-              textAlign: 'left', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)',
-              fontFamily: "'Inter', system-ui, sans-serif",
-              transition: 'background-color 150ms var(--ease-hover)',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              {r.nom} {r.categorie_arcom && <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>({r.categorie_arcom})</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tooltip data for complex labels ──────────────────────────────────────────
-const TOOLTIPS: Record<string, string> = {
-  tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
-  iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
-  carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',
-  isochrone:  'Zone accessible en X minutes depuis un point donné',
-  poi:        'Point d\'Intérêt — commerce, service, lieu public',
-};
-
-// ─── Collapsible section header ───────────────────────────────────────────────
-function FilterSectionHeader({
-  label, sectionKey, open, onToggle, count, tooltipKey, searchTerm,
-}: {
-  label: string; sectionKey: string; open: boolean; onToggle: () => void;
-  count?: number; tooltipKey?: string; searchTerm?: string;
-}) {
-  // Highlight search match in label
-  const renderLabel = () => {
-    if (!searchTerm) return label;
-    const idx = label.toLowerCase().indexOf(searchTerm.toLowerCase());
-    if (idx < 0) return label;
-    return (
-      <>
-        {label.slice(0, idx)}
-        <mark style={{ background: 'rgba(78,205,196,0.2)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
-          {label.slice(idx, idx + searchTerm.length)}
-        </mark>
-        {label.slice(idx + searchTerm.length)}
-      </>
-    );
-  };
-
-  return (
-    <div
-      onClick={onToggle}
-      style={{
-        background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
-        padding: '10px 14px', margin: '0 -16px',
-        display: 'flex', alignItems: 'center', gap: 8,
-        cursor: 'pointer', userSelect: 'none',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}
-    >
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-      <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
-        {renderLabel()}
-      </span>
-      {tooltipKey && TOOLTIPS[tooltipKey] && (
-        <span
-          title={TOOLTIPS[tooltipKey]}
-          style={{ display: 'inline-flex', cursor: 'help', flexShrink: 0 }}
-          onClick={e => e.stopPropagation()}
-        >
-          <HelpCircle size={12} style={{ color: 'var(--text-tertiary)' }} />
-        </span>
-      )}
-      {count !== undefined && count > 0 && (
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--brand-teal)',
-          background: 'rgba(78,205,196,0.15)', borderRadius: 4, padding: '1px 6px', lineHeight: 1.4,
-        }}>
-          {count}
-        </span>
-      )}
-      <ChevronDown size={14} style={{
-        color: 'var(--text-tertiary)', flexShrink: 0,
-        transition: 'transform 200ms var(--ease-out)',
-        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-      }} />
-    </div>
-  );
-}
 
 // ─── Données géographiques ─────────────────────────────────────────────────────
 // REGIONS et ALL_DEPTS sont maintenant fetch dynamiquement depuis ref_regions
@@ -399,149 +246,6 @@ export interface FilterPanelProps {
   onVilleChange?: (ville: string) => void;
   scope?: 'metro' | 'all' | null;
   onScopeChange?: (scope: 'metro' | 'all' | null) => void;
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function MultiDropdown({
-  label, items, selected, onChange, searchable = false,
-}: {
-  label: string;
-  items: { id: string; label: string }[];
-  selected: string[];
-  onChange: (ids: string[]) => void;
-  searchable?: boolean;
-}) {
-  const [open, setOpen]   = useState(false);
-  const [search, setSearch] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  // Auto-enable search when >10 items
-  const showSearch = searchable || items.length > 10;
-
-  const filtered = showSearch && search
-    ? items.filter(i => i.label.toLowerCase().includes(search.toLowerCase()) || i.id.toLowerCase().includes(search.toLowerCase()))
-    : items;
-
-  const toggle = (id: string) =>
-    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
-
-  const allFilteredSelected = filtered.length > 0 && filtered.every(i => selected.includes(i.id));
-
-  const selectAllFiltered = () => {
-    const newIds = new Set(selected);
-    for (const i of filtered) newIds.add(i.id);
-    onChange([...newIds]);
-  };
-
-  const deselectAllFiltered = () => {
-    const toRemove = new Set(filtered.map(i => i.id));
-    onChange(selected.filter(id => !toRemove.has(id)));
-  };
-
-  const displayLabel = selected.length === 0
-    ? label
-    : selected.length === 1
-      ? (items.find(i => i.id === selected[0])?.label ?? selected[0])
-      : `${selected.length} / ${items.length} selectionnes`;
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 11px', background: C.bgInput,
-          border: `0.5px solid ${open ? 'var(--border-hover)' : C.border}`, borderRadius: 4,
-          cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
-          transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
-          {selected.length > 0 && (
-            <span
-              onClick={e => { e.stopPropagation(); onChange([]); }}
-              style={{ fontSize: 11, color: C.textDim, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
-              title="Effacer"
-            >✕</span>
-          )}
-          <span style={{ color: C.textDim, fontSize: 9 }}>{open ? '▲' : '▼'}</span>
-        </div>
-      </button>
-
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
-          background: 'var(--bg-level-2)', border: `0.5px solid var(--border-default)`, borderTop: 'none',
-          borderRadius: '0 0 4px 4px', maxHeight: 260, display: 'flex', flexDirection: 'column',
-          animation: 'fpDropIn 180ms var(--ease-out)',
-        }}>
-          {/* Search bar */}
-          {showSearch && (
-            <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Search size={12} style={{ color: C.textDim, flexShrink: 0 }} />
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                aria-label="Rechercher"
-                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 12, color: C.text }} />
-              {search && (
-                <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche"
-                  style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0, background: 'transparent', border: 'none', padding: 0, lineHeight: 1 }}>✕</button>
-              )}
-            </div>
-          )}
-
-          {/* Select all / deselect all bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
-            <button onClick={allFilteredSelected ? deselectAllFiltered : selectAllFiltered}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: 'var(--brand-teal)', padding: 0 }}>
-              {allFilteredSelected ? 'Tout deselectionner' : `Tout selectionner${search ? ` (${filtered.length})` : ''}`}
-            </button>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textDim }}>
-              {selected.length}/{items.length}
-            </span>
-          </div>
-
-          {/* Items list */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: '8px 11px', fontFamily: fInter, fontSize: 12, color: C.textDim }}>Aucun resultat</div>
-            )}
-            {filtered.map(item => {
-              const active = selected.includes(item.id);
-              return (
-                <button key={item.id} onClick={() => toggle(item.id)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '6px 11px', background: active ? 'rgba(78,205,196,0.06)' : 'none',
-                    border: 'none', borderBottom: `0.5px solid ${C.border}`,
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(78,205,196,0.06)' : 'none'; }}
-                >
-                  <div style={{
-                    width: 12, height: 12, borderRadius: 2, border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                    background: active ? 'var(--brand-teal)' : 'transparent', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {active && <span style={{ fontSize: 8, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                  </div>
-                  <span style={{ fontFamily: fInter, fontSize: 12, color: active ? C.text : C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
