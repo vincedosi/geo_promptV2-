@@ -3,23 +3,22 @@ import { logger } from '@/lib/logger';
 
 /**
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
- * @size ~3789 lignes (cf docs/known_tech_debt.md — refactor planifié, non
- *       splitté en A4.6.2 par décision produit pour réduire le risque pitch)
  *
- * @sections internes (ordre approximatif)
- *   1. Imports + types globaux           (≈ 1-140)
- *   2. Helpers locaux + constantes       (≈ 141-280)
- *   3. Props + interfaces FilterPanel    (≈ 281-550)
- *   4. State management (useState/useRef) (≈ 551-900)
- *   5. Custom geo capture hooks          (≈ 901-1050)
- *   6. POI handlers + isochrones         (≈ 1051-1500)
- *   7. Bataille handlers (battle V1/V2)  (≈ 1501-1900)
- *   8. Voronoi                           (≈ 1901-2200)
- *   9. Corrélation                       (≈ 2201-2700)
- *  10. Render JSX (FilterPanel + sub-components inline) (≈ 3001-3789)
+ * Rendu par /map dans l'overlay du rail, avec `visibleCategory` qui sélectionne
+ * un des 4 blocs de sections (perimeter / terrain / audience / analyses).
+ *
+ * @sections internes
+ *   1. Imports + types + props           (≈ 1-250)
+ *   2. State management (useState/useRef) (≈ 250-600)
+ *   3. Custom geo capture hooks          (≈ 600-750)
+ *   4. POI handlers + isochrones         (≈ 750-1200)
+ *   5. Bataille handlers (battle V1/V2)  (≈ 1200-1450)
+ *   6. Render JSX, 4 blocs par catégorie (≈ 1450-fin)
+ *
+ * @see ./filter-panel/ — sous-composants et tokens extraits (2026-09-03)
  *
  * @maintainers Pour étendre ce fichier sans le faire grossir :
- *   - NE PAS ajouter de nouveau gros bloc — extraire vers _components/
+ *   - NE PAS ajouter de nouveau gros bloc — extraire vers ./filter-panel/
  *   - Préférer un nouveau composant plutôt qu'un n-ième handler ici
  *   - Lire docs/known_tech_debt.md avant tout refactor structurel
  */
@@ -38,163 +37,27 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useCustomGeoLayer } from '@/lib/custom-geo/useCustomGeoLayer';
 import { useCustomGeoCaptureContext, type AdminScope } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import type { ContributedGeometry } from '@/types/custom-geo';
+import { C, fInter, fMono } from './filter-panel/tokens';
+import { hexToRgb, inputFocusHandlers, inputStyle, labelStyle, pill, primaryBtn } from './filter-panel/styles';
+import { PerimeterSections } from './filter-panel/PerimeterSections';
+import { PoiSection } from './filter-panel/PoiSection';
+import { OohSection } from './filter-panel/OohSection';
+import { TransportSection } from './filter-panel/TransportSection';
+import { TmjaSection } from './filter-panel/TmjaSection';
+import { RadioSection } from './filter-panel/RadioSection';
+import { CarreauxSection } from './filter-panel/CarreauxSection';
+import { IrisSection } from './filter-panel/IrisSection';
+import { CivicIndicatorsSection } from './filter-panel/CivicIndicatorsSection';
+import { CivicHealthSection } from './filter-panel/CivicHealthSection';
+import { MeteoSection } from './filter-panel/MeteoSection';
+import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from './filter-panel/SpatialAnalysisIntro';
+import { VoronoiTool } from './filter-panel/VoronoiTool';
+import { BattleV2Tool } from './filter-panel/BattleV2Tool';
+import { IsochronesTool } from './filter-panel/IsochronesTool';
+import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
+import { MultiDropdown } from './filter-panel/MultiDropdown';
+import { RadioSearchInput } from './filter-panel/RadioSearchInput';
 // ─── Equity indicator types ──────────────────────────────────────────────────
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const C = {
-  bg:        'var(--bg-primary)',
-  bgPanel:   'var(--bg-surface)',
-  bgInput:   'var(--bg-level-2)',
-  border:    'var(--border-subtle)',
-  text:      'var(--text-primary)',
-  textSec:   'var(--text-secondary)',
-  textDim:   'var(--text-tertiary)',
-  green:     'var(--success)',
-  greenDim:  'rgba(61,255,160,0.10)',
-  amber:     'var(--warning)',
-  amberDim:  'rgba(247,183,49,0.10)',
-  red:       'var(--danger)',
-  redDim:    'rgba(255,87,87,0.08)',
-  redBorder: 'rgba(255,87,87,0.25)',
-  muted:     'var(--text-tertiary)',
-};
-const fInter    = "'Inter', system-ui, sans-serif";
-const fMono     = "'JetBrains Mono','Fira Mono',monospace";
-
-// ─── Radio search autocomplete ────────────────────────────────────────────────
-function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, radioNom: string) => void }) {
-  const [query, setQuery] = React.useState('');
-  const [results, setResults] = React.useState<Array<{ id: string; nom: string; categorie_arcom: string | null }>>([]);
-  const [show, setShow] = React.useState(false);
-  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
-
-  const search = (q: string) => {
-    setQuery(q);
-    clearTimeout(timerRef.current);
-    if (q.length < 2) { setResults([]); setShow(false); return; }
-    timerRef.current = setTimeout(async () => {
-      try {
-        const res = await adminFetch(`/api/radio/stations?search=${encodeURIComponent(q)}&limit=8`);
-        if (!res.ok) return;
-        const d = await res.json();
-        setResults(d.stations ?? []);
-        setShow(true);
-      } catch { /* ignore */ }
-    }, 300);
-  };
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        value={query}
-        onChange={e => search(e.target.value)}
-        placeholder="Ex: NRJ, France Inter..."
-        style={{
-          width: '100%', background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)', borderRadius: 6,
-          padding: '6px 10px', fontSize: 11, color: 'var(--text-primary)', outline: 'none',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          transition: 'border-color 150ms var(--ease-hover)',
-        }}
-        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; if (results.length) setShow(true); }}
-        onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; setTimeout(() => setShow(false), 200); }}
-      />
-      {show && results.length > 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
-          background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)', borderRadius: 6,
-          marginTop: 4, maxHeight: 200, overflowY: 'auto',
-        }}>
-          {results.map(r => (
-            <button key={r.id} onMouseDown={() => { onSelect(r.id, r.nom); setQuery(r.nom); setShow(false); }} style={{
-              display: 'block', width: '100%', padding: '6px 10px', background: 'none', border: 'none',
-              textAlign: 'left', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)',
-              fontFamily: "'Inter', system-ui, sans-serif",
-              transition: 'background-color 150ms var(--ease-hover)',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              {r.nom} {r.categorie_arcom && <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>({r.categorie_arcom})</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tooltip data for complex labels ──────────────────────────────────────────
-const TOOLTIPS: Record<string, string> = {
-  tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
-  iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
-  carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',
-  isochrone:  'Zone accessible en X minutes depuis un point donné',
-  poi:        'Point d\'Intérêt — commerce, service, lieu public',
-};
-
-// ─── Collapsible section header ───────────────────────────────────────────────
-function FilterSectionHeader({
-  label, sectionKey, open, onToggle, count, tooltipKey, searchTerm,
-}: {
-  label: string; sectionKey: string; open: boolean; onToggle: () => void;
-  count?: number; tooltipKey?: string; searchTerm?: string;
-}) {
-  // Highlight search match in label
-  const renderLabel = () => {
-    if (!searchTerm) return label;
-    const idx = label.toLowerCase().indexOf(searchTerm.toLowerCase());
-    if (idx < 0) return label;
-    return (
-      <>
-        {label.slice(0, idx)}
-        <mark style={{ background: 'rgba(78,205,196,0.2)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
-          {label.slice(idx, idx + searchTerm.length)}
-        </mark>
-        {label.slice(idx + searchTerm.length)}
-      </>
-    );
-  };
-
-  return (
-    <div
-      onClick={onToggle}
-      style={{
-        background: 'var(--bg-level-2)', borderTop: '1px solid var(--border-subtle)',
-        padding: '10px 14px', margin: '0 -16px',
-        display: 'flex', alignItems: 'center', gap: 8,
-        cursor: 'pointer', userSelect: 'none',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}
-    >
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-      <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
-        {renderLabel()}
-      </span>
-      {tooltipKey && TOOLTIPS[tooltipKey] && (
-        <span
-          title={TOOLTIPS[tooltipKey]}
-          style={{ display: 'inline-flex', cursor: 'help', flexShrink: 0 }}
-          onClick={e => e.stopPropagation()}
-        >
-          <HelpCircle size={12} style={{ color: 'var(--text-tertiary)' }} />
-        </span>
-      )}
-      {count !== undefined && count > 0 && (
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--brand-teal)',
-          background: 'rgba(78,205,196,0.15)', borderRadius: 4, padding: '1px 6px', lineHeight: 1.4,
-        }}>
-          {count}
-        </span>
-      )}
-      <ChevronDown size={14} style={{
-        color: 'var(--text-tertiary)', flexShrink: 0,
-        transition: 'transform 200ms var(--ease-out)',
-        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-      }} />
-    </div>
-  );
-}
 
 // ─── Données géographiques ─────────────────────────────────────────────────────
 // REGIONS et ALL_DEPTS sont maintenant fetch dynamiquement depuis ref_regions
@@ -208,8 +71,10 @@ type Tab = 'geoprompt' | 'expert';
 // ExpertSubTab supprimé — panel unique scrollable (Sprint 1)
 
 // ─── POI Style ────────────────────────────────────────────────────────────────
-export interface POIStyle { size: string; color: string; }
-export type POIStylesMap = Record<string, POIStyle>;
+// Types déplacés dans ./filter-panel/poi-style.ts — réexportés ici pour ne pas
+// casser les importateurs existants (map/page.tsx, useMapMarkers, useMapDirectActions).
+export type { POIStyle, POIStylesMap } from './filter-panel/poi-style';
+import type { POIStylesMap } from './filter-panel/poi-style';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
@@ -399,149 +264,6 @@ export interface FilterPanelProps {
   onVilleChange?: (ville: string) => void;
   scope?: 'metro' | 'all' | null;
   onScopeChange?: (scope: 'metro' | 'all' | null) => void;
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function MultiDropdown({
-  label, items, selected, onChange, searchable = false,
-}: {
-  label: string;
-  items: { id: string; label: string }[];
-  selected: string[];
-  onChange: (ids: string[]) => void;
-  searchable?: boolean;
-}) {
-  const [open, setOpen]   = useState(false);
-  const [search, setSearch] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  // Auto-enable search when >10 items
-  const showSearch = searchable || items.length > 10;
-
-  const filtered = showSearch && search
-    ? items.filter(i => i.label.toLowerCase().includes(search.toLowerCase()) || i.id.toLowerCase().includes(search.toLowerCase()))
-    : items;
-
-  const toggle = (id: string) =>
-    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
-
-  const allFilteredSelected = filtered.length > 0 && filtered.every(i => selected.includes(i.id));
-
-  const selectAllFiltered = () => {
-    const newIds = new Set(selected);
-    for (const i of filtered) newIds.add(i.id);
-    onChange([...newIds]);
-  };
-
-  const deselectAllFiltered = () => {
-    const toRemove = new Set(filtered.map(i => i.id));
-    onChange(selected.filter(id => !toRemove.has(id)));
-  };
-
-  const displayLabel = selected.length === 0
-    ? label
-    : selected.length === 1
-      ? (items.find(i => i.id === selected[0])?.label ?? selected[0])
-      : `${selected.length} / ${items.length} selectionnes`;
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 11px', background: C.bgInput,
-          border: `0.5px solid ${open ? 'var(--border-hover)' : C.border}`, borderRadius: 4,
-          cursor: 'pointer', fontFamily: fInter, fontSize: 13, color: selected.length > 0 ? C.text : C.textDim,
-          transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
-          {selected.length > 0 && (
-            <span
-              onClick={e => { e.stopPropagation(); onChange([]); }}
-              style={{ fontSize: 11, color: C.textDim, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
-              title="Effacer"
-            >✕</span>
-          )}
-          <span style={{ color: C.textDim, fontSize: 9 }}>{open ? '▲' : '▼'}</span>
-        </div>
-      </button>
-
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
-          background: 'var(--bg-level-2)', border: `0.5px solid var(--border-default)`, borderTop: 'none',
-          borderRadius: '0 0 4px 4px', maxHeight: 260, display: 'flex', flexDirection: 'column',
-          animation: 'fpDropIn 180ms var(--ease-out)',
-        }}>
-          {/* Search bar */}
-          {showSearch && (
-            <div style={{ padding: '5px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Search size={12} style={{ color: C.textDim, flexShrink: 0 }} />
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                aria-label="Rechercher"
-                placeholder="Rechercher..." style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: fInter, fontSize: 12, color: C.text }} />
-              {search && (
-                <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche"
-                  style={{ fontSize: 10, color: C.textDim, cursor: 'pointer', flexShrink: 0, background: 'transparent', border: 'none', padding: 0, lineHeight: 1 }}>✕</button>
-              )}
-            </div>
-          )}
-
-          {/* Select all / deselect all bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
-            <button onClick={allFilteredSelected ? deselectAllFiltered : selectAllFiltered}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: fInter, fontSize: 10, color: 'var(--brand-teal)', padding: 0 }}>
-              {allFilteredSelected ? 'Tout deselectionner' : `Tout selectionner${search ? ` (${filtered.length})` : ''}`}
-            </button>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.textDim }}>
-              {selected.length}/{items.length}
-            </span>
-          </div>
-
-          {/* Items list */}
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: '8px 11px', fontFamily: fInter, fontSize: 12, color: C.textDim }}>Aucun resultat</div>
-            )}
-            {filtered.map(item => {
-              const active = selected.includes(item.id);
-              return (
-                <button key={item.id} onClick={() => toggle(item.id)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                    padding: '6px 11px', background: active ? 'rgba(78,205,196,0.06)' : 'none',
-                    border: 'none', borderBottom: `0.5px solid ${C.border}`,
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(78,205,196,0.06)' : 'none'; }}
-                >
-                  <div style={{
-                    width: 12, height: 12, borderRadius: 2, border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                    background: active ? 'var(--brand-teal)' : 'transparent', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {active && <span style={{ fontSize: 8, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                  </div>
-                  <span style={{ fontFamily: fInter, fontSize: 12, color: active ? C.text : C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -1480,45 +1202,6 @@ export function FilterPanel({
     }
   };
 
-  // ── Style helpers ─────────────────────────────────────────────────────────
-  const hexToRgb = (hex: string): string => {
-    if (!hex.startsWith('#') || hex.length < 7) return '240,240,240';
-    return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
-  };
-
-  const pill = (active: boolean, color: string) => ({
-    fontFamily: fInter, fontSize: 11, padding: '5px 9px',
-    background: active ? `rgba(${hexToRgb(color)},0.12)` : C.bgInput,
-    border: `0.5px solid ${active ? color : C.border}`, borderRadius: 4,
-    color: active ? color : C.textDim, cursor: 'pointer', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)', flexShrink: 0 as const,
-  });
-
-  const primaryBtn = (color: string, disabled = false) => ({
-    fontFamily: fInter, fontSize: 12,
-    padding: '9px 14px', width: '100%',
-    background: disabled ? 'rgba(255,255,255,0.03)' : `rgba(${hexToRgb(color)},0.10)`,
-    border: `0.5px solid ${disabled ? C.border : color}`, borderRadius: 4,
-    color: disabled ? C.textDim : color, cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1, transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-  });
-
-  const labelStyle = {
-    fontFamily: fInter, fontSize: 11, fontWeight: 500 as const,
-    color: C.textSec, marginBottom: 6,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    fontFamily: fInter, fontSize: 13, background: C.bgInput,
-    border: `0.5px solid ${C.border}`, borderRadius: 4,
-    color: C.text, padding: '7px 10px', outline: 'none', width: '100%',
-    transition: 'border-color 300ms var(--ease-out)',
-  };
-
-  const inputFocusHandlers = {
-    onFocus: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = 'rgba(78,205,196,0.5)'; },
-    onBlur: (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = C.border; },
-  };
-
   // ── Tab config ────────────────────────────────────────────────────────────
   const EXPERT_BADGE = (hasTerritoire ? 1 : 0) + (selectedPOI.length > 0 ? 1 : 0) + (selectedOOH.length > 0 ? 1 : 0);
 
@@ -1738,151 +1421,31 @@ export function FilterPanel({
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
         {(!visibleCategory || visibleCategory === 'perimeter') && (
-        <CategoryGroup title="Perimetre" color="var(--cat-context)" colorRgb="138,138,138" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Scope global */}
-            {(!filterSearch || 'périmètre global'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Périmètre global" sectionKey="perimetre" open={sectionsOpen.perimetre !== false} onToggle={() => toggleSection('perimetre')} count={scope ? 1 : 0} searchTerm={filterSearch} />
-              {sectionsOpen.perimetre !== false && (
-              <div style={{ marginBottom: 12, transition: 'opacity 150ms var(--ease-hover)', animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ ...pill(scope === 'metro', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('metro')}>
-                  France Metro
-                </button>
-                <button style={{ ...pill(scope === 'all', C.green), flex: 1, textAlign: 'center' }} onClick={() => selectScope('all')}>
-                  France + DROM
-                </button>
-              </div>
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Régions */}
-            {(!filterSearch || 'région régions'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Régions" sectionKey="regions" open={sectionsOpen.regions !== false} onToggle={() => toggleSection('regions')} count={selectedRegions.length} searchTerm={filterSearch} />
-              {sectionsOpen.regions !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-                <button
-                  onClick={() => {
-                    const allCodes = REF_REGIONS.map(r => r.code_region);
-                    const allSelected = REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length;
-                    setSelectedRegions(allSelected ? [] : allCodes);
-                    setScope(null);
-                  }}
-                  style={{ fontFamily: fInter, fontSize: 11, color: REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? C.red : C.textSec, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  {REF_REGIONS.length > 0 && selectedRegions.length === REF_REGIONS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
-                </button>
-              </div>
-              <MultiDropdown
-                label={REF_REGIONS.length === 0 ? 'Chargement…' : 'Toutes les régions'}
-                items={REF_REGIONS.map(r => ({ id: r.code_region, label: r.nom_region }))}
-                selected={selectedRegions}
-                onChange={codes => { setSelectedRegions(codes); if (codes.length > 0) setScope(null); }}
-              />
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Départements */}
-            {(!filterSearch || 'département départements'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Départements" sectionKey="departements" open={sectionsOpen.departements !== false} onToggle={() => toggleSection('departements')} count={selectedDepts.length} searchTerm={filterSearch} />
-              {sectionsOpen.departements !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <MultiDropdown
-                label={availableDepts.length === 0 ? 'Chargement…' : 'Tous les départements'}
-                items={availableDepts.map(d => ({ id: d.code_dept, label: `${d.code_dept} — ${d.nom_dept}` }))}
-                selected={selectedDepts}
-                onChange={codes => { setSelectedDepts(codes); if (codes.length > 0) setScope(null); }}
-                searchable
-              />
-              {selectedRegions.length === 0 && (
-                <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                  Filtrer d&apos;abord par région
-                </div>
-              )}
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Recherche locale */}
-            {(!filterSearch || 'recherche locale ville'.includes(filterSearch.toLowerCase())) && (
-            <div>
-              <FilterSectionHeader label="Recherche locale" sectionKey="recherche" open={sectionsOpen.recherche !== false} onToggle={() => toggleSection('recherche')} count={(ville ? 1 : 0) + (codePostal ? 1 : 0)} searchTerm={filterSearch} />
-              {sectionsOpen.recherche !== false && (
-              <div style={{ marginBottom: 12, animation: 'fadeIn 200ms var(--ease-out)' }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>Ville</div>
-                  <input style={inputStyle} placeholder="ex: Brest" value={ville}
-                    onChange={e => { setVille(e.target.value); if (e.target.value) setScope(null); }} {...inputFocusHandlers} />
-                </div>
-                <div style={{ width: 80 }}>
-                  <div style={{ ...labelStyle, marginBottom: 4 }}>Code postal</div>
-                  <input style={inputStyle} placeholder="29200" value={codePostal}
-                    onChange={e => setCodePostal(e.target.value)} maxLength={5} {...inputFocusHandlers} />
-                </div>
-              </div>
-              </div>
-              )}
-            </div>
-            )}
-
-            {/* Territoire summary */}
-            {hasTerritoire && (
-              <div style={{ padding: '10px 12px', background: C.greenDim, border: `0.5px solid rgba(61,255,160,0.2)`, borderRadius: 4 }}>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.green, marginBottom: 4 }}>
-                  Territoire sélectionné
-                </div>
-                <div style={{ fontFamily: fInter, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{territoire}</div>
-                <button
-                  onClick={() => { setScope(null); setSelectedRegions([]); setSelectedDepts([]); setVille(''); setCodePostal(''); }}
-                  style={{ marginTop: 8, fontFamily: fInter, fontSize: 11, color: C.textDim, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  ✕ Réinitialiser
-                </button>
-              </div>
-            )}
-
-            {/* Toggle territory mask : visible quand un filtre admin est actif */}
-            {adminScale !== null && adminCodes.length > 0 && (
-              <div style={{
-                padding: '10px 12px',
-                background: 'rgba(78,205,196,0.08)',
-                borderLeft: '2px solid var(--brand-teal)',
-                borderRadius: '0 4px 4px 0',
-              }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={territoryMaskEnabled}
-                    onChange={e => setTerritoryMaskEnabled(e.target.checked)}
-                    style={{ accentColor: 'var(--brand-teal)' }}
-                  />
-                  <span style={{ fontFamily: fInter, fontSize: 12, color: C.text }}>
-                    Afficher uniquement le territoire
-                  </span>
-                </label>
-                <p style={{ margin: '6px 0 0 22px', fontFamily: fInter, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>
-                  {adminScale === 'departement'
-                    ? 'Masque tout hors des départements selectionnes.'
-                    : adminScale === 'region'
-                    ? 'Masque tout hors des regions selectionnees.'
-                    : 'Masque tout hors du territoire selectionne.'}
-                </p>
-              </div>
-            )}
-
-          </div>
-        </CategoryGroup>
+          <PerimeterSections
+            isOverlayMode={isOverlayMode}
+            filterSearch={filterSearch}
+            sectionsOpen={sectionsOpen}
+            toggleSection={toggleSection}
+            scope={scope}
+            selectScope={selectScope}
+            setScope={setScope}
+            selectedRegions={selectedRegions}
+            setSelectedRegions={setSelectedRegions}
+            refRegions={REF_REGIONS}
+            selectedDepts={selectedDepts}
+            setSelectedDepts={setSelectedDepts}
+            availableDepts={availableDepts}
+            ville={ville}
+            setVille={setVille}
+            codePostal={codePostal}
+            setCodePostal={setCodePostal}
+            territoire={territoire}
+            hasTerritoire={hasTerritoire}
+            adminScale={adminScale}
+            adminCodes={adminCodes}
+            territoryMaskEnabled={territoryMaskEnabled}
+            setTerritoryMaskEnabled={setTerritoryMaskEnabled}
+          />
         )}
 
         {/* ════════════════════════════════════════
@@ -1892,565 +1455,93 @@ export function FilterPanel({
         <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* ── Section : Points d'intérêt ─────────────────────────────── */}
-            <div style={{ paddingBottom: 4 }}>
-              <FilterSectionHeader label="Points d'intérêt (POI)" sectionKey="poi" open={sectionsOpen.poi !== false} onToggle={() => toggleSection('poi')} count={selectedPOI.length} tooltipKey="poi" searchTerm={filterSearch} />
-              {sectionsOpen.poi !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-            <div>
-              <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>
-                  Types de POI
-                  {selectedPOI.length > 0 && <span style={{ color: C.textSec }}> — {selectedPOI.length} sélectionné{selectedPOI.length > 1 ? 's' : ''}</span>}
-                  {!catsLoading && poiTypes.length > 0 && <span style={{ color: C.textDim }}> ({poiTypes.length})</span>}
-                </span>
-                <button
-                  onClick={() => fetchCategories(true)}
-                  title="Rafraîchir la liste"
-                  style={{ background: 'none', border: 'none', color: catsLoading ? C.muted : C.textDim, cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
-                >{catsLoading ? '…' : '↻'}</button>
-              </div>
-              {/* Affiche l'erreur SEULEMENT si on n'a aucune catégorie chargée
-                  (sinon c'est un refresh raté non bloquant — la liste reste utilisable) */}
-              {catsError && poiTypes.length === 0 && (
-                <div style={{ fontFamily: fMono, fontSize: 10, color: C.red, marginBottom: 4 }}>
-                  ! Erreur chargement catégories : {catsError} — <button onClick={() => fetchCategories(true)} style={{ background: 'none', border: 'none', color: C.amber, cursor: 'pointer', fontSize: 10, fontFamily: fMono, padding: 0 }}>réessayer</button>
-                </div>
-              )}
-              <MultiDropdown
-                label="Aucun type selectionne"
-                items={poiTypes}
-                selected={selectedPOI}
-                onChange={setSelectedPOI}
-              />
-              {/* Cartes POI sélectionnés */}
-              {selectedPOI.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                  {selectedPOI.map(poi => {
-                    const style = getPOIStyle(poi);
-                    // Style commun pour les selects : avec flèche ▾ custom
-                    const selectBase: React.CSSProperties = {
-                      fontFamily: fInter, fontSize: 13,
-                      background: C.bgInput,
-                      border: `0.5px solid ${C.border}`, borderRadius: 4,
-                      color: C.text, padding: '4px 22px 4px 8px',
-                      outline: 'none', cursor: 'pointer', flex: 1, width: '100%',
-                      appearance: 'none' as const,
-                    };
-                    const selectWrap: React.CSSProperties = {
-                      position: 'relative', flex: 1, display: 'flex', alignItems: 'center',
-                    };
-                    const selectArrow: React.CSSProperties = {
-                      position: 'absolute', right: 7, pointerEvents: 'none',
-                      fontFamily: fInter, fontSize: 9, color: C.textDim, lineHeight: 1,
-                    };
-                    return (
-                      <div key={poi} style={{
-                        background: 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${C.border}`,
-                        borderRadius: 4, padding: '8px 10px',
-                        display: 'flex', flexDirection: 'column', gap: 7,
-                      }}>
-                        {/* Header : nom + bouton X */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.text }}>
-                            {poi}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setSelectedPOI(prev => prev.filter(p => p !== poi));
-                              setPoiStyles(prev => { const n = { ...prev }; delete n[poi]; return n; });
-                            }}
-                            style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              color: C.muted, fontSize: 11, lineHeight: 1, padding: '0 2px',
-                              fontFamily: fMono,
-                            }}
-                            title="Retirer ce POI"
-                          >✕</button>
-                        </div>
+            <PoiSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedPOI={selectedPOI}
+              setSelectedPOI={setSelectedPOI}
+              poiTypes={poiTypes}
+              catsLoading={catsLoading}
+              catsError={catsError}
+              fetchCategories={fetchCategories}
+              getPOIStyle={getPOIStyle}
+              setPOIStyle={setPOIStyle}
+              setPoiStyles={setPoiStyles}
+              poiNatures={poiNatures}
+              selectedPoiNatures={selectedPoiNatures}
+              setSelectedPoiNatures={setSelectedPoiNatures}
+              hasAnyPOI={hasAnyPOI}
+              searchLoading={searchLoading}
+              handleSearchPOI={handleSearchPOI}
+              densityMode={densityMode}
+              onDensityModeChange={onDensityModeChange}
+            />
 
-                        {/* Épingle (taille) */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
-                            Épingle
-                          </span>
-                          <div style={selectWrap}>
-                            <select
-                              value={style.size}
-                              onChange={e => setPOIStyle(poi, { size: e.target.value })}
-                              style={selectBase}
-                            >
-                              {PIN_SIZES.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                            <span style={selectArrow}>▾</span>
-                          </div>
-                        </div>
+            <OohSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedOOH={selectedOOH}
+              setSelectedOOH={setSelectedOOH}
+              onDirectOOH={onDirectOOH}
+            />
 
-                        {/* Couleur */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
-                            Couleur
-                          </span>
-                          <div style={{ ...selectWrap }}>
-                            <div style={{
-                              width: 10, height: 10, borderRadius: '50%',
-                              background: style.color,
-                              border: `1px solid rgba(255,255,255,0.15)`,
-                              position: 'absolute', left: 7, pointerEvents: 'none', zIndex: 1,
-                              flexShrink: 0,
-                            }} />
-                            <select
-                              value={style.color}
-                              onChange={e => setPOIStyle(poi, { color: e.target.value })}
-                              style={{ ...selectBase, paddingLeft: 24 }}
-                            >
-                              {PIN_COLORS.map(c => (
-                                <option key={c.hex} value={c.hex}>{c.label}</option>
-                              ))}
-                            </select>
-                            <span style={selectArrow}>▾</span>
-                          </div>
-                        </div>
+            <TransportSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedTransportTypes={selectedTransportTypes}
+              setSelectedTransportTypes={setSelectedTransportTypes}
+              transportLoading={transportLoading}
+              setTransportLoading={setTransportLoading}
+              onLoadTransport={onLoadTransport}
+            />
 
-                        {/* Nature (metadata->>'libelle_nature') */}
-                        {poiNatures[poi]?.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                              Nature
-                              {(selectedPoiNatures[poi]?.length ?? 0) > 0 && (
-                                <span style={{ color: C.textSec }}>
-                                  {' '}— {selectedPoiNatures[poi].length} sélectionnée{selectedPoiNatures[poi].length > 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </span>
-                            <MultiDropdown
-                              label="Toutes les natures"
-                              items={poiNatures[poi].map(n => ({ id: n, label: n }))}
-                              selected={selectedPoiNatures[poi] ?? []}
-                              onChange={sel => setSelectedPoiNatures(prev => ({ ...prev, [poi]: sel }))}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <TmjaSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              tmjaVisible={!!tmjaVisible}
+              tmjaHideLowTraffic={!!tmjaHideLowTraffic}
+              onToggleTmjaHideLowTraffic={onToggleTmjaHideLowTraffic}
+              tmjaLoading={tmjaLoading}
+              setTmjaLoading={setTmjaLoading}
+              onLoadTMJA={onLoadTMJA}
+              onClearTMJA={onClearTMJA}
+            />
 
-            {/* AFFICHER button + densité toggle */}
-            {hasAnyPOI && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ ...primaryBtn(C.green, searchLoading), flex: 1 }} disabled={searchLoading} onClick={handleSearchPOI}>
-                  {searchLoading ? 'CHARGEMENT...' : 'AFFICHER LES POI SUR LA CARTE'}
-                </button>
-                <button
-                  title={densityMode ? 'Mode densité activé — cliquer pour repasser en marqueurs' : 'Passer en carte de densité'}
-                  onClick={() => onDensityModeChange?.(!densityMode)}
-                  style={{
-                    flexShrink: 0, padding: '0 10px',
-                    background: densityMode ? 'rgba(255,255,255,0.08)' : C.bgInput,
-                    border: `0.5px solid ${densityMode ? 'var(--text-primary)' : C.border}`,
-                    borderRadius: 4, cursor: 'pointer',
-                    fontFamily: fInter, fontSize: 12,
-                    color: densityMode ? 'var(--text-primary)' : C.textDim,
-                    whiteSpace: 'nowrap', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-                  }}
-                >
-                  {densityMode ? '◉ Densité' : '◎ Densité'}
-                </button>
-              </div>
-            )}
-
-            </div>
-            )}{/* fin collapsible POI content */}
-            </div>{/* fin section POI */}
-
-            {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Panneaux OOH et DOOH" sectionKey="ooh" open={sectionsOpen.ooh !== false} onToggle={() => toggleSection('ooh')} count={selectedOOH.length} searchTerm={filterSearch} />
-              {sectionsOpen.ooh !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Info stock */}
-              <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
-                <span style={{ color: C.textSec }}>1 434</span> panneaux · Brest Métropole
-                <span style={{ color: C.textDim }}> · DECAUX, Clear Channel…</span>
-              </div>
-
-              {/* Filtre par régie (optionnel) */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>
-                    Filtrer par régie (optionnel)
-                    {selectedOOH.length > 0 && <span style={{ color: C.textSec }}> — {selectedOOH.length} sélectionnée{selectedOOH.length > 1 ? 's' : ''}</span>}
-                  </span>
-                  <span style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      title="Tout sélectionner"
-                      onClick={() => setSelectedOOH(OOH_REGIES.map(r => r.id))}
-                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 11, padding: '1px 6px', fontFamily: fInter }}
-                    >Tout</button>
-                    <button
-                      title="Tout désélectionner"
-                      onClick={() => setSelectedOOH([])}
-                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '1px 5px', lineHeight: 1 }}
-                    >✕</button>
-                  </span>
-                </div>
-                <MultiDropdown
-                  label="Toutes les régies"
-                  items={OOH_REGIES}
-                  selected={selectedOOH}
-                  onChange={setSelectedOOH}
-                />
-              </div>
-
-              {/* Bouton toujours visible */}
-              <button
-                style={{ ...primaryBtn('var(--brand-teal)', false) }}
-                onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
-              >
-                {selectedOOH.length > 0
-                  ? `Afficher — ${selectedOOH.length} régie${selectedOOH.length > 1 ? 's' : ''}`
-                  : 'Afficher tous les panneaux'}
-              </button>
-              </div>
-              )}{/* fin collapsible OOH */}
-            </div>
-
-            {/* ── Section : Arrêts de transport en commun ─────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Arrêts de transport en commun" sectionKey="transport" open={sectionsOpen.transport !== false} onToggle={() => toggleSection('transport')} count={selectedTransportTypes.length} searchTerm={filterSearch} />
-              {sectionsOpen.transport !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Sélection du type */}
-              <div>
-                <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>
-                    Type de transport
-                    {selectedTransportTypes.length > 0 && (
-                      <span style={{ color: C.textSec }}> — {selectedTransportTypes.join(', ')}</span>
-                    )}
-                  </span>
-                  {selectedTransportTypes.length > 0 && (
-                    <button
-                      onClick={() => setSelectedTransportTypes([])}
-                      style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '0 2px', fontFamily: fMono }}
-                      title="Tout désélectionner"
-                    >✕</button>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {TRANSPORT_TYPES.map(t => (
-                    <button
-                      key={t.id}
-                      style={pill(selectedTransportTypes.includes(t.id), C.textSec)}
-                      onClick={() => setSelectedTransportTypes(prev =>
-                        prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 5, fontStyle: 'italic' }}>
-                  {selectedTransportTypes.length === 0 ? 'Tous les types' : ''} · Chargé pour la zone visible
-                </div>
-              </div>
-
-              <button
-                style={primaryBtn('var(--brand-teal)', transportLoading || !onLoadTransport)}
-                disabled={transportLoading || !onLoadTransport}
-                onClick={async () => {
-                  setTransportLoading(true);
-                  try { await onLoadTransport?.(selectedTransportTypes); }
-                  finally { setTransportLoading(false); }
-                }}
-              >
-                {transportLoading ? 'Chargement...' : 'Afficher arrêts'}
-              </button>
-              </div>
-              )}{/* fin collapsible transport */}
-            </div>
-
-            {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Flux routier (TMJA)" sectionKey="tmja" open={sectionsOpen.tmja !== false} onToggle={() => toggleSection('tmja')} count={tmjaVisible ? 1 : 0} tooltipKey="tmja" searchTerm={filterSearch} />
-              {sectionsOpen.tmja !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Légende couleurs */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2 }}>
-                  Légende — trafic moyen journalier
-                </div>
-                {[
-                  { color: '#4292C6', label: '< 5 000 véh/j', isLow: true },
-                  { color: '#f6d543', label: '5 000 – 15 000 véh/j', isLow: false },
-                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j', isLow: false },
-                  { color: '#ef4444', label: '> 40 000 véh/j', isLow: false },
-                ].map(({ color, label, isLow }) => {
-                  const dimmed = isLow && tmjaHideLowTraffic;
-                  return (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: dimmed ? 0.35 : 1 }}>
-                      <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0, textDecoration: dimmed ? 'line-through' : 'none' }} />
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textDecoration: dimmed ? 'line-through' : 'none' }}>{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Toggle : masquer le trafic faible (perf + lisibilité) */}
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: onToggleTmjaHideLowTraffic ? 'pointer' : 'default',
-                  padding: '6px 8px',
-                  background: 'var(--elevated)',
-                  border: '0.5px solid var(--border-subtle)',
-                  borderRadius: 4,
-                }}
-                title="Cache les tronçons à moins de 5 000 véh/j (allège le rendu)"
-              >
-                <input
-                  type="checkbox"
-                  checked={tmjaHideLowTraffic}
-                  onChange={e => onToggleTmjaHideLowTraffic?.(e.target.checked)}
-                  disabled={!onToggleTmjaHideLowTraffic}
-                  style={{ accentColor: 'var(--brand-teal)' }}
-                />
-                <span style={{ fontFamily: fInter, fontSize: 11, color: C.text }}>
-                  Masquer le trafic faible (&lt; 5 000 véh/j)
-                </span>
-              </label>
-
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  style={{ ...primaryBtn('var(--brand-teal)', tmjaLoading || !onLoadTMJA), flex: 1 }}
-                  disabled={tmjaLoading || !onLoadTMJA}
-                  onClick={async () => {
-                    setTmjaLoading(true);
-                    try { await onLoadTMJA?.(); }
-                    finally { setTmjaLoading(false); }
-                  }}
-                >
-                  {tmjaLoading ? 'Chargement...' : tmjaVisible ? 'Actualiser' : 'Afficher TMJA'}
-                </button>
-                {tmjaVisible && (
-                  <button
-                    style={pill(false, C.muted)}
-                    onClick={onClearTMJA}
-                    title="Masquer le flux routier"
-                  >Masquer</button>
-                )}
-              </div>
-              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                Source : CEREMA — tronçons pour la zone visible
-              </div>
-              </div>
-              )}{/* fin collapsible TMJA */}
-            </div>
-
-            {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Radio FM/DAB+" sectionKey="radio" open={sectionsOpen.radio !== false} onToggle={() => toggleSection('radio')} count={radioCount} searchTerm={filterSearch} />
-              {sectionsOpen.radio !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Selected radio banner */}
-              {radioSelectedNom && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.2)',
-                  borderRadius: 6, padding: '6px 10px', fontSize: 11,
-                }}>
-                  <span style={{ color: 'var(--brand-teal)', flex: 1, fontWeight: 500, fontFamily: fInter }}>
-                    📻 {radioSelectedNom}
-                  </span>
-                  <button onClick={onClearRadioSelection} style={{
-                    background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer',
-                    fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 150ms var(--ease-hover)',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-                  >×</button>
-                </div>
-              )}
-
-              {/* Main toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  onClick={onToggleRadio}
-                  style={{
-                    flex: 1, padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                    fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
-                    background: radioVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
-                    border: `0.5px solid ${radioVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                    color: radioVisible ? 'var(--brand-teal)' : C.textSec,
-                  }}
-                >
-                  {radioVisible ? '📻 Émetteurs visibles' : '📻 Afficher les émetteurs'}
-                </button>
-              </div>
-
-              {/* Sub-layer toggles + filters + visual controls */}
-              {radioVisible && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Radio search */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
-                    <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
-                  </div>
-
-                  {/* Multi-radio filter — searchable, multi-select */}
-                  {Array.isArray(radioFilterOptions?.radios) && radioFilterOptions!.radios.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                        Filtrer par radios
-                        <span style={{ color: C.textDim, marginLeft: 4, fontFamily: fMono }}>({radioFilterOptions!.radios.length})</span>
-                      </div>
-                      <MultiDropdown
-                        label="Sélectionner des radios..."
-                        items={radioFilterOptions!.radios.map(r => ({ id: r.id, label: `${r.nom}${r.cat ? ` (${r.cat})` : ''}` }))}
-                        selected={radioFilterIds ?? []}
-                        onChange={ids => onRadioFilterIdsChange?.(ids)}
-                        searchable
-                      />
-                    </div>
-                  )}
-
-                  {/* Exclude categories */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Exclure des categories</div>
-                    <MultiDropdown
-                      label="Aucune exclusion"
-                      items={[
-                        { id: 'D,E,P', label: 'Toutes nationales (D/E/P)' },
-                        { id: 'D', label: 'D — Thematiques nationales' },
-                        { id: 'E', label: 'E — Generalistes nationales' },
-                        { id: 'P', label: 'P — Service public' },
-                        { id: 'A', label: 'A — Associatives' },
-                        { id: 'B', label: 'B — Locales commerciales' },
-                        { id: 'C', label: 'C — Franchises locales' },
-                      ]}
-                      selected={radioExcludeCategories ?? []}
-                      onChange={cats => onRadioExcludeCategoriesChange?.(cats)}
-                    />
-                  </div>
-
-                  {/* System filter */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Système</div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {[{ label: 'Tous', value: '' }, { label: 'FM', value: 'FM' }, { label: 'DAB+', value: 'DAB+' }].map(opt => (
-                        <button key={opt.value} onClick={() => onRadioSystemeChange?.(opt.value)} style={{
-                          flex: 1, padding: '4px 0', borderRadius: 4, fontSize: 10, fontFamily: fInter,
-                          background: radioSystemeFilter === opt.value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                          border: `0.5px solid ${radioSystemeFilter === opt.value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                          color: radioSystemeFilter === opt.value ? 'var(--brand-teal)' : C.textDim,
-                          cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
-                        }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 8 }} />
-
-                  {/* Layer toggles */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: 'var(--brand-teal)' }} />
-                    Zones de couverture
-                  </label>
-
-                  {/* Coverage controls (visible when coverage on) */}
-                  {radioCoverageMode && (
-                    <div style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', marginBottom: 2 }}>Couverture estimée (approximation)</div>
-
-                      {/* Color picker */}
-                      <div>
-                        <div style={{ fontSize: 10, color: C.textDim, marginBottom: 3 }}>Couleur</div>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          {['var(--brand-teal)', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
-                            <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
-                              width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid var(--text-primary)' : '1px solid var(--border-hover)',
-                              cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', flexShrink: 0,
-                            }} />
-                          ))}
-                          <input type="color" value={radioCoverageColor ?? 'var(--brand-teal)'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
-                        </div>
-                      </div>
-
-                      {/* Opacity slider */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                          <span>Opacité</span>
-                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioCoverageOpacity}%</span>
-                        </div>
-                        <input type="range" min={0} max={100} step={5} value={radioCoverageOpacity ?? 15}
-                          onChange={e => onRadioCoverageOpacityChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                      </div>
-
-                      {/* Border width */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                          <span>Contour</span>
-                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioBorderWidth}px</span>
-                        </div>
-                        <input type="range" min={0} max={5} step={0.5} value={radioBorderWidth ?? 0.5}
-                          onChange={e => onRadioBorderWidthChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                      </div>
-                    </div>
-                  )}
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: 'var(--brand-teal)' }} />
-                    Densité (heatmap)
-                  </label>
-
-                  {/* Point size */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                      <span>Taille points</span>
-                      <span style={{ fontFamily: fMono, color: C.textSec }}>{radioPointSize}px</span>
-                    </div>
-                    <input type="range" min={2} max={12} step={1} value={radioPointSize ?? 5}
-                      onChange={e => onRadioPointSizeChange?.(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                  </div>
-
-                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 6 }}>
-                    <button onClick={onRecenterFrance} style={{
-                      background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 6,
-                      padding: '5px 12px', fontSize: 10, color: C.textDim, cursor: 'pointer',
-                      fontFamily: fInter, transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', width: '100%',
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.textDim; }}
-                    >
-                      Recentrer France
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                Source : ANFR data.gouv.fr
-              </div>
-              </div>
-              )}{/* fin collapsible radio */}
-            </div>
+            <RadioSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              radioCount={radioCount}
+              radioVisible={radioVisible}
+              onToggleRadio={onToggleRadio}
+              radioSelectedNom={radioSelectedNom}
+              onClearRadioSelection={onClearRadioSelection}
+              onSelectRadio={onSelectRadio}
+              radioFilterOptions={radioFilterOptions}
+              radioFilterIds={radioFilterIds}
+              onRadioFilterIdsChange={onRadioFilterIdsChange}
+              radioExcludeCategories={radioExcludeCategories}
+              onRadioExcludeCategoriesChange={onRadioExcludeCategoriesChange}
+              radioSystemeFilter={radioSystemeFilter}
+              onRadioSystemeChange={onRadioSystemeChange}
+              radioCoverageMode={radioCoverageMode}
+              onToggleRadioCoverage={onToggleRadioCoverage}
+              radioCoverageColor={radioCoverageColor}
+              onRadioCoverageColorChange={onRadioCoverageColorChange}
+              radioCoverageOpacity={radioCoverageOpacity}
+              onRadioCoverageOpacityChange={onRadioCoverageOpacityChange}
+              radioBorderWidth={radioBorderWidth}
+              onRadioBorderWidthChange={onRadioBorderWidthChange}
+              radioHeatmapMode={radioHeatmapMode}
+              onToggleRadioHeatmap={onToggleRadioHeatmap}
+              radioPointSize={radioPointSize}
+              onRadioPointSizeChange={onRadioPointSizeChange}
+              onRecenterFrance={onRecenterFrance}
+            />
 
           </div>
         </CategoryGroup>
@@ -2466,596 +1557,82 @@ export function FilterPanel({
         <CategoryGroup title="Audience" color="var(--cat-socio)" colorRgb="91,155,213" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-            {/* ── Accordéon : CARREAUX ────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('carreaux')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                Carreaux
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.carreaux ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.carreaux && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <CarreauxSection
+              analyseOpen={analyseOpen}
+              toggleAnalyse={toggleAnalyse}
+              carreauxVisible={carreauxVisible}
+              carreauxLoaded={carreauxLoaded}
+              carreauxIndicateur={carreauxIndicateur}
+              carreauxPalette={carreauxPalette}
+              carreauxOpacity={carreauxOpacity}
+              carreauxRange={carreauxRange}
+              carreauxSelectedBucket={carreauxSelectedBucket}
+              setCarreauxVisible={setCarreauxVisible}
+              setCarreauxIndicateur={setCarreauxIndicateur}
+              setCarreauxPalette={setCarreauxPalette}
+              setCarreauxOpacity={setCarreauxOpacity}
+              setCarreauxSelectedBucket={setCarreauxSelectedBucket}
+            />
 
-              {/* Toggle visible */}
-              <button
-                onClick={() => setCarreauxVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: carreauxVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${carreauxVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: carreauxVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${carreauxVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {carreauxVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: carreauxVisible ? C.text : C.textDim }}>
-                  Carreaux{carreauxLoaded ? ' ✓' : ''}
-                </span>
-              </button>
-
-              {/* Indicateur */}
-              <select
-                value={carreauxIndicateur ?? 'population_totale'}
-                onChange={e => setCarreauxIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group))).map(g => (
-                  <optgroup key={g} label={g} style={{ color: C.textDim }}>
-                    {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
-                      <option key={ind.id} value={ind.id}>{ind.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {CARREAUX_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setCarreauxPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${carreauxPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={carreauxOpacity ?? 0.72}
-                  onChange={e => setCarreauxOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((carreauxOpacity ?? 0.72) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Légende
-                  {carreauxSelectedBucket !== null && (
-                    <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                      style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
-                    >✕ Tout</button>
-                  )}
-                </div>
-                {(() => {
-                  const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
-                  if (carreauxRange) {
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => {
-                          const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                          const min = carreauxRange.p5 + i * step;
-                          const max = carreauxRange.p5 + (i + 1) * step;
-                          const isSelected = carreauxSelectedBucket === i;
-                          const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
-                          return (
-                            <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
-                            >
-                              <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                              <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
-                                {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
-                              </span>
-                              {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                      <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
-
-            {/* ── Accordéon : IRIS ────────────────────────────────────────── */}
-            <button
-              onClick={() => toggleAnalyse('iris')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 14px', background: 'var(--bg-level-2)',
-                border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
-              }}
-            >
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
-              <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
-                IRIS
-                {irisVisible && <span style={{ color: C.green, marginLeft: 6 }}>●</span>}
-              </span>
-              <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.iris ? '▲' : '▼'}</span>
-            </button>
-            {analyseOpen.iris && (
-            <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* Toggle visible */}
-              <button
-                onClick={() => setIrisVisible?.(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: irisVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${irisVisible ? 'var(--border-default)' : C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisVisible ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisVisible ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisVisible && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 13, color: irisVisible ? C.text : C.textDim }}>
-                  Couche IRIS
-                </span>
-              </button>
-
-              {/* Toggle vrais IRIS uniquement */}
-              <button
-                onClick={() => setIrisTrueOnly?.(!irisTrueOnly)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                  borderRadius: 4, cursor: 'pointer', width: '100%',
-                }}
-              >
-                <span style={{ width: 11, height: 11, background: irisTrueOnly ? 'var(--text-primary)' : 'transparent', border: `0.5px solid ${irisTrueOnly ? 'var(--text-primary)' : 'var(--border-default)'}`, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {irisTrueOnly && <span style={{ fontSize: 7, color: 'var(--bg-primary)', fontWeight: 700 }}>✓</span>}
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, flex: 1, textAlign: 'left' }}>
-                  Vrais IRIS uniquement
-                </span>
-                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim }}>
-                  {irisTrueOnly ? '16 k quartiers' : '49 k (+ communes)'}
-                </span>
-              </button>
-
-              {/* Indicateur — généré depuis IRIS_DB_COLUMNS */}
-              <select
-                value={irisIndicateur ?? 'pop_15_29'}
-                onChange={e => setIrisIndicateur?.(e.target.value)}
-                style={{ width: '100%', background: C.bgInput, border: `0.5px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 13, fontFamily: fInter, padding: '6px 8px', cursor: 'pointer', outline: 'none' }}
-              >
-                {Array.from(
-                  IRIS_DB_COLUMNS.filter(c => c.type !== 'boolean').reduce((acc, col) => {
-                    if (!acc.has(col.group)) acc.set(col.group, []);
-                    acc.get(col.group)!.push(col);
-                    return acc;
-                  }, new Map<string, typeof IRIS_DB_COLUMNS>())
-                ).map(([group, cols]) => (
-                  <optgroup key={group} label={group} style={{ color: C.textDim }}>
-                    {cols.map(col => (
-                      <option key={col.name} value={col.name}>{col.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              {/* Palette */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 5 }}>Palette</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {IRIS_PALETTES.map(p => (
-                    <button key={p.id} onClick={() => setIrisPalette?.(p.id)} title={p.label}
-                      style={{ border: `1.5px solid ${irisPalette === p.id ? 'var(--text-primary)' : 'transparent'}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'none', display: 'flex', overflow: 'hidden', width: 28, height: 12 }}
-                    >
-                      {p.stops.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Opacité */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Opacité</span>
-                <input type="range" min={0.1} max={1} step={0.05}
-                  value={irisOpacity ?? 0.45}
-                  onChange={e => setIrisOpacity?.(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
-                />
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
-                  {Math.round((irisOpacity ?? 0.45) * 100)}%
-                </span>
-              </div>
-
-              {/* Légende */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
-                {(() => {
-                  const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-                  if (irisStats && irisStats.col_exists && irisStats.max > 0) {
-                    const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
-                    const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {pal.stops.map((color, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                            <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                              {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }
-                  if (irisVisible && !irisStats) {
-                    return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
-                  }
-                  if (irisStats && !irisStats.col_exists) {
-                    return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
-                  }
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-            )}
+            <IrisSection
+              analyseOpen={analyseOpen}
+              toggleAnalyse={toggleAnalyse}
+              irisVisible={irisVisible}
+              irisIndicateur={irisIndicateur}
+              irisPalette={irisPalette}
+              irisOpacity={irisOpacity}
+              irisStats={irisStats}
+              irisTrueOnly={irisTrueOnly}
+              setIrisVisible={setIrisVisible}
+              setIrisIndicateur={setIrisIndicateur}
+              setIrisPalette={setIrisPalette}
+              setIrisOpacity={setIrisOpacity}
+              setIrisTrueOnly={setIrisTrueOnly}
+            />
 
             {/* Sections contexte — blocs déplacés depuis Données terrain */}
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* ── Section : Indicateurs civiques ──────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader
-                label="Indicateurs civiques"
-                sectionKey="civic"
-                open={sectionsOpen.civic !== false}
-                onToggle={() => toggleSection('civic')}
-                count={civicVariableCode ? 1 : 0}
-                searchTerm={filterSearch}
-              />
-              {sectionsOpen.civic !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                <div style={{ ...labelStyle, marginBottom: 4 }}>Variable à afficher</div>
-                <div style={{ position: 'relative' }}>
-                  <select
-                    value={civicVariableCode ?? ''}
-                    onChange={(e) => onCivicVariableChange?.((e.target.value || null) as 'abstention_pres_2022' | null)}
-                    style={{
-                      width: '100%', padding: '8px 28px 8px 11px',
-                      background: C.bgInput,
-                      border: `0.5px solid ${civicVariableCode ? 'var(--brand-teal)' : C.border}`,
-                      borderRadius: 4,
-                      fontFamily: fInter, fontSize: 13,
-                      color: civicVariableCode ? 'var(--brand-teal)' : C.text,
-                      appearance: 'none', cursor: 'pointer', outline: 'none',
-                      transition: 'border-color 200ms var(--ease-out), color 200ms var(--ease-out)',
-                    }}
-                  >
-                    <option value="">— Aucune (layer désactivé) —</option>
-                    <option value="abstention_pres_2022">🗳️ Taux d&apos;abstention (Présidentielle 2022)</option>
-                  </select>
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.textDim, fontSize: 10 }}>▾</span>
-                </div>
+            <CivicIndicatorsSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              civicVariableCode={civicVariableCode}
+              onCivicVariableChange={onCivicVariableChange}
+            />
 
-                {civicVariableCode === 'abstention_pres_2022' && (
-                  <>
-                    {/* Légende gradient */}
-                    <div style={{ marginTop: 10 }}>
-                      <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                        Légende
-                      </div>
-                      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                        {[['#16a34a', 0.5], ['#84cc16', 1], ['#eab308', 1], ['#f97316', 1], ['#dc2626', 1.2], ['#7f1d1d', 0.8]].map(([color, weight], i) => (
-                          <div key={i} style={{ flex: weight as number, background: color as string }} />
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 2 }}>
-                        <span>10% (forte particip.)</span>
-                        <span>30%</span>
-                        <span>60% (forte abst.)</span>
-                      </div>
-                    </div>
+            <CivicHealthSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedIrisCommuneCode={selectedIrisCommuneCode}
+              selectedIrisCommuneName={selectedIrisCommuneName}
+              civicHealthLayer={civicHealthLayer}
+              onCivicHealthLayerChange={onCivicHealthLayerChange}
+              civicScale={civicScale}
+              onCivicScaleChange={onCivicScaleChange}
+              civicMetric={civicMetric}
+              onCivicMetricChange={onCivicMetricChange}
+              civicMinLevel={civicMinLevel}
+              onCivicMinLevelChange={onCivicMinLevelChange}
+              civicProgress={civicProgress}
+              civicLoading={civicLoading}
+              civicCpStatus={civicCpStatus}
+              civicCpDate={civicCpDate}
+              runCivicIngestStream={runCivicIngestStream}
+              civicIngestState={civicIngestState}
+            />
 
-                    {/* Source */}
-                    <div style={{ marginTop: 10, fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                      Source : data.gouv.fr — Ministère de l&apos;Intérieur · 6 186 codes postaux (France métro + DROM)
-                    </div>
-                  </>
-                )}
-              </div>
-              )}{/* fin collapsible civic */}
-            </div>
-
-            {/* ── Section : Santé environnementale (ATMO + pollen) ────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader
-                label="Santé environnementale"
-                sectionKey="civicHealth"
-                open={sectionsOpen.civicHealth === true}
-                onToggle={() => toggleSection('civicHealth')}
-                count={(selectedIrisCommuneCode ? 1 : 0) + (civicHealthLayer ? 1 : 0)}
-                searchTerm={filterSearch}
-              />
-              {sectionsOpen.civicHealth === true && (
-                <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <HealthIndicatorCard
-                    codeCommune={selectedIrisCommuneCode ?? null}
-                    nomCommune={selectedIrisCommuneName ?? null}
-                  />
-
-                  {/* Choix de la couche — une seule active à la fois, re-clic pour masquer */}
-                  <div>
-                    <div style={{ ...labelStyle, marginBottom: 4 }}>Couche nationale</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {([['pollen', '🌾 Allergènes'], ['atmo', '🌬️ Qualité de l’air']] as const).map(([value, label]) => {
-                        const active = civicHealthLayer === value;
-                        return (
-                          <button
-                            key={value}
-                            onClick={() => onCivicHealthLayerChange?.(active ? null : value)}
-                            title={active ? 'Masquer la couche' : 'Afficher la couche'}
-                            style={{
-                              flex: 1, padding: '8px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                              fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                              background: active ? 'rgba(78,205,196,0.1)' : 'transparent',
-                              border: `0.5px solid ${active ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                              color: active ? 'var(--brand-teal)' : C.textSec,
-                            }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {civicHealthLayer && (
-                    <div style={{ animation: 'fadeIn 200ms var(--ease-out)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {/* Échelle des zones */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>Échelle</div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {([['departement', 'Département'], ['cp', 'Code postal']] as const).map(([value, label]) => (
-                            <button
-                              key={value}
-                              onClick={() => onCivicScaleChange?.(value)}
-                              style={{
-                                flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                                fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover)',
-                                background: civicScale === value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                                border: `0.5px solid ${civicScale === value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                                color: civicScale === value ? 'var(--brand-teal)' : C.textSec,
-                              }}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Donnée CP absente : ingestion jamais lancée */}
-                      {civicScale === 'cp' && civicCpStatus === 'no_data' && (
-                        <div style={{
-                          padding: '8px 10px', borderRadius: 6,
-                          background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
-                        }}>
-                          <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginBottom: 6 }}>
-                            Aucune donnée nationale — l&apos;ingestion quotidienne n&apos;a pas encore tourné.
-                          </div>
-                          <button
-                            onClick={runCivicIngestStream}
-                            disabled={civicIngestState.running}
-                            style={{
-                              padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                              fontFamily: fInter, cursor: civicIngestState.running ? 'wait' : 'pointer',
-                              background: 'transparent', border: '0.5px solid var(--brand-teal)',
-                              color: 'var(--brand-teal)', opacity: civicIngestState.running ? 0.6 : 1,
-                            }}
-                          >
-                            {civicIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
-                          </button>
-                        </div>
-                      )}
-                      {(civicIngestState.message || civicIngestState.error) && (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: civicIngestState.error ? 'var(--danger)' : C.textDim }}>
-                          {civicIngestState.error ?? civicIngestState.message}
-                        </div>
-                      )}
-
-                      {/* Métrique filtrée — espèce (pollen) ou polluant (air) */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>
-                          {civicHealthLayer === 'pollen' ? 'Allergène' : 'Polluant'}
-                        </div>
-                        <select
-                          value={civicMetric}
-                          onChange={e => onCivicMetricChange?.(e.target.value)}
-                          style={{
-                            width: '100%', padding: '7px 11px', background: C.bgInput,
-                            border: '0.5px solid var(--border-subtle)', borderRadius: 6,
-                            fontFamily: fInter, fontSize: 12, color: C.text, cursor: 'pointer', outline: 'none',
-                          }}
-                        >
-                          <option value="global">Indice global</option>
-                          {civicHealthLayer === 'pollen' ? (
-                            <>
-                              <option value="ambroisie">Ambroisie</option>
-                              <option value="armoise">Armoise</option>
-                              <option value="aulne">Aulne</option>
-                              <option value="bouleau">Bouleau</option>
-                              <option value="graminees">Graminées</option>
-                              <option value="olivier">Olivier</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="no2">Dioxyde d&apos;azote (NO₂)</option>
-                              <option value="o3">Ozone (O₃)</option>
-                              <option value="pm10">Particules PM10</option>
-                              <option value="pm25">Particules fines PM2.5</option>
-                              <option value="so2">Dioxyde de soufre (SO₂)</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Seuil minimum — cœur du filtre zones à risque */}
-                      <div>
-                        <div style={{ ...labelStyle, marginBottom: 4 }}>Niveau minimum affiché</div>
-                        <select
-                          value={civicMinLevel}
-                          onChange={e => onCivicMinLevelChange?.(Number(e.target.value))}
-                          style={{
-                            width: '100%', padding: '7px 11px', background: C.bgInput,
-                            border: `0.5px solid ${civicMinLevel > 0 ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
-                            borderRadius: 6, fontFamily: fInter, fontSize: 12,
-                            color: civicMinLevel > 0 ? 'var(--brand-teal)' : C.text,
-                            cursor: 'pointer', outline: 'none',
-                          }}
-                        >
-                          <option value={0}>Tous les niveaux</option>
-                          {civicHealthLayer === 'pollen' ? (
-                            <>
-                              <option value={3}>≥ modéré</option>
-                              <option value={4}>≥ élevé</option>
-                              <option value={5}>≥ très élevé</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value={3}>≥ dégradé</option>
-                              <option value={4}>≥ mauvais</option>
-                              <option value={5}>≥ très mauvais</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Chargement : stream département (compteur) ou fetch CP */}
-                      {civicScale === 'departement' && civicProgress && civicProgress.done < civicProgress.total ? (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                          Chargement… {civicProgress.done}/{civicProgress.total} départements
-                        </div>
-                      ) : civicLoading ? (
-                        <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim }}>
-                          Chargement de la couche…
-                        </div>
-                      ) : null}
-
-                      {/* Légende : un libellé par niveau (1-6) */}
-                      <div>
-                        <div style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginBottom: 6 }}>
-                          {civicHealthLayer === 'pollen' ? 'Indice pollen' : 'Indice ATMO'}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px' }}>
-                          {([1, 2, 3, 4, 5, 6] as const).map(lvl => {
-                            const token = civicHealthLayer === 'pollen' ? `--pollen-level-${lvl}` : `--atmo-level-${lvl}`;
-                            const label = civicHealthLayer === 'pollen' ? POLLEN_LEVEL_LABELS[lvl] : ATMO_LEVEL_LABELS[lvl];
-                            const dimmed = civicMinLevel > 0 && lvl < civicMinLevel;
-                            return (
-                              <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: dimmed ? 0.3 : 1, transition: 'opacity 150ms var(--ease-hover)' }}>
-                                <span style={{ width: 10, height: 10, borderRadius: 2, background: `var(${token})`, flexShrink: 0 }} />
-                                <span style={{ fontFamily: fInter, fontSize: 10, color: C.textSec }}>
-                                  {lvl} — {label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                        Source : Atmo France et les AASQA (ODbL) — {civicScale === 'cp'
-                          ? `max des communes par code postal${civicCpDate ? ` · données du ${civicCpDate}` : ''}`
-                          : '1 commune par département'} · clic sur une zone pour le détail {civicHealthLayer === 'pollen' ? 'par espèce' : 'par polluant'}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* ── Section : Météo ─────────────────────────────────────────── */}
             {onOpenMeteo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <FilterSectionHeader
-                  label="Météo"
-                  sectionKey="meteo"
-                  open={sectionsOpen.meteo !== false}
-                  onToggle={() => toggleSection('meteo')}
-                  count={meteoVisible ? 1 : 0}
-                  searchTerm={filterSearch}
-                />
-                {sectionsOpen.meteo !== false && (
-                  <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45, marginBottom: 8 }}>
-                      Données Open-Meteo agrégées par zone au choix — code postal, département ou région (précipitations, température, vent, ensoleillement). Historique 90 jours · prévisions 16 jours.
-                    </div>
-                    {meteoVisible && meteoLabel && (
-                      <div style={{
-                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
-                        color: 'var(--brand-teal)',
-                        padding: '4px 8px',
-                        background: 'var(--bg-level-2)',
-                        border: '0.5px solid var(--brand-teal)',
-                        borderRadius: 4,
-                        marginBottom: 8,
-                      }}>
-                        {meteoLabel} actif
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        style={{ ...primaryBtn('var(--brand-teal)', false), flex: 1 }}
-                        onClick={onOpenMeteo}
-                      >
-                        {meteoVisible ? 'Modifier la météo' : 'Configurer la météo'}
-                      </button>
-                      {meteoVisible && (
-                        <button
-                          style={pill(false, C.muted)}
-                          onClick={onClearMeteo}
-                          title="Masquer la couche météo"
-                        >Masquer</button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <MeteoSection
+                filterSearch={filterSearch}
+                sectionsOpen={sectionsOpen}
+                toggleSection={toggleSection}
+                meteoVisible={meteoVisible}
+                meteoLabel={meteoLabel}
+                onOpenMeteo={onOpenMeteo}
+                onClearMeteo={onClearMeteo}
+              />
             )}
 
             </div>
@@ -3089,52 +1666,11 @@ export function FilterPanel({
             <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}` }}>
             <div style={{ paddingBottom: 4 }}>
 
-              {/* Info encart — 0 POI sélectionné */}
-              {!hasAnyPOI && (
-                <div style={{
-                  padding: '14px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `0.5px solid ${C.border}`,
-                }}>
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 8 }}>
-                    Analyses spatiales disponibles
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                      { icon: '⬡', label: 'Voronoï géométrique', desc: 'Zones à vol d\'oiseau' },
-                      { icon: '◎', label: 'Isochrones routiers',  desc: 'Temps de trajet réel ORS' },
-                    ].map(tool => (
-                      <div key={tool.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: `0.5px solid ${C.border}` }}>
-                        <span style={{ fontSize: 14, color: C.textDim, flexShrink: 0, fontFamily: fMono }}>{tool.icon}</span>
-                        <div>
-                          <div style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.textSec }}>{tool.label}</div>
-                          <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 1 }}>{tool.desc}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 12, padding: '9px 11px', background: 'rgba(255,255,255,0.03)', border: `0.5px solid var(--border-default)`, borderRadius: 4 }}>
-                    <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textSec, marginBottom: 4 }}>
-                      Sélectionnez 1 seul type de POI
-                    </div>
-                    <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
-                      Isolez un réseau (ex: CIRFA) pour débloquer le calcul de zone de chalandise.
-                    </div>
-                  </div>
-                </div>
-              )}
+              {!hasAnyPOI && <SpatialAnalysisEmptyState />}
 
-              {/* Info encart — plusieurs POI sélectionnés */}
-              {selectedPOI.length > 1 && (
-                <div style={{ padding: '10px 12px', background: C.redDim, border: `0.5px solid ${C.redBorder}`, borderRadius: 4, marginTop: 4 }}>
-                  <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.red, marginBottom: 4 }}>! Trop de types sélectionnés</div>
-                  <div style={{ fontFamily: fInter, fontSize: 12, color: '#fca5a5', lineHeight: 1.5 }}>
-                    Les analyses spatiales nécessitent exactement 1 type de POI. Retirez {selectedPOI.length - 1} type{selectedPOI.length > 2 ? 's' : ''}.
-                  </div>
-                </div>
-              )}
+              {selectedPOI.length > 1 && <SpatialAnalysisTooManyPoi selectedCount={selectedPOI.length} />}
 
-              {/* Boutons analyses — visibles uniquement si exactement 1 POI */}
+              {/* Outils — visibles uniquement si exactement 1 POI */}
               {exactlyOnePOI && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
 
@@ -3150,442 +1686,71 @@ export function FilterPanel({
                     </div>
                   </div>
 
-                  {/* ── Voronoï Géométrique ── */}
-                  <div style={{ border: `0.5px solid ${showVoronoi ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={isLoading}
-                      onClick={() => { setShowVoronoi(s => !s); setShowBattle(false); setShowBattleV2(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showVoronoi ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: voronoiVisible ? C.text : C.textSec }}>
-                        {voronoiVisible ? '✓ ' : ''}Voronoï géométrique
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showVoronoi ? '▲' : '▼'}</span>
-                    </button>
-                    {showVoronoi && (
-                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
-                          Zones au POI le plus proche à vol d'oiseau. Instantané, sans API.
-                        </div>
-                        <button style={primaryBtn('var(--text-primary)', isLoading)} disabled={isLoading} onClick={handleVoronoi}>
-                          Lancer le calcul
-                        </button>
-                        {voronoiVisible && (
-                          <button style={pill(false, C.textSec)} onClick={() => setVoronoiVisible(false)}>
-                            Masquer le Voronoï
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <VoronoiTool
+                    showVoronoi={showVoronoi}
+                    setShowVoronoi={setShowVoronoi}
+                    setShowBattle={setShowBattle}
+                    setShowBattleV2={setShowBattleV2}
+                    isLoading={isLoading}
+                    voronoiVisible={voronoiVisible}
+                    setVoronoiVisible={setVoronoiVisible}
+                    handleVoronoi={handleVoronoi}
+                  />
 
-                  {/* ── Bataille V2 — cache only ── */}
-                  <div style={{ border: `0.5px solid ${showBattleV2 ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={battleV2Loading}
-                      onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattleV2 ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
-                        {battleVisible ? '✓ ' : ''}Bataille V2 (multi-paliers)
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattleV2 ? '▲' : '▼'}</span>
-                    </button>
-                  {showBattleV2 && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ fontFamily: fInter, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
-                        Lit le cache existant — <span style={{ color: C.text }}>aucun appel ORS</span>. Paliers manquants skippés.
-                        Lance d'abord les isochrones v1 pour remplir le cache.
-                      </div>
+                  <BattleV2Tool
+                    showBattleV2={showBattleV2}
+                    setShowBattleV2={setShowBattleV2}
+                    setShowBattle={setShowBattle}
+                    setShowVoronoi={setShowVoronoi}
+                    battleVisible={battleVisible}
+                    setBattleVisible={setBattleVisible}
+                    battleV2Paliers={battleV2Paliers}
+                    setBattleV2Paliers={setBattleV2Paliers}
+                    battleV2Loading={battleV2Loading}
+                    battleV2Log={battleV2Log}
+                    setBattleV2Log={setBattleV2Log}
+                    v2CacheStatus={v2CacheStatus}
+                    setV2CacheStatus={setV2CacheStatus}
+                    v2Checking={v2Checking}
+                    v2Filling={v2Filling}
+                    v2FillTotal={v2FillTotal}
+                    v2FillCompleted={v2FillCompleted}
+                    v2FillPct={v2FillPct}
+                    v2FillRings={v2FillRings}
+                    handleCheckV2={handleCheckV2}
+                    handleFillMissingV2={handleFillMissingV2}
+                    handleBattleV2={handleBattleV2}
+                  />
 
-                      {/* Sélection des paliers */}
-                      <div>
-                        <div style={{ ...labelStyle }}>
-                          Paliers — {battleV2Paliers.join(', ')} min
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {[10, 20, 30, 40, 50, 60, 90].map(p => (
-                            <button
-                              key={p}
-                              style={pill(battleV2Paliers.includes(p), 'var(--text-primary)')}
-                              onClick={() => {
-                                setV2CacheStatus(null);
-                                setBattleV2Paliers(prev =>
-                                  prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p].sort((a, b) => a - b)
-                                );
-                              }}
-                            >
-                              {p} min
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* ── Statut cache V2 ── */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* Barre de statut */}
-                        {v2CacheStatus && (
-                          <div style={{
-                            background: v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                            border: `0.5px solid ${v2CacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
-                            borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
-                                {v2CacheStatus.total_pois} POIs · {v2CacheStatus.total_combos} isochrones
-                              </span>
-                              <span style={{ fontFamily: fMono, fontSize: 9, color: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
-                                {v2CacheStatus.missing_combos === 0
-                                  ? '✓ 100% en cache'
-                                  : `✕ ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 's' : ''} manquants`}
-                              </span>
-                            </div>
-                            {/* Barre de progression cache */}
-                            <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{
-                                height: '100%', borderRadius: 2,
-                                width: `${Math.round((v2CacheStatus.cached_combos / Math.max(v2CacheStatus.total_combos, 1)) * 100)}%`,
-                                background: v2CacheStatus.missing_combos === 0 ? 'var(--success)' : '#22d3ee',
-                                transition: 'width 400ms linear',
-                              }} />
-                            </div>
-                            <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                              {v2CacheStatus.cached_combos}/{v2CacheStatus.total_combos} en cache
-                              {v2CacheStatus.missing_combos > 0 && ` · ${v2CacheStatus.missing_combos} à calculer`}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Bouton calculer manquants (si POIs sans cache) */}
-                        {v2CacheStatus && v2CacheStatus.missing_pois > 0 && (
-                          <button
-                            style={primaryBtn(C.amber, v2Filling || battleV2Loading)}
-                            disabled={v2Filling || battleV2Loading}
-                            onClick={handleFillMissingV2}
-                          >
-                            {v2Filling
-                              ? 'ORS EN COURS...'
-                              : `CALCULER ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 'S' : ''} MANQUANTS (ORS)`}
-                          </button>
-                        )}
-
-                        {/* Boutons lancer */}
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            style={primaryBtn('#6b7280', battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading)}
-                            disabled={battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading}
-                            onClick={handleCheckV2}
-                          >
-                            {v2Checking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
-                          </button>
-                          <button
-                            style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
-                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
-                            onClick={() => { setV2CacheStatus(null); handleBattleV2(false); }}
-                          >
-                            {battleV2Loading ? 'CALCUL...' : 'LANCER'}
-                          </button>
-                          <button
-                            style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
-                            disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
-                            onClick={() => { setV2CacheStatus(null); handleBattleV2(true); }}
-                          >
-                            FORCER
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* ── Barre de progression ORS fill ── */}
-                      {v2Filling && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {/* Header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            <span style={{ color: C.amber }}>
-                              {v2FillTotal > 0 ? `ORS — ${v2FillCompleted}/${v2FillTotal} POIs` : 'ORS — initialisation...'}
-                            </span>
-                            <span style={{ color: v2FillPct > 0 ? C.green : C.textDim }}>{v2FillPct}%</span>
-                          </div>
-                          {/* Barre principale */}
-                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%', borderRadius: 2,
-                              width: `${v2FillPct}%`,
-                              background: v2FillPct === 100 ? C.green : C.amber,
-                              transition: 'width 400ms linear',
-                            }} />
-                          </div>
-                          {/* Sous-stats */}
-                          <div style={{ display: 'flex', gap: 10, fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            {v2FillTotal > 0 && (
-                              <>
-                                <span style={{ color: C.green }}>↗ {v2FillRings} isochrones reçus</span>
-                                <span>·</span>
-                                <span>{v2FillTotal - v2FillCompleted} POIs restants</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Barre de progression Bataille V2 ── */}
-                      {battleV2Loading && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                            <span style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>
-                              Bataille V2 — PostGIS ST_Difference...
-                            </span>
-                          </div>
-                          {/* Barre indéterminée */}
-                          <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
-                            <div style={{
-                              position: 'absolute', height: '100%', width: '40%',
-                              background: 'linear-gradient(90deg, transparent, var(--text-secondary), transparent)',
-                              animation: 'fpScan 1.8s linear infinite',
-                              borderRadius: 2,
-                            }} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Log terminal ── */}
-                      {battleV2Log.length > 0 && (
-                        <div style={{
-                          background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
-                          borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
-                          color: C.textDim, lineHeight: 1.7, maxHeight: 140, overflowY: 'auto',
-                          display: 'flex', flexDirection: 'column', gap: 1,
-                        }}>
-                          {battleV2Log.map((line, i) => (
-                            <div key={i} style={{
-                              color: line.startsWith('> ✓') ? C.green
-                                   : line.startsWith('> ✕') ? C.red
-                                   : line.startsWith('> !') ? C.amber
-                                   : line.startsWith('> ◆') ? C.textSec
-                                   : line.startsWith('> ORS') ? C.amber
-                                   : C.textDim,
-                            }}>{line}</div>
-                          ))}
-                          {(battleV2Loading || v2Filling) && <div style={{ color: C.textSec, animation: 'fpBlink 1s linear infinite' }}>▌</div>}
-                        </div>
-                      )}
-
-                      {battleVisible && (
-                        <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleV2Log([]); }}>
-                          Masquer
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  </div>
-
-                  {/* ── Isochrones Routiers (ORS) ── */}
-                  <div style={{ border: `0.5px solid ${showBattle ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                    <button
-                      disabled={battleLoading}
-                      onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '9px 12px', background: showBattle ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',
-                        border: 'none', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: battleVisible ? C.text : C.textSec }}>
-                        {battleVisible ? '✓ ' : ''}Isochrones routiers (ORS)
-                      </span>
-                      <span style={{ color: C.textDim, fontSize: 10 }}>{showBattle ? '▲' : '▼'}</span>
-                    </button>
-                    {showBattle && (
-                    <div style={{ padding: '13px', background: 'rgba(255,255,255,0.01)', borderTop: `0.5px solid var(--border-subtle)`, display: 'flex', flexDirection: 'column', gap: 13 }}>
-
-                      {/* Durées */}
-                      <div>
-                        <div style={labelStyle}>
-                          Temps de trajet
-                          {isoDurations.length > 0 && <span style={{ color: C.textSec }}> — {isoDurations.join(', ')} min</span>}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                          {ISO_DURATIONS.map(d => (
-                            <button key={d} style={pill(isoDurations.includes(d), 'var(--text-primary)')} onClick={() => toggleDuration(d)}>
-                              {d} min
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginTop: 5, fontStyle: 'italic' }}>
-                          Anneaux concentriques — calculé via ORS directement, sans IA
-                        </div>
-                      </div>
-
-                      {/* ── Statut cache ORS ── */}
-                      {orsCacheStatus && (
-                        <div style={{
-                          background: orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.06)' : 'rgba(251,191,36,0.06)',
-                          border: `0.5px solid ${orsCacheStatus.missing_combos === 0 ? 'rgba(61,255,160,0.3)' : 'rgba(247,183,49,0.35)'}`,
-                          borderRadius: 2, padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontFamily: fMono, fontSize: 9, color: '#94a3b8' }}>
-                              {orsCacheStatus.total_pois} POIs · {orsCacheStatus.total_combos} isochrones
-                            </span>
-                            <span style={{ fontFamily: fMono, fontSize: 9, color: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.amber, fontWeight: 700 }}>
-                              {orsCacheStatus.missing_combos === 0
-                                ? '✓ 100% en cache'
-                                : `${orsCacheStatus.missing_pois} POI${orsCacheStatus.missing_pois > 1 ? 's' : ''} à calculer`}
-                            </span>
-                          </div>
-                          <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%', borderRadius: 2,
-                              width: `${Math.round((orsCacheStatus.cached_combos / Math.max(orsCacheStatus.total_combos, 1)) * 100)}%`,
-                              background: orsCacheStatus.missing_combos === 0 ? 'var(--success)' : C.red,
-                              transition: 'width 400ms linear',
-                            }} />
-                          </div>
-                          <div style={{ fontFamily: fMono, fontSize: 8, color: 'var(--text-tertiary)' }}>
-                            {orsCacheStatus.cached_combos}/{orsCacheStatus.total_combos} en cache
-                            {orsCacheStatus.missing_combos > 0 && ` · ORS calculera les ${orsCacheStatus.missing_combos} manquants automatiquement`}
-                          </div>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          style={primaryBtn('#6b7280', isoDurations.length === 0 || battleLoading || orsChecking)}
-                          disabled={isoDurations.length === 0 || battleLoading || orsChecking}
-                          onClick={handleCheckORS}
-                        >
-                          {orsChecking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
-                        </button>
-                        <button
-                          style={primaryBtn(C.red, isoDurations.length === 0 || battleLoading)}
-                          disabled={isoDurations.length === 0 || battleLoading}
-                          onClick={() => handleBattle(false)}
-                        >
-                          {battleLoading ? 'CALCUL ORS...' : 'LANCER'}
-                        </button>
-                        <button
-                          style={primaryBtn(C.amber, isoDurations.length === 0 || battleLoading)}
-                          disabled={isoDurations.length === 0 || battleLoading}
-                          onClick={() => handleBattle(true)}
-                        >
-                          RECALCULER
-                        </button>
-                      </div>
-
-                      {battleLog.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {/* ── Barre de progression ── */}
-                          {battleLoading && battleTotal > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                                <span style={{ color: battleProgress === 100 ? C.green : C.amber }}>
-                                  {battleProgress === 100 ? '✓ Terminé' : `ORS — ${battleCompleted}/${battleTotal} POIs`}
-                                </span>
-                                <span style={{ color: battleProgress > 0 ? C.green : C.textDim }}>{battleProgress}%</span>
-                              </div>
-                              <div style={{ height: 4, background: 'var(--bg-level-2)', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{
-                                  height: '100%',
-                                  width: `${battleProgress}%`,
-                                  background: battleProgress === 100 ? C.green : C.textSec,
-                                  transition: 'width 400ms linear',
-                                  borderRadius: 2,
-                                }} />
-                              </div>
-                            </div>
-                          )}
-                          {/* ── Log terminal ── */}
-                          <div style={{
-                            background: 'var(--bg-primary)', border: `0.5px solid var(--border-default)`,
-                            borderRadius: 4, padding: '8px 10px', fontFamily: fMono, fontSize: 10,
-                            color: C.textDim, lineHeight: 1.7, maxHeight: 120, overflowY: 'auto',
-                            display: 'flex', flexDirection: 'column', gap: 1,
-                          }}>
-                            {battleLog.map((line, i) => (
-                              <div key={i} style={{
-                                color: line.startsWith('> ✓') ? C.green
-                                     : line.startsWith('> ✕') ? C.red
-                                     : line.startsWith('> !') ? C.amber
-                                     : line.includes('[3/3]') ? C.green
-                                     : C.textDim,
-                              }}>{line}</div>
-                            ))}
-                            {battleLoading && (
-                              <div style={{ color: C.textDim, animation: 'fpBlink 1s linear infinite' }}>▌</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {battleVisible && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button style={pill(false, C.textSec)} onClick={() => { setBattleVisible(false); setBattleLog([]); }}>
-                            Masquer les isochrones
-                          </button>
-                          <button
-                            style={pill(battleOuterFillVisible, C.textSec)}
-                            onClick={() => setBattleOuterFillVisible(!battleOuterFillVisible)}
-                            title="Afficher/masquer le remplissage Voronoï résiduel (zones hors portée)"
-                          >
-                            {battleOuterFillVisible ? 'Voronoï ✓' : 'Voronoï'}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* ── Bouton BATAILLE (Phase 2 — ST_Difference) ────── */}
-                      {battleRings.length > 0 && !battleLoading && (
-                        <>
-                        <button
-                          style={{ ...pill(false, C.textSec), opacity: battleApplyLoading ? 0.5 : 1 }}
-                          disabled={battleApplyLoading}
-                          onClick={async () => {
-                            setBattleApplyLoading(true);
-                            setBattleApplyPct(0);
-                            setBattleLog(prev => [...prev, '> [BATAILLE] ST_Difference en cours…']);
-                            try {
-                              await onApplyBattle(
-                                battleRings,
-                                battleMeta?.categorie,
-                                undefined,
-                                (msg, pct) => {
-                                  setBattleLog(prev => [...prev, `> ${msg}`]);
-                                  setBattleApplyPct(pct);
-                                },
-                              );
-                              setBattleApplyPct(100);
-                              setBattleLog(prev => [...prev, '> ✓ Territoires découpés sans chevauchement']);
-                            } catch (e: unknown) {
-                              setBattleLog(prev => [...prev, `> ✕ ${e instanceof Error ? e.message : 'Erreur bataille'}`]);
-                            } finally {
-                              setBattleApplyLoading(false);
-                            }
-                          }}
-                        >
-                          {battleApplyLoading ? `BATAILLE… ${battleApplyPct}%` : 'X BATAILLE (ST_Difference)'}
-                        </button>
-                        {/* Barre de progression BATAILLE */}
-                        {battleApplyLoading && (
-                          <div style={{ height: 3, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${battleApplyPct}%`,
-                              background: battleApplyPct === 100 ? C.green : C.textSec,
-                              transition: 'width 400ms linear, background-color 180ms var(--ease-out)',
-                            }} />
-                          </div>
-                        )}
-                        </>
-                      )}
-                    </div>
-                    )}
-                  </div>
+                  <IsochronesTool
+                    showBattle={showBattle}
+                    setShowBattle={setShowBattle}
+                    setShowVoronoi={setShowVoronoi}
+                    setShowBattleV2={setShowBattleV2}
+                    battleVisible={battleVisible}
+                    setBattleVisible={setBattleVisible}
+                    battleOuterFillVisible={battleOuterFillVisible}
+                    setBattleOuterFillVisible={setBattleOuterFillVisible}
+                    isoDurations={isoDurations}
+                    toggleDuration={toggleDuration}
+                    orsCacheStatus={orsCacheStatus}
+                    orsChecking={orsChecking}
+                    handleCheckORS={handleCheckORS}
+                    battleLoading={battleLoading}
+                    battleLog={battleLog}
+                    setBattleLog={setBattleLog}
+                    battleTotal={battleTotal}
+                    battleCompleted={battleCompleted}
+                    battleProgress={battleProgress}
+                    handleBattle={handleBattle}
+                    battleRings={battleRings}
+                    battleMeta={battleMeta}
+                    battleApplyLoading={battleApplyLoading}
+                    setBattleApplyLoading={setBattleApplyLoading}
+                    battleApplyPct={battleApplyPct}
+                    setBattleApplyPct={setBattleApplyPct}
+                    onApplyBattle={onApplyBattle}
+                  />
 
                 </div>
               )}
