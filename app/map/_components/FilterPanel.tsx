@@ -40,6 +40,11 @@ import type { ContributedGeometry } from '@/types/custom-geo';
 import { C, fInter, fMono } from './filter-panel/tokens';
 import { hexToRgb, inputFocusHandlers, inputStyle, labelStyle, pill, primaryBtn } from './filter-panel/styles';
 import { PerimeterSections } from './filter-panel/PerimeterSections';
+import { PoiSection } from './filter-panel/PoiSection';
+import { OohSection } from './filter-panel/OohSection';
+import { TransportSection } from './filter-panel/TransportSection';
+import { TmjaSection } from './filter-panel/TmjaSection';
+import { RadioSection } from './filter-panel/RadioSection';
 import { FilterSectionHeader } from './filter-panel/FilterSectionHeader';
 import { MultiDropdown } from './filter-panel/MultiDropdown';
 import { RadioSearchInput } from './filter-panel/RadioSearchInput';
@@ -57,8 +62,10 @@ type Tab = 'geoprompt' | 'expert';
 // ExpertSubTab supprimé — panel unique scrollable (Sprint 1)
 
 // ─── POI Style ────────────────────────────────────────────────────────────────
-export interface POIStyle { size: string; color: string; }
-export type POIStylesMap = Record<string, POIStyle>;
+// Types déplacés dans ./filter-panel/poi-style.ts — réexportés ici pour ne pas
+// casser les importateurs existants (map/page.tsx, useMapMarkers, useMapDirectActions).
+export type { POIStyle, POIStylesMap } from './filter-panel/poi-style';
+import type { POIStylesMap } from './filter-panel/poi-style';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
@@ -1439,565 +1446,93 @@ export function FilterPanel({
         <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* ── Section : Points d'intérêt ─────────────────────────────── */}
-            <div style={{ paddingBottom: 4 }}>
-              <FilterSectionHeader label="Points d'intérêt (POI)" sectionKey="poi" open={sectionsOpen.poi !== false} onToggle={() => toggleSection('poi')} count={selectedPOI.length} tooltipKey="poi" searchTerm={filterSearch} />
-              {sectionsOpen.poi !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-            <div>
-              <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>
-                  Types de POI
-                  {selectedPOI.length > 0 && <span style={{ color: C.textSec }}> — {selectedPOI.length} sélectionné{selectedPOI.length > 1 ? 's' : ''}</span>}
-                  {!catsLoading && poiTypes.length > 0 && <span style={{ color: C.textDim }}> ({poiTypes.length})</span>}
-                </span>
-                <button
-                  onClick={() => fetchCategories(true)}
-                  title="Rafraîchir la liste"
-                  style={{ background: 'none', border: 'none', color: catsLoading ? C.muted : C.textDim, cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
-                >{catsLoading ? '…' : '↻'}</button>
-              </div>
-              {/* Affiche l'erreur SEULEMENT si on n'a aucune catégorie chargée
-                  (sinon c'est un refresh raté non bloquant — la liste reste utilisable) */}
-              {catsError && poiTypes.length === 0 && (
-                <div style={{ fontFamily: fMono, fontSize: 10, color: C.red, marginBottom: 4 }}>
-                  ! Erreur chargement catégories : {catsError} — <button onClick={() => fetchCategories(true)} style={{ background: 'none', border: 'none', color: C.amber, cursor: 'pointer', fontSize: 10, fontFamily: fMono, padding: 0 }}>réessayer</button>
-                </div>
-              )}
-              <MultiDropdown
-                label="Aucun type selectionne"
-                items={poiTypes}
-                selected={selectedPOI}
-                onChange={setSelectedPOI}
-              />
-              {/* Cartes POI sélectionnés */}
-              {selectedPOI.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                  {selectedPOI.map(poi => {
-                    const style = getPOIStyle(poi);
-                    // Style commun pour les selects : avec flèche ▾ custom
-                    const selectBase: React.CSSProperties = {
-                      fontFamily: fInter, fontSize: 13,
-                      background: C.bgInput,
-                      border: `0.5px solid ${C.border}`, borderRadius: 4,
-                      color: C.text, padding: '4px 22px 4px 8px',
-                      outline: 'none', cursor: 'pointer', flex: 1, width: '100%',
-                      appearance: 'none' as const,
-                    };
-                    const selectWrap: React.CSSProperties = {
-                      position: 'relative', flex: 1, display: 'flex', alignItems: 'center',
-                    };
-                    const selectArrow: React.CSSProperties = {
-                      position: 'absolute', right: 7, pointerEvents: 'none',
-                      fontFamily: fInter, fontSize: 9, color: C.textDim, lineHeight: 1,
-                    };
-                    return (
-                      <div key={poi} style={{
-                        background: 'rgba(255,255,255,0.02)',
-                        border: `0.5px solid ${C.border}`,
-                        borderRadius: 4, padding: '8px 10px',
-                        display: 'flex', flexDirection: 'column', gap: 7,
-                      }}>
-                        {/* Header : nom + bouton X */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: C.text }}>
-                            {poi}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setSelectedPOI(prev => prev.filter(p => p !== poi));
-                              setPoiStyles(prev => { const n = { ...prev }; delete n[poi]; return n; });
-                            }}
-                            style={{
-                              background: 'none', border: 'none', cursor: 'pointer',
-                              color: C.muted, fontSize: 11, lineHeight: 1, padding: '0 2px',
-                              fontFamily: fMono,
-                            }}
-                            title="Retirer ce POI"
-                          >✕</button>
-                        </div>
+            <PoiSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedPOI={selectedPOI}
+              setSelectedPOI={setSelectedPOI}
+              poiTypes={poiTypes}
+              catsLoading={catsLoading}
+              catsError={catsError}
+              fetchCategories={fetchCategories}
+              getPOIStyle={getPOIStyle}
+              setPOIStyle={setPOIStyle}
+              setPoiStyles={setPoiStyles}
+              poiNatures={poiNatures}
+              selectedPoiNatures={selectedPoiNatures}
+              setSelectedPoiNatures={setSelectedPoiNatures}
+              hasAnyPOI={hasAnyPOI}
+              searchLoading={searchLoading}
+              handleSearchPOI={handleSearchPOI}
+              densityMode={densityMode}
+              onDensityModeChange={onDensityModeChange}
+            />
 
-                        {/* Épingle (taille) */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
-                            Épingle
-                          </span>
-                          <div style={selectWrap}>
-                            <select
-                              value={style.size}
-                              onChange={e => setPOIStyle(poi, { size: e.target.value })}
-                              style={selectBase}
-                            >
-                              {PIN_SIZES.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                            <span style={selectArrow}>▾</span>
-                          </div>
-                        </div>
+            <OohSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedOOH={selectedOOH}
+              setSelectedOOH={setSelectedOOH}
+              onDirectOOH={onDirectOOH}
+            />
 
-                        {/* Couleur */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, whiteSpace: 'nowrap', width: 50 }}>
-                            Couleur
-                          </span>
-                          <div style={{ ...selectWrap }}>
-                            <div style={{
-                              width: 10, height: 10, borderRadius: '50%',
-                              background: style.color,
-                              border: `1px solid rgba(255,255,255,0.15)`,
-                              position: 'absolute', left: 7, pointerEvents: 'none', zIndex: 1,
-                              flexShrink: 0,
-                            }} />
-                            <select
-                              value={style.color}
-                              onChange={e => setPOIStyle(poi, { color: e.target.value })}
-                              style={{ ...selectBase, paddingLeft: 24 }}
-                            >
-                              {PIN_COLORS.map(c => (
-                                <option key={c.hex} value={c.hex}>{c.label}</option>
-                              ))}
-                            </select>
-                            <span style={selectArrow}>▾</span>
-                          </div>
-                        </div>
+            <TransportSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              selectedTransportTypes={selectedTransportTypes}
+              setSelectedTransportTypes={setSelectedTransportTypes}
+              transportLoading={transportLoading}
+              setTransportLoading={setTransportLoading}
+              onLoadTransport={onLoadTransport}
+            />
 
-                        {/* Nature (metadata->>'libelle_nature') */}
-                        {poiNatures[poi]?.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>
-                              Nature
-                              {(selectedPoiNatures[poi]?.length ?? 0) > 0 && (
-                                <span style={{ color: C.textSec }}>
-                                  {' '}— {selectedPoiNatures[poi].length} sélectionnée{selectedPoiNatures[poi].length > 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </span>
-                            <MultiDropdown
-                              label="Toutes les natures"
-                              items={poiNatures[poi].map(n => ({ id: n, label: n }))}
-                              selected={selectedPoiNatures[poi] ?? []}
-                              onChange={sel => setSelectedPoiNatures(prev => ({ ...prev, [poi]: sel }))}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <TmjaSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              tmjaVisible={!!tmjaVisible}
+              tmjaHideLowTraffic={!!tmjaHideLowTraffic}
+              onToggleTmjaHideLowTraffic={onToggleTmjaHideLowTraffic}
+              tmjaLoading={tmjaLoading}
+              setTmjaLoading={setTmjaLoading}
+              onLoadTMJA={onLoadTMJA}
+              onClearTMJA={onClearTMJA}
+            />
 
-            {/* AFFICHER button + densité toggle */}
-            {hasAnyPOI && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={{ ...primaryBtn(C.green, searchLoading), flex: 1 }} disabled={searchLoading} onClick={handleSearchPOI}>
-                  {searchLoading ? 'CHARGEMENT...' : 'AFFICHER LES POI SUR LA CARTE'}
-                </button>
-                <button
-                  title={densityMode ? 'Mode densité activé — cliquer pour repasser en marqueurs' : 'Passer en carte de densité'}
-                  onClick={() => onDensityModeChange?.(!densityMode)}
-                  style={{
-                    flexShrink: 0, padding: '0 10px',
-                    background: densityMode ? 'rgba(255,255,255,0.08)' : C.bgInput,
-                    border: `0.5px solid ${densityMode ? 'var(--text-primary)' : C.border}`,
-                    borderRadius: 4, cursor: 'pointer',
-                    fontFamily: fInter, fontSize: 12,
-                    color: densityMode ? 'var(--text-primary)' : C.textDim,
-                    whiteSpace: 'nowrap', transition: 'background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), opacity 200ms var(--ease-out)',
-                  }}
-                >
-                  {densityMode ? '◉ Densité' : '◎ Densité'}
-                </button>
-              </div>
-            )}
-
-            </div>
-            )}{/* fin collapsible POI content */}
-            </div>{/* fin section POI */}
-
-            {/* ── Section : Panneaux OOH & DOOH ───────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Panneaux OOH et DOOH" sectionKey="ooh" open={sectionsOpen.ooh !== false} onToggle={() => toggleSection('ooh')} count={selectedOOH.length} searchTerm={filterSearch} />
-              {sectionsOpen.ooh !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Info stock */}
-              <div style={{ fontFamily: fInter, fontSize: 12, color: C.textDim, lineHeight: 1.5 }}>
-                <span style={{ color: C.textSec }}>1 434</span> panneaux · Brest Métropole
-                <span style={{ color: C.textDim }}> · DECAUX, Clear Channel…</span>
-              </div>
-
-              {/* Filtre par régie (optionnel) */}
-              <div>
-                <div style={{ fontFamily: fInter, fontSize: 11, color: C.textDim, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>
-                    Filtrer par régie (optionnel)
-                    {selectedOOH.length > 0 && <span style={{ color: C.textSec }}> — {selectedOOH.length} sélectionnée{selectedOOH.length > 1 ? 's' : ''}</span>}
-                  </span>
-                  <span style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      title="Tout sélectionner"
-                      onClick={() => setSelectedOOH(OOH_REGIES.map(r => r.id))}
-                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 11, padding: '1px 6px', fontFamily: fInter }}
-                    >Tout</button>
-                    <button
-                      title="Tout désélectionner"
-                      onClick={() => setSelectedOOH([])}
-                      style={{ background: 'none', border: `0.5px solid ${C.border}`, color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '1px 5px', lineHeight: 1 }}
-                    >✕</button>
-                  </span>
-                </div>
-                <MultiDropdown
-                  label="Toutes les régies"
-                  items={OOH_REGIES}
-                  selected={selectedOOH}
-                  onChange={setSelectedOOH}
-                />
-              </div>
-
-              {/* Bouton toujours visible */}
-              <button
-                style={{ ...primaryBtn('var(--brand-teal)', false) }}
-                onClick={() => onDirectOOH(selectedOOH.length > 0 ? selectedOOH : undefined)}
-              >
-                {selectedOOH.length > 0
-                  ? `Afficher — ${selectedOOH.length} régie${selectedOOH.length > 1 ? 's' : ''}`
-                  : 'Afficher tous les panneaux'}
-              </button>
-              </div>
-              )}{/* fin collapsible OOH */}
-            </div>
-
-            {/* ── Section : Arrêts de transport en commun ─────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Arrêts de transport en commun" sectionKey="transport" open={sectionsOpen.transport !== false} onToggle={() => toggleSection('transport')} count={selectedTransportTypes.length} searchTerm={filterSearch} />
-              {sectionsOpen.transport !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Sélection du type */}
-              <div>
-                <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>
-                    Type de transport
-                    {selectedTransportTypes.length > 0 && (
-                      <span style={{ color: C.textSec }}> — {selectedTransportTypes.join(', ')}</span>
-                    )}
-                  </span>
-                  {selectedTransportTypes.length > 0 && (
-                    <button
-                      onClick={() => setSelectedTransportTypes([])}
-                      style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', fontSize: 10, padding: '0 2px', fontFamily: fMono }}
-                      title="Tout désélectionner"
-                    >✕</button>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {TRANSPORT_TYPES.map(t => (
-                    <button
-                      key={t.id}
-                      style={pill(selectedTransportTypes.includes(t.id), C.textSec)}
-                      onClick={() => setSelectedTransportTypes(prev =>
-                        prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, marginTop: 5, fontStyle: 'italic' }}>
-                  {selectedTransportTypes.length === 0 ? 'Tous les types' : ''} · Chargé pour la zone visible
-                </div>
-              </div>
-
-              <button
-                style={primaryBtn('var(--brand-teal)', transportLoading || !onLoadTransport)}
-                disabled={transportLoading || !onLoadTransport}
-                onClick={async () => {
-                  setTransportLoading(true);
-                  try { await onLoadTransport?.(selectedTransportTypes); }
-                  finally { setTransportLoading(false); }
-                }}
-              >
-                {transportLoading ? 'Chargement...' : 'Afficher arrêts'}
-              </button>
-              </div>
-              )}{/* fin collapsible transport */}
-            </div>
-
-            {/* ── Section : Flux routier TMJA ──────────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Flux routier (TMJA)" sectionKey="tmja" open={sectionsOpen.tmja !== false} onToggle={() => toggleSection('tmja')} count={tmjaVisible ? 1 : 0} tooltipKey="tmja" searchTerm={filterSearch} />
-              {sectionsOpen.tmja !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Légende couleurs */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 2 }}>
-                  Légende — trafic moyen journalier
-                </div>
-                {[
-                  { color: '#4292C6', label: '< 5 000 véh/j', isLow: true },
-                  { color: '#f6d543', label: '5 000 – 15 000 véh/j', isLow: false },
-                  { color: '#e5a00d', label: '15 000 – 40 000 véh/j', isLow: false },
-                  { color: '#ef4444', label: '> 40 000 véh/j', isLow: false },
-                ].map(({ color, label, isLow }) => {
-                  const dimmed = isLow && tmjaHideLowTraffic;
-                  return (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: dimmed ? 0.35 : 1 }}>
-                      <div style={{ width: 24, height: 3, background: color, borderRadius: 2, flexShrink: 0, textDecoration: dimmed ? 'line-through' : 'none' }} />
-                      <span style={{ fontFamily: fMono, fontSize: 9, color: C.muted, textDecoration: dimmed ? 'line-through' : 'none' }}>{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Toggle : masquer le trafic faible (perf + lisibilité) */}
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: onToggleTmjaHideLowTraffic ? 'pointer' : 'default',
-                  padding: '6px 8px',
-                  background: 'var(--elevated)',
-                  border: '0.5px solid var(--border-subtle)',
-                  borderRadius: 4,
-                }}
-                title="Cache les tronçons à moins de 5 000 véh/j (allège le rendu)"
-              >
-                <input
-                  type="checkbox"
-                  checked={tmjaHideLowTraffic}
-                  onChange={e => onToggleTmjaHideLowTraffic?.(e.target.checked)}
-                  disabled={!onToggleTmjaHideLowTraffic}
-                  style={{ accentColor: 'var(--brand-teal)' }}
-                />
-                <span style={{ fontFamily: fInter, fontSize: 11, color: C.text }}>
-                  Masquer le trafic faible (&lt; 5 000 véh/j)
-                </span>
-              </label>
-
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  style={{ ...primaryBtn('var(--brand-teal)', tmjaLoading || !onLoadTMJA), flex: 1 }}
-                  disabled={tmjaLoading || !onLoadTMJA}
-                  onClick={async () => {
-                    setTmjaLoading(true);
-                    try { await onLoadTMJA?.(); }
-                    finally { setTmjaLoading(false); }
-                  }}
-                >
-                  {tmjaLoading ? 'Chargement...' : tmjaVisible ? 'Actualiser' : 'Afficher TMJA'}
-                </button>
-                {tmjaVisible && (
-                  <button
-                    style={pill(false, C.muted)}
-                    onClick={onClearTMJA}
-                    title="Masquer le flux routier"
-                  >Masquer</button>
-                )}
-              </div>
-              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                Source : CEREMA — tronçons pour la zone visible
-              </div>
-              </div>
-              )}{/* fin collapsible TMJA */}
-            </div>
-
-            {/* ── Section : Radio FM/DAB+ ──────────────────────────────────── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <FilterSectionHeader label="Radio FM/DAB+" sectionKey="radio" open={sectionsOpen.radio !== false} onToggle={() => toggleSection('radio')} count={radioCount} searchTerm={filterSearch} />
-              {sectionsOpen.radio !== false && (
-              <div style={{ animation: 'fadeIn 200ms var(--ease-out)' }}>
-
-              {/* Selected radio banner */}
-              {radioSelectedNom && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: 'rgba(78,205,196,0.08)', border: '0.5px solid rgba(78,205,196,0.2)',
-                  borderRadius: 6, padding: '6px 10px', fontSize: 11,
-                }}>
-                  <span style={{ color: 'var(--brand-teal)', flex: 1, fontWeight: 500, fontFamily: fInter }}>
-                    📻 {radioSelectedNom}
-                  </span>
-                  <button onClick={onClearRadioSelection} style={{
-                    background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer',
-                    fontSize: 14, padding: 0, lineHeight: 1, transition: 'color 150ms var(--ease-hover)',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-                  >×</button>
-                </div>
-              )}
-
-              {/* Main toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  onClick={onToggleRadio}
-                  style={{
-                    flex: 1, padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                    fontFamily: fInter, cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
-                    background: radioVisible ? 'rgba(78,205,196,0.1)' : 'transparent',
-                    border: `0.5px solid ${radioVisible ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                    color: radioVisible ? 'var(--brand-teal)' : C.textSec,
-                  }}
-                >
-                  {radioVisible ? '📻 Émetteurs visibles' : '📻 Afficher les émetteurs'}
-                </button>
-              </div>
-
-              {/* Sub-layer toggles + filters + visual controls */}
-              {radioVisible && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Radio search */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Rechercher une radio</div>
-                    <RadioSearchInput onSelect={(id, nom) => onSelectRadio?.(id, nom)} />
-                  </div>
-
-                  {/* Multi-radio filter — searchable, multi-select */}
-                  {Array.isArray(radioFilterOptions?.radios) && radioFilterOptions!.radios.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>
-                        Filtrer par radios
-                        <span style={{ color: C.textDim, marginLeft: 4, fontFamily: fMono }}>({radioFilterOptions!.radios.length})</span>
-                      </div>
-                      <MultiDropdown
-                        label="Sélectionner des radios..."
-                        items={radioFilterOptions!.radios.map(r => ({ id: r.id, label: `${r.nom}${r.cat ? ` (${r.cat})` : ''}` }))}
-                        selected={radioFilterIds ?? []}
-                        onChange={ids => onRadioFilterIdsChange?.(ids)}
-                        searchable
-                      />
-                    </div>
-                  )}
-
-                  {/* Exclude categories */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Exclure des categories</div>
-                    <MultiDropdown
-                      label="Aucune exclusion"
-                      items={[
-                        { id: 'D,E,P', label: 'Toutes nationales (D/E/P)' },
-                        { id: 'D', label: 'D — Thematiques nationales' },
-                        { id: 'E', label: 'E — Generalistes nationales' },
-                        { id: 'P', label: 'P — Service public' },
-                        { id: 'A', label: 'A — Associatives' },
-                        { id: 'B', label: 'B — Locales commerciales' },
-                        { id: 'C', label: 'C — Franchises locales' },
-                      ]}
-                      selected={radioExcludeCategories ?? []}
-                      onChange={cats => onRadioExcludeCategoriesChange?.(cats)}
-                    />
-                  </div>
-
-                  {/* System filter */}
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Système</div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {[{ label: 'Tous', value: '' }, { label: 'FM', value: 'FM' }, { label: 'DAB+', value: 'DAB+' }].map(opt => (
-                        <button key={opt.value} onClick={() => onRadioSystemeChange?.(opt.value)} style={{
-                          flex: 1, padding: '4px 0', borderRadius: 4, fontSize: 10, fontFamily: fInter,
-                          background: radioSystemeFilter === opt.value ? 'rgba(78,205,196,0.1)' : 'transparent',
-                          border: `0.5px solid ${radioSystemeFilter === opt.value ? 'var(--brand-teal)' : 'var(--border-default)'}`,
-                          color: radioSystemeFilter === opt.value ? 'var(--brand-teal)' : C.textDim,
-                          cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)',
-                        }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 8 }} />
-
-                  {/* Layer toggles */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioCoverageMode} onChange={() => onToggleRadioCoverage?.()} style={{ accentColor: 'var(--brand-teal)' }} />
-                    Zones de couverture
-                  </label>
-
-                  {/* Coverage controls (visible when coverage on) */}
-                  {radioCoverageMode && (
-                    <div style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', marginBottom: 2 }}>Couverture estimée (approximation)</div>
-
-                      {/* Color picker */}
-                      <div>
-                        <div style={{ fontSize: 10, color: C.textDim, marginBottom: 3 }}>Couleur</div>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          {['var(--brand-teal)', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
-                            <button key={c} onClick={() => onRadioCoverageColorChange?.(c)} style={{
-                              width: 16, height: 16, borderRadius: '50%', background: c, border: radioCoverageColor === c ? '2px solid var(--text-primary)' : '1px solid var(--border-hover)',
-                              cursor: 'pointer', transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', flexShrink: 0,
-                            }} />
-                          ))}
-                          <input type="color" value={radioCoverageColor ?? 'var(--brand-teal)'} onChange={e => onRadioCoverageColorChange?.(e.target.value)} style={{ width: 16, height: 16, border: 'none', padding: 0, cursor: 'pointer', background: 'transparent' }} />
-                        </div>
-                      </div>
-
-                      {/* Opacity slider */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                          <span>Opacité</span>
-                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioCoverageOpacity}%</span>
-                        </div>
-                        <input type="range" min={0} max={100} step={5} value={radioCoverageOpacity ?? 15}
-                          onChange={e => onRadioCoverageOpacityChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                      </div>
-
-                      {/* Border width */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                          <span>Contour</span>
-                          <span style={{ fontFamily: fMono, color: C.textSec }}>{radioBorderWidth}px</span>
-                        </div>
-                        <input type="range" min={0} max={5} step={0.5} value={radioBorderWidth ?? 0.5}
-                          onChange={e => onRadioBorderWidthChange?.(Number(e.target.value))}
-                          style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                      </div>
-                    </div>
-                  )}
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: C.textSec }}>
-                    <input type="checkbox" checked={radioHeatmapMode} onChange={() => onToggleRadioHeatmap?.()} style={{ accentColor: 'var(--brand-teal)' }} />
-                    Densité (heatmap)
-                  </label>
-
-                  {/* Point size */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textDim, marginBottom: 2 }}>
-                      <span>Taille points</span>
-                      <span style={{ fontFamily: fMono, color: C.textSec }}>{radioPointSize}px</span>
-                    </div>
-                    <input type="range" min={2} max={12} step={1} value={radioPointSize ?? 5}
-                      onChange={e => onRadioPointSizeChange?.(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--brand-teal)', height: 4, cursor: 'pointer' }} />
-                  </div>
-
-                  <div style={{ borderTop: '0.5px solid var(--border-subtle)', paddingTop: 6 }}>
-                    <button onClick={onRecenterFrance} style={{
-                      background: 'transparent', border: '0.5px solid var(--border-default)', borderRadius: 6,
-                      padding: '5px 12px', fontSize: 10, color: C.textDim, cursor: 'pointer',
-                      fontFamily: fInter, transition: 'background-color 150ms var(--ease-hover), border-color 150ms var(--ease-hover), color 150ms var(--ease-hover), opacity 150ms var(--ease-hover)', width: '100%',
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = C.textDim; }}
-                    >
-                      Recentrer France
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ fontFamily: fMono, fontSize: 9, color: C.muted, fontStyle: 'italic' }}>
-                Source : ANFR data.gouv.fr
-              </div>
-              </div>
-              )}{/* fin collapsible radio */}
-            </div>
+            <RadioSection
+              filterSearch={filterSearch}
+              sectionsOpen={sectionsOpen}
+              toggleSection={toggleSection}
+              radioCount={radioCount}
+              radioVisible={radioVisible}
+              onToggleRadio={onToggleRadio}
+              radioSelectedNom={radioSelectedNom}
+              onClearRadioSelection={onClearRadioSelection}
+              onSelectRadio={onSelectRadio}
+              radioFilterOptions={radioFilterOptions}
+              radioFilterIds={radioFilterIds}
+              onRadioFilterIdsChange={onRadioFilterIdsChange}
+              radioExcludeCategories={radioExcludeCategories}
+              onRadioExcludeCategoriesChange={onRadioExcludeCategoriesChange}
+              radioSystemeFilter={radioSystemeFilter}
+              onRadioSystemeChange={onRadioSystemeChange}
+              radioCoverageMode={radioCoverageMode}
+              onToggleRadioCoverage={onToggleRadioCoverage}
+              radioCoverageColor={radioCoverageColor}
+              onRadioCoverageColorChange={onRadioCoverageColorChange}
+              radioCoverageOpacity={radioCoverageOpacity}
+              onRadioCoverageOpacityChange={onRadioCoverageOpacityChange}
+              radioBorderWidth={radioBorderWidth}
+              onRadioBorderWidthChange={onRadioBorderWidthChange}
+              radioHeatmapMode={radioHeatmapMode}
+              onToggleRadioHeatmap={onToggleRadioHeatmap}
+              radioPointSize={radioPointSize}
+              onRadioPointSizeChange={onRadioPointSizeChange}
+              onRecenterFrance={onRecenterFrance}
+            />
 
           </div>
         </CategoryGroup>
