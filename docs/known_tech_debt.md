@@ -10,7 +10,9 @@
 > Révisé : 2026-09-07 — `app/admin/import/page.tsx` splitté (branche
 > `refactor/split-admin-import`) : 1 776 → 586 lignes, puis
 > `app/admin/carreaux-import/page.tsx` (branche
-> `refactor/split-carreaux-import`) : 1 526 → 502 lignes.
+> `refactor/split-carreaux-import`) : 1 526 → 502 lignes, puis
+> `components/map/overlays/PilotageOverlay.tsx` (branche
+> `refactor/split-pilotage-overlay`) : 1 217 → 244 lignes.
 > **Plus aucun fichier > 2000 lignes dans le projet.**
 > Reste ouvert : item 6, item 8.
 
@@ -338,6 +340,7 @@ pourquoi elles sont conservées.
 | `admin/import/page` split (1 776 l.) | 1 776 → 586 lignes, 7 composants + 2 modules dans `app/admin/import/_components/` — cf. §1 |
 | `admin/carreaux-import/page` split (1 526 l.) | 1 526 → 502 lignes, 4 composants + `shared.ts` dans `_components/`, parsers binaires dans `_lib/shapefile.ts` — cf. §1 |
 | Parsers shapefile sans test | 36 tests (`tests/unit/import/shapefile.test.ts`) ; suite passée de 388 à 424 tests |
+| `PilotageOverlay` split (1 217 l.) | 1 217 → 244 lignes, 8 composants dans `components/map/overlays/pilotage/` — cf. §1 |
 | Interpolation perdue au dry-run | `{'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}` rendait le code en clair depuis `abf5db6` ; seul cas de la branche, corrigé |
 
 ### Ouvert
@@ -345,15 +348,22 @@ pourquoi elles sont conservées.
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 3 fichiers 1000-1826 lignes | 4-6 h | medium | smoke E2E manuel Vince |
+| 2 fichiers 1000-1826 lignes | 3-4 h | medium | smoke E2E manuel Vince |
 | 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
 
-Les 3 fichiers de plus de 1 000 lignes, remesurés le 2026-09-07 :
+Les 2 fichiers de plus de 1 000 lignes, remesurés le 2026-09-07 :
 `FilterPanel.tsx` (1 826 — reste ses handlers, cf. §1),
-`components/map/overlays/PilotageOverlay.tsx` (1 217),
 `app/strategies/_components/steps/Step2Geography.tsx` (1 014).
+
+`components/map/overlays/PilotageOverlay.tsx` est sorti de cette liste le
+2026-09-07 : 244 lignes, huit composants dans
+`components/map/overlays/pilotage/` (`shared.ts`, `BackBar`, `SelectedRow`,
+`CampaignPicker`, `StrategyPicker`, `CreateWizardLoader`, `EditWizardLoader`,
+`StrategyDetail`). L'overlay ne garde que la machine à états des trois vues ;
+`StrategyDetail` (495 l.) emporte tous les imports lourds, que la liste ne
+charge donc plus.
 
 `app/admin/import/page.tsx` est sorti de cette liste le 2026-09-07 : 586 lignes,
 sept composants d'étape et deux modules partagés dans
@@ -361,6 +371,15 @@ sept composants d'étape et deux modules partagés dans
 `ColumnSelectionStep`, `GeocodeStep`, `DryRunStep`, `ImportStep`,
 `ImportLogPanel`, plus `shared.tsx` et `styles.ts`). La page ne garde que
 l'état du wizard, les appels API et l'assemblage des étapes.
+
+**Cercles invisibles sur la carte du pilotage à faible volume** —
+`app/custom-bidding/[strategyId]/_components/DualMap.tsx:534` construit son
+`circle-radius` en `interpolate` avec des paliers `Math.max(1, maxImpressions * k)`.
+Quand le volume est faible, plusieurs paliers retombent tous sur 1 : les
+bornes ne sont plus strictement croissantes, MapLibre rejette l'expression
+entière (`layers.dual-circle-*.paint.circle-radius[7]` en console) et le rayon
+reste au 0 initial. Visible sur la démo élections. Pré-existant, découvert en
+vérifiant le split de l'overlay.
 
 **Aperçu carte du dry-run inopérant en local** — l'`<iframe>` OpenStreetMap de
 l'étape 04 est bloqué par le CSP de `next.config.js:12` (`default-src 'self'`,
