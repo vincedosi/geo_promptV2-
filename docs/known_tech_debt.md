@@ -14,6 +14,10 @@
 > `components/map/overlays/PilotageOverlay.tsx` (branche
 > `refactor/split-pilotage-overlay`) : 1 217 → 244 lignes.
 > **Plus aucun fichier > 2000 lignes dans le projet.**
+> Révisé : 2026-09-07 (soir) — bug MapLibre de `DualMap` corrigé
+> (branche `fix/dualmap-circle-radius`) ; une seconde cause, indépendante,
+> est apparue en le vérifiant : la stratégie de démo n'a aucune donnée
+> simulée en base. Voir la fin du document.
 > Reste ouvert : item 6, item 8.
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
@@ -341,6 +345,7 @@ pourquoi elles sont conservées.
 | `admin/carreaux-import/page` split (1 526 l.) | 1 526 → 502 lignes, 4 composants + `shared.ts` dans `_components/`, parsers binaires dans `_lib/shapefile.ts` — cf. §1 |
 | Parsers shapefile sans test | 36 tests (`tests/unit/import/shapefile.test.ts`) ; suite passée de 388 à 424 tests |
 | `PilotageOverlay` split (1 217 l.) | 1 217 → 244 lignes, 8 composants dans `components/map/overlays/pilotage/` — cf. §1 |
+| Cercles invisibles du pilotage (`DualMap`) | garde-fou `Math.max(1, …)` retiré, expression extraite en fonction pure + 13 tests — cf. plus bas |
 | Interpolation perdue au dry-run | `{'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}` rendait le code en clair depuis `abf5db6` ; seul cas de la branche, corrigé |
 
 ### Ouvert
@@ -373,13 +378,32 @@ sept composants d'étape et deux modules partagés dans
 l'état du wizard, les appels API et l'assemblage des étapes.
 
 **Cercles invisibles sur la carte du pilotage à faible volume** —
-`app/custom-bidding/[strategyId]/_components/DualMap.tsx:534` construit son
-`circle-radius` en `interpolate` avec des paliers `Math.max(1, maxImpressions * k)`.
-Quand le volume est faible, plusieurs paliers retombent tous sur 1 : les
-bornes ne sont plus strictement croissantes, MapLibre rejette l'expression
-entière (`layers.dual-circle-*.paint.circle-radius[7]` en console) et le rayon
-reste au 0 initial. Visible sur la démo élections. Pré-existant, découvert en
-vérifiant le split de l'overlay.
+✅ **CORRIGÉ le 2026-09-07** (branche `fix/dualmap-circle-radius`).
+`DualMap.tsx` construisait son `circle-radius` en `interpolate` avec des
+paliers `Math.max(1, maxImpressions * k)`. Dès que `maxImpressions ≤ 3,33` —
+et notamment à 1, sa valeur par défaut quand aucun point n'a de volume —
+plusieurs paliers retombaient tous sur 1 : les bornes n'étaient plus
+strictement croissantes, MapLibre rejetait l'expression entière sans lever
+d'exception (`layers.dual-circle-*.paint.circle-radius[7]` en console) et le
+rayon restait au 0 initial. **Le garde-fou était la cause.**
+
+Les bornes dérivent maintenant d'une base toujours strictement positive
+(`maxImpressions` sinon 1), ce qui rend `base*0.05 < base*0.3 < base*0.6 <
+base` vrai pour toute base > 0. L'expression est sortie du composant vers
+`app/custom-bidding/[strategyId]/_lib/circle-radius.ts` — fonction pure,
+13 tests dont la propriété de stricte croissance sur toute la plage de
+volumes. Vérifié en navigateur : l'expression est acceptée, l'erreur console
+a disparu.
+
+**Aucune donnée simulée pour la stratégie de démo `dccc0000-…-000000000012`** —
+seconde cause, indépendante, découverte en vérifiant le fix ci-dessus. La
+stratégie a 11 435 lignes dans `bidding_zone_configs` mais **0 ligne** dans
+`bidding_daily_state`, `bidding_simulations` et `bidding_curve_history`.
+Les 6 051 codes postaux renvoyés à `DualMap` ont donc tous leurs métriques à
+0 (`leads_real`, `leads_sim`, `impressions_*`, `spend_*`, `clicks_*`), et les
+bulles ont un rayon de 0 à juste titre. Ce n'est pas un bug de rendu : le
+seed de démo du pilotage n'a jamais été rejoué sur cette base. À trancher
+avec Vince — rejouer la simulation, ou retirer cette stratégie de la démo.
 
 **Aperçu carte du dry-run inopérant en local** — l'`<iframe>` OpenStreetMap de
 l'étape 04 est bloqué par le CSP de `next.config.js:12` (`default-src 'self'`,

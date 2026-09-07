@@ -32,6 +32,7 @@ import {
 } from '@/lib/bidding-ml/metric-labels';
 import { useMapCustomization, PALETTES, type Granularity } from '@/lib/bidding-ml/use-map-customization';
 import { MapCustomizationPanel } from './MapCustomizationPanel';
+import { buildCircleRadiusExpression } from '../_lib/circle-radius';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -531,14 +532,11 @@ function MapPanel({
     if (!map || !styleReady) return;
     const maxRadius = granularity === 'cp' ? 18 : granularity === 'region' ? 42 : 32;
     try {
-      map.setPaintProperty(circleLayerId, 'circle-radius', [
-        'interpolate', ['linear'], ['get', 'impressions'],
-        0, 0,
-        Math.max(1, maxImpressions * 0.05), Math.round(maxRadius * 0.2),
-        Math.max(1, maxImpressions * 0.3), Math.round(maxRadius * 0.45),
-        Math.max(1, maxImpressions * 0.6), Math.round(maxRadius * 0.7),
-        Math.max(1, maxImpressions), maxRadius,
-      ] as maplibregl.ExpressionSpecification);
+      map.setPaintProperty(
+        circleLayerId,
+        'circle-radius',
+        buildCircleRadiusExpression(maxImpressions, maxRadius) as maplibregl.ExpressionSpecification,
+      );
     } catch { /* ok */ }
   }, [maxImpressions, granularity, styleReady, circleLayerId]);
 
