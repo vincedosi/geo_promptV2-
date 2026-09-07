@@ -337,6 +337,7 @@ pourquoi elles sont conservées.
 |---|---|
 | `admin/import/page` split (1 776 l.) | 1 776 → 586 lignes, 7 composants + 2 modules dans `app/admin/import/_components/` — cf. §1 |
 | `admin/carreaux-import/page` split (1 526 l.) | 1 526 → 502 lignes, 4 composants + `shared.ts` dans `_components/`, parsers binaires dans `_lib/shapefile.ts` — cf. §1 |
+| Parsers shapefile sans test | 36 tests (`tests/unit/import/shapefile.test.ts`) ; suite passée de 388 à 424 tests |
 | Interpolation perdue au dry-run | `{'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}` rendait le code en clair depuis `abf5db6` ; seul cas de la branche, corrigé |
 
 ### Ouvert
@@ -371,8 +372,9 @@ l'aperçu.
 502 lignes, quatre composants (`Stepper`, `FilesStep`, `MappingStep`,
 `ImportStep`) plus `shared.ts` dans `_components/`, et surtout les parsers
 binaires `.shp` / `.dbf` isolés dans `_lib/shapefile.ts` — fonctions pures,
-sans React, **testables pour la première fois** (aucun test ne les couvre
-encore : c'est le chantier suivant naturel).
+sans React, testables pour la première fois. **36 tests les couvrent depuis
+le 2026-09-07** (`tests/unit/import/shapefile.test.ts`, fixtures binaires
+construites dans le test), vérifiés par mutation.
 
 **Total restant : ~11-16 h**, dont l'essentiel est bloqué non par la
 difficulté technique mais par le besoin de validation manuelle en
