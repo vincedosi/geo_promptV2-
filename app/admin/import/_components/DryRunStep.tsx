@@ -96,7 +96,7 @@ export function DryRunStep({ dryRunResult, handleDryRun, isDryRunning }: DryRunS
             {dryRunResult.samplePoints.length > 0 && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 6 }}>
-                  {'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}
+                  {'// apercu carte — '}{dryRunResult.samplePoints.length}{' premiers points'}
                 </div>
                 <iframe
                   src={getMapPreviewUrl(dryRunResult.samplePoints)}
