@@ -12,64 +12,23 @@ import type {
   GeoConfig,
   GeocodeDetailedResult,
 } from '@/lib/import/types';
-
-// ============================================================
-// Design tokens
-// ============================================================
-
-const C = {
-  bg: 'var(--bg-primary)', bgElevated: 'var(--bg-surface)', bgSurface: 'var(--bg-level-2)',
-  border: 'var(--border-subtle)', borderLight: 'var(--brand-teal-30)',
-  accent: 'var(--brand-teal)', accentDim: 'var(--brand-teal-10)',
-  text: 'var(--text-primary)', textDim: 'var(--text-secondary)', textSec: 'var(--text-tertiary)', muted: '#505050',
-  green: 'var(--success)', greenDim: 'rgba(61,255,160,0.12)',
-  red: '#f87171', redDim: 'rgba(248,113,113,0.1)',
-  warn: '#fbbf24', warnDim: 'rgba(251,191,36,0.1)', blue: '#3b82f6',
-};
-const fontMono = "'JetBrains Mono',monospace";
-const fontInter = "'Inter',system-ui,sans-serif";
-
-// ============================================================
-// State interfaces
-// ============================================================
-
-interface MappingState extends FieldMapping {
-  [key: string]: string | undefined;
-}
-
-// ============================================================
-// Constants
-// ============================================================
-
-const GEO_MODES: { val: GeoMode; title: string; desc: string }[] = [
-  { val: 'gps', title: 'GPS direct', desc: 'Colonnes latitude / longitude deja presentes' },
-  { val: 'address', title: 'Geocodage adresse', desc: 'Adresse → coordonnees via API BAN (gratuit)' },
-  { val: 'lambert93', title: 'Lambert 93 (X, Y)', desc: 'Coordonnees projetees EPSG:2154 → WGS84' },
-];
-
-// POI_CATEGORIES loaded dynamically from Supabase (poi_categories table)
-
-const GENESIS_FIELDS_POI = [
-  { key: 'nom', label: 'Nom', required: false },
-  { key: 'adresse', label: 'Adresse', required: false },
-  { key: 'ville', label: 'Ville', required: false },
-  { key: 'code_postal', label: 'Code postal', required: false },
-  { key: 'departement', label: 'Departement', required: false },
-  { key: 'region', label: 'Region', required: false },
-];
-
-
-// ============================================================
-// Spinner SVG
-// ============================================================
-
-function Spinner({ size = 12 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite', display: 'inline-block', verticalAlign: 'middle' }}>
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
+import {
+  C,
+  fontInter,
+  fontMono,
+  GENESIS_FIELDS_POI,
+  GEO_MODES,
+  Spinner,
+  type MappingState,
+} from './_components/shared';
+import {
+  badgeAccent, badgeGreen, badgeRed, badgeWarn,
+  btnDanger, btnGhost, btnSuccess,
+  card, cardBody, cardHeader, cardTitle,
+  inputStyle, sLabel, statusColor, statusLabel, stepNum,
+} from './_components/styles';
+import { GeocodeStep } from './_components/GeocodeStep';
+import { ImportStep } from './_components/ImportStep';
 
 // ============================================================
 // Main Component
@@ -533,129 +492,6 @@ export default function ImportUniverselPage() {
 
   // For address mode: geocode step must be completed and validated before proceeding
   const isGeocodeReady = geoMode !== 'address' || geocodeValidated;
-
-  const sLabel: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    color: C.text,
-    margin: 0,
-    display: 'block',
-    marginBottom: 6,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    background: C.bg,
-    border: `1px solid ${C.border}`,
-    borderRadius: 2,
-    color: C.text,
-    fontFamily: fontMono,
-    fontSize: 11,
-    padding: '6px 10px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-  };
-
-
-  const btnSuccess: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    background: C.greenDim,
-    border: `1px solid rgba(61,255,160,0.3)`,
-    borderRadius: 2,
-    color: C.green,
-    padding: '7px 16px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-
-  const btnDanger: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    background: C.redDim,
-    border: `1px solid rgba(248,113,113,0.3)`,
-    borderRadius: 2,
-    color: C.red,
-    padding: '7px 16px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-
-  const btnGhost: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    background: 'transparent',
-    border: `1px solid ${C.border}`,
-    borderRadius: 2,
-    color: C.textDim,
-    padding: '4px 10px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-  };
-
-  const card: React.CSSProperties = {
-    background: C.bgElevated,
-    border: `1px solid ${C.border}`,
-    borderRadius: 2,
-  };
-
-  const cardHeader: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '10px 14px',
-    borderBottom: `1px solid ${C.border}`,
-  };
-
-  const cardBody: React.CSSProperties = {
-    padding: '14px',
-  };
-
-  const stepNum: React.CSSProperties = {
-    fontFamily: fontMono,
-    fontSize: 11,
-    color: C.accent,
-    fontWeight: 700,
-  };
-
-  const cardTitle: React.CSSProperties = {
-    fontFamily: fontInter,
-    fontSize: 12,
-    fontWeight: 500,
-    color: C.text,
-  };
-
-  const badge = (color: string, bg: string, border: string): React.CSSProperties => ({
-    fontFamily: fontInter,
-    fontSize: 11,
-    fontWeight: 500,
-    background: bg,
-    border: `1px solid ${border}`,
-    borderRadius: 2,
-    color: color,
-    padding: '2px 6px',
-    display: 'inline-block',
-  });
-
-  const badgeGreen = badge(C.green, C.greenDim, 'rgba(61,255,160,0.3)');
-  const badgeWarn = badge(C.warn, C.warnDim, 'rgba(251,191,36,0.3)');
-  const badgeRed = badge(C.red, C.redDim, 'rgba(248,113,113,0.3)');
-  const badgeAccent = badge(C.accent, C.accentDim, C.borderLight);
-
-  const statusColor = (s: string) =>
-    s === 'green' ? C.green : s === 'orange' ? C.warn : C.red;
-  const statusLabel = (s: string) =>
-    s === 'green' ? 'OK' : s === 'orange' ? 'Approx.' : 'Echec';
 
   return (
     <div style={{ maxWidth: 900, fontFamily: fontInter, color: C.text }}>
@@ -1165,291 +1001,35 @@ export default function ImportUniverselPage() {
         {/* ============================================================ */}
         {/* STEP 03c — Geocodage adresses (BAN API)                       */}
         {/* ============================================================ */}
-        {parseResult?.success && isStep2Valid && isStep3Valid && geoMode === 'address' && (() => {
-          const filteredResults = geocodeFilter === 'all'
-            ? geocodeResults
-            : geocodeResults.filter((r) => r.status === geocodeFilter);
-
-          // Sort: red first, then orange, then green
-          const sortedResults = [...filteredResults].sort((a, b) => {
-            const order = { red: 0, orange: 1, green: 2 };
-            return order[a.status] - order[b.status];
-          });
-
-          return (
-            <div style={card}>
-              <div style={cardHeader}>
-                <span style={stepNum}>03c</span>
-                <span style={cardTitle}>Geocodage adresses</span>
-                {geocodeStats && (
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                    <span style={badgeGreen}>{geocodeStats.green} OK</span>
-                    {geocodeStats.orange > 0 && (
-                      <span style={badgeWarn}>{geocodeStats.orange} approx.</span>
-                    )}
-                    {geocodeStats.red > 0 && (
-                      <span style={badgeRed}>{geocodeStats.red} echecs</span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div style={cardBody}>
-                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
-                  {'// geocodage via api-adresse.data.gouv.fr (BAN) — endpoint batch CSV'}
-                </div>
-
-                {/* Launch button */}
-                {!geocodeId && (
-                  <button
-                    onClick={handleGeocodeBatch}
-                    disabled={isGeocoding}
-                    style={{ ...btnSuccess, minWidth: 250, opacity: isGeocoding ? 0.6 : 1 }}
-                  >
-                    {isGeocoding ? <><Spinner /> Geocodage en cours...</> : `Lancer le geocodage (${parseResult.totalRows} adresses)`}
-                  </button>
-                )}
-
-                {geocodeError && (
-                  <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                    ! {geocodeError}
-                  </div>
-                )}
-
-                {/* Results review */}
-                {geocodeResults.length > 0 && geocodeStats && (
-                  <div style={{ marginTop: 16 }}>
-                    {/* Stats */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
-                      {[
-                        { key: 'green', label: 'Geocodes OK', val: geocodeStats.green, note: 'score >= 0.6', color: C.green },
-                        { key: 'orange', label: 'Approximatifs', val: geocodeStats.orange, note: 'score 0.3–0.6', color: C.warn },
-                        { key: 'red', label: 'Non trouves', val: geocodeStats.red, note: 'score < 0.3', color: C.red },
-                      ].map(({ key, label, val, note, color }) => (
-                        <div
-                          key={key}
-                          onClick={() => setGeocodeFilter(key as 'green' | 'orange' | 'red')}
-                          style={{
-                            background: C.bgSurface,
-                            border: `1px solid ${geocodeFilter === key ? color : C.border}`,
-                            borderRadius: 2,
-                            padding: '12px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
-                          <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
-                          <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginTop: 4 }}>{note}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Filter bar */}
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
-                      {(['all', 'red', 'orange', 'green'] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setGeocodeFilter(f)}
-                          style={{
-                            fontFamily: fontInter,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            padding: '4px 10px',
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            background: geocodeFilter === f
-                              ? (f === 'all' ? C.accentDim : `${statusColor(f)}22`)
-                              : 'transparent',
-                            color: geocodeFilter === f
-                              ? (f === 'all' ? C.accent : statusColor(f))
-                              : C.muted,
-                            border: `1px solid ${geocodeFilter === f
-                              ? (f === 'all' ? C.accent : statusColor(f))
-                              : C.border}`,
-                          }}
-                        >
-                          {f === 'all' ? `Tous (${geocodeResults.length})` : `${statusLabel(f)} (${geocodeResults.filter(r => r.status === f).length})`}
-                        </button>
-                      ))}
-                      <span style={{ marginLeft: 'auto', fontFamily: fontMono, fontSize: 9, color: C.muted }}>
-                        {filteredResults.length} resultats affiches
-                      </span>
-                    </div>
-
-                    {/* Results table */}
-                    <div style={{ maxHeight: 500, overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 2 }}>
-                      {/* Table header */}
-                      <div style={{
-                        display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
-                        gap: 4, padding: '6px 8px',
-                        fontFamily: fontInter, fontSize: 11, fontWeight: 500,
-                        color: C.muted, borderBottom: `1px solid ${C.border}`,
-                        position: 'sticky', top: 0, background: C.bgElevated, zIndex: 1,
-                      }}>
-                        <span>#</span>
-                        <span>Adresse saisie</span>
-                        <span>Resultat BAN</span>
-                        <span>Score</span>
-                        <span>Statut</span>
-                        <span>Actions</span>
-                      </div>
-
-                      {/* Table rows (show max 200 for performance) */}
-                      {sortedResults.slice(0, 200).map((result) => (
-                        <div key={result.rowIndex}>
-                          <div style={{
-                            display: 'grid', gridTemplateColumns: '50px 1fr 1fr 60px 70px 120px',
-                            gap: 4, padding: '5px 8px',
-                            borderBottom: `1px solid ${C.border}`,
-                            alignItems: 'center',
-                            background: result.status === 'red'
-                              ? 'rgba(248,113,113,0.04)'
-                              : result.status === 'orange'
-                                ? 'rgba(251,191,36,0.03)'
-                                : 'transparent',
-                          }}>
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>{result.rowIndex + 1}</span>
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.inputAddress}>
-                              {result.inputAddress || <i style={{ color: C.muted }}>vide</i>}
-                            </span>
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: result.status === 'green' ? C.text : C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.resultLabel}>
-                              {result.resultLabel || '—'}
-                              {result.manualOverride && <span style={{ fontFamily: fontMono, fontSize: 9, color: C.accent, marginLeft: 4 }}>[edit]</span>}
-                            </span>
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: statusColor(result.status), fontWeight: 600 }}>
-                              {result.score.toFixed(2)}
-                            </span>
-                            <span style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 600, color: statusColor(result.status) }}>
-                              {statusLabel(result.status)}
-                            </span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {result.status !== 'green' && (
-                                <>
-                                  <button
-                                    style={{ ...btnGhost, fontSize: 8, padding: '2px 6px' }}
-                                    onClick={() => {
-                                      setEditingRow(editingRow === result.rowIndex ? null : result.rowIndex);
-                                      setEditAddress(result.inputAddress);
-                                      setEditLat(result.lat?.toString() || '');
-                                      setEditLng(result.lng?.toString() || '');
-                                    }}
-                                  >
-                                    {editingRow === result.rowIndex ? 'Fermer' : 'Corriger'}
-                                  </button>
-                                  <button
-                                    style={{ ...btnGhost, fontSize: 8, padding: '2px 6px', opacity: isUpdatingRow ? 0.5 : 1 }}
-                                    onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'ignore' })}
-                                    disabled={isUpdatingRow}
-                                  >
-                                    Ignorer
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Inline edit form */}
-                          {editingRow === result.rowIndex && (
-                            <div style={{
-                              padding: '10px 8px 10px 58px',
-                              background: C.accentDim,
-                              borderBottom: `1px solid ${C.border}`,
-                              display: 'flex', flexDirection: 'column', gap: 8,
-                            }}>
-                              {/* Re-geocode with corrected address */}
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 500, color: C.muted, minWidth: 80 }}>Adresse :</label>
-                                <input
-                                  type="text"
-                                  value={editAddress}
-                                  onChange={(e) => setEditAddress(e.target.value)}
-                                  style={{ ...inputStyle, flex: 1, fontSize: 10, padding: '4px 8px' }}
-                                  placeholder="Corrigez l'adresse et re-geocodez"
-                                />
-                                <button
-                                  style={{ ...btnSuccess, fontSize: 9, padding: '4px 10px', opacity: (!editAddress.trim() || isUpdatingRow) ? 0.5 : 1 }}
-                                  disabled={!editAddress.trim() || isUpdatingRow}
-                                  onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'reGeocode', address: editAddress.trim() })}
-                                >
-                                  {isUpdatingRow ? <Spinner size={10} /> : 'Re-geocoder'}
-                                </button>
-                              </div>
-                              {/* Manual lat/lng */}
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                <label style={{ fontFamily: fontInter, fontSize: 11, fontWeight: 500, color: C.muted, minWidth: 80 }}>Manuel :</label>
-                                <input
-                                  type="text"
-                                  value={editLat}
-                                  onChange={(e) => setEditLat(e.target.value)}
-                                  style={{ ...inputStyle, width: 100, fontSize: 10, padding: '4px 8px' }}
-                                  placeholder="Latitude"
-                                />
-                                <input
-                                  type="text"
-                                  value={editLng}
-                                  onChange={(e) => setEditLng(e.target.value)}
-                                  style={{ ...inputStyle, width: 100, fontSize: 10, padding: '4px 8px' }}
-                                  placeholder="Longitude"
-                                />
-                                <button
-                                  style={{ ...btnSuccess, fontSize: 9, padding: '4px 10px', opacity: (!editLat || !editLng || isNaN(Number(editLat)) || isNaN(Number(editLng)) || isUpdatingRow) ? 0.5 : 1 }}
-                                  disabled={!editLat || !editLng || isNaN(Number(editLat)) || isNaN(Number(editLng)) || isUpdatingRow}
-                                  onClick={() => handleGeocodeUpdateRow(result.rowIndex, { type: 'manual', lat: Number(editLat), lng: Number(editLng) })}
-                                >
-                                  Valider coords
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-
-                      {sortedResults.length > 200 && (
-                        <div style={{ padding: 12, textAlign: 'center', fontFamily: fontMono, fontSize: 10, color: C.muted }}>
-                          ... et {sortedResults.length - 200} autres resultats (utilisez les filtres pour affiner)
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Validate button */}
-                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <button
-                        style={{ ...btnSuccess, minWidth: 200, opacity: geocodeStats.green === 0 ? 0.4 : 1 }}
-                        onClick={() => setGeocodeValidated(true)}
-                        disabled={geocodeStats.green === 0}
-                      >
-                        Valider le geocodage ({geocodeStats.green + geocodeStats.orange} lignes avec coordonnees)
-                      </button>
-                      {geocodeStats.red > 0 && (
-                        <span style={{ fontFamily: fontMono, fontSize: 10, color: C.warn }}>
-                          ! {geocodeStats.red} ligne{geocodeStats.red > 1 ? 's' : ''} sans coordonnees (seront exclues)
-                        </span>
-                      )}
-                      {geocodeValidated && (
-                        <span style={{ ...badgeGreen, marginLeft: 'auto' }}>VALIDE</span>
-                      )}
-                    </div>
-
-                    {/* Re-geocode button */}
-                    <div style={{ marginTop: 8 }}>
-                      <button
-                        style={btnGhost}
-                        onClick={() => {
-                          setGeocodeId(null);
-                          setGeocodeResults([]);
-                          setGeocodeStats(null);
-                          setGeocodeValidated(false);
-                          setGeocodeError(null);
-                        }}
-                      >
-                        Relancer tout le geocodage
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {parseResult?.success && isStep2Valid && isStep3Valid && geoMode === 'address' && (
+          <GeocodeStep
+            parseResult={parseResult}
+            geocodeId={geocodeId}
+            setGeocodeId={setGeocodeId}
+            isGeocoding={isGeocoding}
+            handleGeocodeBatch={handleGeocodeBatch}
+            geocodeResults={geocodeResults}
+            setGeocodeResults={setGeocodeResults}
+            geocodeStats={geocodeStats}
+            setGeocodeStats={setGeocodeStats}
+            geocodeError={geocodeError}
+            setGeocodeError={setGeocodeError}
+            geocodeFilter={geocodeFilter}
+            setGeocodeFilter={setGeocodeFilter}
+            editingRow={editingRow}
+            setEditingRow={setEditingRow}
+            editAddress={editAddress}
+            setEditAddress={setEditAddress}
+            editLat={editLat}
+            setEditLat={setEditLat}
+            editLng={editLng}
+            setEditLng={setEditLng}
+            isUpdatingRow={isUpdatingRow}
+            handleGeocodeUpdateRow={handleGeocodeUpdateRow}
+            geocodeValidated={geocodeValidated}
+            setGeocodeValidated={setGeocodeValidated}
+          />
+        )}
 
         {/* ============================================================ */}
         {/* STEP 04 — Dry-run */}
@@ -1561,202 +1141,20 @@ export default function ImportUniverselPage() {
         {/* STEP 05 — Import reel */}
         {/* ============================================================ */}
         {dryRunResult?.success && dryRunResult.stats.validRows > 0 && (
-          <div style={card}>
-            <div style={cardHeader}>
-              <span style={stepNum}>05</span>
-              <span style={cardTitle}>Import reel</span>
-              {importReport && (
-                <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
-                  {importReport.inserted.toLocaleString()} inseres
-                </span>
-              )}
-            </div>
-            <div style={cardBody}>
-              {/* Source metadata */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={sLabel}>Nom de la source (optionnel)</label>
-                  <input
-                    type="text"
-                    value={sourceName}
-                    onChange={(e) => setSourceName(e.target.value)}
-                    placeholder={`Import POI — ${new Date().toLocaleDateString('fr-FR')}`}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={sLabel}>Organisation</label>
-                  <select
-                    value={organizationId}
-                    onChange={(e) => setOrganizationId(e.target.value)}
-                    style={inputStyle}
-                  >
-                    {organizations.length > 0 ? (
-                      organizations.map((org) => (
-                        <option key={org.id} value={org.id}>{org.name}</option>
-                      ))
-                    ) : (
-                      <option value="00000000-0000-0000-0000-000000000001">GENESIS (Global)</option>
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <button
-                  onClick={handleImport}
-                  disabled={isImporting}
-                  style={{ ...btnDanger, minWidth: 200, opacity: isImporting ? 0.6 : 1 }}
-                >
-                  {isImporting ? <><Spinner /> Import en cours...</> : 'LANCER L\'IMPORT REEL'}
-                </button>
-                <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                  ! Insertion en base Supabase ({parseResult?.totalRows.toLocaleString()} lignes)
-                </span>
-              </div>
-
-              {/* Progress bar */}
-              {importProgress && importProgress.total && importProgress.total > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, height: 6, overflow: 'hidden', marginBottom: 8 }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        background: C.accent,
-                        borderRadius: 2,
-                        width: `${((importProgress.processed || 0) / importProgress.total) * 100}%`,
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 16, fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
-                    <span>traites: <span style={{ color: C.text }}>{(importProgress.processed || 0).toLocaleString()}/{importProgress.total.toLocaleString()}</span></span>
-                    {importProgress.inserted !== undefined && <span>inseres: <span style={{ color: C.green }}>{importProgress.inserted.toLocaleString()}</span></span>}
-                    {importProgress.ignored !== undefined && importProgress.ignored > 0 && <span>ignores: <span style={{ color: C.warn }}>{importProgress.ignored.toLocaleString()}</span></span>}
-                    {importProgress.errors !== undefined && importProgress.errors > 0 && <span>erreurs: <span style={{ color: C.red }}>{importProgress.errors.toLocaleString()}</span></span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Geocoding progress */}
-              {importProgress?.type === 'geocode' && (
-                <div style={{ marginTop: 8, fontFamily: fontMono, fontSize: 11, color: C.accent }}>
-                  {importProgress.message}
-                </div>
-              )}
-
-              {/* Error message */}
-              {importProgress?.type === 'error' && (
-                <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                  ! {importProgress.message}
-                </div>
-              )}
-
-              {/* Final report */}
-              {importReport && (
-                <div style={{ marginTop: 16 }}>
-                  {importReport.errors > 0 && importReport.inserted === 0 ? (
-                    <div style={{ background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red, marginBottom: 10 }}>
-                      ! Import echoue — {importReport.errors} erreurs, 0 inseres
-                    </div>
-                  ) : importReport.errors > 0 ? (
-                    <div style={{ background: C.warnDim, border: `1px solid rgba(251,191,36,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.warn, marginBottom: 10 }}>
-                      ! Import partiel — {importReport.inserted} inseres, {importReport.errors} erreurs
-                    </div>
-                  ) : (
-                    <div style={{ background: C.greenDim, border: `1px solid rgba(61,255,160,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.green, marginBottom: 10 }}>
-                      [OK] Import termine avec succes
-                    </div>
-                  )}
-                  <div style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12, fontFamily: fontMono, fontSize: 11, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    <div><span style={{ color: C.muted }}>total: </span><span style={{ color: C.text }}>{importReport.total.toLocaleString()}</span></div>
-                    <div><span style={{ color: C.muted }}>inseres: </span><span style={{ color: C.green }}>{importReport.inserted.toLocaleString()}</span></div>
-                    <div><span style={{ color: C.muted }}>ignores: </span><span style={{ color: C.warn }}>{importReport.ignored.toLocaleString()}</span></div>
-                    <div><span style={{ color: C.muted }}>erreurs: </span><span style={{ color: importReport.errors > 0 ? C.red : C.text }}>{importReport.errors.toLocaleString()}</span></div>
-                  </div>
-                  {/* Afficher le message d erreur SQL si present */}
-                  {importProgress?.firstError && (
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: C.redDim, border: `1px solid rgba(248,113,113,0.4)`, borderRadius: 2, fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                      <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, marginBottom: 6, color: C.red }}>! Erreur SQL detectee</div>
-                      <div style={{ wordBreak: 'break-all', lineHeight: 1.6 }}>{importProgress.firstError}</div>
-                      <div style={{ marginTop: 8, color: C.muted, fontSize: 9 }}>
-                        → Si &quot;column does not exist&quot;: executer le SQL ALTER TABLE dans Supabase Dashboard
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ============================================================ */}
-              {/* LIVE LOG PANEL — Journal d'erreur en direct                  */}
-              {/* ============================================================ */}
-              {logLines.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  {/* Log header with counters */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginBottom: 6,
-                    fontFamily: fontMono,
-                    fontSize: 10,
-                  }}>
-                    <span style={{ color: C.muted, fontWeight: 700 }}>{'// JOURNAL EN DIRECT'}</span>
-                    <span style={{ color: C.green }}>
-                      OK {logLines.filter(l => l.level === 'info' && l.line.startsWith('[OK]')).length}
-                    </span>
-                    <span style={{ color: C.warn }}>
-                      SKIP {logLines.filter(l => l.level === 'warn' && l.line.startsWith('[SKIP]')).length}
-                    </span>
-                    <span style={{ color: C.red }}>
-                      ERR {logLines.filter(l => l.level === 'error' && l.line.startsWith('[ERR]')).length}
-                    </span>
-                    <span style={{ color: C.muted, marginLeft: 'auto' }}>
-                      {logLines.length} lignes
-                    </span>
-                  </div>
-
-                  {/* Scrollable log container */}
-                  <div
-                    ref={logContainerRef}
-                    style={{
-                      background: 'var(--bg-primary)',
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 2,
-                      padding: '8px 12px',
-                      maxHeight: 350,
-                      overflowY: 'auto',
-                      fontFamily: fontMono,
-                      fontSize: 10,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {logLines.map((log, idx) => (
-                      <div key={idx} style={{
-                        color: log.level === 'error'
-                          ? C.red
-                          : log.level === 'warn'
-                            ? C.warn
-                            : log.line.startsWith('[OK]')
-                              ? C.green
-                              : C.muted,
-                        borderBottom: log.line.startsWith('---') ? `1px solid ${C.border}` : 'none',
-                        paddingBottom: log.line.startsWith('---') ? 2 : 0,
-                        marginBottom: log.line.startsWith('---') ? 2 : 0,
-                      }}>
-                        {log.line}
-                      </div>
-                    ))}
-                    {isImporting && (
-                      <div style={{ color: C.accent }}>
-                        {'>'} en cours...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <ImportStep
+            parseResult={parseResult}
+            sourceName={sourceName}
+            setSourceName={setSourceName}
+            organizationId={organizationId}
+            setOrganizationId={setOrganizationId}
+            organizations={organizations}
+            handleImport={handleImport}
+            isImporting={isImporting}
+            importProgress={importProgress}
+            importReport={importReport}
+            logLines={logLines}
+            logContainerRef={logContainerRef}
+          />
         )}
 
         {/* Footer hint */}
