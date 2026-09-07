@@ -8,7 +8,9 @@
 > splitté (branche `refactor/filter-panel-split`), après `admin/sources/page.tsx`
 > et `map/page.tsx` le 2026-09-01.
 > Révisé : 2026-09-07 — `app/admin/import/page.tsx` splitté (branche
-> `refactor/split-admin-import`) : 1 776 → 586 lignes.
+> `refactor/split-admin-import`) : 1 776 → 586 lignes, puis
+> `app/admin/carreaux-import/page.tsx` (branche
+> `refactor/split-carreaux-import`) : 1 526 → 502 lignes.
 > **Plus aucun fichier > 2000 lignes dans le projet.**
 > Reste ouvert : item 6, item 8.
 
@@ -334,6 +336,7 @@ pourquoi elles sont conservées.
 | Item | Résolution |
 |---|---|
 | `admin/import/page` split (1 776 l.) | 1 776 → 586 lignes, 7 composants + 2 modules dans `app/admin/import/_components/` — cf. §1 |
+| `admin/carreaux-import/page` split (1 526 l.) | 1 526 → 502 lignes, 4 composants + `shared.ts` dans `_components/`, parsers binaires dans `_lib/shapefile.ts` — cf. §1 |
 | Interpolation perdue au dry-run | `{'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}` rendait le code en clair depuis `abf5db6` ; seul cas de la branche, corrigé |
 
 ### Ouvert
@@ -341,14 +344,13 @@ pourquoi elles sont conservées.
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 4 fichiers 1000-1816 lignes | 6-8 h | medium | smoke E2E manuel Vince |
+| 3 fichiers 1000-1826 lignes | 4-6 h | medium | smoke E2E manuel Vince |
 | 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
 
-Les 4 fichiers de plus de 1 000 lignes, remesurés le 2026-09-07 :
-`FilterPanel.tsx` (1 816 — reste ses handlers, cf. §1),
-`app/admin/carreaux-import/page.tsx` (1 526),
+Les 3 fichiers de plus de 1 000 lignes, remesurés le 2026-09-07 :
+`FilterPanel.tsx` (1 826 — reste ses handlers, cf. §1),
 `components/map/overlays/PilotageOverlay.tsx` (1 217),
 `app/strategies/_components/steps/Step2Geography.tsx` (1 014).
 
@@ -365,7 +367,14 @@ pas de `frame-src`). Pré-existant, visible dans la console à chaque dry-run.
 Décision produit à prendre : autoriser `frame-src openstreetmap.org` ou retirer
 l'aperçu.
 
-**Total restant : ~13-18 h**, dont l'essentiel est bloqué non par la
+`app/admin/carreaux-import/page.tsx` est sorti de cette liste le 2026-09-07 :
+502 lignes, quatre composants (`Stepper`, `FilesStep`, `MappingStep`,
+`ImportStep`) plus `shared.ts` dans `_components/`, et surtout les parsers
+binaires `.shp` / `.dbf` isolés dans `_lib/shapefile.ts` — fonctions pures,
+sans React, **testables pour la première fois** (aucun test ne les couvre
+encore : c'est le chantier suivant naturel).
+
+**Total restant : ~11-16 h**, dont l'essentiel est bloqué non par la
 difficulté technique mais par le besoin de validation manuelle en
 navigateur après chaque extraction.
 
