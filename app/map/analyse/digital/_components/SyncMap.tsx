@@ -181,6 +181,9 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
       pitch: syncTarget.pitch,
     });
     requestAnimationFrame(() => { isSyncing.current = false; });
+  // `zoomOffset` volontairement hors deps : la carte ne doit se recaler que
+  // lorsque la cible de sync change, pas quand on ajuste le decalage de zoom.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
   }, [syncTarget]);
 
   // Zones mode styling :

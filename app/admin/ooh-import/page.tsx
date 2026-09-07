@@ -169,7 +169,7 @@ export default function OohImportPage() {
             autoFocus
           />
           <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginTop: 5 }}>
-            // Doit se terminer par <span style={{ color: C.accent }}>/MapServer/N</span>
+            {'// Doit se terminer par '}<span style={{ color: C.accent }}>/MapServer/N</span>
           </div>
         </div>
 
@@ -283,7 +283,7 @@ export default function OohImportPage() {
           <span style={{ fontFamily: fontInter, fontWeight: 500, fontSize: 12, color: C.text }}>Historique des imports ({runs.length})</span>
         </div>
         {runs.length === 0 ? (
-          <div style={{ padding: '20px 16px', fontFamily: fontMono, fontSize: 10, color: C.muted }}>// Aucun import réalisé.</div>
+          <div style={{ padding: '20px 16px', fontFamily: fontMono, fontSize: 10, color: C.muted }}>{'// Aucun import réalisé.'}</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>

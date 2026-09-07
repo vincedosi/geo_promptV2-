@@ -216,7 +216,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
               transition: 'background 0.2s ease, color 0.2s ease',
             }}
           >
-            Lancer l'import
+            Lancer l&apos;import
           </button>
           <button
             onClick={() => setPhase('idle')}
@@ -254,7 +254,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
 
         {existingCount !== null && existingCount > 0 && (
           <div style={{ fontSize: 10, color: '#fbbf24', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
-            ⚠️ {existingCount.toLocaleString('fr-FR')} POIs "{categorie}" déjà en base (data_gouv)
+            ⚠️ {existingCount.toLocaleString('fr-FR')} POIs &quot;{categorie}&quot; déjà en base (data_gouv)
           </div>
         )}
 
@@ -319,7 +319,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
           ✅ Import réussi !
         </div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-          <span style={{ color: '#34d399', fontWeight: 700 }}>{result.inserted.toLocaleString('fr-FR')}</span> points sont maintenant disponibles pour le calcul d'isochrones.
+          <span style={{ color: '#34d399', fontWeight: 700 }}>{result.inserted.toLocaleString('fr-FR')}</span> points sont maintenant disponibles pour le calcul d&apos;isochrones.
           {result.errors > 0 && (
             <span style={{ color: '#fbbf24', marginLeft: 6 }}>({result.errors} erreurs)</span>
           )}
@@ -357,7 +357,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
         borderRadius: 8,
       }}>
         <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700, marginBottom: 4 }}>
-          ❌ Erreur d'import
+          ❌ Erreur d&apos;import
         </div>
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-word' }}>
           {errorMsg}

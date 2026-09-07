@@ -229,6 +229,10 @@ export function CivicIndicatorsLayer({ mapRef, variableCode, opacity = 0.65 }: P
 
     return () => {
       cancelled = true;
+      // Ref lue au demontage a dessein : on retire les couches de la carte
+      // courante. Les gardes getLayer/getSource rendent l'operation inoffensive
+      // si l'instance a change entre-temps.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
       const m = mapRef.current;
       if (m) cleanup(m);
     };

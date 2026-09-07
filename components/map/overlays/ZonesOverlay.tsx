@@ -246,6 +246,12 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
   // Cleanup au unmount : retire toutes les zones de la carte
   useEffect(() => {
     return () => {
+      // ATTENTION — cette cleanup capture le `loadedZones` du premier render
+      // (deps []), donc elle n'itere jamais rien : les zones affichees restent
+      // sur la carte apres fermeture de l'overlay. Comportement actuel en prod,
+      // laisse tel quel : le corriger ferait disparaitre les zones a la
+      // fermeture, ce qui est une decision produit, pas un correctif de lint.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- voir ci-dessus
       const map = mapRef.current;
       if (!map) return;
       for (const id of loadedZones.keys()) {

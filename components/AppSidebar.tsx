@@ -183,6 +183,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
             />
             <circle cx="14" cy="14" r="2" fill="var(--brand-teal)" opacity="0.5" />
           </svg>
+          {/* eslint-disable-next-line @next/next/no-img-element -- logotype SVG : next/image n'optimise pas le SVG, et DESIGN_SYSTEM.md impose la balise img pour /magelian-icon.svg partout */}
           <img
             src="/magelian-icon.svg"
             alt="MAGELIAN"

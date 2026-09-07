@@ -171,7 +171,7 @@ export default function OrganizationsPage() {
               </div>
             )}
             <div style={{ fontSize: 11, color: C.textSec, marginTop: 8, fontFamily: fontMono }}>
-              // chaque organisation a ses propres donnees isolees. Un admin peut partager des sources entre orgs.
+              {'// chaque organisation a ses propres donnees isolees. Un admin peut partager des sources entre orgs.'}
             </div>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function OrganizationsPage() {
               fontSize: 11,
               lineHeight: 1.8,
             }}>
-              <div style={{ color: C.textDim }}>// roles</div>
+              <div style={{ color: C.textDim }}>{'// roles'}</div>
               <div><span style={{ color: C.accent }}>super_admin</span> <span style={{ color: C.textSec }}>:</span> voit tout, gere tout</div>
               <div><span style={{ color: C.green }}>admin</span> <span style={{ color: C.textSec }}>:</span> gere son organisation</div>
               <div><span style={{ color: C.warn }}>client</span> <span style={{ color: C.textSec }}>:</span> lecture seule, son org uniquement</div>

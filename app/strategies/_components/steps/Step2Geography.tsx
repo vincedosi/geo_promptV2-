@@ -976,7 +976,7 @@ function PreviewStats({ stats, loading }: { stats: PreviewStatsT | null; loading
     <div className="bg-bg-level-1 border border-border-subtle rounded-md p-3">
       <h4 className="text-[11px] font-medium text-text-secondary mb-2">Statistiques (échantillon)</h4>
       {loading && <p className="text-[11px] text-text-tertiary">calcul…</p>}
-      {!loading && !stats && <p className="text-[11px] text-text-tertiary">Sélectionnez une zone pour voir l'aperçu.</p>}
+      {!loading && !stats && <p className="text-[11px] text-text-tertiary">Sélectionnez une zone pour voir l&apos;aperçu.</p>}
       {!loading && stats && (
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] font-mono">
           <KV label="CPs in-zone" value={stats.n_in_zone.toLocaleString('fr-FR')} />

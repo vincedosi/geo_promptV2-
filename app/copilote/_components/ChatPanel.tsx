@@ -517,7 +517,7 @@ export function ChatPanel({
             Cartes sauvegardées ({savedMaps.length})
           </div>
           {savedMaps.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 11, color: C.textDim, textAlign: 'center', fontFamily: fontMono }}>// Aucune carte sauvegardée</div>
+            <div style={{ padding: 16, fontSize: 11, color: C.textDim, textAlign: 'center', fontFamily: fontMono }}>{'// Aucune carte sauvegardée'}</div>
           ) : savedMaps.map(m => (
             <div key={m.id} style={{ padding: '8px 16px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>

@@ -22,7 +22,7 @@ class DataGouvErrorBoundary extends Component<{ children: ReactNode }, { hasErro
     if (this.state.hasError) {
       return (
         <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 11, color: '#f87171' }}>
-          ⚠️ Erreur d'affichage data.gouv — recharge la page
+          ⚠️ Erreur d&apos;affichage data.gouv — recharge la page
         </div>
       );
     }
@@ -377,7 +377,7 @@ function DataGouvCardInner({ parts }: { parts: DataGouvPart[] }) {
                   {/* Indice : demander les ressources pour importer */}
                   {ds.isGeo && (
                     <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(52,211,153,0.5)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      💡 Demandez "liste les ressources du dataset {ds.id}" pour importer les données GeoJSON
+                      💡 Demandez &quot;liste les ressources du dataset {ds.id}&quot; pour importer les données GeoJSON
                     </div>
                   )}
                 </div>

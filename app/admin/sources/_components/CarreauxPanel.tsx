@@ -44,7 +44,7 @@ export function CarreauxPanel({ stats, loading }: CarreauxPanelProps) {
         </div>
       </div>
       <div style={{ background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 2, padding: '14px 16px', fontFamily: fontMono, fontSize: 11, color: C.textDim, lineHeight: 1.8 }}>
-        <span style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textSec, display: 'block', marginBottom: 6 }}>// utilisation</span>
+        <span style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textSec, display: 'block', marginBottom: 6 }}>{'// utilisation'}</span>
         Jointure spatiale avec <span style={{ color: C.green }}>public.iris</span> via <span style={{ color: '#06b6d4' }}>ST_Intersects(iris.geom, carreaux.geom)</span>.<br />
         Agrégation démographique par isochrone ou zone de chalandise.
       </div>

@@ -355,7 +355,7 @@ export default function HealthPage() {
                 fontFamily: fontMono,
                 color: C.textDim,
               }}>
-                <span style={{ color: C.red }}>// FIX: </span>
+                <span style={{ color: C.red }}>{'// FIX: '}</span>
                 Ouvrir Supabase Dashboard → SQL Editor → executer le script de migration SQL
               </div>
             )}

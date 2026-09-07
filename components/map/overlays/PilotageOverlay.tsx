@@ -985,7 +985,7 @@ export function StrategyDetail({
         fontFamily: fInter,
       }}>
         <span style={{ fontSize: 10, fontFamily: fMono, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Mode d'affichage
+          Mode d&apos;affichage
         </span>
         <div style={{
           display: 'inline-flex', padding: 2, gap: 2,
