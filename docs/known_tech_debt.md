@@ -18,7 +18,8 @@
 > (branche `fix/dualmap-circle-radius`) ; une seconde cause, indépendante,
 > est apparue en le vérifiant : la stratégie de démo n'a aucune donnée
 > simulée en base. Voir la fin du document.
-> Reste ouvert : item 6 (item 8 fermé le 2026-09-07 — routes deja supprimees).
+> Reste ouvert : item 6 (item 8 fermé le 2026-09-07 — routes deja supprimees ;
+> aperçu carte du dry-run fermé le meme jour — iframe retiree).
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
 qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
@@ -402,11 +403,14 @@ bulles ont un rayon de 0 à juste titre. Ce n'est pas un bug de rendu : le
 seed de démo du pilotage n'a jamais été rejoué sur cette base. À trancher
 avec Vince — rejouer la simulation, ou retirer cette stratégie de la démo.
 
-**Aperçu carte du dry-run inopérant en local** — l'`<iframe>` OpenStreetMap de
-l'étape 04 est bloqué par le CSP de `next.config.js:12` (`default-src 'self'`,
-pas de `frame-src`). Pré-existant, visible dans la console à chaque dry-run.
-Décision produit à prendre : autoriser `frame-src openstreetmap.org` ou retirer
-l'aperçu.
+**Aperçu carte du dry-run inopérant** — ✅ **FERMÉ le 2026-09-07** :
+l'`<iframe>` OpenStreetMap de l'étape 04 était bloqué par le CSP de
+`next.config.js:12` (`default-src 'self'`, pas de `frame-src`). Il n'affichait
+donc rien, ni en local ni en production — seulement une erreur console à chaque
+dry-run. Décision produit : **retirer l'aperçu** plutôt qu'ouvrir le CSP vers
+un domaine tiers. L'`<iframe>` et son helper `getMapPreviewUrl` sont supprimés
+de `DryRunStep.tsx` ; la liste des points d'aperçu, juste en dessous, reste
+consultable — rien n'est perdu pour l'utilisateur.
 
 `app/admin/carreaux-import/page.tsx` est sorti de cette liste le 2026-09-07 :
 502 lignes, quatre composants (`Stepper`, `FilesStep`, `MappingStep`,

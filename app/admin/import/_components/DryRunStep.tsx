@@ -4,10 +4,14 @@
  * Étape 04 du wizard d'import — dry-run sur les 100 premières lignes.
  *
  * Restitue les compteurs valides / sans coordonnées / exclus, les statistiques
- * de géocodage quand il y en a, un aperçu cartographique des points obtenus et
- * le détail des lignes en erreur, avant de laisser lancer l'import réel.
+ * de géocodage quand il y en a, la liste des points obtenus et le détail des
+ * lignes en erreur, avant de laisser lancer l'import réel.
  *
- * JSX repris tel quel de page.tsx (2026-09-03).
+ * JSX repris tel quel de page.tsx (2026-09-03). L'aperçu cartographique en
+ * `<iframe>` OpenStreetMap a été retiré le 2026-09-07 : le CSP de
+ * `next.config.js` (`default-src 'self'`, sans `frame-src`) le bloquait, donc
+ * il n'a jamais rien affiché en local ni en production — seulement une erreur
+ * console à chaque dry-run. Les points restent consultables juste en dessous.
  */
 
 import React from 'react';
@@ -17,21 +21,6 @@ import {
   badgeGreen, btnSuccess,
   card, cardBody, cardHeader, cardTitle, stepNum,
 } from './styles';
-
-/**
- * URL d'une carte OSM embarquée cadrée sur les points de l'échantillon.
- * Renvoie une chaîne vide quand il n'y a rien à montrer.
- */
-function getMapPreviewUrl(points: { lat: number; lng: number }[]): string {
-  if (!points || points.length === 0) return '';
-  const lats = points.map((p) => p.lat);
-  const lngs = points.map((p) => p.lng);
-  const minLat = Math.min(...lats) - 0.01;
-  const maxLat = Math.max(...lats) + 0.01;
-  const minLng = Math.min(...lngs) - 0.01;
-  const maxLng = Math.max(...lngs) + 0.01;
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${minLng},${minLat},${maxLng},${maxLat}&layer=mapnik`;
-}
 
 export interface DryRunStepProps {
   dryRunResult: DryRunResult | null;
@@ -89,22 +78,6 @@ export function DryRunStep({ dryRunResult, handleDryRun, isDryRunning }: DryRunS
                     <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Map preview */}
-            {dryRunResult.samplePoints.length > 0 && (
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 6 }}>
-                  {'// apercu carte — '}{dryRunResult.samplePoints.length}{' premiers points'}
-                </div>
-                <iframe
-                  src={getMapPreviewUrl(dryRunResult.samplePoints)}
-                  width="100%"
-                  height="250"
-                  style={{ border: `1px solid ${C.border}`, borderRadius: 2, display: 'block' }}
-                  title="Apercu carte"
-                />
               </div>
             )}
 
