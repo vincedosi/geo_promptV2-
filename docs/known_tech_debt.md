@@ -18,7 +18,7 @@
 > (branche `fix/dualmap-circle-radius`) ; une seconde cause, indépendante,
 > est apparue en le vérifiant : la stratégie de démo n'a aucune donnée
 > simulée en base. Voir la fin du document.
-> Reste ouvert : item 6, item 8.
+> Reste ouvert : item 6 (item 8 fermé le 2026-09-07 — routes deja supprimees).
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
 qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
@@ -294,20 +294,18 @@ un plancher structurel, pas de la dette.
 
 ---
 
-## 8. Routes API sans appelant — à trancher (2026-08-31)
+## 8. Routes API sans appelant — ✅ FERMÉ (constat du 2026-09-07)
 
-Deux routes n'ont **aucun appelant** dans `app/`, `components/`, `lib/` :
+L'item décrivait `/api/carreaux` et `/api/map/tmja` comme candidates à la
+suppression, en attente d'un accord produit.
 
-| Route | Remarque |
-|---|---|
-| `/api/carreaux` | documentée dans ARCHITECTURE.md, protégée par le middleware |
-| `/api/map/tmja` | idem |
+**Elles n'existent plus.** Les deux faisaient partie du lot de 9 routes sans
+appelant retirées lors du cleanup précédent — cf. `CHANGELOG-CLEANUP.md`
+§1 « Code mort supprimé ». `app/api/carreaux/` et `app/api/map/tmja/` sont
+absents du dépôt, et plus aucun fichier `.ts`/`.tsx` ne les référence.
 
-Candidates à la suppression, mais **non supprimées** : le protocole de
-cleanup exige une validation explicite avant toute suppression de fichier
-entier, et ces routes sont documentées comme faisant partie de l'API
-publique de l'app. À trancher avec Vince : supprimer, ou documenter
-pourquoi elles sont conservées.
+L'item était donc périmé, pas ouvert : l'accord a été donné le 2026-09-07,
+il n'y avait rien à supprimer. Aucune action requise.
 
 ---
 
@@ -354,7 +352,6 @@ pourquoi elles sont conservées.
 |---|---|---|---|
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
 | 2 fichiers 1000-1826 lignes | 3-4 h | medium | smoke E2E manuel Vince |
-| 2 routes sans appelant | 15 min | faible | **décision produit — accord Vince** |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
 
