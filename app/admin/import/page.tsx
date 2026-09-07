@@ -8,7 +8,6 @@ import type {
   ImportProgress,
   ImportReport,
   GeoMode,
-  FieldMapping,
   GeoConfig,
   GeocodeDetailedResult,
 } from '@/lib/import/types';
@@ -16,17 +15,15 @@ import {
   C,
   fontInter,
   fontMono,
-  GENESIS_FIELDS_POI,
-  GEO_MODES,
-  Spinner,
   type MappingState,
+  type PoiCategoryOption,
 } from './_components/shared';
-import {
-  badgeAccent, badgeGreen, badgeRed, badgeWarn,
-  btnDanger, btnGhost, btnSuccess,
-  card, cardBody, cardHeader, cardTitle,
-  inputStyle, sLabel, statusColor, statusLabel, stepNum,
-} from './_components/styles';
+import { badgeGreen, badgeWarn } from './_components/styles';
+import { UploadStep } from './_components/UploadStep';
+import { CategoryStep } from './_components/CategoryStep';
+import { MappingStep } from './_components/MappingStep';
+import { ColumnSelectionStep } from './_components/ColumnSelectionStep';
+import { DryRunStep } from './_components/DryRunStep';
 import { GeocodeStep } from './_components/GeocodeStep';
 import { ImportStep } from './_components/ImportStep';
 
@@ -83,7 +80,7 @@ export default function ImportUniverselPage() {
   const [filterFields, setFilterFields] = useState<string[]>([]);
 
   // -- Dynamic POI categories from DB
-  const [poiCategories, setPoiCategories] = useState<{ val: string; label: string; icone: string }[]>([]);
+  const [poiCategories, setPoiCategories] = useState<PoiCategoryOption[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
@@ -412,77 +409,12 @@ export default function ImportUniverselPage() {
     }
   };
 
-  // ============================================================
-  // Helper: Column dropdown
-  // ============================================================
-
   const columns = parseResult?.columns || [];
-
-  function ColSelect({
-    label,
-    value,
-    onChange,
-    sample,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    sample?: boolean;
-  }) {
-    const selectedCol = columns.find((c) => c.name === value);
-
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <label style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.text, minWidth: 130, margin: 0, flexShrink: 0 }}>{label}</label>
-        <select
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            background: C.bg,
-            border: `1px solid ${C.border}`,
-            borderRadius: 2,
-            color: C.text,
-            fontFamily: fontMono,
-            fontSize: 11,
-            padding: '5px 8px',
-            outline: 'none',
-          }}
-        >
-          <option value="">— Non mappe —</option>
-          {columns.map((col) => (
-            <option key={col.name} value={col.name}>{col.name}</option>
-          ))}
-        </select>
-        {sample && selectedCol && selectedCol.sampleValues.length > 0 && (
-          <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            ex: {selectedCol.sampleValues[0]}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  // ============================================================
-  // Map preview URL
-  // ============================================================
-
-  function getMapPreviewUrl(points: { lat: number; lng: number }[]): string {
-    if (!points || points.length === 0) return '';
-    const lats = points.map((p) => p.lat);
-    const lngs = points.map((p) => p.lng);
-    const minLat = Math.min(...lats) - 0.01;
-    const maxLat = Math.max(...lats) + 0.01;
-    const minLng = Math.min(...lngs) - 0.01;
-    const maxLng = Math.max(...lngs) + 0.01;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${minLng},${minLat},${maxLng},${maxLat}&layer=mapnik`;
-  }
 
   // ============================================================
   // Render
   // ============================================================
 
-  const genesisFields = GENESIS_FIELDS_POI;
   const isStep2Valid = category.length > 0;
   const isStep3Valid = geoMode === 'gps'
     ? !!(geoMapping.colLat && geoMapping.colLng)
@@ -515,488 +447,63 @@ export default function ImportUniverselPage() {
         {/* ============================================================ */}
         {/* STEP 01 — Upload fichier */}
         {/* ============================================================ */}
-        <div style={card}>
-          <div style={cardHeader}>
-            <span style={stepNum}>01</span>
-            <span style={cardTitle}>Upload fichier</span>
-            {parseResult?.success && (
-              <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
-                {parseResult.totalRows.toLocaleString()} lignes
-              </span>
-            )}
-          </div>
-          <div style={cardBody}>
-            {/* Drop zone */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${isDragging ? C.accent : C.border}`,
-                borderRadius: 2,
-                padding: '28px 20px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                backgroundColor: isDragging ? C.accentDim : 'transparent',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".csv,.xlsx,.geojson,.json,.txt,.tsv,.shp,.dbf,.prj,.shx"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length > 0) handleFileUpload(files);
-                }}
-                style={{ display: 'none' }}
-              />
-              {isParsing ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.accent, fontFamily: fontMono, fontSize: 12 }}>
-                  <Spinner size={16} /> Analyse du fichier...
-                </div>
-              ) : file ? (
-                <div>
-                  <div style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 600, color: C.green, marginBottom: 4 }}>
-                    {file.name}
-                  </div>
-                  <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>
-                    {parseResult?.format === 'shapefile' ? (
-                      <span>Shapefile bundle — {parseResult.totalRows?.toLocaleString()} enregistrements</span>
-                    ) : (
-                      <>{(file.size / 1024 / 1024).toFixed(2)} MB — Cliquez pour changer</>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontFamily: fontInter, fontSize: 13, color: C.text, marginBottom: 6 }}>
-                    Glissez un ou plusieurs fichiers ici ou cliquez pour selectionner
-                  </div>
-                  <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim }}>
-                    {'// formats: .csv .xlsx .geojson | Shapefile (.shp+.dbf+.prj+.shx)'}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Parse result info */}
-            {parseResult?.success && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontFamily: fontMono, fontSize: 10, color: C.textDim, marginBottom: 10 }}>
-                  <span>format: <span style={{ color: C.accent }}>{parseResult.format}</span></span>
-                  <span>encoding: <span style={{ color: C.accent }}>{parseResult.encoding}</span></span>
-                  {parseResult.format === 'csv' && <span>separator: <span style={{ color: C.accent }}>{parseResult.separator === '\t' ? 'TAB' : `"${parseResult.separator}"`}</span></span>}
-                  <span>colonnes: <span style={{ color: C.accent }}>{parseResult.columns.length}</span></span>
-                  <span>lignes: <span style={{ color: C.green }}>{parseResult.totalRows.toLocaleString()}</span></span>
-                </div>
-
-                {/* Shapefile info box */}
-                {parseResult.format === 'shapefile' && (
-                  <div style={{ background: C.greenDim, border: `1px solid rgba(61,255,160,0.25)`, borderRadius: 2, padding: '8px 12px', marginBottom: 10, fontFamily: fontMono, fontSize: 11, color: C.green }}>
-                    [OK] Shapefile detecte et parse avec succes. Les attributs du fichier .dbf sont maintenant disponibles.
-                  </div>
-                )}
-
-                {/* Preview table */}
-                {parseResult.preview.length > 0 && (
-                  <details>
-                    <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, cursor: 'pointer', marginBottom: 6 }}>
-                      Apercu — 5 premieres lignes
-                    </summary>
-                    <div style={{ overflow: 'auto', maxHeight: 200, marginTop: 6 }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: fontMono, fontSize: 10 }}>
-                        <thead>
-                          <tr style={{ background: C.bgSurface }}>
-                            {parseResult.columns.slice(0, 8).map((col) => (
-                              <th key={col.name} style={{ padding: '5px 8px', borderBottom: `1px solid ${C.border}`, color: C.accent, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: fontInter, fontSize: 11, fontWeight: 500 }}>
-                                {col.name}
-                              </th>
-                            ))}
-                            {parseResult.columns.length > 8 && <th style={{ padding: '5px 8px', color: C.muted }}>...</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {parseResult.preview.map((row, idx) => (
-                            <tr key={idx} style={{ background: idx % 2 === 0 ? 'transparent' : C.bgSurface }}>
-                              {parseResult.columns.slice(0, 8).map((col) => (
-                                <td key={col.name} style={{ padding: '4px 8px', borderBottom: `1px solid ${C.border}`, color: C.textDim, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10 }}>
-                                  {row[col.name] ?? <span style={{ color: C.muted }}>null</span>}
-                                </td>
-                              ))}
-                              {parseResult.columns.length > 8 && <td style={{ color: C.muted }}>...</td>}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {/* Shapefile tips */}
-            {!file && (
-              <div style={{ marginTop: 12, padding: 12, background: C.bgSurface, borderRadius: 2, border: `1px solid ${C.border}`, fontFamily: fontInter, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>
-                <div style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.text, marginBottom: 8 }}>Formats supportes</div>
-                <ul style={{ margin: 0, paddingLeft: 16 }}>
-                  <li><strong style={{ color: C.textDim }}>Fichier unique :</strong> CSV, XLSX, TSV, GeoJSON</li>
-                  <li><strong style={{ color: C.textDim }}>Shapefile :</strong> Selectionnez les fichiers .shp, .dbf, .prj, .shx ensemble (meme nom de base).</li>
-                  <li><strong style={{ color: C.textDim }}>Carreaux INSEE :</strong> Le systeme detecte automatiquement les colonnes.</li>
-                </ul>
-              </div>
-            )}
-
-            {parseResult && !parseResult.success && (
-              <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                ! {parseResult.error}
-              </div>
-            )}
-          </div>
-        </div>
+        <UploadStep
+          file={file}
+          parseResult={parseResult}
+          isParsing={isParsing}
+          isDragging={isDragging}
+          fileInputRef={fileInputRef}
+          handleFileUpload={handleFileUpload}
+          handleDrop={handleDrop}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+        />
 
         {/* ============================================================ */}
         {/* STEP 02 — Categorie POI */}
         {/* ============================================================ */}
         {parseResult?.success && (
-          <div style={card}>
-            <div style={cardHeader}>
-              <span style={stepNum}>02</span>
-              <span style={cardTitle}>Categorie POI</span>
-            </div>
-            <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={sLabel}>Categorie</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    style={{ ...inputStyle, maxWidth: 300, color: category ? undefined : C.muted }}
-                  >
-                    <option value="" disabled>-- Choisir une categorie --</option>
-                    {poiCategories.map((c) => (
-                      <option key={c.val} value={c.val}>{c.icone ? `${c.icone} ${c.label}` : c.label}</option>
-                    ))}
-                  </select>
-                  {poiCategories.length === 0 && (
-                    <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>Chargement...</span>
-                  )}
-                </div>
-                <details style={{ marginTop: 8 }}>
-                  <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.accent, cursor: 'pointer' }}>
-                    + Creer une nouvelle categorie
-                  </summary>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="Ex: cirfa, commerce, sante..."
-                      style={{ ...inputStyle, maxWidth: 250, fontSize: 11, padding: '5px 8px' }}
-                    />
-                    <button
-                      style={{ ...btnSuccess, opacity: (!newCategoryName.trim() || isCreatingCategory) ? 0.5 : 1 }}
-                      disabled={!newCategoryName.trim() || isCreatingCategory}
-                      onClick={async () => {
-                        setIsCreatingCategory(true);
-                        try {
-                          const res = await adminFetch('/api/admin/poi-categories', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ categorie: newCategoryName.trim() }),
-                          });
-                          const data = await res.json();
-                          if (data.success) {
-                            const res2 = await adminFetch('/api/admin/poi-categories');
-                            const data2 = await res2.json();
-                            if (data2.success) {
-                              const cats = data2.categories.map((c: { categorie: string; label_fr: string; icone: string }) => ({
-                                val: c.categorie, label: c.label_fr || c.categorie, icone: c.icone || '',
-                              }));
-                              setPoiCategories(cats);
-                            }
-                            setCategory(data.categorie);
-                            setNewCategoryName('');
-                          }
-                        } catch { /* ignore */ } finally {
-                          setIsCreatingCategory(false);
-                        }
-                      }}
-                    >
-                      {isCreatingCategory ? <Spinner size={10} /> : 'Creer'}
-                    </button>
-                  </div>
-                </details>
-              </div>
-            </div>
-          </div>
+          <CategoryStep
+            category={category}
+            setCategory={setCategory}
+            poiCategories={poiCategories}
+            setPoiCategories={setPoiCategories}
+            newCategoryName={newCategoryName}
+            setNewCategoryName={setNewCategoryName}
+            isCreatingCategory={isCreatingCategory}
+            setIsCreatingCategory={setIsCreatingCategory}
+          />
         )}
 
         {/* ============================================================ */}
         {/* STEP 03 — Mapping colonnes */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && (
-          <div style={card}>
-            <div style={cardHeader}>
-              <span style={stepNum}>03</span>
-              <span style={cardTitle}>Mapping colonnes</span>
-              <span style={{ marginLeft: 'auto', fontFamily: fontMono, fontSize: 10, color: C.muted }}>
-                {columns.length} colonnes detectees
-              </span>
-            </div>
-            <div style={cardBody}>
-              {/* Standard fields */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                  {'// champs GENESIS → colonnes fichier'}
-                </div>
-                {genesisFields.map((field) => (
-                  <ColSelect
-                    key={field.key}
-                    label={field.label}
-                    value={mapping[field.key] || ''}
-                    onChange={(v) => setMapping((prev) => ({ ...prev, [field.key]: v || undefined }))}
-                    sample
-                  />
-                ))}
-              </div>
-
-              {/* Geolocation section */}
-              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 12 }}>
-                  {'// geolocalisation'}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                  {GEO_MODES.map((mode) => (
-                    <label
-                      key={mode.val}
-                      onClick={() => setGeoMode(mode.val)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 10,
-                        padding: '9px 12px',
-                        borderRadius: 2,
-                        border: `1px solid ${geoMode === mode.val ? C.borderLight : C.border}`,
-                        background: geoMode === mode.val ? C.accentDim : C.bgSurface,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input type="radio" value={mode.val} checked={geoMode === mode.val} onChange={() => setGeoMode(mode.val)} style={{ marginTop: 2, accentColor: C.accent }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: fontInter, fontSize: 12, fontWeight: 500, color: geoMode === mode.val ? C.accent : C.text, marginBottom: 2 }}>{mode.title}</div>
-                        <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim }}>{mode.desc}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                {/* Geo mode specific fields */}
-                {geoMode === 'gps' && (
-                  <div>
-                    <ColSelect label="Latitude" value={geoMapping.colLat || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colLat: v }))} sample />
-                    <ColSelect label="Longitude" value={geoMapping.colLng || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colLng: v }))} sample />
-                  </div>
-                )}
-                {geoMode === 'address' && (
-                  <div>
-                    <ColSelect label="Adresse" value={geoMapping.colAdresse || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colAdresse: v }))} sample />
-                    <ColSelect label="Code postal" value={geoMapping.colCodePostal || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colCodePostal: v }))} sample />
-                    <ColSelect label="Ville" value={geoMapping.colVille || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colVille: v }))} sample />
-                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
-                      {'// geocodage via api-adresse.data.gouv.fr (BAN) — ~100ms/adresse'}
-                    </div>
-                  </div>
-                )}
-                {geoMode === 'lambert93' && (
-                  <div>
-                    <ColSelect label="X (Est)" value={geoMapping.colX || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colX: v }))} sample />
-                    <ColSelect label="Y (Nord)" value={geoMapping.colY || ''} onChange={(v) => setGeoMapping((p) => ({ ...p, colY: v }))} sample />
-                    <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginTop: 4 }}>
-                      {'// EPSG:2154 → EPSG:4326 via proj4'}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <MappingStep
+            columns={columns}
+            mapping={mapping}
+            setMapping={setMapping}
+            geoMode={geoMode}
+            setGeoMode={setGeoMode}
+            geoMapping={geoMapping}
+            setGeoMapping={setGeoMapping}
+          />
         )}
 
         {/* ============================================================ */}
         {/* STEP 03b — Selection des colonnes a importer + filtres        */}
         {/* ============================================================ */}
-        {parseResult?.success && isStep2Valid && isStep3Valid && columns.length > 0 && (() => {
-          // Compute which columns are already handled by the schema/geo mapping
-          const mappedSourceCols = new Set<string>([
-            ...Object.values(mapping).filter(Boolean) as string[],
-            geoMapping.colLat, geoMapping.colLng,
-            geoMapping.colX, geoMapping.colY,
-            geoMapping.colAdresse, geoMapping.colCodePostal, geoMapping.colVille,
-          ].filter(Boolean));
-
-          // Build reverse map: source column → genesis field label
-          const colToSchema: Record<string, string> = {};
-          const fieldLabels: Record<string, string> = {
-            nom: 'nom', adresse: 'adresse', ville: 'ville', code_postal: 'code_postal',
-            departement: 'departement', region: 'region',
-            reference_panneau: 'reference', type_panneau: 'type_panneau',
-          };
-          Object.entries(mapping).forEach(([f, src]) => { if (src) colToSchema[src] = fieldLabels[f] || f; });
-          if (geoMapping.colLat) colToSchema[geoMapping.colLat] = 'latitude';
-          if (geoMapping.colLng) colToSchema[geoMapping.colLng] = 'longitude';
-          if (geoMapping.colX) colToSchema[geoMapping.colX] = 'X Lambert';
-          if (geoMapping.colY) colToSchema[geoMapping.colY] = 'Y Lambert';
-          if (geoMapping.colAdresse) colToSchema[geoMapping.colAdresse] = 'adresse (geoloc)';
-          if (geoMapping.colCodePostal) colToSchema[geoMapping.colCodePostal] = 'CP (geoloc)';
-          if (geoMapping.colVille) colToSchema[geoMapping.colVille] = 'ville (geoloc)';
-
-          const unmappedCols = columns.filter(c => !mappedSourceCols.has(c.name));
-          const importedCount = unmappedCols.filter(c => importedColumns.includes(c.name)).length;
-
-          const toggleImport = (colName: string) => {
-            setImportedColumns(prev => {
-              const next = prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName];
-              if (!next.includes(colName)) setFilterFields(pf => pf.filter(f => f !== colName));
-              return next;
-            });
-          };
-          const toggleFilter = (colName: string) => {
-            setFilterFields(prev => prev.includes(colName) ? prev.filter(f => f !== colName) : [...prev, colName]);
-          };
-
-          return (
-            <div style={card}>
-              <div style={cardHeader}>
-                <span style={stepNum}>03b</span>
-                <span style={cardTitle}>Colonnes a importer</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                  <span style={badgeGreen}>{importedCount + mappedSourceCols.size} importees</span>
-                  {filterFields.length > 0 && (
-                    <span style={badgeAccent}>
-                      {filterFields.length} filtre{filterFields.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={cardBody}>
-                <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                  {'// schema = toujours importe via champs GENESIS · cochez Importer pour metadata · Filtre = filtre carte'}
-                </div>
-
-                {/* Table header */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
-                  gap: 4, padding: '5px 8px',
-                  fontFamily: fontInter, fontSize: 11, fontWeight: 500,
-                  color: C.muted, borderBottom: `1px solid ${C.border}`,
-                  marginBottom: 4,
-                }}>
-                  <span>Colonne / exemples</span>
-                  <span>Statut</span>
-                  <span style={{ textAlign: 'center' }}>Importer</span>
-                  <span style={{ textAlign: 'center' }}>Filtre</span>
-                </div>
-
-                {/* Rows */}
-                <div style={{ maxHeight: 400, overflow: 'auto' }}>
-                  {columns.map(col => {
-                    const isMapped = mappedSourceCols.has(col.name);
-                    const schemaField = colToSchema[col.name];
-                    const isImported = importedColumns.includes(col.name);
-                    const isFilter = filterFields.includes(col.name);
-
-                    return (
-                      <div key={col.name} style={{
-                        display: 'grid', gridTemplateColumns: '1fr 180px 80px 70px',
-                        gap: 4, padding: '5px 8px', borderRadius: 2,
-                        background: isMapped ? 'rgba(78,205,196,0.04)' : isImported ? 'transparent' : 'rgba(0,0,0,0.2)',
-                        opacity: isMapped ? 0.75 : 1,
-                        borderBottom: `1px solid ${C.border}`,
-                        alignItems: 'center',
-                      }}>
-                        {/* Nom + exemples */}
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{
-                            fontFamily: fontMono,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: isMapped ? C.accent : isImported ? C.text : C.muted,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>
-                            {col.name}
-                          </div>
-                          {col.sampleValues.length > 0 && (
-                            <div style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {col.sampleValues.slice(0, 2).join(' · ')}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Statut */}
-                        {isMapped ? (
-                          <span style={{ fontFamily: fontMono, fontSize: 9, color: C.accent }}>
-                            → schema:{schemaField}
-                          </span>
-                        ) : (
-                          <span style={{ fontFamily: fontMono, fontSize: 9, color: C.muted }}>
-                            {isImported ? (isFilter ? 'metadata + filtre' : 'metadata') : 'exclu'}
-                          </span>
-                        )}
-
-                        {/* Importer checkbox */}
-                        <div style={{ textAlign: 'center' }}>
-                          {isMapped ? (
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>—</span>
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={isImported}
-                              onChange={() => toggleImport(col.name)}
-                              style={{ accentColor: C.accent, cursor: 'pointer', width: 13, height: 13 }}
-                            />
-                          )}
-                        </div>
-
-                        {/* Filtre checkbox */}
-                        <div style={{ textAlign: 'center' }}>
-                          {isMapped ? (
-                            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.muted }}>—</span>
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={isFilter}
-                              disabled={!isImported}
-                              onChange={() => isImported && toggleFilter(col.name)}
-                              style={{ accentColor: C.green, cursor: isImported ? 'pointer' : 'not-allowed', width: 13, height: 13, opacity: isImported ? 1 : 0.3 }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Footer actions */}
-                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                  <button style={btnGhost} onClick={() => setImportedColumns(unmappedCols.map(c => c.name))}>
-                    Tout importer
-                  </button>
-                  <button style={btnGhost} onClick={() => { setImportedColumns([]); setFilterFields([]); }}>
-                    Tout exclure
-                  </button>
-                  <button style={btnGhost} onClick={() => setFilterFields([])}>
-                    Effacer filtres
-                  </button>
-                  <span style={{ fontFamily: fontMono, fontSize: 9, color: C.muted, marginLeft: 'auto' }}>
-                    {importedCount}/{unmappedCols.length} colonnes libres · {filterFields.length} filtres
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {parseResult?.success && isStep2Valid && isStep3Valid && columns.length > 0 && (
+          <ColumnSelectionStep
+            columns={columns}
+            mapping={mapping}
+            geoMapping={geoMapping}
+            importedColumns={importedColumns}
+            setImportedColumns={setImportedColumns}
+            filterFields={filterFields}
+            setFilterFields={setFilterFields}
+          />
+        )}
 
         {/* ============================================================ */}
         {/* STEP 03c — Geocodage adresses (BAN API)                       */}
@@ -1035,106 +542,11 @@ export default function ImportUniverselPage() {
         {/* STEP 04 — Dry-run */}
         {/* ============================================================ */}
         {parseResult?.success && isStep2Valid && isStep3Valid && isGeocodeReady && (
-          <div style={card}>
-            <div style={cardHeader}>
-              <span style={stepNum}>04</span>
-              <span style={cardTitle}>Test (dry-run)</span>
-              {dryRunResult?.success && (
-                <span style={{ ...badgeGreen, marginLeft: 'auto' }}>
-                  {dryRunResult.stats.validRows} valides
-                </span>
-              )}
-            </div>
-            <div style={cardBody}>
-              <button
-                onClick={handleDryRun}
-                disabled={isDryRunning}
-                style={{ ...btnSuccess, minWidth: 200, opacity: isDryRunning ? 0.6 : 1 }}
-              >
-                {isDryRunning ? <><Spinner /> Test en cours...</> : '> Tester (100 lignes)'}
-              </button>
-
-              {dryRunResult?.success && (
-                <div style={{ marginTop: 16 }}>
-                  {/* Stats grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                    {[
-                      { label: 'Valides', val: dryRunResult.stats.validRows, color: C.green },
-                      { label: 'Sans coords', val: dryRunResult.stats.missingCoords, color: C.warn },
-                      { label: 'Exclus', val: dryRunResult.stats.invalidRows, color: C.red },
-                    ].map(({ label, val, color }) => (
-                      <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-                        <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
-                        <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Additional geocoding stats */}
-                  {dryRunResult.stats.geocodedRows !== undefined && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 10 }}>
-                      {[
-                        { label: 'Geocodes', val: dryRunResult.stats.geocodedRows, color: C.accent },
-                        { label: 'Echecs geocodage', val: dryRunResult.stats.geocodeErrors, color: C.red },
-                        { label: 'Total fichier', val: dryRunResult.stats.totalRows.toLocaleString(), color: C.textDim },
-                      ].map(({ label, val, color }) => (
-                        <div key={label} style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 12 }}>
-                          <div style={{ fontFamily: fontInter, fontSize: 8, fontWeight: 500, color: C.textDim, marginBottom: 6 }}>{label}</div>
-                          <div style={{ fontFamily: fontInter, fontSize: 22, color, fontWeight: 700 }}>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Map preview */}
-                  {dryRunResult.samplePoints.length > 0 && (
-                    <div style={{ marginTop: 14 }}>
-                      <div style={{ fontFamily: fontMono, fontSize: 10, color: C.muted, marginBottom: 6 }}>
-                        {'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}
-                      </div>
-                      <iframe
-                        src={getMapPreviewUrl(dryRunResult.samplePoints)}
-                        width="100%"
-                        height="250"
-                        style={{ border: `1px solid ${C.border}`, borderRadius: 2, display: 'block' }}
-                        title="Apercu carte"
-                      />
-                    </div>
-                  )}
-
-                  {/* Sample points list */}
-                  {dryRunResult.samplePoints.length > 0 && (
-                    <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.textDim, cursor: 'pointer' }}>
-                        Points d&apos;apercu ({dryRunResult.samplePoints.length})
-                      </summary>
-                      <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.textDim }}>
-                        {JSON.stringify(dryRunResult.samplePoints, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-
-                  {/* Errors */}
-                  {dryRunResult.errors.length > 0 && (
-                    <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontFamily: fontInter, fontSize: 9, fontWeight: 500, color: C.warn, cursor: 'pointer' }}>
-                        Erreurs ({dryRunResult.errors.length})
-                      </summary>
-                      <pre style={{ background: C.bgSurface, border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontFamily: fontMono, fontSize: 10, maxHeight: 150, overflow: 'auto', marginTop: 6, color: C.warn }}>
-                        {dryRunResult.errors.map((e) => `Ligne ${e.row}: [${e.field}] ${e.message}`).join('\n')}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
-
-              {dryRunResult && !dryRunResult.success && (
-                <div style={{ marginTop: 12, background: C.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 2, padding: '8px 12px', fontFamily: fontMono, fontSize: 11, color: C.red }}>
-                  ! {dryRunResult.error}
-                </div>
-              )}
-            </div>
-          </div>
+          <DryRunStep
+            dryRunResult={dryRunResult}
+            handleDryRun={handleDryRun}
+            isDryRunning={isDryRunning}
+          />
         )}
 
         {/* ============================================================ */}

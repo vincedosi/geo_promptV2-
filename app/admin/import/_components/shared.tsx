@@ -27,6 +27,13 @@ export interface MappingState extends FieldMapping {
   [key: string]: string | undefined;
 }
 
+/** Catégorie POI proposée à l'étape 2 — chargée depuis la base, jamais en dur. */
+export interface PoiCategoryOption {
+  val: string;
+  label: string;
+  icone: string;
+}
+
 /** Modes de géolocalisation proposés à l'étape 3. */
 export const GEO_MODES: { val: GeoMode; title: string; desc: string }[] = [
   { val: 'gps', title: 'GPS direct', desc: 'Colonnes latitude / longitude deja presentes' },
