@@ -1,0 +1,30 @@
+-- =============================================================================
+-- 119 + 120 — build_ref_codes_postaux() : source repliable + garde-fou
+-- Appliquées via MCP Supabase le 2026-09-08. Copie versionnée pour traçabilité.
+--
+-- CONSTAT : la fonction faisait TRUNCATE puis INSERT depuis `laposte_hexasmal`,
+-- table VIDE (0 ligne) depuis la suppression de sa route d'import. Un seul appel
+-- aurait détruit les 6 187 codes postaux et cassé toutes les analyses CP des
+-- campagnes (suivi, réconciliation, dérive, météo, zones custom joignent dessus).
+--
+-- CORRECTIF :
+--   1. source repliable — `laposte_hexasmal` tant qu'elle est peuplée (source
+--      officielle La Poste), sinon `postal_code_commune` (35 358 lignes, même
+--      correspondance CP → commune INSEE). Vérifié avant application : les deux
+--      chemins produisent exactement 6 187 codes postaux, le contenu actuel.
+--   2. garde-fou — compte ce qui serait produit AVANT de tronquer et lève une
+--      exception si le résultat est vide. Une source vide ne peut plus effacer
+--      le référentiel. Testé : l'exception se déclenche bien avant le TRUNCATE.
+--
+-- Le corps métier est inchangé : éclatement PLM (Paris/Lyon/Marseille),
+-- géométries unifiées + simplifiées, centroïde, surface, population.
+--
+-- ⚠ Ne pas confondre avec `scripts/regenerate_ref_codes_postaux.sql`, périmé et
+-- destructeur (DROP CASCADE + structure divergente) — voir son en-tête.
+--
+-- Pour régénérer :  SELECT build_ref_codes_postaux();
+-- Coût : ST_Union sur ~34 900 communes. Opération lourde, à lancer hors usage.
+-- =============================================================================
+
+-- Le corps exact est celui de la migration 120 en base :
+--   SELECT pg_get_functiondef('public.build_ref_codes_postaux'::regproc);

@@ -1,5 +1,26 @@
 -- =============================================================================
--- regenerate_ref_codes_postaux.sql
+-- ⛔ NE PAS EXECUTER — SCRIPT PERIME ET DESTRUCTEUR (constat 2026-09-08)
+--
+-- Ce script fait `DROP TABLE ref_codes_postaux CASCADE` puis recree une table
+-- dont la STRUCTURE NE CORRESPOND PLUS a celle en production :
+--
+--   ce script cree      : code_postal, code_dept, nom, geom, nb_iris + colonnes iris
+--   la table reelle est : code_postal, nom_principal, nb_communes, code_dept,
+--                         geom, geom_simplified, centroid, surface_km2, pop_total
+--
+-- L'executer casserait toutes les RPC qui lisent `nom_principal`,
+-- `geom_simplified`, `centroid`, `surface_km2` ou `pop_total` : suivi de
+-- campagne, reconciliation, derive, meteo, zones custom.
+--
+-- POUR REGENERER LE REFERENTIEL, utiliser la fonction officielle :
+--     SELECT build_ref_codes_postaux();
+-- Elle lit `laposte_hexasmal` si peuplee, sinon `postal_code_commune`, et
+-- refuse de tronquer si la reconstruction serait vide (migrations 119 + 120).
+--
+-- Conserve uniquement comme trace de l'ancienne structure agregee depuis iris.
+-- =============================================================================
+
+-- regenerate_ref_codes_postaux.sql (ANCIEN — voir avertissement ci-dessus)
 --
 -- Régénère la table ref_codes_postaux depuis les colonnes numériques de iris.
 -- À relancer si on ajoute des colonnes à la table iris.
