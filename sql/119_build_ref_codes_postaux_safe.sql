@@ -47,6 +47,9 @@
 -- Verification applicative : get_campaign_suivi_map (qui joint sur
 -- ref_codes_postaux) retourne 1 988 features CP sur la campagne de demo.
 --
--- La table de sauvegarde peut etre supprimee une fois la confiance etablie :
---   DROP TABLE ref_codes_postaux_backup_20260908;
+-- Sauvegarde supprimee le 2026-09-08 apres verification du referentiel vivant
+-- (6 187 CP, 101 departements, geom/geom_simplified/centroid/nom tous renseignes,
+-- 0 geometrie invalide). Si une reconstruction doit etre rejouee un jour,
+-- refaire d'abord :
+--   CREATE TABLE ref_codes_postaux_backup_<date> AS SELECT * FROM ref_codes_postaux;
 -- =============================================================================
