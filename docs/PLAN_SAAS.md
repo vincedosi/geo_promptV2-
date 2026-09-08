@@ -181,7 +181,7 @@ Vérifiés par requête, pas déduits du code.
 | Constat | Mesure | Nature |
 |---|---|---|
 | `nb_emplois` et `nb_emplois_commune` vides | **0 / 16 404 IRIS** | **Donnée jamais importée**, pas un bug. Le mapping (`^P\d{2}_EMPLT$`) et le RPC sont corrects ; le registre ne connaît que `BASE_TD_FILO_IRIS_2021_DEC` et `_DISP` (revenus). Les emplois au lieu de travail sont dans une base INSEE distincte. |
-| `ref_codes_postaux` sans alimentation | 6 187 lignes | Consommée par les RPC d'analyse digitale ; sa route d'import a été supprimée. Se périmera en silence. |
+| `ref_codes_postaux` — ✅ **sécurisé le 08/09** | 6 187 lignes | Bien pire qu'une péremption : `laposte_hexasmal`, seule source de `build_ref_codes_postaux()`, est **vide**. La fonction faisant TRUNCATE puis INSERT, un seul appel effaçait le référentiel et cassait toutes les analyses CP. Corrigé (migrations 119+120) : source repliable sur `postal_code_commune` + garde-fou qui refuse de tronquer si le résultat serait vide. Voir `sql/119_build_ref_codes_postaux_safe.sql`. |
 | `carreaux_1km` vide | 0 ligne | Post-traitements carreaux non orchestrés (constat C1 de juillet, toujours vrai). |
 
 Le reste est sain : `population`, `taux_chomage`, `taux_emploi`, `nb_csp_*`,
