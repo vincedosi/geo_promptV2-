@@ -22,15 +22,15 @@ const PROTECTED_API_PREFIXES = [
   // Note: /api/map/categories est public intentionnellement (données non sensibles)
   '/api/admin',
   '/api/iris-crawler',
-  // Tuiles vectorielles : les trois familles sont traitées à l'identique.
+  // Tuiles vectorielles : les deux familles sont traitées à l'identique.
   // MapLibre les requête en same-origin, les cookies de session sont donc
   // transmis — c'est déjà le cas de /api/tiles, en service et fonctionnel.
-  '/api/iris-tiles-proxy',
+  // Les tuiles IRIS ne sont plus servies ici : elles passent par PMTiles
+  // (`IRIS_PMTILES_URL`), et /api/iris-tiles + son proxy ont été supprimés.
   '/api/tiles',
-  '/api/iris-tiles',
   '/api/tmja-tiles',
+  // Couvre aussi, par startsWith, toute route /api/iris-*.
   '/api/iris',
-  '/api/iris-import',
   '/api/isochrone-battle',
   '/api/isochrone-battle-v2',
   '/api/isochrone-cache-check',
@@ -46,7 +46,6 @@ const PROTECTED_API_PREFIXES = [
 const PROTECTED_PAGE_PREFIXES = [
   '/map',
   '/dashboard',
-  '/campaigns',
   '/admin',
   '/demo',
 ];
@@ -126,23 +125,27 @@ export async function middleware(request: NextRequest) {
 
 // ── Matcher ───────────────────────────────────────────────────────────────────
 // Exclut /api/inngest (webhook propre) et /api/auth/* (flux OAuth Supabase).
+//
+// ⚠ Le matcher décide si le middleware s'exécute ; les listes ci-dessus
+// décident s'il protège. Une route absente d'ICI n'est JAMAIS protégée, même
+// si son préfixe figure dans PROTECTED_API_PREFIXES. Toute nouvelle route
+// protégée doit donc être ajoutée AUX DEUX endroits.
+//
+// Le matcher raisonne par segment : '/api/iris/:path*' ne couvre pas
+// '/api/iris-crawler' — d'où sa ligne dédiée.
 export const config = {
   matcher: [
     '/map/:path*',
     '/dashboard/:path*',
-    '/campaigns/:path*',
     '/admin/:path*',
     '/demo/:path*',
     '/api/chat/:path*',
     '/api/map/:path*',
     '/api/admin/:path*',
     '/api/iris-crawler/:path*',
-    '/api/iris-tiles-proxy/:path*',
     '/api/tiles/:path*',
-    '/api/iris-tiles/:path*',
     '/api/tmja-tiles/:path*',
     '/api/iris/:path*',
-    '/api/iris-import/:path*',
     '/api/isochrone-battle/:path*',
     '/api/isochrone-battle-v2/:path*',
     '/api/isochrone-cache-check/:path*',
