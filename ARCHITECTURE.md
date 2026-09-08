@@ -634,6 +634,14 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 
 ## Commandes
 
+> **Traçabilité base (2026-09-08).** `types/database.types.ts` est desormais
+> versionne (genere par le MCP Supabase — la CLI et `SUPABASE_DB_URL` ne sont pas
+> requises). A regenerer apres chaque `apply_migration`. L'audit complet
+> « ce que le code appelle vs ce que la base expose » est dans
+> `docs/AUDIT_BASE.md` : 92 RPC appelees, 3 appelees sans exister en base
+> (`get_radio_coverage_geometry`, `get_check_constraint_values`,
+> `compute_panneau_scores`).
+
 ```bash
 npm run dev              # Dev (localhost:3000)
 npm run build            # Build production

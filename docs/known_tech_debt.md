@@ -360,6 +360,7 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Stratégie de démo sans données simulées | caduc : la vue qui les lisait est supprimée |
 | Overlay Pilotage ML et sa dépendance morte | 90 fichiers et 12 728 lignes retirés (dont les 12 du split Step2 du matin même), 22 routes `/api/bidding/*` sans appelant, 3 modules `lib/bidding-ml/`, `app/demo/pilote/_components` — bundle `/map` 189 → 149 kB |
 | 71 warnings ESLint | 0 warning : ils vivaient tous dans le code supprimé |
+| Traçabilité base | `types/database.types.ts` généré (6 684 l.) + audit RPC complet dans `docs/AUDIT_BASE.md` — 3 RPC appelées mais absentes de la base identifiées |
 
 ### Ouvert
 
@@ -368,7 +369,10 @@ il n'y avait rien à supprimer. Aucune action requise.
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
 | 1 fichier de 1 826 lignes (`FilterPanel.tsx`) | 3-4 h | medium | smoke E2E manuel Vince |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
-| 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
+| Brancher `Database` sur le client Supabase | 4-6 h | medium | 106 erreurs de typage sur 60 fichiers — cf. `docs/AUDIT_BASE.md` |
+| `get_radio_coverage_geometry` absente de la base | 1-2 h | faible | **décision produit** : rayon de couverture par portée d'émetteur |
+| `get_check_constraint_values` absente (rôles en dur malgré l'appel) | 30 min | faible | décision : créer la fonction ou assumer la constante |
+| `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
 
 Un seul fichier de plus de 1 000 lignes au 2026-09-08 : `FilterPanel.tsx`
 (1 826 — reste ses handlers, cf. §1).
