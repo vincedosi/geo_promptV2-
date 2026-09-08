@@ -61,7 +61,7 @@ export async function GET(
   const { data, error } = await supabase.rpc('get_campaign_pacing', {
     p_campaign_id: campaignId,
     p_metric_field: metricField,
-    p_version: version,
+    p_version: version ?? undefined,
   });
   if (error) {
     console.error('[digital/pacing]', error.message);

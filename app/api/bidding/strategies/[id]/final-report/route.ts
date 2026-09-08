@@ -76,7 +76,7 @@ export async function POST(
       .select('id, name, algorithm_code, objective_code, weighting_mode, in_zone_weights, status, activated_at, status_changed_at, total_budget, currency, init_preset_code')
       .eq('id', id)
       .single(),
-    supabase.rpc('get_strategy_comparison_data', { p_strategy_id: id, p_date_from: null, p_date_to: null }),
+    supabase.rpc('get_strategy_comparison_data', { p_strategy_id: id, p_date_from: undefined, p_date_to: undefined }),
     supabase.from('bidding_curve_history')
       .select('applied_at, curve, triggered_by, reason')
       .eq('strategy_id', id)

@@ -30,6 +30,9 @@ async function loadContext(
     .eq('id', campaignId)
     .maybeSingle();
   if (!camp) return null;
+  // `organization_id` est nullable en base : sans cette garde, le `.eq(...)`
+  // recevrait null et ne filtrerait pas comme une egalite.
+  if (!camp.organization_id) return null;
   const [regRes, connRes, profRes] = await Promise.all([
     supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active, link_levels').eq('active', true),
     supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'connected'),

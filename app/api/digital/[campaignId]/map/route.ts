@@ -68,7 +68,7 @@ export async function GET(
     p_campaign_id: campaignId,
     p_scale: scale,
     p_pop_field: popField,
-    p_media: media,
+    p_media: media ?? undefined,
     p_bbox_xmin: xmin,
     p_bbox_ymin: ymin,
     p_bbox_xmax: xmax,

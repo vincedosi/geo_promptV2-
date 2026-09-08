@@ -33,6 +33,9 @@ export async function POST(
     .select('id, name, is_demo, organization_id, geo_strategy, date_start, date_end')
     .eq('id', campaignId).maybeSingle();
   if (!camp) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+  // `organization_id` est nullable en base : sans cette garde, le `.eq(...)`
+  // recevrait null et ne filtrerait pas comme une egalite.
+  if (!camp.organization_id) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   // Démo : génération SQL set-based (pas de connecteur, pas de fichier).
   if (camp.is_demo) {

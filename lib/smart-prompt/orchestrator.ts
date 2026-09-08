@@ -111,8 +111,8 @@ async function logFeedback(
       p_agent:      agent,
       p_confidence: confidence,
       p_success:    success,
-      p_error_msg:  error_msg ?? null,
-      p_params:     params ?? null,
+      p_error_msg:  error_msg ?? undefined,
+      p_params:     params ?? undefined,
     });
   } catch {
     // Non-bloquant

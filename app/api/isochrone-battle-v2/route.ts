@@ -37,6 +37,7 @@ const battleV2Schema = z.object({
 // 'bre') qui ne matchaient pas le code_region INSEE envoyé par FilterPanel
 // (refonte dynamique via ref_regions).
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 /**
  * Étend les codes département pour matcher les 2 formats hétérogènes en DB
@@ -256,7 +257,7 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        const features: GeoJSON.Feature[] = Array.isArray(battleResult) ? battleResult as GeoJSON.Feature[] : [];
+        const features: GeoJSON.Feature[] = Array.isArray(battleResult) ? (rpcJson<GeoJSON.Feature[]>(battleResult) ?? []) : [];
         const battleGeoJSON = { type: 'FeatureCollection', features };
         const poisForMap    = pois.map(p => ({
           id: p.id, nom: p.nom, lat: p.lat, lng: p.lng,

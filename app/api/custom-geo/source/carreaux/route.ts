@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
     p_zoom_level: parsed.data.zoom_level,
     p_indicateur: parsed.data.indicateur,
     p_max_rows: parsed.data.max_rows,
-    p_value_min: parsed.data.value_min ?? null,
-    p_value_max: parsed.data.value_max ?? null,
+    p_value_min: parsed.data.value_min ?? undefined,
+    p_value_max: parsed.data.value_max ?? undefined,
     p_admin_scope: parsed.data.admin_scope ?? null,
   });
   if (error) {

@@ -90,12 +90,12 @@ export async function POST(
     p_campaign_id: campaignId,
     p_aggregation: 'dept',
     p_indicator: 'population',
-    p_media: null,
+    p_media: undefined,
     p_limit: 30,
     p_pop_min: 0,
     p_metric_field: metricField,
-    p_parent_type: null,
-    p_parent_code: null,
+    p_parent_type: undefined,
+    p_parent_code: undefined,
   });
   if (breakdownError) console.error('[campaign-chat] breakdown:', breakdownError.message);
   const breakdownDept = (

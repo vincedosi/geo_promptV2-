@@ -3,6 +3,7 @@
  * Supabase Auth integration
  */
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
 export interface UserProfile {
   id: string;
@@ -19,7 +20,7 @@ export interface UserProfile {
 export function createServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, anonKey);
+  return createClient<Database>(url, anonKey);
 }
 
 /**
@@ -44,7 +45,7 @@ export function createAdminClient() {
     );
   }
 
-  return createClient(url, serviceKey, {
+  return createClient<Database>(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
     // Next.js patche `fetch` et applique son Data Cache aux appels sortants.
     // Sans cette surcharge, supabase-js retourne des `profiles.organization_id`

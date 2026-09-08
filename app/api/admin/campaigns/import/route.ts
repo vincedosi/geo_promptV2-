@@ -18,6 +18,7 @@ import {
 import type { CampaignImportEvent } from '@/types/campaign';
 import { resolveImportScope } from '@/lib/campaigns/import-scope';
 import { findMatchingCampaign } from '@/lib/campaigns/import-match';
+import type { Json } from '@/types/database.types';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,11 @@ interface InsertRow {
   impressions: number | null;
   clicks: number | null;
   spend: number | null;
-  metrics: Record<string, unknown>;
+  /** Colonne jsonb. On prend la branche OBJET de `Json` plutot que `Json` tout
+   *  court : assignable au parametre de `.insert()`, et non-nullable pour le
+   *  code d'agregation qui lit `existing.metrics` sans garde.
+   *  `Record<string, unknown>` ne convient pas — Json est recursif. */
+  metrics: { [key: string]: Json | undefined };
   dsp_source: string;
 }
 
@@ -286,7 +291,9 @@ export async function POST(request: NextRequest) {
           impressions: (p.core.impressions as number | undefined) ?? null,
           clicks: (p.core.clicks as number | undefined) ?? null,
           spend: (p.core.spend as number | undefined) ?? null,
-          metrics: p.metrics,
+          // `ParsedRow.metrics` est un Record<string, unknown> issu du parse CSV :
+          // des scalaires, donc compatibles jsonb. Le cast fait le pont.
+          metrics: p.metrics as { [key: string]: Json | undefined },
           dsp_source: dspSource,
         }));
 

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.rpc('get_digital_zone_geometry', {
     p_campaign_id: parsed.data.campaign_id,
     p_scale: parsed.data.scale,
-    p_codes: parsed.data.codes ?? null,
+    p_codes: parsed.data.codes ?? undefined,
   });
   if (error) {
     console.error('[custom-geo/source/digital]', error.message);

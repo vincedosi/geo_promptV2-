@@ -333,7 +333,7 @@ export async function PATCH(
       p_field_path: ch.field,
       p_old_value: ch.old as never,
       p_new_value: ch.new as never,
-      p_reason: reason ?? null,
+      p_reason: reason ?? undefined,
       p_triggered_by: 'user',
     });
   }
