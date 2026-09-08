@@ -43,6 +43,12 @@ export const IRIS_DB_COLUMNS: IrisDbColumn[] = [
   { name: 'taux_pauvrete',    label: 'Taux de pauvreté (%)',       type: 'float',   group: 'Revenus'    },
   { name: 'indice_gini',      label: 'Indice de Gini',             type: 'float',   group: 'Revenus'    },
   // Emploi
+  // ⚠ `nb_emplois` est VIDE en base (0 / 16 404 IRIS au 2026-09-08), et
+  // `nb_emplois_commune` aussi. Ce n'est pas un defaut du code : le mapping
+  // (auto-map `^P\d{2}_EMPLT$`) et le RPC `update_iris_core_batch` sont corrects.
+  // La source n'a simplement jamais ete importee — le registre ne connait que
+  // BASE_TD_FILO_IRIS_2021_DEC et _DISP (revenus). Les emplois au lieu de
+  // travail sont dans une base INSEE distincte, a importer pour les remplir.
   { name: 'nb_emplois',       label: 'Emplois au lieu de travail', type: 'integer', group: 'Emploi'     },
   { name: 'taux_emploi',      label: "Taux d'emploi (%)",          type: 'float',   group: 'Emploi'     },
   // Démographie dérivée

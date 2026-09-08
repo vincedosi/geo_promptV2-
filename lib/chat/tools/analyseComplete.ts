@@ -88,6 +88,13 @@ type IrisRow = {
   pop_60_74:         number | null;
   pop_75_plus:       number | null;
   // Revenus & emploi
+  // NOTE 2026-09-08 : `nb_emplois` et `nb_emplois_commune` sont volontairement
+  // absents. Ils sont NULL pour la totalite des 16 404 IRIS : leur source INSEE
+  // (P<aa>_EMPLT, emplois au lieu de travail) n'a jamais ete importee — seules
+  // la base activite des residents et Filosofi l'ont ete. Les envoyer au LLM
+  // lui faisait croire qu'il disposait d'une donnee d'emploi au lieu de travail.
+  // A remettre le jour ou la base EMPLT sera importee (le mapping auto-map et
+  // le RPC update_iris_core_batch les gerent deja correctement).
   rev_median:        number | null;
   taux_chomage:      number | null;
   taux_proprio:      number | null;
@@ -117,7 +124,6 @@ type IrisRow = {
   part_hommes_actifs:        number | null;
   part_femmes_actives:       number | null;
   part_sans_diplome:         number | null;
-  nb_emplois_commune:        number | null;
   // Géo
   centroid_lat:      number | null;
   centroid_lng:      number | null;
@@ -188,7 +194,7 @@ export async function analyseComplete(args: Record<string, unknown>) {
     const [irisResult, panneauxResult, poiResults] = await Promise.all([
       supabase
         .from('iris')
-        .select('code_iris, nom_iris, population, nb_menages, pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus, rev_median, taux_chomage, taux_proprio, nb_diplome_aucun, nb_diplome_bac, nb_diplome_sup, taux_diplome_sup, nb_csp_cadre, nb_csp_employe, nb_csp_ouvrier, densite_pop, indice_jeunesse, part_pop_etrangere, part_pop_moins_18, part_pop_65_plus, part_residences_principales, part_appartements, part_logements_sociaux, part_menages_emmenages_2ans, part_familles_monoparentales, part_couples_avec_enfants, part_actifs_marche_velo, part_actifs_transport_commun, part_hommes_actifs, part_femmes_actives, part_sans_diplome, nb_emplois_commune, centroid_lat, centroid_lng')
+        .select('code_iris, nom_iris, population, nb_menages, pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus, rev_median, taux_chomage, taux_proprio, nb_diplome_aucun, nb_diplome_bac, nb_diplome_sup, taux_diplome_sup, nb_csp_cadre, nb_csp_employe, nb_csp_ouvrier, densite_pop, indice_jeunesse, part_pop_etrangere, part_pop_moins_18, part_pop_65_plus, part_residences_principales, part_appartements, part_logements_sociaux, part_menages_emmenages_2ans, part_familles_monoparentales, part_couples_avec_enfants, part_actifs_marche_velo, part_actifs_transport_commun, part_hommes_actifs, part_femmes_actives, part_sans_diplome, centroid_lat, centroid_lng')
         .eq('code_commune', code_commune)
         .in('type_iris', ['H', 'Z']),  // H = habitat (urbain), Z = commune non découpée (rural)
       panneauxQ,

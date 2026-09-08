@@ -174,6 +174,27 @@ C'est le même piège que celui consigné dans `docs/AUDIT_BASE.md` pour les RPC
 
 ---
 
+## 4bis. Trous de données constatés en base (2026-09-08)
+
+Vérifiés par requête, pas déduits du code.
+
+| Constat | Mesure | Nature |
+|---|---|---|
+| `nb_emplois` et `nb_emplois_commune` vides | **0 / 16 404 IRIS** | **Donnée jamais importée**, pas un bug. Le mapping (`^P\d{2}_EMPLT$`) et le RPC sont corrects ; le registre ne connaît que `BASE_TD_FILO_IRIS_2021_DEC` et `_DISP` (revenus). Les emplois au lieu de travail sont dans une base INSEE distincte. |
+| `ref_codes_postaux` sans alimentation | 6 187 lignes | Consommée par les RPC d'analyse digitale ; sa route d'import a été supprimée. Se périmera en silence. |
+| `carreaux_1km` vide | 0 ligne | Post-traitements carreaux non orchestrés (constat C1 de juillet, toujours vrai). |
+
+Le reste est sain : `population`, `taux_chomage`, `taux_emploi`, `nb_csp_*`,
+`part_sans_diplome` sont remplis à 16 083-16 240 / 16 404 ; les indicateurs
+Filosofi (`rev_median`, `taux_pauvrete`, `indice_gini`, `rev_d1/d9`) à 14 480.
+
+**Corrigé dans la foulée** : `lib/chat/tools/analyseComplete.ts` envoyait
+`nb_emplois_commune` au LLM pour chaque IRIS — toujours `null`. Retiré du SELECT
+et du type, avec la marche à suivre pour le remettre le jour où la base EMPLT
+sera importée.
+
+---
+
 ## 5. Documents liés
 
 | Document | Objet | Fraîcheur |
