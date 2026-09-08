@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { crawlAndMatchRadios } from '@/lib/radio/arcom-crawler';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Plafond Vercel plan Hobby (900 refusé au build). Crawl complet ~1000 radios : relancer en local si timeout.
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
           await supabase.from('radio_imports_log').update({
             status: 'success',
             completed_at: new Date().toISOString(),
-            stats: result,
+            stats: toJson(result),
           }).eq('id', logId);
         }
       } catch (err: unknown) {

@@ -27,7 +27,16 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('get_radio_coverage_geometry', {
+  // ⛔ DETTE : `get_radio_coverage_geometry` N'EXISTE PAS en base (confirme
+  // 2026-09-08, cf. docs/AUDIT_BASE.md). Cette route renvoie donc toujours une
+  // erreur PostgREST : la capture de couverture radio est CASSEE, pas
+  // seulement mal typee. Le branchement des types l'a fait remonter en erreur
+  // de compilation la ou elle passait inapercue.
+  // A trancher : ecrire la fonction (logique de rayon par portee d'emetteur),
+  // ou retirer la source radio du constructeur de zones.
+  const { data, error } = await (supabase.rpc as unknown as (
+    fn: string, args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>)('get_radio_coverage_geometry', {
     p_radio_id: parsed.data.radio_id,
     p_transmitter_ids: parsed.data.transmitter_ids ?? null,
   });

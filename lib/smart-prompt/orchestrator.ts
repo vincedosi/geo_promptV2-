@@ -7,6 +7,7 @@ import { createAdminClient }    from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { routePrompt }          from './router-prompt';
 import { runDemographieAgent }  from './agents/demographie';
+import { toJson } from '@/lib/supabase/rpc-json';
 import type {
   AgentName,
   AgentResult,
@@ -112,7 +113,7 @@ async function logFeedback(
       p_confidence: confidence,
       p_success:    success,
       p_error_msg:  error_msg ?? undefined,
-      p_params:     params ?? undefined,
+      p_params: toJson(params ?? undefined),
     });
   } catch {
     // Non-bloquant

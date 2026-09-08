@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       user_id: profile.id,
       campaign_id: body.campaign_id,
       current_step: body.current_step,
-      draft_data: body.draft_data,
+      draft_data: toJson(body.draft_data),
       last_saved_at: now,
       consumed_at: null,
     }, { onConflict: 'user_id,campaign_id' })

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       p_description: parsed.data.description ?? null,
       p_org_id: parsed.data.org_id,
       p_source_type: parsed.data.source_type,
-      p_source_metadata: parsed.data.source_metadata,
+      p_source_metadata: toJson(parsed.data.source_metadata),
       p_geometry_geojson: JSON.stringify(parsed.data.geometry),
     });
 

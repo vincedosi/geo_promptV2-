@@ -15,6 +15,7 @@ import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { resolveSafeJsonPath } from '@/lib/api/safe-path';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,8 +154,8 @@ export async function POST(request: NextRequest) {
               row_count: totalRows,
               valid_count: validCount,
               error_count: result.missingCoords + result.invalidCount,
-              mapping: config.mapping,
-              geo_config: config.geolocation,
+              mapping: toJson(config.mapping),
+              geo_config: toJson(config.geolocation),
               filter_fields: config.filterFields || [],
               status: 'active',
             })

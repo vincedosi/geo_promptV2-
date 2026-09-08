@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   // 1. Transformer les N géométries en UNE seule via RPC
   const { data: geomJson, error: transformError } = await supabase.rpc('transform_geometries_for_save', {
-    p_geometries: parsed.data.geometries,
+    p_geometries: toJson(parsed.data.geometries),
     p_method: parsed.data.transformation,
   });
 

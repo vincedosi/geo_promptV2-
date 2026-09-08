@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,11 +72,11 @@ export async function POST(request: NextRequest) {
       name:            name.trim(),
       ville:           (zoneObj?.ville as string | null) ?? null,
       nb_pois:         (zoneObj?.nb_pois as number | null) ?? 0,
-      zone_data:       zone_data ?? null,
-      carreaux_config: carreaux_config ?? null,
-      isochrone_data:  isochrone_data ?? null,
+      zone_data: toJson(zone_data ?? null),
+      carreaux_config: toJson(carreaux_config ?? null),
+      isochrone_data: toJson(isochrone_data ?? null),
       voronoi_data:    voronoi_data ?? null,
-      messages:        messages ?? [],
+      messages: toJson(messages ?? []),
       updated_at:      new Date().toISOString(),
       user_id:         profile.id,
       organization_id: profile.organization_id,

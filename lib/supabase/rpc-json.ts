@@ -1,3 +1,5 @@
+import type { Json } from '@/types/database.types';
+
 /**
  * @file lib/supabase/rpc-json.ts — lecture typée des RPC qui renvoient du jsonb
  *
@@ -20,4 +22,24 @@
  */
 export function rpcJson<T>(data: unknown): T | null {
   return (data ?? null) as T | null;
+}
+
+/**
+ * Convertit une valeur applicative en valeur `jsonb`.
+ *
+ * `Json` est une union récursive (`string | number | boolean | Json[] | {…}`).
+ * Un objet TS ordinaire — `Record<string, unknown>`, une interface métier — ne
+ * lui est pas assignable structurellement, même quand il est parfaitement
+ * sérialisable. Ce helper fait le pont en un seul endroit documenté plutôt
+ * qu'en trente casts dispersés.
+ *
+ * Précondition : la valeur doit être sérialisable en JSON. Pas de `Date`, pas
+ * de `Map`, pas de `undefined` en profondeur, pas de référence circulaire —
+ * PostgREST les rejetterait ou les perdrait silencieusement.
+ *
+ * @example
+ *   await supabase.from('custom_geo_zones').insert({ metadata: toJson(meta) });
+ */
+export function toJson<T>(value: T): Json {
+  return value as unknown as Json;
 }

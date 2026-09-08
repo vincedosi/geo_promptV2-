@@ -12,7 +12,15 @@ export async function GET(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   const supabase = createAdminClient();
-  const { data } = await supabase.rpc('get_check_constraint_values' as never, { p_table: 'profiles', p_constraint: 'profiles_role_check' });
+  // ⛔ DETTE : `get_check_constraint_values` N'EXISTE PAS en base (confirme
+  // 2026-09-08, cf. docs/AUDIT_BASE.md). L'appel echoue donc a chaque fois et
+  // c'est le fallback `Object.keys(ROLE_LEVELS)` plus bas qui sert TOUJOURS.
+  // Le double cast rend l'appel compilable sans pretendre que la fonction
+  // existe. A trancher : creer la fonction, ou supprimer l'appel et assumer
+  // la constante (le comportement observable serait identique).
+  const { data } = await (supabase.rpc as unknown as (
+    fn: string, args: Record<string, string>,
+  ) => Promise<{ data: unknown }>)('get_check_constraint_values', { p_table: 'profiles', p_constraint: 'profiles_role_check' });
 
   let roles: string[];
   if (data && typeof data === 'string') {
