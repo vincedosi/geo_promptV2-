@@ -15,7 +15,6 @@ export const BUILD_DATE  = '2026-04-28';
 // Les valeurs démographiques sont injectées dynamiquement depuis la DB via setFeatureState
 // Régénérer uniquement si les contours IGN changent (rare) — voir .github/workflows/generate-iris-pmtiles.yml
 // Fichier servi depuis /public en attendant la première exécution du workflow generate-iris-pmtiles.
-// Après upload sur GitHub Releases, basculer vers '/api/iris-tiles-proxy'.
 export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})

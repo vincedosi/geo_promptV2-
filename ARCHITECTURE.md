@@ -4,6 +4,11 @@
 > qui n'etait atteignable que par lui — voir ci-dessous)
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
 > Deep-link overlay campagne : `/map?campaign=<id>&tab=<creation|suivi|apercu>` (ignore si `?overlay=` present).
+> Retrait 2026-09-08 : 13 routes API sans appelant supprimees (voir
+> `docs/PLAN_SAAS.md` §3.A). Six RPC deviennent orphelines EN BASE et n'ont
+> PAS ete supprimees : `get_iris_tile`, `get_abstention_stats`,
+> `get_cps_in_bbox`, `get_codes_postaux_bbox`, `get_digital_cp_iris_detail`,
+> `get_radios_for_emetteur`.
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -217,8 +222,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) |
-| `/api/iris-tiles/[z]/[x]/[y]` | GET | Tuiles MVT zones IRIS |
-| `/api/iris-tiles-proxy` | GET | Proxy CORS pour PMTiles IRIS (GitHub Releases) |
 
 ### IRIS
 | Route | Methode | Description |
@@ -256,11 +259,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/digital/campaigns` | GET | Liste campagnes avec stats (RPC) |
-| `/api/digital/codes-postaux` | GET | GeoJSON codes postaux dans bbox |
 | `/api/digital/[campaignId]/analysis` | GET | Breakdown/medias/indicators/heatmap |
 | `/api/digital/[campaignId]/map` | GET | Choroplethe CP campagne (GeoJSON) |
 | `/api/digital/[campaignId]/media` | GET | Regies distinctes campagne |
-| `/api/digital/[campaignId]/cp-detail` | GET | IRIS dans un code postal |
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
 | `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
@@ -276,9 +277,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/radio/stations` | GET | Liste radios + nb emetteurs (pagine) |
-| `/api/radio/stations/[id]` | PUT | Modification station |
 | `/api/radio/emetteurs` | GET | GeoJSON emetteurs (RPC PostGIS) |
-| `/api/radio/emetteurs/[staAnfr]` | GET | Detail emetteur + radios associees |
 | `/api/radio/filter-options` | GET | Options filtres (categories, groupes) |
 | `/api/radio/stats` | GET | Stats radios |
 | `/api/radio/audit` | GET | Audit matching radio |
@@ -303,7 +302,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/admin/campaigns/[id]/absorb` | POST | Fusionne un import orphelin dans la campagne (donnees + dates + totaux, cible SANS donnees uniquement — 409 sinon), puis supprime la coquille source |
 | `/api/admin/campaigns/import` | POST | Import SSE streaming |
 | `/api/admin/campaigns/[id]` | GET/DELETE/PATCH | Detail/suppression/modification campagne |
-| `/api/admin/campaigns/[id]/match-iris` | POST | Relance matching IRIS |
 | `/api/admin/campaigns/[id]/organizations` | GET/POST | Gestion orgs campagne |
 | `/api/admin/campaigns/[id]/organizations/[orgId]` | DELETE | Retrait org campagne |
 
@@ -490,7 +488,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT) | `api/tiles/` |
-| `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | `api/iris-tiles/` |
+| `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | *orpheline* (route supprimee 09/2026 — IRIS servis en PMTiles) |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
 
@@ -517,8 +515,8 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_digital_analysis_breakdown` | Breakdown geo | `api/digital/[id]/analysis/` |
 | `get_digital_media_heatmap` | Heatmap regies x zones | `api/digital/[id]/analysis/` |
 | `get_digital_available_indicators` | Indicateurs disponibles | `api/digital/[id]/analysis/` |
-| `get_digital_cp_iris_detail` | Detail IRIS dans un CP | `api/digital/[id]/cp-detail/` |
-| `get_codes_postaux_bbox` | Polygones CP dans bbox | `api/digital/codes-postaux/` |
+| `get_digital_cp_iris_detail` | Detail IRIS dans un CP | *orpheline* (route supprimee 09/2026) |
+| `get_codes_postaux_bbox` | Polygones CP dans bbox | *orpheline* (route supprimee 09/2026) |
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
 | `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
@@ -540,7 +538,7 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `get_radio_stats` | Stats globales radio | `api/radio/stats/` |
 | `get_radio_audit` | Audit matching radio | `api/radio/audit/` |
 | `count_emetteurs_par_radio` | Comptage emetteurs/radio | `api/radio/stations/` |
-| `get_radios_for_emetteur` | Radios d'un emetteur | `api/radio/emetteurs/[staAnfr]/` |
+| `get_radios_for_emetteur` | Radios d'un emetteur | *orpheline* (route supprimee 09/2026) |
 | `archive_and_purge_radio` | Archivage donnees radio | `lib/radio/anfr-import.ts` |
 
 ### Meteo
@@ -628,7 +626,9 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 
 ### PMTiles IRIS
 - Stockees sur GitHub Releases (pas Supabase Storage)
-- Proxy : `/api/iris-tiles-proxy`
+- Servies directement depuis `/public` (`IRIS_PMTILES_URL`, cf. `lib/version.ts`).
+  Le proxy `/api/iris-tiles-proxy` et la route MVT `/api/iris-tiles` ont ete
+  supprimes en 09/2026 : plus aucun appelant depuis le passage aux PMTiles.
 
 ---
 

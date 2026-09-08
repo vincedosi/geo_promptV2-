@@ -31,7 +31,9 @@ export interface ParseResult {
 // IMPORT CONFIGURATION
 // ============================================================
 
-export type DataType = 'poi' | 'carreaux';
+/** Seul type reellement implemente. Les carreaux ont leur propre pipeline
+ *  (`app/admin/carreaux-import/_lib/shapefile.ts`), pas celui-ci. */
+export type DataType = 'poi';
 export type GeoMode = 'gps' | 'address' | 'lambert93';
 
 export interface FieldMapping {
@@ -122,12 +124,6 @@ export interface ImportConfig {
   importedColumns?: string[];
   // Subset of importedColumns to expose as map filters
   filterFields?: string[];
-  
-  // CARREAUX-SPECIFIC
-  carreauxTableName?: string;  // ex: 'carreaux_insee', 'carreaux_bretagne_2023'
-  carreauxSelectedColumns?: string[];  // Colonnes INSEE sélectionnées par l'user
-  carreauxGeomColumn?: string;  // ex: 'geom', 'geometry'
-  carreauxIdColumn?: string;  // ex: 'idcar', 'id'
 }
 
 // ============================================================
@@ -199,28 +195,7 @@ export interface ImportReport {
 // CARREAUX SCHEMA INFERENCE
 // ============================================================
 
-export interface ColumnDetection {
-  columnName: string;
-  detectedAs?: string;  // 'geometry' | 'id' | 'insee_indicator' | 'unknown'
-  sampleValues: string[];
-  recommendation?: string;  // "Identifiant carreau", "Population", etc.
-  isGeometry?: boolean;
-  isInseeIndicator?: boolean;
-  sampleType?: 'numeric' | 'text' | 'geometry';
-}
 
-export interface CarreauxSchemaInference {
-  success: boolean;
-  fileName: string;
-  totalColumns: number;
-  detectedColumns: ColumnDetection[];
-  geometryColumns: string[];  // Colonnes détectées comme géométrie
-  idColumns: string[];  // Colonnes candidate id/idcar
-  inseeIndicators: { columnName: string; match: string }[];  // Colonnes matchant les indicateurs INSEE
-  unknownColumns: string[];  // Colonnes non classées
-  suggestedTableName: string;  // Ex: 'carreaux_insee'
-  error?: string;
-}
 
 // ============================================================
 // PROCESSED ROW (internal)

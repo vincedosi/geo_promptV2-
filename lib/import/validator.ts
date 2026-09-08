@@ -4,6 +4,7 @@
  */
 import { randomUUID } from 'crypto';
 import type {
+  DataType,
   FieldMapping,
   GeoConfig,
   GeoResult,
@@ -120,7 +121,7 @@ export async function processRows(
   rawRows: Record<string, string | null>[],
   mapping: FieldMapping,
   geoConfig: GeoConfig,
-  dataType: 'poi' | 'carreaux',
+  dataType: DataType,
   options: {
     category?: string;
     regie?: string;

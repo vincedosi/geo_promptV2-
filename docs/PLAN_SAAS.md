@@ -97,7 +97,25 @@ derrière. Déjà signalé au `docs/AUDIT_IMPORTS.md` du 02/07, toujours présen
 
 Classés par confiance. **Rien n'a été supprimé** : chaque ligne demande un accord.
 
-### A — Orphelins techniques confirmés (aucun appelant dans le code)
+### A — ✅ SUPPRIMÉ le 2026-09-08 (13 routes + le leurre `carreaux`)
+
+Orphelins techniques confirmés un par un avant retrait, puis vérifiés au
+navigateur : couche IRIS servie par PMTiles (`206 /iris_france.pmtiles`),
+choroplèthe d'abstention en 200 sur `insee-variables/[code]/geojson`, page radio
+fonctionnelle — aucun échec HTTP, aucune erreur console.
+
+**Six RPC deviennent orphelines EN BASE et n'ont PAS été supprimées** (cela
+demande une migration et une décision) : `get_iris_tile`, `get_abstention_stats`,
+`get_cps_in_bbox`, `get_codes_postaux_bbox`, `get_digital_cp_iris_detail`,
+`get_radios_for_emetteur`. `match_campaign_postal_to_iris` reste utilisée par
+l'import de campagnes.
+
+**Point ouvert** : `middleware.ts` (fichier protégé) référence encore
+`/api/iris-tiles` et `/api/iris-tiles-proxy` aux lignes 28, 30, 140 et 142.
+Sans effet — le matcher ne fait que déclarer des routes publiques qui n'existent
+plus — mais à nettoyer avec l'entrée `/campaigns` déjà en attente d'arbitrage.
+
+Liste de ce qui a été retiré :
 
 | Cible | Poids | Pourquoi |
 |---|---|---|
