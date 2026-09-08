@@ -28,3 +28,25 @@
 
 -- Le corps exact est celui de la migration 120 en base :
 --   SELECT pg_get_functiondef('public.build_ref_codes_postaux'::regproc);
+
+-- =============================================================================
+-- RECONSTRUCTION COMPLETE EXECUTEE le 2026-09-08 (demande de Vincent)
+--
+-- Sauvegarde prealable : `ref_codes_postaux_backup_20260908` (6 187 lignes, 12 MB).
+--
+-- Resultat : reconstruction BIT-IDENTIQUE au referentiel precedent.
+--   0 code postal apparu · 0 disparu
+--   0 nom, departement, nb_communes, surface ou population modifie
+--   0 centroide deplace · 0 difference de points sur geom et geom_simplified
+--   0 geometrie invalide sur les 6 187
+--
+-- Ce resultat vaut preuve : la source de repli `postal_code_commune` reproduit
+-- exactement ce que `laposte_hexasmal` avait produit. Le repli est donc fidele,
+-- pas seulement plausible.
+--
+-- Verification applicative : get_campaign_suivi_map (qui joint sur
+-- ref_codes_postaux) retourne 1 988 features CP sur la campagne de demo.
+--
+-- La table de sauvegarde peut etre supprimee une fois la confiance etablie :
+--   DROP TABLE ref_codes_postaux_backup_20260908;
+-- =============================================================================
