@@ -71,7 +71,6 @@ import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
-import { PilotageOverlay } from '@/components/map/overlays/PilotageOverlay';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -131,30 +130,6 @@ export default function MapPage() {
   }, []);
   const searchParams = useSearchParams();
 
-  // Pré-ouverture de l'overlay Pilotage ML depuis ?overlay=pilotage&action=...
-  // Utilisé par CustomBiddingBar (digital) et StrategyHeader (custom-bidding) pour
-  // remplacer leurs anciens redirects vers /strategies/* (lesquelles n'existent plus).
-  const [pilotageInitialAction, setPilotageInitialAction] = useState<
-    | { type: 'new'; campaignId: string; draftId?: string }
-    | { type: 'edit'; strategyId: string }
-    | { type: 'history'; strategyId: string }
-    | null
-  >(null);
-  useEffect(() => {
-    if (searchParams.get('overlay') !== 'pilotage') return;
-    const action = searchParams.get('action');
-    const campaignId = searchParams.get('campaign');
-    const strategyId = searchParams.get('strategy');
-    const draftId = searchParams.get('draft') ?? undefined;
-    setActiveOverlay('pilotage');
-    if (action === 'new' && campaignId) {
-      setPilotageInitialAction({ type: 'new', campaignId, draftId });
-    } else if (action === 'edit' && strategyId) {
-      setPilotageInitialAction({ type: 'edit', strategyId });
-    } else if (action === 'history' && strategyId) {
-      setPilotageInitialAction({ type: 'history', strategyId });
-    }
-  }, [searchParams]);
 
 
 
@@ -559,15 +534,12 @@ export default function MapPage() {
         <OverlayPanel
           topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
           category={activeOverlay}
-          width={activeOverlay === 'pilotage' ? 820 : undefined}
-          expandable={activeOverlay === 'pilotage'}
           title={
             activeOverlay === 'ai' ? 'geo.prompt' :
             activeOverlay === 'perimeter' ? 'Périmètre' :
             activeOverlay === 'terrain' ? 'Données terrain' :
             activeOverlay === 'audience' ? 'Audience' :
             activeOverlay === 'analyses' ? 'Analyses' :
-            activeOverlay === 'pilotage' ? 'Pilotage ML' :
             activeOverlay === 'zones' ? 'Zones sauvegardées' :
             'Réglages'
           }
@@ -577,7 +549,6 @@ export default function MapPage() {
             activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
             activeOverlay === 'audience' ? 'var(--cat-socio)' :
             activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
-            activeOverlay === 'pilotage' ? 'var(--brand-teal)' :
             activeOverlay === 'zones' ? 'var(--brand-teal)' :
             'var(--text-tertiary)'
           }
@@ -668,16 +639,6 @@ export default function MapPage() {
               civicCpStatus={civicCpStatus}
               civicCpDate={civicCpDate}
               onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
-              onPondererCivicVariable={(code) => {
-                // Ouvre Pilotage ML avec une nouvelle stratégie pré-réglée sur cette variable.
-                // Pour l'instant on prend la 1ère campagne DSP éligible (TTD) comme campagne par défaut.
-                setActiveOverlay('pilotage');
-                setPilotageInitialAction({
-                  type: 'new',
-                  campaignId: '3e58e130-474d-4052-99b4-665c0a3efa85', // Renault Captur (Demo Pitch) — TTD éligible
-                });
-                void code;
-              }}
               radioVisible={radioVisible}
               onToggleRadio={() => setRadioVisible(v => !v)}
               radioHeatmapMode={radioHeatmapMode}
@@ -715,12 +676,6 @@ export default function MapPage() {
               onVilleChange={setPerimeterVille}
               scope={perimeterScope}
               onScopeChange={setPerimeterScope}
-            />
-          )}
-          {activeOverlay === 'pilotage' && (
-            <PilotageOverlay
-              initialAction={pilotageInitialAction}
-              onActionConsumed={() => setPilotageInitialAction(null)}
             />
           )}
           {activeOverlay === 'zones' && (

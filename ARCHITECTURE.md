@@ -1,10 +1,27 @@
 # ARCHITECTURE — MAGELIAN
 
-> Derniere mise a jour : 2026-07-09 (suppression portfolio /campaigns — gestion campagne 100% overlay carte)
+> Derniere mise a jour : 2026-09-08 (suppression de l'overlay Pilotage ML et de tout ce
+> qui n'etait atteignable que par lui — voir ci-dessous)
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
 > Deep-link overlay campagne : `/map?campaign=<id>&tab=<creation|suivi|apercu>` (ignore si `?overlay=` present).
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
+
+> **Retrait de Pilotage ML (2026-09-08).** L'overlay `pilotage` du rail /map a ete
+> supprime, avec le wizard de strategie A4.7 (`app/strategies/`), les pages de demo
+> `app/custom-bidding/`, `app/settings/agent/`, `CustomBiddingBar` et 22 routes
+> `/api/bidding/*` devenues sans appelant. Le slot du rail est desormais
+> « Campagnes » et ouvre l'overlay MAGELIAN ; la tuile de marque qui doublonnait
+> en tete de rail a ete retiree. Le deep-link `?overlay=pilotage` est inerte.
+>
+> Ce qui reste de la plomberie bidding sert le wizard de campagne :
+> `/api/bidding/strategies` (GET/POST), `/strategies/[id]` (GET/PATCH/DELETE),
+> `/strategies/[id]/export`, `/strategies/[id]/final-report`,
+> `/strategies/drafts` + `/drafts/[id]`, et `/api/bidding/train` (appele par
+> `lib/agent/autonomy.ts`). `FinalReport` a migre vers `components/campaign/`.
+> Les tables `bidding_daily_state`, `bidding_simulations` et `bidding_curve_history`
+> n'ont plus d'ecrivain applicatif — a trancher en seconde passe.
+> `bidding_zone_configs` reste utile (lue par `refresh_campaign_rollups`).
 
 ---
 

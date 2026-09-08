@@ -20,6 +20,10 @@
 > simulée en base. Voir la fin du document.
 > Reste ouvert : item 6 (item 8 fermé le 2026-09-07 — routes deja supprimees ;
 > aperçu carte du dry-run fermé le meme jour — iframe retiree).
+> Révisé : 2026-09-08 — `Step2Geography.tsx` splitté (1 014 → 436 lignes), puis
+> **retrait complet de l'overlay Pilotage ML** : les deux constats DualMap
+> ci-dessous (bulles invisibles, stratégie de démo sans données simulées)
+> disparaissent avec le code qui les portait. Voir la fin du document.
 
 Ce document liste **la dette technique connue et reportée** du projet, pour
 qu'un dev externe sache où sont les zones sensibles avant d'y toucher.
@@ -347,18 +351,32 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Cercles invisibles du pilotage (`DualMap`) | garde-fou `Math.max(1, …)` retiré, expression extraite en fonction pure + 13 tests — cf. plus bas |
 | Interpolation perdue au dry-run | `{'// apercu carte — {dryRunResult.samplePoints.length} premiers points'}` rendait le code en clair depuis `abf5db6` ; seul cas de la branche, corrigé |
 
+### Fermé le 2026-09-08
+
+| Item | Résolution |
+|---|---|
+| `Step2Geography` split (1 014 l.) | 1 014 → 436 lignes, neuf sous-composants + `shared.ts`/`presets.ts` — puis supprimé avec Pilotage ML le même jour |
+| Cercles invisibles `DualMap` | caduc : le composant est supprimé |
+| Stratégie de démo sans données simulées | caduc : la vue qui les lisait est supprimée |
+| Overlay Pilotage ML et sa dépendance morte | 90 fichiers et 12 728 lignes retirés (dont les 12 du split Step2 du matin même), 22 routes `/api/bidding/*` sans appelant, 3 modules `lib/bidding-ml/`, `app/demo/pilote/_components` — bundle `/map` 189 → 149 kB |
+| 71 warnings ESLint | 0 warning : ils vivaient tous dans le code supprimé |
+
 ### Ouvert
 
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 2 fichiers 1000-1826 lignes | 3-4 h | medium | smoke E2E manuel Vince |
+| 1 fichier de 1 826 lignes (`FilterPanel.tsx`) | 3-4 h | medium | smoke E2E manuel Vince |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | 36 RPC sans définition + types DB absents | 2-3 h | nul | **accès base — `SUPABASE_DB_URL` vide** |
 
-Les 2 fichiers de plus de 1 000 lignes, remesurés le 2026-09-07 :
-`FilterPanel.tsx` (1 826 — reste ses handlers, cf. §1),
-`app/strategies/_components/steps/Step2Geography.tsx` (1 014).
+Un seul fichier de plus de 1 000 lignes au 2026-09-08 : `FilterPanel.tsx`
+(1 826 — reste ses handlers, cf. §1).
+
+`Step2Geography.tsx` est sorti de cette liste le 2026-09-08 (1 014 → 436 lignes,
+neuf sous-composants + `shared.ts` et `presets.ts` dans
+`app/strategies/_components/steps/step2/`), **puis a été supprimé le même jour**
+avec l'overlay Pilotage ML : il n'était atteignable que par lui.
 
 `components/map/overlays/PilotageOverlay.tsx` est sorti de cette liste le
 2026-09-07 : 244 lignes, huit composants dans
@@ -374,6 +392,10 @@ sept composants d'étape et deux modules partagés dans
 `ColumnSelectionStep`, `GeocodeStep`, `DryRunStep`, `ImportStep`,
 `ImportLogPanel`, plus `shared.tsx` et `styles.ts`). La page ne garde que
 l'état du wizard, les appels API et l'assemblage des étapes.
+
+> ⚰️ **Les deux constats qui suivent sont caducs depuis le 2026-09-08** :
+> `DualMap`, la page `/custom-bidding/[strategyId]` et l'overlay Pilotage ML
+> ont été supprimés. Conservés ici pour la trace du raisonnement.
 
 **Cercles invisibles sur la carte du pilotage à faible volume** —
 ✅ **CORRIGÉ le 2026-09-07** (branche `fix/dualmap-circle-radius`).

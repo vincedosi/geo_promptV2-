@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
-import { FinalReport } from '@/app/custom-bidding/[strategyId]/_components/FinalReport';
+import { FinalReport } from './FinalReport';
 import { parseAdjustProposal, type AdjustProposal } from '@/lib/campaigns/suivi-chat';
 import type { SuiviPayload } from '@/lib/campaigns/suivi-metrics';
 import type { ReconciliationPayload } from '@/lib/campaigns/reconciliation-metrics';

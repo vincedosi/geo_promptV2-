@@ -5,10 +5,17 @@ import { Bot, MapPin, Layers, Users, BarChart3, Target, Settings, Bookmark } fro
 import type { LucideIcon } from 'lucide-react';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 
-export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'pilotage' | 'zones' | 'settings';
+export type OverlayId = 'ai' | 'perimeter' | 'terrain' | 'audience' | 'analyses' | 'zones' | 'settings';
+
+/**
+ * Entrée « Campagnes » : elle n'ouvre pas un overlay de carte mais l'overlay
+ * MAGELIAN (Programmer / Suivi / Aperçu), via son propre contexte. Elle occupe
+ * la place laissée par « Pilotage ML », retiré le 2026-09-08.
+ */
+const CAMPAIGN_ITEM_ID = 'campaign' as const;
 
 interface IconBarItem {
-  id: OverlayId;
+  id: OverlayId | typeof CAMPAIGN_ITEM_ID;
   label: string;
   icon: LucideIcon;
   colorVar: string;
@@ -24,7 +31,7 @@ const ICON_BAR_ITEMS: IconBarItem[] = [
   { id: 'terrain', label: 'Terrain', icon: Layers, colorVar: 'var(--cat-terrain, #4ecdc4)', rgb: '78,205,196' },
   { id: 'audience', label: 'Audience', icon: Users, colorVar: 'var(--cat-socio, #5b9bd5)', rgb: '91,155,213' },
   { id: 'analyses', label: 'Analyses', icon: BarChart3, colorVar: 'var(--cat-analysis, #e8845c)', rgb: '232,132,92' },
-  { id: 'pilotage', label: 'Pilotage ML', icon: Target, colorVar: 'var(--brand-teal)', rgb: '78,205,196' },
+  { id: CAMPAIGN_ITEM_ID, label: 'Campagnes', icon: Target, colorVar: 'var(--brand-teal)', rgb: '78,205,196' },
   { id: 'zones', label: 'Zones', icon: Bookmark, colorVar: 'var(--brand-teal, #4ecdc4)', rgb: '78,205,196' },
   { id: 'settings', label: 'Réglages', icon: Settings, colorVar: 'var(--text-tertiary)', rgb: '102,102,102', position: 'bottom' },
 ];
@@ -83,45 +90,13 @@ export function IconBar({
         transition: 'transform 200ms var(--ease-out, ease)',
       }}
     >
-      {/* Bouton MAGELIAN — tuile de marque (teal plein + hexagone sombre, comme
-          le bouton send du design system), ouvre l'overlay campagne. */}
-      <button
-        type="button"
-        data-magelian-trigger
-        onClick={() => openOverlay()}
-        title="MAGELIAN — cockpit campagne"
-        aria-label="MAGELIAN — cockpit campagne"
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--brand-teal)',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'var(--bg-primary)',
-          transition: 'background-color 150ms var(--ease-hover, ease)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--brand-teal-hover)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--brand-teal)'; }}
-      >
-        {/* Hexagone MAGELIAN — même motif que le logo */}
-        <svg width="19" height="19" viewBox="0 0 28 28" fill="none" aria-hidden>
-          <path d="M14 2L25.5 8.5V19.5L14 26L2.5 19.5V8.5L14 2Z" stroke="currentColor" strokeWidth="1.8" />
-          <circle cx="14" cy="14" r="2.5" fill="currentColor" />
-        </svg>
-      </button>
-      <div style={{ width: 24, height: 0.5, background: 'var(--border-subtle, #1a1a1a)', margin: '4px 0' }} />
-
       {topItems.map(item => (
         <IconButton
           key={item.id}
           item={item}
           active={activeItem === item.id}
           showLabel={showLabels}
-          onClick={() => onItemClick(item.id)}
+          onClick={() => (item.id === CAMPAIGN_ITEM_ID ? openOverlay() : onItemClick(item.id))}
         />
       ))}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
@@ -131,7 +106,7 @@ export function IconBar({
             item={item}
             active={activeItem === item.id}
             showLabel={showLabels}
-            onClick={() => onItemClick(item.id)}
+            onClick={() => (item.id === CAMPAIGN_ITEM_ID ? openOverlay() : onItemClick(item.id))}
           />
         ))}
       </div>

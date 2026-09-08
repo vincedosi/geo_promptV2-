@@ -11,7 +11,6 @@ import { PALETTES, RATIO_PALETTE, computePercentiles, buildFillExpression } from
 import { AnalysisPanelSwitch as AnalysisPanel } from '@/components/digital/AnalysisPanelSwitch';
 import { WelcomeState } from './_components/WelcomeState';
 import { CampaignContextBar } from './_components/CampaignContextBar';
-import { CustomBiddingBar } from './_components/CustomBiddingBar';
 import { KpiCardsDsp } from './_components/KpiCardsDsp';
 import { KpiSelector } from './_components/KpiSelector';
 import { adminFetch } from '@/lib/admin-fetch';
@@ -562,14 +561,6 @@ export default function DigitalTripleMapPage() {
             inZonePct={isCustomZone ? customZoneSummary?.pct_in_zone ?? null : null}
             inZoneImpressions={isCustomZone ? customZoneSummary?.in_zone_impressions ?? null : null}
           />
-
-          {campaignId && (
-            <CustomBiddingBar
-              campaignId={campaignId}
-              campaignName={campaignName}
-              dspSource={selectedCampaign?.dsp_source ?? null}
-            />
-          )}
 
           {/* Sélecteur de KPI global — chantier A3.1.
               Drive la choroplèthe (RPC v2), la heatmap (RPC v2), le breakdown

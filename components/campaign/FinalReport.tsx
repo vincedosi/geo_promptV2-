@@ -3,6 +3,10 @@
 /**
  * FinalReport — bilan exécutif Gemini de fin de campagne, 5 sections :
  *   - Performance / Wins / Limites / Reco prochaine campagne / ROI estimé
+ *
+ * Déplacé depuis app/custom-bidding/[strategyId]/_components/ le 2026-09-08,
+ * lors de la suppression de l'overlay Pilotage ML : seul rescapé de ce dossier,
+ * il reste consommé par CampaignSuivi. Contenu inchangé.
  */
 import { useEffect, useState } from 'react';
 import { FileCheck2, RefreshCw, Trophy, AlertCircle, ArrowRight, Banknote, Sparkles, FileText } from 'lucide-react';
