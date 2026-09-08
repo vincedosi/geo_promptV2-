@@ -55,7 +55,7 @@ Ils l'ont été depuis, un par un, chacun vérifié en navigateur :
 |---|---|---|---|
 | `app/admin/sources/page.tsx` | 2 544 | 928 | 2026-09-01 |
 | `app/map/page.tsx` | 2 329 | 974 | 2026-09-01 |
-| `app/map/_components/FilterPanel.tsx` | 3 651 | 1 816 | 2026-09-03 |
+| `app/map/_components/FilterPanel.tsx` | 3 651 | 892 | 2026-09-08 |
 
 ### `app/map/_components/FilterPanel.tsx` — ✅ SPLITTÉ le 2026-09-03 (3651 → 1816 lignes)
 
@@ -93,6 +93,52 @@ désélectionne « France Metro » (`setScope(null)` à travers le composant),
 choroplèthe d'abstention peinte sur la carte depuis `CivicIndicatorsSection`,
 et « VÉRIFIER CACHE » de `BattleV2Tool` qui remonte jusqu'à l'API et redescend
 (95 POIs / 665 isochrones / 570 en cache).
+
+### `FilterPanel.tsx` — ✅ 2ᵉ PASSE le 2026-09-08 (1 816 → 892 lignes)
+
+La première passe avait sorti le **rendu** (23 fichiers). Restait le **cerveau** :
+55 `useState`, 13 `useRef`, 9 handlers. Cette passe extrait l'état en dix hooks,
+et le fichier devient un pur assembleur.
+
+| Hook | Rôle |
+|---|---|
+| `types.ts` | contrat public (props + params d'action), réexporté par `FilterPanel` |
+| `use-filter-sections` | recherche + sections repliables + persistance localStorage |
+| `use-panel-resize` | largeur redimensionnable (hors mode overlay) |
+| `use-civic-ingest` | ingestion NDJSON pollen + qualité de l'air (admin) |
+| `use-poi-catalog` | catégories et natures POI, chargées dynamiquement |
+| `use-territory-selection` | périmètre, référentiel géo, cascade régions→dépts, libellé |
+| `use-admin-scope-layer` | filtre admin → couche carte + scope de capture partagé |
+| `use-territory-mask` | masque hors-territoire MapLibre |
+| `use-poi-styles` | style des pins par catégorie |
+| `use-isochrone-battle` | isochrones, cache ORS, bataille V1/V2 |
+
+**Nettoyage au passage** : 20 imports et constantes morts laissés par la
+première passe. Ils survivaient parce que `next/core-web-vitals` n'active pas
+`no-unused-vars` — le lint était vert malgré eux. À garder en tête : **un lint
+vert ne prouve pas l'absence d'imports morts sur ce projet.**
+
+**Seul écart de forme** : la cascade régions → départements était déclarée après
+les effets de scope et de masque ; regroupée dans son hook, elle passe avant.
+Vérifié au navigateur (sélection Bretagne → la liste se restreint bien à
+22/29/35/56).
+
+**Vérifié au navigateur** : 4 overlays sans erreur console ; cascade et libellé
+de territoire ; persistance de la sélection à la fermeture/réouverture d'overlay ;
+catalogue POI (1 seul fetch par montage, natures à la demande) ; masque
+territoire comparé **pixel à pixel avec `main`** ; `handleCheckORS` de bout en
+bout (POST 200, « 95 POIs · 190 isochrones · 100 % en cache »).
+
+**Constats préexistants relevés, non corrigés** (identiques sur `main`, donc
+antérieurs à cette passe) :
+- le masque territoire n'affiche **jamais sa bordure teal** : le layer
+  `territory-mask-border` filtre sur `['==', ['geometry-type'], 'MultiPolygon']`,
+  or MapLibre normalise un MultiPolygon à un seul polygone en `Polygon` ;
+- un **trait diagonal** part du nord de la Bretagne — artefact du polygone à
+  trous du masque ;
+- `battleGeometry` et `battlePoiGroups` sont écrits mais jamais lus ;
+  `setPoisRayon` n'est jamais appelé (`poisRayon` vaut donc toujours `null`
+  dans le payload de recherche POI). Vestiges d'une UI de rayon supprimée.
 
 **Reste possible** : les handlers du composant (`runCivicIngestStream`,
 `fetchCategories`/`fetchPoiNatures`, `handleBattle`/`handleBattleV2`,
@@ -367,15 +413,16 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| 1 fichier de 1 826 lignes (`FilterPanel.tsx`) | 3-4 h | medium | smoke E2E manuel Vince |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | Brancher `Database` sur le client Supabase | 4-6 h | medium | 106 erreurs de typage sur 60 fichiers — cf. `docs/AUDIT_BASE.md` |
 | `get_radio_coverage_geometry` absente de la base | 1-2 h | faible | **décision produit** : rayon de couverture par portée d'émetteur |
 | `get_check_constraint_values` absente (rôles en dur malgré l'appel) | 30 min | faible | décision : créer la fonction ou assumer la constante |
 | `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
 
-Un seul fichier de plus de 1 000 lignes au 2026-09-08 : `FilterPanel.tsx`
-(1 826 — reste ses handlers, cf. §1).
+**Plus aucun fichier de plus de 1 000 lignes au 2026-09-08.** `FilterPanel.tsx`
+est sorti de cette liste le jour meme (1 826 → 892, cf. §1). Le plus gros
+fichier restant est `app/copilote/_hooks/useMapLayers.ts` (963 lignes), sous le
+seuil et hors chantier.
 
 `Step2Geography.tsx` est sorti de cette liste le 2026-09-08 (1 014 → 436 lignes,
 neuf sous-composants + `shared.ts` et `presets.ts` dans
