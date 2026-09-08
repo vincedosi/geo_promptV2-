@@ -1,5 +1,20 @@
 # Audit des pipelines d'import — 2026-07-02
 
+> ⚠️ **PARTIELLEMENT PÉRIMÉ — relu le 2026-09-08.** Ne pas s'y fier seul ;
+> la carte à jour est `docs/PLAN_SAAS.md`. Ce qui a changé depuis :
+> • **C2 (IRIS, colonnes jetées) : corrigé aux trois quarts.** Le RPC
+>   `update_iris_core_batch` a été regénéré ; `taux_pauvrete`, `indice_gini` et
+>   `rev_d1` sont remplis à 14 480 / 16 404. **`nb_emplois` reste à 0** — seul
+>   reliquat du constat.
+> • **C4 et C6 (panneaux, OOH) : résolus** en 07/2026, pipeline
+>   `integration-panneaux` supprimé.
+> • **C3 (`ref_codes_postaux` sans pipeline) : toujours vrai** — 6 187 lignes en
+>   base, consommées par les RPC d'analyse digitale, aucune route pour les
+>   régénérer.
+> • **C1 (carreaux, post-traitements non orchestrés) : toujours vrai** —
+>   `carreaux_1km` est toujours vide.
+> • Le pipeline `iris-import/insee` décrit ici a été **supprimé le 08/09**.
+
 > Audit read-only (protocole cleanup-geomatik). 4 agents d'exploration code + vérification de l'état réel de la base (volumétries, historiques d'imports). Aucune modification effectuée.
 
 ## Verdicts par pipeline (code × données)

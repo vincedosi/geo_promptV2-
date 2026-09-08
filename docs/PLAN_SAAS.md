@@ -69,7 +69,7 @@ Il y a **sept** pipelines d'entrée, pas un seul. Le « truc universel »
 |---|---|---|---|---|---|
 | 1 | **POI universel** | `/admin/import` | `import-poi/{parse,dry-run,execute}` + `geocode/{batch,update}` | `lib/import/` | vivant |
 | 2 | **Carreaux / Shapefile** | `/admin/carreaux-import` | `import-geo` + `import-geo/register` | `_lib/shapefile.ts` **(parser propre)** | vivant |
-| 3 | **IRIS INSEE** | `/dashboard/iris-crawler` | `iris-crawler/{manual-upload,manual-import,import-history}` + `iris-import/insee` | `lib/iris-crawler/` | vivant |
+| 3 | **IRIS INSEE** | `/dashboard/iris-crawler` | `iris-crawler/{manual-upload,manual-import,import-history}` | `lib/iris-crawler/` | vivant — un seul chemin depuis le 08/09 |
 | 4 | **OOH ArcGIS** | `/admin/ooh-import` | `admin/import-ooh/arcgis` | — | vivant |
 | 5 | **Radio ANFR/Arcom** | `/admin/radio` | `radio/import-anfr`, `import-arcom-ods`, `crawl-arcom` | `lib/radio/` | vivant |
 | 6 | **Campagnes DSP** | overlay MAGELIAN | `admin/campaigns/import` | `lib/campaigns/` | vivant |
@@ -81,10 +81,12 @@ Il y a **sept** pipelines d'entrée, pas un seul. Le « truc universel »
   puis `import-geo/register`. Ce chemin **n'utilise pas** `lib/import/` : il a son
   propre parser binaire `.shp`/`.dbf` dans `app/admin/carreaux-import/_lib/shapefile.ts`
   (isolé et couvert par 36 tests le 07/09).
-- **IRIS** → `/dashboard/iris-crawler`, par deux chemins : dépôt manuel d'un CSV
-  (`manual-upload` → `manual-import`) ou téléchargement INSEE en un coup
-  (`iris-import/insee`). Le pipeline crawler en 3 temps a été supprimé en 2026-07
-  (staging disque incompatible avec le serverless).
+- **IRIS** → `/dashboard/iris-crawler`, par **dépôt manuel d'un CSV**
+  (`manual-upload` → `manual-import`). Le crawler 3 temps a été supprimé en
+  2026-07 (staging disque incompatible serverless) et le téléchargement INSEE
+  one-shot (`iris-import/insee`) le **08/09** : il n'écrivait rien dans
+  `iris_import_history`, et les 8 imports IRIS de la base sont tous des CSV
+  Filosofi déposés à la main.
 
 ### Le leurre `carreaux` de l'import universel
 

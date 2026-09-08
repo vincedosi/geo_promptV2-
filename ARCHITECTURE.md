@@ -4,6 +4,11 @@
 > qui n'etait atteignable que par lui — voir ci-dessous)
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
 > Deep-link overlay campagne : `/map?campaign=<id>&tab=<creation|suivi|apercu>` (ignore si `?overlay=` present).
+> Retrait 2026-09-08 (2e passe) : `/api/iris-import/insee` et son onglet supprimes
+> — la route n'ecrivait rien dans `iris_import_history` et aucun des 8 imports
+> IRIS de la base n'en vient. Il ne reste qu'un chemin : le depot de CSV.
+> `lib/import/shp-parser.ts` supprime aussi (mort, homonyme de la fonction
+> reellement utilisee dans `file-parser.ts`).
 > Retrait 2026-09-08 : 13 routes API sans appelant supprimees (voir
 > `docs/PLAN_SAAS.md` §3.A). Six RPC deviennent orphelines EN BASE et n'ont
 > PAS ete supprimees : `get_iris_tile`, `get_abstention_stats`,
@@ -241,7 +246,6 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 | `/api/iris-crawler/import-history` | GET | Historique imports IRIS |
 | `/api/iris-crawler/manual-upload` | POST | Upload manuel CSV (parse + auto-map) |
 | `/api/iris-crawler/manual-import` | POST | Import manuel vers table `iris` (NDJSON streaming) |
-| `/api/iris-import/insee` | POST | Import INSEE one-shot (download + parse + ecrit, NDJSON) |
 
 > Le pipeline crawler 3-temps (`discover`/`download`/`upload` + `preview`/`status`/`delete`)
 > a ete supprime en 2026-07 : staging disque local incompatible serverless,
