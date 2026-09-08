@@ -55,7 +55,7 @@ Ils l'ont été depuis, un par un, chacun vérifié en navigateur :
 |---|---|---|---|
 | `app/admin/sources/page.tsx` | 2 544 | 928 | 2026-09-01 |
 | `app/map/page.tsx` | 2 329 | 974 | 2026-09-01 |
-| `app/map/_components/FilterPanel.tsx` | 3 651 | 892 | 2026-09-08 |
+| `app/map/_components/FilterPanel.tsx` | 3 651 | 897 | 2026-09-08 |
 
 ### `app/map/_components/FilterPanel.tsx` — ✅ SPLITTÉ le 2026-09-03 (3651 → 1816 lignes)
 
@@ -94,7 +94,7 @@ choroplèthe d'abstention peinte sur la carte depuis `CivicIndicatorsSection`,
 et « VÉRIFIER CACHE » de `BattleV2Tool` qui remonte jusqu'à l'API et redescend
 (95 POIs / 665 isochrones / 570 en cache).
 
-### `FilterPanel.tsx` — ✅ 2ᵉ PASSE le 2026-09-08 (1 816 → 892 lignes)
+### `FilterPanel.tsx` — ✅ 2ᵉ PASSE le 2026-09-08 (1 816 → 897 lignes)
 
 La première passe avait sorti le **rendu** (23 fichiers). Restait le **cerveau** :
 55 `useState`, 13 `useRef`, 9 handlers. Cette passe extrait l'état en dix hooks,
@@ -420,7 +420,7 @@ il n'y avait rien à supprimer. Aucune action requise.
 | `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
 
 **Plus aucun fichier de plus de 1 000 lignes au 2026-09-08.** `FilterPanel.tsx`
-est sorti de cette liste le jour meme (1 826 → 892, cf. §1). Le plus gros
+est sorti de cette liste le jour meme (1 826 → 897, cf. §1). Le plus gros
 fichier restant est `app/copilote/_hooks/useMapLayers.ts` (963 lignes), sous le
 seuil et hors chantier.
 
