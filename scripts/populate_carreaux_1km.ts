@@ -1,6 +1,22 @@
 /**
  * scripts/populate_carreaux_1km.ts
  *
+ * ⛔ NE PAS EXÉCUTER — la table cible n'a AUCUN LECTEUR (vérifié le 2026-09-08)
+ *
+ * `carreaux_1km` est vide, et c'est sans conséquence : aucune fonction SQL,
+ * aucune route et aucun composant ne la lit. `get_tile` passe directement de
+ * carreaux_filosofi 200m (z >= 10) à carreaux_2km (z 8-9) ; le palier 1 km n'a
+ * jamais été branché dans la cascade de zoom.
+ *
+ * Exécuter ce script lancerait un GROUP BY sur 2,3 M lignes (l'en-tête ci-dessous
+ * indique lui-même que c'est trop lourd pour l'API REST) sur une instance Nano,
+ * pour peupler une table que personne n'interroge.
+ *
+ * Conservé au cas où le palier 1 km serait un jour ajouté à `get_tile` — ce
+ * serait alors une décision produit, pas un rattrapage de post-traitement.
+ *
+ * @see docs/PLAN_SAAS.md §4bis
+ *
  * Peuple la table carreaux_1km (agrégation 200m → 1km²).
  * La requête GROUP BY sur 2,3M lignes est trop lente pour l'API REST Supabase
  * (timeout 30s) — ce script utilise une connexion PostgreSQL directe.

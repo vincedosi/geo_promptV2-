@@ -1,6 +1,11 @@
 /**
  * scripts/populate_geom_3857.ts
  *
+ * ✅ DÉJÀ APPLIQUÉ — `geom_3857` est rempli à 100 % (vérifié le 2026-09-08 sur
+ * un échantillon de 4 508 lignes : 0 manquant). Le relancer serait un UPDATE
+ * de 2,3 M lignes sans effet, coûteux sur Nano.
+ * À ne rejouer que si un nouvel import de carreaux laisse des geom_3857 NULL.
+ *
  * Peuple la colonne geom_3857 dans carreaux_filosofi par lots de 10 000 lignes.
  * L'UPDATE global de 2,3M lignes timeout via l'API Supabase REST — ce script
  * utilise une connexion PostgreSQL directe (DATABASE_URL dans .env.local).

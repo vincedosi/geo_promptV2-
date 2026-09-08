@@ -11,8 +11,11 @@
 > • **C3 (`ref_codes_postaux` sans pipeline) : toujours vrai** — 6 187 lignes en
 >   base, consommées par les RPC d'analyse digitale, aucune route pour les
 >   régénérer.
-> • **C1 (carreaux, post-traitements non orchestrés) : toujours vrai** —
->   `carreaux_1km` est toujours vide.
+> • **C1 (carreaux, post-traitements non orchestrés) : SANS OBJET.** Mesuré le
+>   08/09 : `metadata`, `geom_3857` et les agrégats 2/5/20 km sont peuplés et
+>   utilisés ; `carreaux_1km` et les colonnes `ind*` sont vides mais **rien ne
+>   les lit** (`get_tile` lit le JSONB au zoom fin). Orchestrer coûterait
+>   2,3 M d'UPDATE sur Nano pour zéro bénéfice — voir `docs/PLAN_SAAS.md` §4ter.
 > • Le pipeline `iris-import/insee` décrit ici a été **supprimé le 08/09**.
 
 > Audit read-only (protocole cleanup-geomatik). 4 agents d'exploration code + vérification de l'état réel de la base (volumétries, historiques d'imports). Aucune modification effectuée.

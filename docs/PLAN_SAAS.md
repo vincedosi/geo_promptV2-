@@ -182,7 +182,7 @@ Vérifiés par requête, pas déduits du code.
 |---|---|---|
 | `nb_emplois` et `nb_emplois_commune` vides | **0 / 16 404 IRIS** | **Donnée jamais importée**, pas un bug. Le mapping (`^P\d{2}_EMPLT$`) et le RPC sont corrects ; le registre ne connaît que `BASE_TD_FILO_IRIS_2021_DEC` et `_DISP` (revenus). Les emplois au lieu de travail sont dans une base INSEE distincte. |
 | `ref_codes_postaux` — ✅ **sécurisé le 08/09** | 6 187 lignes | Bien pire qu'une péremption : `laposte_hexasmal`, seule source de `build_ref_codes_postaux()`, est **vide**. La fonction faisant TRUNCATE puis INSERT, un seul appel effaçait le référentiel et cassait toutes les analyses CP. Corrigé (migrations 119+120) : source repliable sur `postal_code_commune` + garde-fou qui refuse de tronquer si le résultat serait vide. Voir `sql/119_build_ref_codes_postaux_safe.sql`. |
-| `carreaux_1km` vide | 0 ligne | Post-traitements carreaux non orchestrés (constat C1 de juillet, toujours vrai). |
+| `carreaux_1km` vide et colonnes `ind*` de `carreaux_filosofi` vides | 0 ligne / 0 sur 4 552 | **Sans conséquence — rien ne les lit** (vérifié le 08/09). Voir §4ter : le constat C1 de juillet est sans objet. |
 
 Le reste est sain : `population`, `taux_chomage`, `taux_emploi`, `nb_csp_*`,
 `part_sans_diplome` sont remplis à 16 083-16 240 / 16 404 ; les indicateurs
@@ -192,6 +192,52 @@ Filosofi (`rev_median`, `taux_pauvrete`, `indice_gini`, `rev_d1/d9`) à 14 480.
 `nb_emplois_commune` au LLM pour chaque IRIS — toujours `null`. Retiré du SELECT
 et du type, avec la marche à suivre pour le remettre le jour où la base EMPLT
 sera importée.
+
+---
+
+## 4ter. Carreaux : pourquoi il n'y a rien à orchestrer (2026-09-08)
+
+Le constat **C1** de `docs/AUDIT_IMPORTS.md` (« l'import n'écrit que `metadata`,
+tout l'aval est orphelin et déclenché à la main ») alertait à juste titre en
+juillet. Mesuré en base aujourd'hui, **il est sans objet**.
+
+**Ce qui est lu est peuplé :**
+
+| Élément | État | Lu par |
+|---|---|---|
+| `metadata` JSONB (2,3 M carreaux) | 100 % | `get_tile` z≥10, plan média zones, isochrones, smart-prompt, équité |
+| `geom_3857` | 100 % (0 manquant sur 4 508) | tuiles MVT |
+| `carreaux_2km` | 122 018 | `get_tile` z 8-9 |
+| `carreaux_5km` | 22 058 | `get_tile` z≤7, totaux nationaux |
+| `carreaux_20km` | 1 515 | — |
+
+**Ce qui est vide n'est lu par personne :**
+
+- **`carreaux_1km`** — aucune fonction SQL, aucune route, aucun composant.
+  `get_tile` passe de 200 m (z≥10) directement à 2 km (z 8-9) : le palier 1 km
+  n'a jamais été branché dans la cascade de zoom.
+- **Colonnes `ind`, `ind_18_24`, `ind_25_39`, `ind_40_54`, `ind_inc` de
+  `carreaux_filosofi`** — `get_tile` lit `metadata->>'ind'` pour cette table.
+  Les dix fonctions métier qui la touchent, **plan média zones compris**
+  (`compute_zone_items_audience`, `compute_zone_audience_stats`), passent toutes
+  par le JSONB.
+
+**Le risque est inverse de celui qu'on croyait.** Le job Inngest
+`carreaux/populate-columns` est enregistré dans `app/api/inngest/route.ts` et
+déclenchable par un simple event. S'il part, il enchaîne des `UPDATE` par lots
+de 100 000 sur 2,3 M lignes, sur Nano, **pour remplir des colonnes que rien ne
+lit** — signature exacte de l'incident du 28/03 (I/O épuisé → Auth 504).
+
+**Décision (option 1, Vincent, 08/09) : ne rien orchestrer, ne rien supprimer,
+tout documenter.** Avertissements posés dans les trois fichiers concernés :
+`lib/inngest/functions/populateCarreauxColumns.ts` (⛔ ne pas déclencher),
+`scripts/populate_carreaux_1km.ts` (⛔ table sans lecteur),
+`scripts/populate_geom_3857.ts` (✅ déjà appliqué).
+
+**Si un jour ces colonnes doivent servir**, ce sera une optimisation assumée :
+il faudra AUSSI modifier `get_tile` pour les lire à la place du JSONB. Mesurer
+d'abord — une tuile z=12 met **329 ms**, et le suspect n°1 est le
+`LEFT JOIN LATERAL` sur `ref_departements`, pas le parsing JSONB.
 
 ---
 
