@@ -1,9 +1,11 @@
 # PLAN DU SAAS — MAGELIAN
 
-> Audit read-only du 2026-09-08 (protocole `cleanup-geomatik`, Partie 1).
-> **Aucune suppression effectuée.** Ce document est la carte du SaaS et la liste
-> des candidats au retrait, à valider un par un.
+> Audit du 2026-09-08 (protocole `cleanup-geomatik`). Carte du SaaS et liste des
+> candidats au retrait, validés un par un.
 > Périmètre vérifié sur le code réel : 27 pages, 184 routes API, `lib/import/`.
+>
+> **État : groupe A retiré** (13 routes + le leurre `carreaux`, commit `c248677`)
+> — il reste **171 routes**. Les groupes B et C attendent un arbitrage.
 
 ---
 
@@ -86,16 +88,18 @@ Il y a **sept** pipelines d'entrée, pas un seul. Le « truc universel »
 
 ### Le leurre `carreaux` de l'import universel
 
-`lib/import/types.ts` déclare `DataType = 'poi' | 'carreaux'` et
-`validator.ts:123` accepte les deux, mais **aucun validator ni inserter
-n'implémente `carreaux`**. Le type est exposé dans l'UI et les types sans rien
-derrière. Déjà signalé au `docs/AUDIT_IMPORTS.md` du 02/07, toujours présent.
+`lib/import/types.ts` déclarait `DataType = 'poi' | 'carreaux'` et
+`validator.ts` acceptait les deux, mais **aucun validator ni inserter
+n'implémentait `carreaux`** : le type était exposé sans rien derrière. Signalé
+au `docs/AUDIT_IMPORTS.md` du 02/07, **retiré le 08/09** avec les interfaces
+mortes qui en dépendaient (`CarreauxSchemaInference`, `ColumnDetection`).
 
 ---
 
 ## 3. Candidats au retrait
 
-Classés par confiance. **Rien n'a été supprimé** : chaque ligne demande un accord.
+Classés par confiance. Le groupe A est traité ; **B et C ne le sont pas** et
+chaque ligne y demande un accord explicite.
 
 ### A — ✅ SUPPRIMÉ le 2026-09-08 (13 routes + le leurre `carreaux`)
 
