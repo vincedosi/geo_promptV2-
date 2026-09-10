@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
+import { toJson, nullableArg } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   // 1. Transformer les N géométries en UNE seule via RPC
   const { data: geomJson, error: transformError } = await supabase.rpc('transform_geometries_for_save', {
-    p_geometries: parsed.data.geometries,
+    p_geometries: toJson(parsed.data.geometries),
     p_method: parsed.data.transformation,
   });
 
@@ -102,21 +103,29 @@ export async function POST(request: NextRequest) {
       }))
     : null;
 
-  const createRpc = hasSubzones ? 'create_custom_geo_zone_with_subzones' : 'create_custom_geo_zone';
-  const createParams: Record<string, unknown> = {
+  // Les deux RPC n'ont pas la meme signature (`p_subzones` n'existe que sur la
+  // variante avec sous-zones) : un seul objet de params ne peut pas satisfaire
+  // les deux. D'ou deux appels litteraux, que les types generes verifient
+  // chacun contre sa propre fonction. `p_description` est un `text` SQL qui
+  // accepte NULL, ce que les types generes ne savent pas exprimer.
+  const createParams = {
     p_name: parsed.data.name,
-    p_description: parsed.data.description ?? null,
+    p_description: nullableArg(parsed.data.description),
     p_org_id: parsed.data.org_id,
     p_source_type: parsed.data.source_type,
-    p_source_metadata: {
+    p_source_metadata: toJson({
       ...parsed.data.source_metadata,
       transformation: parsed.data.transformation,
-    },
+    }),
     p_geometry_geojson: JSON.stringify(geomJson),
   };
-  if (hasSubzones) createParams.p_subzones = subzonesPayload;
 
-  const { data: zoneId, error: createError } = await supabase.rpc(createRpc, createParams);
+  const { data: zoneId, error: createError } = hasSubzones
+    ? await supabase.rpc('create_custom_geo_zone_with_subzones', {
+        ...createParams,
+        p_subzones: toJson(subzonesPayload),
+      })
+    : await supabase.rpc('create_custom_geo_zone', createParams);
 
   if (createError || !zoneId) {
     console.error('[custom-geo/capture] create', createError?.message);

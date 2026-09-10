@@ -4,6 +4,7 @@
  * Chaque INSERT → log OK / SKIP / ERR envoyé au client via callback
  */
 import { createAdminClient } from '@/lib/auth';
+import { triggerFilled } from '@/lib/supabase/tables';
 import { logger } from '@/lib/logger';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { enrichMissingGeo } from './geo-enricher';
@@ -38,7 +39,7 @@ async function insertPoiBatch(
     const label = r.nom || r.id?.substring(0, 8) || '?';
 
     try {
-      const row: Record<string, unknown> = {
+      const row = triggerFilled<'poi_france', 'geom'>({
         id: r.id,
         lat: r.lat,
         lng: r.lng,
@@ -54,7 +55,7 @@ async function insertPoiBatch(
         source: r.source || 'import_universel',
         date_import: new Date().toISOString(),
         metadata: r.metadata ? (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata) : {},
-      };
+      });
 
       if (r.data_source_id) row.data_source_id = r.data_source_id;
       if (r.organization_id) row.organization_id = r.organization_id;

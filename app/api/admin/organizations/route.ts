@@ -36,13 +36,19 @@ export async function GET(request: NextRequest) {
     const memberCounts: Record<string, number> = {};
     const sourceCounts: Record<string, number> = {};
     const campaignCounts: Record<string, number> = {};
+    // `organization_id` est nullable en base : les lignes orphelines sont
+    // ignorees explicitement. Le `.in(...)` ci-dessus les exclut deja, mais
+    // sans cette garde une ligne nulle compterait sous la cle "null".
     for (const m of membersRes.data ?? []) {
+      if (!m.organization_id) continue;
       memberCounts[m.organization_id] = (memberCounts[m.organization_id] ?? 0) + 1;
     }
     for (const s of sourcesRes.data ?? []) {
+      if (!s.organization_id) continue;
       sourceCounts[s.organization_id] = (sourceCounts[s.organization_id] ?? 0) + 1;
     }
     for (const c of campaignsRes.data ?? []) {
+      if (!c.organization_id) continue;
       campaignCounts[c.organization_id] = (campaignCounts[c.organization_id] ?? 0) + 1;
     }
 

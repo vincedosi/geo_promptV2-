@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +36,9 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc('admin_list_custom_geo_zones', {
-    p_org_id: orgId || null,
-    p_source_type: sourceType || null,
-    p_search: q || null,
+    p_org_id: orgId || undefined,
+    p_source_type: sourceType || undefined,
+    p_search: q || undefined,
   });
 
   if (error) {
@@ -45,6 +46,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const zones = Array.isArray(data) ? (data as AdminZoneRow[]) : [];
+  const zones = Array.isArray(data) ? (rpcJson<AdminZoneRow[]>(data) ?? []) : [];
   return NextResponse.json({ zones, total: zones.length });
 }

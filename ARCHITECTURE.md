@@ -646,6 +646,26 @@ Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 > (`get_radio_coverage_geometry`, `get_check_constraint_values`,
 > `compute_panneau_scores`).
 
+> **Types generes branches (2026-09-10).** Les clients Supabase sont typés
+> `createClient<Database>`. Quatre frontieres que le generateur ne peut pas
+> typer seul ont chacune un helper documente — les utiliser plutot qu'un cast :
+>
+> | Helper | Quand |
+> |--------|-------|
+> | `toJson` (`lib/supabase/rpc-json.ts`) | ecrire un objet applicatif dans une colonne `jsonb`, ou le passer en argument `jsonb` d'une RPC |
+> | `rpcJson<T>` (idem) | lire le retour d'une RPC `RETURNS jsonb`, type `Json` donc inaccessible par propriete |
+> | `nullableArg` (idem) | passer `null` a un argument de RPC que le generateur declare non-nullable (un `p_x text` SQL accepte NULL) |
+> | `triggerFilled` (`lib/supabase/tables.ts`) | insert dans une table dont une colonne est posee par un trigger BEFORE INSERT : `poi_france.geom` et `panneaux_affichage.geom` via `auto_set_geom()` |
+>
+> `TableRow`/`TableInsert`/`TableUpdate<'table'>` remplacent toute redeclaration
+> manuelle de la forme d'une ligne.
+>
+> Les colonnes `text` + CHECK (`profiles.role`, `dsp_connections.provider`…)
+> sortent du generateur en `string` : les unions restent ecrites a la main et
+> doivent etre resynchronisees avec la contrainte. `types/admin.ts#UserRole`
+> est la reference pour les roles (quatre, `editor` inclus) et
+> `app/api/admin/roles/route.ts` la verrouille par `satisfies`.
+
 ```bash
 npm run dev              # Dev (localhost:3000)
 npm run build            # Build production

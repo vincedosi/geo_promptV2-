@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import postgres from 'postgres';
 import type { Check, TableStats, DatabaseOverview } from '@/types/admin';
+import type { TableName } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,10 +130,16 @@ export async function GET(req: NextRequest) {
     // ============================================================
 
     try {
-      const tablesToCheck = [
-        'organizations', 'profiles', 'data_sources', 'panneaux', 'poi',
-        'carreaux_insee', 'carreaux_filosofi', 'isochrones_cache',
-        'saved_maps', 'org_memberships', 'poi_sources', 'voronoi_cells',
+      // Typee `TableName[]` : un nom absent du schema ne compile plus.
+      // C'est ce qui a revele, au branchement des types (2026-09-08), que 6 des
+      // 12 tables surveillees ici n'existaient pas — `carreaux_insee`,
+      // `org_memberships`, `panneaux`, `poi`, `poi_sources`, `voronoi_cells`.
+      // Le `if (!error && count !== null)` plus bas les ignorait en silence :
+      // le health check affichait donc un etat partiel sans le dire.
+      const tablesToCheck: TableName[] = [
+        'organizations', 'profiles', 'data_sources', 'panneaux_affichage',
+        'carreaux_filosofi', 'isochrones_cache', 'saved_maps', 'iris',
+        'dsp_campaigns', 'dsp_campaign_data',
       ];
 
       const tables: TableStats[] = [];
@@ -140,8 +147,14 @@ export async function GET(req: NextRequest) {
       // Get row counts via Supabase client (always works)
       for (const tableName of tablesToCheck) {
         try {
+          // `.from()` sur une UNION de noms fait exploser l'inference
+          // (TS2589 : instantiation excessivement profonde) — limite connue de
+          // supabase-js. Ce bloc ne lit AUCUNE colonne, il ne fait qu'un count
+          // en `head: true` : on fige donc le parametre de type sur un nom
+          // valide quelconque. `tableName` reste la valeur reellement envoyee,
+          // et il est deja garanti `TableName` par la declaration ci-dessus.
           const { count, error } = await supabase
-            .from(tableName)
+            .from(tableName as 'profiles')
             .select('*', { count: 'exact', head: true });
           if (!error && count !== null) {
             tables.push({

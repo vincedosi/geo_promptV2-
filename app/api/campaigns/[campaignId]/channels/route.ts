@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 import {
   CampaignChannelsSchema, validateSelection, EMPTY_CHANNELS,
   ChannelBudgetsSchema, DspLinksSchema, pruneBudgets, pruneLinks,
@@ -30,6 +31,9 @@ async function loadContext(
     .eq('id', campaignId)
     .maybeSingle();
   if (!camp) return null;
+  // `organization_id` est nullable en base : sans cette garde, le `.eq(...)`
+  // recevrait null et ne filtrerait pas comme une egalite.
+  if (!camp.organization_id) return null;
   const [regRes, connRes, profRes] = await Promise.all([
     supabase.from('dsp_channel_registry').select('code, label, category, connection_provider, active, link_levels').eq('active', true),
     supabase.from('dsp_connections').select('provider').eq('organization_id', camp.organization_id).eq('status', 'connected'),
@@ -92,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     ...sel, budgets, ...(Object.keys(links).length ? { links } : {}),
   };
   const nextGeoStrategy = { ...gs, channels: nextChannels };
-  const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: nextGeoStrategy }).eq('id', campaignId);
+  const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: toJson(nextGeoStrategy) }).eq('id', campaignId);
   if (error) {
     console.error('[campaigns/channels] update:', error.message);
     return NextResponse.json({ error: 'update_failed' }, { status: 500 });

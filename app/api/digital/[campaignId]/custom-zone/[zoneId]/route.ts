@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +82,7 @@ export async function GET(
     try { result = JSON.parse(data); }
     catch { return NextResponse.json({ error: 'Invalid RPC response' }, { status: 500 }); }
   } else {
-    result = data as CustomZoneResult;
+    result = rpcJson<CustomZoneResult>(data) as CustomZoneResult;
   }
 
   const zones = Array.isArray(result?.zones) ? result.zones : [];

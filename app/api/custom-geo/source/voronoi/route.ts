@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.rpc('get_voronoi_capture_geometry', {
     p_category: parsed.data.category,
     p_metropolitaine: parsed.data.metropolitaine,
-    p_filtre_ville: parsed.data.filtre_ville ?? null,
-    p_filtre_region: parsed.data.filtre_region ?? null,
-    p_filtre_departement: parsed.data.filtre_departement ?? null,
+    p_filtre_ville: parsed.data.filtre_ville ?? undefined,
+    p_filtre_region: parsed.data.filtre_region ?? undefined,
+    p_filtre_departement: parsed.data.filtre_departement ?? undefined,
   });
   if (error) {
     console.error('[custom-geo/source/voronoi]', error.message);

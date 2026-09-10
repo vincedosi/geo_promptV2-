@@ -14,6 +14,8 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { triggerFilled } from '@/lib/supabase/tables';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,8 +103,8 @@ function featureToRow(
   if (isNaN(Number(lat)) || isNaN(Number(lng))) return null;
   if (Math.abs(Number(lat)) > 90 || Math.abs(Number(lng)) > 180) return null;
 
-  return {
-    // Colonnes principales — le trigger fn_auto_set_geom calcule geom depuis lat/lng
+  return triggerFilled<'poi_france', 'geom'>({
+    // Colonnes principales — le trigger trg_poi_france_auto_geom calcule geom depuis lat/lng
     lat: Number(lat),
     lng: Number(lng),
     categorie,
@@ -117,8 +119,8 @@ function featureToRow(
     source: 'data_gouv',
     date_import: new Date().toISOString(),
     // Toutes les propriétés brutes pour le scoring futur
-    metadata: props,
-  };
+    metadata: toJson(props),
+  });
 }
 
 // ─── Handler principal ───────────────────────────────────────────────────────

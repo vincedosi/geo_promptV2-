@@ -26,6 +26,8 @@ import {
   type PoiRow,
 } from '@/lib/isochrones/fetcher';
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
+import { toJson } from '@/lib/supabase/rpc-json';
+import type { TableInsert } from '@/lib/supabase/tables';
 
 export const maxDuration  = 300;
 const ALL_LEVELS          = [10, 30, 60, 90, 120, 150, 180] as const;
@@ -361,7 +363,7 @@ export async function POST(req: NextRequest) {
         for (let i = 0; i < poiEntries.length; i += ORS_BATCH_SIZE)
           batches.push(poiEntries.slice(i, i + ORS_BATCH_SIZE));
 
-        const newCacheRows: object[] = [];
+        const newCacheRows: TableInsert<'isochrones_cache'>[] = [];
         const batchSem    = makeSemaphore(ORS_CONCURRENCY);
         let poisCompleted = 0, orsOk = 0, orsErr = 0;
         let firstOrsErr: string | null = null;
@@ -396,7 +398,7 @@ export async function POST(req: NextRequest) {
           const newRings: object[] = [];
           if (rawNewRings.length > 0) {
             const fc = { type: 'FeatureCollection', features: rawNewRings.map((r, i) => ({ type: 'Feature', geometry: r.geojson, properties: { _idx: i } })) };
-            const { data: clipped } = await supabase.rpc('clip_geojson_to_france', { p_fc: fc }).single();
+            const { data: clipped } = await supabase.rpc('clip_geojson_to_france', { p_fc: toJson(fc) }).single();
             const clippedFeatures: any[] = (clipped as any)?.features ?? fc.features; // fallback si RPC échoue
 
             for (const feat of clippedFeatures) {
@@ -409,7 +411,7 @@ export async function POST(req: NextRequest) {
               newCacheRows.push({
                 cache_key: raw.ck, ville: '_battle_', categorie: category,
                 minutes: raw.palier, mode: normalizedMode,
-                geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] },
+                geojson: toJson({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: geom, properties: {} }] }),
                 poi_count: 1, created_at: new Date().toISOString(),
               });
               newRings.push({ cirfa_id: raw.cirfa_id, nom: raw.nom, lat: raw.lat, lng: raw.lng, palier: raw.palier, geojson: geom });
@@ -459,7 +461,7 @@ export async function POST(req: NextRequest) {
         await supabase.from('isochrones_cache').upsert({
           cache_key: battleCacheKey, ville: '_battle_full_', categorie: String(category),
           minutes: maxMin, mode: normalizedMode,
-          geojson: { battleGeoJSON, battleBorders: null, poisForMap },
+          geojson: toJson({ battleGeoJSON, battleBorders: null, poisForMap }),
           poi_count: pois.length, created_at: new Date().toISOString(),
         }, { onConflict: 'cache_key' });
 

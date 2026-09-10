@@ -36,12 +36,12 @@ export async function GET(req: NextRequest) {
   const safeLimit  = Math.min(Math.max(1, isNaN(limitParam) ? 15000 : limitParam), 20000);
 
   const { data, error } = await supabase.rpc('get_radio_emetteurs_geojson', {
-    p_bbox: bbox ?? null,
-    p_systeme: systeme ?? null,
-    p_radio_id: radioId ?? null,
+    p_bbox: bbox ?? undefined,
+    p_systeme: systeme ?? undefined,
+    p_radio_id: radioId ?? undefined,
     p_limit: safeLimit,
-    p_radio_ids: radioIds ?? null,
-    p_exclude_categories: excludeCats ?? null,
+    p_radio_ids: radioIds ?? undefined,
+    p_exclude_categories: excludeCats ?? undefined,
   });
 
   if (error) {

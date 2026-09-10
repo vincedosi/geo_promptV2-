@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { parseActorsParam } from '@/lib/campaigns/actor-metrics';
@@ -30,18 +31,23 @@ export async function GET(
   const access = await checkCampaignAccess(supabase, profile, campaignId);
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
-  let { data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  /** Payload de `get_campaign_suivi` (sql/108) — `error` porte les cas metier. */
+  type SuiviPayload = { error?: string };
 
-  if (data?.error === 'no_strategy') {
+  let { data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors ?? undefined });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let payload = rpcJson<SuiviPayload>(data);
+
+  if (payload?.error === 'no_strategy') {
     return NextResponse.json({ error: 'no_strategy' }, { status: 409 });
   }
-  if (data?.error === 'no_rollup') {
+  if (payload?.error === 'no_rollup') {
     const { error: refreshErr } = await supabase.rpc('refresh_campaign_rollups', { p_campaign_id: campaignId });
     if (refreshErr) return NextResponse.json({ error: refreshErr.message }, { status: 500 });
-    ({ data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors }));
+    ({ data, error } = await supabase.rpc('get_campaign_suivi', { p_campaign_id: campaignId, p_actors: pActors ?? undefined }));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (data?.error) return NextResponse.json({ error: data.error }, { status: 409 });
+    payload = rpcJson<SuiviPayload>(data);
+    if (payload?.error) return NextResponse.json({ error: payload.error }, { status: 409 });
   }
 
   return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });

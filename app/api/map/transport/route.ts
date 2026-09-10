@@ -43,8 +43,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  type Row = { id: string; nom: string; lat: number; lng: number; sous_categorie: string | null };
-  const pois = (data ?? []).map((r: Row) => ({
+  // Pas de type Row local : la forme vient du `.select()` et des types generes
+  // (`nom` est nullable en base — l'ancien type local le declarait `string`).
+  const pois = (data ?? []).map(r => ({
     id:         r.id,
     nom:        r.nom ?? 'Arrêt',
     lat:        r.lat,

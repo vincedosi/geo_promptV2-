@@ -11,6 +11,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { CIBLE_KEYS } from '@/lib/custom-geo/cibles';
 import { buildZoneSnapshotItems } from '@/lib/pacing/snapshot';
+import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
   const version = ((versRows?.[0]?.version as number | undefined) ?? 0) + 1;
 
   // Expansion item→CP par zone (≤3 en parallèle : contrainte Nano). On traite les zones par lots de 3.
-  const rows: Array<Record<string, unknown>> = [];
+  const rows: TableInsert<'campaign_plan_snapshot'>[] = [];
   for (let i = 0; i < zones.length; i += 3) {
     const batch = zones.slice(i, i + 3);
     const expanded = await Promise.all(batch.map(async (z) => {

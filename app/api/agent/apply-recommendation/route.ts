@@ -10,6 +10,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { applyAction } from '@/lib/agent/autonomy';
 import type { ProposedAction } from '@/lib/agent/types';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const recs = (audit.recommendations ?? []) as ProposedAction[];
+  const recs = rpcJson<ProposedAction[]>(audit.recommendations) ?? [];
   const action = recs[action_index];
   if (!action) {
     return NextResponse.json({ error: 'action_index hors plage' }, { status: 400 });

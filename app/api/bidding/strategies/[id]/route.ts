@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkStrategyAccess, checkZoneAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -292,8 +293,8 @@ export async function PATCH(
 
     const { error: rpcErr } = await supabase.rpc('apply_zone_weights_to_strategy', {
       p_strategy_id: id,
-      p_in_weights: newInWeights,
-      p_out_weights: newOutWeights,
+      p_in_weights: toJson(newInWeights),
+      p_out_weights: toJson(newOutWeights),
     });
     if (rpcErr) {
       return NextResponse.json({ error: `apply_zone_weights: ${rpcErr.message}` }, { status: 500 });
@@ -333,7 +334,7 @@ export async function PATCH(
       p_field_path: ch.field,
       p_old_value: ch.old as never,
       p_new_value: ch.new as never,
-      p_reason: reason ?? null,
+      p_reason: reason ?? undefined,
       p_triggered_by: 'user',
     });
   }

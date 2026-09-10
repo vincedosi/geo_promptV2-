@@ -10,6 +10,7 @@ import { extractJSON } from '@/lib/prompting';
 import { registerIntent } from './index';
 import { buildDriftAnalysisPrompt } from '../system-prompts/drift-analysis';
 import type { AgentIntent, DriftAnalysisOutput, IntentInput, IntentOutput, ProposedAction } from '../types';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 const intent: AgentIntent = {
   code: 'analyze_drift',
@@ -138,7 +139,7 @@ const intent: AgentIntent = {
     await supabase
       .from('bidding_drift_events')
       .update({
-        agent_recommendation: parsed,
+        agent_recommendation: toJson(parsed),
         agent_analyzed_at: new Date().toISOString(),
       })
       .eq('id', drift.id);

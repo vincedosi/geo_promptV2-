@@ -11,6 +11,7 @@
  */
 import { inngest } from '@/lib/inngest/client';
 import { createAdminClient } from '@/lib/auth';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 interface Strategy {
   id: string;
@@ -164,18 +165,30 @@ export const agentAutoPilotDaily = inngest.createFunction(
             });
             if (res.ok) {
               applied++;
-              // Trace best-effort dans bidding_agent_actions
-              try {
-                await supabase.from('bidding_agent_actions').insert({
+              // Trace best-effort dans bidding_agent_actions.
+              //
+              // `action_taken` est une colonne texte qui porte un ActionStatus
+              // (cf. lib/agent/types.ts), PAS l'action elle-meme : l'objet
+              // `proposed_action` va dans `recommendations` (jsonb), comme le
+              // fait deja lib/agent/orchestrator.ts. L'ancienne version passait
+              // l'objet directement a `action_taken` — PostgREST rejetait la
+              // ligne, et l'erreur etait perdue (supabase-js retourne `error`,
+              // il ne leve pas : le `catch` ne voyait jamais rien).
+              const { error: traceErr } = await supabase
+                .from('bidding_agent_actions')
+                .insert({
                   strategy_id: sid,
                   intent: reco.category,
                   trigger_source: 'auto_pilot_cron',
-                  action_taken: action,
+                  action_taken: 'auto_applied',
+                  recommendations: toJson([action]),
                   applied_at: new Date().toISOString(),
                   llm_model: 'gemini-2.5-flash',
                   autonomy_level_at_time: settings.autonomy_level,
                 });
-              } catch { /* schéma peut différer */ }
+              // Best-effort assume : l'echec de trace ne doit pas annuler
+              // l'application. Mais il est visible, plus silencieux.
+              if (traceErr) console.warn('[autoPilotDaily] trace audit echouee:', traceErr.message);
             } else {
               skipped++;
             }

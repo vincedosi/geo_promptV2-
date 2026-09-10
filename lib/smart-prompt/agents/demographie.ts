@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger';
 import { resolveCityCenter }           from '../geo-resolver';
 import { CHORO_INDICATORS }            from '@/lib/chat/system-prompt';
 import type { AgentResult, DemoStats } from '../types';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 // Résultat d'une ligne de ranking villes
 interface TopVilleRow {
@@ -206,7 +207,7 @@ export async function runDemographieAgent(
     return { agent: 'demographie', success: false, error: error.message };
   }
 
-  const stats = data as DemoStats;
+  const stats = rpcJson<DemoStats>(data) as DemoStats;
   if (stats.error) {
     return { agent: 'demographie', success: false, error: stats.error };
   }

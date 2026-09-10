@@ -89,12 +89,12 @@ export async function GET(
     p_campaign_id: campaignId,
     p_aggregation: aggregation,
     p_indicator: indicator,
-    p_media: media,
+    p_media: media ?? undefined,
     p_limit: limit,
     p_pop_min: popMin,
     p_metric_field: metricField,
-    p_parent_type: parentType,
-    p_parent_code: parentCode,
+    p_parent_type: parentType ?? undefined,
+    p_parent_code: parentCode ?? undefined,
   });
 
   if (error) {

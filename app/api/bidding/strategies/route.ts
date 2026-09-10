@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -240,8 +241,8 @@ export async function POST(request: NextRequest) {
     granularity: 'postal_code' as const,
     init_preset_code: body.init_preset_code ?? null,
     weighting_mode: body.weighting_mode,
-    in_zone_weights: body.in_zone_weights,
-    out_zone_weights: body.out_zone_weights,
+    in_zone_weights: toJson(body.in_zone_weights),
+    out_zone_weights: toJson(body.out_zone_weights),
     notification_channels: body.notification_channels ?? [],
     alert_severity_threshold: body.alert_severity_threshold ?? null,
     is_demo: body.is_demo ?? false,
@@ -296,8 +297,8 @@ export async function POST(request: NextRequest) {
   // 5. RPC apply_zone_weights_to_strategy
   const { data: nConfigs, error: rpcErr } = await supabase.rpc('apply_zone_weights_to_strategy', {
     p_strategy_id: created.id,
-    p_in_weights: body.in_zone_weights,
-    p_out_weights: body.out_zone_weights,
+    p_in_weights: toJson(body.in_zone_weights),
+    p_out_weights: toJson(body.out_zone_weights),
   });
   if (rpcErr) {
     return NextResponse.json({ error: `apply_zone_weights: ${rpcErr.message}` }, { status: 500 });

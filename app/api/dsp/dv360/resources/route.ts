@@ -47,6 +47,9 @@ export async function GET(request: NextRequest) {
     .eq('id', campaignId)
     .maybeSingle();
   if (!camp) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
+  // `organization_id` est nullable en base : sans cette garde, le `.eq(...)`
+  // recevrait null et ne filtrerait pas comme une egalite.
+  if (!camp.organization_id) return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const { data: conn, error: connErr } = await supabase
     .from('dsp_connections')

@@ -17,13 +17,14 @@
  */
 import type { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
+import type { UserRole } from '@/types/admin';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface SessionOrg {
   userId: string;
   orgId:  string | null;
-  role:   'super_admin' | 'admin' | 'client';
+  role:   UserRole;
 }
 
 // ── Helpers privés ─────────────────────────────────────────────────────────────

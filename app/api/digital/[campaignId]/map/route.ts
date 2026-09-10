@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export async function GET(
     p_campaign_id: campaignId,
     p_scale: scale,
     p_pop_field: popField,
-    p_media: media,
+    p_media: media ?? undefined,
     p_bbox_xmin: xmin,
     p_bbox_ymin: ymin,
     p_bbox_xmax: xmax,
@@ -94,7 +95,7 @@ export async function GET(
   if (typeof data === 'string') {
     try { rows = JSON.parse(data); } catch { rows = []; }
   } else if (Array.isArray(data)) {
-    rows = data;
+    rows = rpcJson<typeof rows>(data) ?? [];
   } else {
     rows = [];
   }

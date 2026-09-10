@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { CIBLE_KEYS } from '@/lib/custom-geo/cibles';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,7 +153,7 @@ export async function DELETE(request: NextRequest) {
   delete existing.media_plan;
   const { error: updErr } = await supabase
     .from('dsp_campaigns')
-    .update({ geo_strategy: existing })
+    .update({ geo_strategy: toJson(existing) })
     .eq('id', campaignId);
   if (updErr) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

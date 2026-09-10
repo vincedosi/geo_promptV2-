@@ -39,10 +39,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const [mapRes, headRes] = await Promise.all([
     supabase.rpc('get_campaign_derive_map', {
-      p_campaign_id: campaignId, p_mesh: mesh, p_metric: metric, p_actors: pActors,
+      p_campaign_id: campaignId, p_mesh: mesh, p_metric: metric, p_actors: pActors ?? undefined,
       p_bbox_xmin: bbox[0], p_bbox_ymin: bbox[1], p_bbox_xmax: bbox[2], p_bbox_ymax: bbox[3],
     }),
-    supabase.rpc('get_campaign_derive_headline', { p_campaign_id: campaignId, p_metric: metric, p_actors: pActors }),
+    supabase.rpc('get_campaign_derive_headline', { p_campaign_id: campaignId, p_metric: metric, p_actors: pActors ?? undefined }),
   ]);
   if (mapRes.error) return NextResponse.json({ error: mapRes.error.message }, { status: 500 });
 

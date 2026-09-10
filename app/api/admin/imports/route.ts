@@ -67,9 +67,11 @@ export async function GET(request: NextRequest) {
     org_name: (Array.isArray(r.organizations) ? r.organizations[0]?.name : r.organizations?.name) ?? null,
   }));
 
-  const all = [...oohImports, ...sourceImports].sort(
-    (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-  );
+  // `started_at` est nullable (`import_runs_ooh.lance_le`). `new Date(null)`
+  // vaut l'epoch : on le rend explicite plutot que de s'appuyer sur cette
+  // coercion, le tri est inchange (les lignes sans date restent en queue).
+  const ts = (d: string | null) => (d ? new Date(d).getTime() : 0);
+  const all = [...oohImports, ...sourceImports].sort((a, b) => ts(b.started_at) - ts(a.started_at));
 
   return NextResponse.json({ success: true, imports: all });
 }

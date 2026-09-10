@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (access !== 'ok') return NextResponse.json({ error: 'campaign_not_found' }, { status: 404 });
 
   const { data, error } = await supabase.rpc('get_campaign_derive_ranked', {
-    p_campaign_id: campaignId, p_mesh: mesh, p_metric: metric, p_actors: pActors, p_limit: limit,
+    p_campaign_id: campaignId, p_mesh: mesh, p_metric: metric, p_actors: pActors ?? undefined, p_limit: limit,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ rows: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });

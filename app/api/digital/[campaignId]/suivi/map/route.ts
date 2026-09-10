@@ -43,7 +43,7 @@ export async function GET(
   const { data, error } = await supabase.rpc('get_campaign_suivi_map', {
     p_campaign_id: campaignId, p_metric: metric,
     p_bbox_xmin: bbox[0], p_bbox_ymin: bbox[1], p_bbox_xmax: bbox[2], p_bbox_ymax: bbox[3],
-    p_actors: pActors,
+    p_actors: pActors ?? undefined,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ metric, features: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
