@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import type { UserRole } from '@/types/admin';
 
@@ -15,29 +14,28 @@ export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
-  const supabase = createAdminClient();
-  // ⛔ DETTE : `get_check_constraint_values` N'EXISTE PAS en base (confirme
-  // 2026-09-08, cf. docs/AUDIT_BASE.md). L'appel echoue donc a chaque fois et
-  // c'est le fallback `Object.keys(ROLE_LEVELS)` plus bas qui sert TOUJOURS.
-  // Le double cast rend l'appel compilable sans pretendre que la fonction
-  // existe. A trancher : creer la fonction, ou supprimer l'appel et assumer
-  // la constante (le comportement observable serait identique).
-  const { data } = await (supabase.rpc as unknown as (
-    fn: string, args: Record<string, string>,
-  ) => Promise<{ data: unknown }>)('get_check_constraint_values', { p_table: 'profiles', p_constraint: 'profiles_role_check' });
-
-  let roles: string[];
-  if (data && typeof data === 'string') {
-    const match = data.match(/\(([^)]+)\)/);
-    roles = match ? match[1].split(',').map((s: string) => s.trim().replace(/'/g, '')) : Object.keys(ROLE_LEVELS);
-  } else {
-    roles = Object.keys(ROLE_LEVELS);
-  }
-
+  // La liste des roles vient de `ROLE_LEVELS`, pas de la base.
+  //
+  // Cette route appelait `get_check_constraint_values` pour lire la contrainte
+  // `profiles_role_check` a l'execution. La fonction n'a jamais existe : l'appel
+  // echouait a chaque fois et le repli sur la constante servait TOUJOURS. On
+  // avait donc le pire des deux mondes — un aller-retour inutile, et du code qui
+  // se pretendait dynamique sans l'etre.
+  //
+  // L'appel est retire plutot que la fonction ecrite, parce que la dynamique
+  // etait structurellement impossible : l'ancien code filtrait de toute facon la
+  // liste recue sur `r in ROLE_LEVELS`, ecartant tout role absent du code, et un
+  // role a besoin d'un NIVEAU et d'un LIBELLE que la contrainte CHECK ne porte
+  // pas. Lire la base ne pouvait donc rien apporter.
+  //
+  // La derive code/base est deja empechee autrement : `satisfies
+  // Record<UserRole, _>` ci-dessus casse le build si `UserRole` et ces tables
+  // divergent, et `types/admin.ts` documente `UserRole` comme le miroir exact de
+  // la contrainte. Un role ajoute en base sans passer par le code est un
+  // changement de schema, pas un cas d'usage a supporter a chaud.
   const userLevel = ROLE_LEVELS[profile.role] ?? 99;
-  const result = roles
-    .filter((r): r is UserRole => r in ROLE_LEVELS)
-    .map(r => ({ value: r, label: ROLE_LABELS[r] ?? r, level: ROLE_LEVELS[r] }))
+  const result = (Object.keys(ROLE_LEVELS) as UserRole[])
+    .map(r => ({ value: r, label: ROLE_LABELS[r], level: ROLE_LEVELS[r] }))
     .filter(r => profile.role === 'super_admin' || r.level >= userLevel)
     .sort((a, b) => a.level - b.level);
 
