@@ -13,6 +13,10 @@ describe('classeDe', () => {
     expect(classeDe('revenu_median')).toBe('moyenne');
     expect(classeDe('surface_moyenne')).toBe('moyenne');
   });
+
+  it('ne traverse pas le prototype d’objet pour un id hors catalogue', () => {
+    expect(classeDe('toString')).toBe('effectif');
+  });
 });
 
 describe('denominateurDe', () => {
@@ -24,6 +28,10 @@ describe('denominateurDe', () => {
   it('divise ind_snv par la population et men_surf par les ménages', () => {
     expect(denominateurDe('revenu_median')).toBe('population_totale');
     expect(denominateurDe('surface_moyenne')).toBe('menages_total');
+  });
+
+  it('ne renvoie pas une valeur héritée du prototype d’objet pour un id hors catalogue', () => {
+    expect(denominateurDe('constructor')).toBe('superficie_km2');
   });
 });
 
@@ -44,6 +52,11 @@ describe('normaliser', () => {
   it('retourne null sur un dénominateur nul ou négatif plutôt que Infinity', () => {
     expect(normaliser(100, 0)).toBeNull();
     expect(normaliser(100, -1)).toBeNull();
+  });
+
+  it('retourne null sur une valeur NaN ou Infinity plutôt que de la propager', () => {
+    expect(normaliser(NaN, 1)).toBeNull();
+    expect(normaliser(Infinity, 1)).toBeNull();
   });
 });
 

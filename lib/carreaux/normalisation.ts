@@ -29,26 +29,31 @@ const MOYENNES: Record<string, 'population_totale' | 'menages_total'> = {
   surface_moyenne: 'menages_total',     // men_surf / men
 };
 
+/** Garantit qu'un id hors du catalogue (ex. `'toString'`, `'constructor'`) est toujours classe `'effectif'`, jamais lu depuis le prototype d'objet. */
 export function classeDe(id: string): ClasseIndicateur {
-  return id in MOYENNES ? 'moyenne' : 'effectif';
+  return Object.prototype.hasOwnProperty.call(MOYENNES, id) ? 'moyenne' : 'effectif';
 }
 
+/** Garantit qu'un id hors du catalogue retombe sur `'superficie_km2'`, jamais sur une valeur heritee du prototype d'objet (ex. `'constructor'`). */
 export function denominateurDe(
   id: string,
 ): 'superficie_km2' | 'population_totale' | 'menages_total' {
-  return MOYENNES[id] ?? 'superficie_km2';
+  return Object.prototype.hasOwnProperty.call(MOYENNES, id) ? MOYENNES[id] : 'superficie_km2';
 }
 
 /**
- * @returns la valeur normalisee, ou `null` si le denominateur est inexploitable
- *          — un carreau sans habitant ne doit pas produire `Infinity`, qui
- *          contaminerait le calcul des bornes.
+ * @returns la valeur normalisee, ou `null` si la valeur ou le denominateur est
+ *          inexploitable — un carreau sans habitant, ou une valeur `NaN`/`Infinity`
+ *          en amont, ne doit pas produire `Infinity`/`NaN`, qui contaminerait le
+ *          calcul des bornes.
  */
 export function normaliser(valeur: number, denominateur: number): number | null {
+  if (!Number.isFinite(valeur)) return null;
   if (!Number.isFinite(denominateur) || denominateur <= 0) return null;
   return valeur / denominateur;
 }
 
+/** Garantit le suffixe `/km²` sur l'unite des effectifs, et laisse l'unite des moyennes inchangee. */
 export function uniteNormalisee(id: string, uniteBrute: string): string {
   return classeDe(id) === 'effectif' ? `${uniteBrute}/km²` : uniteBrute;
 }
