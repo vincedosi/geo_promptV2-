@@ -200,12 +200,67 @@ Organization (client)
 - `get_user_role(user_id)` — role effectif
 - `get_user_orgs(user_id)` — toutes les orgs d'un user
 
-### RLS
+### Roles et autorisation (audit du 2026-09-10)
+
+Trois roles, declares par la contrainte `profiles_role_check` et exposes par
+`/api/admin/roles`. Le pouvoir REELLEMENT exerce :
+
+| | super_admin | admin | client |
+|---|:---:|:---:|:---:|
+| Se connecter, `/map`, `/dashboard` | oui | oui | oui |
+| Les 64 routes `/api/admin/*` | oui | non | non |
+| Gerer utilisateurs et organisations | oui | non | non |
+| Voir les donnees de TOUTES les orgs (aucun filtre) | oui | non | non |
+| Basculer d'organisation (org switcher) | oui | non | non |
+| Campagnes, zones, plan media, suivi — de sa propre org | oui | oui | oui |
+| Connexions DSP (DV360, TikTok) — de sa propre org | oui | oui | oui |
+| Activer le mode demo (`/api/user/demo-mode`) | oui | oui | non |
+
+**`requireAdmin()` n'est pas « admin », c'est « super_admin ».** Le guard
+appelle `isSuperAdmin()`, soit `role === 'super_admin'` strictement. Un `admin`
+n'ouvre donc aucune route d'administration.
+
+Consequence : les branches « escalation protection » de `/api/admin/users` et
+`/api/admin/organizations` (un admin ne peut pas creer de super_admin, ni
+toucher un utilisateur d'une autre org, ni promouvoir) sont ecrites, correctes,
+et **inatteignables** — seul un super_admin franchit le guard. C'est le vestige
+d'un modele a deux niveaux d'administration qui n'a jamais ete branche. Il sera
+reveille en rendant `requireAdmin` parametrable par niveau, le jour ou une org
+cliente devra gerer ses propres sieges. Pas avant : personne n'est bloque
+aujourd'hui (0 admin, 0 client hors comptes de test).
+
+`editor` a ete retire le 2026-09-10 (migration `drop_editor_role`) : il
+n'accordait rien de plus que `client` cote application.
+
+### RLS — DORMANTES, ne pas s'y fier
 
 Les policies filtrent par `organization_id` via `get_user_org(auth.uid())` sur :
 `dsp_campaigns`, `dsp_campaign_data`, `data_sources`, `panneaux_affichage`,
 `poi_france`, `saved_maps`, `profiles`, `organizations`,
-`organization_members`, `campaign_organizations`
+`organization_members`, `campaign_organizations`.
+
+⚠️ **Elles ne s'executent jamais.** Les 146 routes API utilisent
+`createAdminClient()` (cle `service_role`), qui contourne RLS ; aucune
+n'utilise la cle anon. L'autorisation reellement appliquee est celle du
+middleware (authentifie ?) plus les guards et le scoping par org ecrits dans
+chaque handler.
+
+Les policies restent une defense en profondeur valable — mais personne ne doit
+supposer qu'elles protegent quoi que ce soit tant que ce chemin n'est pas
+emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
+
+- Trois policies nomment encore `editor` (`dsp_campaign_data_modify`,
+  `dsp_campaigns_update`, `poi_france_modify`). Le role n'existe plus : ce OR
+  se lit desormais « admin ». Elles ont ete laissees telles quelles — les
+  reecrire ferait courir un risque sur l'autorisation de trois tables coeur
+  pour zero changement de comportement.
+- Huit tables de referentiel (`ref_communes`, `ref_departements`,
+  `ref_regions`, `ref_codes_postaux`, `laposte_hexasmal`,
+  `postal_code_commune`, `carreaux_commune_lookup`, `carreaux_cp_population`)
+  ont des policies `auth.jwt() ->> 'role' = 'admin'`. C'est le role **Postgres**
+  du JWT, qui vaut `authenticated` pour un utilisateur connecte, jamais
+  `admin` : ces policies ne matchent donc JAMAIS. Sans consequence aujourd'hui,
+  bloquant total le jour ou la cle anon serait utilisee.
 
 ---
 

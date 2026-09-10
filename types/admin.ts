@@ -86,8 +86,19 @@ export interface HealthResponse {
  * Supabase la rend donc en `string`, il ne peut pas produire cette union. Elle
  * est écrite à la main et doit être resynchronisée si la contrainte change.
  *
- * `editor` (niveau 2, entre `admin` et `client`) était absent des unions
- * historiques de `lib/auth.ts` et `lib/auth/getSessionOrg.ts` alors que la base
- * l'autorise et que des profils le portent.
+ * Pouvoir réellement exercé (audit du 2026-09-10) :
+ *   - `super_admin` — les 64 routes `/api/admin/*`, et aucun filtre par org.
+ *   - `admin`       — identique à `client`, à une exception près : il peut
+ *                     activer le mode démo (`/api/user/demo-mode`).
+ *                     `requireAdmin()` appelle `isSuperAdmin()` : un `admin`
+ *                     n'ouvre donc AUCUNE route
+ *                     d'administration. Les branches « escalation protection »
+ *                     de `/api/admin/users` et `/api/admin/organizations` sont
+ *                     écrites mais inatteignables : à réveiller le jour où une
+ *                     org cliente doit gérer ses propres sièges.
+ *   - `client`      — authentifié, scopé à son organisation.
+ *
+ * `editor` a été retiré le 2026-09-10 : il n'accordait rien de plus que
+ * `client` côté application. Voir ARCHITECTURE.md § « Rôles et autorisation ».
  */
-export type UserRole = 'super_admin' | 'admin' | 'editor' | 'client';
+export type UserRole = 'super_admin' | 'admin' | 'client';

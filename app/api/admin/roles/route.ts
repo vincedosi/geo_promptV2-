@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 // `satisfies` (et non `:`) : garde-fou de compilation — ajouter un role a
 // `UserRole` sans le declarer ici casse le build, au lieu de le faire disparaitre
 // silencieusement du selecteur de roles (c'est ce qui est arrive a `editor`).
-const ROLE_LEVELS = { super_admin: 0, admin: 1, editor: 2, client: 3 } satisfies Record<UserRole, number>;
-const ROLE_LABELS = { super_admin: 'Super admin', admin: 'Admin', editor: 'Editor', client: 'Client' } satisfies Record<UserRole, string>;
+const ROLE_LEVELS = { super_admin: 0, admin: 1, client: 2 } satisfies Record<UserRole, number>;
+const ROLE_LABELS = { super_admin: 'Super admin', admin: 'Admin', client: 'Client' } satisfies Record<UserRole, string>;
 
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
