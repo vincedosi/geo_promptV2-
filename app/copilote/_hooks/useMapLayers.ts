@@ -23,9 +23,15 @@ import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
  * moteur de rendu feature par feature (points 1 et 2 : `fill-color` et
  * `fill-opacity`).
  *
- * `max(dénominateur, 0.0001)` protège la division côté GPU, où aucun
- * branchement n'est possible : un carreau sans habitant produirait sinon
- * `Infinity`, qu'`interpolate` rejette sans lever d'exception.
+ * `max(dénominateur, 0.0001)` protège la division : un carreau sans habitant
+ * produirait sinon `Infinity`, qu'`interpolate` rejette sans lever d'exception.
+ *
+ * Un `case`/`coalesce` serait parfaitement légal ici — ces expressions sont
+ * évaluées par MapLibre côté CPU, pas en GLSL. Le choix du `max` est celui de
+ * l'indivisibilité : couleur (`fill-color`) et filtre par palier
+ * (`fill-opacity`) lisent cette seule fonction, donc la même valeur. Toute
+ * logique supplémentaire serait une occasion de les faire diverger — et leur
+ * divergence ne lève aucune erreur, elle ne se voit qu'à l'œil.
  */
 function carreauxNormaliseExpr(ind: string): maplibregl.ExpressionSpecification {
   const denom = denominateurDe(ind);
