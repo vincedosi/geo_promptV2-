@@ -110,12 +110,13 @@ comme référence de lecture du schéma.
 
 ## Suites proposées
 
-1. Écrire `get_radio_coverage_geometry` — c'est la seule fonctionnalité
-   réellement cassée pour l'utilisateur. Demande une décision produit : quel rayon
-   de couverture par `portee` d'émetteur.
-2. Trancher `get_check_constraint_values` : créer la fonction, ou assumer la liste
-   de rôles en dur et retirer l'appel mort (aujourd'hui on a le pire des deux).
+1. ~~Écrire `get_radio_coverage_geometry`~~ — **FAIT le 2026-09-10** (`sql/121`).
+   Aucune décision produit n'était nécessaire : `rayon_couverture_m` était déjà
+   calculé et stocké sur les 11 836 émetteurs.
+2. ~~Trancher `get_check_constraint_values`~~ — **TRANCHÉ le 2026-09-10** : appel
+   retiré, fonction non écrite. La dynamique était structurellement impossible,
+   pas seulement absente. Voir `app/api/admin/roles/route.ts`.
 3. Statuer sur `compute_panneau_scores` : soit le script de rescoring est mort et
    part, soit la fonction manque et doit être écrite.
-4. Brancher `Database` sur le client Supabase, 106 erreurs à traiter.
+4. ~~Brancher `Database` sur le client Supabase~~ — **FAIT le 2026-09-10**, 105 → 0.
 5. Éventuellement, `DROP` des 4 tables et des ~55 fonctions sans usage.
