@@ -47,16 +47,27 @@ const nextConfig = {
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true },
-  // Allow large request bodies — needed for multi-GB carreaux imports
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '50mb',
-    },
-    instrumentationHook: true,
-  },
+  // Pas de bloc `experimental` : les deux cles qui s'y trouvaient sont parties
+  // au passage a Next 15 (2026-09-10).
+  //
+  //  - `instrumentationHook: true` — `instrumentation.ts` est charge nativement
+  //    depuis Next 15. La clef est desormais refusee ("Unrecognized key").
+  //
+  //  - `serverActions.bodySizeLimit: '50mb'` — etait commente « needed for
+  //    multi-GB carreaux imports », ce qui etait faux. `bodySizeLimit` ne
+  //    plafonne QUE les Server Actions, et ce projet n'en declare aucune
+  //    (`grep "use server"` ne renvoie rien). Les gros imports passent par des
+  //    route handlers — `/api/admin/import-geo`, `/api/admin/campaigns/import`
+  //    — qui lisent la requete en flux et n'ont pas de limite configurable en
+  //    App Router. Le reglage n'avait donc aucun effet.
+  //    Si une Server Action est ajoutee un jour, sa limite retombera a 1 Mo :
+  //    c'est a ce moment-la qu'il faudra remettre la clef, pas avant.
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
+  // ATTENTION : cette regle ne s'applique qu'a webpack. Turbopack devient le
+  // bundler de build par defaut en Next 16 — il faudra revalider /map a ce
+  // moment-la, le crash decrit ci-dessous reapparaitrait sinon.
   webpack: (config) => {
     // maplibre-gl v5 ships a pre-built UMD bundle (dist/maplibre-gl.js)
     // but its package.json declares "type": "module".
