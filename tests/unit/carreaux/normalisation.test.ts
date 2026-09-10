@@ -65,7 +65,14 @@ describe('uniteNormalisee', () => {
     expect(uniteNormalisee('population_totale', 'pers.')).toBe('pers./km²');
   });
 
-  it('laisse l’unité intacte pour les moyennes', () => {
-    expect(uniteNormalisee('revenu_median', '€')).toBe('€');
+  it('remplace l’unité brute par l’unité réelle (dénominateur inclus) pour les moyennes', () => {
+    expect(uniteNormalisee('revenu_median', '€')).toBe('€/hab');
+    expect(uniteNormalisee('surface_moyenne', 'm²')).toBe('m²/mén.');
+  });
+
+  it('ignore l’unité brute passée en argument pour une moyenne, même si elle diffère', () => {
+    // L'unité réelle vient de la table MOYENNES, pas de ce qui est passé ici —
+    // un total en € ne devient pas correct en changeant le paramètre brut.
+    expect(uniteNormalisee('revenu_median', 'quoi que ce soit')).toBe('€/hab');
   });
 });

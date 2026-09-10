@@ -43,9 +43,9 @@ export const CARREAUX_INDICATEURS: CarreauxIndicateur[] = [
   { id: 'familles_monoparentales', label: 'Familles monoparent.',    unit: 'mén.',  group: 'Ménages' },
   { id: 'menages_maison',          label: 'Ménages en maison',       unit: 'mén.',  group: 'Ménages' },
   { id: 'menages_collectif',       label: 'Ménages en collectif',    unit: 'mén.',  group: 'Ménages' },
-  { id: 'surface_moyenne',         label: 'Surface moyenne (m²)',    unit: 'm²',    group: 'Ménages' },
+  { id: 'surface_moyenne',         label: 'Surface moyenne par ménage', unit: 'm²',    group: 'Ménages' },
   // Revenus
-  { id: 'revenu_median',           label: 'Revenu médian (€)',       unit: '€',     group: 'Revenus' },
+  { id: 'revenu_median',           label: 'Revenu moyen par habitant',  unit: '€',     group: 'Revenus' },
   // Logements
   { id: 'logements_avant_1945',    label: 'Logements avant 1945',   unit: 'log.',  group: 'Logements' },
   { id: 'logements_1945_1970',     label: 'Logements 1945-1970',    unit: 'log.',  group: 'Logements' },
