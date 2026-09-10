@@ -77,3 +77,17 @@ export interface HealthResponse {
   database?: DatabaseOverview;
   timestamp: string;
 }
+
+/**
+ * Rôles utilisateur — miroir exact de la contrainte CHECK `profiles_role_check`
+ * en base et de `ROLE_LEVELS` dans `app/api/admin/roles/route.ts`.
+ *
+ * ⚠️ `profiles.role` est une colonne `text` + CHECK : le générateur de types
+ * Supabase la rend donc en `string`, il ne peut pas produire cette union. Elle
+ * est écrite à la main et doit être resynchronisée si la contrainte change.
+ *
+ * `editor` (niveau 2, entre `admin` et `client`) était absent des unions
+ * historiques de `lib/auth.ts` et `lib/auth/getSessionOrg.ts` alors que la base
+ * l'autorise et que des profils le portent.
+ */
+export type UserRole = 'super_admin' | 'admin' | 'editor' | 'client';

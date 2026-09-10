@@ -7,6 +7,7 @@
 import { createAdminClient } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import type { PoiRow } from '@/types/poi';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type { PoiRow };
@@ -184,7 +185,7 @@ export async function fetchIsochrones(
   {
     const { data: clipped, error: clipErr } = await supabase.rpc(
       'clip_geojson_to_france',
-      { p_fc: rawGeojson }
+      { p_fc: toJson(rawGeojson) }
     );
     if (clipErr) {
       console.warn('[isochrone] clip_geojson_to_france error (fallback brut):', clipErr.message);
@@ -205,7 +206,7 @@ export async function fetchIsochrones(
         categorie:  cacheCtx.categorie ?? null,
         minutes,
         mode,
-        geojson,
+        geojson: toJson(geojson),
         poi_count:  sliced.length,
         created_at: new Date().toISOString(),
       },

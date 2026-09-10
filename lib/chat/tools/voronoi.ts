@@ -19,13 +19,14 @@ export async function voronoiAnalysis(
   const filtre_region  = args.region      ? String(args.region)      : null;
   const filtre_dept    = args.departement ? String(args.departement) : null;
 
-  const rpcArgs: Record<string, unknown> = { cat_name: category, metropolitaine };
-  if (filtre_ville)  rpcArgs.filtre_ville       = filtre_ville;
-  if (filtre_region) rpcArgs.filtre_region      = filtre_region;
-  if (filtre_dept)   rpcArgs.filtre_departement = filtre_dept;
-
   const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('get_voronoi_by_category', rpcArgs);
+  const { data, error } = await supabase.rpc('get_voronoi_by_category', {
+    cat_name: category,
+    metropolitaine,
+    ...(filtre_ville  ? { filtre_ville }                      : {}),
+    ...(filtre_region ? { filtre_region }                     : {}),
+    ...(filtre_dept   ? { filtre_departement: filtre_dept }   : {}),
+  });
 
   if (error) {
     console.error('[chat/voronoi] RPC error:', error.message);

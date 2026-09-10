@@ -15,6 +15,7 @@ import { generateText } from 'ai';
 import { createAdminClient } from '@/lib/auth';
 import { enforceAutonomy, getAutonomyLevel } from './autonomy';
 import { INTENT_REGISTRY, loadAllIntents } from './intents';
+import { toJson } from '@/lib/supabase/rpc-json';
 import type {
   ActionStatus, AgentContext, AutonomyLevel, IntentOutput, ProposedAction, TriggerSource,
 } from './types';
@@ -182,7 +183,7 @@ async function insertAudit(payload: AuditPayload): Promise<string | null> {
   try {
     const { data, error } = await supabase
       .from('bidding_agent_actions')
-      .insert(payload)
+      .insert({ ...payload, recommendations: toJson(payload.recommendations) })
       .select('id')
       .single();
     if (error) {

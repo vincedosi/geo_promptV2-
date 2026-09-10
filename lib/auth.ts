@@ -4,12 +4,13 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
+import type { UserRole } from '@/types/admin';
 
 export interface UserProfile {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'super_admin' | 'admin' | 'client';
+  role: UserRole;
   organization_id: string | null;
   organization_name?: string;
 }
@@ -82,7 +83,7 @@ export async function getUserFromRequest(authHeader: string | null): Promise<Use
     id: profile.id,
     email: profile.email,
     full_name: profile.full_name,
-    role: profile.role,
+    role: profile.role as UserRole,
     organization_id: profile.organization_id,
     organization_name: (profile as { organizations?: { name?: string } }).organizations?.name,
   };

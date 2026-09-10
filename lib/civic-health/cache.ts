@@ -7,6 +7,7 @@
  * l'overhead du JWT user.
  */
 import { createAdminClient } from '@/lib/auth';
+import { toJson } from '@/lib/supabase/rpc-json';
 import type { HealthIndicator, HealthProviderName } from './types';
 
 const TABLE = 'civic_health_cache';
@@ -80,7 +81,7 @@ export async function upsertCachedHealth(
     .from(TABLE)
     .upsert({
       code_insee: codeInsee,
-      payload,
+      payload: toJson(payload),
       fetched_at: new Date().toISOString(),
       provider,
     });

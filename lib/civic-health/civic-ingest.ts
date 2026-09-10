@@ -16,6 +16,7 @@ import { createAdminClient } from '@/lib/auth';
 import { getProvider } from './provider';
 import { fetchAtmoBulkWfs, fetchPollenBulkWfs } from './wfs-civic';
 import type { AtmoBulkEntry, AtmoPolluant, PollenBulkEntry, PollenSpecies } from './types';
+import type { TableInsert } from '@/lib/supabase/tables';
 
 const BATCH_SIZE = 50;
 /** PostgREST tronque à 5 000 lignes quel que soit le .limit() → pagination .range(). */
@@ -172,11 +173,20 @@ async function loadMapping(
   return mapping;
 }
 
-async function upsertRows<T extends { code_postal: string }>(
+/**
+ * Upsert par lots dans l'une des deux tables du jour.
+ *
+ * `rows` est typé depuis le schéma généré plutôt que par une contrainte
+ * structurelle maison : `PollenCpRow`/`AtmoCpRow` décrivent la forme de travail
+ * de l'agrégateur (tous champs requis, mutables), `TableInsert` décrit ce que la
+ * base accepte. Les deux doivent rester compatibles — ici c'est le compilateur
+ * qui le vérifie.
+ */
+async function upsertRows(
   supabase: ReturnType<typeof createAdminClient>,
   table: 'pollen_map_daily' | 'atmo_map_daily',
   dataset: 'pollen' | 'atmo',
-  rows: T[],
+  rows: TableInsert<'pollen_map_daily'>[] | TableInsert<'atmo_map_daily'>[],
   emit: (p: CivicIngestProgress) => void,
 ): Promise<void> {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {

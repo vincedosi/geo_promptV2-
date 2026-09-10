@@ -4,6 +4,7 @@
  * L'appelant DOIT sanitiser `detail` — aucun secret ne doit y figurer.
  */
 import { createAdminClient } from '@/lib/auth';
+import { toJson } from '@/lib/supabase/rpc-json';
 import type { DspProvider, DspLogCategory, DspLogLevel } from '@/types/dsp';
 
 interface LogDspEventParams {
@@ -30,7 +31,7 @@ export async function logDspEvent(params: LogDspEventParams): Promise<void> {
       status_code: params.statusCode ?? null,
       duration_ms: params.durationMs ?? null,
       message: params.message ?? null,
-      detail: params.detail ?? {},
+      detail: toJson(params.detail ?? {}),
     });
   } catch (e) {
     console.error('[logDspEvent] échec insertion log (ignoré):', e);
