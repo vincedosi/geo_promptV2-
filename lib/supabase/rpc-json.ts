@@ -43,3 +43,25 @@ export function rpcJson<T>(data: unknown): T | null {
 export function toJson<T>(value: T): Json {
   return value as unknown as Json;
 }
+
+/**
+ * Passe `null` à un argument de RPC que les types générés déclarent
+ * non-nullable.
+ *
+ * Un paramètre SQL `p_description text` accepte `NULL` — c'est le corps de la
+ * fonction qui décide s'il le tolère. Le générateur, lui, mappe `text` vers
+ * `string` sans jamais produire `string | null` : il n'a pas l'information.
+ * Ce helper marque explicitement les appels où l'on sait que la fonction
+ * accepte `NULL`, au lieu d'un `as string` muet qui ressemble à une erreur.
+ *
+ * Précondition : avoir vérifié que la fonction SQL gère le `NULL` (signature
+ * dans `sql/`, ou comportement déjà éprouvé en production).
+ *
+ * @example
+ *   await supabase.rpc('create_custom_geo_zone', {
+ *     p_description: nullableArg(parsed.data.description),  // text, NULL accepté
+ *   });
+ */
+export function nullableArg<T>(value: T | null | undefined): T {
+  return (value ?? null) as T;
+}

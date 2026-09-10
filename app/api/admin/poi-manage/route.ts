@@ -3,6 +3,7 @@ import { type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { z } from 'zod';
+import { triggerFilled } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('poi_france')
-    .insert({
+    .insert(triggerFilled<'poi_france', 'geom'>({
       nom: nom || null,
       categorie,
       sous_categorie: sous_categorie || null,
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       code_postal: code_postal || null,
       source: source || 'manuel',
       date_import: new Date().toISOString(),
-    })
+    }))
     .select('id, nom, categorie, sous_categorie, lat, lng, adresse, ville, departement, code_postal, source')
     .single();
 

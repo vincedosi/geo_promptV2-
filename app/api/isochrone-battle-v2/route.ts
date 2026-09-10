@@ -38,6 +38,7 @@ const battleV2Schema = z.object({
 // (refonte dynamique via ref_regions).
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 import { rpcJson } from '@/lib/supabase/rpc-json';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 /**
  * Étend les codes département pour matcher les 2 formats hétérogènes en DB
@@ -268,7 +269,7 @@ export async function POST(req: NextRequest) {
         await supabase.from('isochrones_cache').upsert({
           cache_key: battleCacheKey, ville: '_battle_v2_full_', categorie: String(category),
           minutes: Math.max(...PALIERS), mode: normalizedMode,
-          geojson: { battleGeoJSON, battleBorders: null, poisForMap },
+          geojson: toJson({ battleGeoJSON, battleBorders: null, poisForMap }),
           poi_count: pois.length, created_at: new Date().toISOString(),
         }, { onConflict: 'cache_key' });
 

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,7 +139,7 @@ export async function DELETE(
 
     if (sourceData.type === 'carreaux') {
       // ── Carreaux : DROP la table dynamique via RPC ──────────────────────
-      const tableName = sourceData.geo_config?.table_name;
+      const tableName = rpcJson<{ table_name?: string }>(sourceData.geo_config)?.table_name;
       if (tableName && /^[a-z_][a-z0-9_]*$/.test(tableName)) {
         try {
           await supabase.rpc('drop_carreaux_table', { table_name: tableName });

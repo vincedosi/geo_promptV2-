@@ -22,6 +22,7 @@ import { aggregateByZone, computeGlobalKpis, type ComparisonRow } from '@/lib/bi
 import { computeTargetingKpis } from '@/lib/bidding-ml/targeting-kpis';
 import { resolvePrimaryMetric, resolveWeightingTarget, getMetricLabels } from '@/lib/bidding-ml/metric-labels';
 import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
@@ -103,7 +104,7 @@ export async function POST(
     .select('code, required_metrics, display_name_fr')
     .eq('code', strategy.objective_code)
     .maybeSingle();
-  const primaryMetric = resolvePrimaryMetric(objRes.data?.required_metrics?.[0]);
+  const primaryMetric = resolvePrimaryMetric(rpcJson<string[]>(objRes.data?.required_metrics)?.[0]);
   const labels = getMetricLabels(primaryMetric);
   const target = resolveWeightingTarget(
     strategy.weighting_mode,

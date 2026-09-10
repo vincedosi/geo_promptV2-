@@ -15,6 +15,8 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { checkImportRateLimit } from '@/lib/api/rate-limit';
+import { triggerFilled } from '@/lib/supabase/tables';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -327,6 +329,10 @@ export async function POST(req: NextRequest) {
 
           // ── 4. Upsert par batch (ON CONFLICT source+source_ref → update) ──
           for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            // `batch` garde sa forme inferee (les compteurs plus bas lisent
+            // `r.source_ref`) ; `triggerFilled` n'est applique qu'a la frontiere
+            // de l'upsert, ou `geom` — posee par trg_panneaux_auto_geom — est
+            // reclamee par les types generes.
             const batch = rows.slice(i, i + BATCH_SIZE).map(r => ({
               ...r,
               organization_id: profile.organization_id,
@@ -335,7 +341,10 @@ export async function POST(req: NextRequest) {
 
             const { error: upsertErr } = await supabase
               .from('panneaux_affichage')
-              .upsert(batch, { onConflict: 'source,source_ref' });
+              .upsert(
+                batch.map(r => triggerFilled<'panneaux_affichage', 'geom'>({ ...r, metadata: toJson(r.metadata) })),
+                { onConflict: 'source,source_ref' },
+              );
 
             if (upsertErr) {
               nbErreurs += batch.length;

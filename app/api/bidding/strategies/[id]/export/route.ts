@@ -105,14 +105,18 @@ export async function GET(
 
   // ── Valeurs indicateur par CP ──────────────────────────────────────────────────
   const values: Record<string, number> = {};
-  const source = target.variableCode ? INDICATOR_SOURCE : null;
-  if (source) {
+  // Le narrow porte sur `variableCode` lui-meme, pas sur un `source` qui en
+  // derive : sinon le compilateur ignore que `indicator_code` est non-null dans
+  // les `.eq()` ci-dessous.
+  const variableCode = target.variableCode;
+  if (variableCode) {
+    const source = INDICATOR_SOURCE;
     if (zoneCps) {
       for (let i = 0; i < zoneCps.length; i += CHUNK) {
         const { data, error } = await supabase
           .from(source.table)
           .select(`${source.cpCol}, ${source.valCol}`)
-          .eq('indicator_code', target.variableCode)
+          .eq('indicator_code', variableCode)
           .in(source.cpCol, zoneCps.slice(i, i + CHUNK));
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         for (const r of (data ?? []) as unknown as Array<Record<string, unknown>>) {
@@ -125,7 +129,7 @@ export async function GET(
         const { data, error } = await supabase
           .from(source.table)
           .select(`${source.cpCol}, ${source.valCol}`)
-          .eq('indicator_code', target.variableCode)
+          .eq('indicator_code', variableCode)
           .range(from, from + PAGE - 1);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;

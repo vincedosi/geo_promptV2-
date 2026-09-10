@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { runReport } from '@/lib/dsp/report';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,8 @@ export async function POST(
   if (camp.is_demo) {
     const { data, error } = await supabase.rpc('simulate_dsp_report', { p_campaign_id: campaignId });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const rows = (data?.daily_rows ?? 0) + (data?.cp_rows ?? 0);
+    const sim = rpcJson<{ daily_rows?: number; cp_rows?: number }>(data);
+    const rows = (sim?.daily_rows ?? 0) + (sim?.cp_rows ?? 0);
     return NextResponse.json({ results: [{ channel: 'all', status: 'simulated', rows }] });
   }
 

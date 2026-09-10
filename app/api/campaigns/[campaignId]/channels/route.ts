@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
+import { toJson } from '@/lib/supabase/rpc-json';
 import {
   CampaignChannelsSchema, validateSelection, EMPTY_CHANNELS,
   ChannelBudgetsSchema, DspLinksSchema, pruneBudgets, pruneLinks,
@@ -95,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     ...sel, budgets, ...(Object.keys(links).length ? { links } : {}),
   };
   const nextGeoStrategy = { ...gs, channels: nextChannels };
-  const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: nextGeoStrategy }).eq('id', campaignId);
+  const { error } = await supabase.from('dsp_campaigns').update({ geo_strategy: toJson(nextGeoStrategy) }).eq('id', campaignId);
   if (error) {
     console.error('[campaigns/channels] update:', error.message);
     return NextResponse.json({ error: 'update_failed' }, { status: 500 });
