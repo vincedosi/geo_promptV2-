@@ -10,14 +10,14 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch source details
     const { data: source, error } = await supabase

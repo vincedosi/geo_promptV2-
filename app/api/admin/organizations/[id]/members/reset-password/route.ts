@@ -8,7 +8,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 

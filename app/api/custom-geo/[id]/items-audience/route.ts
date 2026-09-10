@@ -27,23 +27,24 @@ interface ItemsStats {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
   const supabase = createAdminClient();
+  const { id } = await params;
 
   // Garde IDOR AVANT toute lecture (y compris le chemin cache ci-dessous, qui
   // renvoyait auparavant sans vérif d'org).
-  const access = await checkZoneAccess(supabase, profile, params.id);
+  const access = await checkZoneAccess(supabase, profile, id);
   if (access !== 'ok') return NextResponse.json({ error: 'zone_not_found' }, { status: 404 });
 
   // 1. Cache (calculé une fois par zone — invalidé seulement par recalcul)
   const { data: zone, error } = await supabase
     .from('custom_geo_zones')
     .select('id, items_audience_stats')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
   if (error || !zone) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -55,7 +56,7 @@ export async function GET(
 
   // 2. Calcul (RPC SECURITY DEFINER — le contrôle d'accès org est dedans)
   const { data: computed, error: rpcError } = await supabase.rpc('compute_zone_items_audience', {
-    p_zone_id: params.id,
+    p_zone_id: id,
     p_caller_user_id: profile.id,
   }) as { data: ItemsStats | null; error: { message: string } | null };
   if (rpcError) {

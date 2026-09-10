@@ -15,12 +15,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
-  if (!UUID_RE.test(params.id)) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
     return NextResponse.json({ error: 'Invalid campaign id' }, { status: 400 });
   }
 
@@ -40,7 +41,7 @@ export async function GET(
         { status: 400 },
       );
     }
-    const total = await aggregateCampaignMetric(params.id, metric);
+    const total = await aggregateCampaignMetric(id, metric);
     return NextResponse.json({
       metric: {
         field: metric.field,

@@ -11,11 +11,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { logId: string } },
+  { params }: { params: Promise<{ logId: string }> },
 ) {
   const profile = await requireAuth(req);
   if (!profile) return authUnauthorized();
-  const { logId } = params;
+  const { logId } = await params;
   const level = req.nextUrl.searchParams.get('level');
   const phase = req.nextUrl.searchParams.get('phase');
 

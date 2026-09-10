@@ -9,12 +9,12 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const sb = createAdminClient();
-  const { id: orgId } = params;
+  const { id: orgId } = await params;
   const { email, role = 'client' } = await request.json();
 
   if (!email?.trim()) {
@@ -47,12 +47,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   return NextResponse.json({ success: true });
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const sb = createAdminClient();
-  const { id: orgId } = params;
+  const { id: orgId } = await params;
   const { userId, role } = await request.json();
 
   if (!userId || !role) {
@@ -74,12 +74,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ success: true });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const sb = createAdminClient();
-  const { id: orgId } = params;
+  const { id: orgId } = await params;
   const { userId } = await request.json();
 
   if (!userId) {
