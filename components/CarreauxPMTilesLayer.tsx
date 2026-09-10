@@ -10,7 +10,6 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
-import { denominateurDe, normaliser, uniteNormalisee } from '@/lib/carreaux/normalisation';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -120,26 +119,13 @@ function buildColorExpression(
   indicator: string,
 ): maplibregl.ExpressionSpecification {
   if (max <= min) {
-    // Hex litteral et non `var(--token)` : une expression de peinture MapLibre
-    // est evaluee par le moteur de rendu, qui ne resout pas les variables CSS.
-    // La regle « pas de couleur en dur » du DESIGN_SYSTEM vise les styles
-    // React/CSS, pas les palettes cartographiques — cf. COLOR_STOPS juste au-dessus.
     return ['to-color', '#FC9272'] as unknown as maplibregl.ExpressionSpecification;
   }
-  const denom = denominateurDe(indicator);
   const range = max - min;
   const stops = COLOR_STOPS.flatMap(([t, color]) => [min + t * range, color]);
-  // Valeur normalisee : effectif / superficie, ou somme / son effectif.
-  // `max(denominateur, epsilon)` evite la division par zero cote GPU, ou il n'y
-  // a pas de branchement possible.
-  const valeurNormalisee = [
-    '/',
-    ['coalesce', ['get', indicator], 0],
-    ['max', ['coalesce', ['get', denom], 0], 0.0001],
-  ];
   return [
     'interpolate', ['linear'],
-    valeurNormalisee,
+    ['coalesce', ['get', indicator], 0],
     ...stops,
   ] as unknown as maplibregl.ExpressionSpecification;
 }
@@ -188,14 +174,10 @@ export function CarreauxPMTilesLayer({
     // Fix 5 — guard transition de zoom : trop peu de features = mid-transition, on skip
     if (features.length < 10) return;
 
-    const ind   = indicatorRef.current;
-    const denom = denominateurDe(ind);
+    const ind = indicatorRef.current;
     const values = features
-      .map(f => {
-        const p = f.properties as Record<string, unknown>;
-        return normaliser(Number(p?.[ind] ?? 0), Number(p?.[denom] ?? 0));
-      })
-      .filter((v): v is number => v !== null && v > 0);
+      .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
+      .filter(v => v > 0);
 
     if (values.length === 0) return;
 
@@ -304,19 +286,14 @@ export function CarreauxPMTilesLayer({
         map.getCanvas().style.cursor = 'crosshair';
         const props = e.features?.[0]?.properties as Record<string, unknown> | undefined;
         if (!props) return;
-        const ind    = indicatorRef.current;
-        const meta   = CARREAUX_INDICATEURS.find(i => i.id === ind);
-        const brute  = Number(props[ind] ?? 0);
-        const den    = Number(props[denominateurDe(ind)] ?? 0);
-        const val    = normaliser(brute, den);
-        const texte  = val === null
-          ? '—'
-          : `${Math.round(val).toLocaleString('fr-FR')} ${uniteNormalisee(ind, meta?.unit ?? '')}`;
+        const indMeta = CARREAUX_INDICATEURS.find(i => i.id === indicatorRef.current);
+        const val = Number(props[indicatorRef.current] ?? 0)
+          .toLocaleString('fr-FR', { maximumFractionDigits: 1 });
         const pop = Number(props.population_totale ?? 0).toLocaleString('fr-FR');
         const men = Number(props.menages_total ?? 0).toLocaleString('fr-FR');
         popup.setLngLat(e.lngLat).setHTML(
           `<div style="font-size:11px;padding:6px 8px;font-family:monospace">` +
-          `<div><b>${meta?.label ?? 'Valeur'}</b> : ${texte}</div>` +
+          `<div><b>${indMeta?.label ?? 'Valeur'}</b> : ${val}${indMeta?.unit ? ' ' + indMeta.unit : ''}</div>` +
           (pop !== '0' ? `<div style="color:#555">Population : ${pop} pers.</div>` : '') +
           (men !== '0' ? `<div style="color:#555">Ménages : ${men}</div>` : '') +
           `</div>`
