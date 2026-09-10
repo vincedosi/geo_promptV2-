@@ -4,6 +4,16 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Origine publique de l'application, pour construire le `redirectTo` des liens
+ * d'authentification. `NEXT_PUBLIC_APP_URL` fait autorite (c'est elle qui doit
+ * figurer dans les Redirect URLs autorisees de Supabase) ; a defaut on retombe
+ * sur l'origine de la requete, ce qui couvre le dev local.
+ */
+function appUrl(req: NextRequest): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin).replace(/\/$/, '');
+}
+
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
@@ -55,7 +65,13 @@ export async function POST(request: NextRequest) {
     if (!org?.active) return NextResponse.json({ error: 'Organization not found or inactive' }, { status: 400 });
   }
 
-  // Create user via Supabase Auth
+  // Creation du compte.
+  //
+  // `createUser` N'ENVOIE AUCUN EMAIL — c'est `inviteUserByEmail` qui le fait,
+  // et il n'y a pas de systeme d'email dans ce projet. `email_confirm: true`
+  // marque l'adresse comme deja verifiee (pas d'email de confirmation non
+  // plus), et le compte nait SANS mot de passe : sans le lien genere ci-apres,
+  // il serait inaccessible.
   const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
     email,
     email_confirm: true,
@@ -74,5 +90,20 @@ export async function POST(request: NextRequest) {
 
   if (profErr) console.error('[admin/users POST] profile update:', profErr.message);
 
-  return NextResponse.json({ id: authUser.user.id, email }, { status: 201 });
+  // Lien de premiere connexion, a transmettre a la main par l'admin.
+  // `generateLink` ne fait que GENERER : il n'envoie rien, il retourne l'URL.
+  // Non bloquant — le compte existe meme si la generation echoue, et le lien
+  // se regenere depuis la page de l'organisation.
+  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: { redirectTo: `${appUrl(request)}/reset-password` },
+  });
+  if (linkErr) console.error('[admin/users POST] generateLink:', linkErr.message);
+
+  return NextResponse.json({
+    id: authUser.user.id,
+    email,
+    setup_link: linkData?.properties?.action_link ?? null,
+  }, { status: 201 });
 }

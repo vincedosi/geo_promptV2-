@@ -34,6 +34,10 @@ export default function AdminUsersPage() {
   const [formOrg, setFormOrg] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  // Lien de premiere connexion affiche apres creation : il n'y a pas de
+  // systeme d'email, l'admin doit le transmettre lui-meme.
+  const [setupLink, setSetupLink] = useState<{ email: string; link: string | null } | null>(null);
+  const [copie, setCopie] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
@@ -70,9 +74,9 @@ export default function AdminUsersPage() {
     adminFetch('/api/admin/roles').then(r => r.ok ? r.json() : []).then((d: Role[]) => setRoles(Array.isArray(d) ? d : []));
   }, [fetchUsers]);
 
-  const openInvite = () => { setEditUser(null); setFormEmail(''); setFormName(''); setFormRole('client'); setFormOrg(''); setShowInvite(true); };
+  const openInvite = () => { setEditUser(null); setFormEmail(''); setFormName(''); setFormRole('client'); setFormOrg(''); setSetupLink(null); setCopie(false); setShowInvite(true); };
   const openEdit = (u: User) => { setEditUser(u); setFormEmail(u.email); setFormName(u.full_name || ''); setFormRole(u.role); setFormOrg(u.organization_id || ''); setShowInvite(true); };
-  const closeModal = () => { setShowInvite(false); setEditUser(null); };
+  const closeModal = () => { setShowInvite(false); setEditUser(null); setSetupLink(null); setCopie(false); };
 
   const handleSubmit = async () => {
     setSaving(true);
@@ -90,7 +94,12 @@ export default function AdminUsersPage() {
           body: JSON.stringify({ email: formEmail, full_name: formName, role: formRole, organization_id: formOrg || null }),
         });
         if (!res.ok) { const e = await res.json(); toast.error('Erreur', e.error); return; }
-        toast.success('Invitation envoyee');
+        // Pas de toast « invitation envoyee » : rien n'est envoye. La modale
+        // reste ouverte sur le lien de premiere connexion, a transmettre.
+        const created = await res.json() as { email: string; setup_link: string | null };
+        setSetupLink({ email: created.email, link: created.setup_link });
+        fetchUsers();
+        return;
       }
       closeModal();
       fetchUsers();
@@ -141,7 +150,7 @@ export default function AdminUsersPage() {
         <h1 style={{ fontFamily: fInter, fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Users</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ fontFamily: fMono, fontSize: 12, color: 'var(--text-tertiary)' }}>{users.length} users</span>
-          <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6 }}>+ Invite user</button>
+          <button onClick={openInvite} style={{ padding: '7px 14px', fontFamily: fInter, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6 }}>+ Creer un compte</button>
         </div>
       </div>
 
@@ -189,8 +198,55 @@ export default function AdminUsersPage() {
       {showInvite && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
           <div style={{ background: 'var(--bg-surface)', border: '0.5px solid var(--border-subtle)', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }}>
-            <h2 style={{ fontFamily: fInter, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 16px' }}>{editUser ? 'Editer user' : 'Inviter un user'}</h2>
+            <h2 style={{ fontFamily: fInter, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 16px' }}>{editUser ? 'Editer user' : setupLink ? 'Compte cree' : 'Creer un compte'}</h2>
 
+            {setupLink ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Le compte <strong style={{ color: 'var(--text-primary)' }}>{setupLink.email}</strong> est cree,
+                  mais il n&apos;a pas encore de mot de passe et <strong style={{ color: 'var(--text-primary)' }}>aucun
+                  email n&apos;a ete envoye</strong>. Transmettez ce lien pour qu&apos;il definisse le sien.
+                </div>
+
+                {setupLink.link ? (
+                  <>
+                    <div style={{
+                      background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)',
+                      borderRadius: 6, padding: '10px 12px', fontFamily: fMono, fontSize: 11,
+                      color: 'var(--text-secondary)', wordBreak: 'break-all', lineHeight: 1.5,
+                      maxHeight: 96, overflowY: 'auto',
+                    }}>
+                      {setupLink.link}
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(setupLink.link ?? '').then(
+                          () => { setCopie(true); setTimeout(() => setCopie(false), 2000); },
+                          () => toast.error('Erreur', 'Copie impossible'),
+                        );
+                      }}
+                      style={{
+                        padding: '8px 16px', fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                        cursor: 'pointer', background: 'transparent',
+                        border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      {copie ? 'Lien copie' : 'Copier le lien'}
+                    </button>
+                    <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+                      Lien a usage unique et a duree de vie courte. S&apos;il expire, regenerez-en un depuis
+                      la page de l&apos;organisation.
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontFamily: fInter, fontSize: 12, color: 'var(--warning)', lineHeight: 1.6 }}>
+                    Le lien n&apos;a pas pu etre genere. Le compte existe : generez un lien depuis la page
+                    de son organisation.
+                  </div>
+                )}
+              </div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {!editUser && (
                 <div>
@@ -216,12 +272,15 @@ export default function AdminUsersPage() {
                 </select>
               </div>
             </div>
+            )}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button onClick={closeModal} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, cursor: 'pointer', background: 'transparent', border: '0.5px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-tertiary)' }}>Annuler</button>
+              <button onClick={closeModal} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, cursor: 'pointer', background: 'transparent', border: '0.5px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-tertiary)' }}>{setupLink ? 'Fermer' : 'Annuler'}</button>
+              {!setupLink && (
               <button onClick={handleSubmit} disabled={saving || (!editUser && !formEmail)} style={{ padding: '8px 16px', fontFamily: fInter, fontSize: 13, fontWeight: 500, cursor: saving ? 'wait' : 'pointer', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6, opacity: saving ? 0.5 : 1 }}>
-                {saving ? 'Envoi...' : editUser ? 'Sauvegarder' : 'Inviter'}
+                {saving ? 'Creation...' : editUser ? 'Sauvegarder' : 'Creer le compte'}
               </button>
+              )}
             </div>
           </div>
         </div>

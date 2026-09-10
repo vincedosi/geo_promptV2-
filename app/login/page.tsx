@@ -41,6 +41,10 @@ export default function LoginPage() {
   const { signUp, isLoading: isSigningUp, error: signUpError } = useSignUp();
   const [lastError,     setLastError]     = useState('');
   const [showPassword,  setShowPassword]  = useState(false);
+  // Pas de systeme d'email dans le projet : `resetPasswordForEmail` n'aboutirait
+  // a rien. Le bouton n'avait aucun onClick — il affiche desormais la seule
+  // marche a suivre reelle, au lieu de ne rien faire.
+  const [aideMdp,       setAideMdp]       = useState(false);
 
   // ── Handlers — preserved exactly ────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,11 +160,23 @@ export default function LoginPage() {
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
+                  onClick={() => setAideMdp(v => !v)}
                   tabIndex={-1}
                 >
                   Mot de passe oublié ?
                 </button>
               </div>
+
+              {aideMdp && (
+                <div style={{
+                  background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 6, padding: '10px 12px', marginBottom: 8,
+                  fontSize: 12, color: 'var(--text-secondary)', fontFamily: fInter, lineHeight: 1.6,
+                }}>
+                  Demandez un lien de réinitialisation à votre administrateur : il peut en générer
+                  un depuis la console d&apos;administration.
+                </div>
+              )}
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}

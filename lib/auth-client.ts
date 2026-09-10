@@ -15,6 +15,21 @@ import { useState, useEffect, useCallback } from "react";
 // ---------- Supabase browser client (singleton) ----------
 // createBrowserClient gère les cookies automatiquement (HttpOnly via SSR)
 let _browser: ReturnType<typeof createBrowserClient> | null = null;
+
+/**
+ * Client Supabase navigateur (singleton).
+ *
+ * Expose le meme client que celui des hooks ci-dessous, pour les rares cas qui
+ * ont besoin de l'API Supabase directement plutot que d'un hook : la page
+ * `/reset-password` lit la session portee par un lien de recovery et appelle
+ * `auth.updateUser({ password })`.
+ *
+ * A ne jamais importer cote serveur — utiliser `@/lib/auth`.
+ */
+export function getSupabaseBrowser() {
+  return getBrowserClient();
+}
+
 function getBrowserClient() {
   if (!_browser) {
     _browser = createBrowserClient(
