@@ -10,6 +10,7 @@ import type React from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import type { IrisStats } from '@/app/copilote/_hooks/useMapLayers';
+import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ export interface FilterPanelProps {
   carreauxIndicateur?:      string;
   carreauxPalette?:         string;
   carreauxOpacity?:         number;
-  carreauxRange?:           { p5: number; p95: number } | null;
+  carreauxRange?:           BornesEchelle | null;
   carreauxSelectedBucket?:  number | null;
   setCarreauxVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
   setCarreauxIndicateur?:   (v: string) => void;

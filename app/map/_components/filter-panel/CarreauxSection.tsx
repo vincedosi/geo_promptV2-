@@ -11,6 +11,8 @@
 import React from 'react';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { uniteNormalisee } from '@/lib/carreaux/normalisation';
+import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
+import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import { C, fInter, fMono } from './tokens';
 
 export interface CarreauxSectionProps {
@@ -22,7 +24,7 @@ export interface CarreauxSectionProps {
   carreauxIndicateur?: string;
   carreauxPalette?: string;
   carreauxOpacity?: number;
-  carreauxRange?: { p5: number; p95: number } | null;
+  carreauxRange?: BornesEchelle | null;
   carreauxSelectedBucket?: number | null;
   setCarreauxVisible?: (v: boolean | ((p: boolean) => boolean)) => void;
   setCarreauxIndicateur?: (v: string) => void;
@@ -155,11 +157,16 @@ export function CarreauxSection({
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {pal.stops.map((color, i) => {
-                    const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                    const min = carreauxRange.p5 + i * step;
-                    const max = carreauxRange.p5 + (i + 1) * step;
+                    // L'échelle est logarithmique, la légende ne l'est pas : on
+                    // repasse chaque borne en unité réelle avant affichage. Même
+                    // découpage (palierEchelle) que le filtre par palier, et
+                    // formatage à précision adaptative — un arrondi à l'entier
+                    // affichait « 0 – 0 » sur les indicateurs rares.
+                    const palier = palierEchelle(carreauxRange, i, 6);
+                    const min = versValeurReelle(palier.min);
+                    const max = versValeurReelle(palier.max);
                     const isSelected = carreauxSelectedBucket === i;
-                    const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
+                    const fmt = formaterValeur;
                     return (
                       <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
