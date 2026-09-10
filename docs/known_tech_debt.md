@@ -412,12 +412,22 @@ il n'y avait rien à supprimer. Aucune action requise.
 
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
-| 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
-| bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
-| Brancher `Database` sur le client Supabase | 4-6 h | medium | 106 erreurs de typage sur 60 fichiers — cf. `docs/AUDIT_BASE.md` |
-| ~~`get_radio_coverage_geometry` absente de la base~~ | — | — | **RÉSOLU 2026-09-10** (`sql/121`). Pas de décision produit à prendre : `rayon_couverture_m` était déjà calculé et stocké sur chaque émetteur. |
 | `get_check_constraint_values` absente (rôles en dur malgré l'appel) | 30 min | faible | décision : créer la fonction ou assumer la constante |
 | `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
+| `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | 4-8 h | élevé | correctif en 6.9.0 = **major** ; règle webpack dédiée dans `next.config.js` + toute la carto à revalider |
+| `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
+| 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
+
+### Fermé le 2026-09-10
+
+| Item | Comment |
+|---|---|
+| Brancher `Database` sur le client Supabase | 105 → **0** erreur `tsc`. Quatre helpers documentent les frontières que le générateur ne sait pas typer (`toJson`, `rpcJson`, `nullableArg`, `triggerFilled`). Deux bugs réels déterrés : le rôle `editor` absent des unions TS, et une trace d'audit auto-pilot qui n'a jamais pu s'écrire. |
+| bump `next` 14.2.35 → 15.5.25 | Corrige au passage une incohérence préexistante : React 19.2.4 tournait sur Next 14 avec des `@types/react` en 18. Vérifié à l'exécution (`/map` MapLibre, overlay Audience, 0 warning `sync-dynamic-apis`). Déployé en production. |
+| `get_radio_coverage_geometry` absente | `sql/121`. Aucune décision produit à prendre : `rayon_couverture_m` était déjà calculé et stocké sur les 11 836 émetteurs. Pire cas mesuré : 1,4 s pour 1 bloc lu. |
+| 2 entrées de matcher middleware | Fermé le 2026-09-08 (`b010f78`), avec accord explicite sur le fichier protégé. |
+| Rôle `editor` fantôme + modèle de droits non documenté | `editor` supprimé (migration `drop_editor_role`) ; ARCHITECTURE.md gagne le tableau des pouvoirs réels et la mention **RLS dormantes**. |
+| Bouton « Inviter » qui n'invitait personne | Parcours de première connexion complet (`/reset-password`), sans système d'email. |
 
 **Plus aucun fichier de plus de 1 000 lignes au 2026-09-08.** `FilterPanel.tsx`
 est sorti de cette liste le jour meme (1 826 → 897, cf. §1). Le plus gros
