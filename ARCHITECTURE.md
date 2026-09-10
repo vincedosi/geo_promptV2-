@@ -500,9 +500,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Radio FM/DAB+
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `emetteur_radio` | Emetteurs radio (ANFR) | position geo, puissance, systeme |
-| `radio_stations` | Stations radio | nom, categorie Arcom, portee |
-| `emetteur_radio_stations` | Liaison N:N emetteurs/stations | many-to-many |
+| `emetteurs_radio` | Emetteurs radio ANFR (11 836) | geom, puissance_w, hauteur_m, systeme, **`rayon_couverture_m` pre-calcule** (6-54 km). `radio_id` existe mais est NULL partout : passer par la table N:N. 754 emetteurs en outre-mer — tout calcul metrique doit utiliser `geography`, pas Lambert-93. |
+| `radios` | Radios (861) | nom, categorie_arcom, portee, groupe_media, audience_data |
+| `emetteur_radio_stations` | Liaison N:N emetteurs/radios (569 698) | seule liaison exploitable, index `idx_ers_radio` |
 | `radio_imports_log` | Historique imports radio | |
 
 ### Isochrones
@@ -698,8 +698,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 > requises). A regenerer apres chaque `apply_migration`. L'audit complet
 > « ce que le code appelle vs ce que la base expose » est dans
 > `docs/AUDIT_BASE.md` : 92 RPC appelees, 3 appelees sans exister en base
-> (`get_radio_coverage_geometry`, `get_check_constraint_values`,
-> `compute_panneau_scores`).
+> (`get_check_constraint_values`, `compute_panneau_scores`).
+> `get_radio_coverage_geometry` a ete ecrite le 2026-09-10 (sql/121) : la
+> capture d'une zone custom depuis une couverture radio fonctionne desormais.
 
 > **Types generes branches (2026-09-10).** Les clients Supabase sont typés
 > `createClient<Database>`. Quatre frontieres que le generateur ne peut pas

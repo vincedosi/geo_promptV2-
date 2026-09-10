@@ -415,7 +415,7 @@ il n'y avait rien à supprimer. Aucune action requise.
 | 2 entrées de matcher middleware | 15 min | faible | **fichier protégé — accord Vince** |
 | bump `next` 14.2.35 (advisory haute) | 2-4 h | élevé | `audit fix --force` requis + smoke complet |
 | Brancher `Database` sur le client Supabase | 4-6 h | medium | 106 erreurs de typage sur 60 fichiers — cf. `docs/AUDIT_BASE.md` |
-| `get_radio_coverage_geometry` absente de la base | 1-2 h | faible | **décision produit** : rayon de couverture par portée d'émetteur |
+| ~~`get_radio_coverage_geometry` absente de la base~~ | — | — | **RÉSOLU 2026-09-10** (`sql/121`). Pas de décision produit à prendre : `rayon_couverture_m` était déjà calculé et stocké sur chaque émetteur. |
 | `get_check_constraint_values` absente (rôles en dur malgré l'appel) | 30 min | faible | décision : créer la fonction ou assumer la constante |
 | `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
 

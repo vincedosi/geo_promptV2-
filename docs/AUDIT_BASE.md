@@ -39,7 +39,7 @@ par URL REST (`/rest/v1/rpc/export_iris_batch`), sans jamais écrire `.rpc(`.
 
 | RPC | Appelant | Conséquence réelle |
 |---|---|---|
-| `get_radio_coverage_geometry` | `app/api/custom-geo/source/radio/route.ts`, exposé par `CaptureLayers.tsx` | **La capture d'une zone custom depuis une couverture radio répond toujours 400.** Aucun fallback. La fonction n'existe ni en base ni dans `sql/` — elle n'a jamais été écrite. |
+| ~~`get_radio_coverage_geometry`~~ | `app/api/custom-geo/source/radio/route.ts`, exposé par `CaptureLayers.tsx` | **RÉSOLU le 2026-09-10** (`sql/121`). La fonction n'avait jamais été écrite et la route répondait 400 à chaque appel. Elle unit les buffers de `rayon_couverture_m` des émetteurs de la radio, en `geography` (754 émetteurs sont en outre-mer). Mesuré : 1,4 s dans le pire cas — France Inter, 11 836 émetteurs — pour 1 bloc lu. |
 | `get_check_constraint_values` | `app/api/admin/roles/route.ts` | Fallback silencieux : la liste des rôles retombe sur la constante `ROLE_LEVELS` du fichier. L'intention (lire les rôles depuis la contrainte CHECK de `profiles`) n'est jamais honorée — le `as never` sur l'appel montre qu'on savait le type absent. |
 | `compute_panneau_scores` | `scripts/rescore_all_villes.py` | Le script de rescoring des panneaux est cassé. Ni `compute_panneau_scores` ni `compute_panneau_scores_v2` n'existent en base — alors que `CLAUDE.md` et la skill de cleanup citent `compute_panneau_scores_v2` comme fonction protégée. |
 

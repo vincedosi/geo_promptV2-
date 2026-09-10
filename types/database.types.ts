@@ -2,7 +2,7 @@
  * Types TypeScript du schema public Supabase — GENERE, NE PAS EDITER A LA MAIN.
  *
  * Projet : vkkdbygwbrxyogqosten (eu-west-3)
- * Genere le : 2026-09-08 via MCP Supabase (generate_typescript_types).
+ * Genere le : 2026-09-10 via MCP Supabase (generate_typescript_types).
  *
  * Regeneration :
  *   npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/database.types.ts
@@ -5522,6 +5522,10 @@ export type Database = {
         }[]
       }
       get_radio_audit: { Args: never; Returns: Json }
+      get_radio_coverage_geometry: {
+        Args: { p_radio_id: string; p_transmitter_ids?: string[] }
+        Returns: Json
+      }
       get_radio_emetteurs_geojson:
         | {
             Args: {
