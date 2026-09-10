@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { uniteNormalisee } from '@/lib/carreaux/normalisation';
 import { C, fInter, fMono } from './tokens';
 
 export interface CarreauxSectionProps {
@@ -46,6 +47,14 @@ export function CarreauxSection({
   setCarreauxOpacity,
   setCarreauxSelectedBucket,
 }: CarreauxSectionProps) {
+  // `carreauxRange` porte désormais des percentiles NORMALISÉS (cf.
+  // lib/carreaux/normalisation.ts) : un effectif y est rapporté au km², une
+  // somme Filosofi à son effectif. L'unité affichée doit suivre, sinon la
+  // légende annonce « pers. » pour une densité.
+  const indicateur = carreauxIndicateur ?? 'population_totale';
+  const uniteBrute = CARREAUX_INDICATEURS.find(i => i.id === indicateur)?.unit ?? '';
+  const unite = uniteNormalisee(indicateur, uniteBrute);
+
   return (
     <>
       <button
@@ -129,6 +138,11 @@ export function CarreauxSection({
         <div>
           <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             Légende
+            {unite && (
+              <span style={{ fontFamily: fMono, fontSize: 10, fontWeight: 400, color: C.textDim }}>
+                {unite}
+              </span>
+            )}
             {carreauxSelectedBucket !== null && (
               <button onClick={() => setCarreauxSelectedBucket?.(null)}
                 style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}

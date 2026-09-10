@@ -9,7 +9,52 @@ import {
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
 import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { denominateurDe, normaliser } from '@/lib/carreaux/normalisation';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+
+// ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
+// La cascade de `get_tile` sert des mailles de 200 m, 2 km ou 5 km selon le zoom :
+// un effectif brut n'est donc PAS comparable d'un palier à l'autre (facteur 70
+// entre 2 km et 200 m). Couleur, filtre par palier et bornes de légende doivent
+// tous lire la MÊME valeur normalisée, sinon ils se contredisent en silence.
+
+/**
+ * Expression MapLibre du quotient `indicateur / dénominateur`, évaluée par le
+ * moteur de rendu feature par feature (points 1 et 2 : `fill-color` et
+ * `fill-opacity`).
+ *
+ * `max(dénominateur, 0.0001)` protège la division côté GPU, où aucun
+ * branchement n'est possible : un carreau sans habitant produirait sinon
+ * `Infinity`, qu'`interpolate` rejette sans lever d'exception.
+ */
+function carreauxNormaliseExpr(ind: string): maplibregl.ExpressionSpecification {
+  const denom = denominateurDe(ind);
+  return ['/',
+    ['to-number', ['get', ind], 0],
+    ['max', ['to-number', ['get', denom], 0], 0.0001],
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+/**
+ * Valeurs normalisées strictement positives des features rendues, pour le
+ * calcul des percentiles p5/p95 (points 3 et 4).
+ *
+ * `normaliser` renvoie `null` sur un dénominateur nul ou une valeur non finie :
+ * ces features sont écartées plutôt que de contaminer les bornes avec
+ * `Infinity`/`NaN`.
+ */
+function carreauxValeursNormalisees(
+  features: maplibregl.MapGeoJSONFeature[],
+  ind: string,
+): number[] {
+  const denom = denominateurDe(ind);
+  return features
+    .map(f => {
+      const p = f.properties as Record<string, unknown>;
+      return normaliser(Number(p?.[ind] ?? 0), Number(p?.[denom] ?? 0));
+    })
+    .filter((v): v is number => v !== null && v > 0);
+}
 
 // ── IRIS — palettes + types ───────────────────────────────────────────────────
 export interface IrisStats {
@@ -229,9 +274,12 @@ export function useMapLayers({
     const pal = CARREAUX_PALETTES.find(p => p.id === paletteId) ?? CARREAUX_PALETTES[0];
     const range = p95 - p5;
     if (range <= 0) return;
-    // safeNum : null-safe — to-number with fallback 0 ensures static return type = number
-    // so interpolate doesn't get a Value/unknown from ['get', ind]
-    const safeNum = ['to-number', ['get', ind], 0];
+    // safeNum : valeur NORMALISÉE (densité/km² ou moyenne par individu/ménage),
+    // pas l'effectif brut — sinon une même couleur désigne une densité différente
+    // de part et d'autre d'un changement de palier de maille.
+    // null-safe : les to-number internes garantissent un type statique `number`,
+    // pour qu'interpolate ne reçoive pas un Value/unknown depuis ['get', …].
+    const safeNum = carreauxNormaliseExpr(ind);
     const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
     const expr = ['interpolate', ['linear'],
       safeNum,
@@ -257,9 +305,7 @@ export function useMapLayers({
       if (!map.getLayer('carreaux-mvt-fill')) { console.warn('[palette] layer not found'); return; }
       const feats = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
       logger.debug('palette', `queried features ${feats.length}`);
-      const values = feats
-        .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
-        .filter(v => v > 0);
+      const values = carreauxValeursNormalisees(feats, ind);
       if (values.length === 0) { console.warn('[palette] no values for ind:', ind); return; }
       const sorted = [...values].sort((a, b) => a - b);
       const p5  = sorted[Math.floor(sorted.length * 0.05)];
@@ -291,7 +337,9 @@ export function useMapLayers({
       return;
     }
     const { bucket, min, max, ind } = info;
-    const val = ['to-number', ['get', ind], 0] as unknown as maplibregl.ExpressionSpecification;
+    // min/max viennent de carreauxRangeRef, donc de percentiles NORMALISÉS :
+    // comparer à la valeur brute sélectionnerait les mauvais carreaux.
+    const val = carreauxNormaliseExpr(ind);
     const inBucket = (bucket === 5
       ? ['>=', val, min]
       : ['all', ['>=', val, min], ['<', val, max]]
@@ -348,9 +396,7 @@ export function useMapLayers({
       if (!map.getLayer('carreaux-mvt-fill')) return;
       const features = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
       if (features.length === 0) return;
-      const values = features
-        .map(f => Number((f.properties as Record<string, unknown>)?.[carreauxIndicateur] ?? 0))
-        .filter(v => v > 0);
+      const values = carreauxValeursNormalisees(features, carreauxIndicateur);
       if (values.length === 0) return;
       const sorted = [...values].sort((a, b) => a - b);
       const p5  = sorted[Math.floor(sorted.length * 0.05)];
