@@ -31,7 +31,7 @@ export interface DspImport {
   setDspSource: React.Dispatch<React.SetStateAction<string>>;
   dspCampaignName: string;
   setDspCampaignName: React.Dispatch<React.SetStateAction<string>>;
-  dspFileRef: React.RefObject<HTMLInputElement>;
+  dspFileRef: React.RefObject<HTMLInputElement | null>;
   dspEvents: CampaignImportEvent[];
   dspReport: CampaignImportReport | null;
   handleDspImport: () => Promise<void>;

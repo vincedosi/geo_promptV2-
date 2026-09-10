@@ -31,7 +31,7 @@ export interface ImportStepProps {
   progress: { current: number; total: number } | null;
   elapsed: number;
   logs: string[];
-  logRef: React.RefObject<HTMLDivElement>;
+  logRef: React.RefObject<HTMLDivElement | null>;
 
   setStep: (n: WizardStep) => void;
   onReset: () => void;

@@ -10,7 +10,7 @@ export function useZonesList(params: {
   const [zones, setZones] = useState<CustomGeoZoneSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchZones = useCallback(async () => {
     setLoading(true);

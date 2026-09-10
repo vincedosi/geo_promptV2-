@@ -29,7 +29,7 @@ export function useAdminCustomZones({ orgId, sourceType, searchQuery, enabled = 
   const [zones, setZones] = useState<AdminCustomZone[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchZones = useCallback(async () => {
     if (!enabled) return;

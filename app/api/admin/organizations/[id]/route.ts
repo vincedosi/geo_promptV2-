@@ -9,12 +9,12 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const sb = createAdminClient();
-  const { id } = params;
+  const { id } = await params;
 
   const [orgRes, membersRes, sourcesRes, allSourcesRes] = await Promise.all([
     sb.from('organizations').select('*').eq('id', id).single(),
@@ -40,12 +40,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   });
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const sb = createAdminClient();
-  const { id } = params;
+  const { id } = await params;
   const body = await request.json();
 
   // Non-super_admin can only edit their own org, and cannot touch slug/config/active
@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ success: true, organization: data });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
@@ -88,7 +88,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
 
   const sb = createAdminClient();
-  const { id } = params;
+  const { id } = await params;
 
   const { error: checkError, data: org } = await sb
     .from('organizations')

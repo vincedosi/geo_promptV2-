@@ -37,7 +37,7 @@ export interface ImportStepProps {
   importReport: ImportReport | null;
 
   logLines: LogLine[];
-  logContainerRef: React.RefObject<HTMLDivElement>;
+  logContainerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function ImportStep({

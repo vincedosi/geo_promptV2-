@@ -11,14 +11,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireAdmin(_request);
   if (!profile) return adminUnauthorized();
 
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch metadata from a sample of rows (max 100) to extract keys
     const { data, error } = await supabase

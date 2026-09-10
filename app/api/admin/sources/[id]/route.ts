@@ -14,14 +14,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     const { data, error } = await supabase
       .from('data_sources')
@@ -62,7 +62,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
@@ -75,7 +75,7 @@ export async function PATCH(
     }
 
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Allowed update fields
     const updates: Record<string, unknown> = {};
@@ -109,14 +109,14 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch source details to know the type + check ownership
     const { data: sourceData, error: sourceFetchErr } = await supabase

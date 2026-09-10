@@ -21,7 +21,7 @@ export interface LogLine {
 
 export interface ImportLogPanelProps {
   logLines: LogLine[];
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   isImporting: boolean;
 }
 
