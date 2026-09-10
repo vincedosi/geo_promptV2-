@@ -131,6 +131,7 @@ genesis_app/
 │   ├── api/                    # Middleware API (requireAdmin, requireAuth)
 │   ├── auth/                   # getSessionOrg, getOrgSourceIds
 │   ├── campaigns/              # column-mappings.ts, parser.ts
+│   ├── carreaux/                # normalisation.ts (densite/km2, moyennes) + bornes.ts (echelle nationale log10)
 │   ├── chat/                   # Copilote IA
 │   │   ├── providers.ts        # createModel() — Gemini / Mistral
 │   │   ├── system-prompt.ts    # Prompt systeme dynamique
@@ -281,7 +282,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/map/ooh` | POST | Panneaux OOH dans bbox |
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI |
-| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) |
+| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) — chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
 
 ### IRIS
 | Route | Methode | Description |

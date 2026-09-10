@@ -4,6 +4,8 @@ import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
+import type { BornesEchelle } from '@/lib/carreaux/bornes';
 
 interface MapPanelProps {
   mapContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -38,7 +40,7 @@ interface MapPanelProps {
   carreauxIndicateur: string;
   carreauxPalette: string;
   carreauxOpacity: number;
-  carreauxRange: { p5: number; p95: number } | null;
+  carreauxRange: BornesEchelle | null;
   carreauxSelectedBucket: number | null;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   setCarreauxIndicateur: (v: string) => void;
@@ -114,15 +116,12 @@ const toggleBtnBase = (active: boolean, activeColor: string): React.CSSPropertie
   textTransform: 'uppercase' as const,
 });
 
-// Formate une valeur numérique pour la légende (arrondi lisible)
-function fmtVal(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 10_000)    return `${Math.round(v / 1000)}k`;
-  if (v >= 1_000)     return `${(v / 1000).toFixed(1)}k`;
-  if (v >= 100)       return String(Math.round(v));
-  if (v >= 10)        return String(Math.round(v));
-  return v % 1 === 0 ? String(v) : v.toFixed(1);
-}
+// Formate une valeur numérique pour la légende. Délègue à `formaterValeur`
+// (lib/carreaux/bornes.ts), partagé avec la légende de CarreauxSection : les deux
+// légendes décrivent la même échelle, elles ne doivent pas l'arrondir
+// différemment. La précision adaptative y est nécessaire — les bornes basses
+// descendent à 0,02 log./km², qu'un arrondi à l'entier affichait « 0 – 0 ».
+const fmtVal = formaterValeur;
 
 export function MapPanel({
   mapContainerRef, mapRef, mapReady, zoneData, activeCats,
@@ -351,10 +350,12 @@ export function MapPanel({
             {carreauxRange ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {pal.stops.map((color, i) => {
-                  const range = carreauxRange!;
-                  const step = (range.p95 - range.p5) / 6;
-                  const min  = range.p5 + i * step;
-                  const max  = range.p5 + (i + 1) * step;
+                  // L'échelle est logarithmique, la légende ne l'est pas : on
+                  // repasse chaque borne en unité réelle (hab/km², €/hab, m²/mén.)
+                  // avant affichage. Même découpage que le filtre par palier.
+                  const palier = palierEchelle(carreauxRange!, i, 6);
+                  const min  = versValeurReelle(palier.min);
+                  const max  = versValeurReelle(palier.max);
                   const isSelected = carreauxSelectedBucket === i;
                   return (
                     <button

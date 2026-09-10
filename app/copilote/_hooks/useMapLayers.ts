@@ -9,7 +9,78 @@ import {
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
 import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { denominateurDe } from '@/lib/carreaux/normalisation';
+import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
+import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+
+// ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
+// La cascade de `get_tile` sert des mailles de 200 m, 2 km ou 5 km selon le zoom :
+// un effectif brut n'est donc PAS comparable d'un palier à l'autre (facteur 70
+// entre 2 km et 200 m). Couleur, filtre par palier et bornes de légende doivent
+// tous lire la MÊME valeur normalisée, sinon ils se contredisent en silence.
+//
+// Les BORNES de l'échelle, elles, ne sont plus mesurées sur les features rendues :
+// elles viennent de `lib/carreaux/bornes.ts` (bornes nationales constantes).
+// C'est ce qui rend deux territoires comparables — une densité donne la même
+// couleur où qu'on soit sur la carte.
+//
+// Et l'échelle est LOGARITHMIQUE. La normalisation rend les unités comparables,
+// pas les distributions : la même grandeur s'étend sur plus de 4 décades entre un
+// carreau rural de 5 km et un carreau de 200 m dans Paris. Mesuré en base, des
+// bornes fixes LINÉAIRES saturaient 99,5 % des carreaux de Paris au zoom ≥ 10 —
+// un aplat monochrome, pire que le défaut d'origine. En log10, chaque palier
+// récupère un vrai dégradé.
+
+/**
+ * Expression MapLibre du quotient `indicateur / dénominateur`, évaluée par le
+ * moteur de rendu feature par feature (`fill-color` et `fill-opacity`).
+ *
+ * `max(dénominateur, 0.0001)` protège la division : un carreau sans habitant
+ * produirait sinon `Infinity`, qu'`interpolate` rejette sans lever d'exception.
+ *
+ * Un `case`/`coalesce` serait parfaitement légal ici — ces expressions sont
+ * évaluées par MapLibre côté CPU, pas en GLSL. Le choix du `max` est celui de
+ * l'indivisibilité : couleur (`fill-color`) et filtre par palier
+ * (`fill-opacity`) lisent cette seule fonction, donc la même valeur. Toute
+ * logique supplémentaire serait une occasion de les faire diverger — et leur
+ * divergence ne lève aucune erreur, elle ne se voit qu'à l'œil.
+ */
+function carreauxNormaliseExpr(ind: string): maplibregl.ExpressionSpecification {
+  const denom = denominateurDe(ind);
+  return ['/',
+    ['to-number', ['get', ind], 0],
+    ['max', ['to-number', ['get', denom], 0], 0.0001],
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+/**
+ * Expression MapLibre de la valeur telle que l'échelle la lit : le **log10** du
+ * quotient normalisé.
+ *
+ * `max(quotient, PLANCHER_LOG)` protège l'entrée du log exactement comme le
+ * `max` du dénominateur protège la division : `log10(0)` vaut `-Infinity`, et
+ * `interpolate` rejette `-Infinity` sans lever d'exception — la couche reste
+ * alors sans couleur, sans erreur, sans trace.
+ *
+ * Point d'entrée UNIQUE de l'échelle : `fill-color` (la couleur) et
+ * `fill-opacity` (le filtre par palier) passent tous deux par ici, donc lisent
+ * la même valeur. C'est la seule garantie qu'une tranche de légende désigne bien
+ * les carreaux que le filtre sélectionne — leur divergence ne lèverait aucune
+ * erreur, elle ne se verrait qu'à l'œil.
+ */
+function carreauxEchelleExpr(ind: string): maplibregl.ExpressionSpecification {
+  return ['log10',
+    ['max', carreauxNormaliseExpr(ind), PLANCHER_LOG],
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+// L'extraction JS des valeurs normalisées des features rendues
+// (`carreauxValeursNormalisees`) a été retirée avec les percentiles de viewport :
+// plus aucun point de calcul ne lit les features, donc elle n'avait plus
+// d'appelant. Son rôle — garantir que les bornes lisent la même valeur que la
+// couleur — est désormais tenu en amont, par la normalisation appliquée au
+// calcul des bornes nationales (cf. sql/123).
 
 // ── IRIS — palettes + types ───────────────────────────────────────────────────
 export interface IrisStats {
@@ -79,13 +150,13 @@ export function useMapLayers({
   const [carreauxLabel,          setCarreauxLabel]          = useState('Population totale');
   const [carreauxPalette,        _setCarreauxPalette]       = useState('rouge');
   const [carreauxOpacity,        _setCarreauxOpacity]       = useState(0.72);
-  const [carreauxRange,          setCarreauxRange]          = useState<{ p5: number; p95: number } | null>(null);
+  const [carreauxRange,          setCarreauxRange]          = useState<BornesEchelle | null>(null);
   const [carreauxSelectedBucket, _setCarreauxSelectedBucket] = useState<number | null>(null);
   const carreauxSourcesRef = useRef<{ tableName: string; name: string }[]>([]);
   // Refs to always have current values without stale closures
   const carreauxIndicateurRef = useRef('population_totale');
   // Range mémorisé pour réappliquer la palette sans re-query (déclaré ici pour usage dans les effects)
-  const carreauxRangeRef = useRef<{ ind: string; p5: number; p95: number } | null>(null);
+  const carreauxRangeRef = useRef<{ ind: string; min: number; max: number } | null>(null);
   // Opacity ref — mir ror de _setCarreauxOpacity, accessible sans stale closure
   const carreauxOpacityRef = useRef(0.72);
   // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
@@ -222,55 +293,52 @@ export function useMapLayers({
     map: maplibregl.Map,
     paletteId: string,
     ind: string,
-    p5: number,
-    p95: number,
+    bornes: BornesEchelle,
   ) => {
     if (!map.getLayer('carreaux-mvt-fill')) return;
     const pal = CARREAUX_PALETTES.find(p => p.id === paletteId) ?? CARREAUX_PALETTES[0];
-    const range = p95 - p5;
-    if (range <= 0) return;
-    // safeNum : null-safe — to-number with fallback 0 ensures static return type = number
-    // so interpolate doesn't get a Value/unknown from ['get', ind]
-    const safeNum = ['to-number', ['get', ind], 0];
+    const etendue = bornes.max - bornes.min;
+    if (etendue <= 0) return;
+    // safeNum : log10 de la valeur NORMALISÉE (densité/km² ou moyenne par
+    // individu/ménage), pas l'effectif brut — sinon une même couleur désigne une
+    // densité différente de part et d'autre d'un changement de palier de maille.
+    // Le log10 est ce qui empêche la queue urbaine dense de saturer tout le haut
+    // de la palette (mesuré : 99,5 % de Paris en linéaire).
+    // null-safe : les to-number internes garantissent un type statique `number`,
+    // pour qu'interpolate ne reçoive pas un Value/unknown depuis ['get', …].
+    const safeNum = carreauxEchelleExpr(ind);
+    // `interpolate` reste ['linear'] : c'est la VALEUR qui est passée au log, pas
+    // l'interpolation. ['interpolate', ['exponential', …]] courberait les
+    // couleurs entre deux stops, ce qui n'est pas la même chose et ne rendrait
+    // pas les bornes comparables.
     const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
     const expr = ['interpolate', ['linear'],
       safeNum,
-      ...positions.flatMap((t, i) => [p5 + t * range, pal.stops[i]]),
+      ...positions.flatMap((t, i) => [bornes.min + t * etendue, pal.stops[i]]),
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
   }, []);
 
   // ── Setters directs — applique immédiatement sans passer par les effects ──
 
+  // Les bornes sont nationales et constantes : plus de branche « cache sinon
+  // queryRenderedFeatures ». Un changement de palette ne change que les
+  // couleurs, jamais l'échelle — c'est pourquoi il n'y a plus rien à mesurer.
   const setCarreauxPalette = useCallback((paletteId: string) => {
     logger.debug('palette', `click ${paletteId} map: ${!!mapRef.current}`);
     _setCarreauxPalette(paletteId);
     const map = mapRef.current;
     if (!map) { console.warn('[palette] no map'); return; }
     const ind = carreauxIndicateurRef.current;
-    const r = carreauxRangeRef.current;
-    logger.debug('palette', `range ${r} ind: ${ind} layer exists: ${!!map.getLayer('carreaux-mvt-fill')}`);
-    if (r && r.p95 > r.p5) {
-      applyCarreauxColor(map, paletteId, r.ind, r.p5, r.p95);
-      logger.debug('palette', 'applied from cache');
-    } else {
-      if (!map.getLayer('carreaux-mvt-fill')) { console.warn('[palette] layer not found'); return; }
-      const feats = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
-      logger.debug('palette', `queried features ${feats.length}`);
-      const values = feats
-        .map(f => Number((f.properties as Record<string, unknown>)?.[ind] ?? 0))
-        .filter(v => v > 0);
-      if (values.length === 0) { console.warn('[palette] no values for ind:', ind); return; }
-      const sorted = [...values].sort((a, b) => a - b);
-      const p5  = sorted[Math.floor(sorted.length * 0.05)];
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      if (p95 > p5) {
-        carreauxRangeRef.current = { ind, p5, p95 };
-        setCarreauxRange({ p5, p95 });
-        applyCarreauxColor(map, paletteId, ind, p5, p95);
-        logger.debug('palette', `applied from query, p5 ${p5} p95: ${p95}`);
-      }
-    }
+    const bornes = bornesDe(ind);
+    // Garde conservée : une expression `interpolate` à bornes non strictement
+    // croissantes est rejetée EN SILENCE par MapLibre — couche sans couleur,
+    // sans erreur.
+    if (bornes.max <= bornes.min) return;
+    carreauxRangeRef.current = { ind, ...bornes };
+    setCarreauxRange(bornes);
+    applyCarreauxColor(map, paletteId, ind, bornes);
+    logger.debug('palette', `applied national bornes log10 ${bornes.min} → ${bornes.max}`);
   }, [mapRef, applyCarreauxColor]);
 
   // ── Helper : applique l'opacité bucket via setPaintProperty (pas setFilter) ──
@@ -291,7 +359,10 @@ export function useMapLayers({
       return;
     }
     const { bucket, min, max, ind } = info;
-    const val = ['to-number', ['get', ind], 0] as unknown as maplibregl.ExpressionSpecification;
+    // min/max viennent de palierEchelle, donc de bornes NORMALISÉES et en LOG10 :
+    // comparer à la valeur brute, ou à sa densité non logarithmée,
+    // sélectionnerait les mauvais carreaux. Même expression que fill-color.
+    const val = carreauxEchelleExpr(ind);
     const inBucket = (bucket === 5
       ? ['>=', val, min]
       : ['all', ['>=', val, min], ['<', val, max]]
@@ -329,53 +400,36 @@ export function useMapLayers({
       return;
     }
     const ind = carreauxIndicateurRef.current;
-    const step = (r.p95 - r.p5) / 6;
-    const min = r.p5 + bucket * step;
-    const max = r.p5 + (bucket + 1) * step;
+    // Découpage partagé avec les deux légendes (lib/carreaux/bornes.ts) : une
+    // tranche cliquée doit désigner exactement les carreaux qu'elle affiche.
+    const { min, max } = palierEchelle(r, bucket, 6);
     const info = { bucket, min, max, ind };
     carreauxBucketInfoRef.current = info;
     applyBucketOpacity(map, info, carreauxOpacityRef.current);
   }, [mapRef, applyBucketOpacity]);
 
-  // ── Recoloration dynamique (pan + indicateur) ─────────────────────────────
+  // ── Coloration (indicateur + palette) ─────────────────────────────────────
+  // Les bornes sont nationales et constantes : la couleur ne dépend plus de ce
+  // qui est affiché. Il n'y a donc plus rien à recalculer au déplacement — les
+  // abonnements `idle`/`moveend`, le débounce de 150 ms et le
+  // `queryRenderedFeatures` par déplacement ont été retirés, pas neutralisés.
+  // Une seule application suffit : au montage, et à tout changement
+  // d'indicateur ou de palette (les dépendances de cet effet).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !carreauxVisible) return;
+    if (!map.getLayer('carreaux-mvt-fill')) return;
 
-    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const bornes = bornesDe(carreauxIndicateur);
+    // Garde conservée : `interpolate` à bornes non strictement croissantes est
+    // rejeté EN SILENCE par MapLibre — la couche reste sans couleur, sans erreur.
+    if (bornes.max <= bornes.min) return;
 
-    const recolor = () => {
-      if (!map.getLayer('carreaux-mvt-fill')) return;
-      const features = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
-      if (features.length === 0) return;
-      const values = features
-        .map(f => Number((f.properties as Record<string, unknown>)?.[carreauxIndicateur] ?? 0))
-        .filter(v => v > 0);
-      if (values.length === 0) return;
-      const sorted = [...values].sort((a, b) => a - b);
-      const p5  = sorted[Math.floor(sorted.length * 0.05)];
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      if (p95 <= p5) return;
-      // Mémorise le range pour la palette + état React pour la légende
-      carreauxRangeRef.current = { ind: carreauxIndicateur, p5, p95 };
-      setCarreauxRange({ p5, p95 });
-      applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, p5, p95);
-    };
-
-    const scheduleRecolor = () => {
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(recolor, 150);
-    };
-
-    map.on('idle',    scheduleRecolor);
-    map.on('moveend', scheduleRecolor);
-    scheduleRecolor();
-
-    return () => {
-      map.off('idle',    scheduleRecolor);
-      map.off('moveend', scheduleRecolor);
-      if (debounce) clearTimeout(debounce);
-    };
+    // carreauxRangeRef alimente setCarreauxPalette et le filtre par palier ;
+    // l'état React alimente les bornes affichées dans la légende.
+    carreauxRangeRef.current = { ind: carreauxIndicateur, ...bornes };
+    setCarreauxRange(bornes);
+    applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, bornes);
   }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor]);
 
   // ── IRIS — fonctions couleur + chargement ─────────────────────────────────

@@ -1,5 +1,27 @@
 # Carreaux — échelle de couleurs comparable
 
+> ⚠️ **AMENDEMENT (2026-09-10, après livraison) — ce plan ne décrit plus ce qui a été fait.**
+> Il cible `components/CarreauxPMTilesLayer.tsx` et une échelle **linéaire** sur
+> des percentiles `p5`/`p95` recalculés côté client. En cours d'implémentation,
+> une ronde 2 a tout remplacé :
+> - `CarreauxPMTilesLayer.tsx` n'est **jamais monté** (composant mort, non
+>   supprimé — cf. `docs/known_tech_debt.md`, section Ouvert). La couche
+>   carreaux réellement affichée vit dans `app/copilote/_hooks/useMapLayers.ts`
+>   + `app/map/_components/filter-panel/CarreauxSection.tsx`.
+> - L'échelle n'est plus linéaire mais **logarithmique** (base 10) : des
+>   percentiles viewport `p5`/`p95` linéaires saturaient 78,7 % des carreaux de
+>   France en maille 200 m (voir mesure dans `lib/carreaux/bornes.ts`).
+> - Les bornes ne s'appellent plus `p5`/`p95` mais `min`/`max` : elles ne sont
+>   ni un percentile symétrique, ni mesurées sur le même palier de zoom (`min`
+>   vient du palier 5 km le plus grossier, `max` du palier 200 m le plus fin —
+>   p99,9 pour les effectifs, p95 pour les deux moyennes). Un nom de percentile
+>   aurait été faux dans les deux sens.
+>
+> Un futur relecteur qui implémenterait ce plan tel qu'écrit referait exactement
+> le défaut de la ronde 1 (échelle linéaire, saturation massive). La source de
+> vérité du comportement livré est `lib/carreaux/normalisation.ts` et
+> `lib/carreaux/bornes.ts`, pas ce document.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Faire qu'une couleur donnée sur la carte des carreaux désigne toujours la même réalité, quel que soit le zoom et la zone affichée.

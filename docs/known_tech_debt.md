@@ -416,6 +416,12 @@ il n'y avait rien à supprimer. Aucune action requise.
 | `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | 4-8 h | élevé | correctif en 6.9.0 = **major** ; règle webpack dédiée dans `next.config.js` + toute la carto à revalider |
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
+| Pastille légende / couleur peinte / filtre découpent l'échelle différemment (`fill-color` aux positions k/5, légende et filtre en k/6) | 2-3 h | modéré — un carreau peut sembler filtré d'un palier alors qu'il est peint d'un autre | aucun ; correctif propre = passer `fill-color` en `['step', …]` à 6 classes pour aligner les trois découpages |
+| Palier 0 du filtre non ouvert vers le bas (`applyBucketOpacity`) : les carreaux sous la borne nationale basse sont peints mais introuvables au clic | < 1 h | faible | aucun ; 1 ligne |
+| `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
+| Les 28 bornes nationales de `lib/carreaux/bornes.ts` sont un instantané du 2026-09-10 | à chiffrer (script de re-mesure + signal de fraîcheur) | élevé — un ré-import Filosofi les périme **sans aucun signal**, la carte reste plausible mais fausse | décision produit : quel signal de péremption (date stockée + comparaison à l'import, alerte admin, ou re-mesure automatique post-import) |
+| `components/CarreauxPMTilesLayer.tsx` (373 l.) jamais monté, 4ᵉ définition contradictoire du calcul de normalisation, et un test importe désormais son catalogue (`CARREAUX_INDICATEURS`) | 2-3 h | faible | aucun ; extraire `CARREAUX_INDICATEURS`/`CARREAUX_PALETTES` dans `lib/carreaux/`, migrer le test, puis supprimer le composant — idem pour le bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) |
+| `carreaux_filosofi.geom_centroid` NULL sur toute la table → `code_dept`/`code_region` toujours NULL au zoom ≥ 10 | 0 h (aucune action) | faible — coût mesuré nul, aucun consommateur actuel | décision produit : le filtre territorial client-side (`setFilter`) sur les carreaux fins a-t-il de la valeur, sinon laisser tel quel |
 
 ### Fermé le 2026-09-10
 

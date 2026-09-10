@@ -10,6 +10,9 @@
 
 import React from 'react';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { uniteNormalisee } from '@/lib/carreaux/normalisation';
+import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
+import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import { C, fInter, fMono } from './tokens';
 
 export interface CarreauxSectionProps {
@@ -21,7 +24,7 @@ export interface CarreauxSectionProps {
   carreauxIndicateur?: string;
   carreauxPalette?: string;
   carreauxOpacity?: number;
-  carreauxRange?: { p5: number; p95: number } | null;
+  carreauxRange?: BornesEchelle | null;
   carreauxSelectedBucket?: number | null;
   setCarreauxVisible?: (v: boolean | ((p: boolean) => boolean)) => void;
   setCarreauxIndicateur?: (v: string) => void;
@@ -46,6 +49,16 @@ export function CarreauxSection({
   setCarreauxOpacity,
   setCarreauxSelectedBucket,
 }: CarreauxSectionProps) {
+  // `carreauxRange` porte des bornes NATIONALES fixes en log10 de la valeur
+  // normalisée (cf. lib/carreaux/bornes.ts) : un effectif y est rapporté au
+  // km², une somme Filosofi à son effectif. Ce ne sont plus des percentiles du
+  // viewport — c'est précisément pour ça que le renommage p5/p95 → min/max a
+  // eu lieu. L'unité affichée doit suivre le même dénominateur, sinon la
+  // légende annonce « pers. » pour une densité.
+  const indicateur = carreauxIndicateur ?? 'population_totale';
+  const uniteBrute = CARREAUX_INDICATEURS.find(i => i.id === indicateur)?.unit ?? '';
+  const unite = uniteNormalisee(indicateur, uniteBrute);
+
   return (
     <>
       <button
@@ -129,6 +142,11 @@ export function CarreauxSection({
         <div>
           <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             Légende
+            {unite && (
+              <span style={{ fontFamily: fMono, fontSize: 10, fontWeight: 400, color: C.textDim }}>
+                {unite}
+              </span>
+            )}
             {carreauxSelectedBucket !== null && (
               <button onClick={() => setCarreauxSelectedBucket?.(null)}
                 style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
@@ -141,11 +159,16 @@ export function CarreauxSection({
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {pal.stops.map((color, i) => {
-                    const step = (carreauxRange.p95 - carreauxRange.p5) / 6;
-                    const min = carreauxRange.p5 + i * step;
-                    const max = carreauxRange.p5 + (i + 1) * step;
+                    // L'échelle est logarithmique, la légende ne l'est pas : on
+                    // repasse chaque borne en unité réelle avant affichage. Même
+                    // découpage (palierEchelle) que le filtre par palier, et
+                    // formatage à précision adaptative — un arrondi à l'entier
+                    // affichait « 0 – 0 » sur les indicateurs rares.
+                    const palier = palierEchelle(carreauxRange, i, 6);
+                    const min = versValeurReelle(palier.min);
+                    const max = versValeurReelle(palier.max);
                     const isSelected = carreauxSelectedBucket === i;
-                    const fmt = (v: number) => v >= 1000 ? `${Math.round(v / 100) / 10}k` : Math.round(v).toString();
+                    const fmt = formaterValeur;
                     return (
                       <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
