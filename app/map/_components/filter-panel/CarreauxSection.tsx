@@ -49,9 +49,11 @@ export function CarreauxSection({
   setCarreauxOpacity,
   setCarreauxSelectedBucket,
 }: CarreauxSectionProps) {
-  // `carreauxRange` porte désormais des percentiles NORMALISÉS (cf.
-  // lib/carreaux/normalisation.ts) : un effectif y est rapporté au km², une
-  // somme Filosofi à son effectif. L'unité affichée doit suivre, sinon la
+  // `carreauxRange` porte des bornes NATIONALES fixes en log10 de la valeur
+  // normalisée (cf. lib/carreaux/bornes.ts) : un effectif y est rapporté au
+  // km², une somme Filosofi à son effectif. Ce ne sont plus des percentiles du
+  // viewport — c'est précisément pour ça que le renommage p5/p95 → min/max a
+  // eu lieu. L'unité affichée doit suivre le même dénominateur, sinon la
   // légende annonce « pers. » pour une densité.
   const indicateur = carreauxIndicateur ?? 'population_totale';
   const uniteBrute = CARREAUX_INDICATEURS.find(i => i.id === indicateur)?.unit ?? '';
