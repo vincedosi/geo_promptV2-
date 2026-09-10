@@ -12,6 +12,7 @@ import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 import { denominateurDe } from '@/lib/carreaux/normalisation';
 import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
+import { bornesInternes } from '@/lib/carreaux/expressions';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
@@ -307,14 +308,19 @@ export function useMapLayers({
     // null-safe : les to-number internes garantissent un type statique `number`,
     // pour qu'interpolate ne reçoive pas un Value/unknown depuis ['get', …].
     const safeNum = carreauxEchelleExpr(ind);
-    // `interpolate` reste ['linear'] : c'est la VALEUR qui est passée au log, pas
-    // l'interpolation. ['interpolate', ['exponential', …]] courberait les
-    // couleurs entre deux stops, ce qui n'est pas la même chose et ne rendrait
-    // pas les bornes comparables.
-    const positions = [0, 0.20, 0.40, 0.60, 0.80, 1.00];
-    const expr = ['interpolate', ['linear'],
-      safeNum,
-      ...positions.flatMap((t, i) => [bornes.min + t * etendue, pal.stops[i]]),
+    // `step` (et non `interpolate`) : les frontières viennent de `palierEchelle`
+    // via `bornesInternes`, l'unique découpage aussi lu par la légende
+    // (CarreauxSection) et par le filtre par palier (applyBucketOpacity). Un
+    // `interpolate` à arrêts posés à `k/5` de l'étendue peignait un dégradé
+    // continu que la légende, elle, découpait en `k/6` : une pastille pouvait
+    // annoncer une teinte que la carte n'employait pas dans cette tranche. Le
+    // `step` traite d'office les valeurs sous `bornes.min` comme `stops[0]`
+    // (MapLibre applique la valeur d'entrée en dessous de la première
+    // frontière), ce que l'`interpolate` faisait aussi par clamp — mais que le
+    // filtre par palier, lui, ne faisait pas encore (cf. applyBucketOpacity).
+    const frontieres = bornesInternes(bornes, 6);
+    const expr = ['step', safeNum, pal.stops[0],
+      ...frontieres.flatMap((b, i) => [b, pal.stops[i + 1]]),
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
   }, []);
@@ -363,9 +369,15 @@ export function useMapLayers({
     // comparer à la valeur brute, ou à sa densité non logarithmée,
     // sélectionnerait les mauvais carreaux. Même expression que fill-color.
     const val = carreauxEchelleExpr(ind);
-    const inBucket = (bucket === 5
-      ? ['>=', val, min]
-      : ['all', ['>=', val, min], ['<', val, max]]
+    // Le palier 0 est ouvert vers le bas comme le palier 5 est ouvert vers le
+    // haut : sinon les carreaux sous `bornes.min` sont peints (fill-color les
+    // clampe sur `stops[0]`, cf. applyCarreauxColor) mais introuvables au clic
+    // sur la première tranche de la légende.
+    const inBucket = (bucket === 0
+      ? ['<', val, max]
+      : bucket === 5
+        ? ['>=', val, min]
+        : ['all', ['>=', val, min], ['<', val, max]]
     ) as unknown as maplibregl.ExpressionSpecification;
     try {
       map.setPaintProperty('carreaux-mvt-fill', 'fill-opacity',
