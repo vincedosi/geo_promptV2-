@@ -9,7 +9,8 @@ import {
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
 import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
-import { denominateurDe, normaliser } from '@/lib/carreaux/normalisation';
+import { denominateurDe } from '@/lib/carreaux/normalisation';
+import { bornesDe } from '@/lib/carreaux/bornes';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
@@ -17,11 +18,15 @@ import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 // un effectif brut n'est donc PAS comparable d'un palier à l'autre (facteur 70
 // entre 2 km et 200 m). Couleur, filtre par palier et bornes de légende doivent
 // tous lire la MÊME valeur normalisée, sinon ils se contredisent en silence.
+//
+// Les BORNES de l'échelle, elles, ne sont plus mesurées sur les features rendues :
+// elles viennent de `lib/carreaux/bornes.ts` (percentiles nationaux constants).
+// C'est ce qui rend deux territoires comparables — une densité donne la même
+// couleur où qu'on soit sur la carte.
 
 /**
  * Expression MapLibre du quotient `indicateur / dénominateur`, évaluée par le
- * moteur de rendu feature par feature (points 1 et 2 : `fill-color` et
- * `fill-opacity`).
+ * moteur de rendu feature par feature (`fill-color` et `fill-opacity`).
  *
  * `max(dénominateur, 0.0001)` protège la division : un carreau sans habitant
  * produirait sinon `Infinity`, qu'`interpolate` rejette sans lever d'exception.
@@ -41,26 +46,12 @@ function carreauxNormaliseExpr(ind: string): maplibregl.ExpressionSpecification 
   ] as unknown as maplibregl.ExpressionSpecification;
 }
 
-/**
- * Valeurs normalisées strictement positives des features rendues, pour le
- * calcul des percentiles p5/p95 (points 3 et 4).
- *
- * `normaliser` renvoie `null` sur un dénominateur nul ou une valeur non finie :
- * ces features sont écartées plutôt que de contaminer les bornes avec
- * `Infinity`/`NaN`.
- */
-function carreauxValeursNormalisees(
-  features: maplibregl.MapGeoJSONFeature[],
-  ind: string,
-): number[] {
-  const denom = denominateurDe(ind);
-  return features
-    .map(f => {
-      const p = f.properties as Record<string, unknown>;
-      return normaliser(Number(p?.[ind] ?? 0), Number(p?.[denom] ?? 0));
-    })
-    .filter((v): v is number => v !== null && v > 0);
-}
+// L'extraction JS des valeurs normalisées des features rendues
+// (`carreauxValeursNormalisees`) a été retirée avec les percentiles de viewport :
+// plus aucun point de calcul ne lit les features, donc elle n'avait plus
+// d'appelant. Son rôle — garantir que les bornes lisent la même valeur que la
+// couleur — est désormais tenu en amont, par la normalisation appliquée au
+// calcul des bornes nationales (cf. sql/123).
 
 // ── IRIS — palettes + types ───────────────────────────────────────────────────
 export interface IrisStats {
@@ -296,33 +287,24 @@ export function useMapLayers({
 
   // ── Setters directs — applique immédiatement sans passer par les effects ──
 
+  // Les bornes sont nationales et constantes : plus de branche « cache sinon
+  // queryRenderedFeatures ». Un changement de palette ne change que les
+  // couleurs, jamais l'échelle — c'est pourquoi il n'y a plus rien à mesurer.
   const setCarreauxPalette = useCallback((paletteId: string) => {
     logger.debug('palette', `click ${paletteId} map: ${!!mapRef.current}`);
     _setCarreauxPalette(paletteId);
     const map = mapRef.current;
     if (!map) { console.warn('[palette] no map'); return; }
     const ind = carreauxIndicateurRef.current;
-    const r = carreauxRangeRef.current;
-    logger.debug('palette', `range ${r} ind: ${ind} layer exists: ${!!map.getLayer('carreaux-mvt-fill')}`);
-    if (r && r.p95 > r.p5) {
-      applyCarreauxColor(map, paletteId, r.ind, r.p5, r.p95);
-      logger.debug('palette', 'applied from cache');
-    } else {
-      if (!map.getLayer('carreaux-mvt-fill')) { console.warn('[palette] layer not found'); return; }
-      const feats = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
-      logger.debug('palette', `queried features ${feats.length}`);
-      const values = carreauxValeursNormalisees(feats, ind);
-      if (values.length === 0) { console.warn('[palette] no values for ind:', ind); return; }
-      const sorted = [...values].sort((a, b) => a - b);
-      const p5  = sorted[Math.floor(sorted.length * 0.05)];
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      if (p95 > p5) {
-        carreauxRangeRef.current = { ind, p5, p95 };
-        setCarreauxRange({ p5, p95 });
-        applyCarreauxColor(map, paletteId, ind, p5, p95);
-        logger.debug('palette', `applied from query, p5 ${p5} p95: ${p95}`);
-      }
-    }
+    const { p5, p95 } = bornesDe(ind);
+    // Garde conservée : une expression `interpolate` à bornes non strictement
+    // croissantes est rejetée EN SILENCE par MapLibre — couche sans couleur,
+    // sans erreur.
+    if (p95 <= p5) return;
+    carreauxRangeRef.current = { ind, p5, p95 };
+    setCarreauxRange({ p5, p95 });
+    applyCarreauxColor(map, paletteId, ind, p5, p95);
+    logger.debug('palette', `applied national bornes p5 ${p5} p95: ${p95}`);
   }, [mapRef, applyCarreauxColor]);
 
   // ── Helper : applique l'opacité bucket via setPaintProperty (pas setFilter) ──
@@ -391,43 +373,28 @@ export function useMapLayers({
     applyBucketOpacity(map, info, carreauxOpacityRef.current);
   }, [mapRef, applyBucketOpacity]);
 
-  // ── Recoloration dynamique (pan + indicateur) ─────────────────────────────
+  // ── Coloration (indicateur + palette) ─────────────────────────────────────
+  // Les bornes sont nationales et constantes : la couleur ne dépend plus de ce
+  // qui est affiché. Il n'y a donc plus rien à recalculer au déplacement — les
+  // abonnements `idle`/`moveend`, le débounce de 150 ms et le
+  // `queryRenderedFeatures` par déplacement ont été retirés, pas neutralisés.
+  // Une seule application suffit : au montage, et à tout changement
+  // d'indicateur ou de palette (les dépendances de cet effet).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !carreauxVisible) return;
+    if (!map.getLayer('carreaux-mvt-fill')) return;
 
-    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const { p5, p95 } = bornesDe(carreauxIndicateur);
+    // Garde conservée : `interpolate` à bornes non strictement croissantes est
+    // rejeté EN SILENCE par MapLibre — la couche reste sans couleur, sans erreur.
+    if (p95 <= p5) return;
 
-    const recolor = () => {
-      if (!map.getLayer('carreaux-mvt-fill')) return;
-      const features = map.queryRenderedFeatures(undefined, { layers: ['carreaux-mvt-fill'] });
-      if (features.length === 0) return;
-      const values = carreauxValeursNormalisees(features, carreauxIndicateur);
-      if (values.length === 0) return;
-      const sorted = [...values].sort((a, b) => a - b);
-      const p5  = sorted[Math.floor(sorted.length * 0.05)];
-      const p95 = sorted[Math.floor(sorted.length * 0.95)];
-      if (p95 <= p5) return;
-      // Mémorise le range pour la palette + état React pour la légende
-      carreauxRangeRef.current = { ind: carreauxIndicateur, p5, p95 };
-      setCarreauxRange({ p5, p95 });
-      applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, p5, p95);
-    };
-
-    const scheduleRecolor = () => {
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(recolor, 150);
-    };
-
-    map.on('idle',    scheduleRecolor);
-    map.on('moveend', scheduleRecolor);
-    scheduleRecolor();
-
-    return () => {
-      map.off('idle',    scheduleRecolor);
-      map.off('moveend', scheduleRecolor);
-      if (debounce) clearTimeout(debounce);
-    };
+    // carreauxRangeRef alimente setCarreauxPalette et le filtre par palier ;
+    // l'état React alimente les bornes affichées dans la légende.
+    carreauxRangeRef.current = { ind: carreauxIndicateur, p5, p95 };
+    setCarreauxRange({ p5, p95 });
+    applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, p5, p95);
   }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor]);
 
   // ── IRIS — fonctions couleur + chargement ─────────────────────────────────
