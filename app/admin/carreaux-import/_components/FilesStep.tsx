@@ -24,8 +24,8 @@ export interface FilesStepProps {
   isParsing: boolean;
   parseProgress: { label: string; pct: number } | null;
 
-  dropRef: React.RefObject<HTMLDivElement>;
-  inputRef: React.RefObject<HTMLInputElement>;
+  dropRef: React.RefObject<HTMLDivElement | null>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   isDragging: boolean;
 
   onDrop: (e: React.DragEvent) => void;

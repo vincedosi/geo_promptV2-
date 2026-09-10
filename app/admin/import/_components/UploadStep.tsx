@@ -23,7 +23,7 @@ export interface UploadStepProps {
   parseResult: ParseResult | null;
   isParsing: boolean;
   isDragging: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
 
   handleFileUpload: (files: File | File[]) => void;
   handleDrop: (e: React.DragEvent) => void;

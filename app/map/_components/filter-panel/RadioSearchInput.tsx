@@ -9,7 +9,7 @@ export function RadioSearchInput({ onSelect }: { onSelect: (radioId: string, rad
   const [query, setQuery] = React.useState('');
   const [results, setResults] = React.useState<Array<{ id: string; nom: string; categorie_arcom: string | null }>>([]);
   const [show, setShow] = React.useState(false);
-  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const search = (q: string) => {
     setQuery(q);

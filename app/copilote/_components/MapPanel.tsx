@@ -6,7 +6,7 @@ import type { SelectedBillboard } from '@/types/map';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
 
 interface MapPanelProps {
-  mapContainerRef: React.RefObject<HTMLDivElement>;
+  mapContainerRef: React.RefObject<HTMLDivElement | null>;
   mapRef?: React.MutableRefObject<maplibregl.Map | null>;
   mapReady?: boolean;
   zoneData: ZoneData | null;

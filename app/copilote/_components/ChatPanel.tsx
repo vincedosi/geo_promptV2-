@@ -33,7 +33,7 @@ interface ChatPanelProps {
   handleSubmit: (e: FormEvent) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   sendMessage: (text: string) => void;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   rateLimitCooldown: number;
   cancelCooldown: () => void;
   error: string | null;
