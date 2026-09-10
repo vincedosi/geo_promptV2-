@@ -412,7 +412,7 @@ il n'y avait rien à supprimer. Aucune action requise.
 
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
-| `compute_panneau_scores` absente (`rescore_all_villes.py` cassé) | 1 h | faible | décision : script mort, ou fonction à écrire |
+| `compute_panneau_scores` absente — **le scoring des panneaux n'a jamais fonctionné** | 1 h (retrait) ou chantier produit (écriture) | faible | **décision produit, mesurée le 2026-09-10** — voir ci-dessous |
 | `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | 4-8 h | élevé | correctif en 6.9.0 = **major** ; règle webpack dédiée dans `next.config.js` + toute la carto à revalider |
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
@@ -422,6 +422,39 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Les 28 bornes nationales de `lib/carreaux/bornes.ts` sont un instantané du 2026-09-10 | à chiffrer (script de re-mesure + signal de fraîcheur) | élevé — un ré-import Filosofi les périme **sans aucun signal**, la carte reste plausible mais fausse | décision produit : quel signal de péremption (date stockée + comparaison à l'import, alerte admin, ou re-mesure automatique post-import) |
 | `components/CarreauxPMTilesLayer.tsx` (373 l.) jamais monté, 4ᵉ définition contradictoire du calcul de normalisation, et un test importe désormais son catalogue (`CARREAUX_INDICATEURS`) | 2-3 h | faible | aucun ; extraire `CARREAUX_INDICATEURS`/`CARREAUX_PALETTES` dans `lib/carreaux/`, migrer le test, puis supprimer le composant — idem pour le bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) |
 | `carreaux_filosofi.geom_centroid` NULL sur toute la table → `code_dept`/`code_region` toujours NULL au zoom ≥ 10 | 0 h (aucune action) | faible — coût mesuré nul, aucun consommateur actuel | décision produit : le filtre territorial client-side (`setFilter`) sur les carreaux fins a-t-il de la valeur, sinon laisser tel quel |
+
+#### `compute_panneau_scores` — ce que la mesure dit (2026-09-10)
+
+La dette annonçait « décision : script mort, ou fonction à écrire ». Mesuré en
+base, la question est en réalité tranchée par les faits :
+
+- **1 434 panneaux, tous actifs. `score_ooh_final` et `score_demo` renseignés
+  sur les 1 434 — mais avec UNE SEULE valeur distincte : `0.000`.** Tous les
+  scores valent zéro.
+- **`score_computed_at` est NULL sur les 1 434 lignes** : aucun panneau n'a
+  jamais été scoré. Les valeurs à zéro sont des défauts de colonne, pas un
+  résultat.
+- La table porte **14 colonnes de score** (`score_age_*`, `score_transport`,
+  `score_proximite_lycee`, `score_proximite_cirfa`, `score_flux_routier`,
+  `score_demo`, `score_ooh_total`, `bonus_isochrone`, `score_ooh_final`).
+- **Un seul lecteur applicatif** : `app/api/admin/transport-stats/route.ts`,
+  qui agrège `score_transport`, `score_flux_routier` et `score_ooh_total` —
+  donc qui agrège des zéros et produit des statistiques vides de sens.
+- `scripts/rescore_all_villes.py` (32 l.) appelle la RPC absente : il échoue à
+  chaque exécution.
+- **Aucune spécification n'existe.** `docs/SCORE.md` concerne un autre sujet
+  (le score d'alignement géographique des campagnes DSP).
+
+Ce n'est donc pas un bug à corriger mais **une fonctionnalité jamais terminée**.
+Écrire la fonction demande une spécification produit (quelle pondération entre
+démographie, transport, flux routier, proximité ?) qui n'a jamais été écrite.
+
+Deux sorties, toutes deux à arbitrer par Vincent :
+1. **Retirer** — supprimer `rescore_all_villes.py`, et soit retirer les 14
+   colonnes, soit les documenter comme non peuplées. Corriger ou retirer
+   `/api/admin/transport-stats`, qui affiche aujourd'hui des moyennes de zéros.
+2. **Écrire** — chantier produit à part entière, à cadrer, pas une tâche de
+   nettoyage.
 
 ### Fermé le 2026-09-10
 
