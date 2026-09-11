@@ -273,9 +273,20 @@ survient, quand le volume monte.
   `app/api/digital/[campaignId]/reconcile/pull/route.ts`
 - **Constat** : seule table du schéma `public` sans clé primaire (vérifié sur
   `pg_index`).
-- **Impact** : rien n'empêche structurellement un doublon au rejeu d'un
-  `reconcile/pull`.
-- **Gravité** : moyenne
+- **MON IMPACT INITIAL ÉTAIT FAUX**, corrigé le 2026-09-11. J'avais écrit
+  « rien n'empêche structurellement un doublon au rejeu ». En lisant
+  `app/api/digital/[campaignId]/reconcile/pull/route.ts:65-67`, la route fait
+  un **`DELETE` ciblé puis `INSERT`** — exactement le patron idempotent que
+  `ARCHITECTURE.md` recommande pour cette famille de tables. **Un rejeu ne peut
+  pas dupliquer.** 2 131 lignes en base, toutes distinctes, vérifié.
+- **Décision : ne pas poser de clé primaire.** Elle ne résoudrait rien, aucune
+  clé naturelle fiable n'existe (voir ci-dessous), et ajouter une colonne
+  risquerait de casser les fonctions SQL qui lisent la table.
+- **Découverte annexe, elle réelle** : `ARCHITECTURE.md` décrit « 2 grains
+  disjoints : date×canal + CP ». La donnée dit autre chose — **0** ligne avec
+  `postal_code` NULL (le grain date×canal n'existe pas), 2 041 avec `date` NULL,
+  et **90 avec les deux renseignés**, forme non documentée. La doc est corrigée.
+- **Gravité** : moyenne → **basse** (wart de modélisation, pas un défaut)
 - **Effort** : S
 
 ### ARC-003 [Architecture] `init-admin` est inatteignable
