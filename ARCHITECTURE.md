@@ -521,7 +521,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### POI & Panneaux
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom` |
+| `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom`. `id` **deterministe** a l'import universel : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
 | `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |

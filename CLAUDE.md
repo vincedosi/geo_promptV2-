@@ -50,6 +50,7 @@ IMPORTANT : `getUser()` sur routes API → 409 token refresh concurrent → déc
 - Table `iris` — colonnes socio-démo **dynamiques**. JAMAIS hardcoder la liste de colonnes.
 - `is_true_iris = true` → vrais IRIS (~16 400). Filtrer pour toute analyse statistique.
 - `.trim()` obligatoire sur données CSV INSEE (espaces invisibles).
+- POI importés : `id` **déterministe** (UUIDv5 du contenu de la ligne, `lib/import/identite-poi.ts`). JAMAIS de `randomUUID()` — c'est ce qui rendait `onConflict: 'id'` inopérant et dupliquait tout au rejeu d'un import (`ECH-001`).
 - Gzip obligatoire sur réponses MVT. MapLibre 5.x plante silencieusement sans.
 - `geom_3857` pré-calculé sur `carreaux_filosofi`. Ne pas recalculer à la volée.
 - PMTiles IRIS → GitHub Releases (pas Supabase Storage). Proxy : `/api/iris-tiles-proxy`.

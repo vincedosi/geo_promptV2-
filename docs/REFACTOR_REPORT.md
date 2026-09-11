@@ -13,9 +13,10 @@ quand un tiers ne répond pas, quand on rejoue un import, quand une erreur
 survient, quand le volume monte. Le gain le plus net : `/api/admin/iris/stats`
 passe de **~15 secondes à 112 millisecondes** de travail base par ouverture.
 
-Il reste **deux constats critiques non traités**, tous deux hors périmètre parce
-qu'ils exigent un arbitrage humain — au premier rang `ECH-001`, une duplication
-totale des données à chaque rejeu d'import.
+Le seul constat **critique** de l'audit, `ECH-001` — duplication totale des
+données à chaque rejeu d'un import de POI — a été traité après coup, le
+2026-09-11, dans un chantier dédié (section « `ECH-001` » plus bas). Ce qui
+reste ouvert est listé en fin de rapport et relève de l'arbitrage produit.
 
 ## Lots réalisés
 
@@ -30,6 +31,7 @@ totale des données à chaque rejeu d'import.
 | 6 — insertion groupée | `2068b76` | ✅ facteur 50 |
 | 7 — dédoublonnage de l'autorisation | `ebe52bb` | ✅ |
 | 8 — nettoyages | `aadc220` | ✅ |
+| `ECH-001` — identité déterministe des POI | *ce commit* | ✅ hors des neuf lots, voir plus bas |
 
 Documentation et audit : `a800ff8`, `127ba69`, `c818505`.
 
@@ -39,12 +41,13 @@ Documentation et audit : `a800ff8`, `127ba69`, `c818505`.
 |---|---|---|
 | Erreurs `tsc` | 0 | **0** |
 | Warnings lint | 0 | **0** |
-| Tests | 483 | **512** (+29) |
-| Fichiers de tests | 64 | 68 |
+| Tests | 483 | **532** (+49) |
+| Fichiers de tests | 64 | 70 |
 | Taille max de fichier | 1 118 l. (`useMapLayers.ts`) | 1 118 l. — non traité, délibérément |
 | Appels externes sans délai d'expiration | **14** | **0** |
 | Requêtes pour `/api/admin/iris/stats` | **21** (~15 s) | **1** (112 ms) |
 | Requêtes par lot d'import de 50 lignes | **50** | **1** (repli à 50 en cas d'échec) |
+| POI dupliqués au rejeu d'un import | **100 %** des lignes | **0** (`ECH-001`) |
 | Insertions par lots de 500 | 2 endroits | **0** |
 | Définitions de la règle « sources d'une org » | **3** | **1** |
 | Actions d'administration échouant en silence | 7 | **0** |
@@ -66,7 +69,6 @@ C'est la partie la plus utile de ce rapport. **Quatre constats sur vingt-deux
 
 | Localisation | Description | Gravité |
 |---|---|---|
-| `lib/import/validator.ts:196` + `lib/import/inserter.ts:65` | `id: randomUUID()` généré à chaque parse, avec `onConflict: 'id'` : le conflit ne peut **jamais** se produire. Rejouer un import de POI duplique tout, sans une erreur | **critique** |
 | `app/api/admin/campaigns/import/route.ts:246-269` | Même nature : un rejeu crée une seconde campagne | haute |
 | `app/api/admin/import-datagouv/route.ts:282` | `.insert()` sans clé stable — le code le reconnaît en commentaire | haute |
 | `app/api/admin/sources/[id]/route.ts:148` | Le `DROP TABLE` échoue, la suppression de la source se poursuit, la réponse dit `success: true`. Le lot 4 a rendu l'échec visible dans le journal ; **faire échouer la suppression serait un changement de comportement** | haute |
@@ -87,6 +89,56 @@ rester ainsi. Mesuré en base avant correction :
 
 Réversible : seule la RPC `get_iris_admin_stats` (`sql/131`) est en jeu.
 
+## `ECH-001` — corrigé le 2026-09-11
+
+Le seul défaut critique de l'audit, traité séparément parce qu'il change une
+donnée écrite en base et non une forme de code.
+
+**Le défaut.** `lib/import/validator.ts` posait `id: randomUUID()` à chaque
+analyse du fichier, et `lib/import/inserter.ts` insérait avec
+`{ onConflict: 'id', ignoreDuplicates: true }`. L'identifiant étant neuf à
+chaque exécution, le conflit ne pouvait **jamais** se produire :
+`ignoreDuplicates` donnait une illusion d'idempotence. Rejouer le même fichier
+— reprise après coupure réseau, double clic, relance après échec partiel —
+dupliquait l'intégralité des POI, sans une erreur.
+
+**Le correctif.** `lib/import/identite-poi.ts` calcule l'identifiant comme une
+empreinte UUIDv5 (RFC 4122, vérifiée contre le vecteur de test canonique de la
+RFC) du contenu de la ligne : source, catégorie, nom, adresse, code postal,
+ville, latitude, longitude — chacun normalisé (`trim`, minuscules, NFC, espaces
+internes repliés, coordonnées à 6 décimales ≈ 11 cm). Le même contenu produit
+toujours le même identifiant, donc le `onConflict: 'id'` déjà écrit devient
+opérant et le rejeu est absorbé.
+
+**Ce qui n'a pas été fait, et pourquoi.** Le plan recommandait une contrainte
+`UNIQUE` sur une clé métier, à l'image de `panneaux_affichage (source,
+source_ref)`. Deux faits mesurés en base l'écartent : `poi_france` n'a **pas**
+de colonne `source_ref` — les fichiers importés n'apportent aucun identifiant
+externe, il n'y a rien à contraindre — et **358 des 290 877 lignes sont déjà en
+doublon**, donc la contrainte échouerait à la pose. Rendre l'identifiant
+déterministe est le changement minimal qui rend correct le code existant :
+aucune migration, aucune contrainte, réversible en une ligne.
+
+`data_source_id` est délibérément **exclu** de l'identité : chaque import crée
+une nouvelle ligne `data_sources`
+(`app/api/admin/import-poi/execute/route.ts:146`, un `insert` et non un
+`upsert`), l'inclure annulerait exactement l'effet recherché. `categorie` est
+**inclus** : l'exclure ferait fusionner silencieusement deux POI distincts
+partageant nom et adresse. Entre un doublon visible et une perte silencieuse,
+on prend le doublon.
+
+**Limite à ne pas découvrir en production.** Les 290 877 POI déjà en base
+portent des identifiants aléatoires : le premier ré-import d'un fichier déjà
+importé **créera encore une dernière série de doublons**, les nouveaux
+identifiants ne pouvant pas rencontrer les anciens. Le fichier devient
+idempotent à partir de ce ré-import.
+
+**Preuve.** 20 tests, tous vus rouges avant d'être verts —
+`tests/unit/import/identite-poi.test.ts` (14, dont le vecteur RFC) et
+`tests/unit/import/import-rejouable.test.ts` (6, qui font tourner la vraie
+chaîne `processRows` sans rien simuler). Avec l'ancien `randomUUID()`, quatre
+des six tests de chaîne échouent.
+
 ## Lots non traités
 
 | Lot | Raison |
@@ -100,12 +152,12 @@ Réversible : seule la RPC `get_iris_admin_stats` (`sql/131`) est en jeu.
 
 ## Risques résiduels et prochaines étapes
 
-**Le seul vrai danger restant est `ECH-001`** : à chaque rejeu d'un import de
-POI, toutes les lignes sont dupliquées, silencieusement. Ce n'est pas de la
-dette, c'est une corruption progressive des données. Le corriger impose de
-choisir une **clé métier de déduplication** — `panneaux_affichage` le fait déjà
-avec `onConflict source,source_ref`, ce qui donne le modèle. Ce choix change ce
-qui compte comme « la même ligne » : il appartient au produit, pas au refactor.
+`ECH-001` est fermé (section dédiée ci-dessus). **Deux duplications de même
+nature restent ouvertes** : le rejeu d'un import de campagne
+(`app/api/admin/campaigns/import/route.ts:246-269`, `ECH-003`) et
+`import-datagouv` (`route.ts:282`, qui le reconnaît en commentaire). Le même
+remède s'y applique — une identité dérivée du contenu — mais chacune demande de
+décider ce qui fait qu'une campagne, ou une ligne data.gouv, est « la même ».
 
 Deux effets de bord à surveiller après déploiement :
 

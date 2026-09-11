@@ -2,7 +2,6 @@
  * GENESIS — Import Universel — Validator
  * Applique le mapping, géolocalise, valide les lignes
  */
-import { randomUUID } from 'crypto';
 import type {
   DataType,
   FieldMapping,
@@ -14,6 +13,7 @@ import type {
 } from './types';
 import { geocodeBatch, lambert93ToWGS84, validateGPS, extractDeptFromCP } from './geocoder';
 import type { GeocodeDetailedResult } from './types';
+import { identitePoi } from './identite-poi';
 
 export interface ProcessResult {
   validRows: ProcessedRow[];
@@ -192,8 +192,11 @@ export async function processRows(
       : extractDeptFromCP(mapped.code_postal);
 
     // Build processed row
+    // `id` est pose PROVISOIREMENT ici : l'identite definitive est calculee
+    // plus bas, une fois `categorie` et `source` renseignes — ils en font
+    // partie. Le calculer ici porterait sur des valeurs incompletes.
     const processedRow: ProcessedRow = {
-      id: randomUUID(),
+      id: '',
       lat: geo.lat,
       lng: geo.lng,
       nom: mapped.nom || null,
@@ -208,6 +211,15 @@ export async function processRows(
     processedRow.categorie = options.category || 'autre';
     processedRow.sous_categorie = null;
     processedRow.source = 'import_universel';
+
+    // ── Identite deterministe (`ECH-001`) ────────────────────────────────────
+    // Avant : `randomUUID()`. L'identifiant etant neuf a chaque analyse, le
+    // `onConflict: 'id'` de l'inserter ne pouvait JAMAIS se declencher et
+    // rejouer un fichier dupliquait tout, en silence.
+    // Desormais le meme contenu produit toujours le meme identifiant : le
+    // rejeu devient une operation nulle. Voir lib/import/identite-poi.ts pour
+    // ce qui compose l'identite, et pourquoi `data_source_id` en est exclu.
+    processedRow.id = identitePoi(processedRow);
 
     // Collect ALL raw columns into metadata (unmapped + filter fields)
     const mappedSourceCols = new Set(

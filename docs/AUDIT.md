@@ -32,8 +32,8 @@ survient, quand le volume monte.
 
 ## Top 5 des zones critiques
 
-1. **Import de POI non idempotent** — un rejeu duplique l'intégralité des
-   données. `ECH-001`
+1. ~~**Import de POI non idempotent** — un rejeu duplique l'intégralité des
+   données.~~ `ECH-001` — **corrigé le 2026-09-11**, voir ci-dessous.
 2. **`/api/admin/iris/stats` reproduit le motif de l'incident du 28/03** —
    21 `count(exact)` sur 51 000 lignes par appel. `PERF-001`
 3. **La protection des routes repose sur deux listes à synchroniser à la main** —
@@ -60,6 +60,26 @@ survient, quand le volume monte.
   aucune alerte : la base grossit et les analyses géographiques comptent double.
 - **Gravité** : critique
 - **Effort** : M
+- **Corrigé le 2026-09-11** (`lib/import/identite-poi.ts`) : l'identifiant
+  devient une empreinte UUIDv5 du contenu de la ligne — source, catégorie, nom,
+  adresse, code postal, ville, latitude, longitude — normalisé (`trim`,
+  minuscules, NFC, coordonnées à 6 décimales). Le même fichier produit toujours
+  les mêmes identifiants, donc `onConflict: 'id'` se déclenche enfin et le rejeu
+  devient une opération nulle. Aucune migration, aucune contrainte ajoutée : la
+  clé primaire `id` et le `onConflict` existaient déjà, il leur manquait un
+  identifiant reproductible.
+  - **Pourquoi pas une contrainte `UNIQUE` sur la clé métier**, comme
+    `panneaux_affichage (source, source_ref)` : `poi_france` n'a **pas** de
+    colonne `source_ref` (les fichiers importés n'apportent aucun identifiant
+    externe), et **358 des 290 877 lignes sont déjà en doublon** — la contrainte
+    échouerait à la pose, et supprimer ces lignes serait une destruction de
+    données, pas un correctif.
+  - **Limite connue** : les 290 877 POI existants portent des identifiants
+    aléatoires. Le premier ré-import d'un fichier déjà importé créera donc
+    encore une dernière série de doublons ; il devient idempotent à partir de
+    là.
+  - **Portée** : ce correctif ne couvre que l'import universel de POI. Les
+    rejeux d'import de campagne (`ECH-003`) et `datagouv` restent ouverts.
 
 ### PERF-001 [Goulot] 21 `count(exact)` sur `iris` par appel de route
 - **Localisation** : `app/api/admin/iris/stats/route.ts:41-49` (6 comptages
