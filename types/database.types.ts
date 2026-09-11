@@ -3691,6 +3691,24 @@ export type Database = {
           },
         ]
       }
+      quotas_appels: {
+        Row: {
+          cle: string
+          compte: number
+          fenetre_fin: string
+        }
+        Insert: {
+          cle: string
+          compte?: number
+          fenetre_fin: string
+        }
+        Update: {
+          cle?: string
+          compte?: number
+          fenetre_fin?: string
+        }
+        Relationships: []
+      }
       radio_import_log_entries: {
         Row: {
           details: Json | null
@@ -4398,6 +4416,10 @@ export type Database = {
       }
       compute_zone_items_audience: {
         Args: { p_caller_user_id?: string; p_zone_id: string }
+        Returns: Json
+      }
+      consommer_quota: {
+        Args: { p_cle: string; p_fenetre_s: number; p_max: number }
         Returns: Json
       }
       count_emetteurs_par_radio: {

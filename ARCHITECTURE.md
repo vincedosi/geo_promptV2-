@@ -584,6 +584,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O Nano** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
 | `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) + concentrations grains/m³ par espece + alerte | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084 + 086), RLS read auth / write service |
 | `atmo_map_daily` | Indice ATMO qualite de l'air par code postal (max des communes du CP) | ~5 000 lignes/jour, purge J-2, ingestion bulk WFS (sql/085), RLS read auth / write service |
@@ -686,6 +687,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_check_constraint_values` | Valeurs contraintes CHECK | `api/` |
 | `drop_carreaux_table` | DROP table carreaux dynamique | `api/admin/sources/[id]/` |
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
+| `consommer_quota` | Consomme une unite de quota et dit si l'appel passe (sql/135) | `lib/api/rate-limit.ts` — tous les limiteurs |
 | `smart_demographie_stats` | Stats demo smart prompt | `lib/smart-prompt/` |
 | `smart_demographie_top_villes` | Top villes smart prompt | `lib/smart-prompt/` |
 

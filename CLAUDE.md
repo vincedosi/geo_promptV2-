@@ -31,6 +31,10 @@ OBLIGATOIRE :
 - Cache client `useRef` — vérifier AVANT tout fetch
 - `EXPLAIN ANALYZE` sur toute nouvelle requête PostGIS
 - Index GIST sur toute colonne géométrie
+- Quotas d'appels : passer par `lib/api/rate-limit.ts`, **jamais** par une `Map`
+  locale. Un compteur en mémoire de processus ne limite RIEN sur Vercel — chaque
+  invocation peut être une instance différente. Le compteur partagé vit en base
+  (`consommer_quota`, sql/135), parce qu'Upstash n'est pas configuré en prod.
 
 ### Auth Middleware
 

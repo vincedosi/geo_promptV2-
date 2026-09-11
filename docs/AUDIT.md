@@ -398,6 +398,23 @@ survient, quand le volume monte.
 - **Impact** : la limite est contournée de fait dès que plusieurs instances
   servent en parallèle — et c'est précisément ce garde-fou qui protège le budget
   I/O qui a déjà mis l'application à terre trois fois.
+- **Corrigé le 2026-09-11** (`sql/135`, `lib/api/rate-limit.ts`). Le compteur
+  vit désormais en base : `consommer_quota`, un unique
+  `INSERT … ON CONFLICT … RETURNING`, donc exact même quand deux instances
+  appellent ensemble. Trois moteurs, dans cet ordre : Upstash s'il est
+  configuré, **Postgres** sinon — c'est le chemin réel en production —, et la
+  mémoire seulement si la base n'a pas répondu.
+  - Ce dernier repli **échoue ouvert**, à dessein : l'opération protégée
+    échouerait de toute façon si la base est en panne, et refuser en plus
+    bloquerait l'administration sans rien protéger.
+  - La troisième copie de la logique, dans `app/api/chat/route.ts`, est
+    supprimée : la route passe par `lib/api/rate-limit` comme les autres.
+  - `checkImportRateLimit` devient **asynchrone** — un compteur partagé se lit
+    sur le réseau.
+  - Éprouvé en base avant branchement : sur `max = 3`, les trois premiers
+    appels passent, le quatrième est refusé avec `retry_s = 60`, et la fenêtre
+    repart après expiration. 7 tests unitaires, dont deux vus rouges contre
+    l'ancien compteur en mémoire.
 - **Gravité** : moyenne
 - **Effort** : M
 

@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
 
-  const rl = checkImportRateLimit('import-ooh-arcgis');
+  const rl = await checkImportRateLimit('import-ooh-arcgis');
   if (!rl.ok) {
     return Response.json(
       { error: `Trop d'imports simultanés. Réessayez dans ${rl.retryAfterSec}s.` },

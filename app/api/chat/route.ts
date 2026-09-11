@@ -17,11 +17,9 @@ import { createRateLimiter, getClientKey } from '@/lib/api/rate-limit';
 // Timeout étendu pour les retries ORS (rate limit 20s × max 3 × N batches)
 export const maxDuration = 120;
 
-// ── Rate limiter : Upstash Redis (prod multi-instance) ou in-memory (dev) ─────
+// ── Quotas d'appels : moteur partage, voir lib/api/rate-limit.ts ─────────────
 // Pour activer Upstash : ajouter UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN dans .env.local
 // Sans ces vars → fallback in-memory (fonctionne en dev, pas sur Vercel multi-instance)
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,48 +42,17 @@ const ConversationSchema = z.object({
   provider: z.enum(['mistral', 'gemini'] as const satisfies readonly Provider[]).default('gemini'),
 });
 
-const RL_MAX    = 12;
-const RL_WINDOW = '60 s' as const;
-
-// Upstash sliding window — partagé entre toutes les instances Vercel
-const upstashRatelimit = (
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-) ? new Ratelimit({
-  redis: new Redis({
-    url:   process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  }),
-  limiter:   Ratelimit.slidingWindow(RL_MAX, RL_WINDOW),
-  prefix:    'geo:rl',
-  analytics: false,
-}) : null;
-
-// Fallback in-memory (dev local sans Upstash configuré)
-const RL_MAP: Map<string, { count: number; resetAt: number }> = new Map();
-
-// Rate-limit PAR UTILISATEUR authentifié (en plus du rate-limit IP ci-dessus) —
-// protège le coût LLM si un même compte multiplie les requêtes derrière des IP
-// différentes (proxy, mobile, etc.). Clé = userId:IP.
+// Deux quotas se cumulent ici : par IP, et par compte authentifie — le second
+// protege le cout LLM quand un meme compte multiplie les requetes derriere des
+// IP differentes (proxy, mobile).
+//
+// Cette route portait sa PROPRE copie de la logique de quota (Upstash + une Map
+// locale), troisieme exemplaire dans le projet. Elle passe par `lib/api/rate-limit`
+// comme les autres : un seul endroit ou le moteur partage est choisi (`ECH-004`).
+const chatIpLimiter   = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl' });
 const chatUserLimiter = createRateLimiter({ max: 10, window: '60 s', prefix: 'geo:rl:chat-user' });
 
-async function checkRateLimit(ip: string): Promise<{ ok: boolean; retrySec: number }> {
-  if (upstashRatelimit) {
-    const { success, reset } = await upstashRatelimit.limit(ip);
-    return { ok: success, retrySec: success ? 0 : Math.ceil((reset - Date.now()) / 1000) };
-  }
-  // Fallback in-memory
-  const now = Date.now();
-  const e   = RL_MAP.get(ip);
-  if (!e || now >= e.resetAt) {
-    RL_MAP.set(ip, { count: 1, resetAt: now + 60_000 });
-    return { ok: true, retrySec: 0 };
-  }
-  if (e.count >= RL_MAX) {
-    return { ok: false, retrySec: Math.ceil((e.resetAt - now) / 1000) };
-  }
-  e.count++;
-  return { ok: true, retrySec: 0 };
-}
+const checkRateLimit = chatIpLimiter;
 
 // ── Extraction du texte du dernier message utilisateur ────────────────────────
 function extractLastUserText(messages: UIMessage[]): string {
