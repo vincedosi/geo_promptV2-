@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
-import { getSessionOrg, type SessionOrg } from '@/lib/auth/getSessionOrg';
+import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { resolveCategory, normVille } from '@/lib/geo/locations';
 import { getDistinctCategories } from '@/lib/poi/categories';
 import type { ZoneData } from '@/types/spatial';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -21,25 +20,15 @@ const poisPostSchema = z.object({
 });
 
 // ── Filtre org : retourne les IDs de sources autorisées pour cette session ─────
-// null = pas de filtre (super_admin ou dev sans session)
-// []   = aucune source configurée → aucun POI accessible
-// [...] = filtre .in('data_source_id', ids)
-async function getOrgSourceIds(
-  session: SessionOrg | null,
-  supabase: SupabaseClient
-): Promise<string[] | null> {
-  if (!session || session.role === 'super_admin') return null;
-  if (!session.orgId) return null; // pas de session → pas de filtre (dev bypass)
-
-  const { data: sources } = await supabase
-    .from('data_sources')
-    .select('id')
-    .neq('status', 'deleted')
-    .or(`organization_id.eq.${session.orgId},shared_with.cs.{${session.orgId}}`);
-
-  return sources?.map((s: { id: string }) => s.id) ?? [];
-}
-
+// La copie locale de `getOrgSourceIds` a été supprimée le 2026-09-11 (`DUP-002`).
+// C'est une règle d'AUTORISATION — elle décide quelles sources une organisation
+// voit — et elle était écrite à trois endroits identiques : ici, dans
+// `app/api/map/categories/route.ts` et dans `lib/auth/getOrgSourceIds.ts`.
+// Le jour où la règle évolue, en oublier une ouvrirait ou fermerait des données
+// en silence. Contrat figé par `tests/unit/auth/get-org-source-ids-caracterisation.test.ts`
+// AVANT la fusion, notamment la distinction entre `null` (aucun filtre) et `[]`
+// (organisation sans source, donc aucun accès).
+import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
 
 // Codes départements DROM (exclus en mode France métro)
@@ -70,7 +59,7 @@ export async function POST(req: NextRequest) {
     const poisMap   = new Map<string, PoiRow>();
 
     // ── Filtre org : sources autorisées (null = tout voir) ───────────────────
-    const allowedSourceIds = await getOrgSourceIds(session, supabase);
+    const allowedSourceIds = await getOrgSourceIds(session);
     if (allowedSourceIds !== null && allowedSourceIds.length === 0) {
       // Org configurée mais aucune source → aucun POI accessible
       logger.debug('map/pois', 'Org sans sources configurées — résultat vide');

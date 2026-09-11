@@ -30,7 +30,7 @@ montée en volume, erreur silencieuse.
 | 4 | ✅ Rendre les erreurs visibles (3 des 10 cas étaient légitimes) | `MAINT-001` | faible | M |
 | 5 | ✅ Dégonfler `/api/admin/iris/stats` (+ 4 valeurs fausses corrigées) | `PERF-001` | moyen | M |
 | 6 | ✅ Insertion groupée dans `inserter.ts` | `PERF-002` | moyen | M |
-| 7 | Dédoublonner le filtre d'autorisation | `DUP-002` | faible | S |
+| 7 | ✅ Dédoublonner le filtre d'autorisation | `DUP-002` | faible | S |
 | 8 | Nettoyages sans risque | `MAINT-002`, `MAINT-007`, `SEC-002` | nul | S |
 
 Les lots 1 à 3 sont sûrs et rapides : ils sécurisent le terrain. Les lots 5 et 6

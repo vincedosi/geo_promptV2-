@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { getSessionOrg } from '@/lib/auth/getSessionOrg';
 import { getDistinctCategories, invalidateCategoriesCache } from '@/lib/poi/categories';
+import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,21 +45,20 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const session  = await getSessionOrg(req);
 
-  // Super admin ou pas de session → tout retourner avec labels
-  if (!session || session.role === 'super_admin' || !session.orgId) {
+  // La règle « quelles sources cette organisation voit-elle » était réécrite ici
+  // en ligne (`DUP-002`). Elle vit désormais à un seul endroit. Les conditions
+  // sont EXACTEMENT celles qui figuraient ici : `getOrgSourceIds` renvoie `null`
+  // quand il n'y a pas de session, que l'appelant est super_admin, ou qu'il n'a
+  // pas d'organisation — donc le cas « tout retourner ».
+  const sourceIds = await getOrgSourceIds(session);
+
+  // null → aucun filtre : tout retourner avec les libellés.
+  if (sourceIds === null) {
     const labelMap = await buildLabelMap(supabase, allCats);
     return NextResponse.json({ categories: withLabels(allCats, labelMap) });
   }
 
-  // Org identifiée : filtrer par ses data_sources
-  const { data: sources } = await supabase
-    .from('data_sources')
-    .select('id')
-    .neq('status', 'deleted')
-    .or(`organization_id.eq.${session.orgId},shared_with.cs.{${session.orgId}}`);
-
-  const sourceIds = sources?.map((s: { id: string }) => s.id) ?? [];
-
+  // [] → organisation connue mais sans aucune source : aucun accès.
   if (sourceIds.length === 0) {
     return NextResponse.json({ categories: [] });
   }
