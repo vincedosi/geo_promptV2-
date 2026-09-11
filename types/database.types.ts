@@ -4401,6 +4401,18 @@ export type Database = {
       }
       clip_geojson_to_france: { Args: { p_fc: Json }; Returns: Json }
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
+      compte_poi_par_categorie: {
+        Args: {
+          p_categories: string[]
+          p_champ: string
+          p_sources?: string[]
+          p_valeur: string
+        }
+        Returns: {
+          categorie: string
+          nb: number
+        }[]
+      }
       compute_filosofi_national_averages: { Args: never; Returns: Json }
       compute_filosofi_profiles_batch: {
         Args: { p_entries: Json; p_secret_stat?: number }

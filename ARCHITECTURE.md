@@ -688,6 +688,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `drop_carreaux_table` | DROP table carreaux dynamique | `api/admin/sources/[id]/` |
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
 | `consommer_quota` | Consomme une unite de quota et dit si l'appel passe (sql/135) | `lib/api/rate-limit.ts` — tous les limiteurs |
+| `compte_poi_par_categorie` | Comptage des POI par categorie dans une ville ou une region, en UNE requete groupee (sql/136). `p_champ` limite a 'ville'/'region' | `lib/chat/tools/analyseComplete.ts` |
 | `smart_demographie_stats` | Stats demo smart prompt | `lib/smart-prompt/` |
 | `smart_demographie_top_villes` | Top villes smart prompt | `lib/smart-prompt/` |
 

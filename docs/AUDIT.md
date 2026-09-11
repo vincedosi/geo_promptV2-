@@ -377,6 +377,18 @@ survient, quand le volume monte.
   schéma (`z.array(z.string())` sans `.max()`) — le fan-out est piloté par le LLM.
 - **Gravité** : moyenne
 - **Effort** : M
+- **Corrigé le 2026-09-11** (`sql/136`). Les N comptages deviennent UNE requête
+  groupée (`compte_poi_par_categorie`), et le schéma de l'outil plafonne la liste
+  à 12 catégories. Mesuré sur la requête groupée : **18 693 blocs lus et 736 ms
+  avant l'index trigramme sur `ville`, 69 blocs et 65 ms après** — et c'était
+  déjà une requête au lieu de N.
+  - Les **7 RPC séquentiels n'ont PAS été parallélisés** : la séquence EST la
+    protection sur Nano (max 3 appels Supabase simultanés). Le constat les
+    désignait comme un goulot ; les mettre en parallèle aurait été une
+    régression, pas un gain.
+  - Cinq **index en double** retirés au passage (`poi_france` ×2,
+    `isochrones_cache` ×2, `radios` ×1) : mêmes colonnes, même méthode, et
+    chacun coûtait du temps d'écriture à chaque insertion.
 
 ### DUP-002 [Duplication] Le filtre « sources de l'organisation » écrit trois fois
 - **Localisation** : `lib/auth/getOrgSourceIds.ts:12-26` (helper canonique),

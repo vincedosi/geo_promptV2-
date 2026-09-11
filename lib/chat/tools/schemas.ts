@@ -106,7 +106,11 @@ export function buildTools(
           .describe('Type de périmètre.'),
         perimetre_value: z.string().describe('Nom de la zone.'),
         cible:           z.string().describe('Colonne Filosofi cible (ex: ind_18_24).'),
-        poi_categories:  z.array(z.string()).describe('Catégories POI à inclure dans le rapport.'),
+        // `.max(12)` : cette liste vient du LLM et pilotait autrefois le nombre
+        // de requêtes envoyées à la base (`PERF-005`). Elle n'en pilote plus
+        // qu'une seule, mais un plafond reste la bonne hygiène — rien ne borne
+        // ce qu'un modèle peut demander.
+        poi_categories:  z.array(z.string()).max(12).describe('Catégories POI à inclure dans le rapport (12 au plus).'),
         poi_centre:          z.string().optional().describe('POI centre si isochrone.'),
         isochrone_minutes:   z.number().optional().describe('Durée isochrone si pertinent.'),
         isochrone_mode:      z.string().optional().describe('Mode isochrone.'),

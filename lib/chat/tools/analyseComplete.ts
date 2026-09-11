@@ -13,6 +13,7 @@ import { getCoordsForVille, getCoordsForRegion } from '@/lib/geo/locations';
 import { CHORO_INDICATORS }                      from '@/lib/chat/system-prompt';
 import { IRIS_DB_COLUMNS }                       from '@/lib/iris-crawler/db-columns';
 import { getOrgSourceIds }                       from './orgContext';
+import { nullableArg } from '@/lib/supabase/rpc-json';
 
 /** Rayon Filosofi adapté au type de périmètre (km) — utilisé en fallback uniquement. */
 const RAYON_PAR_TYPE: Record<string, number> = {
@@ -181,24 +182,50 @@ export async function analyseComplete(args: Record<string, unknown>) {
     .limit(2000);
   if (orgSourceIds !== null) panneauxQ = panneauxQ.in('data_source_id', orgSourceIds);
 
-  const poiPromises = poi_categories.map(cat =>
-    supabase
-      .from('poi_france')
-      .select('id', { count: 'exact', head: true })
-      .ilike(geoField, `%${perimetre_value}%`)
-      .eq('categorie', cat),
-  );
+  /**
+   * Comptage des POI par categorie : UNE requete groupee (`PERF-005`).
+   *
+   * Avant, c'etait un `COUNT(exact)` PAR CATEGORIE, tous lances ensemble dans un
+   * `Promise.all`. Or la liste des categories vient du LLM : le nombre de
+   * requetes paralleles etait donc pilote par le modele, sans plafond — la
+   * forme exacte de l'incident du 28/03 (I/O epuise, 504 pendant des heures).
+   *
+   * Mesure de la requete groupee apres l'ajout de l'index trigramme sur
+   * `ville` : 69 blocs lus et 65 ms, contre 18 693 blocs et 736 ms auparavant
+   * pour UN SEUL des N comptages.
+   */
+  const poiCounts = supabase.rpc('compte_poi_par_categorie', {
+    p_champ: geoField,
+    p_valeur: perimetre_value,
+    p_categories: poi_categories,
+    // `nullableArg` : le generateur declare `p_sources` non-nullable alors que
+    // l'argument SQL `uuid[] DEFAULT NULL` accepte NULL — c'est ainsi qu'on dit
+    // « pas de filtre par organisation ». Helper documente dans ARCHITECTURE.md.
+    p_sources: nullableArg(orgSourceIds),
+  });
+
+  /** Rend un comptage par categorie, 0 pour celles que la requete n'a pas vues. */
+  const compterParCategorie = (
+    resultat: { data: unknown; error: unknown },
+  ): Record<string, number> => {
+    const parCategorie: Record<string, number> = {};
+    for (const cat of poi_categories) parCategorie[cat] = 0;
+    for (const ligne of (resultat.data ?? []) as { categorie: string; nb: number }[]) {
+      parCategorie[ligne.categorie] = Number(ligne.nb) || 0;
+    }
+    return parCategorie;
+  };
 
   // ── Branche IRIS ──────────────────────────────────────────────────────────
   if (code_commune) {
-    const [irisResult, panneauxResult, poiResults] = await Promise.all([
+    const [irisResult, panneauxResult, poiComptes] = await Promise.all([
       supabase
         .from('iris')
         .select('code_iris, nom_iris, population, nb_menages, pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus, rev_median, taux_chomage, taux_proprio, nb_diplome_aucun, nb_diplome_bac, nb_diplome_sup, taux_diplome_sup, nb_csp_cadre, nb_csp_employe, nb_csp_ouvrier, densite_pop, indice_jeunesse, part_pop_etrangere, part_pop_moins_18, part_pop_65_plus, part_residences_principales, part_appartements, part_logements_sociaux, part_menages_emmenages_2ans, part_familles_monoparentales, part_couples_avec_enfants, part_actifs_marche_velo, part_actifs_transport_commun, part_hommes_actifs, part_femmes_actives, part_sans_diplome, centroid_lat, centroid_lng')
         .eq('code_commune', code_commune)
         .in('type_iris', ['H', 'Z']),  // H = habitat (urbain), Z = commune non découpée (rural)
       panneauxQ,
-      Promise.all(poiPromises),
+      poiCounts,
     ]);
 
     const irisStats = (irisResult.data ?? []) as IrisRow[];
@@ -254,12 +281,9 @@ export async function analyseComplete(args: Record<string, unknown>) {
       }));
 
     // Traitement POI
+    const parCategorie = compterParCategorie(poiComptes);
     const poi_summary = poi_categories
-      .map((cat, i) => ({
-        categorie: cat,
-        label:     cat,
-        count:     (poiResults[i] as { count: number | null }).count ?? 0,
-      }))
+      .map(cat => ({ categorie: cat, label: cat, count: parCategorie[cat] ?? 0 }))
       .filter(p => p.count > 0)
       .sort((a, b) => b.count - a.count);
 
@@ -332,9 +356,9 @@ export async function analyseComplete(args: Record<string, unknown>) {
     demoResults.push(r);
   }
 
-  const [panneauxResult, poiResults] = await Promise.all([
+  const [panneauxResult, poiComptes] = await Promise.all([
     panneauxQ,
-    Promise.all(poiPromises),
+    poiCounts,
   ]);
 
   const demoMap: Record<string, DemoRow> = {};
@@ -378,12 +402,9 @@ export async function analyseComplete(args: Record<string, unknown>) {
       pourcentage: panneaux.length > 0 ? Math.round(count / panneaux.length * 1000) / 10 : 0,
     }));
 
+  const parCategorie = compterParCategorie(poiComptes);
   const poi_summary = poi_categories
-    .map((cat, i) => ({
-      categorie: cat,
-      label:     cat,
-      count:     (poiResults[i] as { count: number | null }).count ?? 0,
-    }))
+    .map(cat => ({ categorie: cat, label: cat, count: parCategorie[cat] ?? 0 }))
     .filter(p => p.count > 0)
     .sort((a, b) => b.count - a.count);
 
