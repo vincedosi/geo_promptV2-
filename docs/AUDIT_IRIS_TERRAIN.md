@@ -54,6 +54,19 @@
 - **Gravité** : critique
 - **Effort** : S pour rendre la péremption visible, **hors code** pour la
   remettre à jour (clés Inngest).
+- **Traité le 2026-09-11, à moitié — et la moitié qui reste n'est pas du code.**
+  L'écran signale désormais la péremption : au-delà de trois jours (les tables
+  sont purgées à J-2, trois jours laissent la marge d'un fuseau ou d'un cron en
+  retard), un bandeau annonce l'âge exact et propose le même bouton de
+  ré-ingestion manuelle que le cas « aucune donnée ». La date était déjà
+  affichée, mais en légende sous un sélecteur — personne ne lit une légende
+  avant de croire une carte.
+  - Le piège évité : traiter une date ABSENTE comme un âge infini. Cela
+    afficherait « périmé » là où il n'y a simplement rien, cas que l'écran
+    signale déjà autrement. `ageEnJours` rend `null`, jamais un grand nombre.
+  - **Ce qui n'est pas réglé** : la donnée elle-même. La remettre à jour demande
+    que le cron tourne, donc `INNGEST_EVENT_KEY` et `INNGEST_SIGNING_KEY` en
+    production. C'est un arbitrage de Vincent, pas une ligne de code.
 
 ### TER-003 [Goulot] Les IRIS sont servis à des zooms où ils sont illisibles
 

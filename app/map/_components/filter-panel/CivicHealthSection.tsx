@@ -24,6 +24,30 @@ const HEALTH_LAYERS = [['pollen', '🌾 Allergènes'], ['atmo', '🌬️ Qualit�
 /** Échelles de zones : [valeur, libellé]. */
 const HEALTH_SCALES = [['departement', 'Département'], ['cp', 'Code postal']] as const;
 
+/**
+ * Au-delà de ce nombre de jours, la donnée est signalée comme périmée.
+ *
+ * Les tables `pollen_map_daily` et `atmo_map_daily` sont purgées à J-2 : elles
+ * ne contiennent normalement que le jour et la veille. Trois jours laissent la
+ * marge d'un décalage de fuseau ou d'un cron en retard ; au-delà, c'est que
+ * l'ingestion ne tourne plus.
+ */
+const AGE_MAX_JOURS = 3;
+
+/**
+ * Âge de la donnée en jours, ou `null` si la date est absente ou illisible.
+ *
+ * Exportée pour être testée : c'est une fonction pure, et le cas qui compte —
+ * une date absente ne doit PAS être lue comme « périmée depuis toujours » —
+ * ne se vérifie pas en regardant le rendu.
+ */
+export function ageEnJours(dateIso: string | null | undefined): number | null {
+  if (!dateIso) return null;
+  const t = Date.parse(dateIso);
+  if (Number.isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 86_400_000);
+}
+
 export interface CivicHealthSectionProps {
   filterSearch: string;
   sectionsOpen: Record<string, boolean>;
@@ -72,6 +96,7 @@ export function CivicHealthSection({
   runCivicIngestStream,
   civicIngestState,
 }: CivicHealthSectionProps) {
+  const ageDonneesJours = ageEnJours(civicCpDate);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <FilterSectionHeader
@@ -159,6 +184,36 @@ export function CivicHealthSection({
                     }}
                   >
                     {civicIngestState.running ? 'Ingestion en cours…' : 'Lancer l’ingestion (admin)'}
+                  </button>
+                </div>
+              )}
+              {/* Donnée périmée — l'ingestion tournait, puis s'est arrêtée.
+                  Distinct du cas « aucune donnée » ci-dessus : ici la carte
+                  AFFICHE quelque chose, et c'est précisément le danger. Mesuré le
+                  2026-09-11 : les deux tables étaient figées au 3 juillet, soit
+                  70 jours, sans que rien ne le signale. Sur un indicateur
+                  saisonnier — l'ambroisie culmine en août, les graminées en juin —
+                  une valeur de dix semaines est fausse ET plausible. */}
+              {civicScale === 'cp' && ageDonneesJours !== null && ageDonneesJours > AGE_MAX_JOURS && (
+                <div style={{
+                  padding: '8px 10px', borderRadius: 6,
+                  background: 'rgba(247,183,49,0.1)', border: '0.5px solid rgba(247,183,49,0.2)',
+                }}>
+                  <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--warning)', marginBottom: 6 }}>
+                    Données vieilles de {ageDonneesJours} jours (du {civicCpDate}) — l&apos;ingestion
+                    quotidienne ne tourne plus. Les niveaux affichés ne sont pas ceux d&apos;aujourd&apos;hui.
+                  </div>
+                  <button
+                    onClick={runCivicIngestStream}
+                    disabled={civicIngestState.running}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                      fontFamily: fInter, cursor: civicIngestState.running ? 'wait' : 'pointer',
+                      background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                      color: 'var(--brand-teal)', opacity: civicIngestState.running ? 0.6 : 1,
+                    }}
+                  >
+                    {civicIngestState.running ? 'Ingestion en cours…' : 'Rafraîchir maintenant (admin)'}
                   </button>
                 </div>
               )}
