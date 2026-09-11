@@ -432,7 +432,6 @@ il n'y avait rien à supprimer. Aucune action requise.
 | `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` | à rechiffrer | **abaissé** — le chemin d'exploitation chez nous est coupé depuis `d058719` (popups échappées à la source) ; il reste une dépendance vulnérable au catalogue | **TENTÉ ET ABANDONNÉ le 2026-09-11** — la migration du code est faite et propre, mais la v6 ne rend pas. Voir l'encadré ci-dessous. |
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
-| `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
 
 #### `compute_panneau_scores` — ce que la mesure dit (2026-09-10)
 
@@ -526,6 +525,24 @@ contient plus aucun `.js`. La règle webpack de `next.config.js` qui cible
 `maplibre-gl/dist/*.js` ne matcherait donc plus rien, et le crash qu'elle
 prévient ne peut plus se produire. Elle sera à retirer le jour de la bascule —
 `next.config.js` est un fichier protégé, il faudra l'accord explicite.
+
+### Fermé le 2026-09-11 (quatrième passe)
+
+| Item | Résolution |
+|---|---|
+| `carreauxNormaliseExpr` ne distingue pas « donnée absente » de « valeur nulle » | `donneeExploitableExpr` + 5 tests, posé en `case` sur la couleur ET la hauteur 3D |
+
+**L'entrée sous-estimait le problème.** Elle ne décrivait que l'indicateur
+absent, qui se peint au bas de l'échelle — la carte affirme « personne n'habite
+ici ». Le second cas est pire et n'était pas mentionné : une **superficie**
+absente divise par 0,0001, soit une densité multipliée par 10 000. Le carreau
+ressort comme le plus dense de France. Une donnée manquante ne disparaît pas :
+elle invente un record.
+
+Le correctif **ne change rien au rendu actuel**, et c'est voulu — `get_tile`
+émet toujours les colonnes. C'est un garde-fou pour le jour où une tuile en
+cache précède un changement de schéma. Vérifié à l'écran : Paris à z9, dégradé
+complet, pas un carreau gris.
 
 ### Fermé le 2026-09-11 (troisième passe)
 
