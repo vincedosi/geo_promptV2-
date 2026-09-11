@@ -23,9 +23,9 @@ montée en volume, erreur silencieuse.
 
 | Lot | Objectif | Constats | Risque | Effort |
 |---|---|---|---|---|
-| 0 | Filet de sécurité — tests de caractérisation | — | nul | M |
-| 1 | Délais d'expiration et reprises sur les appels externes | `ECH-002` | faible | S |
-| 2 | Garde-fou anti-régression sur le middleware | `ARC-001` | nul | S |
+| 0 | ✅ Filet de sécurité — tests de caractérisation | — | nul | M |
+| 1 | ✅ Délais d'expiration sur les appels externes (sans reprise, voir ci-dessous) | `ECH-002` | faible | S |
+| 2 | ✅ Garde-fou anti-régression sur le middleware | `ARC-001` | nul | S |
 | 3 | Respect de la limite de 50 sur les insertions | `PERF-003` | faible | S |
 | 4 | Rendre les erreurs visibles | `MAINT-001` | faible | M |
 | 5 | Dégonfler `/api/admin/iris/stats` | `PERF-001` | moyen | M |

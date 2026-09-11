@@ -11,6 +11,8 @@
  * locale n'est pas formalisée.
  */
 
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
+
 export type ExecutionMode = 'monitor_only' | 'suggest' | 'auto';
 
 export interface PredictResponse {
@@ -65,7 +67,7 @@ function getModalPrefix(): string {
 async function callModal<T>(endpointSuffix: string, body: Record<string, unknown>): Promise<T> {
   const prefix = getModalPrefix();
   const url = `${prefix}${endpointSuffix}`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

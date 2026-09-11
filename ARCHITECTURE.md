@@ -157,6 +157,9 @@ genesis_app/
 │   ├── metrics-display/        # loader + formateur dynamique des metriques (dsp_metrics_registry)
 │   ├── bidding-ml/             # client HTTP vers Modal + comparison / metric-labels / targeting-kpis
 │   ├── geo/                    # france-admin.ts, locations.ts
+│   ├── http/                   # fetch-avec-delai.ts — tout appel sortant vers un tiers
+│   │                           # DOIT passer par la : delai d'expiration, PAS de reprise
+│   │                           # (la plupart de ces appels ne sont pas idempotents)
 │   ├── import/                 # Pipeline d'import universel
 │   ├── inngest/                # Jobs async (colonnes derivees)
 │   ├── iris-crawler/           # Crawler INSEE IRIS

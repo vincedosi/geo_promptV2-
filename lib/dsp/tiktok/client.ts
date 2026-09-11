@@ -8,6 +8,8 @@
  * Serveur uniquement.
  */
 
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
+
 const TIKTOK_BASE = 'https://business-api.tiktok.com/open_api/v1.3';
 const TIKTOK_PORTAL_AUTH = 'https://business-api.tiktok.com/portal/auth';
 
@@ -51,7 +53,7 @@ export async function exchangeTiktokAuthCode(
   secret: string,
   authCode: string,
 ): Promise<{ accessToken: string; advertiserIds: string[] }> {
-  const res = await fetch(`${TIKTOK_BASE}/oauth2/access_token/`, {
+  const res = await fetchAvecDelai(`${TIKTOK_BASE}/oauth2/access_token/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
@@ -74,7 +76,7 @@ export async function listTiktokAdvertisers(
   accessToken: string,
 ): Promise<{ id: string; name: string }[]> {
   const params = new URLSearchParams({ app_id: appId, secret });
-  const res = await fetch(`${TIKTOK_BASE}/oauth2/advertiser/get/?${params.toString()}`, {
+  const res = await fetchAvecDelai(`${TIKTOK_BASE}/oauth2/advertiser/get/?${params.toString()}`, {
     headers: { 'Access-Token': accessToken },
     cache: 'no-store',
   });

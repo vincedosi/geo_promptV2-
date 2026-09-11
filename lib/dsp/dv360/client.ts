@@ -5,6 +5,7 @@
  */
 import { getServiceAccountToken, refreshAccessToken, getOAuthRedirectUri, type OAuthClientCreds } from './auth';
 import { decryptSecret } from '@/lib/crypto/secrets';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 
 const DV360_BASE = 'https://displayvideo.googleapis.com/v3';
 
@@ -59,7 +60,7 @@ export async function bulkAssignGeoRegions(
   geoIds: number[],
 ): Promise<{ updatedLineItemIds: string[]; failedLineItemIds: string[] }> {
   const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/lineItems:bulkEditAssignedTargetingOptions`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -103,7 +104,7 @@ export async function createLocationList(
   displayName: string,
 ): Promise<{ locationListId: string }> {
   const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/locationLists`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -141,7 +142,7 @@ export async function bulkAddAssignedLocations(
   let assignedCount = 0;
   for (let i = 0; i < geoIds.length; i += ASSIGNED_LOCATIONS_CHUNK) {
     const chunk = geoIds.slice(i, i + ASSIGNED_LOCATIONS_CHUNK);
-    const res = await fetch(url, {
+    const res = await fetchAvecDelai(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -170,7 +171,7 @@ export async function listAdvertisers(
   partnerId: string,
 ): Promise<{ id: string; name: string }[]> {
   const url = `${DV360_BASE}/advertisers?partnerId=${encodeURIComponent(partnerId)}&pageSize=100`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
   });
@@ -191,7 +192,7 @@ export async function listCampaigns(
 ): Promise<{ id: string; name: string }[]> {
   const filter = encodeURIComponent('entityStatus!="ENTITY_STATUS_ARCHIVED"');
   const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/campaigns?pageSize=100&filter=${filter}`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
   });
@@ -213,7 +214,7 @@ export async function listInsertionOrders(
 ): Promise<{ id: string; name: string }[]> {
   const filter = encodeURIComponent(`campaignId="${campaignId}"`);
   const url = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/insertionOrders?pageSize=100&filter=${filter}`;
-  const res = await fetch(url, {
+  const res = await fetchAvecDelai(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
   });
@@ -238,7 +239,7 @@ export async function uploadCustomBiddingScript(
   script: string,
 ): Promise<{ scriptName: string }> {
   const auth = { Authorization: `Bearer ${accessToken}` };
-  const refRes = await fetch(
+  const refRes = await fetchAvecDelai(
     `${DV360_BASE}/customBiddingAlgorithms/${encodeURIComponent(algorithmId)}:uploadScript?advertiserId=${encodeURIComponent(advertiserId)}`,
     { headers: auth, cache: 'no-store' },
   );
@@ -246,13 +247,13 @@ export async function uploadCustomBiddingScript(
   const ref = (await refRes.json()) as { resourceName?: string };
   if (!ref.resourceName) throw new Error('DV360 uploadScript : resourceName absent.');
 
-  const upRes = await fetch(
+  const upRes = await fetchAvecDelai(
     `https://displayvideo.googleapis.com/upload/media/${ref.resourceName}?uploadType=media`,
     { method: 'POST', headers: { ...auth, 'Content-Type': 'text/plain' }, cache: 'no-store', body: script },
   );
   if (!upRes.ok) throw new Error(`DV360 media upload ${upRes.status} : ${(await upRes.text()).slice(0, 300)}`);
 
-  const createRes = await fetch(
+  const createRes = await fetchAvecDelai(
     `${DV360_BASE}/customBiddingAlgorithms/${encodeURIComponent(algorithmId)}/scripts?advertiserId=${encodeURIComponent(advertiserId)}`,
     {
       method: 'POST',
@@ -278,13 +279,13 @@ export async function patchInsertionOrderBudget(
 ): Promise<void> {
   const auth = { Authorization: `Bearer ${accessToken}` };
   const base = `${DV360_BASE}/advertisers/${encodeURIComponent(advertiserId)}/insertionOrders/${encodeURIComponent(insertionOrderId)}`;
-  const getRes = await fetch(base, { headers: auth, cache: 'no-store' });
+  const getRes = await fetchAvecDelai(base, { headers: auth, cache: 'no-store' });
   if (!getRes.ok) throw new Error(`DV360 insertionOrders.get ${getRes.status} : ${(await getRes.text()).slice(0, 300)}`);
   const io = (await getRes.json()) as { budget?: { budgetUnit?: string; budgetSegments?: Array<Record<string, unknown>> } };
   const segments = io.budget?.budgetSegments ?? [];
   if (segments.length === 0) throw new Error('DV360 : insertion order sans segment de budget.');
   segments[segments.length - 1] = { ...segments[segments.length - 1], budgetAmountMicros: String(budgetAmountMicros) };
-  const patchRes = await fetch(`${base}?updateMask=budget.budgetSegments`, {
+  const patchRes = await fetchAvecDelai(`${base}?updateMask=budget.budgetSegments`, {
     method: 'PATCH',
     headers: { ...auth, 'Content-Type': 'application/json' },
     cache: 'no-store',
