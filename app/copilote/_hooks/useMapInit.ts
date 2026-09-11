@@ -9,6 +9,7 @@ import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 
 /** Valeur admissible pour `text-field` d'une couche symbole. */
 type ChampTexte = NonNullable<maplibregl.SymbolLayerSpecification['layout']>['text-field'];
@@ -328,11 +329,14 @@ export function useMapInit(
           return;
         }
 
+        // `p.color` atterrit dans un attribut `style` : echapper le guillemet
+        // double y ferme la sortie d'attribut, qui est le vecteur XSS. Reste
+        // possible une injection CSS pure (changer une couleur) — cosmetique.
         const html = `<div style="font-size:12px;padding:6px 8px">` +
-          `<strong>${p.nom ?? 'POI'}</strong><br/>` +
-          `<span style="color:${p.color ?? '#6366f1'};font-size:11px;font-weight:600;text-transform:uppercase">${p.categorie ?? ''}</span>` +
-          (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${p.sous_categorie}</span>` : '') +
-          (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${p.adresse}</span>` : '') +
+          `<strong>${esc(p.nom) || 'POI'}</strong><br/>` +
+          `<span style="color:${esc(p.color) || '#6366f1'};font-size:11px;font-weight:600;text-transform:uppercase">${esc(p.categorie)}</span>` +
+          (p.sous_categorie ? ` <span style="color:#94a3b8;font-size:11px">· ${esc(p.sous_categorie)}</span>` : '') +
+          (p.adresse ? `<br/><span style="color:#64748b;font-size:11px">📍 ${esc(p.adresse)}</span>` : '') +
           `</div>`;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat).setHTML(html).addTo(map);
@@ -546,15 +550,15 @@ export function useMapInit(
         new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6">
-            <div style="font-size:14px;font-weight:600;color:${nom ? 'var(--text-primary)' : 'var(--text-tertiary)'};margin-bottom:2px">${nom ?? 'Radio non associée'}</div>
-            ${nom ? `<div style="color:var(--text-secondary);font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).join(' · ')}</div>` : ''}
-            ${groupe ? `<div style="color:var(--text-tertiary);font-size:11px;margin-bottom:6px">Groupe : ${groupe}</div>` : ''}
+            <div style="font-size:14px;font-weight:600;color:${nom ? 'var(--text-primary)' : 'var(--text-tertiary)'};margin-bottom:2px">${esc(nom) || 'Radio non associée'}</div>
+            ${nom ? `<div style="color:var(--text-secondary);font-size:11px;margin-bottom:6px">${[cat, portee, genre].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+            ${groupe ? `<div style="color:var(--text-tertiary);font-size:11px;margin-bottom:6px">Groupe : ${esc(groupe)}</div>` : ''}
             <div style="border-top:0.5px solid var(--border-subtle, #1a1a1a);margin:4px 0;padding-top:4px">
-              <div style="color:var(--text-secondary);font-size:11px">${freqDisplay}</div>
-              ${pw ? `<div style="color:var(--text-tertiary);font-size:11px">Puissance : ${pw}</div>` : ''}
-              ${cov ? `<div style="color:var(--text-tertiary);font-size:11px">Couverture : ${cov}</div>` : ''}
-              <div style="color:var(--text-tertiary);font-size:11px">${[p.commune, p.departement ? `Dept ${p.departement}` : ''].filter(Boolean).join(' · ')}</div>
-              ${p.exploitant ? `<div style="color:var(--text-tertiary);font-size:10px">Exploitant : ${p.exploitant}</div>` : ''}
+              <div style="color:var(--text-secondary);font-size:11px">${esc(freqDisplay)}</div>
+              ${pw ? `<div style="color:var(--text-tertiary);font-size:11px">Puissance : ${esc(pw)}</div>` : ''}
+              ${cov ? `<div style="color:var(--text-tertiary);font-size:11px">Couverture : ${esc(cov)}</div>` : ''}
+              <div style="color:var(--text-tertiary);font-size:11px">${[esc(p.commune), p.departement ? `Dept ${esc(p.departement)}` : ''].filter(Boolean).join(' · ')}</div>
+              ${p.exploitant ? `<div style="color:var(--text-tertiary);font-size:10px">Exploitant : ${esc(p.exploitant)}</div>` : ''}
             </div>
           </div>`)
           .addTo(map);
@@ -629,7 +633,7 @@ export function useMapInit(
         const props = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '250px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${props.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${props.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${props.ville ?? ''}</div></div>`)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${esc(props.nom) || '—'}</b><br/><span style="color:#64748b;font-size:11px">${esc(props.adresse)}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${esc(props.ville)}</div></div>`)
           .addTo(map);
       };
 
@@ -695,7 +699,7 @@ export function useMapInit(
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${p.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${p.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${p.ville ?? ''}</div></div>`)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${esc(p.nom) || '—'}</b><br/><span style="color:#64748b;font-size:11px">${esc(p.adresse)}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${esc(p.ville)}</div></div>`)
           .addTo(map);
       };
 
@@ -852,7 +856,7 @@ export function useMapInit(
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '240px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6"><b style="color:#1e293b">${p.cirfa_nom ?? '—'}</b><br/><span style="color:#2563eb;font-weight:600">⏱ ${p.minutes_req ?? '?'} min (${p.mode ?? '?'})</span><br/><span style="color:#94a3b8;font-size:10px">id: ${p.cirfa_id ?? '?'}</span></div>`)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6"><b style="color:#1e293b">${esc(p.cirfa_nom) || '—'}</b><br/><span style="color:#2563eb;font-weight:600">⏱ ${esc(p.minutes_req) || '?'} min (${esc(p.mode) || '?'})</span><br/><span style="color:#94a3b8;font-size:10px">id: ${esc(p.cirfa_id) || '?'}</span></div>`)
           .addTo(map);
       };
       map.on('click', 'test-iso-fill', onTestIsoClick);
@@ -897,7 +901,7 @@ export function useMapInit(
         const palier = Number(props.palier ?? 0);
         new maplibregl.Popup({ closeButton: true, maxWidth: '250px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${props.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${props.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${props.ville ?? ''}</div><div style="margin-top:4px;font-weight:600;color:#059669">⏱ Anneau ${palier} min</div></div>`)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:220px"><b style="color:#1e293b">${esc(props.nom) || '—'}</b><br/><span style="color:#64748b;font-size:11px">${esc(props.adresse)}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${esc(props.ville)}</div><div style="margin-top:4px;font-weight:600;color:#059669">⏱ Anneau ${palier} min</div></div>`)
           .addTo(map);
       };
       map.on('click', 'battle-fill', onBattleFillClick);
@@ -924,7 +928,7 @@ export function useMapInit(
         const p = e.features[0].properties as Record<string, unknown>;
         new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${p.nom ?? '—'}</b><br/><span style="color:#64748b;font-size:11px">${p.adresse ?? ''}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${p.ville ?? ''}</div></div>`)
+          .setHTML(`<div style="padding:8px 10px;font-family:sans-serif;font-size:12px;line-height:1.6;max-width:240px"><b style="color:#1e293b">${esc(p.nom) || '—'}</b><br/><span style="color:#64748b;font-size:11px">${esc(p.adresse)}</span><div style="color:#94a3b8;font-size:11px;margin-top:2px">${esc(p.ville)}</div></div>`)
           .addTo(map);
       };
       map.on('click', 'battle-pois-circle', onBattlePoisClick);

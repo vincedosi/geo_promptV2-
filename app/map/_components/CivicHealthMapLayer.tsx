@@ -22,6 +22,7 @@
  */
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import type { AirIndicator, AtmoLevel, PollenIndicator } from '@/lib/civic-health/types';
@@ -240,7 +241,7 @@ export function CivicHealthMapLayer({
                   ? ` <span style="color:var(--text-tertiary);">· ${conc < 10 ? conc.toFixed(1) : Math.round(conc)} grains/m³</span>`
                   : '';
                 return `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--text-secondary);">
-                  <span>${label}</span>
+                  <span>${esc(label)}</span>
                   <span style="font-family:'JetBrains Mono',monospace;color:${colors[lvl] ?? colors[0]};">${lvl} — ${civicLevelLabel(dataset, lvl)}${concStr}</span>
                 </div>`;
               }).join('')
@@ -259,7 +260,7 @@ export function CivicHealthMapLayer({
             .setHTML(`
               <div style="font-family:'Inter',system-ui,sans-serif;line-height:1.5;padding:4px 2px;">
                 <div style="font-size:12px;color:var(--text-primary);font-weight:500;margin-bottom:4px;">
-                  ${String(f.properties?.nom ?? code)} (${code})
+                  ${esc(f.properties?.nom ?? code)} (${esc(code)})
                 </div>
                 ${entry ? `
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">

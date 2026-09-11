@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
@@ -291,8 +292,8 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
       if (!f) return;
       map.getCanvas().style.cursor = 'pointer';
       const p = (f.properties ?? {}) as Record<string, unknown>;
-      const nom = String(p.nom ?? p.code ?? '—');
-      const label = p.label && String(p.label) !== nom ? ` <span style="color:var(--text-tertiary)">· ${String(p.label)}</span>` : '';
+      const nom = esc(p.nom ?? p.code) || '—';
+      const label = p.label && String(p.label) !== nom ? ` <span style="color:var(--text-tertiary)">· ${esc(p.label)}</span>` : '';
 
       // Construction conditionnelle des lignes du popup. En mode meteo, les
       // features sont enrichies avec meteo_value/unit/label (en plus des KPIs
@@ -304,7 +305,7 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
       const hasMeteo = p.meteo_value !== undefined && p.meteo_value !== null;
 
       if (hasImpressions) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${fmtNum(p.impressions)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${esc(metricLabel)}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${fmtNum(p.impressions)}</span></div>`);
       }
       if (hasPop) {
         lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>`);
@@ -314,12 +315,12 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
       }
       if (hasMeteo) {
         const mv = Number(p.meteo_value);
-        const mu = p.meteo_unit ? String(p.meteo_unit) : '';
-        const ml = p.meteo_label ? `<div style="color:var(--text-tertiary);font-size:10px;margin-top:2px">${String(p.meteo_label)}</div>` : '';
+        const mu = esc(p.meteo_unit);
+        const ml = p.meteo_label ? `<div style="color:var(--text-tertiary);font-size:10px;margin-top:2px">${esc(p.meteo_label)}</div>` : '';
         const sep = lines.length > 0
           ? '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border-subtle)"></div>'
           : '';
-        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${metricLabel}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${mv.toFixed(1)} ${mu}</span></div>${ml}`);
+        lines.push(`${sep}<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${esc(metricLabel)}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${mv.toFixed(1)} ${mu}</span></div>${ml}`);
       }
 
       const html = `

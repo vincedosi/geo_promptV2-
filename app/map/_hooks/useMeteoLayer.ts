@@ -16,6 +16,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useMeteoData } from '@/lib/meteo/use-meteo-data';
 import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
@@ -90,11 +91,11 @@ export function useMeteoLayer(
         .setLngLat(e.lngLat)
         .setHTML(
           `<div style="font-family:Inter,sans-serif;font-size:12px;color:var(--text-primary)">` +
-          `<div style="font-weight:500;margin-bottom:2px">${p.nom ?? ''}</div>` +
+          `<div style="font-weight:500;margin-bottom:2px">${esc(p.nom)}</div>` +
           (value != null
-            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${p.unit ?? ''}</div>`
+            ? `<div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${esc(p.unit)}</div>`
             : '') +
-          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${p.label}</div>` : '') +
+          (p.label ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">${esc(p.label)}</div>` : '') +
           `</div>`,
         )
         .addTo(map);

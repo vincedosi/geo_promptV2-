@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 
 const SOURCE_ID = 'suivi-campaign-zones';
@@ -196,9 +197,9 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
             .setLngLat(e.lngLat)
             .setHTML(
               `<div style="font-family:${fInter};font-size:12px;">`
-              + `<strong>${p.code}</strong>${p.nom ? ` · ${p.nom}` : ''}`
+              + `<strong>${esc(p.code)}</strong>${p.nom ? ` · ${esc(p.nom)}` : ''}`
               + `${inTarget ? ' · <span style="color:var(--brand-teal)">cible</span>' : ''}<br/>`
-              + `<span style="font-family:${fMono};font-size:11px;">${cfg.label} : ${valueLabel}</span>`
+              + `<span style="font-family:${fMono};font-size:11px;">${esc(cfg.label)} : ${esc(valueLabel)}</span>`
               + `</div>`,
             )
             .addTo(map);

@@ -17,6 +17,7 @@
  */
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 
 export type CivicVariableCode = 'abstention_pres_2022' | null;
@@ -185,7 +186,7 @@ export function CivicIndicatorsLayer({ mapRef, variableCode, opacity = 0.65 }: P
           const Popup = (window as typeof window & { maplibregl?: typeof maplibregl }).maplibregl?.Popup ?? maplibregl.Popup;
           const communesLine = communeName
             ? `<div style="font-family: 'Inter', sans-serif; font-size: 12px; color: #f0f0f0; margin-bottom: 2px;">
-                 ${communeName}${nbCommunes > 1 ? ` <span style="color: #a0a0a0; font-size: 10px;">+ ${nbCommunes - 1} autre${nbCommunes > 2 ? 's' : ''}</span>` : ''}
+                 ${esc(communeName)}${nbCommunes > 1 ? ` <span style="color: #a0a0a0; font-size: 10px;">+ ${nbCommunes - 1} autre${nbCommunes > 2 ? 's' : ''}</span>` : ''}
                </div>`
             : '';
           popupRef.current = new Popup({ closeButton: true, closeOnClick: false, offset: 12, maxWidth: '300px' })
@@ -193,8 +194,8 @@ export function CivicIndicatorsLayer({ mapRef, variableCode, opacity = 0.65 }: P
             .setHTML(`
               <div style="font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; padding: 4px 2px;">
                 <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
-                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a0a0a0;">${cp}</span>
-                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #666;">DÉPT ${dept}</span>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a0a0a0;">${esc(cp)}</span>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #666;">DÉPT ${esc(dept)}</span>
                 </div>
                 ${communesLine}
                 <div style="
@@ -204,11 +205,11 @@ export function CivicIndicatorsLayer({ mapRef, variableCode, opacity = 0.65 }: P
                   padding: 8px 10px;
                   margin-top: 6px;
                 ">
-                  <div style="font-size: 10px; color: #a0a0a0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">${meta.label}</div>
+                  <div style="font-size: 10px; color: #a0a0a0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">${esc(meta.label)}</div>
                   <div style="font-family: 'JetBrains Mono', monospace; font-size: 18px; color: #4ecdc4; font-weight: 500;">
                     ${v.toFixed(1)}${meta.unit}
                   </div>
-                  <div style="font-size: 11px; color: #a0a0a0; margin-top: 2px;">${meta.qualifier(v)}</div>
+                  <div style="font-size: 11px; color: #a0a0a0; margin-top: 2px;">${esc(meta.qualifier(v))}</div>
                 </div>
                 <div style="font-size: 11px; color: #a0a0a0; margin-top: 8px; display: flex; justify-content: space-between;">
                   <span>Inscrits sur les listes</span>

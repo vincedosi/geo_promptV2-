@@ -23,12 +23,11 @@ import { circleGeoJSON, getCatColor } from '@/app/copilote/_lib/constants';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 import type { POIStylesMap } from '@/app/map/_components/FilterPanel';
+// L'echappement etait defini localement ici ; il vit desormais dans lib/map,
+// partage par les treize popups du projet — et il couvre l'apostrophe, que la
+// version locale omettait.
+import { echapperHtml as esc } from '@/lib/map/echapper-html';
 
-/** Echappe le HTML injecte dans les popups (donnees importees non fiables). */
-function esc(s: string | undefined | null): string {
-  if (!s) return '';
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 /**
  * Resout une couleur CSS en composantes RVB.
