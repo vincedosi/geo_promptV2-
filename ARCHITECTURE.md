@@ -52,7 +52,7 @@
 
 | Couche | Technologie | Version |
 |--------|-------------|---------|
-| Framework web | Next.js (App Router) | ^14.2 |
+| Framework web | Next.js (App Router) | 15.5.25 |
 | Runtime UI | React | ^19.0 |
 | Langage | TypeScript (strict) | ^5.3 |
 | Base de donnees | Supabase (PostgreSQL 15 + PostGIS) | ^2.97 |

@@ -8,7 +8,7 @@
 ## Projet
 
 **MAGELIAN** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
-Stack : Next.js 14 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
+Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
 Projet Supabase : `vkkdbygwbrxyogqosten` (eu-west-3). Utiliser MCP Supabase (`execute_sql`, `apply_migration`), JAMAIS de SQL manuel.
 
 ## ⛔ RÈGLES CRITIQUES — NON NÉGOCIABLE

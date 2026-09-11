@@ -81,6 +81,43 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     ).toEqual([]);
   });
 
+  it('les versions annoncées par la doc correspondent à package.json', () => {
+    // Trouvé le 11/09 : ARCHITECTURE.md annonçait Next « ^14.2 » alors que le
+    // projet tournait en 15.5.25 depuis le bump du 10/09. Le doc autoritaire
+    // lui-même avait dérivé — c'est pour ça qu'on ne peut pas se reposer sur
+    // la seule discipline.
+    const pkg = JSON.parse(lire('package.json')) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+    // Une ligne du tableau « Stack technique » : | Libellé | Techno | Version |
+    const majeure = (v: string) => v.replace(/^[\^~]/, '').split('.')[0];
+    const aVerifier: Array<[string, RegExp]> = [
+      ['next',                  /\| Framework web \| Next\.js \(App Router\) \| ([^|]+)\|/],
+      ['react',                 /\| Runtime UI \| React \| ([^|]+)\|/],
+      ['@supabase/supabase-js', /\| Base de donnees \| Supabase[^|]*\| ([^|]+)\|/],
+      ['maplibre-gl',           /\| Cartographie \| MapLibre GL JS \| ([^|]+)\|/],
+    ];
+
+    const divergences = aVerifier.flatMap(([paquet, motif]) => {
+      const m = archi.match(motif);
+      if (!m) return [`${paquet} : ligne introuvable dans le tableau Stack technique`];
+      const annoncee = m[1].trim();
+      const reelle = deps[paquet];
+      if (!reelle) return [`${paquet} : absent de package.json`];
+      return majeure(annoncee) === majeure(reelle)
+        ? []
+        : [`${paquet} : doc annonce ${annoncee}, package.json dit ${reelle}`];
+    });
+
+    expect(
+      divergences,
+      `ARCHITECTURE.md a dérivé de package.json : ${divergences.join(' ; ')}`,
+    ).toEqual([]);
+  });
+
   it('la dormance des RLS reste écrite noir sur blanc', () => {
     // C'est l'affirmation dont l'inverse a déjà été écrit dans un doc périmé
     // (« RLS partout »). Tant que les routes passent par service_role, le doc
