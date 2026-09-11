@@ -573,48 +573,6 @@ export type Database = {
           },
         ]
       }
-      bidding_init_presets: {
-        Row: {
-          code: string
-          created_at: string
-          description: string
-          description_fr: string
-          display_name: string
-          display_name_fr: string
-          display_order: number
-          in_zone_multiplier: number
-          is_default: boolean
-          is_enabled: boolean
-          out_zone_multiplier: number
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          description: string
-          description_fr: string
-          display_name: string
-          display_name_fr: string
-          display_order?: number
-          in_zone_multiplier: number
-          is_default?: boolean
-          is_enabled?: boolean
-          out_zone_multiplier: number
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          description?: string
-          description_fr?: string
-          display_name?: string
-          display_name_fr?: string
-          display_order?: number
-          in_zone_multiplier?: number
-          is_default?: boolean
-          is_enabled?: boolean
-          out_zone_multiplier?: number
-        }
-        Relationships: []
-      }
       bidding_objectives: {
         Row: {
           code: string
@@ -965,83 +923,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bidding_strategy_subzones_strategy_id_fkey"
-            columns: ["strategy_id"]
-            isOneToOne: false
-            referencedRelation: "bidding_strategies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bidding_zone_config_proposals: {
-        Row: {
-          applied_at: string | null
-          applied_to_config_id: string | null
-          country_code: string
-          expires_at: string | null
-          id: string
-          postal_code: string
-          proposed_at: string
-          proposed_bid_multiplier: number
-          proposed_by: string
-          proposed_ceiling_bid: number | null
-          proposed_constraints: Json | null
-          proposed_floor_bid: number | null
-          proposed_target_metrics: Json | null
-          reasoning: Json
-          review_notes: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          strategy_id: string
-          updated_at: string
-        }
-        Insert: {
-          applied_at?: string | null
-          applied_to_config_id?: string | null
-          country_code?: string
-          expires_at?: string | null
-          id?: string
-          postal_code: string
-          proposed_at?: string
-          proposed_bid_multiplier: number
-          proposed_by?: string
-          proposed_ceiling_bid?: number | null
-          proposed_constraints?: Json | null
-          proposed_floor_bid?: number | null
-          proposed_target_metrics?: Json | null
-          reasoning?: Json
-          review_notes?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          strategy_id: string
-          updated_at?: string
-        }
-        Update: {
-          applied_at?: string | null
-          applied_to_config_id?: string | null
-          country_code?: string
-          expires_at?: string | null
-          id?: string
-          postal_code?: string
-          proposed_at?: string
-          proposed_bid_multiplier?: number
-          proposed_by?: string
-          proposed_ceiling_bid?: number | null
-          proposed_constraints?: Json | null
-          proposed_floor_bid?: number | null
-          proposed_target_metrics?: Json | null
-          reasoning?: Json
-          review_notes?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          strategy_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bidding_zone_config_proposals_strategy_id_fkey"
             columns: ["strategy_id"]
             isOneToOne: false
             referencedRelation: "bidding_strategies"
@@ -1669,36 +1550,6 @@ export type Database = {
           men_pauv?: number | null
           men_prop?: number | null
           men_surf?: number | null
-        }
-        Relationships: []
-      }
-      carreaux_commune_lookup: {
-        Row: {
-          carreau_id: number
-          code_commune: string
-          ind: number | null
-          ind_18_24: number | null
-          ind_25_39: number | null
-          ind_40_54: number | null
-          ind_inc: number | null
-        }
-        Insert: {
-          carreau_id: number
-          code_commune: string
-          ind?: number | null
-          ind_18_24?: number | null
-          ind_25_39?: number | null
-          ind_40_54?: number | null
-          ind_inc?: number | null
-        }
-        Update: {
-          carreau_id?: number
-          code_commune?: string
-          ind?: number | null
-          ind_18_24?: number | null
-          ind_25_39?: number | null
-          ind_40_54?: number | null
-          ind_inc?: number | null
         }
         Relationships: []
       }
@@ -2633,13 +2484,6 @@ export type Database = {
             foreignKeyName: "emetteur_radio_stations_radio_id_fkey"
             columns: ["radio_id"]
             isOneToOne: false
-            referencedRelation: "radio_couvertures_agg"
-            referencedColumns: ["radio_id"]
-          },
-          {
-            foreignKeyName: "emetteur_radio_stations_radio_id_fkey"
-            columns: ["radio_id"]
-            isOneToOne: false
             referencedRelation: "radios"
             referencedColumns: ["id"]
           },
@@ -2698,13 +2542,6 @@ export type Database = {
           systeme?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "emetteurs_radio_radio_id_fkey"
-            columns: ["radio_id"]
-            isOneToOne: false
-            referencedRelation: "radio_couvertures_agg"
-            referencedColumns: ["radio_id"]
-          },
           {
             foreignKeyName: "emetteurs_radio_radio_id_fkey"
             columns: ["radio_id"]
@@ -2770,13 +2607,6 @@ export type Database = {
           systeme?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "emetteurs_radio_archive_radio_id_fkey"
-            columns: ["radio_id"]
-            isOneToOne: false
-            referencedRelation: "radio_couvertures_agg"
-            referencedColumns: ["radio_id"]
-          },
           {
             foreignKeyName: "emetteurs_radio_archive_radio_id_fkey"
             columns: ["radio_id"]
@@ -3241,27 +3071,6 @@ export type Database = {
         }
         Relationships: []
       }
-      isochrone_carreaux_coverage: {
-        Row: {
-          carreau_id: number
-          minutes: number
-          mode: string
-          poi_id: string
-        }
-        Insert: {
-          carreau_id: number
-          minutes: number
-          mode: string
-          poi_id: string
-        }
-        Update: {
-          carreau_id?: number
-          minutes?: number
-          mode?: string
-          poi_id?: string
-        }
-        Relationships: []
-      }
       isochrones_cache: {
         Row: {
           cache_key: string
@@ -3622,13 +3431,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "panneaux_affichage_data_source_id_fkey"
-            columns: ["data_source_id"]
-            isOneToOne: false
-            referencedRelation: "data_sources_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "panneaux_affichage_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3756,46 +3558,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "poi_france_data_source_id_fkey"
-            columns: ["data_source_id"]
-            isOneToOne: false
-            referencedRelation: "data_sources_view"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "poi_france_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      poi_metadata_index: {
-        Row: {
-          cle: string
-          id: string
-          poi_id: string
-          valeur: string
-        }
-        Insert: {
-          cle: string
-          id?: string
-          poi_id: string
-          valeur: string
-        }
-        Update: {
-          cle?: string
-          id?: string
-          poi_id?: string
-          valeur?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "poi_metadata_index_poi_id_fkey"
-            columns: ["poi_id"]
-            isOneToOne: false
-            referencedRelation: "poi_france"
             referencedColumns: ["id"]
           },
         ]
@@ -4058,13 +3824,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "radios_parent_radio_id_fkey"
-            columns: ["parent_radio_id"]
-            isOneToOne: false
-            referencedRelation: "radio_couvertures_agg"
-            referencedColumns: ["radio_id"]
-          },
           {
             foreignKeyName: "radios_parent_radio_id_fkey"
             columns: ["parent_radio_id"]
@@ -4419,43 +4178,6 @@ export type Database = {
         }
         Relationships: []
       }
-      data_sources_view: {
-        Row: {
-          ai_summary: string | null
-          category: string | null
-          description: string | null
-          error_count: number | null
-          file_format: string | null
-          geo_config: Json | null
-          id: string | null
-          import_date: string | null
-          imported_by: string | null
-          mapping: Json | null
-          metadata: Json | null
-          name: string | null
-          organization_id: string | null
-          organization_name: string | null
-          organization_slug: string | null
-          original_filename: string | null
-          panneaux_count: number | null
-          poi_count: number | null
-          regie: string | null
-          row_count: number | null
-          shared_with: string[] | null
-          status: string | null
-          type: string | null
-          valid_count: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "data_sources_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       geography_columns: {
         Row: {
           coord_dimension: number | null
@@ -4495,47 +4217,6 @@ export type Database = {
           f_table_schema?: unknown
           srid?: number | null
           type?: string | null
-        }
-        Relationships: []
-      }
-      iris_metrics_mv: {
-        Row: {
-          centroid_lat: number | null
-          centroid_lng: number | null
-          code_commune: string | null
-          code_dept: string | null
-          code_iris: string | null
-          nb_csp_cadre: number | null
-          nb_csp_employe: number | null
-          nb_csp_ouvrier: number | null
-          nb_diplome_aucun: number | null
-          nb_diplome_bac: number | null
-          nb_diplome_sup: number | null
-          nb_menages: number | null
-          nom_iris: string | null
-          pop_0_14: number | null
-          pop_15_29: number | null
-          pop_30_44: number | null
-          pop_45_59: number | null
-          pop_60_74: number | null
-          pop_75_plus: number | null
-          population: number | null
-          rev_median: number | null
-          taux_chomage: number | null
-          taux_diplome_sup: number | null
-          taux_proprio: number | null
-        }
-        Relationships: []
-      }
-      radio_couvertures_agg: {
-        Row: {
-          categorie_arcom: string | null
-          couverture_geom: unknown
-          genre: string | null
-          nb_emetteurs: number | null
-          nom: string | null
-          portee: string | null
-          radio_id: string | null
         }
         Relationships: []
       }
@@ -5075,15 +4756,6 @@ export type Database = {
         Returns: boolean
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
-      get_abstention_stats: {
-        Args: never
-        Returns: {
-          max: number
-          median: number
-          min: number
-          n: number
-        }[]
-      }
       get_active_data_registry: {
         Args: never
         Returns: {
@@ -5208,21 +4880,6 @@ export type Database = {
         }
         Returns: Json
       }
-      get_carreaux: {
-        Args: {
-          p_east: number
-          p_millesime?: string
-          p_north: number
-          p_resolution?: string
-          p_south: number
-          p_table: string
-          p_west: number
-        }
-        Returns: {
-          geometry: Json
-          metadata: Json
-        }[]
-      }
       get_carreaux_bbox: {
         Args: {
           p_east: number
@@ -5286,29 +4943,9 @@ export type Database = {
         Args: { p_cluster_id: number; p_model_version: number }
         Returns: Json
       }
-      get_codes_postaux_bbox: {
-        Args: {
-          p_bbox_xmax?: number
-          p_bbox_xmin?: number
-          p_bbox_ymax?: number
-          p_bbox_ymin?: number
-        }
-        Returns: Json
-      }
       get_composite_zone_geometry: {
         Args: { p_zone_ids: string[] }
         Returns: Json
-      }
-      get_cps_in_bbox: {
-        Args: {
-          p_max_lat: number
-          p_max_lng: number
-          p_min_lat: number
-          p_min_lng: number
-        }
-        Returns: {
-          code_postal: string
-        }[]
       }
       get_custom_geo_zone_feature: {
         Args: { p_zone_id: string }
@@ -5322,20 +4959,6 @@ export type Database = {
           code_dept: string
           nom_dept: string
         }[]
-      }
-      get_digital_analysis_breakdown: {
-        Args: {
-          p_aggregation?: string
-          p_campaign_id: string
-          p_indicator?: string
-          p_limit?: number
-          p_media?: string[]
-          p_metric?: string
-          p_parent_code?: string
-          p_parent_type?: string
-          p_pop_min?: number
-        }
-        Returns: Json
       }
       get_digital_analysis_breakdown_v2: {
         Args: {
@@ -5356,26 +4979,8 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: number[]
       }
-      get_digital_campaign_map: {
-        Args: {
-          p_bbox_xmax?: number
-          p_bbox_xmin?: number
-          p_bbox_ymax?: number
-          p_bbox_ymin?: number
-          p_campaign_id: string
-          p_media?: string[]
-          p_metric?: string
-          p_pop_field?: string
-          p_scale?: string
-        }
-        Returns: Json
-      }
       get_digital_campaigns_list: {
         Args: { p_organization_id?: string }
-        Returns: Json
-      }
-      get_digital_cp_iris_detail: {
-        Args: { p_code_postal: string }
         Returns: Json
       }
       get_digital_geography_map_v2: {
@@ -5389,15 +4994,6 @@ export type Database = {
           p_metric_field?: string
           p_pop_field?: string
           p_scale?: string
-        }
-        Returns: Json
-      }
-      get_digital_media_heatmap: {
-        Args: {
-          p_aggregation?: string
-          p_campaign_id: string
-          p_indicator?: string
-          p_metric?: string
         }
         Returns: Json
       }
@@ -5421,25 +5017,6 @@ export type Database = {
           france_rows: number
           matched_iris: number
           total_rows: number
-        }[]
-      }
-      get_equity_analysis: {
-        Args: {
-          p_bbox?: number[]
-          p_campaign_id: string
-          p_full?: boolean
-          p_population_field?: string
-          p_scale?: string
-          p_source?: string
-        }
-        Returns: {
-          code_dept: string
-          code_iris: string
-          equity_index: number
-          geom: unknown
-          impressions: number
-          nom_commune: string
-          population_cible: number
         }[]
       }
       get_filosofi_profile_for_isochrone: {
@@ -5490,22 +5067,6 @@ export type Database = {
           n: number
         }[]
       }
-      get_iris_geojson_by_bbox: {
-        Args: {
-          p_colonne?: string
-          p_east: number
-          p_max_rows?: number
-          p_north: number
-          p_simplify?: number
-          p_south: number
-          p_west: number
-        }
-        Returns: Json
-      }
-      get_iris_geojson_by_codes: {
-        Args: { p_codes: string[]; p_simplify_tolerance?: number }
-        Returns: Json
-      }
       get_iris_metric_columns: {
         Args: never
         Returns: {
@@ -5526,10 +5087,6 @@ export type Database = {
           p_west?: number
         }
         Returns: Json
-      }
-      get_iris_tile: {
-        Args: { p_col?: string; x: number; y: number; z: number }
-        Returns: string
       }
       get_isochrone_battle: { Args: { p_rings: Json }; Returns: Json }
       get_isochrone_battle_v10: { Args: { p_rings: Json }; Returns: Json }
@@ -5580,18 +5137,6 @@ export type Database = {
           }
       get_radio_filter_options: { Args: never; Returns: Json }
       get_radio_stats: { Args: never; Returns: Json }
-      get_radios_for_emetteur: {
-        Args: { p_emetteur_id: string }
-        Returns: {
-          categorie_arcom: string
-          genre: string
-          groupe_media: string
-          nom: string
-          portee: string
-          radio_id: string
-          source: string
-        }[]
-      }
       get_radios_in_zone: {
         Args: { systeme_filter?: string; zone_geom: unknown }
         Returns: {
@@ -5643,28 +5188,6 @@ export type Database = {
         Returns: Json
       }
       get_tile: { Args: { x: number; y: number; z: number }; Returns: string }
-      get_tile_mvt: {
-        Args: { p_x: number; p_y: number; p_zoom: number }
-        Returns: {
-          mvt: string
-        }[]
-      }
-      get_tile_mvt_optimized: {
-        Args: { p_limit?: number; p_x: number; p_y: number; p_zoom: number }
-        Returns: {
-          mvt: string
-        }[]
-      }
-      get_tile_mvt_with_properties: {
-        Args: { p_indicator?: string; p_x: number; p_y: number; p_zoom: number }
-        Returns: {
-          mvt: string
-        }[]
-      }
-      get_tile_tmja: {
-        Args: { x: number; y: number; z: number }
-        Returns: string
-      }
       get_tmja_by_bbox: {
         Args: {
           p_east: number
@@ -5900,7 +5423,6 @@ export type Database = {
         Returns: Json
       }
       refresh_filosofi_national_averages: { Args: never; Returns: string }
-      refresh_iris_metrics_mv: { Args: never; Returns: undefined }
       refresh_smart_ville_stats: { Args: never; Returns: number }
       refresh_ville_stats_chunk: {
         Args: { p_limit: number; p_offset: number }

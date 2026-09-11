@@ -10,10 +10,8 @@
 > `lib/import/shp-parser.ts` supprime aussi (mort, homonyme de la fonction
 > reellement utilisee dans `file-parser.ts`).
 > Retrait 2026-09-08 : 13 routes API sans appelant supprimees (voir
-> `docs/PLAN_SAAS.md` §3.A). Six RPC deviennent orphelines EN BASE et n'ont
-> PAS ete supprimees : `get_iris_tile`, `get_abstention_stats`,
-> `get_cps_in_bbox`, `get_codes_postaux_bbox`, `get_digital_cp_iris_detail`,
-> `get_radios_for_emetteur`.
+> `docs/PLAN_SAAS.md` §3.A). Les six RPC devenues orphelines EN BASE ont ete
+> supprimees le 2026-09-11 avec le reste du menage (sql/133 et sql/134).
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
@@ -486,6 +484,34 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 
 ---
 
+> **Menage en base du 2026-09-11 (sql/133 et sql/134).** 240 Mo liberes,
+> 18 objets et 18 fonctions retires. Critere applique a chacun : aucune
+> reference dans le code (attention au faux positif — `types/database.types.ts`
+> cite TOUTES les tables), aucune mention dans une fonction, vue ou vue
+> materialisee de `public`, aucune cle etrangere, aucune vue dependante, et une
+> definition presente dans une migration versionnee (restaurer = une operation
+> git, pas une restauration de sauvegarde).
+>
+> La plus grosse prise : `carreaux_commune_lookup` (227 Mo, 2,2 M lignes), un
+> cache derive de `carreaux_filosofi` dont l'unique lecteur, `get_equity_analysis`,
+> n'avait lui-meme aucun appelant — du code mort lisant un cache mort.
+>
+> **N'ONT PAS ete retires, et il faut savoir pourquoi :**
+> - `geography_zones` (93 lignes) n'a aucun lecteur non plus, mais ce sont les
+>   **93 zones CIRFA** d'avril 2026, la donnee metier du plan media. De la
+>   geometrie faconnee, pas un cache. Les migrer vers `custom_geo_zones` ou les
+>   abandonner est un arbitrage produit.
+> - `laposte_hexasmal` (vide) et ses trois fonctions : `sql/119-120` les ont
+>   durcies apres avoir decouvert qu'un appel pouvait effacer les 6 187 codes
+>   postaux de `ref_codes_postaux`. Les retirer supprimerait ce risque — et le
+>   seul chemin de reconstruction du referentiel.
+> - `get_isochrone_battle_v10` : sans appelant, mais famille bataille, PROTEGEE.
+> - `get_user_org` / `get_user_orgs` / `get_user_role` : sans appelant applicatif,
+>   citees par les policies RLS.
+> - `custom_access_token_hook` : appelee par GoTrue, jamais par notre code.
+> - `releve_empreinte_carreaux`, `fill_carreaux_1km_bande` : outils de
+>   construction, sans appelant PAR CONSTRUCTION.
+
 ## Tables Supabase
 
 ### Auth & Multi-tenant
@@ -529,7 +555,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### POI & Panneaux
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
+| `poi_france` | Points d'Interet — **une table**, et non une vue : il n'existe aucune table `poi` | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
 | `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |
@@ -582,12 +608,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Carreaux & Tuiles
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_carreaux` | Carreaux dans bbox avec indicateur | *orpheline* (route supprimee 08/2026) |
 | `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT), cascade 5 paliers 20/5/2/1 km + 200 m (sql/129) | `api/tiles/` |
 | `fill_carreaux_1km_bande` | Agrege les carreaux 200 m en mailles 1 km, par bande verticale (progression + journal anti-rejeu) | outil de construction, sql/129 |
-| `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | *orpheline* (route supprimee 09/2026 — IRIS servis en PMTiles) |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
 
@@ -601,21 +625,19 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_iris_iris_residual_inputs` | Inputs residus correlation | `api/correlation/compute/` |
 | `update_iris_core_batch` | Update batch colonnes core | `api/iris-crawler/manual-import/` |
 
-> Orphelines (en base mais sans appelant TS) : `get_iris_geojson_by_bbox`,
-> `get_iris_geojson_by_codes` — etaient utilises par `/api/iris/geojson`,
-> route supprimee. Conservees en base ; voir `CLEANUP_REPORT.md`.
+> `get_iris_geojson_by_bbox` et `get_iris_geojson_by_codes` (route
+> `/api/iris/geojson` supprimee) ont ete retirees de la base le 2026-09-11
+> (sql/134).
 
 ### Digital / Campagnes
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_digital_campaigns_list` | Liste campagnes avec stats | `api/digital/campaigns/` |
 | `get_campaign_medias` | Regies distinctes campagne | `api/digital/[id]/ai-analysis/` |
-| `get_digital_campaign_map` | Choroplethe CP | `api/digital/[id]/map/` |
-| `get_digital_analysis_breakdown` | Breakdown geo | `api/digital/[id]/analysis/` |
-| `get_digital_media_heatmap` | Heatmap regies x zones | `api/digital/[id]/analysis/` |
+| `get_digital_geography_map_v2` | Choroplethe CP | `api/digital/[id]/map/` — la v1 `get_digital_campaign_map` a ete supprimee le 2026-09-11 |
+| `get_digital_analysis_breakdown_v2` | Breakdown geo | `api/digital/[id]/analysis/` — la v1 a ete supprimee le 2026-09-11 |
+| `get_digital_media_heatmap_v2` | Heatmap regies x zones | `api/digital/[id]/analysis/` — la v1 a ete supprimee le 2026-09-11 |
 | `get_digital_available_indicators` | Indicateurs disponibles | `api/digital/[id]/analysis/` |
-| `get_digital_cp_iris_detail` | Detail IRIS dans un CP | *orpheline* (route supprimee 09/2026) |
-| `get_codes_postaux_bbox` | Polygones CP dans bbox | *orpheline* (route supprimee 09/2026) |
 | `match_campaign_postal_to_iris` | Matching postal -> commune -> IRIS | `api/admin/campaigns/import/` |
 | `get_dsp_campaign_stats` | Stats agregees campagne | `api/admin/campaigns/` |
 | `get_campaign_stats_by_field` | Stats par champ (jsonb, creee sql/098 — n'existait pas avant 07/2026, la route admin utilisait son fallback) | `api/admin/campaigns/[id]/`, `api/digital/[id]/campaign-chat/` |
@@ -637,7 +659,6 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_radio_stats` | Stats globales radio | `api/radio/stats/` |
 | `get_radio_audit` | Audit matching radio | `api/radio/audit/` |
 | `count_emetteurs_par_radio` | Comptage emetteurs/radio | `api/radio/stations/` |
-| `get_radios_for_emetteur` | Radios d'un emetteur | *orpheline* (route supprimee 09/2026) |
 | `archive_and_purge_radio` | Archivage donnees radio | `lib/radio/anfr-import.ts` |
 
 ### Meteo

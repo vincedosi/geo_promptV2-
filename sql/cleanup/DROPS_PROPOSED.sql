@@ -119,3 +119,18 @@ DROP FUNCTION IF EXISTS public.get_iris_geojson_by_codes(
 --     WHERE relname IN ('iris','carreaux_filosofi','dsp_campaigns','dsp_campaign_data');
 --
 --   -- 3. Tester depuis l'app : /map (charge IRIS), /map/analyse/digital (CP detail).
+
+-- =============================================================================
+-- ⚠️  CE FICHIER EST HISTORIQUE — NE PAS L'EXECUTER.
+--
+-- Ecrit le 2026-05-07, jamais execute faute de validation. Le menage a
+-- finalement eu lieu le 2026-09-11, sur un perimetre plus large et re-verifie
+-- de zero : voir sql/133_menage_objets_orphelins.sql et
+-- sql/134_menage_fonctions_supplantees.sql.
+--
+-- Des trois suppressions proposees ici, les trois ont ete reprises et
+-- appliquees (isochrone_carreaux_coverage, get_iris_geojson_by_bbox,
+-- get_iris_geojson_by_codes). `laposte_hexasmal`, que ce fichier disait de ne
+-- pas supprimer sans audit, N'A PAS ete supprimee — l'audit du 11/09 a confirme
+-- qu'elle reste le seul chemin de reconstruction de ref_codes_postaux.
+-- =============================================================================

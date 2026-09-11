@@ -173,7 +173,7 @@ tests de chaîne échouent ; avec l'ancien comptage, les deux tests de compteur
 | Découpage de `useMapLayers.ts` (1 118 l.) et des 25 fichiers de 500-1500 l. | **Écarté volontairement.** Gros diff, valeur nulle : l'audit montre que la dette n'est pas de forme |
 | ~~Validation Zod (`SEC-001`)~~ — **traité le 2026-09-11** | **39 des 40 routes** validées en quatre tranches (voir `docs/AUDIT.md#sec-001`). La dernière est `isochrone-battle/route.ts`, fichier protégé par `CLAUDE.md`. Huit défauts fermés au passage. Cliquet : `tests/unit/api/validation-corps.test.ts` |
 | Unification de `fmtNum` (`DUP-001`) | **Duplication traitée le 2026-09-11**, arbitrage toujours ouvert. Quinze implémentations trouvées (et non quatre) ; les treize à sortie identique sont remplacées par `lib/format/nombre.ts`, à sortie constante. Les DEUX divergences visibles — le palier `G` et le séparateur décimal — sont désormais côte à côte dans un seul fichier, chacune réductible en une ligne le jour où Vincent tranche |
-| `DROP` de 4 tables et ~55 fonctions | Destructif, demande une validation objet par objet |
+| ~~`DROP` des objets orphelins~~ — **fait le 2026-09-11** | Validation obtenue de Vincent. 240 Mo liberes : 8 objets (dont `carreaux_commune_lookup`, 227 Mo) et 18 fonctions, chacun verifie sur cinq criteres avant retrait (sql/133, sql/134). Trois familles ecartees deliberement — zones CIRFA, cluster La Poste, famille bataille — detail dans `ARCHITECTURE.md` |
 | Cycles d'import dans `lib/` (`ARC-002`) | 8 des 10 passent par des `import()` dynamiques : aucun crash, coût de compréhension seulement |
 | `maplibre-gl` 6 (faille XSS) | **Tenté et abandonné** : la v6 ne rend rien. Risque abaissé — le chemin d'exploitation a été coupé à la source (`d058719`) |
 
