@@ -160,6 +160,14 @@ export function useMapLayers({
   const carreauxRangeRef = useRef<{ ind: string; min: number; max: number } | null>(null);
   // Opacity ref — mir ror de _setCarreauxOpacity, accessible sans stale closure
   const carreauxOpacityRef = useRef(0.72);
+  // 3D : hauteur maximale en metres, atteinte par la borne nationale HAUTE.
+  // 4 000 m par defaut — a la latitude de la France et aux zooms ou la 3D est
+  // lisible (z >= 8), cela donne un relief net sans que les colonnes urbaines
+  // masquent la moitie de la carte derriere elles.
+  const [carreaux3D, _setCarreaux3D] = useState(false);
+  const carreaux3DRef = useRef(false);
+  const [carreauxHauteur, _setCarreauxHauteur] = useState(4000);
+  const carreauxHauteurRef = useRef(4000);
   // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
   const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
 
@@ -282,12 +290,16 @@ export function useMapLayers({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = carreauxVisible ? 'visible' : 'none';
+    // Les couches plate et extrudee ne sont jamais visibles ensemble : leurs
+    // geometries sont coplanaires a la base, ce qui produit du z-fighting.
+    const plat = carreauxVisible && !carreaux3D ? 'visible' : 'none';
+    const relief = carreauxVisible && carreaux3D ? 'visible' : 'none';
     try {
-      map.setLayoutProperty('carreaux-mvt-fill', 'visibility', vis);
-      map.setLayoutProperty('carreaux-mvt-line', 'visibility', vis);
+      map.setLayoutProperty('carreaux-mvt-fill', 'visibility', plat);
+      map.setLayoutProperty('carreaux-mvt-line', 'visibility', plat);
+      map.setLayoutProperty('carreaux-mvt-extrusion', 'visibility', relief);
     } catch { /* ok */ }
-  }, [carreauxVisible, mapReady, mapRef]);
+  }, [carreauxVisible, carreaux3D, mapReady, mapRef]);
 
   // Applique fill-color avec les stops + range stocké
   const applyCarreauxColor = useCallback((
@@ -323,6 +335,39 @@ export function useMapLayers({
       ...frontieres.flatMap((b, i) => [b, pal.stops[i + 1]]),
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
+    // La couche extrudee porte la MEME couleur : basculer en 3D ne doit pas
+    // changer la lecture, seulement l'axe sur lequel on la lit.
+    try { map.setPaintProperty('carreaux-mvt-extrusion', 'fill-extrusion-color', expr); } catch { /* ok */ }
+  }, []);
+
+  /**
+   * Hauteur des colonnes 3D.
+   *
+   * Meme entree que la couleur — le log10 de la valeur normalisee — et MEMES
+   * bornes nationales. Une colonne deux fois plus haute qu'une autre designe
+   * donc le meme ecart que deux crans de palette, et un territoire garde sa
+   * silhouette d'une carte a l'autre. C'est tout l'interet d'avoir rendu
+   * l'echelle nationale et fixe : sans cela, la 3D aurait fait varier la
+   * HAUTEUR PHYSIQUE des carreaux au gre du viewport.
+   *
+   * `interpolate` borne aux extremites : sous la borne basse la colonne est
+   * plate, au-dessus de la borne haute elle plafonne a `hauteurMax`. Ce
+   * plafonnement est voulu — sans lui, une poignee de carreaux parisiens
+   * ecraserait tout le reste du relief.
+   */
+  const applyCarreauxHauteur = useCallback((
+    map: maplibregl.Map,
+    ind: string,
+    bornes: BornesEchelle,
+    hauteurMax: number,
+  ) => {
+    if (!map.getLayer('carreaux-mvt-extrusion')) return;
+    if (bornes.max - bornes.min <= 0) return;
+    const expr = ['interpolate', ['linear'], carreauxEchelleExpr(ind),
+      bornes.min, 0,
+      bornes.max, hauteurMax,
+    ] as unknown as maplibregl.ExpressionSpecification;
+    try { map.setPaintProperty('carreaux-mvt-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
   }, []);
 
   // ── Setters directs — applique immédiatement sans passer par les effects ──
@@ -344,8 +389,9 @@ export function useMapLayers({
     carreauxRangeRef.current = { ind, ...bornes };
     setCarreauxRange(bornes);
     applyCarreauxColor(map, paletteId, ind, bornes);
+    applyCarreauxHauteur(map, ind, bornes, carreauxHauteurRef.current);
     logger.debug('palette', `applied national bornes log10 ${bornes.min} → ${bornes.max}`);
-  }, [mapRef, applyCarreauxColor]);
+  }, [mapRef, applyCarreauxColor, applyCarreauxHauteur]);
 
   // ── Helper : applique l'opacité bucket via setPaintProperty (pas setFilter) ──
   // Raison : setFilter s'exécute dans le worker MapLibre (_parseWorkerTile) avec
@@ -386,6 +432,28 @@ export function useMapLayers({
         ['case', inBucket, 0.35, 0] as unknown as maplibregl.ExpressionSpecification);
     } catch { /* ok */ }
   }, []);
+
+  /** Bascule 2D / 3D. La couche extrudee est deja peinte : il n'y a qu'a montrer. */
+  const setCarreaux3D = useCallback((v: boolean) => {
+    carreaux3DRef.current = v;
+    _setCarreaux3D(v);
+  }, []);
+
+  /**
+   * Hauteur maximale des colonnes, en metres.
+   *
+   * Repose la seule expression de hauteur, sans toucher a la couleur ni aux
+   * bornes : deplacer la reglette change l'exageration du relief, jamais la
+   * lecture des valeurs.
+   */
+  const setCarreauxHauteur = useCallback((v: number) => {
+    carreauxHauteurRef.current = v;
+    _setCarreauxHauteur(v);
+    const map = mapRef.current;
+    const r = carreauxRangeRef.current;
+    if (!map || !r) return;
+    applyCarreauxHauteur(map, r.ind, { min: r.min, max: r.max }, v);
+  }, [mapRef, applyCarreauxHauteur]);
 
   const setCarreauxOpacity = useCallback((v: number) => {
     carreauxOpacityRef.current = v;
@@ -442,7 +510,8 @@ export function useMapLayers({
     carreauxRangeRef.current = { ind: carreauxIndicateur, ...bornes };
     setCarreauxRange(bornes);
     applyCarreauxColor(map, carreauxPalette, carreauxIndicateur, bornes);
-  }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor]);
+    applyCarreauxHauteur(map, carreauxIndicateur, bornes, carreauxHauteurRef.current);
+  }, [carreauxIndicateur, carreauxPalette, carreauxVisible, mapReady, mapRef, applyCarreauxColor, applyCarreauxHauteur]);
 
   // ── IRIS — fonctions couleur + chargement ─────────────────────────────────
 
@@ -1005,6 +1074,8 @@ export function useMapLayers({
     carreauxIndicateur, setCarreauxIndicateur,
     carreauxPalette,    setCarreauxPalette,
     carreauxOpacity,    setCarreauxOpacity,
+    carreaux3D,         setCarreaux3D,
+    carreauxHauteur,    setCarreauxHauteur,
     carreauxRange,
     carreauxSelectedBucket, setCarreauxSelectedBucket,
     carreauxLabel,

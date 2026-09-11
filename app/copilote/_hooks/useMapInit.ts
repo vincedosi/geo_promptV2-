@@ -800,6 +800,33 @@ export function useMapInit(
         paint: { 'fill-color': '#FC9272', 'fill-opacity': 0.65 },
         layout: { visibility: 'none' },
       });
+      // ── Carreaux en 3D ────────────────────────────────────────────────────
+      // Couche jumelle de `carreaux-mvt-fill`, en extrusion. Les deux ne sont
+      // JAMAIS visibles ensemble : superposer un aplat et son extrusion produit
+      // du z-fighting sur la face superieure, les deux geometries etant
+      // coplanaires a la base.
+      //
+      // La hauteur est posee par useMapLayers a partir des MEMES bornes
+      // nationales que la couleur (lib/carreaux/bornes.ts). Couleur et hauteur
+      // racontent donc la meme histoire, lues sur deux axes — c'est ce qui rend
+      // la 3D honnete plutot que decorative.
+      //
+      // `fill-extrusion-opacity` n'est PAS data-driven dans MapLibre : le filtre
+      // par palier de la legende, qui joue sur l'opacite feature par feature, ne
+      // peut pas s'appliquer ici. En 3D la selection d'une tranche est donc sans
+      // effet visuel — limite du moteur, pas du code.
+      map.addLayer({
+        id: 'carreaux-mvt-extrusion', type: 'fill-extrusion',
+        source: 'carreaux-mvt', 'source-layer': 'carreaux',
+        minzoom: 4,
+        paint: {
+          'fill-extrusion-color': '#FC9272',
+          'fill-extrusion-opacity': 0.85,
+          'fill-extrusion-height': 0,
+          'fill-extrusion-base': 0,
+        },
+        layout: { visibility: 'none' },
+      });
       map.addLayer({
         id: 'carreaux-mvt-line', type: 'line',
         source: 'carreaux-mvt', 'source-layer': 'carreaux',

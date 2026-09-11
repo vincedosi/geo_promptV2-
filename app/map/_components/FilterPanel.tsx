@@ -100,7 +100,8 @@ export function FilterPanel({
   onPOIStylesChange,
   onFlyTo,
   carreauxVisible, carreauxLoaded, carreauxIndicateur, carreauxPalette,
-  carreauxOpacity, carreauxRange, carreauxSelectedBucket,
+  carreauxOpacity, carreaux3D, setCarreaux3D, carreauxHauteur, setCarreauxHauteur,
+  carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
@@ -646,6 +647,10 @@ export function FilterPanel({
               carreauxIndicateur={carreauxIndicateur}
               carreauxPalette={carreauxPalette}
               carreauxOpacity={carreauxOpacity}
+              carreaux3D={carreaux3D}
+              setCarreaux3D={setCarreaux3D}
+              carreauxHauteur={carreauxHauteur}
+              setCarreauxHauteur={setCarreauxHauteur}
               carreauxRange={carreauxRange}
               carreauxSelectedBucket={carreauxSelectedBucket}
               setCarreauxVisible={setCarreauxVisible}

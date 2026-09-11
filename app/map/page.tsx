@@ -587,6 +587,10 @@ export default function MapPage() {
               carreauxIndicateur={mapLayers.carreauxIndicateur}
               carreauxPalette={mapLayers.carreauxPalette}
               carreauxOpacity={mapLayers.carreauxOpacity}
+              carreaux3D={mapLayers.carreaux3D}
+              setCarreaux3D={mapLayers.setCarreaux3D}
+              carreauxHauteur={mapLayers.carreauxHauteur}
+              setCarreauxHauteur={mapLayers.setCarreauxHauteur}
               carreauxRange={mapLayers.carreauxRange}
               carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
               setCarreauxVisible={mapLayers.setCarreauxVisible}

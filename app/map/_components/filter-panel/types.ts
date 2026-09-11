@@ -89,6 +89,10 @@ export interface FilterPanelProps {
   carreauxIndicateur?:      string;
   carreauxPalette?:         string;
   carreauxOpacity?:         number;
+  carreaux3D?:              boolean;
+  setCarreaux3D?:           (v: boolean) => void;
+  carreauxHauteur?:         number;
+  setCarreauxHauteur?:      (v: number) => void;
   carreauxRange?:           BornesEchelle | null;
   carreauxSelectedBucket?:  number | null;
   setCarreauxVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;

@@ -24,12 +24,16 @@ export interface CarreauxSectionProps {
   carreauxIndicateur?: string;
   carreauxPalette?: string;
   carreauxOpacity?: number;
+  carreaux3D?: boolean;
+  carreauxHauteur?: number;
   carreauxRange?: BornesEchelle | null;
   carreauxSelectedBucket?: number | null;
   setCarreauxVisible?: (v: boolean | ((p: boolean) => boolean)) => void;
   setCarreauxIndicateur?: (v: string) => void;
   setCarreauxPalette?: (v: string) => void;
   setCarreauxOpacity?: (v: number) => void;
+  setCarreaux3D?: (v: boolean) => void;
+  setCarreauxHauteur?: (v: number) => void;
   setCarreauxSelectedBucket?: (v: number | null) => void;
 }
 
@@ -41,12 +45,16 @@ export function CarreauxSection({
   carreauxIndicateur,
   carreauxPalette,
   carreauxOpacity,
+  carreaux3D,
+  carreauxHauteur,
   carreauxRange,
   carreauxSelectedBucket,
   setCarreauxVisible,
   setCarreauxIndicateur,
   setCarreauxPalette,
   setCarreauxOpacity,
+  setCarreaux3D,
+  setCarreauxHauteur,
   setCarreauxSelectedBucket,
 }: CarreauxSectionProps) {
   // `carreauxRange` porte des bornes NATIONALES fixes en log10 de la valeur
@@ -136,6 +144,40 @@ export function CarreauxSection({
           <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
             {Math.round((carreauxOpacity ?? 0.72) * 100)}%
           </span>
+        </div>
+
+        {/* Relief 3D — bascule + hauteur des colonnes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setCarreaux3D?.(!carreaux3D)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+              background: 'transparent',
+              border: `0.5px solid ${carreaux3D ? 'var(--brand-teal)' : C.border}`,
+              color: carreaux3D ? 'var(--brand-teal)' : C.textDim,
+              borderRadius: 6, padding: '5px 10px',
+              fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            Relief 3D{carreaux3D ? ' ✓' : ''}
+          </button>
+
+          {/* La réglette n'a de sens qu'en relief : la masquer évite d'offrir un
+              contrôle sans effet visible. */}
+          {carreaux3D && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Hauteur</span>
+              <input type="range" min={500} max={20000} step={500}
+                value={carreauxHauteur ?? 4000}
+                onChange={e => setCarreauxHauteur?.(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+              />
+              <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 38, textAlign: 'right' }}>
+                {Math.round((carreauxHauteur ?? 4000) / 1000)} km
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Légende */}
