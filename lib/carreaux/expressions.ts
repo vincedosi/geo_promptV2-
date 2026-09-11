@@ -75,3 +75,60 @@ export function donneeExploitableExpr(ind: string, denom: string): unknown[] {
     ['>', ['to-number', ['get', denom], 0], 0],
   ];
 }
+
+/**
+ * Largeur d'une maille, en mètres, déduite de sa surface.
+ *
+ * `get_tile` pose `superficie_km2` sur chaque feature, et la valeur dit quel
+ * palier de la cascade a servi la tuile : 0,04 (200 m) · 1 (1 km) · 4 (2 km) ·
+ * 25 (5 km) · 400 (20 km). La racine carrée en redonne le côté.
+ *
+ * C'est la donnée qui permet de raisonner en taille de maille **sans recopier
+ * la cascade SQL dans le front** — cette cascade a déjà changé deux fois, et
+ * une copie aurait divergé au premier ajustement.
+ */
+export function largeurMailleExpr(): unknown[] {
+  return ['*', 1000, ['sqrt', ['to-number', ['get', 'superficie_km2'], 0]]];
+}
+
+/**
+ * Hauteur d'une colonne 3D, en mètres.
+ *
+ * `exageration` est un multiple de la LARGEUR DE MAILLE, pas une hauteur en
+ * mètres. La maille change cinq fois de taille dans la cascade (20 km → 200 m) :
+ * une hauteur absolue donnait 0,2× de relief en vue France et 17× en vue ville,
+ * pour le même réglage. Mesuré le 2026-09-11, latitude 46°, pitch 60° :
+ *
+ * | zoom | colonne | maille | rapport |
+ * |---|---|---|---|
+ * | 4  | 1 px   | 6 px  | 0,2× — relief invisible |
+ * | 8  | 16 px  | 9 px  | 1,7× |
+ * | 12 | 261 px | 15 px | 17,3× — forêt d'aiguilles |
+ *
+ * En multiple de maille, ce rapport devient constant.
+ *
+ * Pas d'`interpolate` : ses sorties seraient ici des expressions data-driven,
+ * ce que MapLibre accepte mal. Le même résultat — linéaire, borné aux deux
+ * bouts — s'écrit avec `min` / `max`.
+ */
+export function hauteurExtrusionExpr(
+  ind: string,
+  denom: string,
+  bornes: BornesEchelle,
+  exageration: number,
+  /** L'expression d'échelle (log10 de la valeur normalisée) — la MÊME que celle
+   *  qui alimente la couleur. Passée en paramètre plutôt qu'importée : elle vit
+   *  dans `useMapLayers`, et la faire migrer ici pour ce seul usage déplacerait
+   *  aussi le chemin de la couleur. */
+  echelleExpr: unknown,
+): unknown[] {
+  const etendue = bornes.max - bornes.min;
+  const position01 = ['max', 0, ['min', 1,
+    ['/', ['-', echelleExpr, bornes.min], etendue],
+  ]];
+  return ['case',
+    donneeExploitableExpr(ind, denom),
+    ['*', position01, exageration, largeurMailleExpr()],
+    0,
+  ];
+}

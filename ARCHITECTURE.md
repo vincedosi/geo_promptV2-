@@ -149,6 +149,8 @@ genesis_app/
 │   ├── auth/                   # getSessionOrg, getOrgSourceIds, roles.ts (source unique des roles + schemas Zod)
 │   ├── campaigns/              # column-mappings.ts, parser.ts
 │   ├── carreaux/                # normalisation.ts (densite/km2, moyennes) + bornes.ts (echelle nationale log10)
+│   │                           # + expressions.ts : expressions MapLibre partagees (couleur, hauteur 3D,
+│   │                           #   largeur de maille deduite de superficie_km2 — pas de cascade recopiee)
 │   ├── chat/                   # Copilote IA
 │   │   ├── providers.ts        # createModel() — Gemini / Mistral
 │   │   ├── system-prompt.ts    # Prompt systeme dynamique

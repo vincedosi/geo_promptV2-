@@ -167,14 +167,19 @@ export function CarreauxSection({
               contrôle sans effet visible. */}
           {carreaux3D && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Hauteur</span>
-              <input type="range" min={500} max={20000} step={500}
-                value={carreauxHauteur ?? 4000}
+              {/* Exageration, et non hauteur en metres : la maille change cinq
+                  fois de taille dans la cascade (20 km a 200 m), donc une
+                  hauteur absolue donnait 0,2x de relief en vue France et 17x en
+                  vue ville. Le multiple de maille rend le relief identique a
+                  tous les zooms — voir applyCarreauxHauteur. */}
+              <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Relief</span>
+              <input type="range" min={0.25} max={5} step={0.25}
+                value={carreauxHauteur ?? 1.5}
                 onChange={e => setCarreauxHauteur?.(parseFloat(e.target.value))}
                 style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
               />
               <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 38, textAlign: 'right' }}>
-                {Math.round((carreauxHauteur ?? 4000) / 1000)} km
+                ×{(carreauxHauteur ?? 1.5).toFixed(2).replace(/0$/, '').replace(/[.,]$/, '')}
               </span>
             </div>
           )}

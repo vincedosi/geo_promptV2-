@@ -12,7 +12,8 @@ import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { denominateurDe } from '@/lib/carreaux/normalisation';
 import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
-import { bornesInternes, donneeExploitableExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
+import { bornesInternes, donneeExploitableExpr,
+  hauteurExtrusionExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
@@ -166,8 +167,11 @@ export function useMapLayers({
   // masquent la moitie de la carte derriere elles.
   const [carreaux3D, _setCarreaux3D] = useState(false);
   const carreaux3DRef = useRef(false);
-  const [carreauxHauteur, _setCarreauxHauteur] = useState(4000);
-  const carreauxHauteurRef = useRef(4000);
+  // Exageration du relief : multiple de la largeur de maille (et non des
+  // metres — voir applyCarreauxHauteur). 1,5x lit comme un relief sans que les
+  // colonnes se masquent entre elles.
+  const [carreauxHauteur, _setCarreauxHauteur] = useState(1.5);
+  const carreauxHauteurRef = useRef(1.5);
   // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
   const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
 
@@ -357,34 +361,47 @@ export function useMapLayers({
    * Meme entree que la couleur — le log10 de la valeur normalisee — et MEMES
    * bornes nationales. Une colonne deux fois plus haute qu'une autre designe
    * donc le meme ecart que deux crans de palette, et un territoire garde sa
-   * silhouette d'une carte a l'autre. C'est tout l'interet d'avoir rendu
-   * l'echelle nationale et fixe : sans cela, la 3D aurait fait varier la
-   * HAUTEUR PHYSIQUE des carreaux au gre du viewport.
+   * silhouette d'une carte a l'autre.
    *
-   * `interpolate` borne aux extremites : sous la borne basse la colonne est
-   * plate, au-dessus de la borne haute elle plafonne a `hauteurMax`. Ce
-   * plafonnement est voulu — sans lui, une poignee de carreaux parisiens
+   * ── Pourquoi l'exageration est un MULTIPLE DE LA MAILLE, et non des metres
+   *
+   * La reglette donnait une hauteur en metres absolus, identique a tous les
+   * zooms. Or la maille, elle, change cinq fois de taille dans la cascade
+   * (20 km -> 200 m). Mesure faite le 2026-09-11 a 46 deg de latitude, pitch
+   * 60 deg, pour le reglage par defaut de 4 km :
+   *
+   *   zoom  4 : colonne 1 px pour une maille de 6 px   -> 0,2x — relief INVISIBLE
+   *   zoom  8 : colonne 16 px pour une maille de 9 px  -> 1,7x
+   *   zoom 12 : colonne 261 px pour une maille de 15 px -> 17,3x — foret d'aiguilles
+   *
+   * Un facteur 87 entre les deux extremites, pour un reglage inchange. Aucune
+   * plage de metres ne pouvait convenir : la grandeur elle-meme etait fausse.
+   *
+   * `exagerationMaille` est desormais un multiple de la LARGEUR DE MAILLE, lue
+   * sur `superficie_km2` que `get_tile` pose sur chaque feature. Le rapport
+   * colonne/maille devient constant a tous les zooms, et le front n'a pas
+   * besoin de connaitre la cascade SQL — qui a deja change deux fois.
+   *
+   * Pas d'`interpolate` ici : ses sorties seraient des expressions
+   * data-driven, ce que MapLibre accepte mal. Le meme resultat — lineaire,
+   * borne aux deux bouts — s'ecrit avec `min`/`max`, et se lit mieux. Le
+   * plafonnement est voulu : sans lui, une poignee de carreaux parisiens
    * ecraserait tout le reste du relief.
    */
   const applyCarreauxHauteur = useCallback((
     map: maplibregl.Map,
     ind: string,
     bornes: BornesEchelle,
-    hauteurMax: number,
+    exagerationMaille: number,
   ) => {
     if (!map.getLayer('carreaux-mvt-extrusion')) return;
     if (bornes.max - bornes.min <= 0) return;
-    // Même garde-fou que la couleur : une donnée absente ne doit pas produire
-    // une colonne, ni plate (qui dirait « zéro ») ni haute (qui dirait
-    // « record »). Elle reste au sol, dans la teinte d'absence.
-    const expr = ['case',
-      donneeExploitableExpr(ind, denominateurDe(ind)),
-      ['interpolate', ['linear'], carreauxEchelleExpr(ind),
-        bornes.min, 0,
-        bornes.max, hauteurMax,
-      ],
-      0,
-    ] as unknown as maplibregl.ExpressionSpecification;
+    // L'expression vit dans `lib/carreaux/expressions.ts` — c'est la seule
+    // facon de la tester : un hook ne s'evalue pas en test unitaire, et c'est
+    // precisement le calcul qui devait etre prouve.
+    const expr = hauteurExtrusionExpr(
+      ind, denominateurDe(ind), bornes, exagerationMaille, carreauxEchelleExpr(ind),
+    ) as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
   }, []);
 
@@ -451,14 +468,43 @@ export function useMapLayers({
     } catch { /* ok */ }
   }, []);
 
-  /** Bascule 2D / 3D. La couche extrudee est deja peinte : il n'y a qu'a montrer. */
+  /** Inclinaison rendue au relief, en degres. Au-dela, les colonnes du premier
+   *  plan masquent tout le fond de carte ; en deca de ~40 deg, le relief se
+   *  devine a peine. */
+  const PITCH_RELIEF = 55;
+
+  /** Inclinaison d'avant la bascule, pour la rendre telle quelle en repassant a plat. */
+  const pitchAvant3DRef = useRef(0);
+
+  /**
+   * Bascule 2D / 3D.
+   *
+   * La couche extrudee est deja peinte : il n'y aurait qu'a la montrer. Mais
+   * **montrer une extrusion sur une carte a plat ne change rien a l'ecran** :
+   * vues du zenith, les colonnes se confondent avec leur base. Constate au
+   * navigateur le 2026-09-11 — on cliquait « Relief 3D », et il ne se passait
+   * visiblement rien. Aucun test ne pouvait l'attraper : l'expression etait
+   * juste, la couche visible, et la carte simplement pas inclinee.
+   *
+   * La bascule incline donc la camera. L'inclinaison d'avant est memorisee et
+   * rendue au retour en 2D : si l'utilisateur avait deja incline la carte
+   * lui-meme, on ne lui remet pas le nez sur le zenith.
+   */
   const setCarreaux3D = useCallback((v: boolean) => {
     carreaux3DRef.current = v;
     _setCarreaux3D(v);
-  }, []);
+    const map = mapRef.current;
+    if (!map) return;
+    if (v) {
+      pitchAvant3DRef.current = map.getPitch();
+      if (map.getPitch() < PITCH_RELIEF) map.easeTo({ pitch: PITCH_RELIEF, duration: 600 });
+    } else {
+      map.easeTo({ pitch: pitchAvant3DRef.current, duration: 600 });
+    }
+  }, [mapRef]);
 
   /**
-   * Hauteur maximale des colonnes, en metres.
+   * Exageration du relief, en multiples de la largeur de maille.
    *
    * Repose la seule expression de hauteur, sans toucher a la couleur ni aux
    * bornes : deplacer la reglette change l'exageration du relief, jamais la
