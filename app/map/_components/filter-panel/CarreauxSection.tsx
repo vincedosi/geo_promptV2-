@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { uniteNormalisee } from '@/lib/carreaux/normalisation';
 import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';

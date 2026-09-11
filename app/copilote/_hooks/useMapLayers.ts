@@ -8,7 +8,7 @@ import {
   VORONOI_PALETTE,
   BATTLE_PALIER_OPACITY,
 } from '../_lib/constants';
-import { CARREAUX_PALETTES } from '@/components/CarreauxPMTilesLayer';
+import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { denominateurDe } from '@/lib/carreaux/normalisation';
 import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';

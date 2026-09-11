@@ -10,8 +10,11 @@ import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
 
+/** Valeur admissible pour `text-field` d'une couche symbole. */
+type ChampTexte = NonNullable<maplibregl.SymbolLayerSpecification['layout']>['text-field'];
+
 /** Remplace récursivement name_en/name:en par le nom local (name) dans une expression MapLibre */
-function patchLabelFr(expr: unknown): unknown {
+function patchLabelFrValeur(expr: unknown): unknown {
   if (!expr) return expr;
   if (typeof expr === 'string') {
     return expr.replace(/\{name_en\}/g, '{name}').replace(/\{name:en\}/g, '{name}');
@@ -20,11 +23,11 @@ function patchLabelFr(expr: unknown): unknown {
     if (expr[0] === 'get' && (expr[1] === 'name_en' || expr[1] === 'name:en')) {
       return ['coalesce', ['get', 'name:fr'], ['get', 'name']];
     }
-    return expr.map(patchLabelFr);
+    return expr.map(patchLabelFrValeur);
   }
   if (typeof expr === 'object' && expr !== null) {
     return Object.fromEntries(
-      Object.entries(expr as Record<string, unknown>).map(([k, v]) => [k, patchLabelFr(v)])
+      Object.entries(expr as Record<string, unknown>).map(([k, v]) => [k, patchLabelFrValeur(v)])
     );
   }
   return expr;
@@ -76,6 +79,24 @@ function drawPOICirclesOnCanvas(
       // projection hors vue — skip
     }
   }
+}
+
+/**
+ * Frontière typée du patch de libellés.
+ *
+ * Le parcours interne est en `unknown` : il traverse des expressions MapLibre
+ * arbitraires dont la forme n'est pas connue statiquement. La conversion finale
+ * est sûre par construction — le patch préserve la forme (chaîne → chaîne,
+ * tableau → tableau) et ne substitue qu'un `['get', 'name_en']` par un
+ * `['coalesce', ['get','name:fr'], ['get','name']]`, expression valide au même
+ * endroit.
+ *
+ * Ce wrapper n'existait pas avant maplibre-gl 6 : `setLayoutProperty` acceptait
+ * `any`. La v6 donne à ses propriétés leur type réel, ce qui a fait apparaître
+ * cette frontière — elle était déjà là, simplement invisible.
+ */
+function patchLabelFr(expr: ChampTexte): ChampTexte {
+  return patchLabelFrValeur(expr) as ChampTexte;
 }
 
 export function useMapInit(
@@ -186,7 +207,7 @@ export function useMapInit(
       // ── Patch labels → langue locale (français) ───────────────────────────
       for (const layer of (map.getStyle()?.layers ?? [])) {
         if (layer.type !== 'symbol') continue;
-        const tf = (layer.layout as Record<string, unknown>)?.['text-field'];
+        const tf = layer.layout?.['text-field'];
         if (!tf) continue;
         try { map.setLayoutProperty(layer.id, 'text-field', patchLabelFr(tf)); } catch { /* hors vue */ }
       }

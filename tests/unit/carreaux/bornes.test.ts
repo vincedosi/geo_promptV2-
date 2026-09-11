@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CARREAUX_INDICATEURS } from '@/components/CarreauxPMTilesLayer';
+import { CARREAUX_INDICATEURS } from '@/lib/carreaux/catalogue';
 import {
   bornesDe,
   BORNES_NATIONALES,

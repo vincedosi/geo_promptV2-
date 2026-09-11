@@ -429,12 +429,12 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | `compute_panneau_scores` absente — **le scoring des panneaux n'a jamais fonctionné** | 1 h (retrait) ou chantier produit (écriture) | faible | **décision produit, mesurée le 2026-09-10** — voir ci-dessous |
-| `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | 4-8 h | élevé | correctif en 6.9.0 = **major** ; règle webpack dédiée dans `next.config.js` + toute la carto à revalider |
+| `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | à rechiffrer | élevé | **TENTÉ ET ABANDONNÉ le 2026-09-11** — la migration du code est faite et propre, mais la v6 ne rend pas. Voir l'encadré ci-dessous. |
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
 | `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
 | Les 28 bornes nationales de `lib/carreaux/bornes.ts` sont un instantané du 2026-09-10 | à chiffrer (script de re-mesure + signal de fraîcheur) | élevé — un ré-import Filosofi les périme **sans aucun signal**, la carte reste plausible mais fausse | décision produit : quel signal de péremption (date stockée + comparaison à l'import, alerte admin, ou re-mesure automatique post-import) |
-| `components/CarreauxPMTilesLayer.tsx` (373 l.) jamais monté, 4ᵉ définition contradictoire du calcul de normalisation, et un test importe désormais son catalogue (`CARREAUX_INDICATEURS`) | 2-3 h | faible | aucun ; extraire `CARREAUX_INDICATEURS`/`CARREAUX_PALETTES` dans `lib/carreaux/`, migrer le test, puis supprimer le composant — idem pour le bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) |
+| Bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) | 30 min | faible | aucun. Le reste de cette entrée — `CarreauxPMTilesLayer.tsx` — est **fermé le 2026-09-11** : catalogues extraits dans `lib/carreaux/catalogue.ts`, composant supprimé. |
 
 #### `compute_panneau_scores` — ce que la mesure dit (2026-09-10)
 
@@ -477,6 +477,59 @@ Deux sorties, toutes deux à arbitrer par Vincent :
 | `scripts/populate_carreaux_1km.ts` n'a jamais abouti et est remplacé par `fill_carreaux_1km_bande` | 15 min | nul | aucun ; supprimer le script et les deps `pg`/`@types/pg` si `populate_geom_3857.ts` ne les utilise plus |
 | Outils de construction laissés en base : `fill_carreaux_1km_bande` + `carreaux_1km_bandes` (journal) | — | nul | à conserver : ils resservent au prochain ré-import Filosofi. Rejouer une bande journalisée est refusé par conception ; pour tout reconstruire, `TRUNCATE` les deux tables. |
 
+
+#### `maplibre-gl` 6 — tenté et abandonné le 2026-09-11
+
+**La migration du code est faite, propre, et committée en partie** (`07aa23e`
+pour ce qui était réutilisable). Ce qui bloque n'est pas notre code.
+
+Ce qui a été fait et qui marchait :
+- `maplibre-gl@6.9.0` puis `@6.4.1` installées, `npx tsc --noEmit` **0 erreur**,
+  `npm run lint` 0 warning, **456 tests verts**, `npm run build` réussi.
+- 17 imports `import maplibregl from` → `import * as maplibregl from`
+  (la v6 n'a plus d'export par défaut).
+- Une seule vraie incompatibilité de type dans tout le projet : `patchLabelFr`
+  dans `useMapInit.ts`, corrigée proprement et **conservée** en v5.
+- Trois ruptures annoncées ne nous concernent pas : `styleimagemissing` n'est
+  pas utilisé, aucun `setData` à deux arguments, aucun chaînage sur sa valeur
+  de retour.
+
+**Le blocage.** La carte ne rend rien — écran blanc. `map.loaded()` reste
+`false` indéfiniment, aucune requête `.pbf` n'est jamais émise, et **aucune
+erreur n'est levée nulle part** (ni console, ni événement `error` de la carte).
+
+Ce qui a été écarté par la mesure, et ne doit pas être re-testé :
+- **Ce n'est pas notre code** : une carte MapLibre 6 nue, construite à la main
+  avec le style standard `openfreemap/positron` et zéro ligne du projet, échoue
+  exactement pareil.
+- **Ce n'est pas le bundling de production** : même échec en `npm run dev`.
+- **Ce n'est pas WebGL2** (exigé par la v6) : contexte WebGL2 obtenu avec
+  accélération matérielle réelle (ANGLE/Intel/D3D11), 32 extensions, aucune des
+  extensions attendues manquante.
+- **Ce n'est pas le worker** : le dispatcher a bien 1 acteur, et les Workers
+  classiques comme modules fonctionnent dans la page.
+- **Ce n'est pas le réseau** : style, sprites et TileJSON répondent tous 200.
+
+**La piste à suivre — le style est TRONQUÉ.** Le même style rend
+**85 couches en v5** et **55 en v6** : 30 couches disparaissent. Cela colle
+exactement à une rupture annoncée de la v6 : « Update maplibre-gl-style-spec to
+version 25, which now throws an error with warning severity instead of silently
+failing ». L'hypothèse à tester en premier est donc que le style
+OpenFreeMap/MAGELIAN contient des couches que la spec v25 rejette, et que le
+style n'atteint jamais l'état « chargé ». Instrumenter la validation du style
+plutôt que de re-tester l'environnement.
+
+**Note sur les versions.** Le correctif XSS est en **6.4.1**, pas en 6.9.0
+comme le suggère `npm audit` (qui pointe simplement la dernière). Les deux
+échouent identiquement : ce n'est pas une régression récente, c'est toute la
+branche v6.
+
+**Effet de bord favorable à connaître** : la v6 étant ESM-only, `dist/` ne
+contient plus aucun `.js`. La règle webpack de `next.config.js` qui cible
+`maplibre-gl/dist/*.js` ne matcherait donc plus rien, et le crash qu'elle
+prévient ne peut plus se produire. Elle sera à retirer le jour de la bascule —
+`next.config.js` est un fichier protégé, il faudra l'accord explicite.
+
 ### Fermé le 2026-09-11
 
 | Item | Résolution |
@@ -486,6 +539,7 @@ Deux sorties, toutes deux à arbitrer par Vincent :
 | `code_dept`/`code_region` dans les tuiles carreaux | **retirés** (`sql/126`). Ajoutés en avril 2026 « pour filtre territorial client-side » — filtre jamais construit, zéro lecteur. Ils coûtaient **10 250 ms sur les 11 438 ms** d'une tuile z8 : un `ST_Intersects` par carreau contre les multipolygones départementaux, 2 954 fois. Après retrait : 100 ms |
 | Trou z11 → z12 de la cascade (facteur 10) | **palier 1 km construit** (`sql/129`) : 374 511 mailles, 151 Mo, clé primaire, géométrie en 3857. Sert z9-z11 |
 | `carreaux_1km` vide depuis toujours | peuplée et branchée — voir §5 |
+| `CarreauxPMTilesLayer.tsx` (373 l.), mort comme composant mais vivant comme module | catalogues extraits dans `lib/carreaux/catalogue.ts`, quatre importateurs réaiguillés, composant supprimé (`07aa23e`) |
 
 **L'estimation « coût mesuré nul » de l'entrée `geom_centroid` était fausse.**
 Elle ne regardait que le palier 200 m, où la jointure court-circuitait parce que
