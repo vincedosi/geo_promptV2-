@@ -11,11 +11,21 @@ export const APP_NAME    = 'GEO.Prompt';
 export const APP_VERSION = '7.19.0';
 export const BUILD_DATE  = '2026-04-28';
 
-// Fichier PMTiles IRIS hébergé sur GitHub Releases (196 MB > limite Supabase Storage 50 MB)
-// Les valeurs démographiques sont injectées dynamiquement depuis la DB via setFeatureState
-// Régénérer uniquement si les contours IGN changent (rare) — voir .github/workflows/generate-iris-pmtiles.yml
-// Fichier servi depuis /public en attendant la première exécution du workflow generate-iris-pmtiles.
-export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
+// ── IRIS : tuiles MVT servies par /api/tiles/iris (TER-001) ─────────────────
+//
+// Le PMTiles de 361 Mo qui vivait ici n'a JAMAIS atteint la production :
+// `.vercelignore` l'excluait du déploiement, et la GitHub Release censée le
+// porter répond 404 en anonyme puisque le dépôt est privé. La couche IRIS ne
+// s'affichait que sur le poste du développeur. Deux commentaires de cette
+// section étaient faux : les valeurs ne passaient pas par `setFeatureState`
+// (`applyIrisColor` colore par `['get', colonne]`), et le fichier n'était pas
+// « en attente du workflow » — le workflow avait tourné, sans que rien ne s'en
+// serve.
+//
+// À incrémenter à chaque migration changeant le schéma de la tuile IRIS.
+// v1 — 2026-09-11 : création. Cascade à deux paliers (geom_z7 sous z12,
+//      geom_3857 au-dessus), plancher à z9, `superficie_km2` calculée pour la 3D.
+export const IRIS_TILE_VERSION = 1;
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 // v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)

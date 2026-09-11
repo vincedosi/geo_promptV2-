@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
-import { Protocol } from 'pmtiles';
-import { IRIS_PMTILES_URL, CARREAUX_TILE_VERSION } from '@/lib/version';
+import { IRIS_TILE_VERSION, CARREAUX_TILE_VERSION } from '@/lib/version';
 import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
@@ -134,8 +133,10 @@ export function useMapInit(
     const DEFAULT_ZOOM = 5.5;
 
     // Protocole PMTiles — enregistré une fois avant toute création de map
-    const pmtilesProtocol = new Protocol();
-    maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
+    // Le protocole `pmtiles` n'est plus enregistre : la seule couche qui s'en
+    // servait (IRIS) passe desormais par /api/tiles/iris. Le workflow
+    // `generate-iris-pmtiles` et son bouton d'administration restent en place
+    // mais n'alimentent plus rien — a trancher (voir docs/AUDIT_IRIS_TERRAIN.md).
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -738,18 +739,32 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
-      // ── IRIS choroplèthe — PMTiles statique (tippecanoe) ─────────────────────
-      // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs
+      // ── IRIS choroplèthe — tuiles MVT servies par /api/tiles/iris ───────────
+      //
+      // Remplace un PMTiles de 361 Mo qui n'atteignait jamais la production :
+      // `.vercelignore` l'excluait du déploiement, et la GitHub Release censée
+      // le porter répond 404 en anonyme (dépôt privé). La couche ne s'affichait
+      // que sur le poste du développeur — sans erreur, MapLibre échouant en
+      // silence sur une source vide.
+      //
+      // `minzoom: 9` des deux côtés. Mesuré à 46° de latitude : un IRIS d'un
+      // kilomètre fait 0,6 px au zoom 5 et 1,2 px au zoom 6, pour des tuiles de
+      // 1 694 kB et 879 kB. Il n'est lisible qu'à partir de z9 (9,4 px) — même
+      // règle que la cascade des carreaux.
+      //
+      // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs.
       map.addSource('iris-source', {
         type: 'vector',
-        url: `pmtiles://${IRIS_PMTILES_URL}`,
+        tiles: [`${window.location.origin}/api/tiles/iris/{z}/{x}/{y}?v=${IRIS_TILE_VERSION}`],
+        minzoom: 9,
+        maxzoom: 14,
         attribution: 'IGN — IRIS 2023',
       });
       map.addLayer({
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 5,
+        minzoom: 9,
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
@@ -760,11 +775,27 @@ export function useMapInit(
         id: 'iris-border', type: 'line',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 5,
+        minzoom: 9,
         paint: {
           'line-color': 'rgba(66,146,198,0.7)',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 10, 0.4, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
-          'line-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 10, 0.4, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 0.6, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 0.5, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
+        },
+        layout: { visibility: 'none' },
+      });
+      // Jumelle en relief de `iris-fill`. Les deux ne coexistent JAMAIS : leurs
+      // géométries sont coplanaires à la base, ce qui produit du z-fighting sur
+      // la face supérieure — même contrainte que les carreaux.
+      map.addLayer({
+        id: 'iris-extrusion', type: 'fill-extrusion',
+        source: 'iris-source',
+        'source-layer': 'iris',
+        minzoom: 9,
+        paint: {
+          'fill-extrusion-color': '#4292C6',
+          'fill-extrusion-opacity': 0.85,
+          'fill-extrusion-height': 0,
+          'fill-extrusion-base': 0,
         },
         layout: { visibility: 'none' },
       });

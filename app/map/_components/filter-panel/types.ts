@@ -105,6 +105,10 @@ export interface FilterPanelProps {
   irisIndicateur?:      string;
   irisPalette?:         string;
   irisOpacity?:         number;
+  iris3D?:              boolean;
+  setIris3D?:           (v: boolean) => void;
+  irisHauteur?:         number;
+  setIrisHauteur?:      (v: number) => void;
   irisStats?:           IrisStats | null;
   irisTrueOnly?:        boolean;
   setIrisVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;

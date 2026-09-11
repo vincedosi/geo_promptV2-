@@ -612,6 +612,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT), cascade 5 paliers 20/5/2/1 km + 200 m (sql/129) | `api/tiles/` |
+| `get_iris_tile` | Tuile MVT IRIS (sql/137) — plancher z9, deux paliers de geometrie, colonnes decouvertes dynamiquement | `api/tiles/iris/` |
 | `fill_carreaux_1km_bande` | Agrege les carreaux 200 m en mailles 1 km, par bande verticale (progression + journal anti-rejeu) | outil de construction, sql/129 |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
@@ -750,11 +751,34 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 - Gzip obligatoire sur reponses MVT (plante silencieusement sans)
 - `geom_3857` pre-calcule sur carreaux (pas de reprojection a la volee)
 
-### PMTiles IRIS
-- Stockees sur GitHub Releases (pas Supabase Storage)
-- Servies directement depuis `/public` (`IRIS_PMTILES_URL`, cf. `lib/version.ts`).
-  Le proxy `/api/iris-tiles-proxy` et la route MVT `/api/iris-tiles` ont ete
-  supprimes en 09/2026 : plus aucun appelant depuis le passage aux PMTiles.
+### IRIS : tuiles MVT servies par Postgres (depuis le 2026-09-11)
+
+**Les PMTiles n'ont jamais atteint la production.** Le fichier de 361 Mo etait
+exclu par `.vercelignore` ET `.gitignore` ; en production, `/iris_france.pmtiles`
+rendait la page 404 de Next (`<!DOCTYP` au lieu de `PMTiles`). La GitHub Release
+censee le porter renvoie 404 en anonyme : le depot est prive. La couche ne
+s'affichait que sur le poste du developpeur, sans erreur — MapLibre echoue en
+silence sur une source vide.
+
+- Route : `/api/tiles/iris/{z}/{x}/{y}` → RPC `get_iris_tile` (sql/137).
+  Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne
+  par SEGMENT, donc `/api/iris/:path*` ne couvrirait pas `/api/iris-tiles`.
+  Ce placement la protege sans toucher a un fichier protege.
+- Plancher **z9** : sous ce zoom, un IRIS d'1 km fait moins de 10 px et la tuile
+  pese jusqu'a 1 694 kB. La RPC rend NULL, la route repond 204.
+- Deux paliers : `geom_z7` sous z12, `geom_3857` au-dessus. `geom_z10` n'est PAS
+  utilisee — mesure : elle conserve 98,8 % des points de l'originale.
+- La tuile porte toutes les colonnes numeriques et booleennes d'`iris`,
+  DECOUVERTES dans `information_schema` (les colonnes sont dynamiques), plus un
+  `superficie_km2` calcule qui permet la 3D avec la meme expression que les
+  carreaux.
+- `is_true_iris` est EMISE mais jamais filtree cote serveur : sur une tuile z10
+  de France rurale, 50 IRIS presents et ZERO avec ce drapeau.
+- Bumper `IRIS_TILE_VERSION` (`lib/version.ts`) a tout changement de schema de
+  tuile — sinon une tuile en cache (jusqu'a 1 semaine au CDN) reste servie.
+
+Le workflow `generate-iris-pmtiles` et son bouton d'administration restent en
+place mais n'alimentent plus rien : a trancher (voir `docs/AUDIT_IRIS_TERRAIN.md`).
 
 ---
 

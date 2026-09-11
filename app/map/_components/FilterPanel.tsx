@@ -104,6 +104,7 @@ export function FilterPanel({
   carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisStats, irisTrueOnly,
+  iris3D, setIris3D, irisHauteur, setIrisHauteur,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
   mainMapRef,
   onLoadTransport, onLoadTMJA, tmjaVisible, onClearTMJA,
@@ -667,6 +668,10 @@ export function FilterPanel({
               irisIndicateur={irisIndicateur}
               irisPalette={irisPalette}
               irisOpacity={irisOpacity}
+              iris3D={iris3D}
+              setIris3D={setIris3D}
+              irisHauteur={irisHauteur}
+              setIrisHauteur={setIrisHauteur}
               irisStats={irisStats}
               irisTrueOnly={irisTrueOnly}
               setIrisVisible={setIrisVisible}

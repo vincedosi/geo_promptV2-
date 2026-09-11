@@ -602,6 +602,10 @@ export default function MapPage() {
               irisIndicateur={mapLayers.irisIndicateur}
               irisPalette={mapLayers.irisPalette}
               irisOpacity={mapLayers.irisOpacity}
+              iris3D={mapLayers.iris3D}
+              setIris3D={mapLayers.setIris3D}
+              irisHauteur={mapLayers.irisHauteur}
+              setIrisHauteur={mapLayers.setIrisHauteur}
               irisStats={mapLayers.irisStats}
               irisTrueOnly={mapLayers.irisTrueOnly}
               setIrisVisible={mapLayers.setIrisVisible}

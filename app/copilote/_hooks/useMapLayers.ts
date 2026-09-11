@@ -172,6 +172,14 @@ export function useMapLayers({
   // colonnes se masquent entre elles.
   const [carreauxHauteur, _setCarreauxHauteur] = useState(1.5);
   const carreauxHauteurRef = useRef(1.5);
+
+  // Relief 3D des IRIS. Meme grandeur que pour les carreaux : un multiple de la
+  // largeur de maille, jamais des metres absolus.
+  const [iris3D, _setIris3D] = useState(false);
+  const iris3DRef = useRef(false);
+  const [irisHauteur, _setIrisHauteur] = useState(1.5);
+  const irisHauteurRef = useRef(1.5);
+  const pitchAvantIris3DRef = useRef(0);
   // Bucket info ref — pour que setCarreauxOpacity puisse réappliquer le bon filtre
   const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
 
@@ -605,7 +613,60 @@ export function useMapLayers({
       ...stopPairs,
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
+    // La couche en relief porte la MEME couleur : basculer en 3D ne doit pas
+    // changer la lecture, seulement l'axe sur lequel on la lit.
+    try { map.setPaintProperty('iris-extrusion', 'fill-extrusion-color', expr); } catch { /* ok */ }
   }, []);
+
+  /**
+   * Hauteur des colonnes IRIS.
+   *
+   * Reutilise `hauteurExtrusionExpr`, la MEME expression que les carreaux :
+   * l'exageration est un multiple de la largeur de maille, deduite du
+   * `superficie_km2` que la tuile porte (get_iris_tile). Un relief absolu en
+   * metres donnerait 0,2x de hauteur en vue large et 17x en vue rapprochee —
+   * defaut mesure puis corrige sur les carreaux le meme jour.
+   *
+   * L'echelle vient des statistiques nationales deja chargees pour la palette :
+   * hauteur et couleur disent donc exactement la meme chose.
+   */
+  const applyIrisHauteur = useCallback((
+    map: maplibregl.Map,
+    stats: IrisStats,
+    colonne: string,
+    exageration: number,
+  ) => {
+    if (!map.getLayer('iris-extrusion')) return;
+    if (!stats.col_exists || stats.max <= 0) return;
+    const position01 = ['max', 0, ['min', 1,
+      ['/', ['coalesce', ['to-number', ['get', colonne], 0], 0], stats.max],
+    ]];
+    const largeurMaille = ['*', 1000, ['sqrt', ['to-number', ['get', 'superficie_km2'], 0]]];
+    const expr = ['*', position01, exageration, largeurMaille] as unknown as maplibregl.ExpressionSpecification;
+    try { map.setPaintProperty('iris-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
+  }, []);
+
+  /** Inclinaison rendue au relief — voir setCarreaux3D pour le raisonnement. */
+  const setIris3D = useCallback((v: boolean) => {
+    iris3DRef.current = v;
+    _setIris3D(v);
+    const map = mapRef.current;
+    if (!map) return;
+    if (v) {
+      pitchAvantIris3DRef.current = map.getPitch();
+      if (map.getPitch() < 55) map.easeTo({ pitch: 55, duration: 600 });
+    } else {
+      map.easeTo({ pitch: pitchAvantIris3DRef.current, duration: 600 });
+    }
+  }, [mapRef]);
+
+  const setIrisHauteur = useCallback((v: number) => {
+    irisHauteurRef.current = v;
+    _setIrisHauteur(v);
+    const map = mapRef.current;
+    if (!map || !irisStats) return;
+    applyIrisHauteur(map, irisStats, irisIndicateurRef.current, v);
+  }, [mapRef, irisStats, applyIrisHauteur]);
 
   // Toggle choroplèthe — bascule entre couleur plate et coloration démographique
   const toggleIrisChoro = useCallback((choro: boolean) => {
@@ -617,8 +678,9 @@ export function useMapLayers({
       try { map.setPaintProperty('iris-fill', 'fill-color', 'rgba(66,146,198,0.4)'); } catch { /* ok */ }
     } else if (irisStats?.col_exists) {
       applyIrisColor(map, irisPaletteRef.current, irisStats);
+      applyIrisHauteur(map, irisStats, irisIndicateurRef.current, irisHauteurRef.current);
     }
-  }, [mapRef, irisVisible, irisStats, applyIrisColor]);
+  }, [mapRef, irisVisible, irisStats, applyIrisColor, applyIrisHauteur]);
 
   // Setter palette — applique couleur immédiatement si stats disponibles
   const setIrisPalette = useCallback((paletteId: string) => {
@@ -641,17 +703,20 @@ export function useMapLayers({
     } catch { /* ok */ }
   }, [mapRef]);
 
-  // Visibilité IRIS — masque quand toggle off
+  // Visibilité IRIS — plat et relief ne coexistent JAMAIS (géométries
+  // coplanaires à la base : z-fighting sur la face supérieure, même contrainte
+  // que les carreaux).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (!irisVisible) {
-      try {
-        map.setLayoutProperty('iris-fill',   'visibility', 'none');
-        map.setLayoutProperty('iris-border', 'visibility', 'none');
-      } catch { /* ok */ }
-    }
-  }, [irisVisible, mapReady, mapRef]);
+    const plat   = irisVisible && !iris3D ? 'visible' : 'none';
+    const relief = irisVisible &&  iris3D ? 'visible' : 'none';
+    try {
+      map.setLayoutProperty('iris-fill',      'visibility', plat);
+      map.setLayoutProperty('iris-border',    'visibility', plat);
+      map.setLayoutProperty('iris-extrusion', 'visibility', relief);
+    } catch { /* ok */ }
+  }, [irisVisible, iris3D, mapReady, mapRef]);
 
   // Filtre IRIS — vrais IRIS uniquement vs tous (toggle irisTrueOnly)
   useEffect(() => {
@@ -661,8 +726,9 @@ export function useMapLayers({
       ? ['==', ['get', 'is_true_iris'], true] as maplibregl.ExpressionSpecification
       : null;
     try {
-      map.setFilter('iris-fill',   filter);
-      map.setFilter('iris-border', filter);
+      map.setFilter('iris-fill',      filter);
+      map.setFilter('iris-border',    filter);
+      map.setFilter('iris-extrusion', filter);
     } catch { /* ok — layer non disponible */ }
   }, [irisTrueOnly, mapReady, mapRef]);
 
@@ -672,20 +738,13 @@ export function useMapLayers({
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    if (!irisVisible) {
-      try {
-        map.setLayoutProperty('iris-fill',   'visibility', 'none');
-        map.setLayoutProperty('iris-border', 'visibility', 'none');
-      } catch { /* ok */ }
-      return;
-    }
+    if (!irisVisible) return;   // la visibilité est pilotée par l'effet ci-dessus
 
-    // Afficher les layers vector tiles
-    const op = irisOpacityRef.current;
+    // Opacité seulement : la visibilité des couches (plat contre relief) est
+    // décidée par l'effet précédent, qui connaît l'état 3D. La repositionner
+    // ici rallumerait le plat par-dessus le relief.
     try {
-      map.setLayoutProperty('iris-fill',   'visibility', 'visible');
-      map.setLayoutProperty('iris-border', 'visibility', 'visible');
-      map.setPaintProperty('iris-fill', 'fill-opacity', op);
+      map.setPaintProperty('iris-fill', 'fill-opacity', irisOpacityRef.current);
     } catch { /* ok */ }
 
     // Mode contours seuls : couleur plate, pas de chargement stats
@@ -703,7 +762,10 @@ export function useMapLayers({
     const cachedStats = irisStatsCacheRef.current[col];
     if (cachedStats) {
       setIrisStats(cachedStats);
-      if (cachedStats.col_exists) applyIrisColor(map, irisPaletteRef.current, cachedStats, col);
+      if (cachedStats.col_exists) {
+        applyIrisColor(map, irisPaletteRef.current, cachedStats, col);
+        applyIrisHauteur(map, cachedStats, col, irisHauteurRef.current);
+      }
       return;
     }
 
@@ -714,7 +776,10 @@ export function useMapLayers({
         if (!stats) return;
         irisStatsCacheRef.current[col] = stats;
         setIrisStats(stats);
-        if (stats.col_exists) applyIrisColor(map, irisPaletteRef.current, stats, col);
+        if (stats.col_exists) {
+          applyIrisColor(map, irisPaletteRef.current, stats, col);
+          applyIrisHauteur(map, stats, col, irisHauteurRef.current);
+        }
       })
       .catch(() => {});
   }, [irisVisible, irisIndicateur, irisChoro, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1150,6 +1215,8 @@ export function useMapLayers({
     irisIndicateur, setIrisIndicateur,
     irisPalette,    setIrisPalette,
     irisOpacity,    setIrisOpacity,
+    iris3D,         setIris3D,
+    irisHauteur,    setIrisHauteur,
     irisStats,
     irisTrueOnly,   setIrisTrueOnly,
     // Visualization functions

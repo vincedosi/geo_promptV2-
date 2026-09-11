@@ -5122,6 +5122,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_iris_tile: {
+        Args: { x: number; y: number; z: number }
+        Returns: string
+      }
       get_isochrone_battle: { Args: { p_rings: Json }; Returns: Json }
       get_isochrone_battle_v10: { Args: { p_rings: Json }; Returns: Json }
       get_national_population_totals: { Args: never; Returns: Json }

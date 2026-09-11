@@ -21,6 +21,10 @@ export interface IrisSectionProps {
   irisIndicateur?: string;
   irisPalette?: string;
   irisOpacity?: number;
+  iris3D?: boolean;
+  setIris3D?: (v: boolean) => void;
+  irisHauteur?: number;
+  setIrisHauteur?: (v: number) => void;
   irisStats?: IrisStats | null;
   irisTrueOnly?: boolean;
   setIrisVisible?: (v: boolean | ((p: boolean) => boolean)) => void;
@@ -37,6 +41,10 @@ export function IrisSection({
   irisIndicateur,
   irisPalette,
   irisOpacity,
+  iris3D,
+  setIris3D,
+  irisHauteur,
+  setIrisHauteur,
   irisStats,
   irisTrueOnly,
   setIrisVisible,
@@ -150,6 +158,43 @@ export function IrisSection({
           <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 26, textAlign: 'right' }}>
             {Math.round((irisOpacity ?? 0.45) * 100)}%
           </span>
+        </div>
+
+        {/* Relief 3D — bascule + exagération */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setIris3D?.(!iris3D)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+              background: 'transparent',
+              border: `0.5px solid ${iris3D ? 'var(--brand-teal)' : C.border}`,
+              color: iris3D ? 'var(--brand-teal)' : C.textDim,
+              borderRadius: 6, padding: '5px 10px',
+              fontFamily: fInter, fontSize: 11, fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            Relief 3D{iris3D ? ' ✓' : ''}
+          </button>
+
+          {/* La réglette n'a de sens qu'en relief : la masquer évite d'offrir un
+              contrôle sans effet visible. */}
+          {iris3D && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Exagération, et non hauteur en mètres : un IRIS parisien fait
+                  0,06 km² et un IRIS rural 30 km². Une hauteur absolue écraserait
+                  les premiers et transformerait les seconds en colonnes plates. */}
+              <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, whiteSpace: 'nowrap' }}>Relief</span>
+              <input type="range" min={0.25} max={5} step={0.25}
+                value={irisHauteur ?? 1.5}
+                onChange={e => setIrisHauteur?.(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: 'var(--text-primary)', cursor: 'pointer', height: 4 }}
+              />
+              <span style={{ color: C.textDim, fontSize: 11, fontFamily: fMono, minWidth: 38, textAlign: 'right' }}>
+                ×{(irisHauteur ?? 1.5).toFixed(2).replace(/0$/, '').replace(/[.,]$/, '')}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Légende */}
