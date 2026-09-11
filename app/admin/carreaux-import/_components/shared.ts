@@ -56,6 +56,7 @@ export function fmtTime(s: number): string {
   return `${m}m ${sec.toString().padStart(2, '0')}s`;
 }
 
-export function fmtNum(n: number): string {
-  return n.toLocaleString('fr-FR');
-}
+// Ré-export : la mise en forme des nombres vit dans `lib/format/nombre.ts`
+// (`DUP-001` — elle était écrite à quinze endroits). Le nom public est conservé
+// pour ne pas toucher les appelants.
+export { formaterNombre as fmtNum } from '@/lib/format/nombre';

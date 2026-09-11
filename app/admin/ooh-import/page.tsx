@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { formaterNombre } from '@/lib/format/nombre';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ImportRun {
@@ -68,7 +69,6 @@ function StatutBadge({ statut }: { statut: string }) {
   );
 }
 
-function fmt(n: number) { return n.toLocaleString('fr-FR'); }
 function relDate(iso: string) { return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -118,11 +118,11 @@ export default function OohImportPage() {
           try {
             const evt = JSON.parse(line) as StreamEvent;
             if (evt.type === 'status')   setLogs(p => [...p, `  ${evt.message}`]);
-            if (evt.type === 'progress') setLogs(p => [...p, `  page ${evt.page} — ${fmt(evt.fetched)} récupérés / ${fmt(evt.inserted)} insérés`]);
+            if (evt.type === 'progress') setLogs(p => [...p, `  page ${evt.page} — ${formaterNombre(evt.fetched)} récupérés / ${formaterNombre(evt.inserted)} insérés`]);
             if (evt.type === 'error')    setLogs(p => [...p, `! ${evt.message}`]);
             if (evt.type === 'done') {
               setStats(evt);
-              setLogs(p => [...p, `> import terminé — ${fmt(evt.nb_total)} panneaux / ${fmt(evt.nb_inseres)} insérés`]);
+              setLogs(p => [...p, `> import terminé — ${formaterNombre(evt.nb_total)} panneaux / ${formaterNombre(evt.nb_inseres)} insérés`]);
               adminFetch('/api/admin/import-ooh/arcgis').then(r => r.json()).then(d => setRuns(d.runs ?? []));
             }
           } catch { /* JSON invalide */ }
@@ -227,10 +227,10 @@ export default function OohImportPage() {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
             {[
-              { label: 'TOTAL',    value: fmt(stats.nb_total),   color: C.text   },
-              { label: 'INSÉRÉS',  value: fmt(stats.nb_inseres),  color: C.green  },
-              { label: 'DOUBLONS', value: fmt(stats.nb_doublons), color: C.warn   },
-              { label: 'ERREURS',  value: fmt(stats.nb_erreurs),  color: C.red    },
+              { label: 'TOTAL',    value: formaterNombre(stats.nb_total),   color: C.text   },
+              { label: 'INSÉRÉS',  value: formaterNombre(stats.nb_inseres),  color: C.green  },
+              { label: 'DOUBLONS', value: formaterNombre(stats.nb_doublons), color: C.warn   },
+              { label: 'ERREURS',  value: formaterNombre(stats.nb_erreurs),  color: C.red    },
             ].map(s => (
               <div key={s.label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 14px', textAlign: 'center' }}>
                 <div style={{ fontFamily: fontMono, fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
@@ -299,9 +299,9 @@ export default function OohImportPage() {
                   <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.text, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.source}</td>
                   <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.textDim, whiteSpace: 'nowrap' }}>{relDate(r.lance_le)}</td>
                   <td style={{ padding: '9px 12px' }}><StatutBadge statut={r.statut} /></td>
-                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.text }}>{fmt(r.nb_total)}</td>
-                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.green }}>{fmt(r.nb_inseres)}</td>
-                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: r.nb_erreurs > 0 ? C.red : C.muted }}>{r.nb_erreurs > 0 ? fmt(r.nb_erreurs) : '—'}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.text }}>{formaterNombre(r.nb_total)}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: C.green }}>{formaterNombre(r.nb_inseres)}</td>
+                  <td style={{ padding: '9px 12px', fontFamily: fontMono, fontSize: 10, color: r.nb_erreurs > 0 ? C.red : C.muted }}>{r.nb_erreurs > 0 ? formaterNombre(r.nb_erreurs) : '—'}</td>
                   <td style={{ padding: '9px 12px' }}>
                     <button
                       onClick={async () => {

@@ -230,6 +230,29 @@ survient, quand le volume monte.
   comportement visible** → hors périmètre du refactor.
 - **Gravité** : haute
 - **Effort** : S (mais arbitrage requis)
+- **La duplication est traitée le 2026-09-11 ; l'arbitrage reste ouvert.**
+  - **Le compte de l'audit était faux** : quatre implémentations annoncées,
+    **quinze** trouvées au recensement, réparties en trois comportements
+    réellement identiques (6 copies de `toLocaleString` brut, 5 de paliers
+    `k/M/G`, 2 de paliers `k/M` sans `G`) et deux variantes divergentes.
+  - `lib/format/nombre.ts` devient la source unique. **Sortie constante** : les
+    treize copies remplacées rendent exactement la même chaîne qu'avant, figée
+    par 13 tests (`tests/unit/format/nombre.test.ts`) qui CONSTATENT le format
+    au lieu d'en décider. Un seul écart, assumé et documenté : quatre des cinq
+    copies abrégées n'avaient aucune garde sur les valeurs non finies et
+    affichaient la chaîne « NaN » à l'écran ; c'est désormais « — ».
+  - **Les deux divergences restent, et sont maintenant côte à côte dans un seul
+    fichier** au lieu d'être noyées dans des composants éloignés :
+    1. le palier `G` — `formaterNombreAbrege` rend « 1.2G » quand
+       `formaterNombreAbregeSansMilliard` rend « 1200.0M ». Trancher = supprimer
+       une des deux fonctions et rebrancher ses deux appelants ;
+    2. le séparateur décimal — `components/digital/AnalyseV2.tsx` rend « 1,2M »
+       (virgule, convention française) quand tout le reste rend « 1.2M ». Cette
+       variante est laissée **sur place, seule**, pour que l'arbitrage porte sur
+       un fichier et un seul.
+  - Restent hors périmètre les formateurs qui ajoutent une unité (`fmtEur`,
+    `fmtFreq`, `fmtPct`, `fmtBytes`) : même famille, mais chacun porte une
+    décision d'affichage propre.
 
 ### ECH-003 [Échelle] Rejeu d'un import de campagne : campagne dupliquée
 - **Localisation** : `app/api/admin/campaigns/import/route.ts:246-269` et `:350`

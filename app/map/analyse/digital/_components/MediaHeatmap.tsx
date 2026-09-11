@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { Maximize2, ArrowUpDown, X, Minus, Plus } from 'lucide-react';
+import { formaterNombreAbregeSansMilliard } from '@/lib/format/nombre';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -43,12 +44,6 @@ function ecartColor(ecart: number, maxAbs: number): string {
   if (ecart > 0) return `rgb(${100 + intensity}, ${60 - ratio * 30}, ${60 - ratio * 30})`;
   if (ecart < 0) return `rgb(${40 - ratio * 20}, ${60 + intensity * 0.3}, ${130 + intensity * 0.4})`;
   return '#1a1a2e';
-}
-
-function fmt(n: number): string {
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return n.toLocaleString('fr-FR');
 }
 
 const iconBtnStyle: React.CSSProperties = {
@@ -215,8 +210,8 @@ export function MediaHeatmap({ data, loading, aggregation, metric = 'impressions
       display: 'flex', gap: 12, flexWrap: 'wrap',
     }}>
       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{hoveredCell.media} — {hoveredCell.zone_nom}</span>
-      <span>{impLabel}: <span style={{ color: 'var(--brand-teal)', fontFamily: fMono }}>{fmt(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
-      <span>Pop: <span style={{ color: 'var(--text-primary)', fontFamily: fMono }}>{fmt(hoveredCell.pop_cible)}</span> ({hoveredCell.pct_pop}%)</span>
+      <span>{impLabel}: <span style={{ color: 'var(--brand-teal)', fontFamily: fMono }}>{formaterNombreAbregeSansMilliard(hoveredCell.impressions)}</span> ({hoveredCell.pct_imp_media}%)</span>
+      <span>Pop: <span style={{ color: 'var(--text-primary)', fontFamily: fMono }}>{formaterNombreAbregeSansMilliard(hoveredCell.pop_cible)}</span> ({hoveredCell.pct_pop}%)</span>
       <span style={{ color: hoveredCell.ecart > 0 ? '#EF4444' : '#3B82F6', fontFamily: fMono, fontWeight: 600 }}>
         {hoveredCell.ecart > 0 ? '+' : ''}{hoveredCell.ecart} pts
       </span>

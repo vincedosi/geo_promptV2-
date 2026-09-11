@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { formaterNombreAbrege } from '@/lib/format/nombre';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -41,13 +42,6 @@ interface RailroadPipelineProps {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'G';
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return n.toLocaleString('fr-FR');
-}
 
 // ── Node component ──────────────────────────────────────────────────────────
 
@@ -220,8 +214,8 @@ export function RailroadPipeline({
           <Popover open={activePopover === 'campaign'} align="left">
             {campaigns.map(c => {
               const sub = c.total_unique_impressions && c.total_unique_impressions > 0
-                ? `${fmt(c.total_tracked_ads)} imp. · ${fmt(c.total_unique_impressions)} uniques`
-                : `${fmt(c.total_tracked_ads)} imp.`;
+                ? `${formaterNombreAbrege(c.total_tracked_ads)} imp. · ${formaterNombreAbrege(c.total_unique_impressions)} uniques`
+                : `${formaterNombreAbrege(c.total_tracked_ads)} imp.`;
               return (
                 <RadioOption key={c.id} selected={selectedCampaign === c.id} label={c.name} sub={sub} onClick={() => { onCampaignChange(c.id); setActivePopover(null); }} />
               );
@@ -349,7 +343,7 @@ export function RailroadPipeline({
         {loading && <span style={{ fontFamily: fInter, fontSize: 11, color: 'var(--brand-teal)' }}>Chargement...</span>}
         {!loading && hasCampaign && (
           <span style={{ fontFamily: fMono, fontSize: 12, color: '#8a8a8a' }}>
-            {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {impLabelShort}
+            {zonesCount.toLocaleString('fr-FR')} zones · {formaterNombreAbrege(totalImpressions)} {impLabelShort}
           </span>
         )}
       </div>

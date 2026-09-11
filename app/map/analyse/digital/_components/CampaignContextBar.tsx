@@ -1,16 +1,10 @@
 'use client';
 
 import { HealthBadge } from './HealthBadge';
+import { formaterNombreAbrege } from '@/lib/format/nombre';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
-
-function fmt(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'G';
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return n.toLocaleString('fr-FR');
-}
 
 interface CampaignContextBarProps {
   campaignName: string;
@@ -35,7 +29,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
     }}>
       <span style={{ fontFamily: fInter, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{campaignName}</span>
       <span style={{ fontFamily: fMono, fontSize: 11, color: '#8a8a8a' }}>
-        {zonesCount.toLocaleString('fr-FR')} zones · {fmt(totalImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
+        {zonesCount.toLocaleString('fr-FR')} zones · {formaterNombreAbrege(totalImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
       </span>
       {showZoneKpi && (
         <div style={{
@@ -50,7 +44,7 @@ export function CampaignContextBar({ campaignName, totalImpressions, zonesCount,
           </span>
           {inZoneImpressions !== null && inZoneImpressions !== undefined && (
             <span style={{ fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
-              {fmt(inZoneImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
+              {formaterNombreAbrege(inZoneImpressions)} {metric === 'unique' ? 'imp. uniques' : 'imp.'}
             </span>
           )}
           {outPct !== null && (

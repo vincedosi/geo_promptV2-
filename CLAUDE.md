@@ -120,6 +120,9 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
   créées. Corollaire de l'identité déterministe des POI.
 - Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`
 - Git : commits atomiques, format `type: description`
+- Mise en forme des nombres : `lib/format/nombre.ts` est la source unique
+  (`formaterNombre`, `formaterNombreArrondi`, `formaterNombreAbrege`). Ne pas
+  réécrire un `fmtNum` local — il y en avait **quinze** avant le 2026-09-11.
 - Design : dark minimal, Inter + JetBrains Mono, accent teal #4ecdc4, pas de violet, sentence case, flat total
 
 ## Fichiers de référence (lire AVANT de créer)

@@ -1,14 +1,9 @@
 'use client';
 
+import { formaterNombreAbrege } from '@/lib/format/nombre';
+
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
-
-function fmt(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'G';
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return n.toLocaleString('fr-FR');
-}
 
 interface KpiSummaryProps {
   totalImpressions: number;
@@ -23,8 +18,8 @@ interface KpiSummaryProps {
 export function KpiSummary({ totalImpressions, totalPop, ratioMoyen, couverturePct, concentrationTop10, metric = 'impressions', frequency = null }: KpiSummaryProps) {
   const impLabel = metric === 'unique' ? 'Imp. uniques' : 'Impressions';
   const kpis: { label: string; value: string; color: string }[] = [
-    { label: impLabel, value: fmt(totalImpressions), color: 'var(--brand-teal)' },
-    { label: 'Pop. cible', value: fmt(totalPop), color: 'var(--text-primary)' },
+    { label: impLabel, value: formaterNombreAbrege(totalImpressions), color: 'var(--brand-teal)' },
+    { label: 'Pop. cible', value: formaterNombreAbrege(totalPop), color: 'var(--text-primary)' },
     { label: 'Ratio moy.', value: ratioMoyen.toFixed(1), color: 'var(--text-primary)' },
     { label: 'Couverture', value: couverturePct.toFixed(0) + '%', color: couverturePct > 80 ? 'var(--success)' : couverturePct > 50 ? 'var(--warning)' : 'var(--danger)' },
     { label: 'Top 10% CP =', value: concentrationTop10.toFixed(0) + '% imp.', color: concentrationTop10 > 60 ? 'var(--danger)' : 'var(--success)' },

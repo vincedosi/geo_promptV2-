@@ -2,6 +2,7 @@
 import { logger } from '@/lib/logger';
 
 import { useState } from 'react';
+import { formaterNombreAbregeSansMilliard } from '@/lib/format/nombre';
 
 const fInter = "'Inter', sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -21,12 +22,6 @@ interface ActionListTableProps {
   metric?: string;
   aggregation?: 'region' | 'dept' | 'cp';
   onRowClick?: (code: string) => void;
-}
-
-function fmt(n: number): string {
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return n.toLocaleString('fr-FR');
 }
 
 export function ActionListTable({ data, metric = 'impressions', aggregation = 'region', onRowClick }: ActionListTableProps) {
@@ -79,8 +74,8 @@ export function ActionListTable({ data, metric = 'impressions', aggregation = 'r
                 <td style={{ padding: '4px 8px', fontFamily: fInter, fontSize: 10, color: 'var(--text-secondary)' }}>
                   <span style={{ color: 'var(--text-tertiary)', marginRight: 4 }}>{i + 1}.</span>{row.code} — {row.nom}
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-primary)' }}>{fmt(row.impressions)}</td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>{fmt(row.pop_value)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-primary)' }}>{formaterNombreAbregeSansMilliard(row.impressions)}</td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, color: 'var(--text-secondary)' }}>{formaterNombreAbregeSansMilliard(row.pop_value)}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: fMono, fontSize: 10, fontWeight: 600, color: row.ecart > 0 ? '#EF4444' : '#3B82F6' }}>
                   {row.ecart > 0 ? '+' : ''}{row.ecart.toFixed(2)}
                 </td>

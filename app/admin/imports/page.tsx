@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
+import { formaterNombre } from '@/lib/format/nombre';
 
 const C = {
   bg: 'var(--bg-primary)', bgElevated: 'var(--bg-surface)', bgSurface: 'var(--bg-level-2)',
@@ -61,11 +62,6 @@ function KindBadge({ kind, type }: { kind: string; type?: string }) {
   );
 }
 
-function fmt(n: number | null | undefined) {
-  if (n == null) return '—';
-  return n.toLocaleString('fr-FR');
-}
-
 export default function ImportsPage() {
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,9 +107,9 @@ export default function ImportsPage() {
       {/* Stats */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Runs', value: fmt(totalRuns), color: C.textDim },
-          { label: 'Enregistrements importés', value: fmt(totalInserted), color: C.green },
-          { label: 'Erreurs', value: fmt(totalErrors), color: totalErrors > 0 ? C.red : C.textDim },
+          { label: 'Runs', value: formaterNombre(totalRuns), color: C.textDim },
+          { label: 'Enregistrements importés', value: formaterNombre(totalInserted), color: C.green },
+          { label: 'Erreurs', value: formaterNombre(totalErrors), color: totalErrors > 0 ? C.red : C.textDim },
         ].map(s => (
           <div key={s.label} style={{ background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 2, padding: '12px 20px', flex: 1 }}>
             <div style={{ fontFamily: fontInter, fontSize: 11, color: C.textDim, marginBottom: 6 }}>{s.label}</div>
@@ -181,10 +177,10 @@ export default function ImportsPage() {
                   <td style={{ padding: '10px 12px' }}>
                     <StatusBadge status={imp.status} />
                   </td>
-                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.textDim, textAlign: 'right' }}>{fmt(imp.total)}</td>
-                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.green, textAlign: 'right' }}>{fmt(imp.inserted)}</td>
-                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.warn, textAlign: 'right' }}>{fmt(imp.updated)}</td>
-                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: imp.errors > 0 ? C.red : C.textDim, textAlign: 'right' }}>{fmt(imp.errors)}</td>
+                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.textDim, textAlign: 'right' }}>{formaterNombre(imp.total)}</td>
+                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.green, textAlign: 'right' }}>{formaterNombre(imp.inserted)}</td>
+                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: C.warn, textAlign: 'right' }}>{formaterNombre(imp.updated)}</td>
+                  <td style={{ padding: '10px 12px', fontFamily: fontMono, fontSize: 12, color: imp.errors > 0 ? C.red : C.textDim, textAlign: 'right' }}>{formaterNombre(imp.errors)}</td>
                 </tr>
               ))}
             </tbody>

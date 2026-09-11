@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
 import type { DspCampaignData } from '@/types/campaign';
+import { formaterNombre } from '@/lib/format/nombre';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 export const C = {
@@ -25,9 +26,10 @@ export function fmtDate(d: string | null) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
-export function fmtNum(n: number) {
-  return n.toLocaleString('fr-FR');
-}
+// La mise en forme des nombres vit dans `lib/format/nombre.ts` (`DUP-001` —
+// elle était écrite à quinze endroits). Le nom public `fmtNum` est conservé :
+// ce fichier s'en sert lui-même, et une dizaine de composants l'importent.
+export const fmtNum = formaterNombre;
 
 // ── Section header ────────────────────────────────────────────────────────────
 export function SH({ label }: { label: string }) {

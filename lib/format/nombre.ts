@@ -1,0 +1,94 @@
+/**
+ * @file lib/format/nombre.ts
+ *
+ * Mise en forme des nombres affichés. Source unique.
+ *
+ * ── Le constat (`DUP-001`) ──────────────────────────────────────────────────
+ *
+ * L'audit signalait « deux `fmtNum` divergents ». Le recensement du 2026-09-11
+ * en a trouvé **quinze**, réparties en trois comportements réellement
+ * identiques et deux variantes qui, elles, divergent à l'écran :
+ *
+ * | Comportement | Copies | Fichiers |
+ * |---|---|---|
+ * | `toLocaleString('fr-FR')` brut | 6 | carreaux-import, campaign, ooh-import, admin/imports, DspPanel, ZoneAudienceStats |
+ * | paliers `k` / `M` / `G`, séparateur `.` | 5 | KpiSummary, CampaignCard, CampaignContextBar, RailroadPipeline, SyncMap |
+ * | paliers `k` / `M` **sans `G`** | 2 | ActionListTable, MediaHeatmap |
+ *
+ * Quinze définitions du même besoin, c'est quinze endroits où corriger un
+ * arrondi. Elles sont remplacées ici, **à sortie constante**.
+ *
+ * ── Ce qui n'est PAS unifié, et pourquoi ────────────────────────────────────
+ *
+ * Deux divergences restent, parce que les réduire change ce que voit
+ * l'utilisateur — c'est un arbitrage produit, pas un choix technique. Elles
+ * sont désormais visibles ICI, côte à côte, au lieu d'être noyées dans deux
+ * composants éloignés :
+ *
+ *  - **le palier `G`** : `formaterNombreAbrege` rend « 1.2G » là où
+ *    `formaterNombreAbregeSansMilliard` rend « 1200.0M ». Deux écrans d'analyse
+ *    affichent donc le même milliard d'impressions différemment. Les unifier,
+ *    c'est supprimer une des deux fonctions ;
+ *  - **le séparateur décimal** : `components/digital/AnalyseV2.tsx` rend
+ *    « 1,2M » (virgule, convention française) quand tout le reste rend
+ *    « 1.2M ». Cette variante est laissée sur place, seule, pour que
+ *    l'arbitrage porte sur un fichier et un seul.
+ */
+
+/** Ce qu'on affiche quand il n'y a pas de valeur. */
+const ABSENT = '—';
+
+/**
+ * Nombre complet, séparateurs de milliers français : `1 234 567`.
+ *
+ * Accepte `null` / `undefined` et rend `—`. Quatre des six copies remplacées
+ * n'acceptaient qu'un `number` et deux géraient le cas absent : réunir les deux
+ * ne change rien pour un `number`, qui n'est jamais `null`.
+ */
+export function formaterNombre(valeur: number | null | undefined): string {
+  if (valeur == null) return ABSENT;
+  return valeur.toLocaleString('fr-FR');
+}
+
+/** Nombre arrondi à l'entier, puis mis en forme : `1 235`. */
+export function formaterNombreArrondi(valeur: number | null | undefined): string {
+  if (valeur == null || !Number.isFinite(valeur)) return ABSENT;
+  return Math.round(valeur).toLocaleString('fr-FR');
+}
+
+/**
+ * Nombre abrégé avec paliers : `1.2k`, `3.4M`, `1.2G`.
+ *
+ * En dessous de mille, le nombre est rendu en entier — c'est ce que faisaient
+ * les cinq copies remplacées.
+ *
+ * Accepte `unknown` et rend `—` sur une valeur non finie. Quatre des cinq
+ * copies n'avaient pas cette garde et rendaient donc la chaîne « NaN » à
+ * l'écran ; c'est le seul écart de sortie de cette unification, et il va dans
+ * le bon sens.
+ */
+export function formaterNombreAbrege(valeur: unknown): string {
+  const v = Number(valeur);
+  if (!Number.isFinite(v)) return ABSENT;
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'G';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toLocaleString('fr-FR');
+}
+
+/**
+ * Même chose, **sans le palier `G`** : un milliard s'affiche « 1000.0M ».
+ *
+ * Cette fonction n'existe que pour préserver l'affichage de deux écrans
+ * (`ActionListTable`, `MediaHeatmap`). La fusionner avec `formaterNombreAbrege`
+ * est un arbitrage d'affichage : au-delà du milliard, les deux ne disent pas la
+ * même chose. Le jour où il est tranché, cette fonction disparaît et ses deux
+ * appelants passent sur `formaterNombreAbrege`.
+ */
+export function formaterNombreAbregeSansMilliard(valeur: unknown): string {
+  const v = Number(valeur);
+  if (!Number.isFinite(v)) return ABSENT;
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
+  return v.toLocaleString('fr-FR');
+}

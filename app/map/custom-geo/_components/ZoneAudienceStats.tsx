@@ -1,6 +1,7 @@
 'use client';
 
 import type { AudienceStats } from '@/types/custom-geo';
+import { formaterNombre } from '@/lib/format/nombre';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -8,11 +9,6 @@ const fMono = "'JetBrains Mono', monospace";
 interface Props {
   stats: AudienceStats | Record<string, never>;
   computedAt: string | null;
-}
-
-function fmt(n: number | undefined): string {
-  if (n === undefined || n === null) return '—';
-  return n.toLocaleString('fr-FR');
 }
 
 function pct(part: number | undefined, total: number | undefined): string {
@@ -54,49 +50,49 @@ export function ZoneAudienceStats({ stats, computedAt }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* KPIs principaux (3 chiffres bidding-ready) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        <Kpi label="Population" value={fmt(popTotal)} accent />
-        <Kpi label="Ménages" value={fmt(menTotal)} />
-        <Kpi label="hab/km²" value={fmt(pop?.density_per_km2)} />
+        <Kpi label="Population" value={formaterNombre(popTotal)} accent />
+        <Kpi label="Ménages" value={formaterNombre(menTotal)} />
+        <Kpi label="hab/km²" value={formaterNombre(pop?.density_per_km2)} />
       </div>
 
       {/* Profil par âge (DSP audience targeting) */}
       {pop && (
         <Section title="Profil par âge">
-          <Row label="0-17 ans"   value={fmt(pop.by_age['0_17'])}    sub={pct(pop.by_age['0_17'], popTotal)} />
-          <Row label="18-24 ans"  value={fmt(pop.by_age['18_24'])}   sub={pct(pop.by_age['18_24'], popTotal)} />
-          <Row label="25-39 ans"  value={fmt(pop.by_age['25_39'])}   sub={pct(pop.by_age['25_39'], popTotal)} />
-          <Row label="40-54 ans"  value={fmt(pop.by_age['40_54'])}   sub={pct(pop.by_age['40_54'], popTotal)} />
-          <Row label="55-64 ans"  value={fmt(pop.by_age['55_64'])}   sub={pct(pop.by_age['55_64'], popTotal)} />
-          <Row label="65-79 ans"  value={fmt(pop.by_age['65_79'])}   sub={pct(pop.by_age['65_79'], popTotal)} />
-          <Row label="80+ ans"    value={fmt(pop.by_age['80_plus'])} sub={pct(pop.by_age['80_plus'], popTotal)} />
+          <Row label="0-17 ans"   value={formaterNombre(pop.by_age['0_17'])}    sub={pct(pop.by_age['0_17'], popTotal)} />
+          <Row label="18-24 ans"  value={formaterNombre(pop.by_age['18_24'])}   sub={pct(pop.by_age['18_24'], popTotal)} />
+          <Row label="25-39 ans"  value={formaterNombre(pop.by_age['25_39'])}   sub={pct(pop.by_age['25_39'], popTotal)} />
+          <Row label="40-54 ans"  value={formaterNombre(pop.by_age['40_54'])}   sub={pct(pop.by_age['40_54'], popTotal)} />
+          <Row label="55-64 ans"  value={formaterNombre(pop.by_age['55_64'])}   sub={pct(pop.by_age['55_64'], popTotal)} />
+          <Row label="65-79 ans"  value={formaterNombre(pop.by_age['65_79'])}   sub={pct(pop.by_age['65_79'], popTotal)} />
+          <Row label="80+ ans"    value={formaterNombre(pop.by_age['80_plus'])} sub={pct(pop.by_age['80_plus'], popTotal)} />
         </Section>
       )}
 
       {/* Typologie ménages (CSP / cibles) */}
       {men && (
         <Section title="Typologie ménages">
-          <Row label="Personne seule"   value={fmt(men['1_personne'])}     sub={pct(men['1_personne'], menTotal)} />
-          <Row label="Familles 5+"      value={fmt(men['5_plus'])}         sub={pct(men['5_plus'], menTotal)} />
-          <Row label="Propriétaires"    value={fmt(men.proprietaires)}     sub={pct(men.proprietaires, menTotal)} />
-          <Row label="Monoparentales"   value={fmt(men.monoparentales)}    sub={pct(men.monoparentales, menTotal)} />
-          <Row label="Sous seuil pauvreté" value={fmt(men.pauvres)}        sub={pct(men.pauvres, menTotal)} />
+          <Row label="Personne seule"   value={formaterNombre(men['1_personne'])}     sub={pct(men['1_personne'], menTotal)} />
+          <Row label="Familles 5+"      value={formaterNombre(men['5_plus'])}         sub={pct(men['5_plus'], menTotal)} />
+          <Row label="Propriétaires"    value={formaterNombre(men.proprietaires)}     sub={pct(men.proprietaires, menTotal)} />
+          <Row label="Monoparentales"   value={formaterNombre(men.monoparentales)}    sub={pct(men.monoparentales, menTotal)} />
+          <Row label="Sous seuil pauvreté" value={formaterNombre(men.pauvres)}        sub={pct(men.pauvres, menTotal)} />
         </Section>
       )}
 
       {/* Logements (typologie habitat) */}
       {log && (
         <Section title="Logements">
-          <Row label="Maisons individuelles" value={fmt(log.maisons)}    sub={pct(log.maisons, menTotal)} />
-          <Row label="Collectifs"            value={fmt(log.collectifs)} sub={pct(log.collectifs, menTotal)} />
-          <Row label="Logements sociaux"     value={fmt(log.sociaux)}    sub={pct(log.sociaux, menTotal)} />
-          <Row label="Surface moyenne"       value={`${fmt(log.surface_moyenne_m2)} m²`} />
+          <Row label="Maisons individuelles" value={formaterNombre(log.maisons)}    sub={pct(log.maisons, menTotal)} />
+          <Row label="Collectifs"            value={formaterNombre(log.collectifs)} sub={pct(log.collectifs, menTotal)} />
+          <Row label="Logements sociaux"     value={formaterNombre(log.sociaux)}    sub={pct(log.sociaux, menTotal)} />
+          <Row label="Surface moyenne"       value={`${formaterNombre(log.surface_moyenne_m2)} m²`} />
         </Section>
       )}
 
       {/* Revenu */}
       {stats.revenu_median_par_uc !== undefined && stats.revenu_median_par_uc > 0 && (
         <Section title="Revenu">
-          <Row label="Médian par UC" value={`${fmt(stats.revenu_median_par_uc)} €`} accent />
+          <Row label="Médian par UC" value={`${formaterNombre(stats.revenu_median_par_uc)} €`} accent />
         </Section>
       )}
 

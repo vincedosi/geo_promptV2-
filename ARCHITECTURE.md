@@ -159,6 +159,8 @@ genesis_app/
 │   ├── dsp-mapping/            # loader.ts — mappings de colonnes DSP dynamiques (table dsp_source_mappings)
 │   ├── metrics-display/        # loader + formateur dynamique des metriques (dsp_metrics_registry)
 │   ├── bidding-ml/             # client HTTP vers Modal + comparison / metric-labels / targeting-kpis
+│   ├── format/                 # nombre.ts — source unique de la mise en forme des nombres
+│   │                           #   (DUP-001 : 15 fmtNum locaux remplaces)
 │   ├── geo/                    # france-admin.ts, locations.ts
 │   ├── http/                   # fetch-avec-delai.ts — tout appel sortant vers un tiers
 │   │                           # DOIT passer par la : delai d'expiration, PAS de reprise

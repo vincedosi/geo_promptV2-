@@ -15,6 +15,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import type { DspImport } from '../_hooks/useDspImport';
 import { C, fontMono, fontInter } from '../_lib/theme';
 import { Spinner } from './ui';
+import { formaterNombre } from '@/lib/format/nombre';
 
 interface DspPanelProps {
   dsp: DspImport;
@@ -33,7 +34,6 @@ export function DspPanel({ dsp }: DspPanelProps) {
 
       const DSP_SOURCES = ['adform', 'dv360', 'ttd', 'xandr', 'amazon_dsp', 'other'];
       const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
-      const fmtN = (n: number) => n.toLocaleString('fr-FR');
       const lastProg = dspEvents.filter((e) => e.type === 'progress').at(-1);
       const pPct = lastProg?.type === 'progress' && lastProg.total > 0 ? Math.round((lastProg.processed / lastProg.total) * 100) : 0;
       const cardSt = { background: C.bgElevated, border: `0.5px solid ${C.border}`, borderRadius: 2 };
@@ -82,12 +82,12 @@ export function DspPanel({ dsp }: DspPanelProps) {
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: fontMono, color: C.textDim, flexWrap: 'wrap' }}>
                     <span>{fmtD(c.date_start)} → {fmtD(c.date_end)}</span>
-                    <span>{fmtN(c.total_tracked_ads)} tracked ads</span>
-                    <span>{fmtN(c.total_rows)} lignes</span>
+                    <span>{formaterNombre(c.total_tracked_ads)} tracked ads</span>
+                    <span>{formaterNombre(c.total_rows)} lignes</span>
                     <span>{c.countries?.join(', ') ?? '—'}</span>
                     {c.france_rows > 0 && (
                       <span style={{ color: c.matched_iris > 0 ? C.green : C.textDim }}>
-                        {fmtN(c.matched_iris)} IRIS ({Math.round((c.matched_iris / c.france_rows) * 100)}%)
+                        {formaterNombre(c.matched_iris)} IRIS ({Math.round((c.matched_iris / c.france_rows) * 100)}%)
                       </span>
                     )}
                   </div>
@@ -159,10 +159,10 @@ export function DspPanel({ dsp }: DspPanelProps) {
                   <div style={{ background: C.greenDim, border: `0.5px solid rgba(61,255,160,0.2)`, borderRadius: 6, padding: 12 }}>
                     <div style={{ fontFamily: fontInter, fontSize: 12, color: C.green, fontWeight: 500, marginBottom: 6 }}>Import réussi</div>
                     <div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                      <span>Lignes</span><span style={{ color: C.text }}>{fmtN(dspReport.total_rows)}</span>
+                      <span>Lignes</span><span style={{ color: C.text }}>{formaterNombre(dspReport.total_rows)}</span>
                       <span>Pays</span><span style={{ color: C.text }}>{dspReport.countries.join(', ')}</span>
-                      <span>France</span><span style={{ color: C.text }}>{fmtN(dspReport.total_france)}</span>
-                      <span>IRIS</span><span style={{ color: C.green }}>{fmtN(dspReport.matched_iris)} ({dspReport.pct_matched}%)</span>
+                      <span>France</span><span style={{ color: C.text }}>{formaterNombre(dspReport.total_france)}</span>
+                      <span>IRIS</span><span style={{ color: C.green }}>{formaterNombre(dspReport.matched_iris)} ({dspReport.pct_matched}%)</span>
                     </div>
                   </div>
                 )}

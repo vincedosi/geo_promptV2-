@@ -6,6 +6,7 @@ import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
+import { formaterNombreAbrege } from '@/lib/format/nombre';
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const FRANCE_CENTER: [number, number] = [2.5, 46.5];
@@ -33,15 +34,6 @@ interface SyncMapProps {
   showFeatureHover?: boolean;
   /** Metric label for the hover popup ("Impressions" or "Imp. uniques") */
   metricLabel?: string;
-}
-
-function fmtNum(n: unknown): string {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'G';
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'k';
-  return v.toLocaleString('fr-FR');
 }
 
 export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr, lineWidthExpr, onMove, syncTarget, zoomOffset = 0, hideAdminBoundaries = false, showFeatureHover = false, metricLabel = 'Impressions' }: SyncMapProps) {
@@ -305,10 +297,10 @@ export function SyncMap({ id, geojson, fillExpression, lineColor, lineColorExpr,
       const hasMeteo = p.meteo_value !== undefined && p.meteo_value !== null;
 
       if (hasImpressions) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${esc(metricLabel)}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${fmtNum(p.impressions)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">${esc(metricLabel)}</span><span style="font-family:'JetBrains Mono',monospace;color:var(--brand-teal)">${formaterNombreAbrege(p.impressions)}</span></div>`);
       }
       if (hasPop) {
-        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Population</span><span style="font-family:'JetBrains Mono',monospace">${fmtNum(p.pop_value)}</span></div>`);
+        lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Population</span><span style="font-family:'JetBrains Mono',monospace">${formaterNombreAbrege(p.pop_value)}</span></div>`);
       }
       if (hasRatio) {
         lines.push(`<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--text-tertiary)">Ratio</span><span style="font-family:'JetBrains Mono',monospace">${Number(p.ratio).toFixed(1)}</span></div>`);
