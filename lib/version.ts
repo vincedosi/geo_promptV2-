@@ -36,4 +36,6 @@ export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 // v17 — 2026-09-11 : cascade recalee sur la taille apparente des mailles
 //       (sql/127). Les memes coordonnees de tuile servent desormais une AUTRE
 //       maille : toute tuile en cache est perimee.
-export const CARREAUX_TILE_VERSION = 17;
+// v18 — 2026-09-11 : le palier 200 m demarre a z9 (sql/128), choix produit.
+//       Mêmes coordonnées de tuile, autre maille : tout cache est périmé.
+export const CARREAUX_TILE_VERSION = 18;
