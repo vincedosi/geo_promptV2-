@@ -420,7 +420,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/import-poi/dry-run` | POST | Preview import (10 lignes) |
 | `/api/admin/import-poi/execute` | POST | Import batch SSE streaming |
 | `/api/admin/import-ooh/arcgis` | POST/DELETE | Import OOH ArcGIS REST |
-| `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist) |
+| `/api/admin/import-datagouv` | POST | Import data.gouv.fr (SSRF whitelist). **Idempotent** depuis le 2026-09-11 : `id` deterministe (`lib/import/identite-poi.ts`, source `data_gouv`) + `upsert onConflict: 'id'`, donc un re-import du meme jeu n'ecrit rien. Les compteurs du flux NDJSON portent `inserted` ET `ignored` (deja presents) |
 | `/api/admin/import-geo/*` | POST | Import Shapefile |
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
 | `/api/admin/geocode/update` | POST | Mise a jour geocodage |
@@ -521,7 +521,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### POI & Panneaux
 | Table | Description | Notes |
 |-------|-------------|-------|
-| `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom`. `id` **deterministe** a l'import universel : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
+| `poi` / `poi_france` (vue) | Points d'Interet | Trigger `auto_set_geom`. `id` **deterministe** aux deux chemins d'import (universel et data.gouv) : UUIDv5 du contenu de la ligne (`lib/import/identite-poi.ts`), ce qui rend `onConflict: 'id'` operant et le rejeu d'un fichier sans effet. Ne jamais revenir a `randomUUID()` — voir `docs/AUDIT.md#ech-001` |
 | `panneaux_affichage` | Panneaux OOH/DOOH toutes regies (~1 434 lignes) — table unique (carte + copilote) | `source_ref` = OBJECTID, UNIQUE (source, source_ref), filtrer `actif = true` |
 | `import_runs_ooh` | Historique imports OOH | |
 | `poi_categories` | Categories POI | |

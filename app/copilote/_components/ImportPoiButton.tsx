@@ -21,8 +21,8 @@ type StreamEvent =
   | { type: 'warn'; message: string }
   | { type: 'existing'; count: number; categorie: string }
   | { type: 'total'; count: number; original: number; skipped: number }
-  | { type: 'progress'; chunk: number; totalChunks: number; inserted: number; errors: number }
-  | { type: 'done'; inserted: number; errors: number; total: number }
+  | { type: 'progress'; chunk: number; totalChunks: number; inserted: number; ignored?: number; errors: number }
+  | { type: 'done'; inserted: number; ignored?: number; errors: number; total: number }
   | { type: 'error'; message: string };
 
 // ─── Composant principal ─────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState<{ chunk: number; total: number; inserted: number } | null>(null);
   const [existingCount, setExistingCount] = useState<number | null>(null);
-  const [result, setResult] = useState<{ inserted: number; errors: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ inserted: number; ignored?: number; errors: number; total: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const abortRef = useRef<AbortController | null>(null);
 
@@ -116,7 +116,10 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
         break;
       case 'progress':
         setProgress({ chunk: event.chunk, total: event.totalChunks, inserted: event.inserted });
-        setStatus(`Lot ${event.chunk}/${event.totalChunks} — ${event.inserted.toLocaleString('fr-FR')} insérés`);
+        setStatus(
+          `Lot ${event.chunk}/${event.totalChunks} — ${event.inserted.toLocaleString('fr-FR')} insérés`
+          + (event.ignored ? `, ${event.ignored.toLocaleString('fr-FR')} déjà présents` : '')
+        );
         break;
       case 'done':
         setResult(event);
@@ -319,7 +322,20 @@ export function ImportPoiButton({ geojsonUrl, defaultCategorie = '' }: Props) {
           ✅ Import réussi !
         </div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-          <span style={{ color: '#34d399', fontWeight: 700 }}>{result.inserted.toLocaleString('fr-FR')}</span> points sont maintenant disponibles pour le calcul d&apos;isochrones.
+          {result.inserted === 0 && (result.ignored ?? 0) > 0 ? (
+            /* Cas d'un re-import : l'identite des POI etant deterministe, rien n'est
+               reecrit. Le dire explicitement evite de laisser croire a un echec. */
+            <>Aucun nouveau point : les <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{(result.ignored ?? 0).toLocaleString('fr-FR')}</span> points du fichier etaient deja en base.</>
+          ) : (
+            <>
+              <span style={{ color: '#34d399', fontWeight: 700 }}>{result.inserted.toLocaleString('fr-FR')}</span> points sont maintenant disponibles pour le calcul d&apos;isochrones.
+              {(result.ignored ?? 0) > 0 && (
+                <span style={{ color: 'var(--text-tertiary)', marginLeft: 6 }}>
+                  ({(result.ignored ?? 0).toLocaleString('fr-FR')} deja presents, non redupliques)
+                </span>
+              )}
+            </>
+          )}
           {result.errors > 0 && (
             <span style={{ color: '#fbbf24', marginLeft: 6 }}>({result.errors} erreurs)</span>
           )}

@@ -78,8 +78,24 @@ survient, quand le volume monte.
     aléatoires. Le premier ré-import d'un fichier déjà importé créera donc
     encore une dernière série de doublons ; il devient idempotent à partir de
     là.
-  - **Portée** : ce correctif ne couvre que l'import universel de POI. Les
-    rejeux d'import de campagne (`ECH-003`) et `datagouv` restent ouverts.
+  - **Portée** : les DEUX chemins qui écrivent dans `poi_france` sont couverts
+    — l'import universel (`lib/import/validator.ts`) et `import-datagouv`
+    (`app/api/admin/import-datagouv/route.ts`, dont le commentaire
+    « pas de doublon possible sans ID stable » n'était plus vrai).
+  - **Effet de bord traité dans le même chantier** : tant que `id` était
+    aléatoire, tout ce qui était envoyé était écrit, et compter
+    `inserted = batch.length` disait vrai. Depuis le correctif un rejeu n'écrit
+    RIEN — et ce compteur annonçait « 1 200 POI importés » sur un import qui
+    n'en créait aucun. Les deux chemins font désormais `.select('id')` après
+    l'upsert : `ON CONFLICT DO NOTHING` ne renvoie que les lignes réellement
+    écrites, d'où des compteurs `inserted` / `ignored` exacts, et un journal où
+    un rejeu affiche `[SKIP]` et non `[OK]`.
+  - **`ECH-003` était FAUX** : mesuré le 2026-09-11, l'import de campagne se
+    rattache déjà à une campagne existante par liaison plateforme ou nom
+    identique (`findMatchingCampaign`, `route.ts:208-228`), puis purge la plage
+    de dates du fichier avant réinsertion (`route.ts:350-362`). Rejouer le même
+    fichier est donc déjà idempotent. Une seconde campagne n'apparaît que si le
+    nom ne correspond à rien — ce qui est le comportement demandé.
 
 ### PERF-001 [Goulot] 21 `count(exact)` sur `iris` par appel de route
 - **Localisation** : `app/api/admin/iris/stats/route.ts:41-49` (6 comptages

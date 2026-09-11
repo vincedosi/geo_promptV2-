@@ -99,6 +99,11 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
   (patron `lib/import/inserter.ts`). Jusqu'au 2026-09-11 ce fichier faisait
   un aller-retour PAR LIGNE : la règle le citait en exemple alors qu'il ne
   la respectait pas.
+- Tout `upsert(..., { ignoreDuplicates: true })` doit être suivi de
+  `.select('id')`. `ON CONFLICT DO NOTHING` ne renvoie QUE les lignes
+  réellement écrites : sans ce `select`, « inséré » et « déjà présent » sont
+  indiscernables et le rapport d'import annonce des lignes qu'il n'a pas
+  créées. Corollaire de l'identité déterministe des POI.
 - Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`
 - Git : commits atomiques, format `type: description`
 - Design : dark minimal, Inter + JetBrains Mono, accent teal #4ecdc4, pas de violet, sentence case, flat total

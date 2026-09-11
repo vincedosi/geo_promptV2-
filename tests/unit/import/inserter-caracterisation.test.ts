@@ -24,8 +24,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 type Log = { niveau: string; message: string };
 
-/** Erreur Supabase simulée : `null` = succès. */
-type ErreurSimulee = { code?: string; message: string } | null;
+/**
+ * Sort simulé d'une ligne :
+ *   null       → écrite
+ *   'doublon'  → `ON CONFLICT DO NOTHING` n'écrit rien, et ne lève PAS d'erreur
+ *   { ... }    → erreur PostgreSQL
+ */
+type ErreurSimulee = { code?: string; message: string } | 'doublon' | null;
 
 /**
  * Fausse chaîne Supabase, fidèle à l'atomicité de PostgreSQL.
@@ -44,6 +49,12 @@ type ErreurSimulee = { code?: string; message: string } | null;
  * `reponses[i]` décrit le sort de la ligne `i` :
  *   - en insertion groupée, la PREMIÈRE erreur du lot fait échouer le tout ;
  *   - en repli ligne à ligne, chaque réponse est consommée dans l'ordre.
+ *
+ * Second point fidèle au réel, depuis `ECH-001` : `.select('id')` après un
+ * `ON CONFLICT DO NOTHING` ne renvoie QUE les lignes réellement écrites. Une
+ * ligne 'doublon' est donc absente du retour, sans erreur. C'est ce qui permet
+ * à l'inserter de compter juste — le simulacre doit le modéliser, sinon il
+ * validerait des compteurs que la base ne produit pas.
  */
 function fausseBase(reponses: ErreurSimulee[]) {
   const appels: { table: string; operation: string; groupe: boolean }[] = [];
@@ -65,14 +76,27 @@ function fausseBase(reponses: ErreurSimulee[]) {
           upsert(lignes: unknown, _opts: unknown) {
             const groupe = Array.isArray(lignes);
             appels.push({ table, operation: 'upsert', groupe });
-            if (groupe) {
-              // Atomicité : la première erreur programmée fait échouer le lot.
-              const premiere = reponses.find(r => r !== null) ?? null;
-              return Promise.resolve({ error: premiere });
-            }
-            const erreur = reponses[curseur] ?? null;
-            curseur += 1;
-            return Promise.resolve({ error: erreur });
+            // L'inserter enchaîne toujours `.select('id')` : c'est lui qui
+            // distingue une ligne écrite d'une ligne déjà présente.
+            const select = () => {
+              if (groupe) {
+                // Atomicité : la première erreur programmée fait échouer le lot.
+                const premiere = reponses.find(r => r !== null && r !== 'doublon');
+                if (premiere) return Promise.resolve({ data: null, error: premiere });
+                const rangees = lignes as { id: string }[];
+                const ecrites = rangees
+                  .filter((_, i) => reponses[i] !== 'doublon')
+                  .map(l => ({ id: l.id }));
+                return Promise.resolve({ data: ecrites, error: null });
+              }
+              const sort = reponses[curseur] ?? null;
+              curseur += 1;
+              if (sort === 'doublon') return Promise.resolve({ data: [], error: null });
+              if (sort) return Promise.resolve({ data: null, error: sort });
+              const une = lignes as { id: string };
+              return Promise.resolve({ data: [{ id: une.id }], error: null });
+            };
+            return { select };
           },
         };
       },
@@ -209,6 +233,35 @@ describe('caractérisation — insertRows', () => {
     expect(upserts).toHaveLength(4);                            // 1 groupe + 3 lignes
   });
 
+  it('un rejeu complet compte 0 insere et N ignores — et non N inseres', async () => {
+    // Le defaut que ce changement ferme. Tant que `id` etait aleatoire, tout
+    // ce qu'on envoyait etait ecrit : compter `inserted = batch.length` disait
+    // vrai. Depuis `ECH-001` un rejeu n'ecrit RIEN, et ce compteur annoncait
+    // « 3 POI importes » sur un import qui n'en creait aucun.
+    clientCourant.valeur = fausseBase(['doublon', 'doublon', 'doublon']);
+    const r = await insertRows([ligne(1), ligne(2), ligne(3)], 'poi');
+    expect(r.inserted).toBe(0);
+    expect(r.ignored).toBe(3);
+    expect(r.errors).toBe(0);
+  });
+
+  it('distingue les lignes nouvelles des lignes deja presentes dans un meme lot', async () => {
+    // Le cas reel d'un fichier complete : quelques lignes neuves au milieu de
+    // lignes deja importees.
+    clientCourant.valeur = fausseBase(['doublon', null, 'doublon']);
+    const journal: Log[] = [];
+    const r = await insertRows([ligne(1), ligne(2), ligne(3)], 'poi', undefined,
+      (niveau: string, message: string) => { journal.push({ niveau, message }); });
+
+    expect(r.inserted).toBe(1);
+    expect(r.ignored).toBe(2);
+    // Une seule requete : la distinction ne coute PAS un repli ligne a ligne.
+    expect(clientCourant.valeur.appels.filter(a => a.operation === 'upsert')).toHaveLength(1);
+    expect(journal.filter(l => l.message.startsWith('[OK]'))).toHaveLength(1);
+    expect(journal.filter(l => l.message.startsWith('[SKIP]'))).toHaveLength(2);
+    expect(journal.find(l => l.message.startsWith('[OK]'))?.message).toContain('POI 2');
+  });
+
   it('renvoie toutes les lignes en erreur si la connexion initiale échoue', async () => {
     clientCourant.valeur = {
       appels: [],
@@ -218,7 +271,7 @@ describe('caractérisation — insertRows', () => {
             select() {
               return { limit: () => Promise.resolve({ data: null, error: { message: 'hors ligne' } }) };
             },
-            upsert() { return Promise.resolve({ error: null }); },
+            upsert() { return { select: () => Promise.resolve({ data: [], error: null }) }; },
           };
         },
       },

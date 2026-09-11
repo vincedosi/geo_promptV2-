@@ -66,9 +66,10 @@ async function insererLigneAligne(
     const rowNum = globalOffset + i;
     const label = etiquette(r);
     try {
-      const { error: insertErr } = await supabase
+      const { data, error: insertErr } = await supabase
         .from('poi_france')
-        .upsert(construireLigne(r), { onConflict: 'id', ignoreDuplicates: true });
+        .upsert(construireLigne(r), { onConflict: 'id', ignoreDuplicates: true })
+        .select('id');
 
       if (insertErr) {
         if (insertErr.code === '23505') {
@@ -77,6 +78,11 @@ async function insererLigneAligne(
         } else {
           throw new Error(insertErr.message);
         }
+      } else if (!data || data.length === 0) {
+        // `ON CONFLICT DO NOTHING` n'a rien ecrit : la ligne etait deja en base.
+        // Sans le `.select('id')`, ce cas serait indiscernable d'une insertion.
+        ignored++;
+        onLog?.('warn', `[SKIP] #${rowNum} ${label} → doublon`);
       } else {
         inserted++;
         onLog?.('info', `[OK] #${rowNum} ${label} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`);
@@ -114,10 +120,20 @@ async function insererLigneAligne(
  *
  * Subtilite a connaitre : avec `ignoreDuplicates: true`, PostgREST emet un
  * `ON CONFLICT (id) DO NOTHING` — un doublon sur `id` ne leve donc AUCUNE
- * erreur, ni en groupe ni ligne a ligne. Le compteur `ignored` ne se declenche
- * que sur une AUTRE contrainte d'unicite, laquelle fait echouer le groupe
- * entier et declenche le repli. Les compteurs finaux sont identiques dans les
- * deux chemins.
+ * erreur, ni en groupe ni ligne a ligne.
+ *
+ * ── Pourquoi `.select('id')` (2026-09-11, suite d'`ECH-001`) ────────────────
+ *
+ * Tant que `id` etait un `randomUUID()`, aucun conflit n'etait possible : tout
+ * ce qu'on envoyait etait ecrit, et compter `inserted = batch.length` disait
+ * vrai. Depuis que l'identite est deterministe
+ * (`lib/import/identite-poi.ts`), un rejeu n'ecrit RIEN — et ce compteur
+ * annoncerait « 1 200 POI importes » sur un import qui n'en a cree aucun.
+ *
+ * `.select('id')` fait renvoyer par PostgREST les seules lignes reellement
+ * ecrites. On en deduit `inserted` et `ignored` exacts. Le cout est d'un UUID
+ * par ligne ecrite sur le retour — negligeable — et c'est le prix de la regle
+ * du projet : un import annonce des compteurs vrais, jamais estimes.
  */
 async function insertPoiBatch(
   batch: ProcessedRow[],
@@ -137,9 +153,13 @@ async function insertPoiBatch(
   }
 
   const supabase = getSupabase();
-  const { error } = await supabase
+  // Le `.select('id')` n'est pas cosmetique : avec `ON CONFLICT DO NOTHING`,
+  // PostgREST ne renvoie QUE les lignes reellement ecrites. C'est le seul moyen
+  // de distinguer « insere » de « deja present ». Voir le bloc ci-dessus.
+  const { data, error } = await supabase
     .from('poi_france')
-    .upsert(lignes, { onConflict: 'id', ignoreDuplicates: true });
+    .upsert(lignes, { onConflict: 'id', ignoreDuplicates: true })
+    .select('id');
 
   if (error) {
     // Le groupe a echoue : on ne sait pas QUELLE ligne pose probleme. Seul le
@@ -148,12 +168,23 @@ async function insertPoiBatch(
     return insererLigneAligne(batch, globalOffset, onLog);
   }
 
-  // Succes : meme journal qu'avant, ligne par ligne.
+  // Journal ligne par ligne, comme avant — mais chaque ligne dit desormais si
+  // elle a ete ecrite ou retrouvee. Un rejeu affiche 50 [SKIP], pas 50 [OK].
+  const ecrites = new Set((data ?? []).map((l) => l.id));
+  let inserted = 0;
+  let ignored = 0;
   batch.forEach((r, i) => {
-    onLog?.('info',
-      `[OK] #${globalOffset + i} ${etiquette(r)} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`);
+    const rowNum = globalOffset + i;
+    const label = etiquette(r);
+    if (ecrites.has(r.id)) {
+      inserted++;
+      onLog?.('info', `[OK] #${rowNum} ${label} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`);
+    } else {
+      ignored++;
+      onLog?.('warn', `[SKIP] #${rowNum} ${label} → doublon`);
+    }
   });
-  return { inserted: batch.length, ignored: 0, errors: 0 };
+  return { inserted, ignored, errors: 0 };
 }
 
 // ============================================================

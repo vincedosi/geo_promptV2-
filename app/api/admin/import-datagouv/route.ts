@@ -16,6 +16,11 @@ import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { triggerFilled } from '@/lib/supabase/tables';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { identitePoi } from '@/lib/import/identite-poi';
+
+/** Valeur de `poi_france.source` pour ce chemin d'import. Elle entre dans
+ *  l'identite : la changer reattribuerait tous les identifiants. */
+const SOURCE_DATAGOUV = 'data_gouv';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,8 +81,8 @@ type StreamEvent =
   | { type: 'warn'; message: string }
   | { type: 'existing'; count: number; categorie: string }
   | { type: 'total'; count: number; original: number; skipped: number }
-  | { type: 'progress'; chunk: number; totalChunks: number; inserted: number; errors: number }
-  | { type: 'done'; inserted: number; errors: number; total: number }
+  | { type: 'progress'; chunk: number; totalChunks: number; inserted: number; ignored: number; errors: number }
+  | { type: 'done'; inserted: number; ignored: number; errors: number; total: number }
   | { type: 'error'; message: string };
 
 // ─── Extraction d'un nom lisible depuis les propriétés d'une feature ─────────
@@ -110,20 +115,35 @@ function featureToRow(
   if (isNaN(Number(lat)) || isNaN(Number(lng))) return null;
   if (Math.abs(Number(lat)) > 90 || Math.abs(Number(lng)) > 180) return null;
 
+  const nom = extractNom(props as Record<string, unknown>, categorie, index);
+  const adresse = (props.adresse ?? props.ad_voie ?? props.adresse_station ?? props.voie ?? null) as string | null;
+  const ville = (props.ville ?? props.commune ?? props.nom_commune ?? props.city ?? null) as string | null;
+  const codePostal = (props.code_postal ?? props.codepostal ?? props.cp ?? null)?.toString().slice(0, 10) ?? null;
+
   return triggerFilled<'poi_france', 'geom'>({
+    // `id` deterministe : meme contenu → meme identifiant, donc un re-import du
+    // meme jeu data.gouv ne duplique plus rien (`ECH-001`). Le commentaire qui
+    // justifiait l'`insert()` d'avant — « pas de doublon possible sans ID
+    // stable » — n'est plus vrai : `lib/import/identite-poi.ts` en fournit un.
+    //
+    // Reserve a connaitre : quand le jeu n'expose aucun libelle exploitable,
+    // `extractNom` retombe sur `<categorie>_<index>`, soit la POSITION dans le
+    // fichier. L'identite reste stable pour un fichier donne, mais un jeu
+    // re-publie dans un autre ordre produira de nouveaux identifiants.
+    id: identitePoi({ source: SOURCE_DATAGOUV, categorie, nom, adresse, code_postal: codePostal, ville, lat: Number(lat), lng: Number(lng) }),
     // Colonnes principales — le trigger trg_poi_france_auto_geom calcule geom depuis lat/lng
     lat: Number(lat),
     lng: Number(lng),
     categorie,
-    nom: extractNom(props as Record<string, unknown>, categorie, index),
+    nom,
     // Adresse
-    adresse: (props.adresse ?? props.ad_voie ?? props.adresse_station ?? props.voie ?? null) as string | null,
-    ville: (props.ville ?? props.commune ?? props.nom_commune ?? props.city ?? null) as string | null,
-    code_postal: (props.code_postal ?? props.codepostal ?? props.cp ?? null)?.toString().slice(0, 10) ?? null,
+    adresse,
+    ville,
+    code_postal: codePostal,
     code_departement: (props.code_departement ?? props.departement?.toString().slice(0, 3) ?? null) as string | null,
     region: (props.region ?? props.nom_region ?? null) as string | null,
     // Traçabilité
-    source: 'data_gouv',
+    source: SOURCE_DATAGOUV,
     date_import: new Date().toISOString(),
     // Toutes les propriétés brutes pour le scoring futur
     metadata: toJson(props),
@@ -267,6 +287,7 @@ export async function POST(req: NextRequest) {
 
         // ── 5. Insert par chunks ─────────────────────────────────────────────
         let totalInserted = 0;
+        let totalIgnored = 0;
         let totalErrors = 0;
         const totalChunks = Math.ceil(total / CHUNK_SIZE);
 
@@ -274,7 +295,7 @@ export async function POST(req: NextRequest) {
           const chunkFeatures = pointFeatures.slice(i, i + CHUNK_SIZE);
           const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
 
-          send({ type: 'progress', chunk: chunkNum, totalChunks, inserted: totalInserted, errors: totalErrors });
+          send({ type: 'progress', chunk: chunkNum, totalChunks, inserted: totalInserted, ignored: totalIgnored, errors: totalErrors });
 
           // Convertir les features en lignes valides
           const rows = chunkFeatures
@@ -283,16 +304,23 @@ export async function POST(req: NextRequest) {
 
           if (rows.length === 0) continue;
 
-          // Insert (pas upsert : pas de doublon possible sans ID stable)
-          const { error } = await supabase
+          // Upsert idempotent sur l'identite deterministe : un re-import du meme
+          // jeu n'ecrit rien. Le `.select('id')` est ce qui rend les compteurs
+          // vrais — `ON CONFLICT DO NOTHING` ne renvoie que les lignes ecrites,
+          // sans quoi on annoncerait « N importes » sur un rejeu qui n'en cree
+          // aucun. Meme raisonnement que `lib/import/inserter.ts`.
+          const { data: ecrites, error } = await supabase
             .from('poi_france')
-            .insert(rows);
+            .upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
+            .select('id');
 
           if (error) {
             totalErrors += rows.length;
             send({ type: 'warn', message: `Chunk ${chunkNum}/${totalChunks} erreur: ${error.message}` });
           } else {
-            totalInserted += rows.length;
+            const nbEcrites = ecrites?.length ?? 0;
+            totalInserted += nbEcrites;
+            totalIgnored += rows.length - nbEcrites;
           }
         }
 
@@ -301,7 +329,7 @@ export async function POST(req: NextRequest) {
           invalidateCategoriesCache();
         }
 
-        send({ type: 'done', inserted: totalInserted, errors: totalErrors, total });
+        send({ type: 'done', inserted: totalInserted, ignored: totalIgnored, errors: totalErrors, total });
 
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);

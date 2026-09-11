@@ -41,13 +41,14 @@ Documentation et audit : `a800ff8`, `127ba69`, `c818505`.
 |---|---|---|
 | Erreurs `tsc` | 0 | **0** |
 | Warnings lint | 0 | **0** |
-| Tests | 483 | **532** (+49) |
+| Tests | 483 | **534** (+51) |
 | Fichiers de tests | 64 | 70 |
 | Taille max de fichier | 1 118 l. (`useMapLayers.ts`) | 1 118 l. — non traité, délibérément |
 | Appels externes sans délai d'expiration | **14** | **0** |
 | Requêtes pour `/api/admin/iris/stats` | **21** (~15 s) | **1** (112 ms) |
 | Requêtes par lot d'import de 50 lignes | **50** | **1** (repli à 50 en cas d'échec) |
-| POI dupliqués au rejeu d'un import | **100 %** des lignes | **0** (`ECH-001`) |
+| POI dupliqués au rejeu d'un import | **100 %** des lignes | **0** (`ECH-001`, les 2 chemins d'écriture) |
+| Compteur `inserted` d'un rejeu | annoncerait 100 % | **0 inséré, N ignorés** — mesuré, pas estimé |
 | Insertions par lots de 500 | 2 endroits | **0** |
 | Définitions de la règle « sources d'une org » | **3** | **1** |
 | Actions d'administration échouant en silence | 7 | **0** |
@@ -69,8 +70,6 @@ C'est la partie la plus utile de ce rapport. **Quatre constats sur vingt-deux
 
 | Localisation | Description | Gravité |
 |---|---|---|
-| `app/api/admin/campaigns/import/route.ts:246-269` | Même nature : un rejeu crée une seconde campagne | haute |
-| `app/api/admin/import-datagouv/route.ts:282` | `.insert()` sans clé stable — le code le reconnaît en commentaire | haute |
 | `app/api/admin/sources/[id]/route.ts:148` | Le `DROP TABLE` échoue, la suppression de la source se poursuit, la réponse dit `success: true`. Le lot 4 a rendu l'échec visible dans le journal ; **faire échouer la suppression serait un changement de comportement** | haute |
 | `app/api/admin/init-admin/route.ts` | La route qui crée le **premier** administrateur exige déjà une session valide. Amorçage impossible sur une installation neuve | moyenne |
 
@@ -133,11 +132,37 @@ importé **créera encore une dernière série de doublons**, les nouveaux
 identifiants ne pouvant pas rencontrer les anciens. Le fichier devient
 idempotent à partir de ce ré-import.
 
-**Preuve.** 20 tests, tous vus rouges avant d'être verts —
+**Les deux chemins d'écriture sont couverts.** `import-datagouv`
+(`app/api/admin/import-datagouv/route.ts`) écrit dans la même table et portait
+le commentaire « pas upsert : pas de doublon possible sans ID stable ». Il l'est
+désormais : même identité, `upsert onConflict: 'id'`.
+
+**Un effet de bord de ce correctif, traité dans le même chantier.** Tant que
+`id` était un `randomUUID()`, tout ce qui était envoyé était écrit — compter
+`inserted = batch.length` disait vrai. Depuis le correctif, un rejeu n'écrit
+RIEN, et ce compteur annonçait « 1 200 POI importés » sur un import qui n'en
+créait aucun : le correctif rendait le rapport menteur. Les deux chemins font
+maintenant `.select('id')` après l'upsert — `ON CONFLICT DO NOTHING` ne renvoie
+que les lignes réellement écrites — d'où `inserted` / `ignored` exacts, un
+journal où un rejeu affiche `[SKIP]` et non `[OK]`, et un écran d'import qui dit
+« aucun nouveau point : les N points du fichier étaient déjà en base » au lieu
+de « N points importés ». Coût : un UUID par ligne écrite sur le retour.
+
+**`ECH-003` de ce rapport était FAUX** — cinquième constat inexact sur
+vingt-deux. Mesuré le 2026-09-11 : l'import de campagne se rattache déjà à une
+campagne existante par liaison plateforme ou nom identique
+(`findMatchingCampaign`), puis purge la plage de dates du fichier avant
+réinsertion. Rejouer le même fichier est donc déjà idempotent ; une seconde
+campagne n'apparaît que si le nom ne correspond à rien, ce qui est le
+comportement voulu.
+
+**Preuve.** 22 tests, tous vus rouges avant d'être verts —
 `tests/unit/import/identite-poi.test.ts` (14, dont le vecteur RFC) et
 `tests/unit/import/import-rejouable.test.ts` (6, qui font tourner la vraie
-chaîne `processRows` sans rien simuler). Avec l'ancien `randomUUID()`, quatre
-des six tests de chaîne échouent.
+chaîne `processRows` sans rien simuler), plus deux tests de comptage dans
+`inserter-caracterisation.test.ts`. Avec l'ancien `randomUUID()`, quatre des six
+tests de chaîne échouent ; avec l'ancien comptage, les deux tests de compteur
+échouent.
 
 ## Lots non traités
 
@@ -152,12 +177,14 @@ des six tests de chaîne échouent.
 
 ## Risques résiduels et prochaines étapes
 
-`ECH-001` est fermé (section dédiée ci-dessus). **Deux duplications de même
-nature restent ouvertes** : le rejeu d'un import de campagne
-(`app/api/admin/campaigns/import/route.ts:246-269`, `ECH-003`) et
-`import-datagouv` (`route.ts:282`, qui le reconnaît en commentaire). Le même
-remède s'y applique — une identité dérivée du contenu — mais chacune demande de
-décider ce qui fait qu'une campagne, ou une ligne data.gouv, est « la même ».
+`ECH-001` est fermé sur les deux chemins qui écrivent dans `poi_france`, et
+`ECH-003` s'est révélé inexistant (sections ci-dessus). **Ce qui reste à
+surveiller est la transition, pas le code** : les 290 877 POI déjà en base
+portent des identifiants aléatoires, donc le premier ré-import d'un fichier déjà
+importé créera une dernière série de doublons avant de devenir idempotent. Et
+comme les compteurs disent maintenant la vérité, un import de routine qui
+affichait « 1 200 importés » affichera « 0 inséré, 1 200 déjà présents » — ce
+n'est pas une régression, c'est la première fois que l'écran est honnête.
 
 Deux effets de bord à surveiller après déploiement :
 
