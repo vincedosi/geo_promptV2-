@@ -10,7 +10,6 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { handleAgentRequest } from '@/lib/agent/orchestrator';
 import { createLLMRateLimiter, enforceLLMRateLimit } from '@/lib/prompting';
-import type { AgentContext } from '@/lib/agent/types';
 
 export const dynamic = 'force-dynamic';
 

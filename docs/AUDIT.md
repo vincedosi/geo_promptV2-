@@ -309,8 +309,24 @@ survient, quand le volume monte.
   - `import-ooh/arcgis` lisait `replace === true` : la chaîne « true » valait donc
     FAUX. Un appelant qui croyait demander un remplacement complet obtenait un
     ajout.
-- **Dédoublonnage induit** : la liste des rôles était écrite à quatre endroits,
-  dont deux littéraux en dur. Source unique dans `lib/auth/roles.ts`.
+- **Dédoublonnage induit** : la liste des rôles était écrite à **cinq** endroits
+  — `api/admin/roles`, deux littéraux en dur dans `organizations/[id]/members`,
+  et un cinquième côté client (`app/admin/organizations/[id]/page.tsx:42`,
+  `const ROLES = ['client', 'admin', 'super_admin']`), trouvé en vérifiant les
+  appelants. Source unique dans `lib/auth/roles.ts`, garde-fou
+  `satisfies Record<UserRole, _>`.
+- **Vérification des appelants (2026-09-11)** : faute de tests d'intégration, les
+  39 schémas ont été confrontés un par un au code client qui les appelle — corps
+  `JSON.stringify` relu, type de chaque champ remonté jusqu'à son `useState` ou
+  son `<select>`. Deux points méritaient l'examen :
+  - `import-poi/execute` envoie `organizationId` : un `''` aurait produit un 400
+    là où la route passait. Vérifié — le `<select>` n'expose que des identifiants
+    d'organisation, et l'état par défaut est un UUID.
+  - `apply-battle` : `useMapLayers.ts:786` déclare `geojson: object`, alors que la
+    route annonçait `string`. Ce sont DEUX tableaux différents ; celui qui part
+    vers la route est construit avec `geojson: JSON.stringify(f.geometry)`
+    (`useMapDirectActions.ts:272`), donc bien une chaîne. Le schéma est correct,
+    et la bataille d'isochrones n'est pas menacée.
 
 ### ARC-002 [Architecture] 10 cycles d'import dans `lib/`
 - **Localisation** : `lib/agent/intents/index.ts:35-43` ↔ chaque intent

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useToast } from '@/components/ui/geo-toast';
+import { ROLES as ROLES_PAR_POUVOIR } from '@/lib/auth/roles';
 
 const C = {
   bg:          'var(--bg-primary)',
@@ -39,7 +40,10 @@ interface SystemStats {
   transport: { total: number; bus: number; train: number; tram: number; metro: number; flux: number };
 }
 
-const ROLES = ['client', 'admin', 'super_admin'];
+// Cinquieme copie de cette liste, trouvee le 2026-09-11 : elle vient desormais
+// de `lib/auth/roles.ts`, comme les schemas de validation des routes. Affichee du
+// role le moins puissant au plus puissant.
+const ROLES = [...ROLES_PAR_POUVOIR].reverse();
 
 const inputStyle: React.CSSProperties = {
   width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 2,
