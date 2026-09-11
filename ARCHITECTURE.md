@@ -35,6 +35,19 @@
 
 ---
 
+> **Dependance externe non documentee jusqu'au 2026-09-11 : Modal.**
+> `lib/bidding-ml/client.ts` appelle un service serverless Python tiers sur
+> `*.modal.run` (endpoints `-predict`, `-train`, `-detect-drift`), pilote par
+> `MODAL_BIDDING_ML_URL`. Chemin d'appel vivant :
+> `lib/agent/autonomy.ts:147` → `POST /api/bidding/train` → `trainModel()` → Modal.
+> Le service lui-meme vit DANS LE DEPOT : `modal/bidding_ml/` (16 fichiers
+> suivis par git, tests compris), deploye sur Modal et non sur Vercel — c'est le
+> seul composant du projet qui ne tourne pas dans Next.js.
+>
+> Seul `docs/architecture.md` (perime, 30/04) en parlait ; ce document l'ignorait,
+> arborescence et tableau des variables d'environnement compris. Corrige le
+> 2026-09-11, et desormais garde par `tests/unit/docs/derive-documentation.test.ts`.
+
 ## Stack technique
 
 | Couche | Technologie | Version |
@@ -49,6 +62,7 @@
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
 | Meteo | Open-Meteo API (temperature, precipitation, ensoleillement) | — |
+| Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift` | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
 | Rate limiting | Upstash Redis | ^2.0 |
 | PDF export | @react-pdf/renderer | ^4.3 |
@@ -128,7 +142,7 @@ genesis_app/
 │   ├── auth-client.ts          # Helpers auth cote client
 │   ├── admin-fetch.ts          # adminFetch() — wrapper fetch avec token admin
 │   ├── version.ts              # APP_VERSION
-│   ├── api/                    # Middleware API (requireAdmin, requireAuth)
+│   ├── api/                    # Middleware API (requireAdmin, requireAuth) + rate-limit.ts (Upstash ou memoire)
 │   ├── auth/                   # getSessionOrg, getOrgSourceIds
 │   ├── campaigns/              # column-mappings.ts, parser.ts
 │   ├── carreaux/                # normalisation.ts (densite/km2, moyennes) + bornes.ts (echelle nationale log10)
@@ -139,6 +153,9 @@ genesis_app/
 │   │   └── tools/              # Outils function calling (1 fichier = 1 outil)
 │   ├── db/                     # Migrations SQL applicatives
 │   ├── digital/                # google-ads-geo-ids.json
+│   ├── dsp-mapping/            # loader.ts — mappings de colonnes DSP dynamiques (table dsp_source_mappings)
+│   ├── metrics-display/        # loader + formateur dynamique des metriques (dsp_metrics_registry)
+│   ├── bidding-ml/             # client HTTP vers Modal + comparison / metric-labels / targeting-kpis
 │   ├── geo/                    # france-admin.ts, locations.ts
 │   ├── import/                 # Pipeline d'import universel
 │   ├── inngest/                # Jobs async (colonnes derivees)
@@ -169,6 +186,14 @@ genesis_app/
 │   ├── populate_geom_3857.ts        # Reprojection geom
 │   └── export_iris_geojson.py       # Export GeoJSON IRIS
 │
+├── modal/                      # Service ML serverless Python (deploye sur Modal, HORS Vercel)
+│   └── bidding_ml/             # app.py = 3 endpoints HTTPS predict/train/detect-drift
+│       ├── algos/              # registry.py (pluggable) + hoeffding.py (river)
+│       ├── data_loader.py      # lecture Supabase en HTTPS
+│       ├── persistence.py      # UPSERT bidding_zone_configs / proposals / daily_state
+│       ├── drift_detection.py  # scan CPL/CTR par CP sur 2 fenetres
+│       ├── serialization.py    # pickle + base64 du modele river
+│       └── tests/              # test_predict / test_train / test_drift
 ├── sql/                        # Migrations SQL (Supabase Dashboard)
 ├── supabase/migrations/        # Migrations Supabase CLI
 ├── tests/                      # unit/ + integration/
@@ -656,6 +681,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `ADMIN_INIT_KEY` | Cle init admin |
 | `INNGEST_EVENT_KEY` | Jobs async |
 | `INNGEST_SIGNING_KEY` | Signing jobs |
+| `MODAL_BIDDING_ML_URL` | Prefixe Modal du service d'inference bidding (sans suffixe d'endpoint). `lib/bidding-ml/client.ts` y ajoute `-predict.modal.run`, `-train.modal.run`, `-detect-drift.modal.run`. **Sans elle, `/api/bidding/train` leve** |
+| `MODAL_TOKEN_ID` | Token Modal |
+| `MODAL_TOKEN_SECRET` | Secret Modal |
 | `NEXT_PUBLIC_APP_URL` | URL app (defaut localhost:3000) |
 | `ATMO_PROVIDER` | `mock` (defaut) ou `atmofrance`. Backend de l'indicateur sante environnementale |
 | `ATMO_FRANCE_USERNAME` | Email du compte Atmo Data v2 (requis si `ATMO_PROVIDER=atmofrance`) |

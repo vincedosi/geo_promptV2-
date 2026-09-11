@@ -63,6 +63,27 @@ IMPORTANT : `getUser()` sur routes API → 409 token refresh concurrent → déc
 5. **Vérification** — Après modif, `grep` pour confirmer que rien d'autre n'est cassé
 6. **Résumé structuré** — Fichiers modifiés, changements, ce qui n'a PAS changé
 
+### Documentation — à jour DANS le commit, jamais après
+
+`ARCHITECTURE.md` **à la racine** est la seule source de vérité. Un commit qui
+ajoute ou retire une route, une table, une RPC, une variable d'environnement ou
+une dépendance externe met le doc à jour **dans le même commit**. Pas de passe
+de rangement plus tard : une doc périmée ne se contente pas d'être inutile, elle
+ment avec autorité.
+
+Constaté le 2026-09-11 : `docs/architecture.md` (30/04) affirmait
+« 70 tables — RLS partout », ce qui se lit comme une garantie de sécurité alors
+que les policies sont **dormantes**. Et il était le seul à documenter Modal, un
+service Python tiers appelé par du code vivant. Un doc faux ET un doc à trou,
+parce qu'on en maintenait deux.
+
+- **Jamais deux documents d'architecture.** On n'en synchronise jamais deux.
+- **Piège Windows** : `docs/architecture.md` et `docs/ARCHITECTURE.md` sont le
+  MÊME fichier. Écrire l'un écrase l'autre en silence.
+- `tests/unit/docs/derive-documentation.test.ts` garde les faits mesurables
+  (variables d'env critiques, dépendances externes, dormance des RLS, unicité
+  du doc). Il échoue si la doc dérive — ne pas le désactiver, le mettre à jour.
+
 ### Imports & batch DB — Progression OBLIGATOIRE
 
 Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes traitées/total), logs temps réel (SSE/NDJSON), étapes nommées (parsing → insertion → post-traitement), compteurs finaux. JAMAIS de traitement DB silencieux.
