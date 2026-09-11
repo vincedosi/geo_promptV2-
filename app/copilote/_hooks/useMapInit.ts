@@ -151,10 +151,10 @@ export function useMapInit(
     const updateZoomBadge = () => {
       const z = map.getZoom();
       const zInt = Math.floor(z);
-      // Miroir exact de la cascade de get_tile (sql/125) et du minzoom de la
+      // Miroir exact de la cascade de get_tile (sql/127) et du minzoom de la
       // couche : le tiret ne reste que sous z4, ou aucune tuile n'est servie.
       const tier =
-        zInt >= 10 ? '200m' : zInt >= 8 ? '2km' : zInt >= 7 ? '5km' : zInt >= 4 ? '20km' : '—';
+        zInt >= 12 ? '200m' : zInt >= 10 ? '2km' : zInt >= 8 ? '5km' : zInt >= 4 ? '20km' : '—';
       zoomBadge.textContent = `z${zInt}  ${tier}`;
     };
     updateZoomBadge();
@@ -744,17 +744,20 @@ export function useMapInit(
       });
 
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
-      // z6-7  → carreaux_5km  (SQL 035)
-      // Cascade servie par get_tile (sql/125), equilibree en poids de tuile :
-      //   z <= 6  → carreaux_20km  (vue materialisee sql/124) — 183 a 413 ko
-      //   z 7     → carreaux_5km                              — 400 ko
-      //   z 8-9   → carreaux_2km   (SQL 035)                  — 439 ko
-      //   z 10+   → carreaux_filosofi 200m                    — 580 ko
+      // Cascade servie par get_tile (sql/127), calee sur la TAILLE APPARENTE
+      // d'une maille — une choroplethe se lit entre 10 et 40 px par carreau :
+      //   z <= 7   → carreaux_20km (vue materialisee sql/124)  3 a 24 px
+      //   z 8-9    → carreaux_5km                             12 a 24 px
+      //   z 10-11  → carreaux_2km                             19 a 38 px
+      //   z >= 12  → carreaux_filosofi 200m                  7,5 a 30 px
+      //
+      // Les seuils etaient deux crans plus bas : a z10 on servait des mailles
+      // de 200 m larges de 1,9 px, soit 38 460 carres indistinguables pour
+      // 15,5 s d'attente. Plus fin en apparence seulement.
       //
       // minzoom 4 et non 6 : en dessous de son minzoom, MapLibre ne DEMANDE
       // pas les tuiles — les carreaux etaient donc invisibles avant z6, quoi
-      // que serve le serveur. Le palier 20 km rend ces niveaux tenables : une
-      // tuile z6 portait 7 460 carreaux de 5 km (1,36 Mo), elle en porte 503.
+      // que serve le serveur.
       map.addSource('carreaux-mvt', {
         type: 'vector',
         tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=${CARREAUX_TILE_VERSION}`],

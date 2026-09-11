@@ -25,4 +25,15 @@ export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 //       reste servie jusqu'à 1 h (Cache-Control: public, max-age=3600 + cache mémoire
 //       serveur) : toutes ses valeurs sont écartées faute de dénominateur, et la couche
 //       reste à plat.
-export const CARREAUX_TILE_VERSION = 15;
+// v15 — 2026-09-11 : palier 20 km (sql/124 + 125), carreaux servis dès z4.
+// v16 — 2026-09-11 : RETRAIT de code_dept + code_region (sql/126). Le filtre
+//       territorial client-side annoncé par la v13 n'a jamais été construit :
+//       personne ne lit ces deux propriétés. Elles coûtaient 10 250 ms sur les
+//       11 438 ms d'une tuile z8 — un ST_Intersects par carreau contre les
+//       multipolygones départementaux, 2 954 fois. Mesuré, puis retiré : 100 ms.
+//       Si le besoin revient, ce sera une colonne matérialisée à l'agrégation,
+//       jamais une jointure au moment de servir la tuile.
+// v17 — 2026-09-11 : cascade recalee sur la taille apparente des mailles
+//       (sql/127). Les memes coordonnees de tuile servent desormais une AUTRE
+//       maille : toute tuile en cache est perimee.
+export const CARREAUX_TILE_VERSION = 17;
