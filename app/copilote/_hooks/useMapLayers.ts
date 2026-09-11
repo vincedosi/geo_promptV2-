@@ -16,7 +16,7 @@ import { bornesInternes } from '@/lib/carreaux/expressions';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
-// La cascade de `get_tile` sert des mailles de 200 m, 2 km ou 5 km selon le zoom :
+// La cascade de `get_tile` sert des mailles de 200 m, 2 km, 5 km ou 20 km selon le zoom :
 // un effectif brut n'est donc PAS comparable d'un palier à l'autre (facteur 70
 // entre 2 km et 200 m). Couleur, filtre par palier et bornes de légende doivent
 // tous lire la MÊME valeur normalisée, sinon ils se contredisent en silence.

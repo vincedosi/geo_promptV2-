@@ -151,7 +151,10 @@ export function useMapInit(
     const updateZoomBadge = () => {
       const z = map.getZoom();
       const zInt = Math.floor(z);
-      const tier = zInt >= 10 ? '200m' : zInt >= 8 ? '2km' : zInt >= 6 ? '5km' : '—';
+      // Miroir exact de la cascade de get_tile (sql/125) et du minzoom de la
+      // couche : le tiret ne reste que sous z4, ou aucune tuile n'est servie.
+      const tier =
+        zInt >= 10 ? '200m' : zInt >= 8 ? '2km' : zInt >= 7 ? '5km' : zInt >= 4 ? '20km' : '—';
       zoomBadge.textContent = `z${zInt}  ${tier}`;
     };
     updateZoomBadge();
