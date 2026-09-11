@@ -62,14 +62,27 @@ export async function POST(
       dateStart: camp.date_start, dateEnd: camp.date_end,
     });
     if (res.status === 'api' && res.rows.length > 0) {
-      await supabase.from('campaign_dsp_report')
+      // `campaign_dsp_report` n'a pas de cle primaire : son idempotence REPOSE
+      // sur ce DELETE cible (ARCHITECTURE.md). Son erreur n'etait pas capturee —
+      // un DELETE en echec suivi de l'INSERT aurait DOUBLE le rapport DSP, et
+      // donc le taux de mesure affiche au media planner. On n'insere pas si la
+      // purge a echoue.
+      const purge = await supabase.from('campaign_dsp_report')
         .delete().eq('campaign_id', campaignId).eq('channel', channel).eq('source', 'api');
-      await supabase.from('campaign_dsp_report').insert(
+      if (purge.error) {
+        results.push({ channel: res.channel, status: 'error', rows: 0 });
+        continue;
+      }
+      const ecriture = await supabase.from('campaign_dsp_report').insert(
         res.rows.map((r) => ({
           campaign_id: campaignId, date: r.date, channel: r.channel, postal_code: r.postal_code,
           impressions: r.impressions, clicks: r.clicks, spend: r.spend, source: 'api',
         })),
       );
+      if (ecriture.error) {
+        results.push({ channel: res.channel, status: 'error', rows: 0 });
+        continue;
+      }
     }
     results.push({ channel: res.channel, status: res.status, rows: res.rows.length });
   }

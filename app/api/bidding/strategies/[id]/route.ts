@@ -245,7 +245,15 @@ export async function PATCH(
       .select('id, name, postal_codes, multiplier')
       .eq('strategy_id', id);
 
-    await supabase.from('bidding_strategy_subzones').delete().eq('strategy_id', id);
+    // Remplacement complet : l'erreur de cette purge n'etait pas capturee. Un
+    // DELETE en echec suivi de l'INSERT ci-dessous laissait les ANCIENNES
+    // sous-zones en base A COTE des nouvelles — des multiplicateurs en double
+    // sur les memes codes postaux, sans aucune erreur remontee.
+    const purgeSubzones = await supabase
+      .from('bidding_strategy_subzones').delete().eq('strategy_id', id);
+    if (purgeSubzones.error) {
+      return NextResponse.json({ error: purgeSubzones.error.message }, { status: 500 });
+    }
     if (body.subzones.length > 0) {
       const rows = body.subzones.map((sz, idx) => ({
         strategy_id: id,

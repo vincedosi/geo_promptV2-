@@ -113,6 +113,15 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
   (patron `lib/import/inserter.ts`). Jusqu'au 2026-09-11 ce fichier faisait
   un aller-retour PAR LIGNE : la règle le citait en exemple alors qu'il ne
   la respectait pas.
+- **Jamais de `await supabase...delete()` sans lire son erreur.** supabase-js ne
+  lève pas, il rend `{ error }` : une suppression qui échoue passe inaperçue. Or
+  le patron d'idempotence du projet est **DELETE ciblé + INSERT** — un DELETE
+  raté suivi de son INSERT transforme un remplacement en DOUBLEMENT.
+  `tests/unit/db/suppressions-sans-garde.test.ts` le verrouille.
+- `.delete()` et `.update()` ne renseignent `count` que si on passe
+  `{ count: 'exact' }`. Sans l'option, `count` vaut `null` — et un rapport qui
+  affiche `count || 0` annonce « 0 supprimé » après avoir effacé des milliers de
+  lignes. Constaté sur `/api/admin/sources/[id]`.
 - Tout `upsert(..., { ignoreDuplicates: true })` doit être suivi de
   `.select('id')`. `ON CONFLICT DO NOTHING` ne renvoie QUE les lignes
   réellement écrites : sans ce `select`, « inséré » et « déjà présent » sont

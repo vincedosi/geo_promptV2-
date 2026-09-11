@@ -43,7 +43,18 @@ export async function matchRadios(
   // STEP 0: RESET
   // ══════════════════════════════════════════════════════════════════════════
   await logger.phase('RESET', async () => {
-    await supabase.from('emetteur_radio_stations').delete().not('id', 'is', null);
+    // Le matching reconstruit INTEGRALEMENT `emetteur_radio_stations`
+    // (569 698 liaisons). L'erreur de ce vidage n'etait pas capturee : un RESET
+    // en echec, suivi de la reconstruction, aurait double la table de liaison —
+    // et avec elle le nombre d'emetteurs attribue a chaque radio.
+    const vidage = await supabase
+      .from('emetteur_radio_stations').delete().not('id', 'is', null);
+    if (vidage.error) {
+      throw new Error(
+        `RESET impossible : la table de liaison n'a pas pu etre videe (${vidage.error.message}). `
+        + `Matching interrompu — la relancer aurait double les liaisons.`,
+      );
+    }
     await supabase.from('emetteurs_radio').update({ radio_id: null }).not('id', 'is', null);
     await logger.info('RESET', 'Junction table videe, radio_id remis a NULL');
   });

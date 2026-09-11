@@ -165,39 +165,65 @@ export async function DELETE(
           deletedCarreaux = true;
           logger.debug('delete-source', `Table carreaux '${tableName}' supprimée`);
         } catch (dropErr: unknown) {
-          // Le commentaire precedent annoncait un « fallback: try deleting
-          // directly » qui n'a jamais existe. Il n'y a AUCUN repli : la table
-          // reste en base, orpheline, et la source est supprimee quand meme.
+          // Le DROP a echoue : on N'EFFACE PAS la source.
           //
-          // On passe par le journal du projet plutot que console.error seul,
-          // pour que la trace soit exploitable en production, et on nomme la
-          // table — c'est la seule facon de la retrouver ensuite.
+          // Avant, la source partait quand meme et la reponse disait
+          // `success: true` — la table restait en base, orpheline, sans plus
+          // aucune trace de ce qui l'avait creee. Garder la source garde le lien
+          // vers la table et rend l'operation REJOUABLE : c'est strictement
+          // mieux qu'un succes annonce sur une base laissee incoherente.
           const detail = dropErr instanceof Error ? dropErr.message : String(dropErr);
           logger.error('delete-source',
             `DROP de la table carreaux '${tableName}' ECHOUE : ${detail}. `
-            + `La table reste en base, ORPHELINE, alors que sa source est supprimee. `
-            + `A nettoyer manuellement.`);
-          // NOTE: la reponse renvoie deja `deleted.carreaux: false`, mais aussi
-          // `success: true`. Faire echouer la suppression quand le DROP rate
-          // serait un changement de comportement — voir docs/REFACTOR_PLAN.md,
-          // section « Hors perimetre ».
+            + `La source est CONSERVEE pour que la suppression reste rejouable.`);
+          return NextResponse.json({
+            success: false,
+            error: `La table de carreaux « ${tableName} » n'a pas pu etre supprimee : ${detail}. `
+                 + `La source est conservee — relancez la suppression.`,
+          }, { status: 500 });
         }
       }
     } else {
       // ── POI / Panneaux : supprimer les lignes liées ───────────────────
+      //
+      // `{ count: 'exact' }` n'est pas cosmetique : sans cette option,
+      // supabase-js laisse `count` a `null` (voir la signature de `delete` dans
+      // @supabase/postgrest-js). La reponse annoncait donc « 0 POI supprimes »
+      // meme quand elle venait d'en effacer des milliers.
+      //
+      // Et l'erreur de ces deux suppressions n'etait PAS testee : elle finissait
+      // interpolee dans un `logger.debug`. En cas d'echec, les POI restaient en
+      // base avec un `data_source_id` pointant vers une source effacee juste
+      // apres — des orphelins invisibles, sous un `success: true`.
       const poiResult = await supabase
         .from('poi_france')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('data_source_id', id);
-      deletedPoi = poiResult.count || 0;
-      logger.debug('delete-source', `POI delete result ${poiResult.error?.message || 'OK'} count: ${deletedPoi}`);
+      if (poiResult.error) {
+        logger.error('delete-source', `Suppression des POI ECHOUEE : ${poiResult.error.message}`);
+        return NextResponse.json({
+          success: false,
+          error: `Les POI liés n'ont pas pu être supprimés : ${poiResult.error.message}. `
+               + `La source est conservée — relancez la suppression.`,
+        }, { status: 500 });
+      }
+      deletedPoi = poiResult.count ?? 0;
 
       const panneauxResult = await supabase
         .from('panneaux_affichage')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('data_source_id', id);
-      deletedPanneaux = panneauxResult.count || 0;
-      logger.debug('delete-source', `Panneaux delete result ${panneauxResult.error?.message || 'OK'}`);
+      if (panneauxResult.error) {
+        logger.error('delete-source', `Suppression des panneaux ECHOUEE : ${panneauxResult.error.message}`);
+        return NextResponse.json({
+          success: false,
+          error: `Les panneaux liés n'ont pas pu être supprimés : ${panneauxResult.error.message}. `
+               + `La source est conservée — relancez la suppression.`,
+        }, { status: 500 });
+      }
+      deletedPanneaux = panneauxResult.count ?? 0;
+
+      logger.debug('delete-source', `${deletedPoi} POI et ${deletedPanneaux} panneaux supprimes`);
     }
 
     // Supprimer l'entrée data_sources

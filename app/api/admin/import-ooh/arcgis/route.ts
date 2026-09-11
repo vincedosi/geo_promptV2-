@@ -223,9 +223,25 @@ export async function POST(req: NextRequest) {
         // ── 1b. Supprimer les données existantes si replace=true ─────────────
         if (replace) {
           send({ type: 'status', message: `Suppression des données existantes (${sourceKey})…` });
-          await supabase.from('panneaux_affichage').delete().eq('source', sourceKey);
+          // L'erreur de ces deux purges n'etait pas capturee. En mode
+          // remplacement, un DELETE en echec suivi de l'import laissait les
+          // ANCIENS panneaux a cote des nouveaux : le remplacement demande
+          // devenait un doublement, en silence. On arrete le flux plutot.
+          const purgePanneaux = await supabase
+            .from('panneaux_affichage').delete().eq('source', sourceKey);
+          if (purgePanneaux.error) {
+            send({ type: 'error', message: `Suppression des panneaux existants impossible : ${purgePanneaux.error.message}. Import interrompu pour ne pas dupliquer.` });
+            controller.close();
+            return;
+          }
           // Supprimer aussi l'entrée data_sources existante
-          await supabase.from('data_sources').delete().filter('mapping->>source_key', 'eq', sourceKey);
+          const purgeSource = await supabase
+            .from('data_sources').delete().filter('mapping->>source_key', 'eq', sourceKey);
+          if (purgeSource.error) {
+            send({ type: 'error', message: `Suppression de la source existante impossible : ${purgeSource.error.message}. Import interrompu.` });
+            controller.close();
+            return;
+          }
         }
 
         // ── 1c. Entrée data_sources (réutilisée si elle existe déjà) ─────────
