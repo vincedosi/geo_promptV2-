@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import type { ZoneData } from '@/types/spatial';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
 
+/** Filtre optionnel sur les regies. Absent ou vide = toutes. */
+const PanneauxSchema = z.object({ regies: z.array(z.string()).optional() });
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { regies } = body as { regies?: string[] };
+    const corps = await lireCorps(req, PanneauxSchema);
+    if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+    const { regies } = corps.valeur;
 
     const supabase = createAdminClient();
 

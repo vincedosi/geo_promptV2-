@@ -14,8 +14,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient }         from '@/lib/auth';
 import { getRegionNameMap }          from '@/lib/geo/region-lookup-server';
+import { z }                         from 'zod';
+import { lireCorps }                 from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Les deux listes de filtres geographiques N'ONT PAS la meme tolerance, et la
+ * difference est dans le code, pas dans une convention :
+ *
+ *  - `filtre_depts` passe par `.map(String)` : `[3, 75]` fonctionne, donc le
+ *    schema accepte les nombres. Le restreindre aux chaines refuserait des
+ *    appels qui marchent aujourd'hui.
+ *  - `filtre_regions` sert de clef a `regionNames.get(r)` puis part dans
+ *    `normStr` qui appelle `.toLowerCase()` : un nombre y LEVE. Chaines
+ *    uniquement — ce 400 remplace un 500.
+ *
+ * `category` et `paliers` sont requis : ce schema remplace la garde
+ * `if (!category || !paliers?.length)`, retiree plus bas.
+ */
+const VerifCacheSchema = z.object({
+  category: z.string().min(1),
+  mode: z.string().optional(),
+  paliers: z.array(z.number()).nonempty(),
+  metropolitaine: z.boolean().optional(),
+  filtre_ville: z.string().optional(),
+  filtre_regions: z.array(z.string()).optional(),
+  filtre_depts: z.array(z.union([z.string(), z.number()])).optional(),
+});
 
 const CACHE_CHUNK = 200;
 const MAX_POIS    = 500;
@@ -35,15 +61,9 @@ function perPoiCacheKey(category: string, poiId: string, level: number, mode: st
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as {
-      category:        string;
-      mode?:           string;
-      paliers:         number[];
-      metropolitaine?: boolean;
-      filtre_ville?:   string;
-      filtre_regions?: string[];
-      filtre_depts?:   string[];
-    };
+    const corps = await lireCorps(req, VerifCacheSchema);
+    if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+    const body = corps.valeur;
 
     const { category, paliers, filtre_ville, filtre_regions, filtre_depts } = body;
     const mode           = body.mode ?? 'drive';
@@ -64,10 +84,6 @@ export async function POST(req: NextRequest) {
       }
       return [...out];
     })() : null;
-
-    if (!category || !paliers?.length) {
-      return NextResponse.json({ error: 'category et paliers requis' }, { status: 400 });
-    }
 
     const supabase = createAdminClient();
 

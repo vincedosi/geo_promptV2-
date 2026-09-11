@@ -10,29 +10,47 @@ import { geocodeSingle, scoreToStatus } from '@/lib/import/geocoder';
 import type { GeocodeDetailedResult, GeocodeReviewData } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { resolveSafeJsonPath } from '@/lib/api/safe-path';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
 
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
+
+/**
+ * Les trois seules corrections possibles sur une ligne geocodee.
+ *
+ * Une union discriminee, et pas un `type: z.string()` : un `type` inconnu
+ * traversait les trois `else if` sans rien faire, le fichier etait reecrit a
+ * l'identique et la route repondait `{ success: true }`. Un succes annonce pour
+ * une correction non appliquee est pire qu'une erreur.
+ *
+ * `geocodeId` n'est pas contraint ici : `resolveSafeJsonPath` en exige deja un
+ * UUID plus bas, et c'est LUI qui previent la traversee de chemin. Deux gardes
+ * pour la meme chose divergeraient.
+ */
+const ActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('manual'), lat: z.number(), lng: z.number() }),
+  z.object({ type: z.literal('reGeocode'), address: z.string() }),
+  z.object({ type: z.literal('ignore') }),
+]);
+
+const CorrigerGeocodageSchema = z.object({
+  geocodeId: z.string().min(1),
+  rowIndex: z.number().int(),
+  action: ActionSchema,
+});
 
 export async function POST(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   try {
-    const body = await request.json();
-    const { geocodeId, rowIndex, action } = body as {
-      geocodeId: string;
-      rowIndex: number;
-      action:
-        | { type: 'manual'; lat: number; lng: number }
-        | { type: 'reGeocode'; address: string }
-        | { type: 'ignore' };
-    };
-
-    if (!geocodeId || rowIndex === undefined || !action) {
-      return NextResponse.json({ success: false, error: 'Parametres manquants' }, { status: 400 });
+    const corps = await lireCorps(request, CorrigerGeocodageSchema);
+    if (!corps.ok) {
+      return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
     }
+    const { geocodeId, rowIndex, action } = corps.valeur;
 
     // Load geocode results — geocodeId DOIT être un UUID (prévient le path traversal)
     const geocodePath = resolveSafeJsonPath(GEOCODE_DIR, geocodeId);

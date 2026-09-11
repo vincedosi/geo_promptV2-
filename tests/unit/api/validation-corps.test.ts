@@ -52,7 +52,6 @@ const DETTE = new Set<string>([
   'app/api/isochrone-battle/route.ts',
   // Imports et traitements batch — corps volumineux, formes hétérogènes.
   'app/api/admin/geocode/batch/route.ts',
-  'app/api/admin/geocode/update/route.ts',
   'app/api/admin/import-datagouv/route.ts',
   'app/api/admin/import-geo/register/route.ts',
   'app/api/admin/import-geo/route.ts',
@@ -68,12 +67,9 @@ const DETTE = new Set<string>([
   'app/api/agent/analyze-drift/route.ts',
   'app/api/agent/apply-recommendation/route.ts',
   'app/api/agent/chat/route.ts',
-  'app/api/bidding/train/route.ts',
   'app/api/chat/route.ts',
   'app/api/digital/[campaignId]/ai-analysis/route.ts',
   'app/api/isochrone-battle/apply-battle/route.ts',
-  'app/api/isochrone-cache-check/route.ts',
-  'app/api/map/ooh/route.ts',
   'app/api/pilot/route.ts',
   'app/api/smart-prompt/route.ts',
 ]);
@@ -123,6 +119,6 @@ describe('validation des corps de requête — SEC-001', () => {
   it('la dette recule — elle ne doit jamais remonter', () => {
     // Valeur de depart mesuree le 2026-09-11 : 40 routes. Ce chiffre est un
     // cliquet : le baisser quand la dette diminue, jamais le monter.
-    expect(DETTE.size).toBeLessThanOrEqual(24);
+    expect(DETTE.size).toBeLessThanOrEqual(20);
   });
 });
