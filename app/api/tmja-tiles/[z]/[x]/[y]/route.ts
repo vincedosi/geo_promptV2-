@@ -4,7 +4,11 @@
  * Tuiles MVT pour les flux routiers TMJA (table comptages_routiers).
  * Pipeline calqué sur /api/tiles/[z]/[x]/[y] (carreaux Filosofi) :
  *   - RPC PostGIS get_tmja_tile(z, x, y) → bytea ST_AsMVT
- *   - Gzip (÷4 sur le transfert : ~150 KB → ~35 KB par tuile)
+ *   - Gzip, obligatoire (MapLibre 5.x plante silencieusement sans). Mesure du
+ *     2026-09-11 sur la tuile 10/518/351 (Paris) : 391 535 octets AVANT gzip.
+ *     Le commentaire precedent annoncait « ~150 KB → ~35 KB » — 2,6 fois moins
+ *     que la realite. Un chiffre faux dans un commentaire de performance est
+ *     un piege pour qui s'y fiera plus tard pour arbitrer.
  *   - Cache CDN 1 semaine (s-maxage) — le cache mémoire par lambda est un
  *     bonus local, le vrai cache partagé est le CDN Vercel (?v= pour invalider)
  *   - Déduplication des requêtes simultanées
