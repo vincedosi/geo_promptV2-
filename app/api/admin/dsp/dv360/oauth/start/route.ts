@@ -15,6 +15,13 @@ import { createAdminClient } from '@/lib/auth';
 import { buildAuthUrl } from '@/lib/dsp/dv360/auth';
 import { oauthCredsFromRow } from '@/lib/dsp/dv360/client';
 import { signState } from '@/lib/dsp/oauth-state';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/** Le message « Partner ID requis. » est conserve : c'est lui qu'affiche l'UI. */
+const DemarrerOAuthSchema = z.object({
+  partner_id: z.string().trim().min(1, 'Partner ID requis.'),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +31,9 @@ export async function POST(request: NextRequest) {
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée.' }, { status: 400 });
 
-  const body = await request.json().catch(() => ({}));
-  const partnerId = typeof body.partner_id === 'string' ? body.partner_id.trim() : '';
-  if (!partnerId) return NextResponse.json({ error: 'Partner ID requis.' }, { status: 400 });
+  const corps = await lireCorps(request, DemarrerOAuthSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const partnerId = corps.valeur.partner_id;
 
   const supabase = createAdminClient();
   // Persiste le partner_id (et marque la méthode oauth) avant le détour Google.

@@ -43,6 +43,28 @@ describe('lireCorps', () => {
     await expect(lireCorps(vide, Schema)).resolves.toMatchObject({ ok: false });
   });
 
+  it('accepte un corps absent UNIQUEMENT si la route le demande', async () => {
+    // `/api/admin/init-admin` s'appelle legitimement sans corps : tous ses
+    // champs ont une valeur par defaut.
+    const Tolerant = z.object({ email: z.string().default('admin@local') });
+    const vide = () => new Request('http://local/t', { method: 'POST' });
+
+    const sansOption = await lireCorps(vide(), Tolerant);
+    expect(sansOption.ok).toBe(false);
+
+    const avecOption = await lireCorps(vide(), Tolerant, { corpsAbsentTolere: true });
+    expect(avecOption.ok).toBe(true);
+    if (avecOption.ok) expect(avecOption.valeur.email).toBe('admin@local');
+  });
+
+  it('refuse un corps MAL FORME meme quand l absence est toleree', async () => {
+    // Distinction capitale : accepter du JSON casse reviendrait a executer la
+    // route sur des valeurs par defaut que l'appelant croyait avoir remplacees.
+    const r = await lireCorps(requeteIllisible(), z.object({ a: z.string().default('x') }),
+      { corpsAbsentTolere: true });
+    expect(r.ok).toBe(false);
+  });
+
   it('nomme le champ fautif — une erreur sans nom de champ oblige a deviner', async () => {
     const r = await lireCorps(requete({ email: '', organization_id: 'pas-un-uuid' }), Schema);
     expect(r.ok).toBe(false);

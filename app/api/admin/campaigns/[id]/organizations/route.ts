@@ -5,6 +5,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+const PartagerSchema = z.object({ organization_id: z.string().uuid() });
 
 export const dynamic = 'force-dynamic';
 
@@ -59,12 +63,9 @@ export async function POST(
   if (!profile) return adminUnauthorized();
 
   const { id } = await params;
-  const body = await request.json().catch(() => ({}));
-  const orgId = body?.organization_id as string | undefined;
-
-  if (!orgId) {
-    return NextResponse.json({ error: 'organization_id requis' }, { status: 400 });
-  }
+  const corps = await lireCorps(request, PartagerSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const orgId = corps.valeur.organization_id;
 
   const supabase = createAdminClient();
 

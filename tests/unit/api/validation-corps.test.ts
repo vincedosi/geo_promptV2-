@@ -63,16 +63,6 @@ const DETTE = new Set<string>([
   'app/api/iris-crawler/manual-import/route.ts',
   'app/api/iris-crawler/manual-upload/route.ts',
   'app/api/radio/import-arcom-ods/route.ts',
-  // Administration et référentiels.
-  'app/api/admin/campaigns/[id]/organizations/route.ts',
-  'app/api/admin/dsp/dv360/oauth/start/route.ts',
-  'app/api/admin/init-admin/route.ts',
-  'app/api/admin/iris/metadata/route.ts',
-  'app/api/admin/organizations/[id]/sources/assign/route.ts',
-  'app/api/admin/organizations/[id]/sources/route.ts',
-  'app/api/admin/poi-categories/route.ts',
-  'app/api/admin/sources/[id]/route.ts',
-  'app/api/admin/sources/route.ts',
   // Copilote, agents et calculs — corps portant des historiques de conversation
   // ou des géométries, à modéliser avec soin.
   'app/api/agent/analyze-drift/route.ts',
@@ -133,6 +123,6 @@ describe('validation des corps de requête — SEC-001', () => {
   it('la dette recule — elle ne doit jamais remonter', () => {
     // Valeur de depart mesuree le 2026-09-11 : 40 routes. Ce chiffre est un
     // cliquet : le baisser quand la dette diminue, jamais le monter.
-    expect(DETTE.size).toBeLessThanOrEqual(33);
+    expect(DETTE.size).toBeLessThanOrEqual(24);
   });
 });

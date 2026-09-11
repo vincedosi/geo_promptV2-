@@ -6,6 +6,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/** Le message « Nom de categorie requis » est conserve : c'est lui qu'affiche l'UI. */
+const CreerCategorieSchema = z.object({
+  categorie: z.string().trim().min(1, 'Nom de categorie requis'),
+  label_fr: z.string().optional(),
+  icone: z.string().optional(),
+  couleur_carte: z.string().optional(),
+  description: z.string().optional(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -38,18 +49,9 @@ export async function POST(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   try {
-    const body = await request.json();
-    const { categorie, label_fr, icone, couleur_carte, description } = body as {
-      categorie: string;
-      label_fr?: string;
-      icone?: string;
-      couleur_carte?: string;
-      description?: string;
-    };
-
-    if (!categorie || !categorie.trim()) {
-      return NextResponse.json({ success: false, error: 'Nom de categorie requis' }, { status: 400 });
-    }
+    const corps = await lireCorps(request, CreerCategorieSchema);
+    if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+    const { categorie, label_fr, icone, couleur_carte, description } = corps.valeur;
 
     // Normalize: lowercase, no accents, no spaces
     const normalized = categorie.trim().toLowerCase()

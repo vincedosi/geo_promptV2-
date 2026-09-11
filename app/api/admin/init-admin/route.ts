@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/auth";
+import { lireCorps } from "@/lib/api/valider-corps";
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Amorcage du premier compte. Les deux valeurs par defaut sont celles du code
+ * d'origine : les changer casserait une installation qui s'appuie dessus.
+ */
+const InitAdminSchema = z.object({
+  email: z.string().trim().min(1).default("admin@genesis.local"),
+  password: z.string().min(1).default("changeme123"),
+});
 
 /**
  * POST /api/admin/init-admin
@@ -15,9 +26,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const email = body.email || "admin@genesis.local";
-    const password = body.password || "changeme123";
+    // `corpsAbsentTolere` : cette route d'amorcage s'appelle legitimement sans
+    // corps — les deux champs ont une valeur par defaut. Un corps PRESENT mais
+    // mal forme reste refuse : creer l'administrateur avec le mot de passe par
+    // defaut alors que l'appelant croyait en avoir fourni un serait pire que
+    // d'echouer.
+    const corps = await lireCorps(request, InitAdminSchema, { corpsAbsentTolere: true });
+    if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+    const { email, password } = corps.valeur;
 
     const supabase = createAdminClient();
 

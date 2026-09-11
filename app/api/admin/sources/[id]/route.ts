@@ -8,6 +8,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/**
+ * Les sept seules clefs que la route recopie vers la base, toutes optionnelles :
+ * `undefined` signifie « ne pas toucher », et le « Rien a modifier » plus bas
+ * en depend. `filter_fields` est un `jsonb` de forme libre.
+ */
+const ModifierSourceSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().nullable().optional(),
+  organization_id: z.string().uuid().nullable().optional(),
+  shared_with: z.array(z.string().uuid()).nullable().optional(),
+  status: z.string().optional(),
+  ai_summary: z.string().nullable().optional(),
+  filter_fields: z.unknown().optional(),
+});
 import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +85,9 @@ export async function PATCH(
   if (!profile) return adminUnauthorized();
 
   try {
-    const body = await request.json();
+    const corps = await lireCorps(request, ModifierSourceSchema);
+    if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+    const body = corps.valeur;
 
     if (profile.role !== 'super_admin' && body.organization_id && body.organization_id !== profile.organization_id) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });

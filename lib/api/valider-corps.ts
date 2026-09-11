@@ -99,22 +99,51 @@ export function messageAnomalies(erreur: z.ZodError): string {
   return anomalies.join(' ; ') + (reste > 0 ? ` (et ${reste} autre${reste > 1 ? 's' : ''})` : '');
 }
 
+export interface OptionsLecture {
+  /**
+   * Traiter un corps ABSENT (vide, ou uniquement des blancs) comme `{}`.
+   *
+   * Réservé aux routes dont tous les champs ont une valeur par défaut —
+   * `/api/admin/init-admin` s'appelle légitimement sans corps. Un corps présent
+   * mais mal formé reste une erreur, y compris avec cette option : accepter du
+   * JSON cassé reviendrait à exécuter la route sur des valeurs par défaut que
+   * l'appelant croyait avoir remplacées.
+   */
+  corpsAbsentTolere?: boolean;
+}
+
 /**
  * Lit et valide le corps JSON d'une requête.
  *
  * Ne lève jamais : un corps illisible devient `{ ok: false }`, au même titre
  * qu'un corps mal formé. C'est ce qui permet à l'appelant de répondre 400 dans
  * les deux cas au lieu de laisser passer une exception.
+ *
+ * Le corps est lu en texte puis analysé à la main — et non via
+ * `request.json()` — pour pouvoir distinguer « absent » de « mal formé ».
  */
 export async function lireCorps<S extends z.ZodTypeAny>(
   request: Request,
   schema: S,
+  options: OptionsLecture = {},
 ): Promise<ResultatCorps<S>> {
-  let brut: unknown;
+  let texte: string;
   try {
-    brut = await request.json();
+    texte = await request.text();
   } catch {
-    return { ok: false, message: 'Corps JSON invalide' };
+    return { ok: false, message: 'Corps de requête illisible' };
+  }
+
+  let brut: unknown;
+  if (texte.trim() === '') {
+    if (!options.corpsAbsentTolere) return { ok: false, message: 'Corps JSON invalide' };
+    brut = {};
+  } else {
+    try {
+      brut = JSON.parse(texte);
+    } catch {
+      return { ok: false, message: 'Corps JSON invalide' };
+    }
   }
 
   const analyse = schema.safeParse(brut);

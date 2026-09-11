@@ -5,6 +5,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/** Partage et revocation ne portent qu'une chose : quelle source. */
+const SourceCibleSchema = z.object({ sourceId: z.string().uuid() });
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +19,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const sb = createAdminClient();
   const { id: orgId } = await params;
-  const { sourceId } = await request.json();
-
-  if (!sourceId) return NextResponse.json({ success: false, error: 'sourceId requis' }, { status: 400 });
+  const corps = await lireCorps(request, SourceCibleSchema);
+  if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+  const { sourceId } = corps.valeur;
 
   const { data: source, error: fetchError } = await sb
     .from('data_sources')
@@ -41,9 +46,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const sb = createAdminClient();
   const { id: orgId } = await params;
-  const { sourceId } = await request.json();
-
-  if (!sourceId) return NextResponse.json({ success: false, error: 'sourceId requis' }, { status: 400 });
+  const corps = await lireCorps(request, SourceCibleSchema);
+  if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+  const { sourceId } = corps.valeur;
 
   const { data: source, error: fetchError } = await sb
     .from('data_sources')
