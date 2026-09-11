@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { adminFetch } from '@/lib/admin-fetch';
+import { useToast } from '@/components/ui/geo-toast';
 
 const C = {
   bg:          'var(--bg-primary)',
@@ -103,6 +104,8 @@ export default function WorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
+  const { toast } = useToast();
+
   const [org, setOrg]               = useState<Org | null>(null);
   const [members, setMembers]         = useState<Member[]>([]);
   const [sources, setSources]         = useState<Source[]>([]);
@@ -173,9 +176,16 @@ export default function WorkspacePage() {
         setMaxAi(data.organization.config?.max_ai_requests != null ? String(data.organization.config.max_ai_requests) : '');
         setActive(data.organization.active !== false);
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] chargement', e);
+      toast.error('Chargement de l’organisation impossible', e instanceof Error ? e.message : undefined);
+    }
     setIsLoading(false);
-  }, [id]);
+    // `toast` est memoise dans ToastProvider (useMemo) : stable entre rendus,
+    // donc sans risque de boucle de rechargement.
+  }, [id, toast]);
 
   useEffect(() => { fetchOrg(); fetchSystemStats(); }, [fetchOrg, fetchSystemStats]);
 
@@ -217,7 +227,12 @@ export default function WorkspacePage() {
       });
       const data = await res.json();
       if (data.success) setActive(newActive);
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleToggleActive', e);
+      toast.error('Activation/désactivation impossible', e instanceof Error ? e.message : undefined);
+    }
     setIsTogglingActive(false);
   };
 
@@ -233,7 +248,13 @@ export default function WorkspacePage() {
       });
       const data = await res.json();
       if (data.success) setResetLink({ email, link: data.link });
-    } catch { /* ignore */ }
+      else toast.error('Réinitialisation impossible', data.error ?? 'Le serveur a refusé la demande.');
+    } catch (e) {
+      // Avant : `catch { /* ignore */ }`. L'admin cliquait, rien ne se passait,
+      // et aucun message n'apparaissait — il ne pouvait pas savoir.
+      console.error('[organisations] reset de mot de passe', e);
+      toast.error('Réinitialisation impossible', e instanceof Error ? e.message : undefined);
+    }
     setResetAction(null);
   };
 
@@ -264,7 +285,10 @@ export default function WorkspacePage() {
         body: JSON.stringify({ userId, role }),
       });
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error('[organisations] changement de role', e);
+      toast.error('Changement de rôle impossible', e instanceof Error ? e.message : undefined);
+    }
     setMemberAction(null);
   };
 
@@ -279,7 +303,12 @@ export default function WorkspacePage() {
         body: JSON.stringify({ userId }),
       });
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleRemoveMember', e);
+      toast.error('Retrait du membre impossible', e instanceof Error ? e.message : undefined);
+    }
     setMemberAction(null);
   };
 
@@ -294,7 +323,12 @@ export default function WorkspacePage() {
       });
       setEditSourceId(null);
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleRenameSource', e);
+      toast.error('Renommage de la source impossible', e instanceof Error ? e.message : undefined);
+    }
     setSourceAction(null);
   };
 
@@ -308,7 +342,12 @@ export default function WorkspacePage() {
         body: JSON.stringify({ sourceId }),
       });
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleAssignSource', e);
+      toast.error('Assignation de la source impossible', e instanceof Error ? e.message : undefined);
+    }
     setAssignAction(null);
   };
 
@@ -322,7 +361,12 @@ export default function WorkspacePage() {
         body: JSON.stringify({ sourceId }),
       });
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleRevokeSource', e);
+      toast.error('Révocation de la source impossible', e instanceof Error ? e.message : undefined);
+    }
     setAssignAction(null);
   };
 
@@ -337,7 +381,12 @@ export default function WorkspacePage() {
         body: JSON.stringify({ sourceId }),
       });
       fetchOrg();
-    } catch { /* ignore */ }
+    } catch (e) {
+      // Avant : catch muet. L'action echouait sans qu'aucun message
+      // n'apparaisse — l'admin ne pouvait pas savoir.
+      console.error('[organisations] handleDeleteSource', e);
+      toast.error('Suppression de la source impossible', e instanceof Error ? e.message : undefined);
+    }
     setSourceAction(null);
   };
 

@@ -26,8 +26,8 @@ montée en volume, erreur silencieuse.
 | 0 | ✅ Filet de sécurité — tests de caractérisation | — | nul | M |
 | 1 | ✅ Délais d'expiration sur les appels externes (sans reprise, voir ci-dessous) | `ECH-002` | faible | S |
 | 2 | ✅ Garde-fou anti-régression sur le middleware | `ARC-001` | nul | S |
-| 3 | Respect de la limite de 50 sur les insertions | `PERF-003` | faible | S |
-| 4 | Rendre les erreurs visibles | `MAINT-001` | faible | M |
+| 3 | ✅ Respect de la limite de 50 sur les insertions | `PERF-003` | faible | S |
+| 4 | ✅ Rendre les erreurs visibles (3 des 10 cas étaient légitimes) | `MAINT-001` | faible | M |
 | 5 | Dégonfler `/api/admin/iris/stats` | `PERF-001` | moyen | M |
 | 6 | Insertion groupée dans `inserter.ts` | `PERF-002` | moyen | M |
 | 7 | Dédoublonner le filtre d'autorisation | `DUP-002` | faible | S |

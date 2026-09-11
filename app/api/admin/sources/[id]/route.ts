@@ -146,9 +146,22 @@ export async function DELETE(
           deletedCarreaux = true;
           logger.debug('delete-source', `Table carreaux '${tableName}' supprimée`);
         } catch (dropErr: unknown) {
-          console.error(`[delete-source] Erreur DROP table '${tableName}':`, dropErr instanceof Error ? dropErr.message : String(dropErr));
-          // Fallback: try deleting directly if RPC doesn't exist
-          // The table will be orphaned but the source entry will still be removed
+          // Le commentaire precedent annoncait un « fallback: try deleting
+          // directly » qui n'a jamais existe. Il n'y a AUCUN repli : la table
+          // reste en base, orpheline, et la source est supprimee quand meme.
+          //
+          // On passe par le journal du projet plutot que console.error seul,
+          // pour que la trace soit exploitable en production, et on nomme la
+          // table — c'est la seule facon de la retrouver ensuite.
+          const detail = dropErr instanceof Error ? dropErr.message : String(dropErr);
+          logger.error('delete-source',
+            `DROP de la table carreaux '${tableName}' ECHOUE : ${detail}. `
+            + `La table reste en base, ORPHELINE, alors que sa source est supprimee. `
+            + `A nettoyer manuellement.`);
+          // NOTE: la reponse renvoie deja `deleted.carreaux: false`, mais aussi
+          // `success: true`. Faire echouer la suppression quand le DROP rate
+          // serait un changement de comportement — voir docs/REFACTOR_PLAN.md,
+          // section « Hors perimetre ».
         }
       }
     } else {

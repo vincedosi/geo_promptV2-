@@ -105,11 +105,26 @@ survient, quand le volume monte.
   - `lib/auth/getSessionOrg.ts:58, 72` — échec de lecture du JWT
   - `lib/dsp/logger.ts:36-38` — échec d'écriture dans `dsp_api_logs`
   - `lib/inngest/functions/agentAutoPilotDaily.ts:105, 115` — « best-effort »
-- **Impact** : dans le cas du `DROP TABLE`, une table orpheline reste en base
-  sans trace. Dans les cinq actions d'administration, l'utilisateur clique, rien
-  ne se passe, et **aucun message n'apparaît** — il ne peut pas savoir que son
-  action a échoué.
-- **Gravité** : haute
+- **Impact** : dans le cas du `DROP TABLE`, une table orpheline reste en base.
+  Dans les actions d'administration, l'utilisateur clique, rien ne se passe, et
+  **aucun message n'apparaît** — il ne peut pas savoir que son action a échoué.
+
+- **Traité le 2026-09-11, après vérification cas par cas.** Les 10 cas cités
+  n'étaient pas tous des défauts :
+
+  | Cas | Verdict |
+  |---|---|
+  | 7 actions d'`app/admin/organizations/[id]/page.tsx` | **réellement muettes** — corrigées, chacune affiche désormais un message nommant l'action |
+  | `sources/[id]/route.ts:148` (`DROP TABLE`) | déjà journalisé. Mais le commentaire annonçait un « fallback: try deleting directly » **qui n'existe pas** — corrigé, et la trace passe désormais par le journal du projet en nommant la table orpheline |
+  | `getSessionOrg.ts:58, 72` | **légitimes** — ce sont des sondes : on tente le format de cookie simple, puis le format découpé. Avaler l'échec du premier pour essayer le second est le bon comportement. Laissés tels quels |
+  | `lib/dsp/logger.ts:36` | **légitime** — une fonction de journalisation ne doit jamais lever et casser l'opération de l'appelant. Laissée telle quelle |
+
+  L'audit avait donc sur-signalé : 3 des 10 cas les plus « préoccupants » étaient
+  corrects par conception. Le compte global de 138 reste indicatif et demande le
+  même tri au cas par cas.
+
+- **Gravité** : haute → **moyenne** (les cas visibles par l'utilisateur sont
+  traités ; le reste est à trier)
 - **Effort** : M
 
 ### PERF-002 [Goulot] Le patron de batch cité par `CLAUDE.md` insère ligne à ligne
