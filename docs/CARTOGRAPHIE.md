@@ -72,23 +72,34 @@ Dépendances : 32 en production, 18 en développement.
 graph TD
   Requete[Requête HTTP] --> MW{middleware.ts}
   MW -->|chemin dans matcher<br/>ET dans PROTECTED_API_PREFIXES| Session[getSession → 401 si absente]
-  MW -->|sinon| Public[AUCUNE protection]
+  MW -->|hors matcher : le middleware ne s'execute meme pas| Route
   Session --> Route[route.ts]
   Route --> G1[requireAdmin — 64 routes]
   Route --> G2[requireAuth — 67 routes]
   Route --> G3[getUserFromRequest — 3 routes]
   Route --> G4[requireDspAccess — 15 routes DSP]
-  Route --> G5[aucun garde en route — 33, couvertes par le middleware]
+  Route --> G5[aucun garde propre — couvertes par le middleware]
   G1 --> Admin[createAdminClient — clé service_role]
   G2 --> Admin
   Admin --> DB[(PostgreSQL — RLS CONTOURNÉES)]
 ```
 
-**Le point structurant** : la protection dépend de **deux listes qu'il faut
-tenir synchronisées** — le `matcher` (`middleware.ts:136-156`) et
-`PROTECTED_API_PREFIXES` (`middleware.ts:17-40`). Le fichier le dit lui-même
-(`middleware.ts:128-131`) : « Une route absente d'ICI n'est JAMAIS protégée,
-même si son préfixe figure dans PROTECTED_API_PREFIXES ». Voir `ARC-001`.
+**Le modèle réel, corrigé le 2026-09-11** : une route est protégée par le
+middleware **OU** par un garde en début de handler, et il suffit de l'une des
+deux. La plupart des familles récentes (`/api/agent`, `/api/bidding`,
+`/api/custom-geo`, `/api/digital`, `/api/cibles`, `/api/user`) ne sont **pas
+dans le matcher du tout** : le middleware ne s'exécute jamais pour elles, elles
+s'appuient entièrement sur `requireAuth` / `requireAdmin`.
+
+Vérifié par `tests/unit/api/routes-publiques.test.ts` : **les 170 routes ont
+toutes au moins une protection**, sauf trois publiques assumées. Il n'y a aucun
+trou aujourd'hui.
+
+La fragilité subsiste néanmoins (`ARC-001`) : pour les routes qui dépendent du
+middleware, il faut deux listes synchronisées — le `matcher`
+(`middleware.ts:136-156`) et `PROTECTED_API_PREFIXES` (`middleware.ts:17-40`).
+Le fichier le dit lui-même (`middleware.ts:128-131`) : « Une route absente d'ICI
+n'est JAMAIS protégée, même si son préfixe figure dans PROTECTED_API_PREFIXES ».
 
 **Les RLS sont dormantes** : 82 tables sur 83 ont `rowsecurity` activé et 154
 policies existent, mais toutes les routes passent par `createAdminClient`

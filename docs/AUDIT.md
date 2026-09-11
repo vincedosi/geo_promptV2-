@@ -37,7 +37,8 @@ survient, quand le volume monte.
 2. **`/api/admin/iris/stats` reproduit le motif de l'incident du 28/03** —
    21 `count(exact)` sur 51 000 lignes par appel. `PERF-001`
 3. **La protection des routes repose sur deux listes à synchroniser à la main** —
-   un oubli rend une route publique en silence. `ARC-001`
+   un oubli rendrait une route publique en silence. **Aucun trou aujourd'hui**,
+   vérifié, et désormais verrouillé par un test. `ARC-001`
 4. **138 `catch` avalent leur erreur**, dont un `DROP TABLE` raté qui laisse
    continuer la suppression, et cinq actions d'administration qui échouent sans
    rien dire à l'utilisateur. `MAINT-001`
@@ -82,8 +83,14 @@ survient, quand le volume monte.
   préfixe figure dans PROTECTED_API_PREFIXES ».
 - **Impact** : ajouter une route sous un préfixe déjà protégé en oubliant le
   `matcher` la rend **publique sans aucun signal** — ni erreur, ni test rouge.
-  33 routes reposent aujourd'hui uniquement sur ce mécanisme, sans garde propre.
-- **Gravité** : haute
+- **État au 2026-09-11, vérifié** : **aucun trou aujourd'hui.** Le modèle réel
+  est « middleware **OU** garde en handler », et
+  `tests/unit/api/routes-publiques.test.ts` établit que les 170 routes ont
+  toutes au moins l'une des deux, sauf trois publiques assumées. La plupart des
+  familles récentes ne sont même pas dans le matcher et s'appuient entièrement
+  sur `requireAuth`/`requireAdmin`. C'est donc une **fragilité**, pas une faille.
+- **Gravité** : haute (ramenée de « faille » à « fragilité verrouillée par un
+  test » — le test échoue si une route nue apparaît, vérifié en en créant une)
 - **Effort** : S (un test suffit ; modifier `middleware.ts` est hors périmètre,
   fichier protégé)
 
