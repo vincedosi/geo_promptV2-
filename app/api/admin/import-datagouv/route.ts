@@ -21,7 +21,14 @@ export const dynamic = 'force-dynamic';
 
 export const maxDuration = 300; // 5 minutes pour les gros datasets
 
-const CHUNK_SIZE = 500;
+// 50 et non 500 : CLAUDE.md plafonne les insertions par lot a 50 sur le compute
+// Nano (250 IOPS, 5 Mo/s). Cette regle existe parce que le budget d'I/O a deja
+// mis l'application par terre trois fois — voir la table des incidents.
+//
+// Contrepartie assumee : dix fois plus de requetes, donc un import plus long.
+// Si un import venait a depasser le delai de la plateforme, la reponse n'est PAS
+// de remonter ce nombre en douce, c'est de reprendre l'import par tranches.
+const CHUNK_SIZE = 50;
 const MAX_FEATURES = 250_000; // Sécurité mémoire
 const FETCH_TIMEOUT_MS = 90_000;
 const MAX_REDIRECTS = 3;

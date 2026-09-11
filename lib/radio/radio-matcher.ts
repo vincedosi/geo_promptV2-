@@ -245,9 +245,11 @@ export async function matchRadios(
         }
       }
 
-      // Insert in batches of 500
-      for (let i = 0; i < rows.length; i += 500) {
-        const batch = rows.slice(i, i + 500);
+      // Lots de 50 : plafond impose par CLAUDE.md sur le compute Nano. Cette
+      // table est issue d'un produit cartesien departement x radios x emetteurs,
+      // c'est donc la plus grosse ecriture du projet.
+      for (let i = 0; i < rows.length; i += 50) {
+        const batch = rows.slice(i, i + 50);
         await supabase.from('emetteur_radio_stations').upsert(batch, {
           onConflict: 'emetteur_id,radio_id',
           ignoreDuplicates: true,
@@ -300,9 +302,9 @@ export async function matchRadios(
       }
     }
 
-    // Insert in batches of 500
-    for (let i = 0; i < rows.length; i += 500) {
-      const batch = rows.slice(i, i + 500);
+    // Lots de 50 : meme plafond CLAUDE.md que ci-dessus.
+    for (let i = 0; i < rows.length; i += 50) {
+      const batch = rows.slice(i, i + 50);
       await supabase.from('emetteur_radio_stations').upsert(batch, {
         onConflict: 'emetteur_id,radio_id',
         ignoreDuplicates: true,
