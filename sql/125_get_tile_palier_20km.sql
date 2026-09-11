@@ -1,0 +1,15 @@
+-- 125 — get_tile : palier 20 km pour les bas zooms. Appliquee via MCP le
+--       2026-09-11, puis seuil ajuste (5 km ne sert plus que z7).
+--
+-- Cascade finale :
+--   z >= 10 : carreaux_filosofi 200 m  (0.04 km²)
+--   z 8-9   : carreaux_2km             (4 km²)
+--   z 7     : carreaux_5km             (25 km²)
+--   z <= 6  : carreaux_20km            (400 km²)   <- NOUVEAU
+--
+-- Mesures (carreaux par tuile, puis poids apres bascule) :
+--   z4 avec 5 km : 17 524 carreaux -> la requete DEPASSAIT LE DELAI
+--   z6 avec 5 km :  7 460 carreaux -> 1 360 ko
+--   z6 avec 20 km:    503 carreaux ->   183 ko
+-- Apres : z4 413 ko, z5 352 ko, z6 183 ko, z7 400 ko, z8 439 ko, z11 580 ko.
+-- Plus aucun pic : la cascade est equilibree.

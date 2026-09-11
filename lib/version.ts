@@ -25,4 +25,4 @@ export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 //       reste servie jusqu'à 1 h (Cache-Control: public, max-age=3600 + cache mémoire
 //       serveur) : toutes ses valeurs sont écartées faute de dénominateur, et la couche
 //       reste à plat.
-export const CARREAUX_TILE_VERSION = 14;
+export const CARREAUX_TILE_VERSION = 15;

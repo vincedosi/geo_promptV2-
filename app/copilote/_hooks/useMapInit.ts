@@ -742,19 +742,27 @@ export function useMapInit(
 
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
       // z6-7  → carreaux_5km  (SQL 035)
-      // z8-9  → carreaux_2km  (SQL 035)
-      // z10+  → carreaux_filosofi 200m
+      // Cascade servie par get_tile (sql/125), equilibree en poids de tuile :
+      //   z <= 6  → carreaux_20km  (vue materialisee sql/124) — 183 a 413 ko
+      //   z 7     → carreaux_5km                              — 400 ko
+      //   z 8-9   → carreaux_2km   (SQL 035)                  — 439 ko
+      //   z 10+   → carreaux_filosofi 200m                    — 580 ko
+      //
+      // minzoom 4 et non 6 : en dessous de son minzoom, MapLibre ne DEMANDE
+      // pas les tuiles — les carreaux etaient donc invisibles avant z6, quoi
+      // que serve le serveur. Le palier 20 km rend ces niveaux tenables : une
+      // tuile z6 portait 7 460 carreaux de 5 km (1,36 Mo), elle en porte 503.
       map.addSource('carreaux-mvt', {
         type: 'vector',
         tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=${CARREAUX_TILE_VERSION}`],
-        minzoom: 6,
+        minzoom: 4,
         maxzoom: 14,
         attribution: 'INSEE, Filosofi 2019',
       });
       map.addLayer({
         id: 'carreaux-mvt-fill', type: 'fill',
         source: 'carreaux-mvt', 'source-layer': 'carreaux',
-        minzoom: 6,
+        minzoom: 4,
         paint: { 'fill-color': '#FC9272', 'fill-opacity': 0.65 },
         layout: { visibility: 'none' },
       });

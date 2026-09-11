@@ -1,0 +1,13 @@
+-- 124 — carreaux_20km : meme semantique que les autres paliers, construite
+--       depuis carreaux_5km. Appliquee via MCP le 2026-09-11.
+-- Voir le commentaire complet dans la migration appliquee :
+--   1. L'ancienne vue emettait revenu_median = sum(ind_snv)/sum(ind) (DEJA
+--      divise) et surface_moyenne = sum(men_surf*men)/sum(men) (ponderation
+--      fausse, men_surf etant une somme). La brancher telle quelle aurait
+--      divise ces colonnes une SECONDE fois cote carte : 26 110 € -> 0,007.
+--   2. Elle scannait carreaux_filosofi (2,3 M lignes) : recreation au-dela du
+--      delai sur Nano. Une somme de sommes donnant le meme resultat, elle
+--      agrege desormais carreaux_5km (22 058 lignes). 20 000 etant un multiple
+--      de 5 000, un bloc 20 km = exactement 4x4 carreaux de 5 km.
+-- Controle : sum(population_totale) = 62 592 659 = total du palier 5 km.
+-- `ind_inc` (population_inconnue) ajoute, il manquait.
