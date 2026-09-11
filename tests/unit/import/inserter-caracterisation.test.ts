@@ -28,11 +28,25 @@ type Log = { niveau: string; message: string };
 type ErreurSimulee = { code?: string; message: string } | null;
 
 /**
- * Fausse chaîne Supabase. `upsert` consomme une réponse programmée par appel,
- * ce qui permet de scénariser succès / doublon / erreur ligne par ligne.
+ * Fausse chaîne Supabase, fidèle à l'atomicité de PostgreSQL.
+ *
+ * Point CAPITAL de ce simulacre : un `upsert` qui reçoit un TABLEAU est une
+ * insertion multi-lignes, donc **atomique**. Si une seule ligne du lot viole
+ * une contrainte, le statement entier échoue — il ne réussit pas partiellement.
+ * Le faux client doit modéliser cela, sans quoi il valide un comportement qui
+ * n'existe pas en base.
+ *
+ * C'est exactement le piège rencontré le 2026-09-11 : une première version de
+ * ce simulacre consommait une réponse par appel, et faisait « réussir » un
+ * groupe contenant une ligne fautive. Il aurait fallu affaiblir le test pour
+ * le faire passer — c'est le simulacre qu'il fallait corriger.
+ *
+ * `reponses[i]` décrit le sort de la ligne `i` :
+ *   - en insertion groupée, la PREMIÈRE erreur du lot fait échouer le tout ;
+ *   - en repli ligne à ligne, chaque réponse est consommée dans l'ordre.
  */
 function fausseBase(reponses: ErreurSimulee[]) {
-  const appels: { table: string; operation: string }[] = [];
+  const appels: { table: string; operation: string; groupe: boolean }[] = [];
   let curseur = 0;
   return {
     appels,
@@ -43,13 +57,19 @@ function fausseBase(reponses: ErreurSimulee[]) {
           select() {
             return {
               limit() {
-                appels.push({ table, operation: 'select' });
+                appels.push({ table, operation: 'select', groupe: false });
                 return Promise.resolve({ data: [], error: null });
               },
             };
           },
-          upsert(_row: unknown, _opts: unknown) {
-            appels.push({ table, operation: 'upsert' });
+          upsert(lignes: unknown, _opts: unknown) {
+            const groupe = Array.isArray(lignes);
+            appels.push({ table, operation: 'upsert', groupe });
+            if (groupe) {
+              // Atomicité : la première erreur programmée fait échouer le lot.
+              const premiere = reponses.find(r => r !== null) ?? null;
+              return Promise.resolve({ error: premiere });
+            }
             const erreur = reponses[curseur] ?? null;
             curseur += 1;
             return Promise.resolve({ error: erreur });
@@ -164,6 +184,29 @@ describe('caractérisation — insertRows', () => {
     expect(etapes.length).toBeGreaterThan(0);
     expect(etapes.every(([, total]) => total === 60)).toBe(true);
     expect(etapes[etapes.length - 1][0]).toBe(60);
+  });
+
+  it('emet UNE requete par lot quand tout se passe bien (PERF-002)', async () => {
+    // Le gain du lot 6. Avant : 60 requetes pour 60 lignes. Apres : une par lot
+    // de 50, soit 2. Sur Nano (250 IOPS) c'est un facteur 30.
+    clientCourant.valeur = fausseBase(Array<ErreurSimulee>(60).fill(null));
+    await insertRows(Array.from({ length: 60 }, (_, i) => ligne(i + 1)), 'poi');
+
+    const upserts = clientCourant.valeur.appels.filter(a => a.operation === 'upsert');
+    expect(upserts).toHaveLength(2);            // 60 lignes = 2 lots de 50 max
+    expect(upserts.every(a => a.groupe)).toBe(true);
+  });
+
+  it('retombe ligne a ligne des que le lot echoue, pour designer la ligne fautive', async () => {
+    // Une insertion multi-lignes echoue en bloc sans dire QUI pose probleme.
+    // Le repli est la seule facon de produire le rapport d'import attendu.
+    clientCourant.valeur = fausseBase([null, { message: 'boum' }, null]);
+    await insertRows([ligne(1), ligne(2), ligne(3)], 'poi');
+
+    const upserts = clientCourant.valeur.appels.filter(a => a.operation === 'upsert');
+    expect(upserts[0].groupe).toBe(true);                       // tentative groupee
+    expect(upserts.slice(1).every(a => !a.groupe)).toBe(true);  // puis ligne a ligne
+    expect(upserts).toHaveLength(4);                            // 1 groupe + 3 lignes
   });
 
   it('renvoie toutes les lignes en erreur si la connexion initiale échoue', async () => {

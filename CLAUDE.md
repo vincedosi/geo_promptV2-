@@ -93,7 +93,11 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 - TypeScript strict, imports absolus `@/`, types dans `types/`
 - Routes API : `export const dynamic = 'force-dynamic'`, validation Zod, `createAdminClient()` depuis `@/lib/auth`
 - Outils IA : 1 fichier = 1 outil dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
-- Inserts DB : batch par 50 max (pattern `lib/import/inserter.ts`)
+- Inserts DB : batch par 50 max — **une seule requête par lot**, avec repli
+  ligne à ligne en cas d'échec pour désigner la ligne fautive
+  (patron `lib/import/inserter.ts`). Jusqu'au 2026-09-11 ce fichier faisait
+  un aller-retour PAR LIGNE : la règle le citait en exemple alors qu'il ne
+  la respectait pas.
 - Carto : MapLibre, fonds OpenFreeMap, MVT via `/api/tiles/[z]/[x]/[y]`
 - Git : commits atomiques, format `type: description`
 - Design : dark minimal, Inter + JetBrains Mono, accent teal #4ecdc4, pas de violet, sentence case, flat total

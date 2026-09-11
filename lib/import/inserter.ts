@@ -20,63 +20,66 @@ function getSupabase() {
 // POI Insert — poi table — batch via Supabase upsert
 // ============================================================
 
-async function insertPoiBatch(
+/** Construit la ligne a inserer. Peut lever : `metadata` peut etre du JSON invalide. */
+function construireLigne(r: ProcessedRow) {
+  const row = triggerFilled<'poi_france', 'geom'>({
+    id: r.id,
+    lat: r.lat,
+    lng: r.lng,
+    categorie: r.categorie || 'autre',
+    sous_categorie: r.sous_categorie || null,
+    nom: r.nom || null,
+    adresse: r.adresse || null,
+    ville: r.ville || null,
+    code_postal: r.code_postal || null,
+    departement: r.departement || null,
+    code_departement: r.code_departement || null,
+    region: r.region || null,
+    source: r.source || 'import_universel',
+    date_import: new Date().toISOString(),
+    metadata: r.metadata ? (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata) : {},
+  });
+  if (r.data_source_id) row.data_source_id = r.data_source_id;
+  if (r.organization_id) row.organization_id = r.organization_id;
+  return row;
+}
+
+const etiquette = (r: ProcessedRow) => r.nom || r.id?.substring(0, 8) || '?';
+
+/**
+ * Repli ligne a ligne — le comportement historique, a l'identique.
+ *
+ * C'est lui qui produit le diagnostic precis : quelle ligne a echoue, et
+ * pourquoi. On ne l'appelle que si l'insertion groupee a echoue.
+ */
+async function insererLigneAligne(
   batch: ProcessedRow[],
   globalOffset: number,
-  onLog?: LogCallback
+  onLog?: LogCallback,
 ): Promise<{ inserted: number; ignored: number; errors: number; firstError?: string }> {
-  if (batch.length === 0) return { inserted: 0, ignored: 0, errors: 0 };
-
   const supabase = getSupabase();
-  let inserted = 0;
-  let ignored = 0;
-  let errors = 0;
+  let inserted = 0, ignored = 0, errors = 0;
   let firstError: string | undefined;
 
   for (let i = 0; i < batch.length; i++) {
     const r = batch[i];
     const rowNum = globalOffset + i;
-    const label = r.nom || r.id?.substring(0, 8) || '?';
-
+    const label = etiquette(r);
     try {
-      const row = triggerFilled<'poi_france', 'geom'>({
-        id: r.id,
-        lat: r.lat,
-        lng: r.lng,
-        categorie: r.categorie || 'autre',
-        sous_categorie: r.sous_categorie || null,
-        nom: r.nom || null,
-        adresse: r.adresse || null,
-        ville: r.ville || null,
-        code_postal: r.code_postal || null,
-        departement: r.departement || null,
-        code_departement: r.code_departement || null,
-        region: r.region || null,
-        source: r.source || 'import_universel',
-        date_import: new Date().toISOString(),
-        metadata: r.metadata ? (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata) : {},
-      });
-
-      if (r.data_source_id) row.data_source_id = r.data_source_id;
-      if (r.organization_id) row.organization_id = r.organization_id;
-
       const { error: insertErr } = await supabase
         .from('poi_france')
-        .upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+        .upsert(construireLigne(r), { onConflict: 'id', ignoreDuplicates: true });
 
       if (insertErr) {
-        // Check for duplicate/conflict
         if (insertErr.code === '23505') {
           ignored++;
-          const skipMsg = `[SKIP] #${rowNum} ${label} → doublon`;
-          onLog?.('warn', skipMsg);
+          onLog?.('warn', `[SKIP] #${rowNum} ${label} → doublon`);
         } else {
           throw new Error(insertErr.message);
         }
       } else {
         inserted++;
-        const okMsg = `[OK] #${rowNum} ${label} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`;
-        onLog?.('info', okMsg);
+        onLog?.('info', `[OK] #${rowNum} ${label} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`);
       }
     } catch (rowErr) {
       const msg = rowErr instanceof Error ? rowErr.message : String(rowErr);
@@ -87,8 +90,70 @@ async function insertPoiBatch(
       onLog?.('error', errMsg);
     }
   }
-
   return { inserted, ignored, errors, firstError };
+}
+
+/**
+ * Insere un lot de POI.
+ *
+ * ── Ce qui a change le 2026-09-11 (`PERF-002`) ──────────────────────────────
+ *
+ * Cette fonction faisait UN aller-retour reseau PAR LIGNE — 50 requetes par
+ * lot de 50. Sur le compute Nano (250 IOPS), c'est un facteur 50 sur le nombre
+ * d'operations. Et `CLAUDE.md` designe ce fichier comme LE patron de « batch
+ * par 50 » a copier : le defaut se propageait a chaque nouvel import ecrit sur
+ * ce modele.
+ *
+ * La boucle n'etait pas gratuite pour autant : elle produit un rapport d'erreur
+ * ligne par ligne — quelle ligne a echoue, et pourquoi. Une insertion groupee,
+ * elle, echoue en bloc sans rien dire.
+ *
+ * D'ou la strategie : **on tente le groupe, et on ne retombe ligne a ligne
+ * qu'en cas d'echec**. Le cas nominal passe a UNE requete ; le cas degrade
+ * conserve exactement le diagnostic d'avant.
+ *
+ * Subtilite a connaitre : avec `ignoreDuplicates: true`, PostgREST emet un
+ * `ON CONFLICT (id) DO NOTHING` — un doublon sur `id` ne leve donc AUCUNE
+ * erreur, ni en groupe ni ligne a ligne. Le compteur `ignored` ne se declenche
+ * que sur une AUTRE contrainte d'unicite, laquelle fait echouer le groupe
+ * entier et declenche le repli. Les compteurs finaux sont identiques dans les
+ * deux chemins.
+ */
+async function insertPoiBatch(
+  batch: ProcessedRow[],
+  globalOffset: number,
+  onLog?: LogCallback
+): Promise<{ inserted: number; ignored: number; errors: number; firstError?: string }> {
+  if (batch.length === 0) return { inserted: 0, ignored: 0, errors: 0 };
+
+  // La construction des lignes peut lever (JSON `metadata` invalide). Si une
+  // seule ligne du lot est malformee, on part directement en ligne a ligne :
+  // c'est le seul chemin capable de designer la ligne fautive.
+  let lignes: ReturnType<typeof construireLigne>[];
+  try {
+    lignes = batch.map(construireLigne);
+  } catch {
+    return insererLigneAligne(batch, globalOffset, onLog);
+  }
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('poi_france')
+    .upsert(lignes, { onConflict: 'id', ignoreDuplicates: true });
+
+  if (error) {
+    // Le groupe a echoue : on ne sait pas QUELLE ligne pose probleme. Seul le
+    // passage ligne a ligne le dira — c'est exactement ce que faisait le code
+    // d'avant, et c'est ce que le rapport d'import attend.
+    return insererLigneAligne(batch, globalOffset, onLog);
+  }
+
+  // Succes : meme journal qu'avant, ligne par ligne.
+  batch.forEach((r, i) => {
+    onLog?.('info',
+      `[OK] #${globalOffset + i} ${etiquette(r)} (${r.lat?.toFixed(4)}, ${r.lng?.toFixed(4)}) → insere`);
+  });
+  return { inserted: batch.length, ignored: 0, errors: 0 };
 }
 
 // ============================================================
