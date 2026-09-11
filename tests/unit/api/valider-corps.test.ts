@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { lireCorps, messageAnomalies } from '@/lib/api/valider-corps';
+import {
+  lireCorps, messageAnomalies, lireFormulaire,
+  fichierDeFormulaire, fichiersDeFormulaire,
+} from '@/lib/api/valider-corps';
 
 /**
  * `SEC-001` — la brique de validation partagée par les routes API.
@@ -142,5 +145,71 @@ describe('messageAnomalies — messages en francais', () => {
   it('laisse intact un message ecrit a la main dans le schema', async () => {
     const e = z.object({ name: z.string().trim().min(1, 'Nom requis') }).safeParse({ name: ' ' });
     if (!e.success) expect(messageAnomalies(e.error)).toBe('name : Nom requis');
+  });
+});
+
+describe('lireFormulaire et les fichiers', () => {
+  function formulaire(entrees: [string, string | File][]) {
+    const f = new FormData();
+    for (const [c, v] of entrees) f.append(c, v);
+    return new Request('http://local/t', { method: 'POST', body: f });
+  }
+
+  const fichier = (nom: string, contenu = 'a,b\n1,2') =>
+    new File([contenu], nom, { type: 'text/csv' });
+
+  it('valide les champs texte et rend le formulaire pour les fichiers', async () => {
+    const S = z.object({ encoding: z.string().default('utf-8') });
+    const r = await lireFormulaire(formulaire([['file', fichier('x.csv')], ['encoding', 'latin1']]), S);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.champs.encoding).toBe('latin1');
+      expect(fichierDeFormulaire(r.formulaire, 'file')?.name).toBe('x.csv');
+    }
+  });
+
+  it('applique les valeurs par defaut quand le champ est absent', async () => {
+    const S = z.object({ encoding: z.string().default('utf-8') });
+    const r = await lireFormulaire(formulaire([['file', fichier('x.csv')]]), S);
+    if (r.ok) expect(r.champs.encoding).toBe('utf-8');
+  });
+
+  it('ne soumet PAS les entrees fichier au schema', async () => {
+    // Un fichier deposé sous le nom d'un champ texte ne doit pas etre pris pour
+    // sa valeur — sinon le schema validerait un objet File comme une chaine.
+    const S = z.object({ encoding: z.string().default('utf-8') });
+    const r = await lireFormulaire(formulaire([['encoding', fichier('piege.csv')]]), S);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.champs.encoding).toBe('utf-8');
+  });
+
+  it('ne leve pas quand le corps n est pas un formulaire', async () => {
+    const pasUnFormulaire = new Request('http://local/t', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"a":1}',
+    });
+    const r = await lireFormulaire(pasUnFormulaire, z.object({}));
+    expect(r.ok).toBe(false);
+  });
+
+  it('fichierDeFormulaire rend null pour une valeur texte — pas un faux fichier', async () => {
+    // C'est le defaut que ce helper ferme : `formData.get('file') as File` sur
+    // une chaine donnait un objet dont `.name` est `undefined`, et un 500 plus
+    // loin au premier `.toLowerCase()`.
+    const r = await lireFormulaire(formulaire([['file', 'je-suis-du-texte']]), z.object({}));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(fichierDeFormulaire(r.formulaire, 'file')).toBeNull();
+  });
+
+  it('fichiersDeFormulaire ecarte les entrees non-fichier', async () => {
+    const r = await lireFormulaire(
+      formulaire([['files', fichier('a.csv')], ['files', 'texte'], ['files', fichier('b.csv')]]),
+      z.object({}),
+    );
+    if (r.ok) {
+      const noms = fichiersDeFormulaire(r.formulaire, 'files').map(f => f.name);
+      expect(noms).toEqual(['a.csv', 'b.csv']);
+    }
   });
 });

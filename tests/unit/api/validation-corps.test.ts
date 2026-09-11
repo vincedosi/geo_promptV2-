@@ -37,41 +37,26 @@ const API = join(RACINE, 'app', 'api');
 /** Une route lit-elle un corps de requête ? */
 const LIT_UN_CORPS = /\b(?:req|request)\.json\(\)|\.formData\(\)/;
 
-/** Le valide-t-elle ? `lireCorps` est le helper du projet ; `safeParse` le Zod nu. */
-const VALIDE = /\blireCorps\(|\bsafeParse\(/;
+/**
+ * La valide-t-elle ? `lireCorps` (JSON) et `lireFormulaire` (multipart) sont les
+ * helpers du projet ; `safeParse` couvre les routes qui appellent Zod elles-memes.
+ */
+const VALIDE = /\blireCorps\(|\blireFormulaire\(|\bsafeParse\(/;
 
 /**
- * Routes qui lisent un corps SANS le valider, au 2026-09-11.
+ * Routes qui lisent un corps SANS le valider.
+ *
+ * Parties de 40 le 2026-09-11, il n'en reste qu'UNE : le fichier protégé.
  *
  * Cette liste ne doit que rétrécir. Chaque retrait est un commit qui lit la
  * route, écrit son schéma en mode permissif — la forme, jamais la règle métier
  * — et vérifie qu'aucune entrée acceptée aujourd'hui ne devient un 400.
  */
 const DETTE = new Set<string>([
-  // Fichier PROTÉGÉ par CLAUDE.md : ne pas modifier sans demande explicite.
+  // Fichier PROTÉGÉ par CLAUDE.md : « NE PAS MODIFIER sauf demande explicite ».
+  // C'est le moteur des isochrones multi-POI, la fonctionnalité la plus sensible
+  // du produit. Y ajouter un schéma demande une demande explicite de Vincent.
   'app/api/isochrone-battle/route.ts',
-  // Imports et traitements batch — corps volumineux, formes hétérogènes.
-  'app/api/admin/geocode/batch/route.ts',
-  'app/api/admin/import-datagouv/route.ts',
-  'app/api/admin/import-geo/register/route.ts',
-  'app/api/admin/import-geo/route.ts',
-  'app/api/admin/import-ooh/arcgis/route.ts',
-  'app/api/admin/import-poi/dry-run/route.ts',
-  'app/api/admin/import-poi/execute/route.ts',
-  'app/api/admin/import-poi/parse/route.ts',
-  'app/api/iris-crawler/manual-import/route.ts',
-  'app/api/iris-crawler/manual-upload/route.ts',
-  'app/api/radio/import-arcom-ods/route.ts',
-  // Copilote, agents et calculs — corps portant des historiques de conversation
-  // ou des géométries, à modéliser avec soin.
-  'app/api/agent/analyze-drift/route.ts',
-  'app/api/agent/apply-recommendation/route.ts',
-  'app/api/agent/chat/route.ts',
-  'app/api/chat/route.ts',
-  'app/api/digital/[campaignId]/ai-analysis/route.ts',
-  'app/api/isochrone-battle/apply-battle/route.ts',
-  'app/api/pilot/route.ts',
-  'app/api/smart-prompt/route.ts',
 ]);
 
 function routes(dossier: string): string[] {
@@ -117,8 +102,17 @@ describe('validation des corps de requête — SEC-001', () => {
   });
 
   it('la dette recule — elle ne doit jamais remonter', () => {
-    // Valeur de depart mesuree le 2026-09-11 : 40 routes. Ce chiffre est un
-    // cliquet : le baisser quand la dette diminue, jamais le monter.
-    expect(DETTE.size).toBeLessThanOrEqual(20);
+    // 40 routes le 2026-09-11 au matin, 1 le soir — et celle-la est protegee.
+    // Ce chiffre est un cliquet : le baisser quand la dette diminue, jamais le
+    // monter. Le remonter demande de justifier pourquoi une route echappe a une
+    // regle que CLAUDE.md declare obligatoire.
+    expect(DETTE.size).toBeLessThanOrEqual(1);
+  });
+
+  it('la seule dette restante est le fichier protege', () => {
+    // Si cette assertion tombe, c'est qu'une AUTRE route a ete inscrite en
+    // dette : la question a se poser est pourquoi elle n'a pas de schema, pas
+    // comment faire passer le test.
+    expect([...DETTE]).toEqual(['app/api/isochrone-battle/route.ts']);
   });
 });

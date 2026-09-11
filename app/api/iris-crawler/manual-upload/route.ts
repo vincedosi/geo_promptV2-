@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireFormulaire, fichierDeFormulaire } from '@/lib/api/valider-corps';
 import path from 'path';
 import fs from 'fs/promises';
 import { randomUUID } from 'crypto';
@@ -7,6 +9,20 @@ import { autoMap } from '@/lib/iris-crawler/auto-map';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Les deux champs texte du depot. Les defauts sont ceux des `?? 'utf-8'` et
+ * `?? 'auto'` qu'ils remplacent.
+ *
+ * `encoding` reste libre : la liste des etiquettes acceptees est celle de
+ * `TextDecoder`, que le navigateur et Node connaissent mieux que nous. Le
+ * `try/catch` autour du decodeur rend deja un 400 explicite pour une etiquette
+ * inconnue — la borner ici ferait diverger deux listes.
+ */
+const DepotCsvSchema = z.object({
+  encoding: z.string().trim().min(1).max(40).default('utf-8'),
+  separator: z.string().max(4).default('auto'),
+});
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
 const UPLOAD_DIR = path.join(process.cwd(), 'data', 'iris-uploads');
@@ -42,16 +58,11 @@ export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: 'Corps de requête invalide (FormData attendu)' }, { status: 400 });
-  }
+  const depot = await lireFormulaire(req, DepotCsvSchema);
+  if (!depot.ok) return NextResponse.json({ error: depot.message }, { status: 400 });
 
-  const file = formData.get('file') as File | null;
-  const encoding = (formData.get('encoding') as string | null) ?? 'utf-8';
-  const separatorParam = (formData.get('separator') as string | null) ?? 'auto';
+  const { encoding, separator: separatorParam } = depot.champs;
+  const file = fichierDeFormulaire(depot.formulaire, 'file');
 
   if (!file) {
     return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 });

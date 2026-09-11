@@ -5,10 +5,17 @@
  */
 
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { orchestrate }  from '@/lib/smart-prompt/orchestrator';
 import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+/** Le message « message requis » est conserve : c'est lui qu'affiche l'UI. */
+const SmartPromptSchema = z.object({
+  message: z.string().trim().min(1, 'message requis'),
+});
 
 export const maxDuration = 30;
 
@@ -19,13 +26,10 @@ export async function POST(req: Request) {
   if (!ok) return rateLimitResponse(retrySec);
 
   try {
-    const body = await req.json() as { message?: string };
+    const corps = await lireCorps(req, SmartPromptSchema);
+    if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
 
-    if (!body.message || typeof body.message !== 'string' || body.message.trim() === '') {
-      return NextResponse.json({ error: 'message requis' }, { status: 400 });
-    }
-
-    const response = await orchestrate(body.message.trim());
+    const response = await orchestrate(corps.valeur.message);
     return NextResponse.json(response);
 
   } catch (err: unknown) {

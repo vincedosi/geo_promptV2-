@@ -3,13 +3,15 @@
  * Dry-run: validate first N rows with mapping + geolocation
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { lireCorps } from '@/lib/api/valider-corps';
+import { ConfigImportSchema } from '@/lib/import/schemas';
 import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
-import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
+import type { GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 
@@ -23,15 +25,9 @@ export async function POST(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   try {
-    const config: ImportConfig & { geocodeId?: string } = await request.json();
-
-    // Validate required fields
-    if (!config.fileId) {
-      return NextResponse.json({ success: false, error: 'fileId manquant' }, { status: 400 });
-    }
-    if (!config.geolocation?.mode) {
-      return NextResponse.json({ success: false, error: 'Mode de geolocalisation requis' }, { status: 400 });
-    }
+    const corps = await lireCorps(request, ConfigImportSchema);
+    if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+    const config = corps.valeur;
 
     // Find temp file
     const tempFiles = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(config.fileId));

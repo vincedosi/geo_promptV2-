@@ -242,7 +242,7 @@ survient, quand le volume monte.
 - **Gravité** : haute
 - **Effort** : M
 
-### SEC-001 [Sécurité] routes d'écriture sans validation Zod — **20 sur 40 traitées**
+### SEC-001 [Sécurité] routes d'écriture sans validation Zod — **CLOS : 39 sur 40**
 - **Localisation** : au 2026-09-11, **40** routes (et non 38 : le premier compte
   ratait celles dont le schéma est importé d'un autre fichier) lisaient
   `request.json()` ou `.formData()` sans schéma.
@@ -265,12 +265,23 @@ survient, quand le volume monte.
     `admin/iris/metadata`, `admin/init-admin`, `admin/dsp/dv360/oauth/start`.
   - **Tranche 3 — carte et calculs** (4) : `map/ooh`, `isochrone-cache-check`,
     `admin/geocode/update`, `bidding/train`.
-  - **Restent 20**, dont un fichier PROTÉGÉ (`isochrone-battle/route.ts`). Les
-    autres portent des corps lourds ou hétérogènes : dépôts de fichiers
-    (`formData`), historiques de conversation du copilote et des agents,
-    géométries. `tests/unit/api/validation-corps.test.ts` en tient la liste
-    exacte, avec un cliquet : elle ne peut que rétrécir.
-- **Trois défauts fermés au passage**, chacun commenté dans le code :
+  - **Tranche 4 — imports, copilote et agents** (19) : les quatre routes d'import
+    JSON (`import-datagouv`, `import-geo`, `import-geo/register`,
+    `import-ooh/arcgis`), les trois dépôts multipart (`import-poi/parse`,
+    `iris-crawler/manual-upload`, `radio/import-arcom-ods`), le pipeline POI
+    (`import-poi/dry-run`, `import-poi/execute`, `geocode/batch`),
+    `iris-crawler/manual-import`, `isochrone-battle/apply-battle`, les quatre
+    routes LLM (`chat`, `pilot`, `smart-prompt`, `agent/chat`), les deux routes
+    d'agent (`analyze-drift`, `apply-recommendation`) et
+    `digital/[campaignId]/ai-analysis`.
+  - **Reste UNE route** : `app/api/isochrone-battle/route.ts`, fichier **PROTÉGÉ**
+    par `CLAUDE.md`. Y toucher demande une demande explicite.
+  - `lireFormulaire` a été ajouté pour les dépôts multipart : il valide les champs
+    TEXTE par un schéma et rend le `FormData` pour les fichiers, dont la
+    validation (extension, taille) est propre à chaque route. `instanceof File`
+    remplace les casts `as File | null` : sur une valeur texte déposée sous
+    « file », ce cast mentait et `file.name.toLowerCase()` levait en 500.
+- **Huit défauts fermés au passage**, chacun commenté dans le code :
   - `admin/users` POST acceptait un rôle inconnu : le compte Auth était créé,
     puis l'échec de la mise à jour du profil était journalisé **sans être
     remonté** — l'appelant recevait un 201 pour un compte au rôle par défaut.
@@ -279,6 +290,25 @@ survient, quand le volume monte.
   - `admin/geocode/update` ne contraignait pas `action.type` : un type inconnu
     traversait les trois `else if`, le fichier était réécrit à l'identique et la
     route répondait `{ success: true }`.
+  - `import-poi/execute` ne vérifiait **que** `fileId`, là où `dry-run` vérifiait
+    aussi `geolocation.mode` : les deux étapes d'un même parcours divergeaient, et
+    une configuration sans `geolocation` levait plus loin, dans le flux, en 500.
+    Les deux partagent désormais `ConfigImportSchema` (`lib/import/schemas.ts`).
+  - `import-poi/parse`, `radio/import-arcom-ods` et `iris-crawler/manual-upload`
+    lisaient `formData.get('file') as File | null` — un cast qui ment sur une
+    valeur texte. Et les deux premières ne protégeaient pas `req.formData()`, qui
+    **lève** sur un corps non multipart : 500 pour une faute d'appelant.
+  - `geocode/batch`, `import-poi/dry-run` et `execute` se servent de `fileId` en
+    PRÉFIXE de filtre sur le répertoire temporaire
+    (`readdirSync(...).filter(f => f.startsWith(fileId))`). `fileId` est un
+    `randomUUID()` posé par `/parse` : l'exiger au format UUID empêche qu'une
+    valeur vide ou fantaisiste y sélectionne le premier fichier venu.
+  - `pilot` lisait `body.mode === 'autonome' ? 'autonome' : 'guide'` : tout mode
+    mal orthographié retombait **en silence** sur « guide ». On croyait piloter en
+    autonome, on pilotait en guidé.
+  - `import-ooh/arcgis` lisait `replace === true` : la chaîne « true » valait donc
+    FAUX. Un appelant qui croyait demander un remplacement complet obtenait un
+    ajout.
 - **Dédoublonnage induit** : la liste des rôles était écrite à quatre endroits,
   dont deux littéraux en dur. Source unique dans `lib/auth/roles.ts`.
 

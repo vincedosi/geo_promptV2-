@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { logger } from '@/lib/logger';
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { getDistinctCategories } from '@/lib/poi/categories';
@@ -22,6 +24,25 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Corps du copilote.
+ *
+ * `messages` est une union du SDK Vercel AI (`UIMessage`). La modeliser
+ * figerait les details internes du SDK dans notre code — le fichier porte deja
+ * un `@ts-expect-error` qui le dit. On garantit donc le TABLEAU NON VIDE, rien
+ * de plus : c'est ce qui manquait, un corps sans `messages` faisant lever
+ * `extractLastUserText` puis repondre 500.
+ *
+ * `provider` vient du type `Provider` de `lib/chat/providers.ts` : les deux
+ * seules valeurs que `createModel` sait instancier. Avant, un provider inconnu
+ * arrivait jusqu'a `createModel`.
+ */
+const ConversationSchema = z.object({
+  messages: z.array(z.unknown()).nonempty(),
+  forceRecalculate: z.boolean().default(false),
+  provider: z.enum(['mistral', 'gemini'] as const satisfies readonly Provider[]).default('gemini'),
+});
 
 const RL_MAX    = 12;
 const RL_WINDOW = '60 s' as const;
@@ -123,10 +144,15 @@ export async function POST(request: NextRequest) {
 
     logger.debug('CHAT', `pre-LLM ${Date.now() - t0} ms | session: ${session?.orgId ?? 'null'} ${session?.role ?? 'no-session'} | sources: ${orgSourceIds === null ? 'all' : orgSourceIds.length}`);
 
-    const body = await request.json() as {
-      messages: UIMessage[]; forceRecalculate?: boolean; provider?: Provider;
-    };
-    const { messages, forceRecalculate = false, provider = 'gemini' } = body;
+    const corps = await lireCorps(request, ConversationSchema);
+    if (!corps.ok) {
+      // Cette route n'importe pas `NextResponse` : elle rend des flux.
+      return Response.json({ error: corps.message }, { status: 400 });
+    }
+    // Voir le commentaire du schema : `messages` traverse tel quel, seule sa
+    // forme de tableau non vide est garantie.
+    const messages = corps.valeur.messages as UIMessage[];
+    const { forceRecalculate, provider } = corps.valeur;
 
     // Opt-in data.gouv MCP : activé uniquement si l'utilisateur mentionne des mots-clés
     const lastUserText   = extractLastUserText(messages);

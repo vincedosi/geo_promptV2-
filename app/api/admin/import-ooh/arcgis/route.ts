@@ -17,6 +17,8 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { checkImportRateLimit } from '@/lib/api/rate-limit';
 import { triggerFilled } from '@/lib/supabase/tables';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,6 +139,23 @@ function normalizeFeature(f: ArcGISFeature, source: string) {
   };
 }
 
+/**
+ * Parametres d'un import ArcGIS.
+ *
+ * `replace` etait lu par `body.replace === true` : une chaine « true » valait
+ * donc FAUX en silence. Elle produit desormais un 400 — un appelant qui croyait
+ * demander un remplacement complet doit l'apprendre, pas obtenir un ajout.
+ *
+ * L'URL reste validee par `validateArcgisUrl` apres coup : la whitelist SSRF
+ * fait un travail (resolution DNS, plages privees) qu'aucun schema ne peut faire.
+ */
+const ImportArcgisSchema = z.object({
+  source: z.string().trim().optional(),
+  arcgisUrl: z.string().trim().optional(),
+  label: z.string().trim().optional(),
+  replace: z.boolean().default(false),
+});
+
 // ─── Handler principal ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
@@ -150,20 +169,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let sourceKey: string;
-  let customUrl: string | undefined;
-  let customLabel: string | undefined;
+  const corps = await lireCorps(req, ImportArcgisSchema);
+  if (!corps.ok) return Response.json({ error: corps.message }, { status: 400 });
 
-  let replace = false;
-  try {
-    const body = await req.json();
-    sourceKey   = body.source?.trim() ?? 'custom';
-    customUrl   = body.arcgisUrl?.trim();
-    customLabel = body.label?.trim();
-    replace     = body.replace === true;
-  } catch {
-    return Response.json({ error: 'Corps JSON invalide' }, { status: 400 });
-  }
+  // `|| 'custom'` et non `??` : le schema laisse passer la chaine vide, que le
+  // code d'origine traitait comme « pas de source » via son `?.trim()`.
+  let sourceKey: string = corps.valeur.source || 'custom';
+  const customUrl: string | undefined = corps.valeur.arcgisUrl || undefined;
+  const customLabel: string | undefined = corps.valeur.label || undefined;
+  const replace: boolean = corps.valeur.replace;
 
   // ── Validation SSRF sur les URLs personnalisées ─────────────────────────────
   if (customUrl) {

@@ -5,6 +5,8 @@
  * Returns NDJSON streaming progress.
  */
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { lireFormulaire, fichierDeFormulaire } from '@/lib/api/valider-corps';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { ImportLogger } from '@/lib/radio/import-logger';
@@ -19,8 +21,13 @@ export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
 
-  const formData = await req.formData();
-  const file = formData.get('file') as File | null;
+  // `req.formData()` levait sur un corps qui n'est pas multipart : la route
+  // repondait 500 pour une faute d'appelant. Et `as File` mentait sur une valeur
+  // texte deposee sous « file ».
+  const depot = await lireFormulaire(req, z.object({}));
+  if (!depot.ok) return Response.json({ error: depot.message }, { status: 400 });
+
+  const file = fichierDeFormulaire(depot.formulaire, 'file');
   if (!file) {
     return Response.json({ error: 'Fichier .ods requis (champ "file")' }, { status: 400 });
   }

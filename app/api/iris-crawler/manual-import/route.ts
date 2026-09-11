@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 import { createAdminClient } from '@/lib/auth';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { splitRow, computeDerived } from '@/lib/iris-crawler/storage';
 import { classifyTarget } from '@/lib/iris-crawler/db-columns';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
@@ -9,6 +11,23 @@ import { resolveSafeJsonPath } from '@/lib/api/safe-path';
 import type { UploadSessionData } from '@/app/api/iris-crawler/manual-upload/route';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * `mapping` associe une colonne du CSV a une colonne de la table `iris`. Les
+ * clefs ne sont pas connues d'avance — les colonnes socio-demo d'`iris` sont
+ * DYNAMIQUES (CLAUDE.md) — mais les valeurs sont toujours des noms de colonnes.
+ * Le `.nonempty()` remplace le `Object.keys(mapping).length === 0`.
+ *
+ * `sessionId` n'est pas contraint a un UUID ici : `resolveSafeJsonPath` en exige
+ * deja un juste apres, et c'est lui qui previent la traversee de chemin.
+ */
+const ImportManuelSchema = z.object({
+  sessionId: z.string().min(1),
+  irisKeyCol: z.string().min(1),
+  mapping: z.record(z.string()).refine((m) => Object.keys(m).length > 0, {
+    message: 'au moins une colonne a importer',
+  }),
+});
 
 const UPLOAD_DIR = path.join(process.cwd(), 'data', 'iris-uploads');
 const BATCH_SIZE = 500;
@@ -51,19 +70,13 @@ export async function POST(req: NextRequest) {
       const adminClient = createAdminClient();
 
       try {
-        const body = await req.json() as {
-          sessionId?: string;
-          irisKeyCol?: string;
-          mapping?: Record<string, string>;
-        };
-
-        const { sessionId, irisKeyCol, mapping } = body;
-
-        if (!sessionId || !irisKeyCol || !mapping || Object.keys(mapping).length === 0) {
-          send('error', 'sessionId, irisKeyCol et mapping requis');
+        const corps = await lireCorps(req, ImportManuelSchema);
+        if (!corps.ok) {
+          send('error', corps.message);
           controller.close();
           return;
         }
+        const { sessionId, irisKeyCol, mapping } = corps.valeur;
 
         // sessionId DOIT être un UUID (prévient le path traversal)
         const sessionPath = resolveSafeJsonPath(UPLOAD_DIR, sessionId);

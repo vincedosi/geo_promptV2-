@@ -5,6 +5,8 @@
  * Returns detailed geocode results with scores + status for review.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
@@ -16,6 +18,24 @@ import type { GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * `fileId` est un `randomUUID()` pose par `/import-poi/parse`. L'exiger au
+ * format UUID n'est pas cosmetique : la route s'en sert en PREFIXE de filtre sur
+ * le repertoire temporaire (`readdirSync(...).filter(f => f.startsWith(fileId))`),
+ * ou une valeur fantaisiste selectionnerait le premier fichier venu.
+ *
+ * La regle « au moins une colonne » etait un `if` : elle devient un `refine`,
+ * avec le meme message — c'est lui que l'ecran d'import affiche.
+ */
+const GeocodageLotSchema = z.object({
+  fileId: z.string().uuid(),
+  colAdresse: z.string().optional(),
+  colCodePostal: z.string().optional(),
+  colVille: z.string().optional(),
+}).refine((c) => Boolean(c.colAdresse || c.colVille), {
+  message: 'Au moins une colonne adresse ou ville est requise',
+});
 
 const TEMP_DIR = path.join(os.tmpdir(), 'genesis-import');
 const GEOCODE_DIR = path.join(os.tmpdir(), 'genesis-geocode');
@@ -30,24 +50,9 @@ export async function POST(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   try {
-    const body = await request.json();
-    const { fileId, colAdresse, colCodePostal, colVille } = body as {
-      fileId: string;
-      colAdresse?: string;
-      colCodePostal?: string;
-      colVille?: string;
-    };
-
-    if (!fileId) {
-      return NextResponse.json({ success: false, error: 'fileId manquant' }, { status: 400 });
-    }
-
-    if (!colAdresse && !colVille) {
-      return NextResponse.json(
-        { success: false, error: 'Au moins une colonne adresse ou ville est requise' },
-        { status: 400 }
-      );
-    }
+    const corps = await lireCorps(request, GeocodageLotSchema);
+    if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+    const { fileId, colAdresse, colCodePostal, colVille } = corps.valeur;
 
     // Find temp file
     const tempFiles = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(fileId));

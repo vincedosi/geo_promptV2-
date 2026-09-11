@@ -3,6 +3,8 @@
  * Full import with Server-Sent Events (SSE) progress
  */
 import { NextRequest } from 'next/server';
+import { lireCorps } from '@/lib/api/valider-corps';
+import { ConfigImportSchema } from '@/lib/import/schemas';
 import { logger } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
@@ -11,7 +13,7 @@ import { parseFile } from '@/lib/import/file-parser';
 import { processRows } from '@/lib/import/validator';
 import { insertRows, closeConnection } from '@/lib/import/inserter';
 import { createAdminClient } from '@/lib/auth';
-import type { ImportConfig, GeocodeDetailedResult } from '@/lib/import/types';
+import type { GeocodeDetailedResult } from '@/lib/import/types';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { invalidateCategoriesCache } from '@/lib/poi/categories';
 import { resolveSafeJsonPath } from '@/lib/api/safe-path';
@@ -35,14 +37,17 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        const config: ImportConfig & { geocodeId?: string } = await request.json();
-
-        // Validate
-        if (!config.fileId) {
-          send({ type: 'error', message: 'fileId manquant' });
+        // Le meme schema que `dry-run` : c'est le meme corps, et les deux
+        // etapes d'un meme parcours ne doivent pas diverger. `execute` ne
+        // verifiait RIEN au-dela de `fileId` — une configuration sans
+        // `geolocation` levait plus loin, dans le flux, en 500.
+        const corps = await lireCorps(request, ConfigImportSchema);
+        if (!corps.ok) {
+          send({ type: 'error', message: corps.message });
           controller.close();
           return;
         }
+        const config = corps.valeur;
 
         // Find temp file
         const tempFiles = fs.readdirSync(TEMP_DIR).filter((f) => f.startsWith(config.fileId));

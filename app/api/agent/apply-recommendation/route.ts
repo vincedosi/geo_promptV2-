@@ -6,6 +6,8 @@
  * le résultat dans bidding_agent_actions.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { applyAction } from '@/lib/agent/autonomy';
@@ -14,27 +16,25 @@ import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Les trois champs etaient verifies a la main, `action_index` par un
+ * `typeof … === 'number'` qui laissait passer les flottants et les negatifs.
+ * `audit_id` adresse `bidding_agent_actions.id`, une colonne `uuid` : une valeur
+ * qui n'en est pas produisait un 404 « audit row introuvable » trompeur.
+ */
+const AppliquerRecommandationSchema = z.object({
+  audit_id: z.string().uuid(),
+  action_index: z.number().int().nonnegative(),
+  decision: z.enum(['approve', 'reject']),
+});
+
 export async function POST(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
-  let body: { audit_id?: string; action_index?: number; decision?: 'approve' | 'reject' };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 });
-  }
-
-  const { audit_id, action_index, decision } = body;
-  if (!audit_id || typeof action_index !== 'number' || !decision) {
-    return NextResponse.json(
-      { error: 'Champs requis : audit_id, action_index, decision' },
-      { status: 400 },
-    );
-  }
-  if (decision !== 'approve' && decision !== 'reject') {
-    return NextResponse.json({ error: `decision doit être 'approve' ou 'reject'` }, { status: 400 });
-  }
+  const corps = await lireCorps(request, AppliquerRecommandationSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { audit_id, action_index, decision } = corps.valeur;
 
   const supabase = createAdminClient();
   const { data: audit, error: aErr } = await supabase

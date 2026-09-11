@@ -41,7 +41,7 @@ Documentation et audit : `a800ff8`, `127ba69`, `c818505`.
 |---|---|---|
 | Erreurs `tsc` | 0 | **0** |
 | Warnings lint | 0 | **0** |
-| Tests | 483 | **534** (+51) |
+| Tests | 483 | **557** (+74) |
 | Fichiers de tests | 64 | 70 |
 | Taille max de fichier | 1 118 l. (`useMapLayers.ts`) | 1 118 l. — non traité, délibérément |
 | Appels externes sans délai d'expiration | **14** | **0** |
@@ -169,7 +169,7 @@ tests de chaîne échouent ; avec l'ancien comptage, les deux tests de compteur
 | Lot | Raison |
 |---|---|
 | Découpage de `useMapLayers.ts` (1 118 l.) et des 25 fichiers de 500-1500 l. | **Écarté volontairement.** Gros diff, valeur nulle : l'audit montre que la dette n'est pas de forme |
-| Validation Zod sur les 20 routes restantes (`SEC-001`) | **20 des 40 sont faites** (tranches 1 à 3, voir `docs/AUDIT.md#sec-001`). Les 20 restantes portent des dépôts de fichiers, des historiques de conversation et des géométries : chacune demande de lire ce qu'elle tolère avant d'écrire son schéma. Cliquet installé : `tests/unit/api/validation-corps.test.ts` |
+| ~~Validation Zod (`SEC-001`)~~ — **traité le 2026-09-11** | **39 des 40 routes** validées en quatre tranches (voir `docs/AUDIT.md#sec-001`). La dernière est `isochrone-battle/route.ts`, fichier protégé par `CLAUDE.md`. Huit défauts fermés au passage. Cliquet : `tests/unit/api/validation-corps.test.ts` |
 | Unification de `fmtNum` (`DUP-001`) | « 1.2M » sur un écran, « 1,2M » sur un autre. Unifier change l'affichage — arbitrage |
 | `DROP` de 4 tables et ~55 fonctions | Destructif, demande une validation objet par objet |
 | Cycles d'import dans `lib/` (`ARC-002`) | 8 des 10 passent par des `import()` dynamiques : aucun crash, coût de compréhension seulement |

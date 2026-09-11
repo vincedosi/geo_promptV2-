@@ -4,6 +4,8 @@
  * Supporte formats simples (CSV/XLSX/GeoJSON) ET bundles (Shapefile)
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireFormulaire, fichierDeFormulaire, fichiersDeFormulaire } from '@/lib/api/valider-corps';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -65,9 +67,15 @@ export async function POST(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   try {
-    const formData = await request.formData();
-    const fileArray = formData.getAll('files') as File[];
-    const legacyFile = formData.get('file') as File | null;
+    // Aucun champ texte a valider ici : ce formulaire ne transporte que des
+    // fichiers. Ce que le helper apporte, c'est `instanceof File` au lieu des
+    // deux casts `as File` d'avant — une valeur TEXTE deposee sous « files »
+    // passait pour un fichier, et `file.name.toLowerCase()` levait en 500.
+    const depot = await lireFormulaire(request, z.object({}));
+    if (!depot.ok) return NextResponse.json({ success: false, error: depot.message }, { status: 400 });
+
+    const fileArray = fichiersDeFormulaire(depot.formulaire, 'files');
+    const legacyFile = fichierDeFormulaire(depot.formulaire, 'file');
 
     // Support both new multi-file and legacy single-file uploads
     const files = fileArray.length > 0 ? fileArray : legacyFile ? [legacyFile] : [];

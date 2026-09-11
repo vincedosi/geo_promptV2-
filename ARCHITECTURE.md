@@ -143,7 +143,8 @@ genesis_app/
 │   ├── admin-fetch.ts          # adminFetch() — wrapper fetch avec token admin
 │   ├── version.ts              # APP_VERSION
 │   ├── api/                    # Middleware API (requireAdmin, requireAuth) + rate-limit.ts (Upstash ou memoire)
-│   │                           # + valider-corps.ts : lireCorps(request, schema) — lecture validee
+│   │                           # + valider-corps.ts : lireCorps (JSON) / lireFormulaire (multipart)
+│   │                           #   + fichierDeFormulaire / fichiersDeFormulaire — lecture validee
 │   │                           #   du corps, ne leve jamais, messages en francais (SEC-001)
 │   ├── auth/                   # getSessionOrg, getOrgSourceIds, roles.ts (source unique des roles + schemas Zod)
 │   ├── campaigns/              # column-mappings.ts, parser.ts
@@ -162,7 +163,8 @@ genesis_app/
 │   ├── http/                   # fetch-avec-delai.ts — tout appel sortant vers un tiers
 │   │                           # DOIT passer par la : delai d'expiration, PAS de reprise
 │   │                           # (la plupart de ces appels ne sont pas idempotents)
-│   ├── import/                 # Pipeline d'import universel
+│   ├── import/                 # Pipeline d'import universel (+ identite-poi.ts : id deterministe,
+│   │                           #   schemas.ts : ConfigImportSchema partage par dry-run et execute)
 │   ├── inngest/                # Jobs async (colonnes derivees)
 │   ├── iris-crawler/           # Crawler INSEE IRIS
 │   ├── isochrones/             # fetcher.ts — ORS batch 5 POIs/appel

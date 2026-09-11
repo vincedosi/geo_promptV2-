@@ -4,6 +4,8 @@
  * Body: { indicator, medias[], kpi, breakdown, heatmap_summary }
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { createAdminClient } from '@/lib/auth';
@@ -12,6 +14,37 @@ import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse, getClientKey } from '@/lib/api/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Contexte d'analyse fourni par l'ecran, pour construire le prompt Gemini.
+ *
+ * Volontairement permissif : ces valeurs ne partent pas en base, elles sont
+ * interpolees dans un texte. `kpi` et les lignes de `breakdown` gardent donc des
+ * champs libres — l'ecran en ajoute au fil des versions, et les refuser casserait
+ * l'analyse sans rien proteger. Ce qui est verifie, c'est qu'il s'agit bien
+ * d'objets et de tableaux : `breakdownRows.filter(r => r.ecart > 0)` sur autre
+ * chose qu'un tableau levait.
+ */
+/**
+ * Une ligne du tableau de repartition, telle que l'ecran la construit
+ * (`BreakdownRow` dans `AnalysisPanel.tsx`). Les quatre champs lus par le
+ * constructeur de prompt sont exiges ; `.passthrough()` laisse passer les
+ * autres (`code`, `impressions`, `pop_value`) sans les retrancher.
+ */
+const LigneBreakdownSchema = z.object({
+  nom: z.string(),
+  ecart: z.number(),
+  pct_imp: z.number(),
+  pct_pop: z.number(),
+}).passthrough();
+
+const AnalyseIaSchema = z.object({
+  indicator: z.string().optional(),
+  medias: z.array(z.string()).optional(),
+  kpi: z.record(z.unknown()).default({}),
+  breakdown: z.array(LigneBreakdownSchema).default([]),
+  heatmap_summary: z.string().optional(),
+});
 
 const limiter = createRateLimiter({ max: 3, window: '60 s', prefix: 'geo:rl:dig-ai' });
 
@@ -26,8 +59,9 @@ export async function POST(
   if (!ok) return rateLimitResponse(retrySec);
 
   const { campaignId } = await params;
-  const body = await request.json();
-  const { indicator, medias, kpi, breakdown, heatmap_summary } = body;
+  const corps = await lireCorps(request, AnalyseIaSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { indicator, medias, kpi, breakdown, heatmap_summary } = corps.valeur;
 
   const supabase = createAdminClient();
 

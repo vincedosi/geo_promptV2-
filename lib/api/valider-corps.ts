@@ -151,3 +151,64 @@ export async function lireCorps<S extends z.ZodTypeAny>(
 
   return { ok: true, valeur: analyse.data };
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Formulaires multipart (dépôts de fichiers)
+// ════════════════════════════════════════════════════════════════════════════
+
+export type ResultatFormulaire<S extends z.ZodTypeAny> =
+  | { ok: true; champs: z.infer<S>; formulaire: FormData }
+  | { ok: false; message: string };
+
+/**
+ * Lit et valide les champs TEXTE d'un formulaire multipart.
+ *
+ * Les fichiers ne passent pas par le schéma : leur validation porte sur le nom,
+ * l'extension et la taille, et chaque route a ses propres limites. On rend donc
+ * le `FormData` en plus des champs validés, et les fichiers se récupèrent avec
+ * `fichierDeFormulaire` / `fichiersDeFormulaire`.
+ *
+ * Comme `lireCorps`, ne lève jamais : un corps qui n'est pas un formulaire
+ * multipart devient `{ ok: false }`.
+ */
+export async function lireFormulaire<S extends z.ZodTypeAny>(
+  request: Request,
+  schema: S,
+): Promise<ResultatFormulaire<S>> {
+  let formulaire: FormData;
+  try {
+    formulaire = await request.formData();
+  } catch {
+    return { ok: false, message: 'Corps de requête invalide (FormData attendu)' };
+  }
+
+  // Seules les entrées texte sont soumises au schéma : une entrée fichier
+  // portant le nom d'un champ texte ne doit pas être interprétée comme sa valeur.
+  const champs: Record<string, string> = {};
+  for (const [clef, valeur] of formulaire.entries()) {
+    if (typeof valeur === 'string') champs[clef] = valeur;
+  }
+
+  const analyse = schema.safeParse(champs);
+  if (!analyse.success) return { ok: false, message: messageAnomalies(analyse.error) };
+
+  return { ok: true, champs: analyse.data, formulaire };
+}
+
+/**
+ * Un fichier du formulaire, ou `null`.
+ *
+ * `instanceof File` et non `as File` : les routes écrivaient
+ * `formData.get('file') as File | null`, un cast qui MENT quand le client envoie
+ * une valeur texte sous ce nom. On lisait alors `file.name` sur une chaîne —
+ * `undefined.toLowerCase()` plus loin, donc un 500 pour une requête malformée.
+ */
+export function fichierDeFormulaire(formulaire: FormData, nom: string): File | null {
+  const valeur = formulaire.get(nom);
+  return valeur instanceof File ? valeur : null;
+}
+
+/** Tous les fichiers déposés sous ce nom. Les entrées non-fichier sont écartées. */
+export function fichiersDeFormulaire(formulaire: FormData, nom: string): File[] {
+  return formulaire.getAll(nom).filter((v): v is File => v instanceof File);
+}

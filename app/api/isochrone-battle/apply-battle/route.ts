@@ -12,21 +12,41 @@
  */
 
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 import { createAdminClient } from '@/lib/auth';
+import { toJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
 export const maxDuration = 60;
 
-export async function POST(req: NextRequest) {
-  let body: { rings: { cirfa_id: string; nom: string; lat: number; lng: number; palier: number; geojson: string }[] };
-  try { body = await req.json(); }
-  catch { return new Response(JSON.stringify({ error: 'JSON invalide' }), { status: 400 }); }
+/**
+ * Les anneaux partent TELS QUELS vers `get_isochrone_battle`, une fonction
+ * PostGIS protegee par CLAUDE.md. D'ou le `.passthrough()` : Zod retire par
+ * defaut les clefs inconnues, et les retirer ici changerait la charge utile
+ * recue par la RPC. On verifie la presence et le type des six champs connus,
+ * on ne retranche rien.
+ */
+const AnneauSchema = z.object({
+  cirfa_id: z.string(),
+  nom: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  palier: z.number(),
+  geojson: z.string(),
+}).passthrough();
 
-  const { rings } = body;
-  if (!Array.isArray(rings) || rings.length === 0) {
-    return new Response(JSON.stringify({ error: 'rings[] requis' }), { status: 400 });
+const AppliquerBatailleSchema = z.object({
+  rings: z.array(AnneauSchema).nonempty(),
+});
+
+export async function POST(req: NextRequest) {
+  const corps = await lireCorps(req, AppliquerBatailleSchema);
+  if (!corps.ok) {
+    return new Response(JSON.stringify({ error: corps.message }), { status: 400 });
   }
+  const { rings } = corps.valeur;
 
   const encoder = new TextEncoder();
   const stream  = new ReadableStream({
@@ -45,7 +65,11 @@ export async function POST(req: NextRequest) {
 
         const { data: battleRows, error: rpcErr } = await supabase.rpc(
           'get_isochrone_battle',
-          { p_rings: rings }
+          // `toJson` est le helper documente pour passer un objet applicatif en
+          // argument `jsonb` d'une RPC (ARCHITECTURE.md). Le `.passthrough()` du
+          // schema ajoute un index `unknown` que `Json` n'accepte pas : la
+          // charge utile est inchangee, seul son type l'est.
+          { p_rings: toJson(rings) }
         );
 
         if (rpcErr) {

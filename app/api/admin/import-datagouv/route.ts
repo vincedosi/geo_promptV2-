@@ -17,6 +17,20 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import { triggerFilled } from '@/lib/supabase/tables';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { identitePoi } from '@/lib/import/identite-poi';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/**
+ * La normalisation de `categorie` (minuscules, espaces en underscores) est
+ * portee par le schema plutot que par la route : elle fait partie de ce qu'on
+ * accepte, pas de ce qu'on calcule ensuite. L'URL reste validee contre la
+ * whitelist SSRF apres coup — `validateGeojsonUrl` fait un travail qu'aucun
+ * schema ne peut faire (resolution DNS, plages privees).
+ */
+const ImportDatagouvSchema = z.object({
+  geojsonUrl: z.string().trim().min(1),
+  categorie: z.string().trim().min(1).transform((c) => c.toLowerCase().replace(/\s+/g, '_')),
+});
 
 /** Valeur de `poi_france.source` pour ce chemin d'import. Elle entre dans
  *  l'identite : la changer reattribuerait tous les identifiants. */
@@ -156,20 +170,9 @@ export async function POST(req: NextRequest) {
   const profile = await requireAdmin(req);
   if (!profile) return adminUnauthorized();
 
-  let geojsonUrl: string;
-  let categorie: string;
-
-  try {
-    const body = await req.json();
-    geojsonUrl = body.geojsonUrl?.trim();
-    categorie = body.categorie?.trim().toLowerCase().replace(/\s+/g, '_');
-  } catch {
-    return Response.json({ error: 'Corps JSON invalide' }, { status: 400 });
-  }
-
-  if (!geojsonUrl || !categorie) {
-    return Response.json({ error: 'geojsonUrl et categorie sont requis' }, { status: 400 });
-  }
+  const corps = await lireCorps(req, ImportDatagouvSchema);
+  if (!corps.ok) return Response.json({ error: corps.message }, { status: 400 });
+  const { geojsonUrl, categorie } = corps.valeur;
 
   // Validation URL : prévenir les SSRF (Server-Side Request Forgery)
   const initialCheck = validateGeojsonUrl(geojsonUrl);
