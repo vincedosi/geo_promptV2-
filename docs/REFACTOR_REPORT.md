@@ -71,7 +71,7 @@ C'est la partie la plus utile de ce rapport. **Quatre constats sur vingt-deux
 | Localisation | Description | Gravité |
 |---|---|---|
 | `app/api/admin/sources/[id]/route.ts:148` | Le `DROP TABLE` échoue, la suppression de la source se poursuit, la réponse dit `success: true`. Le lot 4 a rendu l'échec visible dans le journal ; **faire échouer la suppression serait un changement de comportement** | haute |
-| `app/api/admin/init-admin/route.ts` | La route qui crée le **premier** administrateur exige déjà une session valide. Amorçage impossible sur une installation neuve | moyenne |
+| `app/api/admin/init-admin/route.ts` + `app/init/page.tsx` | La route qui crée le **premier** administrateur est bloquée **deux fois** : le middleware exige une session (`/api/admin` est protégé par `startsWith`), et la page `/init` n'envoie jamais l'en-tête `x-admin-key`. Vérifié le 2026-09-11. Le second blocage n'a pas de correctif simple — `ADMIN_INIT_KEY` est un secret serveur qu'une page de navigateur ne peut pas porter. Corriger le premier impose de toucher `middleware.ts`, **fichier protégé** : demande l'accord de Vincent | moyenne |
 
 ## Bugs corrigés en cours de route, avec changement de comportement assumé
 

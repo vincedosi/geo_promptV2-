@@ -399,13 +399,33 @@ survient, quand le volume monte.
 - **Gravité** : moyenne → **basse** (wart de modélisation, pas un défaut)
 - **Effort** : S
 
-### ARC-003 [Architecture] `init-admin` est inatteignable
-- **Localisation** : `app/api/admin/init-admin/route.ts:13-15`
-- **Constat** : la route qui crée le **premier** administrateur porte son propre
-  garde (`x-admin-key`), mais son chemin est sous `/api/admin`, donc le
-  middleware exige déjà une session valide.
-- **Impact** : il faut être connecté pour créer le premier compte. Amorçage
-  impossible sur une installation neuve.
+### ARC-003 [Architecture] `init-admin` est inatteignable — **CONFIRMÉ, et pire que décrit**
+- **Localisation** : `app/api/admin/init-admin/route.ts:13-15`, `app/init/page.tsx:17-22`,
+  `middleware.ts:23` + `:144`
+- **Constat vérifié le 2026-09-11** : la route qui crée le **premier**
+  administrateur est bloquée par **deux** gardes indépendants, et aucun chemin
+  ne les franchit.
+  1. `'/api/admin'` figure dans `PROTECTED_API_PREFIXES` (`middleware.ts:23`) et
+     `'/api/admin/:path*'` dans le `matcher` (`:144`). `isProtectedApi` compare
+     par `startsWith` : `/api/admin/init-admin` est donc protégé. **Il faut une
+     session valide pour créer le premier compte** — or il n'y a personne.
+  2. La page qui l'appelle, `/init`, **n'envoie jamais l'en-tête `x-admin-key`**
+     (`page.tsx:17-22` : un `POST` avec `Content-Type` pour seul en-tête). Même
+     avec une session, la route répondrait 401 sur son propre garde.
+- **Le second blocage n'a pas de correctif simple** : `ADMIN_INIT_KEY` est un
+  secret serveur. Une page de navigateur ne peut pas le porter sans le divulguer.
+  L'écran `/init` est donc une impasse par construction, pas par oubli — il est
+  d'ailleurs publiquement atteignable (`/init` n'est dans aucun matcher) et
+  affiche un formulaire qui répond toujours 401.
+- **Impact** : amorçage impossible sur une installation neuve. **Aucun impact
+  aujourd'hui** : la base a des comptes, le chemin n'est pas emprunté.
+- **Pourquoi ce n'est PAS corrigé ici** : le premier blocage exige de modifier
+  `middleware.ts`, **fichier protégé** par `CLAUDE.md`. Et décider du chemin
+  d'amorçage — `curl` avec l'en-tête, script de déploiement, ou retrait de
+  l'écran `/init` — est un choix produit, pas un correctif technique.
+- **Ce qu'il faudrait** : exclure `/api/admin/init-admin` des deux listes de
+  `middleware.ts`, et remplacer `/init` par une procédure documentée
+  (`curl -H 'x-admin-key: …'`), ou supprimer l'écran.
 - **Gravité** : moyenne
 - **Effort** : S
 
