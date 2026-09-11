@@ -56,7 +56,7 @@ export async function GET(
     return new NextResponse('Invalid tile coordinates', { status: 400 });
   }
 
-  // Borne basse alignee sur la cascade de get_tile (sql/128), qui sert le palier
+  // Borne basse alignee sur la cascade de get_tile (sql/129), qui sert le palier
   // 20 km jusqu'a z4. Elle valait 6 : les tuiles des bas zooms etaient refusees
   // en 204 cote serveur, en plus du minzoom 6 cote MapLibre — le verrou etait a
   // trois endroits (source, couche, route).

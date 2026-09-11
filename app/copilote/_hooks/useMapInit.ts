@@ -151,10 +151,11 @@ export function useMapInit(
     const updateZoomBadge = () => {
       const z = map.getZoom();
       const zInt = Math.floor(z);
-      // Miroir exact de la cascade de get_tile (sql/128) et du minzoom de la
+      // Miroir exact de la cascade de get_tile (sql/129) et du minzoom de la
       // couche : le tiret ne reste que sous z4, ou aucune tuile n'est servie.
       const tier =
-        zInt >= 9 ? '200m' : zInt >= 8 ? '2km' : zInt >= 7 ? '5km' : zInt >= 4 ? '20km' : '—';
+        zInt >= 12 ? '200m' : zInt >= 9 ? '1km' : zInt >= 8 ? '2km'
+          : zInt >= 7 ? '5km' : zInt >= 4 ? '20km' : '—';
       zoomBadge.textContent = `z${zInt}  ${tier}`;
     };
     updateZoomBadge();
@@ -744,22 +745,22 @@ export function useMapInit(
       });
 
       // ── Carreaux MVT (Filosofi) ─────────────────────────────────────────────
-      // Cascade servie par get_tile (sql/128) :
-      //   z <= 6  → carreaux_20km (vue materialisee sql/124)
-      //   z 7     → carreaux_5km
-      //   z 8     → carreaux_2km
-      //   z >= 9  → carreaux_filosofi 200m
+      // Cascade servie par get_tile (sql/129) :
+      //   z <= 6   → carreaux_20km (vue materialisee sql/124)
+      //   z 7      → carreaux_5km
+      //   z 8      → carreaux_2km
+      //   z 9-11   → carreaux_1km   (sql/129, 374 511 mailles, 151 Mo)
+      //   z >= 12  → carreaux_filosofi 200m
       //
-      // Le seuil du 200 m a z9 est un CHOIX PRODUIT (Vincent, 11/09) : la
-      // finesse prime sur le temps d'affichage. A z9 une maille de 200 m fait
-      // 0,9 px, donc la carte s'y lit comme un degrade continu plutot que
-      // comme des carreaux distincts — c'est l'effet recherche.
+      // Le palier 1 km existe pour z9 : servir du 200 m a ce niveau coutait
+      // 23 a 28 s a froid pour 82 000 carreaux larges de 0,9 px. Sous 10 px on
+      // ne distingue plus les carreaux les uns des autres — 1 km (4,7 px) et
+      // 200 m (0,9 px) se lisent tous deux comme un degrade continu, mais le
+      // premier coute 25 fois moins.
       //
-      // Contrepartie a connaitre avant de toucher a ces seuils : une tuile z9
-      // porte environ 45 000 carreaux et lit ~85 Mo sur une table de 4,6 Go
-      // dont le jsonb `metadata` pese 806 o/ligne. Sur Nano (5 Mo/s) c'est un
-      // plancher que nulle reecriture de requete ne franchit. Le correctif est
-      // une table 200 m a colonnes typees (~330 o/ligne).
+      // Ne pas descendre le seuil du 200 m sous z12 sans avoir d'abord donne a
+      // carreaux_filosofi des colonnes typees : ses 4,6 Go et son jsonb de
+      // 806 o/ligne imposent un plancher d'I/O que nulle requete ne franchit.
       //
       // minzoom 4 et non 6 : en dessous de son minzoom, MapLibre ne DEMANDE
       // pas les tuiles — les carreaux etaient donc invisibles avant z6, quoi

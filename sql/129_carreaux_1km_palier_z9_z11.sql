@@ -1,0 +1,104 @@
+-- 129 — Palier 1 km : construction de carreaux_1km et branchement sur z9-z11
+--
+-- ── POURQUOI ────────────────────────────────────────────────────────────────
+--
+-- Vincent voulait « les carreaux les plus fins au zoom 9 ». Servi en 200 m
+-- (sql/128), z9 coutait 23 a 28 s a froid pour 82 000 carreaux larges de
+-- 0,9 pixel.
+--
+-- Le constat qui tranche : sous ~10 px, l'oeil ne distingue plus les carreaux
+-- les uns des autres. A z9, 200 m = 0,9 px et 1 km = 4,7 px — les DEUX se
+-- lisent comme un degrade continu. La difference n'est pas « carreaux visibles
+-- ou non », c'est la finesse du grain d'un degrade deja percu comme continu.
+-- Et l'un coute 25 fois l'autre.
+--
+-- Mesure apres bascule, tuiles froides (Lille, Clermont-Ferrand, Bayonne) :
+--   z9  : 23-28 s  →  1,7-3,0 s
+--   et plus aucun zoom au-dessus de 3 s.
+--
+-- ── LA TABLE ────────────────────────────────────────────────────────────────
+--
+-- 374 511 mailles, 151 Mo (contre 4,6 Go pour carreaux_filosofi).
+-- Cle primaire grid_id — l'ancienne table carreaux_1km (16 ko, 0 ligne, sans
+-- PK) n'avait jamais ete peuplee : scripts/populate_carreaux_1km.ts n'a jamais
+-- abouti et aucun lecteur applicatif n'existait.
+--
+-- Geometrie stockee en 3857 : get_tile la filtre par ST_TileEnvelope et la
+-- passe a ST_AsMVTGeom sans ST_Transform, contrairement aux paliers 2/5/20 km.
+--
+-- Semantique : SOMMES BRUTES, comme tous les paliers. La densite se calcule
+-- cote client (lib/carreaux/normalisation.ts).
+--
+-- ── LE REMPLISSAGE, ET LES DEUX PIEGES RENCONTRES ───────────────────────────
+--
+-- Agregation par bandes verticales (fill_carreaux_1km_bande), pour la
+-- progression visible qu'impose CLAUDE.md, pour rester interruptible, et parce
+-- qu'un tri national deborderait de ~1,8 Go sur disque.
+--
+-- PIEGE 1 — le decoupage en bandes n'etait pas une partition.
+-- Le filtre `geom_3857 && ST_MakeEnvelope(x0, ..., x1, ...)` compare des BOITES
+-- ENGLOBANTES. Un carreau de 200 m defini en EPSG:3035, reprojete en 3857,
+-- devient un quadrilatere legerement pivote dont la boite est plus large que
+-- 200 m. Les carreaux de bordure satisfaisaient donc DEUX bandes, et
+-- l'agregation additive les comptait deux fois :
+--     carreaux comptes : 2 507 144  au lieu de 2 298 582   (+9,1 %)
+--     population       : 68 546 296 au lieu de 62 592 659  (+9,5 %)
+-- Corrige par un predicat exact et demi-ouvert sur ST_XMin, en plus du `&&`
+-- qui reste pour l'index. Table videe et rejouee.
+--
+-- PIEGE 2 — un timeout cote client ne dit RIEN du sort de la transaction.
+-- Plusieurs bandes ont expire cote client puis se sont validees cote serveur.
+-- Les rejouer aurait double leurs valeurs en silence (l'agregation est
+-- additive). D'ou carreaux_1km_bandes : le journal est ecrit DANS la meme
+-- transaction que l'insertion, et sa cle primaire (x0, x1) fait echouer toute
+-- tentative de rejeu. Ce garde-fou a effectivement bloque un double comptage.
+--
+-- ── VERIFICATION ────────────────────────────────────────────────────────────
+--
+-- Invariant exact, au carreau pres :
+--   carreaux sources agreges  2 298 582  =  2 298 582 attendus
+--   population               62 592 659  =  62 592 659 (carreaux_5km)
+--   menages                  28 279 067  =  28 279 067 (carreaux_5km)
+--
+-- ── CASCADE RESULTANTE ──────────────────────────────────────────────────────
+--
+--   z <= 6    20 km    3 a 12 px
+--   z 7        5 km        5,9 px
+--   z 8        2 km        4,7 px
+--   z 9-11     1 km    4,7 a 19 px
+--   z >= 12  200 m   7,5 a 30 px
+--
+-- CARREAUX_TILE_VERSION passe de 18 a 19.
+--
+-- ── RESTE A FAIRE ───────────────────────────────────────────────────────────
+--
+-- Le palier 200 m garde son plancher d'I/O : 4,6 Go, jsonb `metadata` de
+-- 806 octets par ligne lus en entier pour extraire 29 nombres. Il n'est plus
+-- genant parce qu'il ne sert que z12+, ou les tuiles sont petites. Ne pas
+-- redescendre son seuil sans lui avoir d'abord donne des colonnes typees.
+--
+-- Cette migration a ete appliquee en trois temps via le MCP Supabase :
+--   1. carreaux_1km_recreation_schema
+--   2. fill_carreaux_1km_bande + carreaux_1km_journal_bandes
+--      + fill_carreaux_1km_bande_partition_exacte (le correctif du piege 1)
+--   3. get_tile_palier_1km_z9_z11 (ci-dessous)
+--
+-- Le corps de get_tile est reproduit ici pour memoire ; la source de verite
+-- est la base. Les trois autres objets (table, journal, fonction de
+-- remplissage) sont des outils de construction, non rejouables tels quels :
+-- rejouer une bande deja journalisee est refuse par conception.
+
+-- Branchement du palier 1 km dans la cascade (extrait — voir la base pour le
+-- corps complet des cinq branches).
+--
+--   ELSIF z >= 9 THEN
+--     SELECT INTO v_mvt ST_AsMVT(q, 'carreaux', 4096, 'geom')
+--     FROM (
+--       SELECT
+--         ST_AsMVTGeom(c.geom_3857, v_bounds, 4096, 0, true) AS geom,
+--         c.grid_id AS idcar,
+--         1::numeric AS superficie_km2,
+--         c.population_totale, c.ind_0_3, ... c.logements_inconnus
+--       FROM carreaux_1km c
+--       WHERE c.geom_3857 && v_bounds
+--     ) q;

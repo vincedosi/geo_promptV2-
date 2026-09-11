@@ -38,4 +38,6 @@ export const IRIS_PMTILES_URL = '/iris_france.pmtiles';
 //       maille : toute tuile en cache est perimee.
 // v18 — 2026-09-11 : le palier 200 m demarre a z9 (sql/128), choix produit.
 //       Mêmes coordonnées de tuile, autre maille : tout cache est périmé.
-export const CARREAUX_TILE_VERSION = 18;
+// v19 — 2026-09-11 : palier 1 km branche sur z9-z11 (sql/129). Les memes
+//       coordonnees de tuile servent une autre maille : tout cache est perime.
+export const CARREAUX_TILE_VERSION = 19;
