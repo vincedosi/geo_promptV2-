@@ -368,6 +368,17 @@ survient, quand le volume monte.
   séquentielles par import.
 - **Gravité** : moyenne
 - **Effort** : M
+- **Corrigé le 2026-09-11.** Mesuré en base : 1 175 radios, donc **2 350
+  requêtes avant, 25 après** — un facteur 94.
+  - UNE lecture des noms déjà connus remplace les 1 175 SELECT. Elle ne sert
+    qu'à distinguer « créée » de « mise à jour » dans le rapport : l'écriture,
+    elle, n'en a pas besoin. Les compteurs restent donc exacts, calculés par
+    comparaison d'ensembles et non par le nombre de requêtes.
+  - Un `upsert` sur `nom` par lots de 50 (règle du projet) remplace les 1 175
+    écritures unitaires. La contrainte `UNIQUE (nom)` — vérifiée en base — rend
+    `onConflict: 'nom'` inférable par PostgREST.
+  - L'erreur de chaque lot est désormais lue : un lot perdu en silence, c'était
+    un import qui se déclarait réussi sur des données partielles.
 
 ### PERF-005 [Goulot] 7 RPC séquentiels par appel de l'outil d'analyse du chat
 - **Localisation** : `lib/chat/tools/analyseComplete.ts:325-333`

@@ -98,44 +98,66 @@ export async function POST(req: NextRequest) {
         });
 
         // Phase UPSERT — insert/update all radios from ODS
+        //
+        // ── PERF-004 : de plus de 2 000 requêtes à une trentaine ────────────
+        //
+        // Cette boucle faisait un SELECT puis un UPDATE ou un INSERT **par
+        // radio**. Avec ~1 175 radios, cela représentait plus de 2 300
+        // requêtes séquentielles par import, sur une instance dont le budget
+        // d'I/O a déjà mis l'application à terre trois fois.
+        //
+        // Le remède tient en deux idées :
+        //   1. UNE lecture des noms déjà connus, au lieu d'une par radio. Elle
+        //      sert uniquement à distinguer « créée » de « mise à jour » dans
+        //      le rapport — l'écriture, elle, n'en a pas besoin ;
+        //   2. un `upsert` sur `nom`, par lots de 50 (règle du projet). La
+        //      contrainte `radios_nom_unique` rend `onConflict: 'nom'`
+        //      inférable par PostgREST.
+        //
+        // Les compteurs restent exacts : ils viennent de la comparaison
+        // d'ensembles, pas du nombre de requêtes.
         let created = 0, updated = 0;
         await logger.phase('UPSERT', async () => {
-          for (let i = 0; i < aggregated.length; i++) {
-            const r = aggregated[i];
-            const { data: existing } = await supabase
-              .from('radios')
-              .select('id')
-              .eq('nom', r.nom)
-              .limit(1)
-              .single();
+          const { data: dejaConnues, error: lectureErr } = await supabase
+            .from('radios').select('nom');
+          if (lectureErr) {
+            throw new Error(`Lecture des radios existantes impossible : ${lectureErr.message}`);
+          }
+          const nomsConnus = new Set((dejaConnues ?? []).map(r => r.nom));
 
-            const radioData = {
-              nom: r.nom,
-              categorie_arcom: r.categorie_arcom,
-              portee: r.portee,
-              groupe_media: r.titulaire,
-              metadata: {
-                frequences_fm: r.frequences_fm,
-                frequences_dab: r.frequences_dab,
-                blocs_dab: r.blocs_dab,
-                categorie_label: r.categorie_label,
-                titulaire: r.titulaire,
-                source: 'arcom_ods',
-                import_date: new Date().toISOString().slice(0, 10),
-              },
-            };
+          const lignes = aggregated.map(r => ({
+            nom: r.nom,
+            categorie_arcom: r.categorie_arcom,
+            portee: r.portee,
+            groupe_media: r.titulaire,
+            metadata: {
+              frequences_fm: r.frequences_fm,
+              frequences_dab: r.frequences_dab,
+              blocs_dab: r.blocs_dab,
+              categorie_label: r.categorie_label,
+              titulaire: r.titulaire,
+              source: 'arcom_ods',
+              import_date: new Date().toISOString().slice(0, 10),
+            },
+          }));
 
-            if (existing) {
-              await supabase.from('radios').update(radioData).eq('id', existing.id);
-              updated++;
-            } else {
-              await supabase.from('radios').insert(radioData);
-              created++;
+          created = lignes.filter(l => !nomsConnus.has(l.nom)).length;
+          updated = lignes.length - created;
+
+          const TAILLE_LOT = 50;
+          for (let i = 0; i < lignes.length; i += TAILLE_LOT) {
+            const lot = lignes.slice(i, i + TAILLE_LOT);
+            const { error } = await supabase
+              .from('radios').upsert(lot, { onConflict: 'nom' });
+            if (error) {
+              // Un lot perdu en silence, c'est un import qui se dit réussi sur
+              // des données partielles. On arrête et on nomme le lot.
+              throw new Error(
+                `Écriture du lot ${Math.floor(i / TAILLE_LOT) + 1} échouée `
+                + `(radios ${i + 1} à ${i + lot.length}) : ${error.message}`,
+              );
             }
-
-            if ((i + 1) % 100 === 0) {
-              await logger.info('UPSERT', `${i + 1}/${aggregated.length} radios traitées (${created} créées, ${updated} mises à jour)`);
-            }
+            await logger.info('UPSERT', `${Math.min(i + TAILLE_LOT, lignes.length)}/${lignes.length} radios écrites`);
           }
           await logger.info('UPSERT', `Terminé : ${created} créées, ${updated} mises à jour`);
         });
