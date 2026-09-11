@@ -429,7 +429,7 @@ il n'y avait rien à supprimer. Aucune action requise.
 | Item | Effort | Risque pitch | Bloqueur |
 |---|---|---|---|
 | `compute_panneau_scores` absente — **le scoring des panneaux n'a jamais fonctionné** | 1 h (retrait) ou chantier produit (écriture) | faible | **décision produit, mesurée le 2026-09-10** — voir ci-dessous |
-| `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` (critique, **s'exécute côté navigateur**) | à rechiffrer | élevé | **TENTÉ ET ABANDONNÉ le 2026-09-11** — la migration du code est faite et propre, mais la v6 ne rend pas. Voir l'encadré ci-dessous. |
+| `maplibre-gl` 5.18 — bypass XSS `DOM.sanitize()` | à rechiffrer | **abaissé** — le chemin d'exploitation chez nous est coupé depuis `d058719` (popups échappées à la source) ; il reste une dépendance vulnérable au catalogue | **TENTÉ ET ABANDONNÉ le 2026-09-11** — la migration du code est faite et propre, mais la v6 ne rend pas. Voir l'encadré ci-dessous. |
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
 | `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
@@ -529,6 +529,21 @@ contient plus aucun `.js`. La règle webpack de `next.config.js` qui cible
 `maplibre-gl/dist/*.js` ne matcherait donc plus rien, et le crash qu'elle
 prévient ne peut plus se produire. Elle sera à retirer le jour de la bascule —
 `next.config.js` est un fichier protégé, il faudra l'accord explicite.
+
+### Fermé le 2026-09-11 (seconde passe)
+
+| Item | Résolution |
+|---|---|
+| **Le contenu des popups de carte n'était pas échappé** — 13 `setHTML` interpolant des valeurs de `poi_france` / `panneaux_affichage`, alimentées par des imports CSV/XLSX/ArcGIS | `lib/map/echapper-html.ts` + 9 tests, appliqué à 30 interpolations dans 7 fichiers (`d058719`) |
+| L'échappement local de `useMapMarkers.ts` omettait l'apostrophe | **Trou réel, démontré** : une charge `x' onmouseover='…` dans un attribut en quotes simples produisait les attributs `["title", "onmouseover"]`. Avec le helper partagé : `["title"]`. Le local est supprimé. |
+
+**Ce que cela change pour l'entrée `maplibre-gl` restée ouverte.** `npm audit`
+signale le bug de `DOM.sanitize()`. Mais chez nous, le sanitizer de MapLibre
+était la **seule** protection entre un import de POI et l'exécution — c'est
+cela, le risque exploitable, et il ne dépendait pas de la version installée.
+Il est fermé. La faille cataloguée reste ouverte tant que la v6 ne rend pas,
+mais son chemin d'exploitation ici est coupé, et l'échappement gardera sa
+valeur après la bascule (défense en profondeur).
 
 ### Fermé le 2026-09-11
 
