@@ -282,7 +282,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/map/ooh` | POST | Panneaux OOH dans bbox |
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI |
-| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire) — chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
+| `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide sur Nano. Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
 
 ### IRIS
 | Route | Methode | Description |
@@ -482,8 +482,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `iris_indicator_registry` | Registre indicateurs IRIS | 51 indicateurs |
 | `iris_metadata` | Metadonnees IRIS | |
 | `carreaux_filosofi` | Carreaux INSEE 200m (2.3M lignes, 4.5 GB) | `geom_3857` pre-calcule |
-| `carreaux_2km` | Agregation 2km (~75k, zoom 8-13) | Colonnes directes, <100ms |
-| `carreaux_5km` | Agregation 5km (~17k, zoom 7) | Colonnes directes, <100ms |
+| `carreaux_1km` | Agregation 1km (374 511 mailles, 151 Mo) — **sert z9-z11** | `grid_id` en PK, geometrie stockee en **3857** (pas de ST_Transform par tuile), sommes brutes. Construite par `fill_carreaux_1km_bande` (sql/129), journal des bandes dans `carreaux_1km_bandes` |
+| `carreaux_2km` | Agregation 2km (122 018) — sert z8 | Colonnes directes, <100ms |
+| `carreaux_5km` | Agregation 5km (22 058) — sert z7 | Colonnes directes, <100ms |
+| `carreaux_20km` | Vue materialisee 20km (1 515) — sert z<=6 | Derivee de `carreaux_5km`, noms applicatifs (sql/124) |
 | `france_borders` | Contours France metro | Clip isochrones/Voronoi |
 | `france_boundary` | Boundary simplifie | |
 | `comptages_routiers` | Comptages routiers (~408k lignes) | |
@@ -547,7 +549,8 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_carreaux` | Carreaux dans bbox avec indicateur | *orpheline* (route supprimee 08/2026) |
 | `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
-| `get_tile` | Tuile MVT carreaux (ST_AsMVT) | `api/tiles/` |
+| `get_tile` | Tuile MVT carreaux (ST_AsMVT), cascade 5 paliers 20/5/2/1 km + 200 m (sql/129) | `api/tiles/` |
+| `fill_carreaux_1km_bande` | Agrege les carreaux 200 m en mailles 1 km, par bande verticale (progression + journal anti-rejeu) | outil de construction, sql/129 |
 | `get_iris_tile` | Tuile MVT IRIS (ST_AsMVT) | *orpheline* (route supprimee 09/2026 — IRIS servis en PMTiles) |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |

@@ -286,7 +286,23 @@ l'incident du 28/03. Tentative faite puis annulée le 2026-08-31
 
 ---
 
-## 5. Table sans PRIMARY KEY : `carreaux_1km` — ✅ FERMÉ (sans action) le 2026-08-31
+## 5. Table sans PRIMARY KEY : `carreaux_1km` — ✅ FERMÉ (recréée) le 2026-09-11
+
+> **Mise à jour du 2026-09-11.** L'analyse ci-dessous était juste au moment où
+> elle a été écrite, mais son verdict « aucune action requise » est devenu faux.
+> La table a été **recréée avec une clé primaire (`grid_id`) et peuplée**
+> (374 511 mailles, 151 Mo) : elle sert désormais les tuiles z9-z11 et c'est
+> elle qui a fait passer le zoom 9 de 25 s à 2 s. Voir `sql/129`.
+>
+> `scripts/populate_carreaux_1km.ts` est désormais **définitivement obsolète** :
+> le remplissage se fait par la fonction SQL `fill_carreaux_1km_bande`. Le
+> script n'a jamais abouti et n'a plus de raison d'être — candidat à la
+> suppression.
+>
+> Leçon : « table vide, personne ne la lit » ne veut pas dire « table inutile ».
+> Elle voulait dire ici « palier manquant dans la cascade ».
+
+### L'analyse d'origine (2026-08-31)
 
 Investigation faite : **aucune action requise**, l'absence de PK est sans
 conséquence ici.
@@ -419,7 +435,6 @@ il n'y avait rien à supprimer. Aucune action requise.
 | `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
 | Les 28 bornes nationales de `lib/carreaux/bornes.ts` sont un instantané du 2026-09-10 | à chiffrer (script de re-mesure + signal de fraîcheur) | élevé — un ré-import Filosofi les périme **sans aucun signal**, la carte reste plausible mais fausse | décision produit : quel signal de péremption (date stockée + comparaison à l'import, alerte admin, ou re-mesure automatique post-import) |
 | `components/CarreauxPMTilesLayer.tsx` (373 l.) jamais monté, 4ᵉ définition contradictoire du calcul de normalisation, et un test importe désormais son catalogue (`CARREAUX_INDICATEURS`) | 2-3 h | faible | aucun ; extraire `CARREAUX_INDICATEURS`/`CARREAUX_PALETTES` dans `lib/carreaux/`, migrer le test, puis supprimer le composant — idem pour le bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) |
-| `carreaux_filosofi.geom_centroid` NULL sur toute la table → `code_dept`/`code_region` toujours NULL au zoom ≥ 10 | 0 h (aucune action) | faible — coût mesuré nul, aucun consommateur actuel | décision produit : le filtre territorial client-side (`setFilter`) sur les carreaux fins a-t-il de la valeur, sinon laisser tel quel |
 
 #### `compute_panneau_scores` — ce que la mesure dit (2026-09-10)
 
@@ -453,6 +468,44 @@ Deux sorties, toutes deux à arbitrer par Vincent :
    `/api/admin/transport-stats`, qui affiche aujourd'hui des moyennes de zéros.
 2. **Écrire** — chantier produit à part entière, à cadrer, pas une tâche de
    nettoyage.
+
+#### Nouvelles entrées du 2026-09-11
+
+| Item | Effort | Risque | Bloqueur |
+|---|---|---|---|
+| `carreaux_filosofi` : 4,6 Go dont un jsonb `metadata` de **806 o/ligne**, lu en entier pour extraire 29 nombres. Plancher d'I/O d'environ 4 s par tuile froide sur Nano | 3-4 h | faible aujourd'hui — le palier ne sert plus que z12+, où les tuiles sont petites | aucun ; la réponse est une table 200 m à colonnes typées (~330 o/ligne, 3,3× moins d'I/O), sur le modèle de `carreaux_1km`. **Ne pas redescendre le seuil du 200 m sous z12 avant de l'avoir faite.** |
+| `scripts/populate_carreaux_1km.ts` n'a jamais abouti et est remplacé par `fill_carreaux_1km_bande` | 15 min | nul | aucun ; supprimer le script et les deps `pg`/`@types/pg` si `populate_geom_3857.ts` ne les utilise plus |
+| Outils de construction laissés en base : `fill_carreaux_1km_bande` + `carreaux_1km_bandes` (journal) | — | nul | à conserver : ils resservent au prochain ré-import Filosofi. Rejouer une bande journalisée est refusé par conception ; pour tout reconstruire, `TRUNCATE` les deux tables. |
+
+### Fermé le 2026-09-11
+
+| Item | Résolution |
+|---|---|
+| Cascade de zoom des carreaux (chantier prioritaire du 10/09) | densité + bornes nationales fixes + palier 20 km, carreaux visibles dès z4 — `sql/124`, `sql/125` |
+| **Fluidité du zoom** — « des endroits ok et d'autres non » | deux causes mesurées, voir ci-dessous. Résultat : **plus aucun zoom au-dessus de 3 s** sur tuiles froides, contre plus de 15 s auparavant |
+| `code_dept`/`code_region` dans les tuiles carreaux | **retirés** (`sql/126`). Ajoutés en avril 2026 « pour filtre territorial client-side » — filtre jamais construit, zéro lecteur. Ils coûtaient **10 250 ms sur les 11 438 ms** d'une tuile z8 : un `ST_Intersects` par carreau contre les multipolygones départementaux, 2 954 fois. Après retrait : 100 ms |
+| Trou z11 → z12 de la cascade (facteur 10) | **palier 1 km construit** (`sql/129`) : 374 511 mailles, 151 Mo, clé primaire, géométrie en 3857. Sert z9-z11 |
+| `carreaux_1km` vide depuis toujours | peuplée et branchée — voir §5 |
+
+**L'estimation « coût mesuré nul » de l'entrée `geom_centroid` était fausse.**
+Elle ne regardait que le palier 200 m, où la jointure court-circuitait parce que
+`geom_centroid` est NULL. Aux paliers 2 km et 5 km, où le centroïde est calculé
+à la volée, la même jointure consommait **99 % du temps de la tuile**. Une
+mesure partielle avait été généralisée à tort.
+
+**Deux pièges rencontrés en construisant `carreaux_1km`**, dignes d'être retenus
+pour toute agrégation par lots :
+
+1. **Un découpage en bandes n'est pas forcément une partition.** `geom_3857 &&
+   envelope` compare des *boîtes englobantes* ; un carreau défini en EPSG:3035
+   reprojeté en 3857 devient un quadrilatère pivoté dont la boîte déborde. Les
+   carreaux de bordure appartenaient à deux bandes et l'agrégation additive les
+   comptait deux fois : **68 546 296 habitants au lieu de 62 592 659 (+9,5 %)**.
+   Attrapé par un **invariant de totaux**, pas par relecture du code.
+2. **Un timeout côté client ne dit rien du sort de la transaction.** Plusieurs
+   bandes ont expiré côté client puis se sont validées côté serveur ; les
+   rejouer aurait doublé leurs valeurs en silence. Un journal écrit *dans la
+   même transaction*, avec clé primaire, est le seul garde-fou fiable.
 
 ### Fermé le 2026-09-10
 
