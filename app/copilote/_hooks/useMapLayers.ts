@@ -12,7 +12,7 @@ import { CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { denominateurDe } from '@/lib/carreaux/normalisation';
 import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
-import { bornesInternes } from '@/lib/carreaux/expressions';
+import { bornesInternes, donneeExploitableExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
@@ -331,8 +331,19 @@ export function useMapLayers({
     // frontière), ce que l'`interpolate` faisait aussi par clamp — mais que le
     // filtre par palier, lui, ne faisait pas encore (cf. applyBucketOpacity).
     const frontieres = bornesInternes(bornes, 6);
-    const expr = ['step', safeNum, pal.stops[0],
-      ...frontieres.flatMap((b, i) => [b, pal.stops[i + 1]]),
+    // Le `case` en amont du `step` distingue « valeur nulle » de « donnée
+    // absente ». Sans lui, un indicateur manquant se peint au bas de l'échelle
+    // (la carte affirme « personne n'habite ici ») et une superficie manquante
+    // divise par 0,0001, soit une densité multipliée par 10 000 — le carreau
+    // ressort comme le plus dense de France. Aucun des deux cas ne se produit
+    // aujourd'hui : `get_tile` émet toujours les colonnes. C'est un garde-fou
+    // pour le jour où une tuile en cache précède un changement de schéma.
+    const expr = ['case',
+      donneeExploitableExpr(ind, denominateurDe(ind)),
+      ['step', safeNum, pal.stops[0],
+        ...frontieres.flatMap((b, i) => [b, pal.stops[i + 1]]),
+      ],
+      COULEUR_DONNEE_ABSENTE,
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-fill', 'fill-color', expr); } catch { /* ok */ }
     // La couche extrudee porte la MEME couleur : basculer en 3D ne doit pas
@@ -363,9 +374,16 @@ export function useMapLayers({
   ) => {
     if (!map.getLayer('carreaux-mvt-extrusion')) return;
     if (bornes.max - bornes.min <= 0) return;
-    const expr = ['interpolate', ['linear'], carreauxEchelleExpr(ind),
-      bornes.min, 0,
-      bornes.max, hauteurMax,
+    // Même garde-fou que la couleur : une donnée absente ne doit pas produire
+    // une colonne, ni plate (qui dirait « zéro ») ni haute (qui dirait
+    // « record »). Elle reste au sol, dans la teinte d'absence.
+    const expr = ['case',
+      donneeExploitableExpr(ind, denominateurDe(ind)),
+      ['interpolate', ['linear'], carreauxEchelleExpr(ind),
+        bornes.min, 0,
+        bornes.max, hauteurMax,
+      ],
+      0,
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('carreaux-mvt-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
   }, []);
