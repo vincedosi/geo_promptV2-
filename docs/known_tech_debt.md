@@ -433,8 +433,6 @@ il n'y avait rien à supprimer. Aucune action requise.
 | `DROP` de 4 tables et ~55 fonctions sans usage | 2-3 h | faible | cf. `docs/AUDIT_BASE.md` — appliquer les 3 garde-fous d'un audit d'orphelins |
 | 25 fichiers de 500-1500 lignes (§6) | 6-8 h | modéré | **valeur devenue faible** : plus aucun fichier > 1 000 l., le seuil qui motivait le chantier |
 | `carreauxNormaliseExpr` ne distingue pas « superficie absente » de « superficie nulle » | 1-2 h | modéré — une absence de donnée se lit comme une vraie valeur nulle, donc credible au lieu d'être signalée | aucun ; un `['has', 'superficie_km2']` rendrait l'absence visible |
-| Les 28 bornes nationales de `lib/carreaux/bornes.ts` sont un instantané du 2026-09-10 | à chiffrer (script de re-mesure + signal de fraîcheur) | élevé — un ré-import Filosofi les périme **sans aucun signal**, la carte reste plausible mais fausse | décision produit : quel signal de péremption (date stockée + comparaison à l'import, alerte admin, ou re-mesure automatique post-import) |
-| Bloc mort `{false && …}` de `MapPanel.tsx` (~115 l.) | 30 min | faible | aucun. Le reste de cette entrée — `CarreauxPMTilesLayer.tsx` — est **fermé le 2026-09-11** : catalogues extraits dans `lib/carreaux/catalogue.ts`, composant supprimé. |
 
 #### `compute_panneau_scores` — ce que la mesure dit (2026-09-10)
 
@@ -474,7 +472,6 @@ Deux sorties, toutes deux à arbitrer par Vincent :
 | Item | Effort | Risque | Bloqueur |
 |---|---|---|---|
 | `carreaux_filosofi` : 4,6 Go dont un jsonb `metadata` de **806 o/ligne**, lu en entier pour extraire 29 nombres. Plancher d'I/O d'environ 4 s par tuile froide sur Nano | 3-4 h | faible aujourd'hui — le palier ne sert plus que z12+, où les tuiles sont petites | aucun ; la réponse est une table 200 m à colonnes typées (~330 o/ligne, 3,3× moins d'I/O), sur le modèle de `carreaux_1km`. **Ne pas redescendre le seuil du 200 m sous z12 avant de l'avoir faite.** |
-| `scripts/populate_carreaux_1km.ts` n'a jamais abouti et est remplacé par `fill_carreaux_1km_bande` | 15 min | nul | aucun ; supprimer le script et les deps `pg`/`@types/pg` si `populate_geom_3857.ts` ne les utilise plus |
 | Outils de construction laissés en base : `fill_carreaux_1km_bande` + `carreaux_1km_bandes` (journal) | — | nul | à conserver : ils resservent au prochain ré-import Filosofi. Rejouer une bande journalisée est refusé par conception ; pour tout reconstruire, `TRUNCATE` les deux tables. |
 
 
@@ -529,6 +526,27 @@ contient plus aucun `.js`. La règle webpack de `next.config.js` qui cible
 `maplibre-gl/dist/*.js` ne matcherait donc plus rien, et le crash qu'elle
 prévient ne peut plus se produire. Elle sera à retirer le jour de la bascule —
 `next.config.js` est un fichier protégé, il faudra l'accord explicite.
+
+### Fermé le 2026-09-11 (troisième passe)
+
+| Item | Résolution |
+|---|---|
+| **Péremption silencieuse des 28 bornes nationales** (dernier « risque élevé » de la dette) | signal fourni, pas corrigé : `sql/130` relève une empreinte de la source, `lib/carreaux/empreinte-source.ts` porte la référence, `/admin/health` l'affiche sous « Fraîcheur des données » (`4a7107d`) |
+| Bloc mort `{false && …}` de `MapPanel.tsx` | 120 lignes retirées, **plus** l'import de catalogue devenu mort et les six props carreaux que le composant recevait sans plus rien en faire — TypeScript a attrapé le site d'appel |
+| `scripts/populate_carreaux_1km.ts` | supprimé. `pg` reste installé, `populate_geom_3857.ts` l'utilise encore (vérifié) |
+
+**Le choix de conception à retenir.** La dette classait la péremption des
+bornes en « décision produit : quel signal ». Elle en sort par une décision
+d'ingénierie : on ne demande pas à quelqu'un de se souvenir de re-mesurer, on
+relève une empreinte bon marché de la source et on la compare. L'empreinte
+porte les **trois** valeurs de `carreaux_5km`, pas seulement son compte de
+lignes — un nouveau millésime à maillage constant changerait les totaux sans
+changer le nombre de carreaux, et c'est le cas le plus probable.
+
+Et ce qu'on a refusé de faire compte autant : ni `count(*)` exact ni `sum()`
+sur les 2,3 M de lignes de `carreaux_filosofi`. Une vérification de fraîcheur
+qui coûterait un full scan de 4,6 Go serait désactivée au premier incident I/O.
+Une garde qu'on finit par éteindre ne garde rien.
 
 ### Fermé le 2026-09-11 (seconde passe)
 
