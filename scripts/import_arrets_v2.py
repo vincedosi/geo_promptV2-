@@ -9,6 +9,7 @@ Usage:
     python -X utf8 scripts/import_arrets_v2.py data/raw/arrets_transport_france.csv
 """
 
+import os
 import sys
 import time
 
@@ -16,12 +17,17 @@ import pandas as pd
 from supabase import create_client
 
 SUPABASE_URL = "https://vkkdbygwbrxyogqosten.supabase.co"
-SUPABASE_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZra2RieWd3YnJ4eW9ncW9zdGVuIiwicm9sZSI"
-    "6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTE4OTk2MCwiZXhwIjoyMDg2NzY1OTYwfQ"
-    ".hZQcgjx8AbkDF6o1oETQYURnQB9hHi7p0nuXKFjyFrU"
-)
+# La cle `service_role` contourne toute RLS : elle ne doit JAMAIS figurer dans
+# le depot. Elle etait ecrite en clair ici, et dans six autres scripts, jusqu'au
+# 2026-09-11. Elle se lit desormais dans l'environnement.
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+if not SUPABASE_KEY:
+    raise SystemExit(
+        """SUPABASE_SERVICE_ROLE_KEY absente de l'environnement.
+Ce script ecrit en base avec la cle service_role. La definir avant de lancer :
+  PowerShell : $env:SUPABASE_SERVICE_ROLE_KEY = '...'
+  bash       : export SUPABASE_SERVICE_ROLE_KEY='...'"""
+    )
 
 CSV_PATH   = sys.argv[1] if len(sys.argv) > 1 else "data/raw/arrets_transport_france.csv"
 CHUNK_SIZE = 50_000

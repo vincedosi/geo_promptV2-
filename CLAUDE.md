@@ -45,6 +45,20 @@ Pages (/map, /dashboard…) → getUser() — un appel par navigation
 
 IMPORTANT : `getUser()` sur routes API → 409 token refresh concurrent → déconnexion. Incident du 28/03.
 
+### Secrets — jamais dans un fichier suivi par git
+
+Le 2026-09-11, la clé `service_role` **active** a été trouvée en clair dans
+**sept scripts Python versionnés**. Elle contourne toute RLS. L'audit de la
+veille ne l'avait pas vue : il ne regardait que le TypeScript côté client.
+
+- Un script qui écrit en base lit sa clé dans l'environnement, jamais en dur.
+- `tests/unit/securite/aucun-secret-en-dur.test.ts` balaie TOUS les fichiers
+  suivis, tous langages confondus. Il recolle les littéraux concaténés avant de
+  chercher : c'est ainsi que la clé était écrite, et c'est ce qui rendait le
+  premier scan aveugle.
+- **Retirer un secret du code ne l'efface pas de l'historique git.** Une clé
+  commitée, même une seule fois, doit être RÉVOQUÉE côté fournisseur.
+
 ### Fichiers protégés — NE PAS MODIFIER sauf demande explicite
 
 `app/api/isochrone-battle/route.ts` · Fonctions PostGIS battle · `middleware.ts`

@@ -528,6 +528,42 @@ survient, quand le volume monte.
 - **Gravité** : basse
 - **Effort** : M
 
+### SEC-003 [Sécurité] 🔴 **La clé `service_role` ACTIVE était commitée dans sept scripts**
+- **Localisation** : `scripts/rescore_all_villes.py`, `import_arrets_v2.py`,
+  `import_gtfs_stops.py`, `import_iris_insee.py`, `import_iris_local.py`,
+  `import_osm_roads.py`, `import_tmja.py`
+- **Constat (2026-09-11)** : chacun de ces sept fichiers **suivis par git**
+  portait la clé `SUPABASE_SERVICE_ROLE_KEY` en clair. Comparaison d'empreintes
+  SHA-256 contre `.env.local` : **c'est la clé ACTIVE**, pas une ancienne. Elle
+  contourne toute RLS — accès complet en lecture et en écriture à la base.
+- **Pourquoi l'audit de la veille ne l'a pas vue** : il cherchait des secrets
+  dans le code TypeScript **côté client**. Les scripts Python n'étaient pas dans
+  son champ. Le périmètre d'un audit de secrets, c'est *tous les fichiers
+  suivis*, pas un langage.
+- **Ce qui a été fait** : la clé est retirée des sept scripts, qui la lisent
+  désormais dans l'environnement et s'arrêtent avec un message explicite si elle
+  manque. Vérifié dans les deux sens.
+- **🔴 CE QUI RESTE À FAIRE, ET QUI N'APPARTIENT PAS AU CODE** : *retirer une clé
+  d'un fichier ne l'efface pas de l'historique git.* La clé doit être
+  **RÉVOQUÉE et remplacée** dans le tableau de bord Supabase, puis reportée dans
+  les variables d'environnement Vercel et dans `.env.local`. Tant que ce n'est
+  pas fait, la clé reste exploitable par quiconque accède au dépôt ou à un
+  clone. **Cette rotation appartient à Vincent** : elle casse instantanément tout
+  ce qui utilise l'ancienne clé, et le projet n'a pas de procédure de bascule.
+- **Circonstance atténuante, pas une excuse** : le dépôt est privé
+  (`githubRepoVisibility: private`).
+- **Garde-fou installé** : `tests/unit/securite/aucun-secret-en-dur.test.ts`
+  balaie **tous** les fichiers suivis, quel que soit le langage.
+  - Sa première version était **décorative** : les sept scripts écrivaient la
+    clé DÉCOUPÉE en littéraux concaténés (`"eyJhbGci…"` sur une ligne,
+    `".eyJpc3M…"` sur la suivante). Le jeton n'était donc jamais contigu dans le
+    fichier, et le motif passait à côté — constaté, le test restait vert sur un
+    fichier qui portait la clé active. Le scan recolle désormais les littéraux
+    adjacents avant de chercher. Vérifié en remettant le fichier d'origine :
+    le test échoue, et nomme le fichier.
+- **Gravité** : critique
+- **Effort** : S pour le code, **une action manuelle pour la rotation**
+
 ### SEC-002 [Sécurité] Filtre PostgREST construit par interpolation
 - **Localisation** : `lib/auth/getSessionOrg.ts`, `app/api/map/pois/route.ts:27-41`,
   `app/api/map/categories/route.ts:54-58`
