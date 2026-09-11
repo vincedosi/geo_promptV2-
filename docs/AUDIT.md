@@ -242,17 +242,45 @@ survient, quand le volume monte.
 - **Gravité** : haute
 - **Effort** : M
 
-### SEC-001 [Sécurité] 38 routes d'écriture sans validation Zod
-- **Localisation** : 38 routes POST/PATCH/PUT lisant `request.json()` sans
-  schéma. Exemples : `app/api/admin/organizations/route.ts:74`,
-  `app/api/admin/users/route.ts:45`, `app/api/admin/init-admin/route.ts:18`,
-  `app/api/user/switch-org/route.ts:16`, `app/api/admin/import-geo/route.ts:26`
+### SEC-001 [Sécurité] routes d'écriture sans validation Zod — **20 sur 40 traitées**
+- **Localisation** : au 2026-09-11, **40** routes (et non 38 : le premier compte
+  ratait celles dont le schéma est importé d'un autre fichier) lisaient
+  `request.json()` ou `.formData()` sans schéma.
 - **Constat** : `CLAUDE.md` impose « validation Zod » sur les routes API.
 - **Impact** : atténué — ces routes sont derrière `requireAdmin` ou
   `requireAuth`, l'appelant est donc authentifié. Le risque est la corruption de
   données par entrée malformée, pas l'accès non autorisé.
 - **Gravité** : haute
 - **Effort** : L
+- **Avancement (2026-09-11)** — `lib/api/valider-corps.ts` fournit
+  `lireCorps(request, schema)` : ne lève jamais, rend un résultat et non une
+  `NextResponse` (les routes du projet ne partagent pas une forme d'erreur), et
+  traduit les messages Zod une seule fois.
+  - **Tranche 1 — identité et multi-tenant** (7) : `admin/users`,
+    `admin/users/[id]`, `admin/organizations`, `admin/organizations/[id]`, ses
+    `members` et son `reset-password`, `user/switch-org`.
+  - **Tranche 2 — administration et référentiels** (9) :
+    `admin/campaigns/[id]/organizations`, `admin/sources`, `admin/sources/[id]`,
+    `admin/organizations/[id]/sources` et son `assign`, `admin/poi-categories`,
+    `admin/iris/metadata`, `admin/init-admin`, `admin/dsp/dv360/oauth/start`.
+  - **Tranche 3 — carte et calculs** (4) : `map/ooh`, `isochrone-cache-check`,
+    `admin/geocode/update`, `bidding/train`.
+  - **Restent 20**, dont un fichier PROTÉGÉ (`isochrone-battle/route.ts`). Les
+    autres portent des corps lourds ou hétérogènes : dépôts de fichiers
+    (`formData`), historiques de conversation du copilote et des agents,
+    géométries. `tests/unit/api/validation-corps.test.ts` en tient la liste
+    exacte, avec un cliquet : elle ne peut que rétrécir.
+- **Trois défauts fermés au passage**, chacun commenté dans le code :
+  - `admin/users` POST acceptait un rôle inconnu : le compte Auth était créé,
+    puis l'échec de la mise à jour du profil était journalisé **sans être
+    remonté** — l'appelant recevait un 201 pour un compte au rôle par défaut.
+  - `admin/iris/metadata` POST faisait `Object.entries(body)` sans vérifier que
+    le corps est un objet : sur une chaîne, il écrivait `0 → 'a'`, `1 → 'b'`.
+  - `admin/geocode/update` ne contraignait pas `action.type` : un type inconnu
+    traversait les trois `else if`, le fichier était réécrit à l'identique et la
+    route répondait `{ success: true }`.
+- **Dédoublonnage induit** : la liste des rôles était écrite à quatre endroits,
+  dont deux littéraux en dur. Source unique dans `lib/auth/roles.ts`.
 
 ### ARC-002 [Architecture] 10 cycles d'import dans `lib/`
 - **Localisation** : `lib/agent/intents/index.ts:35-43` ↔ chaque intent

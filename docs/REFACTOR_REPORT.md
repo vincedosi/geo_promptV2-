@@ -169,7 +169,7 @@ tests de chaîne échouent ; avec l'ancien comptage, les deux tests de compteur
 | Lot | Raison |
 |---|---|
 | Découpage de `useMapLayers.ts` (1 118 l.) et des 25 fichiers de 500-1500 l. | **Écarté volontairement.** Gros diff, valeur nulle : l'audit montre que la dette n'est pas de forme |
-| Validation Zod sur 38 routes (`SEC-001`) | Ajouter un schéma **rejette** des entrées aujourd'hui acceptées. À faire route par route, en mode permissif d'abord |
+| Validation Zod sur les 20 routes restantes (`SEC-001`) | **20 des 40 sont faites** (tranches 1 à 3, voir `docs/AUDIT.md#sec-001`). Les 20 restantes portent des dépôts de fichiers, des historiques de conversation et des géométries : chacune demande de lire ce qu'elle tolère avant d'écrire son schéma. Cliquet installé : `tests/unit/api/validation-corps.test.ts` |
 | Unification de `fmtNum` (`DUP-001`) | « 1.2M » sur un écran, « 1,2M » sur un autre. Unifier change l'affichage — arbitrage |
 | `DROP` de 4 tables et ~55 fonctions | Destructif, demande une validation objet par objet |
 | Cycles d'import dans `lib/` (`ARC-002`) | 8 des 10 passent par des `import()` dynamiques : aucun crash, coût de compréhension seulement |
