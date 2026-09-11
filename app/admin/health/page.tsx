@@ -147,7 +147,11 @@ export default function HealthPage() {
   }, [fetchHealth]);
 
   const globalStatus = health?.status || 'ERROR';
-  const envChecks = health?.checks.filter(c => !c.name.startsWith('SUPABASE_CONNEXION') && !c.name.startsWith('TABLE_')) || [];
+  // `donneesChecks` est retire de `envChecks` : une verification de fraicheur
+  // des donnees n'est pas une variable d'environnement, et la ranger la
+  // tromperait le lecteur.
+  const donneesChecks = health?.checks.filter(c => c.name === 'BORNES_CARREAUX') || [];
+  const envChecks = health?.checks.filter(c => !c.name.startsWith('SUPABASE_CONNEXION') && !c.name.startsWith('TABLE_') && c.name !== 'BORNES_CARREAUX') || [];
   const connChecks = health?.checks.filter(c => c.name === 'SUPABASE_CONNEXION') || [];
   const tableChecks = health?.checks.filter(c => c.name.startsWith('TABLE_')) || [];
 
@@ -324,6 +328,22 @@ export default function HealthPage() {
             )}
           </div>
         </div>
+
+        {/* Fraîcheur des données */}
+        {donneesChecks.length > 0 && (
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              <span style={cardTitleStyle}>Fraîcheur des données</span>
+            </div>
+            <div style={cardBodyStyle}>
+              {donneesChecks.map((check) => <CheckCard key={check.name} check={check} />)}
+            </div>
+          </div>
+        )}
 
         {/* Tables */}
         <div style={cardStyle}>

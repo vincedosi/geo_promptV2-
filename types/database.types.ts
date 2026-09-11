@@ -1,16 +1,3 @@
-/**
- * Types TypeScript du schema public Supabase — GENERE, NE PAS EDITER A LA MAIN.
- *
- * Projet : vkkdbygwbrxyogqosten (eu-west-3)
- * Genere le : 2026-09-10 via MCP Supabase (generate_typescript_types).
- *
- * Regeneration :
- *   npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/database.types.ts
- * ou, sans CLI ni SUPABASE_DB_URL, par le MCP Supabase depuis Claude Code.
- *
- * A regenerer apres toute migration appliquee (apply_migration).
- */
-
 export type Json =
   | string
   | number
@@ -1360,97 +1347,130 @@ export type Database = {
       }
       carreaux_1km: {
         Row: {
-          familles_monoparentales: number | null
+          familles_monoparentales: number
           geom_3857: unknown
-          ind_0_3: number | null
-          ind_11_17: number | null
-          ind_18_24: number | null
-          ind_25_39: number | null
-          ind_4_5: number | null
-          ind_40_54: number | null
-          ind_55_64: number | null
-          ind_6_10: number | null
-          ind_65_79: number | null
-          ind_80p: number | null
-          logements_1945_1970: number | null
-          logements_1970_1990: number | null
-          logements_apres_1990: number | null
-          logements_avant_1945: number | null
-          logements_inconnus: number | null
-          logements_sociaux: number | null
-          menages_1_personne: number | null
-          menages_5_plus: number | null
-          menages_collectif: number | null
-          menages_maison: number | null
-          menages_pauvres: number | null
-          menages_proprietaires: number | null
-          menages_total: number | null
-          population_inconnue: number | null
-          population_totale: number | null
-          revenu_median: number | null
-          surface_moyenne: number | null
+          grid_id: string
+          ind_0_3: number
+          ind_11_17: number
+          ind_18_24: number
+          ind_25_39: number
+          ind_4_5: number
+          ind_40_54: number
+          ind_55_64: number
+          ind_6_10: number
+          ind_65_79: number
+          ind_80p: number
+          logements_1945_1970: number
+          logements_1970_1990: number
+          logements_apres_1990: number
+          logements_avant_1945: number
+          logements_inconnus: number
+          logements_sociaux: number
+          menages_1_personne: number
+          menages_5_plus: number
+          menages_collectif: number
+          menages_maison: number
+          menages_pauvres: number
+          menages_proprietaires: number
+          menages_total: number
+          nb_carreaux: number
+          population_inconnue: number
+          population_totale: number
+          revenu_median: number
+          surface_moyenne: number
         }
         Insert: {
-          familles_monoparentales?: number | null
-          geom_3857?: unknown
-          ind_0_3?: number | null
-          ind_11_17?: number | null
-          ind_18_24?: number | null
-          ind_25_39?: number | null
-          ind_4_5?: number | null
-          ind_40_54?: number | null
-          ind_55_64?: number | null
-          ind_6_10?: number | null
-          ind_65_79?: number | null
-          ind_80p?: number | null
-          logements_1945_1970?: number | null
-          logements_1970_1990?: number | null
-          logements_apres_1990?: number | null
-          logements_avant_1945?: number | null
-          logements_inconnus?: number | null
-          logements_sociaux?: number | null
-          menages_1_personne?: number | null
-          menages_5_plus?: number | null
-          menages_collectif?: number | null
-          menages_maison?: number | null
-          menages_pauvres?: number | null
-          menages_proprietaires?: number | null
-          menages_total?: number | null
-          population_inconnue?: number | null
-          population_totale?: number | null
-          revenu_median?: number | null
-          surface_moyenne?: number | null
+          familles_monoparentales?: number
+          geom_3857: unknown
+          grid_id: string
+          ind_0_3?: number
+          ind_11_17?: number
+          ind_18_24?: number
+          ind_25_39?: number
+          ind_4_5?: number
+          ind_40_54?: number
+          ind_55_64?: number
+          ind_6_10?: number
+          ind_65_79?: number
+          ind_80p?: number
+          logements_1945_1970?: number
+          logements_1970_1990?: number
+          logements_apres_1990?: number
+          logements_avant_1945?: number
+          logements_inconnus?: number
+          logements_sociaux?: number
+          menages_1_personne?: number
+          menages_5_plus?: number
+          menages_collectif?: number
+          menages_maison?: number
+          menages_pauvres?: number
+          menages_proprietaires?: number
+          menages_total?: number
+          nb_carreaux: number
+          population_inconnue?: number
+          population_totale?: number
+          revenu_median?: number
+          surface_moyenne?: number
         }
         Update: {
-          familles_monoparentales?: number | null
+          familles_monoparentales?: number
           geom_3857?: unknown
-          ind_0_3?: number | null
-          ind_11_17?: number | null
-          ind_18_24?: number | null
-          ind_25_39?: number | null
-          ind_4_5?: number | null
-          ind_40_54?: number | null
-          ind_55_64?: number | null
-          ind_6_10?: number | null
-          ind_65_79?: number | null
-          ind_80p?: number | null
-          logements_1945_1970?: number | null
-          logements_1970_1990?: number | null
-          logements_apres_1990?: number | null
-          logements_avant_1945?: number | null
-          logements_inconnus?: number | null
-          logements_sociaux?: number | null
-          menages_1_personne?: number | null
-          menages_5_plus?: number | null
-          menages_collectif?: number | null
-          menages_maison?: number | null
-          menages_pauvres?: number | null
-          menages_proprietaires?: number | null
-          menages_total?: number | null
-          population_inconnue?: number | null
-          population_totale?: number | null
-          revenu_median?: number | null
-          surface_moyenne?: number | null
+          grid_id?: string
+          ind_0_3?: number
+          ind_11_17?: number
+          ind_18_24?: number
+          ind_25_39?: number
+          ind_4_5?: number
+          ind_40_54?: number
+          ind_55_64?: number
+          ind_6_10?: number
+          ind_65_79?: number
+          ind_80p?: number
+          logements_1945_1970?: number
+          logements_1970_1990?: number
+          logements_apres_1990?: number
+          logements_avant_1945?: number
+          logements_inconnus?: number
+          logements_sociaux?: number
+          menages_1_personne?: number
+          menages_5_plus?: number
+          menages_collectif?: number
+          menages_maison?: number
+          menages_pauvres?: number
+          menages_proprietaires?: number
+          menages_total?: number
+          nb_carreaux?: number
+          population_inconnue?: number
+          population_totale?: number
+          revenu_median?: number
+          surface_moyenne?: number
+        }
+        Relationships: []
+      }
+      carreaux_1km_bandes: {
+        Row: {
+          faite_le: string
+          mailles: number
+          ms: number
+          sources: number
+          x0: number
+          x1: number
+        }
+        Insert: {
+          faite_le?: string
+          mailles: number
+          ms: number
+          sources: number
+          x0: number
+          x1: number
+        }
+        Update: {
+          faite_le?: string
+          mailles?: number
+          ms?: number
+          sources?: number
+          x0?: number
+          x1?: number
         }
         Relationships: []
       }
@@ -4392,6 +4412,7 @@ export type Database = {
           menages_proprietaires: number | null
           menages_total: number | null
           nb_carreaux: number | null
+          population_inconnue: number | null
           population_totale: number | null
           revenu_median: number | null
           surface_moyenne: number | null
@@ -4909,6 +4930,15 @@ export type Database = {
           pop_75_plus: number
           population: number
           type_iris: string
+        }[]
+      }
+      fill_carreaux_1km_bande: {
+        Args: { p_x0: number; p_x1: number }
+        Returns: {
+          etat: string
+          mailles: number
+          ms: number
+          sources: number
         }[]
       }
       geo_alignment_baseline: {
@@ -5875,6 +5905,7 @@ export type Database = {
         Args: { p_limit: number; p_offset: number }
         Returns: number
       }
+      releve_empreinte_carreaux: { Args: never; Returns: Json }
       repair_iso_cache_geoms: { Args: never; Returns: Json }
       resolve_custom_geo_zone_codes:
         | { Args: { p_zone_id: string }; Returns: Json }

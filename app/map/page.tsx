@@ -857,12 +857,6 @@ export default function MapPage() {
         setBattleVisible={mapLayers.setBattleVisible}
         battleMaxPalier={mapLayers.battleMaxPalier}
         setBattleMaxPalier={mapLayers.setBattleMaxPalier}
-        carreauxVisible={mapLayers.carreauxVisible}
-        carreauxLoaded={mapLayers.carreauxLoaded}
-        carreauxLabel={mapLayers.carreauxLabel}
-        carreauxIndicateur={mapLayers.carreauxIndicateur}
-        carreauxPalette={mapLayers.carreauxPalette}
-        carreauxOpacity={mapLayers.carreauxOpacity}
         carreauxRange={mapLayers.carreauxRange}
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         setCarreauxVisible={mapLayers.setCarreauxVisible}

@@ -8,6 +8,7 @@ import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import postgres from 'postgres';
 import type { Check, TableStats, DatabaseOverview } from '@/types/admin';
 import type { TableName } from '@/lib/supabase/tables';
+import { comparerEmpreinte, RPC_RELEVE_EMPREINTE, EMPREINTE_MESURE } from '@/lib/carreaux/empreinte-source';
 
 export const dynamic = 'force-dynamic';
 
@@ -300,6 +301,51 @@ export async function GET(req: NextRequest) {
       name: `TABLE_${table.toUpperCase()}`,
       status: ok ? 'OK' : 'ERROR',
       message: ok ? `Table "${table}" accessible` : `Table "${table}" INTROUVABLE — execute le SQL de migration dans Supabase`,
+    });
+  }
+
+  // ============================================================
+  // 2 bis. Fraîcheur des bornes nationales des carreaux
+  // ============================================================
+  // Les 28 bornes de lib/carreaux/bornes.ts sont un instantané des données
+  // Filosofi. Un ré-import les périme SANS AUCUN SIGNAL : la carte reste
+  // plausible et devient fausse. Cette vérification est le signal manquant.
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.rpc(RPC_RELEVE_EMPREINTE);
+    if (error || !data) {
+      checks.push({
+        name: 'BORNES_CARREAUX',
+        status: 'WARN',
+        value: `mesurées le ${EMPREINTE_MESURE.mesureLe}`,
+        message: `Fraîcheur des bornes non vérifiable : ${error?.message ?? 'relevé vide'}`,
+      });
+    } else {
+      const r = data as Record<string, number>;
+      const d = comparerEmpreinte({
+        carreaux5kmLignes:      Number(r.carreaux_5km_lignes),
+        carreaux5kmPopulation:  Number(r.carreaux_5km_population),
+        carreaux5kmMenages:     Number(r.carreaux_5km_menages),
+        carreauxFilosofiEstime: Number(r.carreaux_filosofi_estime),
+      });
+      checks.push({
+        name: 'BORNES_CARREAUX',
+        status: d.perimees ? 'ERROR' : 'OK',
+        value: `mesurées le ${d.mesureLe}`,
+        message: d.perimees
+          ? `PÉRIMÉES — la source a changé depuis la mesure : ${d.ecarts.join(' ; ')}. `
+            + `L'échelle de couleurs des carreaux décrit une distribution qui n'existe plus : `
+            + `re-mesurer via sql/123 et mettre à jour lib/carreaux/bornes.ts ET l'empreinte.`
+          : `Les bornes décrivent bien la source actuelle (${EMPREINTE_MESURE.carreaux5km.lignes.toLocaleString('fr-FR')} carreaux 5 km, `
+            + `${EMPREINTE_MESURE.carreaux5km.population.toLocaleString('fr-FR')} habitants)`,
+      });
+    }
+  } catch (e) {
+    checks.push({
+      name: 'BORNES_CARREAUX',
+      status: 'WARN',
+      value: `mesurées le ${EMPREINTE_MESURE.mesureLe}`,
+      message: `Fraîcheur des bornes non vérifiable : ${e instanceof Error ? e.message : String(e)}`,
     });
   }
 

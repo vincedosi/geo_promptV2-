@@ -3,7 +3,6 @@ import { ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY, getCatC
 import maplibregl from 'maplibre-gl';
 import type { ZoneData, VoronoiData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
-import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
 import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 
@@ -34,12 +33,6 @@ interface MapPanelProps {
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   battleMaxPalier: number;
   setBattleMaxPalier: (v: number) => void;
-  carreauxVisible: boolean;
-  carreauxLoaded: boolean;
-  carreauxLabel: string;
-  carreauxIndicateur: string;
-  carreauxPalette: string;
-  carreauxOpacity: number;
   carreauxRange: BornesEchelle | null;
   carreauxSelectedBucket: number | null;
   setCarreauxVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -131,7 +124,6 @@ export function MapPanel({
   voronoiDataForSaveRef, setShowSavePanel, setSaveError,
   battleVisible, battleCategory, battlePois, setBattleVisible,
   battleMaxPalier, setBattleMaxPalier,
-  carreauxVisible, carreauxLoaded, carreauxLabel, carreauxIndicateur, carreauxPalette, carreauxOpacity,
   carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   selectedBillboard, closeBillboardDrawer,
@@ -271,126 +263,6 @@ export function MapPanel({
           </button>
         )}
       </div>
-
-      {/* Panneau carreaux déplacé dans FilterPanel > ANALYSE > CARREAUX */}
-      {false && (() => {
-        const groups = Array.from(new Set(CARREAUX_INDICATEURS.map(i => i.group)));
-        const pal = CARREAUX_PALETTES.find(p => p.id === carreauxPalette) ?? CARREAUX_PALETTES[0];
-        return (
-          <div style={{ ...badgeBase, position: 'relative', borderColor: C.blue + '60' }}>
-            <div style={{ color: C.blue, fontFamily: fontInter, fontSize: 9, letterSpacing: '0.12em', marginBottom: 5 }}>
-              CARREAUX_INSEE
-            </div>
-
-            {/* Indicateur */}
-            <select
-              value={carreauxIndicateur}
-              onChange={e => setCarreauxIndicateur(e.target.value)}
-              style={{ width: '100%', background: '#0a0a12', border: `1px solid ${C.blue}60`, borderRadius: 2, color: C.text, fontSize: 10, fontFamily: fontMono, padding: '3px 5px', marginBottom: 8, cursor: 'pointer', outline: 'none' }}
-            >
-              {groups.map(g => (
-                <optgroup key={g} label={g} style={{ color: C.textDim }}>
-                  {CARREAUX_INDICATEURS.filter(i => i.group === g).map(ind => (
-                    <option key={ind.id} value={ind.id}>{ind.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-
-            {/* Palettes */}
-            <div style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>PALETTE</div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-              {CARREAUX_PALETTES.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setCarreauxPalette(p.id)}
-                  title={p.label}
-                  style={{
-                    border: `1.5px solid ${carreauxPalette === p.id ? C.text : 'transparent'}`,
-                    borderRadius: 3,
-                    padding: 0,
-                    cursor: 'pointer',
-                    background: 'none',
-                    display: 'flex',
-                    overflow: 'hidden',
-                    width: 28,
-                    height: 12,
-                  }}
-                >
-                  {p.stops.map((c, i) => (
-                    <span key={i} style={{ flex: 1, background: c }} />
-                  ))}
-                </button>
-              ))}
-            </div>
-
-            {/* Opacité */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <span style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>OPACITÉ</span>
-              <input
-                type="range" min={0.1} max={1} step={0.05}
-                value={carreauxOpacity}
-                onChange={e => setCarreauxOpacity(parseFloat(e.target.value))}
-                style={{ flex: 1, accentColor: C.blue, cursor: 'pointer', height: 4 }}
-              />
-              <span style={{ color: C.textDim, fontSize: 9, fontFamily: fontMono, minWidth: 26, textAlign: 'right' }}>
-                {Math.round(carreauxOpacity * 100)}%
-              </span>
-            </div>
-
-            {/* Légende cliquable par tranche */}
-            <div style={{ color: C.textDim, fontFamily: fontInter, fontSize: 8, letterSpacing: '0.1em', marginBottom: 4 }}>
-              LÉGENDE {carreauxSelectedBucket !== null && (
-                <button
-                  onClick={() => setCarreauxSelectedBucket(null)}
-                  style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 8, fontFamily: fontInter, padding: '0 0 0 6px' }}
-                >✕ TOUT</button>
-              )}
-            </div>
-            {carreauxRange ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {pal.stops.map((color, i) => {
-                  // L'échelle est logarithmique, la légende ne l'est pas : on
-                  // repasse chaque borne en unité réelle (hab/km², €/hab, m²/mén.)
-                  // avant affichage. Même découpage que le filtre par palier.
-                  const palier = palierEchelle(carreauxRange!, i, 6);
-                  const min  = versValeurReelle(palier.min);
-                  const max  = versValeurReelle(palier.max);
-                  const isSelected = carreauxSelectedBucket === i;
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setCarreauxSelectedBucket(isSelected ? null : i)}
-                      title={isSelected ? 'Désélectionner' : `Filtrer : ${fmtVal(min)} – ${fmtVal(max)}`}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        width: '100%', textAlign: 'left',
-                        background: isSelected ? color + '22' : 'none',
-                        border: `1px solid ${isSelected ? color : 'transparent'}`,
-                        borderRadius: 2, padding: '1px 3px', cursor: 'pointer',
-                        transition: 'all 0.1s',
-                      }}
-                    >
-                      <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                      <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 8, fontFamily: fontMono, flex: 1 }}>
-                        {i === 5 ? `≥ ${fmtVal(min)}` : `${fmtVal(min)} – ${fmtVal(max)}`}
-                      </span>
-                      {isSelected && <span style={{ color: color, fontSize: 7, fontFamily: fontInter }}>●</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-                {pal.stops.map((c, i) => (
-                  <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />
-                ))}
-                <span style={{ color: C.textDim, fontSize: 8, marginLeft: 4, fontFamily: fontMono }}>z≥10</span>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
 
       {/* Légende catégories */}
