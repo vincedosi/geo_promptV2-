@@ -6,6 +6,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
+
+/**
+ * `name` etait lu par `body.name?.trim()` : un nombre y levait un TypeError
+ * attrape par le `catch` et rendu en 500 avec le message de l'exception. Le
+ * message « Nom requis » est conserve tel quel — c'est lui qu'affiche l'UI.
+ */
+const CreerOrganisationSchema = z.object({
+  name: z.string().trim().min(1, 'Nom requis'),
+  logo_url: z.string().nullish(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -71,12 +83,10 @@ export async function POST(request: NextRequest) {
   if (!profile) return adminUnauthorized();
 
   try {
-    const body = await request.json();
+    const corps = await lireCorps(request, CreerOrganisationSchema);
+    if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+    const body = corps.valeur;
     const supabase = createAdminClient();
-
-    if (!body.name?.trim()) {
-      return NextResponse.json({ success: false, error: 'Nom requis' }, { status: 400 });
-    }
 
     const slug = body.name
       .toLowerCase()
@@ -88,7 +98,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('organizations')
       .insert({
-        name: body.name.trim(),
+        name: body.name,
         slug,
         logo_url: body.logo_url || null,
       })

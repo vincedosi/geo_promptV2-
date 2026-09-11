@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { lireCorps } from '@/lib/api/valider-corps';
+import { RoleSchema } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Creation d'un compte (`SEC-001`).
+ *
+ * `role` etait auparavant accepte tel quel : un role inconnu passait la garde
+ * `if (!email || !role)`, le compte Auth etait cree, puis la mise a jour du
+ * profil echouait sur la contrainte `profiles_role_check` — echec journalise
+ * mais NON remonte (`console.error` plus bas). L'appelant recevait un 201 pour
+ * un compte au role par defaut. Le valider en amont evite ce succes partiel.
+ */
+const CreerUtilisateurSchema = z.object({
+  email: z.string().trim().min(1),
+  full_name: z.string().trim().nullish(),
+  role: RoleSchema,
+  organization_id: z.string().uuid().nullish(),
+});
 
 /**
  * Origine publique de l'application, pour construire le `redirectTo` des liens
@@ -42,10 +61,9 @@ export async function POST(request: NextRequest) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
-  const body = await request.json();
-  const { email, full_name, role, organization_id } = body;
-
-  if (!email || !role) return NextResponse.json({ error: 'email and role required' }, { status: 400 });
+  const corps = await lireCorps(request, CreerUtilisateurSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { email, full_name, role, organization_id } = corps.valeur;
 
   // Escalation protection
   if (profile.role !== 'super_admin') {

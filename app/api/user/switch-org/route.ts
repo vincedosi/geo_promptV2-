@@ -4,16 +4,31 @@
  * Switches the user's active organization.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient, getUserFromRequest } from '@/lib/auth';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * `null` est une valeur METIER ici — « toutes les organisations », reserve au
+ * super_admin — et doit rester distinct de l'absence de cle. Sans schema, un
+ * corps vide passait : le super_admin recevait `{ success: true }` pour une
+ * mise a jour qui n'ecrivait rien (supabase-js ignore `undefined`). Ce
+ * faux succes devient un 400.
+ */
+const ChangerOrgSchema = z.object({
+  organization_id: z.string().uuid().nullable(),
+});
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const profile = await getUserFromRequest(authHeader);
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { organization_id } = await request.json();
+  const corps = await lireCorps(request, ChangerOrgSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { organization_id } = corps.valeur;
 
   const supabase = createAdminClient();
 

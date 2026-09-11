@@ -93,6 +93,13 @@ Tout import/traitement batch DOIT avoir : barre de progression UI (%, lignes tra
 
 - TypeScript strict, imports absolus `@/`, types dans `types/`
 - Routes API : `export const dynamic = 'force-dynamic'`, validation Zod, `createAdminClient()` depuis `@/lib/auth`
+- Corps de requête : passer par `lireCorps()` (`lib/api/valider-corps.ts`), qui
+  ne lève jamais et rend un message français — pas `await request.json()` nu,
+  qui répond 500 sur un corps illisible. `tests/unit/api/validation-corps.test.ts`
+  tient la liste des routes restant à traiter (`SEC-001`) : elle ne doit que
+  rétrécir.
+- Rôles : `lib/auth/roles.ts` est la source unique (niveaux, libellés, schémas
+  Zod). Ne jamais réécrire `['super_admin', 'admin', 'client']` à la main.
 - Outils IA : 1 fichier = 1 outil dans `lib/chat/tools/`, retourne données structurées (jamais texte libre)
 - Inserts DB : batch par 50 max — **une seule requête par lot**, avec repli
   ligne à ligne en cas d'échec pour désigner la ligne fautive

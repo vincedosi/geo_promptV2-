@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { lireCorps } from '@/lib/api/valider-corps';
+import { RoleSchema } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Chaque champ est optionnel : la route distingue `undefined` (ne pas toucher)
+ * de `null` (effacer), et cette distinction porte le comportement des trois
+ * `if (… !== undefined)` plus bas. `.optional()` la preserve exactement.
+ */
+const ModifierUtilisateurSchema = z.object({
+  role: RoleSchema.optional(),
+  organization_id: z.string().uuid().nullable().optional(),
+  full_name: z.string().nullable().optional(),
+});
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
   if (!profile) return adminUnauthorized();
 
   const { id } = await params;
-  const body = await request.json();
-  const { role, organization_id, full_name } = body;
+  const corps = await lireCorps(request, ModifierUtilisateurSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { role, organization_id, full_name } = corps.valeur;
 
   const supabase = createAdminClient();
 

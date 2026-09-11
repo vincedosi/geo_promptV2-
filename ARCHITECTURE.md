@@ -143,7 +143,9 @@ genesis_app/
 │   ├── admin-fetch.ts          # adminFetch() — wrapper fetch avec token admin
 │   ├── version.ts              # APP_VERSION
 │   ├── api/                    # Middleware API (requireAdmin, requireAuth) + rate-limit.ts (Upstash ou memoire)
-│   ├── auth/                   # getSessionOrg, getOrgSourceIds
+│   │                           # + valider-corps.ts : lireCorps(request, schema) — lecture validee
+│   │                           #   du corps, ne leve jamais, messages en francais (SEC-001)
+│   ├── auth/                   # getSessionOrg, getOrgSourceIds, roles.ts (source unique des roles + schemas Zod)
 │   ├── campaigns/              # column-mappings.ts, parser.ts
 │   ├── carreaux/                # normalisation.ts (densite/km2, moyennes) + bornes.ts (echelle nationale log10)
 │   ├── chat/                   # Copilote IA
@@ -754,8 +756,11 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 > Les colonnes `text` + CHECK (`profiles.role`, `dsp_connections.provider`…)
 > sortent du generateur en `string` : les unions restent ecrites a la main et
 > doivent etre resynchronisees avec la contrainte. `types/admin.ts#UserRole`
-> est la reference pour les roles (quatre, `editor` inclus) et
-> `app/api/admin/roles/route.ts` la verrouille par `satisfies`.
+> est la reference pour les roles — TROIS
+> (`super_admin`, `admin`, `client`) depuis le retrait d'`editor` le 2026-09-10 —
+> et `lib/auth/roles.ts` les verrouille par `satisfies Record<UserRole, _>`,
+> tout en fournissant les schemas Zod (`RoleSchema`, `RoleMembreSchema`) que
+> les routes utilisent au lieu de recopier la liste.
 
 ```bash
 npm run dev              # Dev (localhost:3000)

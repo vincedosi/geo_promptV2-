@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
 import type { UserRole } from '@/types/admin';
+// Niveaux et libelles vivent dans `lib/auth/roles.ts` : la meme liste sert
+// desormais aux schemas de validation des routes (`SEC-001`). Le garde-fou
+// `satisfies Record<UserRole, _>` y est conserve.
+import { ROLE_LEVELS, ROLE_LABELS } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
-
-// `satisfies` (et non `:`) : garde-fou de compilation — ajouter un role a
-// `UserRole` sans le declarer ici casse le build, au lieu de le faire disparaitre
-// silencieusement du selecteur de roles (c'est ce qui est arrive a `editor`).
-const ROLE_LEVELS = { super_admin: 0, admin: 1, client: 2 } satisfies Record<UserRole, number>;
-const ROLE_LABELS = { super_admin: 'Super admin', admin: 'Admin', client: 'Client' } satisfies Record<UserRole, string>;
 
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);

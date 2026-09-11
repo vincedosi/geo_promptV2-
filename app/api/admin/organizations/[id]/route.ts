@@ -6,8 +6,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { z } from 'zod';
+import { lireCorps } from '@/lib/api/valider-corps';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Les cinq seules cles que la route recopie vers la base. Toutes optionnelles :
+ * `undefined` signifie « ne pas toucher », et les `if (… !== undefined)` plus
+ * bas en dependent.
+ *
+ * `config` est une colonne `jsonb` libre : on n'en valide pas la forme, sous
+ * peine de refuser des configurations qui fonctionnent aujourd'hui.
+ */
+const ModifierOrganisationSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().nullable().optional(),
+  slug: z.string().optional(),
+  config: z.unknown().optional(),
+  active: z.boolean().optional(),
+});
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin(request);
@@ -46,7 +64,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const sb = createAdminClient();
   const { id } = await params;
-  const body = await request.json();
+  const corps = await lireCorps(request, ModifierOrganisationSchema);
+  if (!corps.ok) return NextResponse.json({ success: false, error: corps.message }, { status: 400 });
+  const body = corps.valeur;
 
   // Non-super_admin can only edit their own org, and cannot touch slug/config/active
   if (profile.role !== 'super_admin') {
