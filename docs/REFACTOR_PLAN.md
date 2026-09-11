@@ -28,7 +28,7 @@ montée en volume, erreur silencieuse.
 | 2 | ✅ Garde-fou anti-régression sur le middleware | `ARC-001` | nul | S |
 | 3 | ✅ Respect de la limite de 50 sur les insertions | `PERF-003` | faible | S |
 | 4 | ✅ Rendre les erreurs visibles (3 des 10 cas étaient légitimes) | `MAINT-001` | faible | M |
-| 5 | Dégonfler `/api/admin/iris/stats` | `PERF-001` | moyen | M |
+| 5 | ✅ Dégonfler `/api/admin/iris/stats` (+ 4 valeurs fausses corrigées) | `PERF-001` | moyen | M |
 | 6 | Insertion groupée dans `inserter.ts` | `PERF-002` | moyen | M |
 | 7 | Dédoublonner le filtre d'autorisation | `DUP-002` | faible | S |
 | 8 | Nettoyages sans risque | `MAINT-002`, `MAINT-007`, `SEC-002` | nul | S |

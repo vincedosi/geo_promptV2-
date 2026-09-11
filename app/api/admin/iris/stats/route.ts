@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAdmin, adminUnauthorized } from '@/lib/api/middleware';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +30,11 @@ const DEPT_NOMS: Record<string, string> = {
   '971':'Guadeloupe','972':'Martinique','973':'Guyane','974':'La Réunion','976':'Mayotte',
 };
 
-// Top depts hardcodés avec noms — les nb seront remplacés par les valeurs live
-const TOP_DEPT_CODES = ['59','62','76','75','57','02','31','80','13','33','21','60','77','69','51'];
+// Les 15 départements les plus fournis ne sont plus écrits ici : la RPC les
+// calcule. La liste qui y figurait ('59','62','76','75','57','02','31','80',
+// '13','33','21','60','77','69','51') s'est révélée exacte au moment de la
+// bascule — même codes, même ordre — mais elle n'était vraie que par hasard,
+// et elle serait devenue fausse au premier ré-import.
 
 export async function GET(req: NextRequest) {
   const profile = await requireAdmin(req);
@@ -38,54 +42,46 @@ export async function GET(req: NextRequest) {
 
   const sb = createAdminClient();
 
-  const [totalRes, typeHRes, typeARes, typeDRes, typeZRes, deptRes] = await Promise.all([
-    sb.from('iris').select('*', { count: 'exact', head: true }),
-    sb.from('iris').select('*', { count: 'exact', head: true }).eq('type_iris', 'H'),
-    sb.from('iris').select('*', { count: 'exact', head: true }).eq('type_iris', 'A'),
-    sb.from('iris').select('*', { count: 'exact', head: true }).eq('type_iris', 'D'),
-    sb.from('iris').select('*', { count: 'exact', head: true }).eq('type_iris', 'Z'),
-    // Compte par département via requête paginée sur juste code_dept — limit 500 (104 depts)
-    sb.from('iris').select('code_dept').limit(500),
-  ]);
+  // UNE requête, au lieu des 21 d'avant (5 count par type + 1 select + 15 count
+  // par département, en deux vagues de Promise.all). Mesuré : une SEULE de ces
+  // 21 requêtes coûtait 714 ms en balayage complet d'une table de 221 Mo, soit
+  // ~15 s de travail base par ouverture de page — le motif exact de l'incident
+  // du 2026-03-28. La RPC fait tout en 112 ms. Voir sql/131.
+  const { data, error } = await sb.rpc('get_iris_admin_stats');
 
-  const total       = totalRes.count ?? 0;
-  const type_h      = typeHRes.count ?? 0;
-  const type_a      = typeARes.count ?? 0;
-  const type_d      = typeDRes.count ?? 0;
-  const type_z      = typeZRes.count ?? 0;
+  if (error || !data) {
+    return NextResponse.json(
+      { success: false, error: error?.message ?? 'Statistiques indisponibles' },
+      { status: 500 },
+    );
+  }
 
-  // Agrégation des depts depuis les 104 codes distincts (bien < 500)
-  // Note: on utilise .select('code_dept') LIMIT 500 sur une table de 49k → PostgREST retourne
-  // au max 1000 lignes → les 104 codes distincts seront présents dans les 500 premiers enregistrements
-  // → pour être sûr, on fait la vraie agrégation via les 5 counts par dept code dans TOP_DEPT_CODES
-  const deptCountRes = await Promise.all(
-    TOP_DEPT_CODES.map((code) =>
-      sb.from('iris').select('*', { count: 'exact', head: true }).eq('code_dept', code)
-        .then((r) => ({ code, nb: r.count ?? 0 }))
-    )
-  );
+  const s = rpcJson<{
+    total: number; type_h: number; type_a: number; type_d: number; type_z: number;
+    nb_depts: number; nb_communes: number; with_geom: number;
+    table_size: string; index_size: string;
+    top_depts: { code: string; nb: number }[];
+  }>(data)!;
 
-  // Stats globales depts/communes — valeurs exactes connues (104 depts, 34989 communes)
-  const deptRows = (deptRes.data ?? []) as { code_dept: string }[];
-  const nb_depts     = new Set(deptRows.map((r) => r.code_dept)).size || 104;
+  const top_depts = s.top_depts.map(({ code, nb }) => ({
+    code,
+    nom: DEPT_NOMS[code] ?? code,
+    nb,
+  }));
 
-  const top_depts = deptCountRes
-    .sort((a, b) => b.nb - a.nb)
-    .map(({ code, nb }) => ({ code, nom: DEPT_NOMS[code] ?? code, nb }));
-
-  return NextResponse.json({
+return NextResponse.json({
     success: true,
     stats: {
-      total,
-      nb_depts,
-      nb_communes: 34989,  // COUNT(DISTINCT code_commune) — stable, pas de view rapide dispo
-      type_h,
-      type_a,
-      type_d,
-      type_z,
-      with_geom:   total,
-      table_size:  '28 MB',
-      index_size:  '5.7 MB',
+      total:       s.total,
+      nb_depts:    s.nb_depts,
+      nb_communes: s.nb_communes,
+      type_h:      s.type_h,
+      type_a:      s.type_a,
+      type_d:      s.type_d,
+      type_z:      s.type_z,
+      with_geom:   s.with_geom,
+      table_size:  s.table_size,
+      index_size:  s.index_size,
     },
     top_depts,
     source: {

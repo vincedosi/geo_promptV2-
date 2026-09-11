@@ -73,6 +73,16 @@ survient, quand le volume monte.
   simultanées de cette page suffisent à épuiser le budget.
 - **Gravité** : critique
 - **Effort** : M
+- **Traité le 2026-09-11** (`sql/131`) : une RPC en **une passe, 112 ms**, contre
+  ~15 s cumulés. Facteur 130, mesuré à l'`EXPLAIN ANALYZE`.
+- **Et la route mentait sur quatre de ses neuf statistiques** — découvert en la
+  lisant pour la corriger : `nb_depts` affichait **2** au lieu de 104 (il
+  comptait les départements distincts parmi 500 lignes prises sans tri) ;
+  `with_geom` recopiait `total` sans vérifier (49 448 au lieu de **49 363**,
+  masquant 85 IRIS sans géométrie) ; `table_size` et `index_size` étaient des
+  chaînes figées (`'28 MB'`, `'5.7 MB'`) alors que la table pèse **221 Mo**.
+  Ces corrections sont des **changements de comportement visibles, assumés** :
+  une page de supervision ne peut pas afficher quatre chiffres faux sur neuf.
 
 ### ARC-001 [Architecture] La protection des routes dépend de deux listes
 - **Localisation** : `middleware.ts:17-40` (`PROTECTED_API_PREFIXES`),

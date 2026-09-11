@@ -5459,6 +5459,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_iris_admin_stats: { Args: never; Returns: Json }
       get_iris_dept_geojson_by_bbox: {
         Args: {
           p_agg?: string
