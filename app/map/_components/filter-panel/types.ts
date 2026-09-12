@@ -22,8 +22,15 @@ import type { FiltreActif } from '@/lib/carte/filtre';
  * propre panneau (`PanneauFiltre`, entrée « Filtre » du rail), qui enveloppe
  * `PerimeterSections` directement — plus besoin de la faire transiter par
  * `FilterPanel`.
+ *
+ * `'terrain'` et `'audience'` retirés à la Tâche 6 (2026-09-12, round de
+ * correction 1) : leurs sections ont déménagé dans `PanneauCalques`
+ * (entrée « Calques » du rail) et le JSX correspondant de `FilterPanel` a
+ * été supprimé — il n'était plus jamais atteint par aucune entrée du rail.
+ * Seule `'analyses'` reste ici, jusqu'à ce que la Tâche 7 la déménage à son
+ * tour.
  */
-export type CategorieFiltre = 'terrain' | 'audience' | 'analyses';
+export type CategorieFiltre = 'analyses';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {

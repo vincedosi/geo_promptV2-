@@ -243,7 +243,7 @@ export function MapPanel({
 
       {/* Toggles layers : ligne compacte */}
       <div style={{ display: 'flex', gap: 4 }}>
-        {/* Carreaux : contrôles déplacés dans FilterPanel > ANALYSE > CARREAUX */}
+        {/* Carreaux : contrôles dans PanneauCalques > Socio-démographie (Tâche 6, 2026-09-12) */}
         {voronoiCategory && (
           <button onClick={() => setVoronoiVisible(v => !v)}
             onMouseEnter={() => setHoveredToggle('voronoi')}
