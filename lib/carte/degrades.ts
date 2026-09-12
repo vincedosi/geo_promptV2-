@@ -1,8 +1,8 @@
 /**
  * @file lib/carte/degrades.ts — un seul degrade de couleur a la fois
  *
- * Avant ce module, cinq choropletehes pouvaient s'empiler (carreaux, IRIS,
- * indicateurs civiques, sante environnementale, meteo) : la carte devenait
+ * Avant ce module, six choroplèthes pouvaient s'empiler (carreaux, IRIS,
+ * indicateurs civiques, sante environnementale, meteo, impressions de campagne) : la carte devenait
  * illisible et aucune legende ne disait laquelle on lisait.
  *
  * Reducteur PUR : il dit quoi eteindre, il n'eteint rien lui-meme.

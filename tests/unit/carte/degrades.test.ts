@@ -19,10 +19,12 @@ describe('exclusivite des degrades de couleur', () => {
     expect(activerDegrade('carreaux', 'campagne-impressions').eteint).toBe('carreaux');
   });
 
-  it('donne un libelle francais a chaque degrade, pour le toast', () => {
-    const ids: DegradeId[] = [
-      'carreaux', 'iris', 'civic-indicateurs', 'civic-sante', 'meteo', 'campagne-impressions',
-    ];
-    for (const id of ids) expect(libelleDegrade(id).length).toBeGreaterThan(2);
+  it('donne le libelle francais exact de chaque degrade', () => {
+    expect(libelleDegrade('carreaux')).toBe('Carreaux Filosofi');
+    expect(libelleDegrade('iris')).toBe('IRIS');
+    expect(libelleDegrade('civic-indicateurs')).toBe('Indicateurs civiques');
+    expect(libelleDegrade('civic-sante')).toBe('Santé environnementale');
+    expect(libelleDegrade('meteo')).toBe('Météo');
+    expect(libelleDegrade('campagne-impressions')).toBe('Impressions de la campagne');
   });
 });
