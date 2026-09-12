@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
  *   1. Imports + dynamic loaders
  *   2. State transverse (overlays, périmètre, TMJA, civique, plan média)
  *   3. Appels des hooks de domaine (cf ci-dessous)
- *   4. Deep-links URL (?customZone, ?layer=digital, ?overlay=)
+ *   4. Deep-link URL (?customZone : charge une zone custom au montage)
  *   5. Marqueurs POI + effacement global des couches
  *   6. Render JSX (MapTopBar + RailNavigation + OverlayPanel + panneaux latéraux)
  *

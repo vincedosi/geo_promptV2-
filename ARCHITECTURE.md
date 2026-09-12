@@ -233,6 +233,108 @@ genesis_app/
 
 ---
 
+## Navigation de /map
+
+> Refonte 2026-09-12 (`docs/superpowers/plans/2026-09-12-refonte-navigation-5-themes.md`).
+> Remplace l'ancien `IconBar.tsx` et `FilterPanel.tsx` (2 118 lignes, six
+> categories melangees sans hierarchie de lecture claire).
+
+**Source unique : `lib/navigation/config.ts`.** Ids, libelles, icones lucide,
+tooltips, type de panneau et raccourcis de CHAQUE entree du rail y sont
+declares une seule fois (`ENTREES_NAVIGATION`) ; aucun composant ne redeclare
+l'un de ces champs — verrouille par `tests/unit/navigation/config.test.ts`.
+Le fichier fixe aussi `LARGEUR_RAIL` (76 px — 48 tronquait « Perimetre » a huit
+caracteres) et `ECART_RAIL_PANNEAU` (8 px, entre le rail et le panneau qu'il
+ouvre) : toute position calee sur le rail lit ces constantes, jamais un 48/56
+en dur.
+
+Cinq themes, dans l'ordre de lecture voulu (« ou je regarde » -> « ce que je
+vois » -> « ce que je calcule » -> « ce que je fabrique » -> « ce que
+j'active ») :
+
+| Entree | Ouvre | Raccourci | Role |
+|---|---|---|---|
+| Assistant | tiroir a DROITE de la carte | `Ctrl+K` | geo.prompt, le copilote IA |
+| Campagne | overlay MAGELIAN plein ecran | `Alt+C` | active/pilote une campagne (accent teal, pastille d'alertes) |
+| Filtre | panneau gauche | `Alt+1` | pose le filtre unique (voir plus bas) |
+| Calques | panneau gauche | `Alt+2` | affiche des donnees, ne fabrique rien |
+| Analyse | panneau gauche | `Alt+3` | lance un calcul (Voronoi, bataille, clustering) |
+| Zones | panneau gauche | `Alt+4` | seul endroit qui fabrique une geometrie + une liste de CP |
+| Reglages, Aide | panneau gauche, en bas du rail | — | pas de raccourci, pas de tooltip |
+
+Les quatre panneaux (Filtre/Calques/Analyse/Zones) vivent dans
+`app/map/_components/panneaux/` (`PanneauFiltre.tsx`, `PanneauCalques.tsx`,
+`PanneauAnalyse.tsx`, `PanneauZones.tsx`) et remplacent l'ancien
+`FilterPanel.tsx` (**supprime**) — repris logique par logique, sans reecriture
+du comportement metier de chaque outil.
+
+### Trois regles structurelles
+
+- **Un seul filtre actif** (`lib/carte/filtre.ts`) — poser un filtre remplace
+  le precedent, re-poser le meme le retire. Il ne se contente PAS de masquer
+  cote client : `lib/carte/bbox-requete.ts` ne fait partir une bbox vers une
+  requete de couche QUE si un filtre est actif ; sans filtre, aucun parametre
+  n'est envoye (comportement identique a avant la refonte). C'est le
+  garde-fou direct contre le scan France entiere du 28/03 (CLAUDE.md
+  « Incidents »). `lib/carte/filtre.ts` est **protege** par le contrat de la
+  tache qui l'a ecrit : son propre repli sur `BBOX_METRO` reste reserve au cas
+  d'un filtre POSE dont la bbox n'est pas encore resolue (region/departement/
+  commune/CP) — different du cas « pas de filtre du tout » que gere
+  `bbox-requete.ts`.
+- **Un seul degrade de couleur a la fois** (`lib/carte/degrades.ts`, reducteur
+  pur qui dit quoi eteindre sans rien eteindre lui-meme ; `lib/carte/
+  calques-actifs.ts` l'enveloppe pour la bascule cochee/decochee et valide un
+  `DegradeId` relu a la frontiere — localStorage, URL). Avant, jusqu'a six
+  choroplethes (carreaux, IRIS, indicateurs civiques, sante environnementale,
+  meteo, impressions de campagne) pouvaient s'empiler sans qu'aucune legende
+  ne dise laquelle on lisait.
+- **Aucun calcul d'analyse sans perimetre** (`lib/carte/garde-perimetre.ts`) —
+  bloque le lancement (Voronoi, bataille V1/V2, application de la bataille,
+  clustering) tant qu'aucun `FiltreActif` n'est pose et qu'aucune zone n'est
+  selectionnee. Meme famille d'incident que le filtre unique (28/03 et 08/04).
+  Le cablage reel sur les cinq outils est verrouille par
+  `tests/unit/carte/panneau-analyse-garde.test.ts`, qui lit le SOURCE de
+  `PanneauAnalyse.tsx` plutot que de simuler son comportement — une premiere
+  version avait ecrit la garde correctement dans un test isole, tout en
+  laissant une prop reelle cablee SANS garde en production ; seul un test qui
+  lit le composant reel attrape ce genre d'ecart.
+
+### Pile Echap et garde de saisie
+
+`lib/carte/pile-echap.ts` remplace quatre listeners `keydown` concurrents qui
+ecoutaient tous `Escape` sans ordre garanti : desormais, dernier ouvert =
+premier ferme. Re-empiler un id DEJA present met a jour sa fonction de
+fermeture sans changer sa position (seul un id NOUVEAU part au sommet) — sinon
+un composant qui se re-rend a chaque jeton de streaming (l'Assistant) repousse
+son entree au sommet en continu et Echap ferme la mauvaise chose.
+
+`lib/navigation/garde-saisie.ts` fait qu'un raccourci a modificateur
+(`Ctrl`/`Alt`, seuls modificateurs de `entreeParRaccourci`) ne s'active jamais
+pendant une saisie (INPUT/TEXTAREA/contentEditable) — sauf `Echap`, jamais
+filtree puisque c'est justement la touche qui ferme ce qu'on est en train de
+remplir.
+
+### Trois decisions parquees
+
+- Le verrou `tests/unit/carte/pile-echap-usage.test.ts` lit le **tableau de
+  dependances** de chaque `useEffect` qui appelle `empiler(`, jamais
+  l'**argument** passe a `empiler(` : un callback brut non stabilise (au lieu
+  d'un wrapper `useCallback` a deps vides + ref) pourrait etre reintroduit
+  sans faire rougir ce test. La protection reelle contre le defaut vecu trois
+  fois pendant ce chantier reste la revue de code sur ce point precis.
+- `components/map/ClusteringResultsContent.tsx` monte `ClusterPanel` **sans
+  relayer** la garde de perimetre, et n'est importe nulle part dans le code
+  vivant — laisse en place volontairement plutot que supprime a l'aveugle. La
+  tache 23 (passe `knip`, detection de code mort avec preuves) le fera
+  remonter.
+- L'overlay Campagne (MAGELIAN) retombe toujours sur l'onglet Suivi a la
+  reouverture, meme si l'onglet Strategie etait ouvert avant fermeture —
+  comportement preexistant a cette refonte, que la spec ne demandait pas de
+  changer (seule la persistance de la campagne active entre ouvertures etait
+  exigee).
+
+---
+
 ## Modele multi-tenant
 
 ### Hierarchie
@@ -676,7 +778,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_iris_dept_stats` | Stats IRIS departementales | `api/iris/stats/` |
 | `get_iris_metric_columns` | Colonnes metriques dynamiques | `api/admin/sync-iris-system/`, `lib/chat/tools/indicateursTerritoires.ts` (catalogue d'indicateurs de l'outil `classement_territoires`, cache 5 min) |
 | `get_iris_fill_status` | Taux de remplissage IRIS | `api/admin/iris/` |
-| `get_iris_iris_residual_inputs` | Inputs residus correlation | `api/correlation/compute/` |
+| `get_iris_iris_residual_inputs` | Inputs residus correlation | *orpheline* — `api/correlation/compute/` n'existe pas dans le code, aucun appelant |
 | `update_iris_core_batch` | Update batch colonnes core | `api/iris-crawler/manual-import/` |
 
 > `get_iris_geojson_by_bbox` et `get_iris_geojson_by_codes` (route
