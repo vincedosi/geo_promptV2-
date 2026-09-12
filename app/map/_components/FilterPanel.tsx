@@ -5,9 +5,11 @@ import { logger } from '@/lib/logger';
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
  *
  * Rendu par /map dans le panneau ouvert par le rail, avec `visibleCategory` qui
- * selectionne un ou plusieurs des 4 blocs de sections (perimeter / terrain /
- * audience / analyses) — un tableau affiche plusieurs blocs dans le meme panneau
- * (entree « Calques » du rail, cf lib/navigation/config.ts).
+ * selectionne un ou plusieurs des blocs de sections (terrain / audience /
+ * analyses) — un tableau affiche plusieurs blocs dans le meme panneau (entree
+ * « Calques » du rail, cf lib/navigation/config.ts). Le bloc perimetre a
+ * demenage dans `PanneauFiltre` (entree « Filtre ») a la Tache 4 (2026-09-12) :
+ * `'perimeter'` a disparu de l'union `CategorieFiltre`.
  *
  * Ce fichier n'est plus qu'un ASSEMBLEUR : il cable des hooks d'etat a des
  * composants de section, et ne porte que le squelette de rendu (tabs, barre de
@@ -36,7 +38,6 @@ import { Search, X } from 'lucide-react';
 import { CategoryGroup } from '@/components/ui/CategoryGroup';
 import { C, fInter, fMono } from './filter-panel/tokens';
 import { labelStyle, pill } from './filter-panel/styles';
-import { PerimeterSections } from './filter-panel/PerimeterSections';
 import { PoiSection } from './filter-panel/PoiSection';
 import { OohSection } from './filter-panel/OohSection';
 import { TransportSection } from './filter-panel/TransportSection';
@@ -194,13 +195,20 @@ export function FilterPanel({
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
   // ── Perimetre territorial (etat + referentiel + cascade + libelle) ──────
+  // Depuis la Tache 4 (2026-09-12), plus aucune UI de CE composant ne modifie
+  // scope/selectedRegions/selectedDepts/ville : PerimeterSections (seul
+  // consommateur des setters) a demenage dans PanneauFiltre (entree Filtre
+  // du rail), avec sa propre instance locale non liee. Les valeurs restent
+  // lues ici (recherche POI, bataille isochrone, libelle territoire) via les
+  // props controlees depuis page.tsx, mais rien ne les fait plus varier
+  // depuis ce composant — code laisse en l'etat par la decision du controleur
+  // (« code injoignable, piege pour la Tache 8 » qui supprimera ce fichier).
   const {
-    scope, setScope, selectScope,
-    selectedRegions, setSelectedRegions,
-    selectedDepts, setSelectedDepts,
-    ville, setVille,
-    codePostal, setCodePostal,
-    REF_REGIONS, REF_ALL_DEPTS, availableDepts,
+    scope,
+    selectedRegions,
+    selectedDepts,
+    ville,
+    REF_REGIONS,
     territoire, hasTerritoire,
   } = useTerritorySelection({
     scope: scopeProp, onScopeChange,
@@ -213,8 +221,11 @@ export function FilterPanel({
   const { adminScale, adminCodes } = useAdminScopeLayer(selectedRegions, selectedDepts);
 
   // ── Masque "afficher uniquement le territoire filtre" ────────────────
-  const { territoryMaskEnabled, setTerritoryMaskEnabled } =
-    useTerritoryMask(mainMapRef, adminScale, adminCodes);
+  // Le toggle (checkbox) vivait dans PerimeterSections, deplace dans
+  // PanneauFiltre sans lui (voir plus haut) : plus rien n'active jamais ce
+  // masque depuis ce composant, la valeur reste figee a false. L'appel est
+  // conserve pour son effet de bord (retrait propre du layer au demontage).
+  useTerritoryMask(mainMapRef, adminScale, adminCodes);
 
   // ── Audience state ────────────────────────────────────────────────────────
 
@@ -514,37 +525,6 @@ export function FilterPanel({
         {/* ── Scrollable wrapper pour territoire + poi + analyse ── */}
         {(activeTab === 'expert' || isOverlayMode) && (
         <div className="filter-panel-scroll" style={{ flex: 1, overflowY: isOverlayMode ? 'visible' : 'auto', minHeight: 0 }}>
-
-        {/* ════════════════════════════════════════
-            CATÉGORIE — CONTEXTE (ex-Territoire)
-        ════════════════════════════════════════ */}
-        {categorieVisible('perimeter') && (
-          <PerimeterSections
-            isOverlayMode={isOverlayMode}
-            filterSearch={filterSearch}
-            sectionsOpen={sectionsOpen}
-            toggleSection={toggleSection}
-            scope={scope}
-            selectScope={selectScope}
-            setScope={setScope}
-            selectedRegions={selectedRegions}
-            setSelectedRegions={setSelectedRegions}
-            refRegions={REF_REGIONS}
-            selectedDepts={selectedDepts}
-            setSelectedDepts={setSelectedDepts}
-            availableDepts={availableDepts}
-            ville={ville}
-            setVille={setVille}
-            codePostal={codePostal}
-            setCodePostal={setCodePostal}
-            territoire={territoire}
-            hasTerritoire={hasTerritoire}
-            adminScale={adminScale}
-            adminCodes={adminCodes}
-            territoryMaskEnabled={territoryMaskEnabled}
-            setTerritoryMaskEnabled={setTerritoryMaskEnabled}
-          />
-        )}
 
         {/* ════════════════════════════════════════
             CATÉGORIE — DONNÉES TERRAIN (ex-POI)

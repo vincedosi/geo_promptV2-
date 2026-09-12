@@ -1,13 +1,16 @@
 'use client';
 
 /**
- * Sections de la catégorie « Périmètre » du FilterPanel : périmètre global,
- * régions, départements, recherche locale, résumé du territoire et masque.
+ * Sections « Périmètre » : périmètre global, régions, départements, recherche
+ * locale, résumé du territoire et masque.
  *
- * Rendu par FilterPanel quand `visibleCategory` vaut 'perimeter' (overlay
- * Périmètre du rail /map). Le JSX est repris tel quel du monolithe
- * (2026-09-03) ; seule la résolution des variables change — de la fermeture
- * lexicale vers des props explicites.
+ * Rendu par `app/map/_components/panneaux/PanneauFiltre.tsx` (entrée « Filtre »
+ * du rail /map — lib/navigation/config.ts) depuis la Tâche 4 (2026-09-12), qui
+ * l'enveloppe tel quel sans le recopier. N'est PLUS rendu par `FilterPanel` :
+ * sa branche `visibleCategory === 'perimeter'` a été retirée à la même tâche,
+ * `'perimeter'` a disparu de l'union `CategorieFiltre`. Le JSX est celui du
+ * monolithe (2026-09-03) ; seule la résolution des variables change — de la
+ * fermeture lexicale vers des props explicites.
  *
  * Props explicites plutôt qu'un contexte : 22 entrées restent lisibles et
  * typées, et le composant reste testable isolément.

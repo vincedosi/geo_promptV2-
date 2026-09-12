@@ -15,6 +15,8 @@ interface RailNavigationProps {
   masque?: boolean;
   /** Nombre d'alertes affiche en pastille sur l'entree Campagne. 0 = pas de pastille. */
   badgeAlertes?: number;
+  /** Pastille (point 6px teal) sur l'icone de l'entree Filtre — filtre actif ou non. */
+  pastille?: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export function RailNavigation({
   onEntree,
   masque = false,
   badgeAlertes = 0,
+  pastille = false,
 }: RailNavigationProps) {
   const entreesHaut = ENTREES_NAVIGATION.filter(e => e.position === 'haut');
   const entreesBas = ENTREES_NAVIGATION.filter(e => e.position === 'bas');
@@ -60,6 +63,7 @@ export function RailNavigation({
           entree={entree}
           actif={entreeActive === entree.id}
           badgeAlertes={entree.accent ? badgeAlertes : 0}
+          pastille={entree.id === 'filtre' && pastille}
           onClick={() => onEntree(entree.id)}
         />
       ))}
@@ -82,10 +86,12 @@ interface EntreeBoutonProps {
   entree: EntreeNavigation;
   actif: boolean;
   badgeAlertes: number;
+  /** Point 6px teal en haut-droite de l'icone (entree Filtre : filtre actif). */
+  pastille?: boolean;
   onClick: () => void;
 }
 
-function EntreeBouton({ entree, actif, badgeAlertes, onClick }: EntreeBoutonProps) {
+function EntreeBouton({ entree, actif, badgeAlertes, pastille = false, onClick }: EntreeBoutonProps) {
   const Icon = entree.icone;
 
   // Entrée accent (Campagne) : bouton pleine largeur, fond teal plein. La spec
@@ -203,7 +209,22 @@ function EntreeBouton({ entree, actif, badgeAlertes, onClick }: EntreeBoutonProp
             }}
           />
         )}
-        <Icon size={20} strokeWidth={1.5} />
+        <span style={{ position: 'relative', display: 'flex' }}>
+          <Icon size={20} strokeWidth={1.5} />
+          {pastille && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--brand-teal)',
+              }}
+            />
+          )}
+        </span>
         <span
           style={{
             fontSize: 10,

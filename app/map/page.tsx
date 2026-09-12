@@ -75,17 +75,20 @@ import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
+import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
+import { FiltreChip } from '@/components/map/FiltreChip';
+import { retirerFiltre, type FiltreActif } from '@/lib/carte/filtre';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
 // ─── Adaptateur transitoire rail → panneaux (Tâche 2) ──────────────────────────
-// Le rail (lib/navigation/config.ts) émet cinq thèmes, mais les panneaux
-// existants n'existent qu'aux anciennes catégories perimeter/terrain/audience/
-// analyses (FilterPanel). Cette table sera retirée aux Tâches 4, 6 et 7 quand
-// « Calques », « Filtre » et « Analyse » auront leurs propres panneaux.
+// Le rail (lib/navigation/config.ts) émet cinq thèmes. « Filtre » a son propre
+// panneau depuis la Tâche 4 (PanneauFiltre, rendu à part — voir plus bas) ;
+// « Calques » et « Analyse » retombent encore sur les anciennes catégories
+// terrain/audience/analyses de FilterPanel. Cette table sera retirée aux
+// Tâches 6 et 7 quand « Calques » et « Analyse » auront leurs propres panneaux.
 const CATEGORIES_FILTER_PANEL_PAR_ENTREE: Partial<Record<EntreeId, CategorieFiltre[]>> = {
-  filtre: ['perimeter'],
   // L'ordre d'affichage réel (Terrain puis Audience) vient de la structure
   // JSX de FilterPanel, pas de l'ordre de ce tableau — la Tâche 6 refera ce
   // regroupement pour de bon.
@@ -138,6 +141,11 @@ export default function MapPage() {
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
+  // Filtre unique « où je regarde » (Tâche 4, lib/carte/filtre.ts) — source
+  // unique partagée par PanneauFiltre, FiltreChip, la pastille du rail et les
+  // fetchs de couche bornés par bboxDuFiltre (useMapDirectActions, useMeteoLayer,
+  // CivicHealthMapLayer). Pas de duplication d'état : un seul useState ici.
+  const [filtre, setFiltre] = useState<FiltreActif | null>(null);
   // Périmètre territorial : même lift (filtre dept/région doit survivre au cycle
   // mount/unmount des overlays — sinon Bataille V2 ignore le filtre user)
   const [perimeterScope,           setPerimeterScope]           = useState<'metro' | 'all' | null>(null);
@@ -223,7 +231,7 @@ export default function MapPage() {
     meteoPanelOpen, setMeteoPanelOpen,
     handleMeteoApply,
     handleMeteoClear,
-  } = useMeteoLayer(mapRef, mapReady);
+  } = useMeteoLayer(mapRef, mapReady, filtre);
 
   // ── Detail IRIS : clic sur la couche + fetch (cf _hooks/useIrisDetail) ────
   const { selectedIrisCode, setSelectedIrisCode, selectedIrisData, setSelectedIrisData, irisDetailLoading } =
@@ -409,7 +417,7 @@ export default function MapPage() {
     handleFillIsochroneCache,
     handleApplyBattle,
     handleDirectBattleV2,
-  } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError);
+  } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError, filtre);
 
   // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
   useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
@@ -694,7 +702,9 @@ export default function MapPage() {
         onEntree={handleEntree}
         masque={railMasque}
         badgeAlertes={0 /* source du compte d'alertes : viendra avec l'onglet Suivi */}
+        pastille={filtre !== null}
       />
+      <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
       {entreeActive && (
         <OverlayPanel
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
@@ -708,6 +718,9 @@ export default function MapPage() {
           onClose={() => setEntreeActive(null)}
         >
           {entreeActive === 'assistant' && <AIOverlay chatSlot={chatSlotContent} />}
+          {entreeActive === 'filtre' && (
+            <PanneauFiltre filtre={filtre} onFiltre={setFiltre} />
+          )}
           {CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive] && (
             <FilterPanel
               visibleCategory={CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive]}
@@ -904,6 +917,7 @@ export default function MapPage() {
         minLevel={civicMinLevel}
         metric={civicMetric}
         refreshKey={civicRefreshKey}
+        filtre={filtre}
         onProgress={(done, total) => setCivicProgress({ done, total })}
         onCpDataStatus={(status, date) => { setCivicCpStatus(status); setCivicCpDate(date); }}
         onLoadingChange={setCivicLoading}

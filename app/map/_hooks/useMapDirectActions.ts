@@ -6,8 +6,8 @@
  *
  * Regroupe les 6 handlers et les 4 etats qui vivaient dans app/map/page.tsx
  * (refactor du 31/08/2026) :
- *   - handleDirectOOH            : panneaux OOH de la bbox visible
- *   - handleDirectSearch         : recherche POI directe
+ *   - handleDirectOOH            : panneaux OOH bornes par bboxDuFiltre(filtre)
+ *   - handleDirectSearch         : recherche POI directe, bornee de meme
  *   - handleDirectBattle         : isochrones multi-POI (v1, streaming)
  *   - handleFillIsochroneCache   : prechauffage du cache ORS
  *   - handleApplyBattle          : decoupe des territoires (ST_Difference)
@@ -16,6 +16,10 @@
  * ⛔ Deplacement a l'identique : ces handlers pilotent /api/isochrone-battle*,
  * code metier protege. Ne rien reordonner, ne rien "optimiser" ici — les
  * appels sont sequentiels et bornes par bbox par respect des contraintes I/O.
+ *
+ * Tache 4 (2026-09-12) : `handleDirectOOH`/`handleDirectSearch` envoient
+ * desormais `bboxDuFiltre(filtre)` a `/api/map/ooh` et `/api/map/pois` —
+ * jamais la France entiere, meme sans filtre actif (repli sur `BBOX_METRO`).
  *
  * ⛔ A appeler APRES useMapInit et useMapLayers.
  */
@@ -31,12 +35,14 @@ import type {
 } from '@/app/map/_components/FilterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import type { POI } from '@/types/poi';
+import { bboxDuFiltre, type FiltreActif } from '@/lib/carte/filtre';
 
 export function useMapDirectActions(
   mapRef: React.RefObject<maplibregl.Map | null>,
   mapLayers: ReturnType<typeof useMapLayers>,
   setZoneData: React.Dispatch<React.SetStateAction<ZoneData | null>>,
   setError: React.Dispatch<React.SetStateAction<string | null>>,
+  filtre: FiltreActif | null,
 ) {
   const [battleFeatures,      setBattleFeatures]      = useState<GeoJSON.Feature[]>([]);
   const [battlePois,          setBattlePois]          = useState<POI[]>([]);
@@ -58,7 +64,7 @@ export function useMapDirectActions(
       const res = await fetch('/api/map/ooh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regies: regies ?? [] }),
+        body: JSON.stringify({ regies: regies ?? [], bbox: bboxDuFiltre(filtre) }),
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) {
@@ -81,7 +87,7 @@ export function useMapDirectActions(
       const res = await fetch('/api/map/pois', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        body: JSON.stringify({ ...params, bbox: bboxDuFiltre(filtre) }),
         signal: AbortSignal.timeout(25000),
       });
       if (!res.ok) {

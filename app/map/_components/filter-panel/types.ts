@@ -14,8 +14,15 @@ import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 
-/** Les quatre catégories de blocs que le FilterPanel sait afficher en mode overlay. */
-export type CategorieFiltre = 'perimeter' | 'terrain' | 'audience' | 'analyses';
+/**
+ * Les catégories de blocs que le FilterPanel sait afficher en mode overlay.
+ *
+ * `'perimeter'` a été retiré à la Tâche 4 (2026-09-12) : le périmètre a son
+ * propre panneau (`PanneauFiltre`, entrée « Filtre » du rail), qui enveloppe
+ * `PerimeterSections` directement — plus besoin de la faire transiter par
+ * `FilterPanel`.
+ */
+export type CategorieFiltre = 'terrain' | 'audience' | 'analyses';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {

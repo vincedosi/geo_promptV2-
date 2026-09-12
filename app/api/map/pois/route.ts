@@ -17,6 +17,12 @@ const poisPostSchema = z.object({
   ville:        z.string().max(200).default(''),
   rayon_poi:    z.string().max(20).nullable().default(null),
   poi_natures:  z.record(z.string(), z.array(z.string())).optional(),
+  // [west, south, east, north] — lib/carte/filtre.ts (Tache 4). Envoyee par
+  // useMapDirectActions via bboxDuFiltre(filtre) : borne TOUJOURS la requete
+  // (repliee sur BBOX_METRO sans filtre actif, jamais la France entiere) —
+  // c'est ce qui remplace le filtrage geographique dept/region/ville quand
+  // aucun de ces trois n'est fourni (recherche POI "scope national").
+  bbox:         z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
 });
 
 // ── Filtre org : retourne les IDs de sources autorisées pour cette session ─────
@@ -51,7 +57,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(', ') }, { status: 400 });
     }
-    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures } = parsed.data;
+    const { poi_types, scope, regions, depts, ville, rayon_poi, poi_natures, bbox } = parsed.data;
 
     const session   = await getSessionOrg(req);
     const supabase  = createAdminClient();
@@ -144,12 +150,14 @@ export async function POST(req: NextRequest) {
       const natures = poi_natures?.[poiType] ?? [];
 
       // Helper : applique cat + filtres nature + filtre org (data_source_id)
+      // + bbox (Tache 4 — jamais la France entiere, meme sur le scope national).
       // Note: typed as `any` because Supabase's PostgrestFilterBuilder generic
       // chain causes "Type instantiation excessively deep" errors when narrowed.
       const applyFilters = (q: any): any => {
         if (resolvedCat) q = q.eq('categorie', resolvedCat);
         if (natures.length > 0) q = q.in('metadata->>libelle_nature', natures);
         if (allowedSourceIds !== null) q = q.in('data_source_id', allowedSourceIds);
+        if (bbox) q = q.gte('lat', bbox[1]).lte('lat', bbox[3]).gte('lng', bbox[0]).lte('lng', bbox[2]);
         return q;
       };
 

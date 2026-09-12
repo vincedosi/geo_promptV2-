@@ -26,6 +26,7 @@ import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import type { AirIndicator, AtmoLevel, PollenIndicator } from '@/lib/civic-health/types';
+import { bboxDuFiltre, type FiltreActif } from '@/lib/carte/filtre';
 
 export const CIVIC_SOURCE_ID = 'civic-health-zones';
 const FILL_ID = 'civic-health-zones-fill';
@@ -121,6 +122,13 @@ interface Props {
   /** Fin de chargement (succès ou erreur) — pour l'état loading du panel. */
   onLoadingChange?: (loading: boolean) => void;
   opacity?: number;
+  /**
+   * Filtre unique actif (lib/carte/filtre.ts, Tâche 4) — borne la lecture
+   * `scale='cp'` (pollen_map_daily/atmo_map_daily), qui chargeait jusqu'ici
+   * la France entière sans borne. N'affecte pas `scale='departement'`
+   * (échantillon national fixe, ~104 lignes, pas de notion de bbox).
+   */
+  filtre?: FiltreActif | null;
 }
 
 export function CivicHealthMapLayer({
@@ -134,6 +142,7 @@ export function CivicHealthMapLayer({
   onCpDataStatus,
   onLoadingChange,
   opacity = 0.55,
+  filtre = null,
 }: Props) {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const clickRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
@@ -179,7 +188,14 @@ export function CivicHealthMapLayer({
     src.setData(merged);
   };
 
-  // ── Effet data : (re)charge zones + valeurs quand dataset/échelle change ──
+  // bbox envoyee a scale='cp' uniquement — le departement est un echantillon
+  // national fixe, sans notion de bbox. `null` (stable) quand scale !== 'cp',
+  // pour ne PAS re-declencher l'effet data au changement de filtre dans ce
+  // cas (repaint-only, comme minLevel/metric ci-dessous, serait trompeur ici
+  // vu que la donnee 'cp' n'est meme pas chargee).
+  const bboxParam = scale === 'cp' ? bboxDuFiltre(filtre).join(',') : null;
+
+  // ── Effet data : (re)charge zones + valeurs quand dataset/échelle/bbox change ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -279,10 +295,11 @@ export function CivicHealthMapLayer({
 
         // 2. Valeurs selon l'échelle
         if (scale === 'cp') {
-          // min_level=0 volontaire : on charge tout (~6 200 lignes, léger) et
-          // le seuil/métrique est appliqué au paint — changer de filtre ne
-          // redéclenche aucun fetch.
-          const res = await adminFetch(`/api/civic-indicators/health-map?dataset=${dataset}&scale=cp&min_level=0&metric=global`);
+          // min_level=0 volontaire : le seuil/métrique est appliqué au paint,
+          // sans refetch. La bbox, elle, borne réellement la lecture serveur
+          // (Tâche 4) — plus « on charge tout » : sans filtre actif, repli
+          // sur BBOX_METRO (jamais la France entière).
+          const res = await adminFetch(`/api/civic-indicators/health-map?dataset=${dataset}&scale=cp&min_level=0&metric=global&bbox=${bboxParam}`);
           if (!res.ok) throw new Error(`health-map cp HTTP ${res.status}`);
           const payload = await res.json() as { date: string | null; rows: CpRow[]; error?: string };
           if (cancelled) return;
@@ -385,9 +402,12 @@ export function CivicHealthMapLayer({
       const m = mapRef.current;
       if (m) cleanup(m);
     };
-    // opacity absent des deps : simple peinture, gérée par l'effet dédié ci-dessous
+    // opacity absent des deps : simple peinture, gérée par l'effet dédié ci-dessous.
+    // bboxParam (Tâche 4) : refetch quand le filtre change EN scale='cp'
+    // uniquement (bboxParam vaut null, stable, sinon — pas de refetch inutile
+    // du départemental quand le filtre change).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset, scale, refreshKey]);
+  }, [dataset, scale, refreshKey, bboxParam]);
 
   // ── Effet filtre : repaint sans refetch quand seuil/métrique change ───────
   useEffect(() => {

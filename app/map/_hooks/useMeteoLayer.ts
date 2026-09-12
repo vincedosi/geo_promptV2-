@@ -13,6 +13,10 @@
  * Le cache des polygones est volontairement un `useRef` par echelle : les
  * geometries admin ne changent pas et un re-fetch a chaque application de
  * filtre couterait plusieurs Mo pour rien (contrainte Nano).
+ *
+ * Tache 4 (2026-09-12) : en mode `cp`, la bbox envoyee est `bboxDuFiltre(filtre)`
+ * (lib/carte/filtre.ts) — plus le viewport courant (`mapRef.current.getBounds()`).
+ * Sans filtre actif, repli sur `BBOX_METRO` (jamais la France entiere).
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
@@ -21,10 +25,12 @@ import { adminFetch } from '@/lib/admin-fetch';
 import { useMeteoData } from '@/lib/meteo/use-meteo-data';
 import { buildColorExpression as buildMeteoColorExpr } from '@/lib/meteo/palettes';
 import { type MeteoParams, type MeteoScale } from '@/lib/meteo/types';
+import { bboxDuFiltre, type FiltreActif } from '@/lib/carte/filtre';
 
 export function useMeteoLayer(
   mapRef: React.RefObject<maplibregl.Map | null>,
   mapReady: boolean,
+  filtre: FiltreActif | null,
 ) {
   // Météo — choroplèthe par zones admin (Open-Meteo, polygones dép./régions)
   const [meteoVisible, setMeteoVisible] = useState(false);
@@ -131,18 +137,20 @@ export function useMeteoLayer(
     // pour les appels sans scale (compatibilité).
     const days = (new Date(params.endDate).getTime() - new Date(params.startDate).getTime()) / 86400000;
     const scale: MeteoScale = params.scale ?? (days > 30 ? 'region' : 'departement');
-    // Mode cp : le viewport restreint les zones interrogées (CP exacts si la
-    // vue en contient ≤ 500, sinon échantillonnage spatial côté serveur).
+    // Mode cp : le filtre actif restreint les zones interrogées (CP exacts si
+    // la zone en contient ≤ 500, sinon échantillonnage spatial côté serveur).
+    // bboxDuFiltre replie sur BBOX_METRO sans filtre actif — jamais le viewport
+    // (qui pouvait couvrir la France entière dézoomée) ni la France entière.
     let bbox: string | undefined;
     if (scale === 'cp') {
-      const b = mapRef.current?.getBounds();
-      if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
+      const [west, south, east, north] = bboxDuFiltre(filtre);
+      bbox = `${west.toFixed(3)},${south.toFixed(3)},${east.toFixed(3)},${north.toFixed(3)}`;
     }
     await ensureMeteoZones(scale);
     const ok = await meteo.fetch(scale, { ...params, bbox });
     if (ok) setMeteoVisible(true);
     return ok;
-  }, [meteo, ensureMeteoZones, mapRef]);
+  }, [meteo, ensureMeteoZones, filtre]);
 
   const handleMeteoClear = useCallback(() => {
     meteo.clear();

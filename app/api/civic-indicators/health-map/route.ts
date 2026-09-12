@@ -1,6 +1,6 @@
 /**
  * GET /api/civic-indicators/health-map
- *   ?dataset=pollen|atmo&scale=departement|cp&min_level=0-6&metric=global|<espèce|polluant>
+ *   ?dataset=pollen|atmo&scale=departement|cp&min_level=0-6&metric=global|<espèce|polluant>&bbox=w,s,e,n
  *
  * Carte santé environnementale (allergènes + qualité de l'air), deux échelles :
  *
@@ -14,12 +14,16 @@
  *
  *   scale=cp — lit pollen_map_daily / atmo_map_daily (ingestion bulk WFS
  *   nationale, niveaux max des communes du CP). Filtre SQL min_level sur la
- *   métrique demandée. JSON :
+ *   métrique demandée, et `bbox` (Tâche 4, 2026-09-12) sur les codes postaux
+ *   dont le centroïde (`ref_codes_postaux.centroid_lat/centroid_lon`) tombe
+ *   dans la bbox — avant cette tâche cet appel chargeait la France entière
+ *   (~6 200 lignes, jugé « léger » à l'époque). JSON :
  *     {"date":"2026-07-03","rows":[{"code_postal":"29200","indice_global":4,...}]}
  *     ou {"date":null,"rows":[],"error":"no_data"} si l'ingestion n'a jamais tourné.
  *
  * min_level/metric ne s'appliquent qu'à scale=cp (au département, le filtre
- * est côté client — les ~104 valeurs sont déjà chargées).
+ * est côté client — les ~104 valeurs sont déjà chargées). `bbox` ne s'applique
+ * qu'à scale=cp egalement (le département n'a pas de notion de bbox).
  *
  * Source : Atmo France et les AASQA — licence ODbL (mention obligatoire côté UI).
  */
@@ -42,6 +46,9 @@ const querySchema = z.object({
   scale: z.enum(['departement', 'cp']).default('departement'),
   min_level: z.coerce.number().int().min(0).max(6).default(0),
   metric: z.string().default('global'),
+  // [west, south, east, north] — lib/carte/filtre.ts (Tache 4). Ne s'applique
+  // qu'a scale=cp ; ignore sur scale=departement (echantillon national fixe).
+  bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/).optional(),
 });
 
 const CP_TABLES = {
@@ -70,7 +77,7 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
   }
-  const { dataset, scale, min_level, metric } = parsed.data;
+  const { dataset, scale, min_level, metric, bbox } = parsed.data;
   const validMetrics: readonly string[] = dataset === 'pollen' ? POLLEN_METRICS : ATMO_METRICS;
   if (!validMetrics.includes(metric)) {
     return NextResponse.json({ error: 'invalid_params' }, { status: 400 });
@@ -96,12 +103,36 @@ export async function GET(request: NextRequest) {
     if (!date) {
       return NextResponse.json({ date: null, rows: [], error: 'no_data' });
     }
-    const { data: rows, error: rowsErr } = await supabase
+
+    // bbox (Tache 4) : resout d'abord les codes postaux dont le centroide
+    // tombe dans la bbox (table de reference, ~6 187 lignes — leger), puis
+    // filtre la lecture pollen/atmo dessus. Jamais un masque cote client.
+    let codesPostauxBbox: string[] | null = null;
+    if (bbox) {
+      const [west, south, east, north] = bbox.split(',').map(Number);
+      const { data: cps, error: cpsErr } = await supabase
+        .from('ref_codes_postaux')
+        .select('code_postal')
+        .gte('centroid_lon', west).lte('centroid_lon', east)
+        .gte('centroid_lat', south).lte('centroid_lat', north);
+      if (cpsErr) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+      }
+      codesPostauxBbox = (cps ?? []).map(c => c.code_postal);
+      if (codesPostauxBbox.length === 0) {
+        return NextResponse.json({ date, rows: [] }, { headers: { 'Cache-Control': 'no-store' } });
+      }
+    }
+
+    let query = supabase
       .from(table)
       .select(columns)
       .eq('date_ech', date)
-      .gte(levelColumn, Math.max(min_level, 1)) // 0 = indisponible, jamais peint
-      .limit(10_000);
+      .gte(levelColumn, Math.max(min_level, 1)); // 0 = indisponible, jamais peint
+    if (codesPostauxBbox) {
+      query = query.in('code_postal', codesPostauxBbox);
+    }
+    const { data: rows, error: rowsErr } = await query.limit(10_000);
     if (rowsErr) {
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
