@@ -13,6 +13,11 @@ import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
 import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : une seule instance de cet overlay
+ *  est montée (elle vit dans le layout), gardée ou fermée via `open`. */
+const PILE_ID = 'magelian-overlay';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
 const fInter = "'Inter', system-ui, sans-serif";
@@ -239,17 +244,12 @@ export function MagelianOverlay() {
     setCampaigns((prev) => prev ? prev.map((c) => (c.id === creationCampaignId ? { ...c, name } : c)) : prev);
   }, [creationCampaignId]);
 
-  // Esc ferme l'overlay
+  // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
+  // dernier ouvert se ferme en premier, plus de listener direct concurrent.
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    empiler(PILE_ID, handleClose);
+    return () => depiler(PILE_ID);
   }, [open, handleClose]);
 
   // Click-outside : ferme si le clic est hors du panel ET hors du bouton sidebar.

@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { LARGEUR_RAIL, ECART_RAIL_PANNEAU, type EntreeId } from '@/lib/navigation/config';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : un seul OverlayPanel est monté à la
+ *  fois (une seule entrée du rail peut être active), seule sa `category`
+ *  change quand on bascule d'un outil à l'autre sans fermer. */
+const PILE_ID = 'overlay-panel';
 
 interface OverlayPanelProps {
   category: EntreeId;
@@ -70,16 +76,11 @@ export function OverlayPanel({
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Esc ferme l'overlay
+  // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
+  // dernier ouvert se ferme en premier, plus de listener direct concurrent.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    empiler(PILE_ID, handleClose);
+    return () => depiler(PILE_ID);
   }, [handleClose]);
 
   // Click-outside : ferme si le clic est hors de l'overlay ET hors du rail

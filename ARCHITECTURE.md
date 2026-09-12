@@ -101,7 +101,10 @@ genesis_app/
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
 │   ├── login/                  # Page de connexion Supabase Auth
 │   ├── map/                    # Page carte complete
-│   │   ├── _components/        # FilterPanel, IrisDetailPanel
+│   │   ├── _components/        # panneaux/ (Filtre/Calques/Analyse/Zones du rail),
+│   │   │                       # IrisDetailPanel, ClusterPanel — FilterPanel.tsx
+│   │   │                       # (l'ancien monolithe) supprime le 2026-09-12,
+│   │   │                       # vide par les taches 2 a 7
 │   │   └── analyse/digital/    # Analyse campagnes digitales
 │   │       ├── _components/    # AnalysisPanel, SyncMap, BiddingCopilot,
 │   │       │                   # MeteoGeoPanel, MediaHeatmap, KpiSummary...

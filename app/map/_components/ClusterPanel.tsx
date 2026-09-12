@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap : le mode comparaison est une entrée
+ *  empilée par-dessus le panneau qui la contient (jamais deux à la fois). */
+const PILE_ID_COMPARE = 'cluster-compare';
 const ClusteringWizard = dynamic(
   () => import('./ClusteringWizard').then(m => ({ default: m.ClusteringWizard })),
   { ssr: false },
@@ -242,13 +247,13 @@ export function ClusterPanel({
     return () => window.removeEventListener('genesis:cluster-select', handler);
   }, [compareMode]);
 
-  // Escape to exit compare mode
+  // Escape to exit compare mode — via la pile Echap (lib/carte/pile-echap.ts) :
+  // le mode comparaison se ferme avant le panneau qui le contient, plus de
+  // listener direct concurrent.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && compareMode !== 'idle') exitCompare();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    if (compareMode === 'idle') return;
+    empiler(PILE_ID_COMPARE, exitCompare);
+    return () => depiler(PILE_ID_COMPARE);
   }, [compareMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function exitCompare() {

@@ -12,7 +12,7 @@ import { DataGouvCard }    from './DataGouvCard';
 import { AnalyseCard }     from './AnalyseCard';
 import { ClassementCard }  from '@/components/chat/ClassementCard';
 import { useSmartPrompt }  from '../_hooks/useSmartPrompt';
-import type { Provider, ProviderStatus } from '../_hooks/useProviderSelector';
+import type { Provider } from '../_hooks/useProviderSelector';
 import type { SmartPromptResponse, AgentName } from '@/lib/smart-prompt/types';
 
 // ── SmartMessage : type union des éléments smart dans le flux ──────────────────
@@ -53,11 +53,10 @@ interface ChatPanelProps {
   loadMap: (id: string) => Promise<void>;
   deleteMap: (id: string) => Promise<void>;
   zoneData: ZoneData | null;
+  /** Modèle IA actif (Gemini/Mistral) — son choix et l'état de la clé vivent
+   *  désormais dans Réglages (`SettingsOverlay`, Tâche 8) ; ce panneau ne fait
+   *  plus qu'afficher le nom du modèle courant dans son en-tête. */
   provider: Provider;
-  setProvider: (p: Provider) => void;
-  providerStatus: ProviderStatus;
-  statusLoading: boolean;
-  refreshProviderStatus: () => void;
   sessionTokens?: { input: number; output: number; total: number };
   onFlyTo?: (lat: number, lng: number, zoom: number) => void;
   onHighlightIris?: (codeIris: string | null) => void;
@@ -113,28 +112,6 @@ const AGENT_LABEL: Record<AgentName, string> = {
   benchmark:        'BENCH',
   unknown:          '?',
 };
-
-// ─── ProviderBadge ────────────────────────────────────────────────────────────
-function ProviderBadge({ status, provider }: { status: ProviderStatus; provider: Provider }) {
-  if (provider === 'mistral') {
-    const m = status.mistral;
-    if (!m) return <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono }}>…</span>;
-    const pct = m.limit > 0 ? m.remaining / m.limit : 0;
-    const color = pct > 0.1 ? C.green : pct > 0.02 ? C.warning : C.red;
-    const label = m.remaining <= 0 ? 'Quota épuisé' : `${m.remaining.toLocaleString('fr-FR')} tok`;
-    return <span style={{ fontSize: 11, color, fontFamily: fontMono }}>{label}</span>;
-  }
-  const g = status.gemini;
-  if (!g) return <span style={{ fontSize: 11, color: C.textDim, fontFamily: fontMono }}>…</span>;
-  if (!g.keyPresent) return <span style={{ fontSize: 11, color: C.red, fontFamily: fontMono }}>Clé manquante</span>;
-  return (
-    <span style={{ fontSize: 11, fontFamily: fontMono }}>
-      <span style={{ color: C.green }}>Clé OK</span>
-      <span style={{ color: C.textDim }}> · </span>
-      <span style={{ color: C.warning }}>billing requis</span>
-    </span>
-  );
-}
 
 // ─── SmartResultCard : rendu inline d'un résultat Smart ──────────────────────
 function SmartResultCard({ response }: { response: SmartPromptResponse }) {
@@ -231,7 +208,7 @@ export function ChatPanel({
   showSavePanel, showLoadPanel, setShowSavePanel, setShowLoadPanel,
   saveName, setSaveName, saveLoading, saveError, setSaveError,
   savedMaps, saveCurrentMap, loadSavedMaps, loadMap, deleteMap,
-  provider, setProvider, providerStatus, statusLoading, refreshProviderStatus,
+  provider,
   sessionTokens,
   onFlyTo,
   onHighlightIris,
@@ -437,56 +414,28 @@ export function ChatPanel({
         </div>
       )}
 
-      {/* ── Provider selector + Smart toggle ── */}
-      <div style={{ borderBottom: `0.5px solid ${C.border}`, background: C.bgSurface }}>
-        {/* Ligne 1 : boutons IA + smart */}
-        <div style={{ padding: '8px 16px 6px', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 9, color: C.textDim, fontFamily: fontInter, letterSpacing: '0.08em', textTransform: 'uppercase' as const, flexShrink: 0 }}>IA :</span>
-          {([
-            { id: 'mistral', label: 'Mistral' },
-            { id: 'gemini',  label: 'Gemini'  },
-          ] as Array<{ id: Provider; label: string }>).map(p => {
-            const active = provider === p.id;
-            return (
-              <button key={p.id} onClick={() => setProvider(p.id)} style={{
-                background: active ? 'rgba(78,205,196,0.08)' : 'transparent',
-                border: `0.5px solid ${active ? C.teal : 'var(--border-default)'}`,
-                borderRadius: 4, padding: '4px 10px',
-                color: active ? C.teal : C.textSec,
-                cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
-                fontWeight: active ? 500 : 400, transition: 'all 0.2s ease',
-              }}>{p.label}</button>
-            );
-          })}
-
-          {/* Séparateur */}
-          <div style={{ width: 1, height: 14, background: C.border, margin: '0 2px' }} />
-
-          {/* Toggle Smart Prompt — cycle AUTO → SMART → CHAT */}
-          <button
-            onClick={cycleSmartMode}
-            title={
-              smartMode === 'smart' ? 'SMART forcé — clic → CHAT' :
-              smartMode === 'chat'  ? 'CHAT forcé — clic → AUTO' :
-                                     'AUTO — détection par mots-clés — clic → SMART'
-            }
-            style={{
-              background: smartMode === 'smart' ? 'rgba(78,205,196,0.08)' : 'transparent',
-              border: `0.5px solid ${smartMode === 'smart' ? 'rgba(78,205,196,0.35)' : 'var(--border-default)'}`,
-              borderRadius: 4, padding: '4px 8px',
-              color: smartMode === 'smart' ? C.teal : C.textSec,
-              cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
-              fontWeight: smartMode === 'smart' ? 500 : 400, transition: 'all 0.2s ease',
-            }}
-          >
-            {smartMode === 'smart' ? '⚡ SMART' : smartMode === 'auto' ? '⚡ AUTO' : '⚡'}
-          </button>
-        </div>
-        {/* Ligne 2 : statut provider */}
-        <div style={{ padding: '0 16px 7px', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ProviderBadge status={providerStatus} provider={provider} />
-          <button onClick={refreshProviderStatus} disabled={statusLoading} title="Rafraîchir" style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', fontSize: 11, padding: 2, opacity: statusLoading ? 0.4 : 1 }}>↻</button>
-        </div>
+      {/* ── Smart toggle — le choix du modèle IA et l'état de la clé ont
+          déménagé dans Réglages (SettingsOverlay, Tâche 8). ── */}
+      <div style={{ borderBottom: `0.5px solid ${C.border}`, background: C.bgSurface, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* Toggle Smart Prompt — cycle AUTO → SMART → CHAT */}
+        <button
+          onClick={cycleSmartMode}
+          title={
+            smartMode === 'smart' ? 'SMART forcé — clic → CHAT' :
+            smartMode === 'chat'  ? 'CHAT forcé — clic → AUTO' :
+                                   'AUTO — détection par mots-clés — clic → SMART'
+          }
+          style={{
+            background: smartMode === 'smart' ? 'rgba(78,205,196,0.08)' : 'transparent',
+            border: `0.5px solid ${smartMode === 'smart' ? 'rgba(78,205,196,0.35)' : 'var(--border-default)'}`,
+            borderRadius: 4, padding: '4px 8px',
+            color: smartMode === 'smart' ? C.teal : C.textSec,
+            cursor: 'pointer', fontSize: 11, fontFamily: fontInter,
+            fontWeight: smartMode === 'smart' ? 500 : 400, transition: 'all 0.2s ease',
+          }}
+        >
+          {smartMode === 'smart' ? '⚡ SMART' : smartMode === 'auto' ? '⚡ AUTO' : '⚡'}
+        </button>
       </div>
 
       {/* ── Panel Prompts ── */}

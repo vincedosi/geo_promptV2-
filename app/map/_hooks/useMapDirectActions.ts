@@ -36,7 +36,7 @@ import type {
   DirectBattleParams,
   DirectBattleV2Params,
   FillIsochroneCacheParams,
-} from '@/app/map/_components/FilterPanel';
+} from '@/app/map/_components/filter-panel/types';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import type { POI } from '@/types/poi';
 import type { FiltreActif } from '@/lib/carte/filtre';

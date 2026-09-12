@@ -22,7 +22,7 @@ import maplibregl from 'maplibre-gl';
 import { circleGeoJSON, getCatColor } from '@/app/copilote/_lib/constants';
 import type { ZoneData } from '@/types/spatial';
 import type { SelectedBillboard } from '@/types/map';
-import type { POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
 // L'echappement etait defini localement ici ; il vit desormais dans lib/map,
 // partage par les treize popups du projet — et il couvre l'apostrophe, que la
 // version locale omettait.

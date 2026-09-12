@@ -28,7 +28,7 @@ import { logger } from '@/lib/logger';
  *   - Lire docs/known_tech_debt.md avant refactor structurel
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -53,7 +53,7 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import type { POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
@@ -68,11 +68,12 @@ import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { RailNavigation } from '@/components/map/RailNavigation';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
-import { AIOverlay } from '@/components/map/overlays/AIOverlay';
+import { AIOverlay, LARGEUR_TIROIR_ASSISTANT } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
-import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
+import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
+import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
 import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
@@ -90,22 +91,14 @@ import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
 /**
- * Titre affiché dans l'en-tête de l'OverlayPanel, par entrée du rail —
- * SEULEMENT pour l'entrée dont le titre diffère réellement du libellé du
- * rail. Toute autre entrée retombe sur `ENTREES_NAVIGATION` (source unique
- * de la navigation, cf lib/navigation/config.ts) : recopier les autres
- * libellés ici les ferait diverger en silence le jour où la config change.
- * « Zones » a perdu son override « Zones sauvegardées » à la Tâche 7 : le
- * panneau contient désormais aussi « Créer une zone », plus seulement la
- * liste des zones enregistrées.
+ * Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail.
+ * L'Assistant n'y figure plus depuis la Tâche 8 : ce n'est plus un
+ * `OverlayPanel` (panneau gauche) mais un tiroir droit autonome (`AIOverlay`),
+ * qui porte son propre dot. Le titre, lui, vient directement de
+ * `ENTREES_NAVIGATION` (source unique de la navigation, cf
+ * lib/navigation/config.ts) — plus d'override local à synchroniser.
  */
-const TITRE_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
-  assistant: 'geo.prompt',
-};
-
-/** Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail. */
 const DOT_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
-  assistant: 'var(--brand-teal)',
   filtre: 'var(--cat-context)',
   calques: 'var(--cat-terrain)',
   analyse: 'var(--cat-analysis)',
@@ -132,11 +125,14 @@ export default function MapPage() {
   // après la définition de `onDegrade`, qui dépend de `mapLayers`).
   const [campagneActive, setCampagneActive] = useState<SuiviMapEventDetail | null>(null);
   const campagneActiveRef = useRef<SuiviMapEventDetail | null>(null);
-  // Adaptateur transitoire (Tâche 2) : « Campagne » n'ouvre pas un panneau du
-  // rail mais l'overlay MAGELIAN plein écran, via son propre contexte — elle
-  // ne devient donc jamais `entreeActive`.
+  // Route selon le TYPE de l'entrée (lib/navigation/config.ts), pas selon son
+  // id : une entrée `overlay-plein-ecran` (Campagne) ouvre l'overlay MAGELIAN
+  // via son propre contexte et ne devient donc jamais `entreeActive` — les
+  // autres (tiroir droit, panneau gauche, lien) basculent `entreeActive`, et
+  // c'est le JSX de rendu qui décide où chacune s'affiche.
   const handleEntree = useCallback((id: EntreeId) => {
-    if (id === 'campagne') {
+    const entree = ENTREES_NAVIGATION.find(e => e.id === id);
+    if (entree?.type === 'overlay-plein-ecran') {
       openOverlay();
       return;
     }
@@ -205,14 +201,39 @@ export default function MapPage() {
 
 
 
-  // ── Esc : si le rail est masqué, le ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
+  // ── Rail masqué (mode immersif) : entrée dans la pile Echap, au lieu d'un
+  // listener direct — Escape le ré-affiche, avec le même ordre garanti
+  // (dernier ouvert = premier fermé) que les panneaux et tiroirs. ──
+  useEffect(() => {
+    if (!railMasque) return;
+    empiler('rail-masque', () => setRailMasque(false));
+    return () => depiler('rail-masque');
+  }, [railMasque]);
+
+  // ── Un seul listener clavier global : raccourcis du rail (entreeParRaccourci,
+  // lib/navigation/config.ts) + Escape (fermerLePlusHaut, lib/carte/pile-echap.ts).
+  // Ne vole jamais une frappe de saisie : ignore si le focus est dans un champ
+  // (garde reprise de l'ancien IconBar.tsx:57-59, supprimé Tâche 2). ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && railMasque) { setRailMasque(false); e.preventDefault(); }
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        fermerLePlusHaut();
+        return;
+      }
+      const entree = entreeParRaccourci(e);
+      if (entree) {
+        e.preventDefault();
+        handleEntree(entree);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [railMasque]);
+  }, [handleEntree]);
 
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
@@ -696,10 +717,6 @@ export default function MapPage() {
       deleteMap={savedMaps.deleteMap}
       zoneData={zoneData}
       provider={providerSelector.provider}
-      setProvider={providerSelector.setProvider}
-      providerStatus={providerSelector.providerStatus}
-      statusLoading={providerSelector.statusLoading}
-      refreshProviderStatus={providerSelector.refreshStatus}
       sessionTokens={chat.sessionTokens}
       onFlyTo={handleFlyTo}
       onHighlightIris={(codeIris: string | null) => {
@@ -738,6 +755,197 @@ export default function MapPage() {
     />
   );
 
+  // Table de routage des quatre panneaux du rail (+ Réglages, + Aide) : plus
+  // aucun ternaire `entreeActive === 'x' && (...)` dans le JSX de rendu — un
+  // id se résout en un composant, un point c'est tout. « Assistant » n'y
+  // figure pas : depuis la Tâche 8 c'est un tiroir droit autonome
+  // (`AIOverlay`), pas un enfant d'`OverlayPanel`. « Campagne » n'y figure
+  // pas non plus : `handleEntree` (ci-dessus) ne la laisse jamais devenir
+  // `entreeActive`.
+  const PANNEAUX: Partial<Record<EntreeId, () => ReactNode>> = {
+    filtre: () => (
+      <PanneauFiltre
+        filtre={filtre}
+        onFiltre={setFiltre}
+        scope={perimeterScope}
+        onScopeChange={setPerimeterScope}
+      />
+    ),
+    calques: () => (
+      <PanneauCalques
+        degradeActif={mapLayers.degradeActif}
+        onDegrade={onDegrade}
+        carreauxVisible={mapLayers.carreauxVisible}
+        carreauxLoaded={mapLayers.carreauxLoaded}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxOpacity={mapLayers.carreauxOpacity}
+        carreaux3D={mapLayers.carreaux3D}
+        setCarreaux3D={mapLayers.setCarreaux3D}
+        carreauxHauteur={mapLayers.carreauxHauteur}
+        setCarreauxHauteur={mapLayers.setCarreauxHauteur}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        setCarreauxVisible={mapLayers.setCarreauxVisible}
+        setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+        setCarreauxPalette={mapLayers.setCarreauxPalette}
+        setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+        irisVisible={mapLayers.irisVisible}
+        irisIndicateur={mapLayers.irisIndicateur}
+        irisPalette={mapLayers.irisPalette}
+        irisOpacity={mapLayers.irisOpacity}
+        iris3D={mapLayers.iris3D}
+        setIris3D={mapLayers.setIris3D}
+        irisHauteur={mapLayers.irisHauteur}
+        setIrisHauteur={mapLayers.setIrisHauteur}
+        irisBornes={mapLayers.irisBornes}
+        irisTrueOnly={mapLayers.irisTrueOnly}
+        zoomCourant={mapLayers.zoomCourant}
+        irisZoomPlancher={mapLayers.irisZoomPlancher}
+        setIrisVisible={mapLayers.setIrisVisible}
+        setIrisIndicateur={mapLayers.setIrisIndicateur}
+        setIrisPalette={mapLayers.setIrisPalette}
+        setIrisOpacity={mapLayers.setIrisOpacity}
+        setIrisTrueOnly={mapLayers.setIrisTrueOnly}
+        campagneActive={campagneActive}
+        onFermerCampagneActive={handleFermerCampagneActive}
+        selectedPOI={selectedPOI}
+        onSelectedPOIChange={setSelectedPOI}
+        onDirectSearch={handleDirectSearch}
+        onPOIStylesChange={setPoiStyles}
+        densityMode={densityMode}
+        onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
+        scope={perimeterScope}
+        selectedRegions={perimeterSelectedRegions}
+        selectedDepts={perimeterSelectedDepts}
+        ville={perimeterVille}
+        onDirectOOH={handleDirectOOH}
+        onLoadTransport={handleLoadTransport}
+        onLoadTMJA={handleLoadTMJA}
+        tmjaVisible={!!tmjaGeoJSON}
+        onClearTMJA={() => setTmjaGeoJSON(null)}
+        tmjaHideLowTraffic={tmjaHideLowTraffic}
+        onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
+        radioVisible={radioVisible}
+        onToggleRadio={() => setRadioVisible(v => !v)}
+        radioHeatmapMode={radioHeatmapMode}
+        onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+        radioCoverageMode={radioCoverageMode}
+        onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+        radioLoading={radioLoading}
+        radioSystemeFilter={radioSystemeFilter}
+        onRadioSystemeChange={v => setRadioSystemeFilter(v)}
+        onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+        radioCount={radioGeoJSON?.features.length ?? 0}
+        radioSelectedNom={radioSelectedNom}
+        onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+        radioFilterOptions={radioFilterOptions}
+        radioFilterIds={radioFilterIds}
+        onRadioFilterIdsChange={setRadioFilterIds}
+        radioExcludeCategories={radioExcludeCategories}
+        onRadioExcludeCategoriesChange={setRadioExcludeCategories}
+        radioCoverageColor={radioCoverageColor}
+        onRadioCoverageColorChange={setRadioCoverageColor}
+        radioCoverageOpacity={radioCoverageOpacity}
+        onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+        radioBorderWidth={radioBorderWidth}
+        onRadioBorderWidthChange={setRadioBorderWidth}
+        radioPointSize={radioPointSize}
+        onRadioPointSizeChange={setRadioPointSize}
+        onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
+        civicVariableCode={civicVariableCode}
+        onCivicVariableChange={setCivicVariableCode}
+        selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
+        selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+        civicHealthLayer={civicHealthLayer}
+        onCivicHealthLayerChange={layer => {
+          setCivicProgress(null);
+          setCivicMetric('global');
+          setCivicHealthLayer(layer);
+        }}
+        civicProgress={civicProgress}
+        civicLoading={civicLoading}
+        civicScale={civicScale}
+        onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
+        civicMetric={civicMetric}
+        onCivicMetricChange={setCivicMetric}
+        civicMinLevel={civicMinLevel}
+        onCivicMinLevelChange={setCivicMinLevel}
+        civicCpStatus={civicCpStatus}
+        civicCpDate={civicCpDate}
+        onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
+        onOpenMeteo={() => setMeteoPanelOpen(true)}
+        onClearMeteo={() => { onDegrade('meteo', false); handleMeteoClear(); }}
+        meteoVisible={meteoVisible}
+        meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
+      />
+    ),
+    analyse: () => (
+      <PanneauAnalyse
+        scope={perimeterScope}
+        onScopeChange={setPerimeterScope}
+        selectedRegions={perimeterSelectedRegions}
+        onSelectedRegionsChange={setPerimeterSelectedRegions}
+        selectedDepts={perimeterSelectedDepts}
+        onSelectedDeptsChange={setPerimeterSelectedDepts}
+        ville={perimeterVille}
+        onVilleChange={setPerimeterVille}
+        filtre={filtre}
+        selectedPOI={selectedPOI}
+        sendMessage={chat.sendMessage}
+        isLoading={chat.isLoading}
+        onDirectBattle={handleDirectBattle}
+        onDirectBattleV2={handleDirectBattleV2}
+        onFillIsochroneCache={handleFillIsochroneCache}
+        onApplyBattle={handleApplyBattle}
+        voronoiVisible={mapLayers.voronoiVisible}
+        setVoronoiVisible={mapLayers.setVoronoiVisible}
+        battleVisible={mapLayers.battleVisible}
+        setBattleVisible={mapLayers.setBattleVisible}
+        battleOuterFillVisible={mapLayers.battleOuterFillVisible}
+        setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
+        clusterGeoJSON={clusterGeoJSON}
+        clustersVisible={clustersVisible}
+        clusterLoading={clusterLoading}
+        clusterDuration={clusterDuration}
+        onToggleClusters={handleToggleClusters}
+        onLoadClusters={handleToggleClusters}
+        onClusterDurationChange={handleClusterDurationChange}
+        onFitBounds={handleFitBounds}
+        onWizardHighlight={handleWizardHighlight}
+        onWizardClose={() => setWizardHighlightGeoJSON(null)}
+        onFlyTo={handleFlyTo}
+      />
+    ),
+    zones: () => <PanneauZones mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />,
+    reglages: () => (
+      <SettingsOverlay
+        mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
+        currentMapStyleUrl={mapStyleUrl}
+        onMapStyleChange={handleMapStyleChange}
+        onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
+        saveLoading={savedMaps.saveLoading}
+        provider={providerSelector.provider}
+        setProvider={providerSelector.setProvider}
+        providerStatus={providerSelector.providerStatus}
+        statusLoading={providerSelector.statusLoading}
+        refreshProviderStatus={providerSelector.refreshStatus}
+      />
+    ),
+    aide: () => <HelpOverlay />,
+  };
+
+  // Décalage horizontal des boutons flottants de la carte (immersif, tout
+  // effacer, script bidding, rouvrir le plan média) : ils s'écartaient déjà du
+  // plan média (`PANEL_WIDTH`) ; ils doivent s'écarter du tiroir Assistant
+  // aussi maintenant qu'il s'ouvre à droite (Tâche 8), sans quoi il flotte
+  // par-dessus le chat (les deux sont ancrés `right: 0`).
+  const railBoutonsRight =
+    10
+    + (planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 0)
+    + (entreeActive === 'assistant' ? LARGEUR_TIROIR_ASSISTANT + 10 : 0);
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)',
@@ -754,187 +962,22 @@ export default function MapPage() {
         pastille={filtre !== null}
       />
       <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
-      {entreeActive && (
+      {entreeActive === 'assistant' && (
+        <AIOverlay
+          chatSlot={chatSlotContent}
+          onClose={() => setEntreeActive(null)}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
+        />
+      )}
+      {entreeActive && entreeActive !== 'assistant' && (
         <OverlayPanel
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
           category={entreeActive}
-          title={
-            TITRE_PAR_ENTREE[entreeActive]
-            ?? ENTREES_NAVIGATION.find(e => e.id === entreeActive)?.label
-            ?? ''
-          }
+          title={ENTREES_NAVIGATION.find(e => e.id === entreeActive)?.label ?? ''}
           dotColor={DOT_PAR_ENTREE[entreeActive] ?? 'var(--text-tertiary)'}
           onClose={() => setEntreeActive(null)}
         >
-          {entreeActive === 'assistant' && <AIOverlay chatSlot={chatSlotContent} />}
-          {entreeActive === 'filtre' && (
-            <PanneauFiltre
-              filtre={filtre}
-              onFiltre={setFiltre}
-              scope={perimeterScope}
-              onScopeChange={setPerimeterScope}
-            />
-          )}
-          {entreeActive === 'calques' && (
-            <PanneauCalques
-              degradeActif={mapLayers.degradeActif}
-              onDegrade={onDegrade}
-              carreauxVisible={mapLayers.carreauxVisible}
-              carreauxLoaded={mapLayers.carreauxLoaded}
-              carreauxIndicateur={mapLayers.carreauxIndicateur}
-              carreauxPalette={mapLayers.carreauxPalette}
-              carreauxOpacity={mapLayers.carreauxOpacity}
-              carreaux3D={mapLayers.carreaux3D}
-              setCarreaux3D={mapLayers.setCarreaux3D}
-              carreauxHauteur={mapLayers.carreauxHauteur}
-              setCarreauxHauteur={mapLayers.setCarreauxHauteur}
-              carreauxRange={mapLayers.carreauxRange}
-              carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
-              setCarreauxVisible={mapLayers.setCarreauxVisible}
-              setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
-              setCarreauxPalette={mapLayers.setCarreauxPalette}
-              setCarreauxOpacity={mapLayers.setCarreauxOpacity}
-              setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
-              irisVisible={mapLayers.irisVisible}
-              irisIndicateur={mapLayers.irisIndicateur}
-              irisPalette={mapLayers.irisPalette}
-              irisOpacity={mapLayers.irisOpacity}
-              iris3D={mapLayers.iris3D}
-              setIris3D={mapLayers.setIris3D}
-              irisHauteur={mapLayers.irisHauteur}
-              setIrisHauteur={mapLayers.setIrisHauteur}
-              irisBornes={mapLayers.irisBornes}
-              irisTrueOnly={mapLayers.irisTrueOnly}
-              zoomCourant={mapLayers.zoomCourant}
-              irisZoomPlancher={mapLayers.irisZoomPlancher}
-              setIrisVisible={mapLayers.setIrisVisible}
-              setIrisIndicateur={mapLayers.setIrisIndicateur}
-              setIrisPalette={mapLayers.setIrisPalette}
-              setIrisOpacity={mapLayers.setIrisOpacity}
-              setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-              campagneActive={campagneActive}
-              onFermerCampagneActive={handleFermerCampagneActive}
-              selectedPOI={selectedPOI}
-              onSelectedPOIChange={setSelectedPOI}
-              onDirectSearch={handleDirectSearch}
-              onPOIStylesChange={setPoiStyles}
-              densityMode={densityMode}
-              onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
-              scope={perimeterScope}
-              selectedRegions={perimeterSelectedRegions}
-              selectedDepts={perimeterSelectedDepts}
-              ville={perimeterVille}
-              onDirectOOH={handleDirectOOH}
-              onLoadTransport={handleLoadTransport}
-              onLoadTMJA={handleLoadTMJA}
-              tmjaVisible={!!tmjaGeoJSON}
-              onClearTMJA={() => setTmjaGeoJSON(null)}
-              tmjaHideLowTraffic={tmjaHideLowTraffic}
-              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
-              radioVisible={radioVisible}
-              onToggleRadio={() => setRadioVisible(v => !v)}
-              radioHeatmapMode={radioHeatmapMode}
-              onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
-              radioCoverageMode={radioCoverageMode}
-              onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
-              radioLoading={radioLoading}
-              radioSystemeFilter={radioSystemeFilter}
-              onRadioSystemeChange={v => setRadioSystemeFilter(v)}
-              onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
-              radioCount={radioGeoJSON?.features.length ?? 0}
-              radioSelectedNom={radioSelectedNom}
-              onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
-              radioFilterOptions={radioFilterOptions}
-              radioFilterIds={radioFilterIds}
-              onRadioFilterIdsChange={setRadioFilterIds}
-              radioExcludeCategories={radioExcludeCategories}
-              onRadioExcludeCategoriesChange={setRadioExcludeCategories}
-              radioCoverageColor={radioCoverageColor}
-              onRadioCoverageColorChange={setRadioCoverageColor}
-              radioCoverageOpacity={radioCoverageOpacity}
-              onRadioCoverageOpacityChange={setRadioCoverageOpacity}
-              radioBorderWidth={radioBorderWidth}
-              onRadioBorderWidthChange={setRadioBorderWidth}
-              radioPointSize={radioPointSize}
-              onRadioPointSizeChange={setRadioPointSize}
-              onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              civicVariableCode={civicVariableCode}
-              onCivicVariableChange={setCivicVariableCode}
-              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
-              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
-              civicHealthLayer={civicHealthLayer}
-              onCivicHealthLayerChange={layer => {
-                setCivicProgress(null);
-                setCivicMetric('global');
-                setCivicHealthLayer(layer);
-              }}
-              civicProgress={civicProgress}
-              civicLoading={civicLoading}
-              civicScale={civicScale}
-              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
-              civicMetric={civicMetric}
-              onCivicMetricChange={setCivicMetric}
-              civicMinLevel={civicMinLevel}
-              onCivicMinLevelChange={setCivicMinLevel}
-              civicCpStatus={civicCpStatus}
-              civicCpDate={civicCpDate}
-              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
-              onOpenMeteo={() => setMeteoPanelOpen(true)}
-              onClearMeteo={() => { onDegrade('meteo', false); handleMeteoClear(); }}
-              meteoVisible={meteoVisible}
-              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
-            />
-          )}
-          {entreeActive === 'analyse' && (
-            <PanneauAnalyse
-              scope={perimeterScope}
-              onScopeChange={setPerimeterScope}
-              selectedRegions={perimeterSelectedRegions}
-              onSelectedRegionsChange={setPerimeterSelectedRegions}
-              selectedDepts={perimeterSelectedDepts}
-              onSelectedDeptsChange={setPerimeterSelectedDepts}
-              ville={perimeterVille}
-              onVilleChange={setPerimeterVille}
-              filtre={filtre}
-              selectedPOI={selectedPOI}
-              sendMessage={chat.sendMessage}
-              isLoading={chat.isLoading}
-              onDirectBattle={handleDirectBattle}
-              onDirectBattleV2={handleDirectBattleV2}
-              onFillIsochroneCache={handleFillIsochroneCache}
-              onApplyBattle={handleApplyBattle}
-              voronoiVisible={mapLayers.voronoiVisible}
-              setVoronoiVisible={mapLayers.setVoronoiVisible}
-              battleVisible={mapLayers.battleVisible}
-              setBattleVisible={mapLayers.setBattleVisible}
-              battleOuterFillVisible={mapLayers.battleOuterFillVisible}
-              setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
-              clusterGeoJSON={clusterGeoJSON}
-              clustersVisible={clustersVisible}
-              clusterLoading={clusterLoading}
-              clusterDuration={clusterDuration}
-              onToggleClusters={handleToggleClusters}
-              onLoadClusters={handleToggleClusters}
-              onClusterDurationChange={handleClusterDurationChange}
-              onFitBounds={handleFitBounds}
-              onWizardHighlight={handleWizardHighlight}
-              onWizardClose={() => setWizardHighlightGeoJSON(null)}
-              onFlyTo={handleFlyTo}
-            />
-          )}
-          {entreeActive === 'zones' && (
-            <PanneauZones mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
-          )}
-          {entreeActive === 'reglages' && (
-            <SettingsOverlay
-              mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
-              currentMapStyleUrl={mapStyleUrl}
-              onMapStyleChange={handleMapStyleChange}
-              onSaveCurrentView={() => savedMaps.setShowSavePanel(true)}
-              saveLoading={savedMaps.saveLoading}
-            />
-          )}
-          {entreeActive === 'aide' && <HelpOverlay />}
+          {PANNEAUX[entreeActive]?.()}
         </OverlayPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
@@ -953,7 +996,7 @@ export default function MapPage() {
           style={{
             position: 'fixed',
             top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
-            right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+            right: railBoutonsRight,
             zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
@@ -1050,7 +1093,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8,
-              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+              right: railBoutonsRight,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -1071,7 +1114,7 @@ export default function MapPage() {
             style={{
               position: 'fixed',
               top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
-              right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+              right: railBoutonsRight,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
               borderRadius: 6, padding: 8,
@@ -1094,7 +1137,7 @@ export default function MapPage() {
               style={{
                 position: 'fixed',
                 top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
-                right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
+                right: railBoutonsRight,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: 'var(--bg-surface)', border: '0.5px solid var(--brand-teal)',
