@@ -63,7 +63,7 @@ export const ENTREES_NAVIGATION: readonly EntreeNavigation[] = [
   },
   {
     id: 'campagne', label: 'Campagne', icone: Megaphone,
-    tooltip: "Ce que j'active", type: 'overlay-plein-ecran',
+    tooltip: "Ce que j’active", type: 'overlay-plein-ecran',
     raccourci: 'alt+c', position: 'haut', separateurApres: true, accent: true,
   },
   {

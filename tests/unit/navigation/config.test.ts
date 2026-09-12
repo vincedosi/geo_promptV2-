@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci,
-  type EntreeNavigation,
 } from '@/lib/navigation/config';
 
 /** Fabrique un KeyboardEvent minimal sans DOM. */
