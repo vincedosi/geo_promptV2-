@@ -1805,6 +1805,143 @@ describe('reordonnancement des zones cibles', () => {
 
 ---
 
+---
+
+## Lot 10 — Catalogue du code, généré et gardé
+
+### Tâche 23 : savoir ce qui est utilisé, sans l'écrire à la main
+
+**À exécuter juste APRÈS la tâche 10**, pas avant. Les tâches 4 à 8 créent du code
+temporairement mort par décision (`FilterPanel` survit jusqu'à la tâche 8,
+l'adaptateur transitoire existe exprès) : un rapport d'exports inutilisés lancé
+pendant la migration serait majoritairement faux, et ferait supprimer du code
+encore nécessaire. Après la tâche 10, il dit vrai — et il attrape précisément les
+résidus de la migration.
+
+**Fichiers :**
+- Créer : `knip.json`, `scripts/catalogue.mjs`, `docs/CATALOGUE_CODE.md` (généré),
+  `tests/unit/docs/catalogue-code.test.ts`
+- Modifier : `package.json` (devDependency `knip` + script `catalogue`),
+  `ARCHITECTURE.md` (nouvelle dépendance de développement)
+
+**Interfaces :**
+- Produit : `npm run catalogue` régénère `docs/CATALOGUE_CODE.md`.
+  `tests/unit/docs/catalogue-code.test.ts` échoue si le fichier est périmé ou si
+  le nombre d'exports morts dépasse le cliquet enregistré.
+
+**Pourquoi pas un catalogue écrit à la main.** `CLAUDE.md` le dit déjà : une doc
+périmée ment avec autorité. Le dépôt en a la preuve — `docs/architecture.md`
+affirmait « 70 tables — RLS partout », ce qui se lisait comme une garantie de
+sécurité alors que les policies sont dormantes. Un catalogue de plusieurs
+centaines de fonctions tenu à la main serait faux en une semaine, et quelqu'un
+s'y fierait pour supprimer du code.
+
+**Pourquoi `knip` plutôt qu'autre chose.** Il répond en une passe aux trois
+questions qui comptent — exports morts, fichiers morts, dépendances inutilisées —
+il est natif TypeScript, il comprend Next.js (routes, `page.tsx`, `route.ts` sont
+des points d'entrée qu'il ne faut PAS signaler comme morts), et sa configuration
+tient en quelques lignes. `jscpd` (détection de copier-coller) est **délibérément
+écarté** : les vraies duplications de ce dépôt — les quinze `fmtNum` locaux — ont
+été trouvées par `grep` ciblé, pas par un détecteur, et le bruit d'un tel outil
+noierait le signal.
+
+- [ ] **Étape 1 : installer et configurer**
+
+```bash
+npm install --save-dev knip
+```
+
+`knip.json` — les points d'entrée de Next.js ne sont jamais importés par du code,
+ils sont appelés par le framework. Sans cette configuration, knip déclarerait
+morte toute l'application :
+
+```json
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "app/**/page.tsx",
+    "app/**/layout.tsx",
+    "app/**/route.ts",
+    "middleware.ts",
+    "next.config.js",
+    "tests/**/*.test.ts",
+    "scripts/**/*.{ts,mjs}",
+    "lib/inngest/**/*.ts"
+  ],
+  "project": ["app/**/*.{ts,tsx}", "lib/**/*.ts", "components/**/*.tsx", "types/**/*.ts"],
+  "ignore": ["types/database.types.ts"],
+  "ignoreDependencies": ["tailwindcss-animate", "autoprefixer", "postcss"]
+}
+```
+
+`types/database.types.ts` est ignoré à dessein : il est **généré** par le MCP
+Supabase et déclare toutes les tables de la base, dont beaucoup ne sont pas lues
+par l'application. Le signaler serait un faux positif permanent.
+
+- [ ] **Étape 2 : le générateur**
+
+`scripts/catalogue.mjs` lance `knip --reporter json`, et écrit
+`docs/CATALOGUE_CODE.md` avec, dans cet ordre :
+1. un en-tête portant la date, le sha du commit, et **la mention que le fichier
+   est généré et ne doit jamais être édité à la main** ;
+2. le compte total d'exports morts, de fichiers morts, de dépendances inutilisées ;
+3. le détail par fichier, trié par nombre d'occurrences décroissant ;
+4. la liste des dépendances déclarées et jamais importées.
+
+- [ ] **Étape 3 : le test à cliquet**
+
+```ts
+// tests/unit/docs/catalogue-code.test.ts
+import { describe, it, expect } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+
+/**
+ * Le catalogue est GENERE (npm run catalogue). Ce test ne verifie pas son
+ * contenu ligne a ligne — il verrouille deux choses seulement :
+ *   - qu'il existe et annonce son caractere genere ;
+ *   - que le nombre d'exports morts ne REMONTE pas au-dessus du cliquet.
+ *
+ * Un cliquet plutot qu'un « zero mort » : un seuil irrealiste finit toujours
+ * desactive, et la migration de navigation de 2026-09 laisse legitimement des
+ * exports en transit. On autorise la baisse, jamais la hausse.
+ */
+const CLIQUET_EXPORTS_MORTS = 0; // a poser a la valeur mesuree au premier passage
+
+describe('catalogue du code', () => {
+  it('existe et se declare genere', () => {
+    expect(existsSync('docs/CATALOGUE_CODE.md')).toBe(true);
+    const texte = readFileSync('docs/CATALOGUE_CODE.md', 'utf8');
+    expect(texte).toMatch(/généré/i);
+    expect(texte).toMatch(/npm run catalogue/);
+  });
+
+  it('le nombre d exports morts ne remonte pas', () => {
+    const texte = readFileSync('docs/CATALOGUE_CODE.md', 'utf8');
+    const m = texte.match(/exports morts\s*:\s*(\d+)/i);
+    expect(m, 'le catalogue doit annoncer « exports morts : N »').not.toBeNull();
+    expect(Number(m![1])).toBeLessThanOrEqual(CLIQUET_EXPORTS_MORTS);
+  });
+});
+```
+
+Au premier passage : lancer `npm run catalogue`, lire le nombre réel, poser
+`CLIQUET_EXPORTS_MORTS` à cette valeur, **et traiter dans le même commit les
+morts qui sont des résidus de la migration de navigation** — c'est l'intérêt de
+lancer cette tâche juste après la tâche 10.
+
+- [ ] **Étape 4 : vérifier**
+
+```bash
+npm run catalogue
+npx tsc --noEmit && npm test -- --run
+```
+
+- [ ] **Étape 5 : `ARCHITECTURE.md`** — déclarer `knip` en dépendance de
+      développement et la commande `npm run catalogue`, **dans le même commit**
+      (`tests/unit/docs/derive-documentation.test.ts` le vérifie).
+
+- [ ] **Étape 6 : commit**
+
 ## Auto-revue
 
 **Couverture de la spec.** §1 rail → Tâches 1-2. §2 reclassement → Tâches 4, 6, 7.
