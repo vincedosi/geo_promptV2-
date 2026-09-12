@@ -111,6 +111,8 @@ export interface FilterPanelProps {
   setIrisHauteur?:      (v: number) => void;
   irisStats?:           IrisStats | null;
   irisTrueOnly?:        boolean;
+  zoomCourant?:         number | null;
+  irisZoomPlancher?:    number;
   setIrisVisible?:      (v: boolean | ((p: boolean) => boolean)) => void;
   setIrisIndicateur?:   (v: string) => void;
   setIrisPalette?:      (v: string) => void;

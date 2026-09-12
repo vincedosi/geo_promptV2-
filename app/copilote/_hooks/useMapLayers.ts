@@ -15,6 +15,7 @@ import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import { bornesInternes, donneeExploitableExpr,
   hauteurExtrusionExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+import { IRIS_ZOOM_PLANCHER } from '@/lib/version';
 
 // ── Carreaux — normalisation (densité / moyenne) ───────────────────────────────
 // La cascade de `get_tile` (sql/129) sert des mailles de 200 m, 2 km, 5 km ou 20 km :
@@ -184,13 +185,19 @@ export function useMapLayers({
   const carreauxBucketInfoRef = useRef<{ bucket: number; min: number; max: number; ind: string } | null>(null);
 
   // ── IRIS choroplèthe ─────────────────────────────────────────────────────────
-  const [irisVisible,    setIrisVisible]    = useState(false);
+  const [irisVisible,   _setIrisVisible]    = useState(false);
+  const irisVisibleRef                      = useRef(false);
   const [irisChoro,      setIrisChoro]      = useState(true);  // false = contours seuls
   const [irisIndicateur, setIrisIndicateur] = useState('pop_15_29');
   const [irisPalette,    _setIrisPalette]   = useState('bleu');
   const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
   const [irisStats,      setIrisStats]      = useState<IrisStats | null>(null);
-  const [irisTrueOnly,   setIrisTrueOnly]   = useState(true);
+  // `false` par défaut, et c'est la règle de CLAUDE.md : `is_true_iris = true`
+  // sert l'analyse statistique, JAMAIS l'affichage. Le défaut était `true`, et
+  // masquait donc toute la France rurale — mesuré sur une tuile z10 rurale :
+  // 50 IRIS présents, ZÉRO passant le filtre. Une carte vide sur les trois
+  // quarts du territoire, sans rien pour l'expliquer.
+  const [irisTrueOnly,   setIrisTrueOnly]   = useState(false);
 
   const irisIndicateurRef = useRef('pop_15_29');
   const irisPaletteRef    = useRef('bleu');
@@ -646,6 +653,35 @@ export function useMapLayers({
     try { map.setPaintProperty('iris-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
   }, []);
 
+  /**
+   * Bascule de la couche IRIS, qui remonte la caméra si elle est sous le
+   * plancher de zoom.
+   *
+   * Sans ça, cocher « Couche IRIS » depuis la vue France (z5,5 au chargement)
+   * ne produit RIEN : sous le minzoom d'une source, MapLibre ne demande aucune
+   * tuile, n'émet aucune erreur, et la carte reste telle quelle. Le symptôme
+   * est indistinguable d'une panne, et c'est ce qui a été remonté.
+   *
+   * On ne descend pas le plancher à la place : une tuile z8 parisienne couvre
+   * 4 251 IRIS et la France entière tient en ~75 tuiles z8 — voir les mesures
+   * dans `lib/version.ts`. Remonter la caméra coûte une tuile, dézoomer en
+   * coûterait soixante-quinze.
+   *
+   * Seul le zoom bouge : le centre est conservé, l'utilisateur reste là où il
+   * regardait. Et la remontée n'a lieu qu'à l'ACTIVATION — on ne contrarie
+   * jamais quelqu'un qui dézoome volontairement couche allumée.
+   */
+  const setIrisVisible = useCallback((v: boolean | ((p: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? v(irisVisibleRef.current) : v;
+    irisVisibleRef.current = next;
+    _setIrisVisible(next);
+    if (!next) return;
+    const map = mapRef.current;
+    if (map && map.getZoom() < IRIS_ZOOM_PLANCHER) {
+      map.easeTo({ zoom: IRIS_ZOOM_PLANCHER, duration: 800 });
+    }
+  }, [mapRef]);
+
   /** Inclinaison rendue au relief — voir setCarreaux3D pour le raisonnement. */
   const setIris3D = useCallback((v: boolean) => {
     iris3DRef.current = v;
@@ -702,6 +738,23 @@ export function useMapLayers({
       map.setPaintProperty('iris-border', 'line-opacity', Math.min(v * 0.8, 0.6));
     } catch { /* ok */ }
   }, [mapRef]);
+
+  // Zoom courant, exposé au panneau.
+  //
+  // Le badge de zoom de `useMapInit` est du DOM écrit à la main, hors de React :
+  // le panneau n'avait donc aucun moyen de savoir à quel zoom on se trouve, et
+  // une couche à plancher ne pouvait pas expliquer son absence.
+  //
+  // `zoomend` et non `zoom` : un re-render par geste, pas un par frame.
+  const [zoomCourant, setZoomCourant] = useState<number | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const releve = () => setZoomCourant(map.getZoom());
+    releve();
+    map.on('zoomend', releve);
+    return () => { map.off('zoomend', releve); };
+  }, [mapReady, mapRef]);
 
   // Visibilité IRIS — plat et relief ne coexistent JAMAIS (géométries
   // coplanaires à la base : z-fighting sur la face supérieure, même contrainte
@@ -1219,6 +1272,10 @@ export function useMapLayers({
     irisHauteur,    setIrisHauteur,
     irisStats,
     irisTrueOnly,   setIrisTrueOnly,
+    // Zoom courant + plancher des IRIS : de quoi dire au panneau pourquoi la
+    // couche ne montre rien, au lieu de laisser une carte vide muette.
+    zoomCourant,
+    irisZoomPlancher: IRIS_ZOOM_PLANCHER,
     // Visualization functions
     applyVoronoi,
     clearBattlePartialRings,

@@ -45,22 +45,56 @@ describe('la couche IRIS doit pouvoir s afficher en production', () => {
 });
 
 describe('cascade de zoom des IRIS', () => {
-  it('ne demande aucune tuile sous le zoom 9', () => {
-    // Mesuré : une tuile z5 pèse 1 694 kB pour 31 149 IRIS dont chacun fait
-    // 0,6 px. Le plancher est posé aux TROIS endroits, et chacun compte : la
-    // source (MapLibre ne demande rien en dessous), la couche, et la route.
-    expect(mapInit).toMatch(/tiles:\s*\[`\$\{window\.location\.origin\}\/api\/tiles\/iris[^\]]*\],\s*\n\s*minzoom:\s*9/);
-    const route = lire('app/api/tiles/iris/[z]/[x]/[y]/route.ts');
-    expect(route).toContain('ZOOM_PLANCHER = 9');
+  const version = lire('lib/version.ts');
+  const route = lire('app/api/tiles/iris/[z]/[x]/[y]/route.ts');
+
+  it('le plancher a UNE seule definition', () => {
+    // Quatre copies du chiffre 9 vivaient dans deux fichiers. Il suffisait d'en
+    // changer une pour que la couche demande des tuiles que la route refuse.
+    expect(version).toMatch(/export const IRIS_ZOOM_PLANCHER = \d+;/);
+    expect(route).toContain('IRIS_ZOOM_PLANCHER');
+    expect(route).not.toMatch(/const\s+ZOOM_PLANCHER\s*=/);   // plus de copie locale
+    expect(mapInit).toContain('IRIS_ZOOM_PLANCHER');
   });
 
-  it('les trois couches IRIS partagent le même plancher', () => {
-    const planchers = [...mapInit.matchAll(/id:\s*'iris-(fill|border|extrusion)'[\s\S]{0,400}?minzoom:\s*(\d+)/g)]
-      .map(m => ({ couche: m[1], minzoom: Number(m[2]) }));
+  it('la source et les trois couches lisent cette constante, pas un litteral', () => {
+    // Mesure : une tuile z5 pese 1 694 kB pour 31 149 IRIS dont chacun fait
+    // 0,6 px. Le plancher compte aux QUATRE endroits -- la source (MapLibre ne
+    // demande RIEN en dessous de son minzoom), et chacune des trois couches.
+    const source = mapInit.slice(mapInit.indexOf("addSource(\'iris-source\'"));
+    expect(source.slice(0, source.indexOf('});'))).toMatch(
+      /[/]api[/]tiles[/]iris[\s\S]*?minzoom:\s*IRIS_ZOOM_PLANCHER/,
+    );
+    const planchers = [...mapInit.matchAll(
+      /id:\s*'iris-(fill|border|extrusion)'[\s\S]{0,400}?minzoom:\s*([A-Za-z_]+|\d+)/g,
+    )].map(m => ({ couche: m[1], minzoom: m[2] }));
     expect(planchers).toHaveLength(3);
     for (const p of planchers) {
-      expect(p.minzoom, `iris-${p.couche}`).toBe(9);
+      expect(p.minzoom, `iris-${p.couche}`).toBe('IRIS_ZOOM_PLANCHER');
     }
+  });
+
+  it('activer la couche sous le plancher remonte la camera', () => {
+    // LE defaut remonte par l'utilisateur : la carte demarre a z5,5
+    // (DEFAULT_ZOOM) et le plancher est a z9. Cocher la couche ne produisait
+    // rien -- pas de tuile demandee, pas d'erreur, une carte vide qui se lit
+    // comme une panne. On ne baisse PAS le plancher en echange : une tuile z8
+    // parisienne couvre 4 251 IRIS, et la France tient en ~75 tuiles z8.
+    const bloc = mapLayers.slice(mapLayers.indexOf('const setIrisVisible'));
+    expect(bloc).toMatch(/getZoom\(\)\s*<\s*IRIS_ZOOM_PLANCHER/);
+    expect(bloc).toMatch(/easeTo\(\{\s*zoom:\s*IRIS_ZOOM_PLANCHER/);
+    // ... et seulement a l'activation : on ne contrarie pas un dezoom volontaire.
+    expect(bloc.slice(0, bloc.indexOf('getZoom()'))).toContain('if (!next) return;');
+  });
+
+  it('le panneau annonce le plancher au lieu de laisser une carte vide muette', () => {
+    // Le badge de zoom de useMapInit est du DOM hors React : le panneau n'avait
+    // aucun moyen de savoir a quel zoom on se trouve.
+    expect(mapLayers).toContain("map.on('zoomend', releve)");
+    expect(mapLayers).toContain('irisZoomPlancher: IRIS_ZOOM_PLANCHER');
+    const section = lire('app/map/_components/filter-panel/IrisSection.tsx');
+    expect(section).toMatch(/zoomCourant\s*<\s*irisZoomPlancher/);
+    expect(section).toContain('sousLePlancher &&');
   });
 });
 
@@ -73,6 +107,14 @@ describe('is_true_iris ne doit jamais filtrer l affichage par défaut', () => {
     const sql = lire('sql/137_get_iris_tile_mvt.sql');
     expect(sql).toContain("'boolean'");                 // la colonne est émise
     expect(sql).not.toMatch(/WHERE[^;]*is_true_iris/i); // mais jamais filtrée
+  });
+
+  it('le defaut est de NE PAS filtrer', () => {
+    // CLAUDE.md : `is_true_iris = true` sert l'analyse statistique, JAMAIS
+    // l'affichage. Le defaut etait `true` -- mesure sur une tuile z10 rurale :
+    // 50 IRIS presents, ZERO passant le filtre. Les trois quarts du territoire
+    // en blanc, sans rien pour l'expliquer.
+    expect(mapLayers).toMatch(/\[irisTrueOnly,\s*setIrisTrueOnly\]\s*=\s*useState\(false\)/);
   });
 
   it('le filtre optionnel porte sur les trois couches', () => {

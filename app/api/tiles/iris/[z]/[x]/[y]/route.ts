@@ -36,22 +36,25 @@
  * du voisin `/api/tiles/[z]/[x]/[y]`, et ce dernier exige exactement trois
  * segments : les deux routes ne peuvent pas se confondre.
  *
- * Mesures du 2026-09-11 (Paris, tuile brute avant gzip) :
+ * Mesures (tuile brute avant gzip) :
  *   z9  231 kB — 79 ms      z12  43 kB
  *   z10 154 kB              z13  19 kB
  *
- * Sous z9, la RPC rend NULL et cette route répond 204 : un IRIS d'un kilomètre
- * y mesure moins de 10 px, et une tuile z5 pesait 1 694 kB pour 31 149 IRIS
- * indistinguables.
+ * Le 2026-09-12, la tuile parisienne la plus dense a été mesurée séparément :
+ * 9/259/176 pèse 788 kB pour 3 387 IRIS. Les 231 kB ci-dessus sont donc un cas
+ * courant, pas un plafond — c'est le chiffre à retenir pour juger du coût.
+ *
+ * Sous le plancher, la RPC rend NULL et cette route répond 204 : un IRIS d'un
+ * kilomètre y mesure moins de 10 px, et une tuile z5 pesait 1 694 kB pour
+ * 31 149 IRIS indistinguables. Le plancher lui-même vit dans `lib/version.ts`,
+ * avec le détail des mesures qui interdisent de le baisser.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { gzipSync, gunzipSync } from 'zlib';
 import { createAdminClient } from '@/lib/auth';
+import { IRIS_ZOOM_PLANCHER } from '@/lib/version';
 
 export const dynamic = 'force-dynamic';
-
-/** Sous ce zoom, un IRIS n'est plus distinguable — voir l'en-tête. */
-const ZOOM_PLANCHER = 9;
 
 const tileMemCache = new Map<string, { buf: Buffer; expires: number }>();
 const pendingTiles = new Map<string, Promise<Buffer | null>>();
@@ -112,7 +115,7 @@ export async function GET(
 
   // On coupe ici AUSSI, et pas seulement dans la RPC : inutile d'ouvrir une
   // connexion à la base pour se faire répondre NULL.
-  if (zoom < ZOOM_PLANCHER) {
+  if (zoom < IRIS_ZOOM_PLANCHER) {
     return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
   }
 

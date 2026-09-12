@@ -27,6 +27,10 @@ export interface IrisSectionProps {
   setIrisHauteur?: (v: number) => void;
   irisStats?: IrisStats | null;
   irisTrueOnly?: boolean;
+  /** Zoom courant de la carte — `null` tant que la carte n'est pas prête. */
+  zoomCourant?: number | null;
+  /** Zoom sous lequel aucune tuile IRIS n'existe (`IRIS_ZOOM_PLANCHER`). */
+  irisZoomPlancher?: number;
   setIrisVisible?: (v: boolean | ((p: boolean) => boolean)) => void;
   setIrisIndicateur?: (v: string) => void;
   setIrisPalette?: (v: string) => void;
@@ -47,12 +51,24 @@ export function IrisSection({
   setIrisHauteur,
   irisStats,
   irisTrueOnly,
+  zoomCourant,
+  irisZoomPlancher,
   setIrisVisible,
   setIrisIndicateur,
   setIrisPalette,
   setIrisOpacity,
   setIrisTrueOnly,
 }: IrisSectionProps) {
+  // Les IRIS n'existent pas en tuile sous leur plancher de zoom, et MapLibre ne
+  // demande alors AUCUNE tuile : couche allumée, carte vide, zéro erreur. Ce
+  // silence a été pris pour une panne. La bascule remonte la caméra à
+  // l'activation ; ce bandeau couvre le cas restant — dézoomer couche allumée.
+  const sousLePlancher =
+    irisVisible === true &&
+    typeof irisZoomPlancher === 'number' &&
+    typeof zoomCourant === 'number' &&
+    zoomCourant < irisZoomPlancher;
+
   return (
     <>
       <button
@@ -90,6 +106,39 @@ export function IrisSection({
             Couche IRIS
           </span>
         </button>
+
+        {/* Pourquoi la couche ne montre rien — voir `sousLePlancher` ci-dessus */}
+        {sousLePlancher && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px', borderRadius: 4,
+              background: 'rgba(247,183,49,0.1)',
+              border: '0.5px solid rgba(247,183,49,0.2)',
+            }}
+          >
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.amber, flex: 1, lineHeight: 1.4 }}>
+              Trop loin pour les IRIS — lisibles à partir du zoom {irisZoomPlancher}
+              {typeof zoomCourant === 'number' && (
+                <span style={{ fontFamily: fMono, color: C.textDim }}>{` (z${zoomCourant.toFixed(1)})`}</span>
+              )}
+            </span>
+            {/* Réactiver la couche déjà active : la bascule porte la remontée de
+                caméra, on ne la duplique pas ici. */}
+            <button
+              type="button"
+              onClick={() => setIrisVisible?.(true)}
+              style={{
+                background: 'transparent', border: `0.5px solid ${C.amber}`,
+                color: C.amber, borderRadius: 4, padding: '3px 8px',
+                fontFamily: fInter, fontSize: 11, fontWeight: 500,
+                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              Zoomer
+            </button>
+          </div>
+        )}
 
         {/* Toggle vrais IRIS uniquement */}
         <button

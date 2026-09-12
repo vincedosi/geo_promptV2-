@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { MAP_STYLE, getCatColor } from '../_lib/constants';
-import { IRIS_TILE_VERSION, CARREAUX_TILE_VERSION } from '@/lib/version';
+import { IRIS_TILE_VERSION, IRIS_ZOOM_PLANCHER, CARREAUX_TILE_VERSION } from '@/lib/version';
 import { applyMagelianStyle } from '@/lib/map/magelian-style';
 import { useTheme } from '@/lib/theme/ThemeProvider';
 import type { ZoneData } from '@/types/spatial';
@@ -747,16 +747,20 @@ export function useMapInit(
       // que sur le poste du développeur — sans erreur, MapLibre échouant en
       // silence sur une source vide.
       //
-      // `minzoom: 9` des deux côtés. Mesuré à 46° de latitude : un IRIS d'un
-      // kilomètre fait 0,6 px au zoom 5 et 1,2 px au zoom 6, pour des tuiles de
-      // 1 694 kB et 879 kB. Il n'est lisible qu'à partir de z9 (9,4 px) — même
-      // règle que la cascade des carreaux.
+      // `IRIS_ZOOM_PLANCHER` des deux côtés, et c'est la MÊME constante que la
+      // route : les mesures qui l'imposent sont dans `lib/version.ts`.
+      //
+      // Sous le minzoom d'une source, MapLibre ne demande AUCUNE tuile — voir
+      // le commentaire de la source carreaux plus bas, même règle. La carte
+      // démarrant à z5,5 (`DEFAULT_ZOOM`), activer la couche depuis la vue
+      // France ne produit donc rien : c'est `setIrisVisible` qui remonte la
+      // caméra au plancher, et le panneau qui l'annonce.
       //
       // Inséré AVANT carreaux pour z-order : IRIS sous carreaux sous POIs.
       map.addSource('iris-source', {
         type: 'vector',
         tiles: [`${window.location.origin}/api/tiles/iris/{z}/{x}/{y}?v=${IRIS_TILE_VERSION}`],
-        minzoom: 9,
+        minzoom: IRIS_ZOOM_PLANCHER,
         maxzoom: 14,
         attribution: 'IGN — IRIS 2023',
       });
@@ -764,7 +768,7 @@ export function useMapInit(
         id: 'iris-fill', type: 'fill',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 9,
+        minzoom: IRIS_ZOOM_PLANCHER,
         paint: {
           'fill-color':   '#4292C6',
           'fill-opacity': 0.45,
@@ -775,7 +779,7 @@ export function useMapInit(
         id: 'iris-border', type: 'line',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 9,
+        minzoom: IRIS_ZOOM_PLANCHER,
         paint: {
           'line-color': 'rgba(66,146,198,0.7)',
           'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 0.6, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
@@ -790,7 +794,7 @@ export function useMapInit(
         id: 'iris-extrusion', type: 'fill-extrusion',
         source: 'iris-source',
         'source-layer': 'iris',
-        minzoom: 9,
+        minzoom: IRIS_ZOOM_PLANCHER,
         paint: {
           'fill-extrusion-color': '#4292C6',
           'fill-extrusion-opacity': 0.85,

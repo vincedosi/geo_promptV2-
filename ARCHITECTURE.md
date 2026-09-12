@@ -764,8 +764,24 @@ silence sur une source vide.
   Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne
   par SEGMENT, donc `/api/iris/:path*` ne couvrirait pas `/api/iris-tiles`.
   Ce placement la protege sans toucher a un fichier protege.
-- Plancher **z9** : sous ce zoom, un IRIS d'1 km fait moins de 10 px et la tuile
-  pese jusqu'a 1 694 kB. La RPC rend NULL, la route repond 204.
+- Plancher **z9**, defini UNE seule fois : `IRIS_ZOOM_PLANCHER` dans
+  `lib/version.ts`. La route, la source MapLibre, les trois couches et l'indice
+  du panneau le lisent tous de la. Sous ce zoom, un IRIS d'1 km fait moins de
+  10 px et la tuile pese jusqu'a 1 694 kB : la RPC rend NULL, la route repond 204.
+  Mesures qui interdisent de le baisser (2026-09-12) : la tuile 8/129/88 (Paris)
+  couvre 4 251 IRIS, la 9/259/176 pese 788 kB pour 3 387 IRIS, et la France
+  entiere tient en ~75 tuiles z8 — un palier z8 rejouerait l'incident du 28/03.
+- **Sous le minzoom d'une source, MapLibre ne demande AUCUNE tuile** et n'emet
+  aucune erreur. La carte demarrant a z5,5 (`DEFAULT_ZOOM`), activer la couche
+  depuis la vue France ne produisait donc rien : carte vide, zero message,
+  symptome indistinguable d'une panne. Deux garde-fous, tous deux necessaires :
+  `setIrisVisible` remonte la camera au plancher A L'ACTIVATION (le centre est
+  conserve, et on ne contrarie jamais un dezoom volontaire), et `IrisSection`
+  affiche un bandeau + un bouton « Zoomer » quand la couche est active sous le
+  plancher. Verifie au navigateur le 2026-09-12, les deux chemins.
+- **« Vrais IRIS uniquement » est DECOCHE par defaut.** `is_true_iris = true`
+  sert l'analyse statistique, jamais l'affichage (regle `CLAUDE.md`) : le defaut
+  inverse masquait toute la France rurale, ou l'IRIS est la commune entiere.
 - Deux paliers : `geom_z7` sous z12, `geom_3857` au-dessus. `geom_z10` n'est PAS
   utilisee — mesure : elle conserve 98,8 % des points de l'originale.
 - La tuile porte toutes les colonnes numeriques et booleennes d'`iris`,

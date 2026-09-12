@@ -608,6 +608,8 @@ export default function MapPage() {
               setIrisHauteur={mapLayers.setIrisHauteur}
               irisStats={mapLayers.irisStats}
               irisTrueOnly={mapLayers.irisTrueOnly}
+              zoomCourant={mapLayers.zoomCourant}
+              irisZoomPlancher={mapLayers.irisZoomPlancher}
               setIrisVisible={mapLayers.setIrisVisible}
               setIrisIndicateur={mapLayers.setIrisIndicateur}
               setIrisPalette={mapLayers.setIrisPalette}

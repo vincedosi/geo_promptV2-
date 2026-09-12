@@ -27,6 +27,32 @@ export const BUILD_DATE  = '2026-04-28';
 //      geom_3857 au-dessus), plancher à z9, `superficie_km2` calculée pour la 3D.
 export const IRIS_TILE_VERSION = 1;
 
+/**
+ * Zoom au-dessous duquel aucune tuile IRIS n'est servie ni demandée.
+ *
+ * Source unique : la route, la source MapLibre, les trois couches et l'indice
+ * affiché dans le panneau lisent cette constante. Quatre copies du chiffre 9
+ * vivaient dans deux fichiers ; il suffisait d'en changer une pour que la
+ * couche demande des tuiles que la route refuse, ou l'inverse.
+ *
+ * Pourquoi 9, et pourquoi il ne peut pas descendre — mesuré le 2026-09-12 :
+ *
+ *   tuile            IRIS couverts   MVT brut
+ *   5/15/11            31 149        1 694 kB   (un IRIS fait 0,6 px)
+ *   8/129/88 Paris      4 251            —      (la RPC rend NULL sous z9)
+ *   9/259/176 Paris     3 387          788 kB
+ *
+ * Un palier z8 coûterait 4 251 IRIS sur la tuile parisienne, et la France
+ * entière tient en ~75 tuiles z8 : un utilisateur qui dézoome déclencherait
+ * exactement l'incident du 28/03 (bbox France entière → I/O épuisé → 504).
+ *
+ * Conséquence assumée : la carte démarre à z5,5 et la couche n'a rien à y
+ * montrer. C'est pourquoi l'activer sous ce plancher amène la caméra au
+ * plancher (`setIrisVisible`) et pourquoi le panneau l'annonce — une carte
+ * vide sans explication passe pour une panne, et c'est ce qui est arrivé.
+ */
+export const IRIS_ZOOM_PLANCHER = 9;
+
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 // v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)
 //       pour filtre territorial client-side (setFilter) sans refetch.
