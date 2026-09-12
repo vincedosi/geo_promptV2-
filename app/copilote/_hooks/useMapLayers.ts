@@ -14,6 +14,8 @@ import { bornesDe, palierEchelle, PLANCHER_LOG } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import { bornesInternes, donneeExploitableExpr,
   hauteurExtrusionExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
+import { echelleDe, echelleLogExpr, donneeIrisExploitableExpr,
+  type BornesIris, type CatalogueBornesIris } from '@/lib/iris/echelle';
 import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
 import { IRIS_ZOOM_PLANCHER } from '@/lib/version';
 
@@ -86,12 +88,6 @@ function carreauxEchelleExpr(ind: string): maplibregl.ExpressionSpecification {
 // calcul des bornes nationales (cf. sql/123).
 
 // ── IRIS — palettes + types ───────────────────────────────────────────────────
-export interface IrisStats {
-  min: number; max: number; avg: number;
-  p10: number; p25: number; p50: number; p75: number; p90: number;
-  col_exists: boolean;
-}
-
 export const IRIS_PALETTES = [
   { id: 'bleu',    label: 'Bleu',    stops: ['#F7FBFF','#C6DBEF','#9ECAE1','#4292C6','#2171B5','#08306B'] },
   { id: 'violet',  label: 'Violet',  stops: ['#F2F0F7','#DADAEB','#BCBDDC','#9E9AC8','#756BB1','#54278F'] },
@@ -191,7 +187,9 @@ export function useMapLayers({
   const [irisIndicateur, setIrisIndicateur] = useState('pop_15_29');
   const [irisPalette,    _setIrisPalette]   = useState('bleu');
   const [irisOpacity,    _setIrisOpacity]   = useState(0.45);
-  const [irisStats,      setIrisStats]      = useState<IrisStats | null>(null);
+  // Bornes nationales de la colonne affichee. Remplacent `irisStats` : les
+  // percentiles par bbox coutaient un balayage complet d'`iris` PAR COLONNE.
+  const [irisBornes,     setIrisBornes]     = useState<BornesIris | null>(null);
   // `false` par défaut, et c'est la règle de CLAUDE.md : `is_true_iris = true`
   // sert l'analyse statistique, JAMAIS l'affichage. Le défaut était `true`, et
   // masquait donc toute la France rurale — mesuré sur une tuile z10 rurale :
@@ -203,7 +201,7 @@ export function useMapLayers({
   const irisPaletteRef    = useRef('bleu');
   const irisOpacityRef    = useRef(0.45);
   // Cache stats par colonne — chargées une à la fois (lazy, on-demand)
-  const irisStatsCacheRef = useRef<Record<string, IrisStats>>({});
+  const irisBornesCacheRef = useRef<CatalogueBornesIris | null>(null);
   const irisChoroRef      = useRef(true);
 
   useEffect(() => { irisIndicateurRef.current = irisIndicateur; }, [irisIndicateur]);
@@ -594,30 +592,40 @@ export function useMapLayers({
 
   // ── IRIS — fonctions couleur + chargement ─────────────────────────────────
 
+  /**
+   * Couleur de la choroplèthe IRIS, sur l'échelle NATIONALE et NORMALISÉE.
+   *
+   * Trois changements, tous imposés par la cascade de `get_iris_tile` :
+   *
+   * 1. **Valeur normalisée.** Les paliers servent des mailles de tailles très
+   *    inégales — un département somme ~475 IRIS. Sans division par la surface,
+   *    la vue France serait un aplat saturé et la vue ville un aplat vide.
+   * 2. **Échelle log10.** Normaliser rend les unités comparables, pas les
+   *    distributions : un département moyenne ses cœurs denses avec ses
+   *    campagnes, un IRIS parisien est de la densité pure. La même grandeur
+   *    s'étend sur plus de 3 décades (mesuré : `population` de 25 à
+   *    60 555 hab/km²). Une interpolation linéaire ne peut pas couvrir ça.
+   * 3. **`step` et non `interpolate`.** Les mêmes frontières servent la peinture
+   *    et la légende : l'égalité est vraie par construction, et non promise.
+   *    C'est la leçon de `lib/carreaux/expressions.ts`.
+   *
+   * Une maille dont la donnée manque se peint en gris neutre, jamais au bas de
+   * l'échelle : « on ne sait pas » n'est pas « personne ici ».
+   */
   const applyIrisColor = useCallback((
     map: maplibregl.Map,
     paletteId: string,
-    stats: IrisStats,
-    colonne?: string,
+    bornes: BornesIris,
   ) => {
     if (!map.getLayer('iris-fill')) return;
     const pal = IRIS_PALETTES.find(p => p.id === paletteId) ?? IRIS_PALETTES[0];
-    const { p10, p25, p50, p75, p90, max } = stats;
-    if (max === 0 || !stats.col_exists) return;
-    const col = colonne ?? irisIndicateurRef.current;
-    const pts = [p10, p25, p50, p75, p90, max];
-    const deduped: number[] = [];
-    let prev = -Infinity;
-    for (const v of pts) {
-      if (v > prev) { deduped.push(v); prev = v; }
-    }
-    if (deduped.length < 2) return;
-    const colors = pal.stops.slice(pal.stops.length - deduped.length);
-    const stopPairs = deduped.flatMap((v, i) => [v, colors[i]]);
+    const frontieres = bornesInternes(echelleDe(bornes), pal.stops.length);
     const expr = [
-      'interpolate', ['linear'],
-      ['coalesce', ['to-number', ['get', col], 0], 0],
-      ...stopPairs,
+      'case',
+      donneeIrisExploitableExpr(bornes.colonne, bornes.classe),
+      ['step', echelleLogExpr(bornes), pal.stops[0],
+        ...frontieres.flatMap((v, i) => [v, pal.stops[i + 1]])],
+      COULEUR_DONNEE_ABSENTE,
     ] as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-fill', 'fill-color', expr); } catch { /* ok */ }
     // La couche en relief porte la MEME couleur : basculer en 3D ne doit pas
@@ -639,17 +647,20 @@ export function useMapLayers({
    */
   const applyIrisHauteur = useCallback((
     map: maplibregl.Map,
-    stats: IrisStats,
-    colonne: string,
+    bornes: BornesIris,
     exageration: number,
   ) => {
     if (!map.getLayer('iris-extrusion')) return;
-    if (!stats.col_exists || stats.max <= 0) return;
-    const position01 = ['max', 0, ['min', 1,
-      ['/', ['coalesce', ['to-number', ['get', colonne], 0], 0], stats.max],
-    ]];
-    const largeurMaille = ['*', 1000, ['sqrt', ['to-number', ['get', 'superficie_km2'], 0]]];
-    const expr = ['*', position01, exageration, largeurMaille] as unknown as maplibregl.ExpressionSpecification;
+    // `hauteurExtrusionExpr` est celle des carreaux, et l'échelle passée est la
+    // MÊME que celle de la couleur : hauteur et teinte disent donc exactement
+    // la même chose, à tous les paliers de la cascade.
+    const expr = hauteurExtrusionExpr(
+      bornes.colonne,
+      bornes.classe === 'effectif' ? 'superficie_km2' : bornes.colonne,
+      echelleDe(bornes),
+      exageration,
+      echelleLogExpr(bornes),
+    ) as unknown as maplibregl.ExpressionSpecification;
     try { map.setPaintProperty('iris-extrusion', 'fill-extrusion-height', expr); } catch { /* ok */ }
   }, []);
 
@@ -700,9 +711,9 @@ export function useMapLayers({
     irisHauteurRef.current = v;
     _setIrisHauteur(v);
     const map = mapRef.current;
-    if (!map || !irisStats) return;
-    applyIrisHauteur(map, irisStats, irisIndicateurRef.current, v);
-  }, [mapRef, irisStats, applyIrisHauteur]);
+    if (!map || !irisBornes) return;
+    applyIrisHauteur(map, irisBornes, v);
+  }, [mapRef, irisBornes, applyIrisHauteur]);
 
   // Toggle choroplèthe — bascule entre couleur plate et coloration démographique
   const toggleIrisChoro = useCallback((choro: boolean) => {
@@ -712,20 +723,20 @@ export function useMapLayers({
     if (!map || !irisVisible) return;
     if (!choro) {
       try { map.setPaintProperty('iris-fill', 'fill-color', 'rgba(66,146,198,0.4)'); } catch { /* ok */ }
-    } else if (irisStats?.col_exists) {
-      applyIrisColor(map, irisPaletteRef.current, irisStats);
-      applyIrisHauteur(map, irisStats, irisIndicateurRef.current, irisHauteurRef.current);
+    } else if (irisBornes) {
+      applyIrisColor(map, irisPaletteRef.current, irisBornes);
+      applyIrisHauteur(map, irisBornes, irisHauteurRef.current);
     }
-  }, [mapRef, irisVisible, irisStats, applyIrisColor, applyIrisHauteur]);
+  }, [mapRef, irisVisible, irisBornes, applyIrisColor, applyIrisHauteur]);
 
   // Setter palette — applique couleur immédiatement si stats disponibles
   const setIrisPalette = useCallback((paletteId: string) => {
     _setIrisPalette(paletteId);
     irisPaletteRef.current = paletteId;
     const map = mapRef.current;
-    if (!map || !irisStats || !irisStats.col_exists) return;
-    applyIrisColor(map, paletteId, irisStats);
-  }, [mapRef, irisStats, applyIrisColor]);
+    if (!map || !irisBornes) return;
+    applyIrisColor(map, paletteId, irisBornes);
+  }, [mapRef, irisBornes, applyIrisColor]);
 
   const setIrisOpacity = useCallback((v: number) => {
     irisOpacityRef.current = v;
@@ -775,8 +786,15 @@ export function useMapLayers({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    // `is_true_iris` n'existe QU'AU palier IRIS de la cascade : un département
+    // ou une commune agrégée n'a pas de drapeau « vrai IRIS ». Filtrer dessus
+    // sans condition viderait la carte dès qu'on s'éloigne — MVT omet une
+    // propriété absente, `['get']` rend `null`, et `null != true`.
     const filter = irisTrueOnly
-      ? ['==', ['get', 'is_true_iris'], true] as maplibregl.ExpressionSpecification
+      ? ['any',
+          ['!=', ['get', 'niveau'], 'iris'],
+          ['==', ['get', 'is_true_iris'], true],
+        ] as maplibregl.ExpressionSpecification
       : null;
     try {
       map.setFilter('iris-fill',      filter);
@@ -808,34 +826,41 @@ export function useMapLayers({
       return;
     }
 
-    // Mode choroplèthe : charger les stats France entière pour calibrer la palette.
-    // Stratégie lazy : une colonne à la fois, on vérifie le cache avant de fetcher.
+    // Mode choroplèthe : calibrer la palette sur les bornes NATIONALES.
+    //
+    // Avant, cette branche appelait `/api/iris/stats` par colonne consultée, et
+    // chaque appel faisait un `percentile_cont` sur les 49 448 IRIS — un
+    // balayage complet de la table à chaque changement d'indicateur. Les bornes
+    // sont désormais matérialisées (`iris_bornes_echelle`, sql/140) et servies
+    // en UNE fois pour toutes les colonnes : un aller-retour de ~4 kB par
+    // session au lieu d'un full scan par indicateur.
     const col = irisIndicateurRef.current;
 
-    const cachedStats = irisStatsCacheRef.current[col];
-    if (cachedStats) {
-      setIrisStats(cachedStats);
-      if (cachedStats.col_exists) {
-        applyIrisColor(map, irisPaletteRef.current, cachedStats, col);
-        applyIrisHauteur(map, cachedStats, col, irisHauteurRef.current);
-      }
+    const appliquer = (catalogue: CatalogueBornesIris) => {
+      const bornes = catalogue[col] ?? null;
+      setIrisBornes(bornes);
+      // Pas de bornes = colonne absente OU entièrement vide en base. Les deux
+      // se valent pour l'utilisateur : il n'y a rien à colorer. Quatre colonnes
+      // proposées par le panneau sont dans ce cas (mesuré le 2026-09-12).
+      if (!bornes) return;
+      applyIrisColor(map, irisPaletteRef.current, bornes);
+      applyIrisHauteur(map, bornes, irisHauteurRef.current);
+    };
+
+    if (irisBornesCacheRef.current) {
+      appliquer(irisBornesCacheRef.current);
       return;
     }
 
-    // Lazy fetch : une seule colonne à la fois, mise en cache pour éviter re-fetch
-    fetch(`/api/iris/stats?colonne=${col}&bbox=-63.2,-21.5,55.9,51.2`)
-      .then(r => r.ok ? r.json() as Promise<IrisStats> : null)
-      .then((stats: IrisStats | null) => {
-        if (!stats) return;
-        irisStatsCacheRef.current[col] = stats;
-        setIrisStats(stats);
-        if (stats.col_exists) {
-          applyIrisColor(map, irisPaletteRef.current, stats, col);
-          applyIrisHauteur(map, stats, col, irisHauteurRef.current);
-        }
+    fetch('/api/iris/bornes')
+      .then(r => r.ok ? r.json() as Promise<CatalogueBornesIris> : null)
+      .then(catalogue => {
+        if (!catalogue) return;
+        irisBornesCacheRef.current = catalogue;
+        appliquer(catalogue);
       })
       .catch(() => {});
-  }, [irisVisible, irisIndicateur, irisChoro, mapReady, mapRef, applyIrisColor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [irisVisible, irisIndicateur, irisChoro, mapReady, mapRef, applyIrisColor, applyIrisHauteur]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Visualization functions ───────────────────────────────────────────────
 
@@ -1270,7 +1295,7 @@ export function useMapLayers({
     irisOpacity,    setIrisOpacity,
     iris3D,         setIris3D,
     irisHauteur,    setIrisHauteur,
-    irisStats,
+    irisBornes,
     irisTrueOnly,   setIrisTrueOnly,
     // Zoom courant + plancher des IRIS : de quoi dire au panneau pourquoi la
     // couche ne montre rien, au lieu de laisser une carte vide muette.

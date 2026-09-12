@@ -135,13 +135,20 @@ describe('relief 3D des IRIS', () => {
     expect(mapLayers).toMatch(/const relief\s*=\s*irisVisible &&\s*iris3D/);
   });
 
-  it('la hauteur est un multiple de la largeur de maille, jamais des mètres', () => {
-    // Une hauteur absolue donnait 0,2× de relief en vue large et 17× en vue
-    // rapprochée sur les carreaux — défaut mesuré puis corrigé le même jour.
-    // Ici l'échelle vient de `superficie_km2`, que la tuile porte.
-    const bloc = mapLayers.slice(mapLayers.indexOf('applyIrisHauteur'));
-    expect(bloc).toContain("['get', 'superficie_km2']");
-    expect(bloc).toContain('sqrt');
+  it('la hauteur delegue a l expression PARTAGEE avec les carreaux', () => {
+    // Une hauteur absolue donnait 0,2x de relief en vue large et 17x en vue
+    // rapprochee sur les carreaux -- defaut mesure puis corrige. L'expression
+    // partagee `hauteurExtrusionExpr` porte la lecon ; la recopier ici la
+    // laisserait diverger au premier ajustement.
+    const bloc = mapLayers.slice(mapLayers.indexOf('const applyIrisHauteur'));
+    const corps = bloc.slice(0, bloc.indexOf('}, []);'));
+    expect(corps).toContain('hauteurExtrusionExpr(');
+    // Et l'echelle passee est la MEME que celle de la couleur : hauteur et
+    // teinte doivent dire la meme chose, sinon la 3D contredit la carte.
+    expect(corps).toContain('echelleLogExpr(bornes)');
+    // La largeur de maille vient de superficie_km2, via le helper partage.
+    const helpers = lire('lib/carreaux/expressions.ts');
+    expect(helpers).toContain("['get', 'superficie_km2']");
   });
 
   it('la couche en relief porte la MÊME couleur que le plat', () => {

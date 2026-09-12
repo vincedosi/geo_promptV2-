@@ -9,7 +9,11 @@
  */
 
 import React from 'react';
-import { IRIS_PALETTES, type IrisStats } from '@/app/copilote/_hooks/useMapLayers';
+import { IRIS_PALETTES } from '@/app/copilote/_hooks/useMapLayers';
+import { bornesInternes } from '@/lib/carreaux/expressions';
+import { versValeurReelle } from '@/lib/carreaux/bornes';
+import { echelleDe, uniteIris, niveauAuZoom, LIBELLE_NIVEAU,
+  type BornesIris } from '@/lib/iris/echelle';
 import { IRIS_DB_COLUMNS } from '@/lib/iris-crawler/db-columns';
 import { C, fInter, fMono } from './tokens';
 
@@ -25,7 +29,9 @@ export interface IrisSectionProps {
   setIris3D?: (v: boolean) => void;
   irisHauteur?: number;
   setIrisHauteur?: (v: number) => void;
-  irisStats?: IrisStats | null;
+  /** Bornes nationales de la colonne affichee. `undefined` = pas encore
+   *  chargees, `null` = aucune donnee pour cet indicateur. */
+  irisBornes?: BornesIris | null;
   irisTrueOnly?: boolean;
   /** Zoom courant de la carte — `null` tant que la carte n'est pas prête. */
   zoomCourant?: number | null;
@@ -49,7 +55,7 @@ export function IrisSection({
   setIris3D,
   irisHauteur,
   setIrisHauteur,
-  irisStats,
+  irisBornes,
   irisTrueOnly,
   zoomCourant,
   irisZoomPlancher,
@@ -137,6 +143,26 @@ export function IrisSection({
             >
               Zoomer
             </button>
+          </div>
+        )}
+
+        {/* Palier servi à ce zoom.
+            `get_iris_tile` agrège sous z9 : à la vue France on regarde des
+            DÉPARTEMENTS, pas des IRIS. Le taire laisserait lire une valeur
+            départementale comme une valeur d'IRIS — un mensonge silencieux,
+            et d'autant plus crédible que l'ordre de grandeur reste plausible
+            (les effectifs sont ramenés au km²). */}
+        {irisVisible && typeof zoomCourant === 'number' && !sousLePlancher && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px' }}>
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textDim }}>Affiché</span>
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+              {LIBELLE_NIVEAU[niveauAuZoom(zoomCourant)]}
+            </span>
+            {niveauAuZoom(zoomCourant) !== 'iris' && (
+              <span style={{ fontFamily: fInter, fontSize: 10, color: C.textDim, marginLeft: 'auto' }}>
+                zoomer pour les IRIS
+              </span>
+            )}
           </div>
         )}
 
@@ -246,32 +272,51 @@ export function IrisSection({
           )}
         </div>
 
-        {/* Légende */}
+        {/* Légende — les MÊMES frontières que la peinture (bornesInternes),
+            jamais un découpage parallèle qui annoncerait une teinte que la
+            carte n'emploie pas dans cette tranche. */}
         <div>
-          <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4 }}>Légende</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+            <span style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim }}>Légende</span>
+            {irisBornes && (
+              <span style={{ fontFamily: fMono, fontSize: 9, color: C.textDim }}>
+                {uniteIris(irisBornes.classe) || '%'} · échelle log
+              </span>
+            )}
+          </div>
           {(() => {
             const pal = IRIS_PALETTES.find(p => p.id === (irisPalette ?? 'bleu')) ?? IRIS_PALETTES[0];
-            if (irisStats && irisStats.col_exists && irisStats.max > 0) {
-              const pts = [irisStats.p10, irisStats.p25, irisStats.p50, irisStats.p75, irisStats.p90, irisStats.max];
-              const fmt = (v: number) => v >= 100000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
+            if (irisBornes) {
+              const frontieres = bornesInternes(echelleDe(irisBornes), pal.stops.length)
+                .map(versValeurReelle);
+              const fmt = (v: number) =>
+                v >= 100000 ? `${Math.round(v / 1000)}k`
+                : v >= 1000 ? `${(v / 1000).toFixed(1)}k`
+                : v >= 10   ? Math.round(v).toString()
+                : v >= 1    ? v.toFixed(1)
+                : v.toFixed(2);
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {pal.stops.map((color, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
                       <span style={{ color: C.textDim, fontSize: 8, fontFamily: fMono }}>
-                        {i === 0 ? `≤ ${fmt(pts[0])}` : i === 5 ? `≥ ${fmt(pts[4])}` : `${fmt(pts[i - 1])} – ${fmt(pts[i])}`}
+                        {i === 0 ? `≤ ${fmt(frontieres[0])}`
+                          : i === pal.stops.length - 1 ? `≥ ${fmt(frontieres[frontieres.length - 1])}`
+                          : `${fmt(frontieres[i - 1])} – ${fmt(frontieres[i])}`}
                       </span>
                     </div>
                   ))}
                 </div>
               );
             }
-            if (irisVisible && !irisStats) {
+            if (irisVisible && irisBornes === undefined) {
               return <div style={{ color: C.textDim, fontSize: 11, fontFamily: fInter }}>Chargement...</div>;
             }
-            if (irisStats && !irisStats.col_exists) {
-              return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Colonne non disponible en base</div>;
+            if (irisVisible && irisBornes === null) {
+              // Pas de bornes = colonne absente OU entièrement vide en base.
+              // Quatre indicateurs du menu sont dans ce cas (mesuré 2026-09-12).
+              return <div style={{ color: C.amber, fontSize: 11, fontFamily: fInter }}>! Aucune donnée pour cet indicateur</div>;
             }
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

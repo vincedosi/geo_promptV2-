@@ -55,7 +55,7 @@
 | Langage | TypeScript (strict) | ^5.3 |
 | Base de donnees | Supabase (PostgreSQL 15 + PostGIS) | ^2.97 |
 | Cartographie | MapLibre GL JS | ^5.18 |
-| Tuiles vectorielles | PMTiles (IRIS via GitHub Releases) | 4.4.0 |
+| Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`). PMTiles conserve pour les carreaux uniquement — les IRIS sont passes en MVT le 2026-09-11 | 4.4.0 |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |
 | Fonds de carte | OpenFreeMap (Liberty / Positron / Bright) + MAGELIAN dark style | — |
 | Isochrones | OpenRouteService (ORS) REST API | — |
@@ -323,6 +323,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 |-------|---------|-------------|
 | `/api/iris/stats` | GET | Stats IRIS par colonne et niveau |
 | `/api/iris/detail` | GET | Detail IRIS complet (toutes colonnes socio-demo + nom_commune) |
+| `/api/iris/bornes` | GET | Bornes nationales log10 de l'echelle de couleurs IRIS, toutes colonnes (lit `iris_bornes_echelle`, cache CDN 24 h). Remplace l'appel par colonne a `/api/iris/stats`, qui balayait les 49 448 IRIS a chaque changement d'indicateur |
 
 ### Indicateurs civiques
 | Route | Methode | Description |
@@ -542,6 +543,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `iris` | Zones IRIS INSEE (~51k) | Colonnes socio-demo **dynamiques**, `is_true_iris` |
 | `iris_import_history` | Historique imports IRIS | |
 | `iris_indicator_registry` | Registre indicateurs IRIS | 51 indicateurs |
+| `iris_agg_departement` | Palier departement de la cascade IRIS (104) — sert z4-z6 | Geometrie stockee en **3857** simplifiee a 400 m, `superficie_km2` = SOMME des IRIS du groupe. Construite par `construire_iris_agg` (sql/138) |
+| `iris_agg_commune` | Palier commune de la cascade IRIS (34 921) — sert z7-z8 | Idem, simplifiee a 100 m. 82 IRIS (0,12 % de la population) sans commune correspondante y sont absents, presents aux deux autres paliers |
+| `iris_bornes_echelle` | Bornes nationales log10 de l'echelle IRIS, par colonne (37 lignes) | min = p05 du palier departement, max = p99,9 (effectif/densite) ou p95 (proportion) du palier IRIS. Reconstruire avec `construire_iris_bornes()` (sql/140) apres tout import |
 | `iris_metadata` | Metadonnees IRIS | |
 | `carreaux_filosofi` | Carreaux INSEE 200m (2.3M lignes, 4.5 GB) | `geom_3857` pre-calcule |
 | `carreaux_1km` | Agregation 1km (374 511 mailles, 151 Mo) — **sert z9-z11** | `grid_id` en PK, geometrie stockee en **3857** (pas de ST_Transform par tuile), sommes brutes. Construite par `fill_carreaux_1km_bande` (sql/129), journal des bandes dans `carreaux_1km_bandes` |
@@ -612,7 +616,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `get_carreaux_by_zoom` | Carreaux adaptes au zoom | *orpheline* (route supprimee) |
 | `get_carreaux_for_scoring` | Carreaux dans rayon (scoring) | `lib/chat/tools/` |
 | `get_tile` | Tuile MVT carreaux (ST_AsMVT), cascade 5 paliers 20/5/2/1 km + 200 m (sql/129) | `api/tiles/` |
-| `get_iris_tile` | Tuile MVT IRIS (sql/137) — plancher z9, deux paliers de geometrie, colonnes decouvertes dynamiquement | `api/tiles/iris/` |
+| `get_iris_tile` | Tuile MVT IRIS (sql/139) — **cascade** departement (z4-z6) / commune (z7-z8) / IRIS (z>=9), colonnes decouvertes dynamiquement, chaque feature porte `niveau` et `superficie_km2` | `api/tiles/iris/` |
+| `classe_iris` | Classe d'un indicateur IRIS (effectif / densite / proportion), DERIVEE du nom (sql/138). Source unique : agregation, bornes et front en dependent | `construire_iris_agg`, `construire_iris_bornes` |
+| `construire_iris_agg` | (Re)construit un palier agrege de la cascade IRIS | outil de construction, sql/138 |
+| `construire_iris_bornes` | (Re)calcule les bornes nationales de l'echelle IRIS | outil de construction, sql/140 |
 | `fill_carreaux_1km_bande` | Agrege les carreaux 200 m en mailles 1 km, par bande verticale (progression + journal anti-rejeu) | outil de construction, sql/129 |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
@@ -764,24 +771,75 @@ silence sur une source vide.
   Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne
   par SEGMENT, donc `/api/iris/:path*` ne couvrirait pas `/api/iris-tiles`.
   Ce placement la protege sans toucher a un fichier protege.
-- Plancher **z9**, defini UNE seule fois : `IRIS_ZOOM_PLANCHER` dans
-  `lib/version.ts`. La route, la source MapLibre, les trois couches et l'indice
-  du panneau le lisent tous de la. Sous ce zoom, un IRIS d'1 km fait moins de
-  10 px et la tuile pese jusqu'a 1 694 kB : la RPC rend NULL, la route repond 204.
-  Mesures qui interdisent de le baisser (2026-09-12) : la tuile 8/129/88 (Paris)
-  couvre 4 251 IRIS, la 9/259/176 pese 788 kB pour 3 387 IRIS, et la France
-  entiere tient en ~75 tuiles z8 — un palier z8 rejouerait l'incident du 28/03.
+- **CASCADE d'agregation** (sql/138-139), meme strategie que les carreaux :
+
+  | zoom | palier servi | mailles | taille apparente |
+  |---|---|---|---|
+  | z4-z6  | `iris_agg_departement` | 104    | 23 a 91 px |
+  | z7-z8  | `iris_agg_commune`     | 34 921 | 11 a 22 px |
+  | z >= 9 | `iris`                 | 49 448 | 31 px a z9 |
+
+  Sous z4, aucune tuile n'est servie. Plancher defini UNE seule fois :
+  `IRIS_ZOOM_PLANCHER` dans `lib/version.ts`, lu par la route, la source
+  MapLibre, les trois couches et le panneau.
+
+  Poids mesure (octets bruts avant gzip, 2026-09-12) : **la France entiere
+  tient dans une tuile de 101 kB** a z4. z7 Paris 783 kB (le pire), z9 Paris
+  827 kB. Plan PostGIS du palier commune : Bitmap Index Scan, 54,9 ms,
+  **zero lecture disque**.
+
+  Pourquoi agreger plutot que baisser le plancher sur les IRIS bruts : une
+  tuile z8 parisienne couvre 4 251 IRIS et la France tient en ~75 tuiles z8 —
+  l'incident du 28/03 rejoue. Les geometries administratives existaient deja
+  (`ref_departements`, `ref_communes`), donc aucun `ST_Union`.
+
+- **Regle d'agregation, source unique : `classe_iris()`** (sql/138). Derivee du
+  NOM, jamais une liste en dur — les colonnes d'`iris` sont dynamiques.
+  - `effectif` (population, pop_*, nb_*) -> SOMME, puis rapporte au km2 a l'affichage
+  - `densite` (densite_*) -> RECALCULEE depuis les sommes (moyenner des
+    densites de mailles inegales est faux)
+  - `proportion` (part_*, taux_*, indice_*, rev_*) -> MOYENNE PONDEREE par la
+    population, sur les seules lignes renseignees
+
+  Valide contre l'INSEE : population 67 760 552 · proprietaires 58,60 % ·
+  logements sociaux 14,97 % · revenu median 23 097 EUR. Et par departement :
+  Paris 105 km2 / 20 066 hab/km2 / 32,8 % · Cantal 25 hab/km2 · Guyane 3,4.
+
+- **Echelle de couleurs : log10 de la valeur NORMALISEE**, bornes nationales
+  dans `iris_bornes_echelle` (sql/140), servies par `/api/iris/bornes`.
+  Elles vivent EN BASE et non dans un fichier TypeScript comme
+  `lib/carreaux/bornes.ts` : les colonnes d'`iris` sont dynamiques, une table
+  statique serait fausse au prochain import, en silence. 37 colonnes bornees ;
+  les 4 restantes (`nb_emplois`, `nb_emplois_commune`,
+  `part_couples_avec_enfants`, `part_menages_emmenages_2ans`) sont ENTIEREMENT
+  VIDES en base et le panneau les propose pourtant.
+
+  Effet de bord voulu : la couche n'appelle plus `/api/iris/stats`, qui faisait
+  un `percentile_cont` sur 49 448 lignes PAR COLONNE consultee. Cette route n'a
+  plus AUCUN appelant — a trancher.
+
+- **Chaque feature porte `niveau`** ('departement' | 'commune' | 'iris'). Le
+  filtre « vrais IRIS uniquement » porte sur `is_true_iris`, qui n'existe qu'au
+  palier IRIS : sans `niveau`, il viderait la carte des qu'on s'eloigne. Et le
+  panneau annonce le palier affiche — une valeur departementale presentee comme
+  un IRIS est un mensonge silencieux. `niveauAuZoom()` applique `Math.floor`,
+  car MapLibre demande la tuile `floor(zoom)` : sans ce plancher, le panneau se
+  trompait de palier sur tout le demi-cran superieur de chaque tranche.
+
 - **Sous le minzoom d'une source, MapLibre ne demande AUCUNE tuile** et n'emet
-  aucune erreur. La carte demarrant a z5,5 (`DEFAULT_ZOOM`), activer la couche
-  depuis la vue France ne produisait donc rien : carte vide, zero message,
-  symptome indistinguable d'une panne. Deux garde-fous, tous deux necessaires :
-  `setIrisVisible` remonte la camera au plancher A L'ACTIVATION (le centre est
-  conserve, et on ne contrarie jamais un dezoom volontaire), et `IrisSection`
-  affiche un bandeau + un bouton « Zoomer » quand la couche est active sous le
-  plancher. Verifie au navigateur le 2026-09-12, les deux chemins.
+  aucune erreur. C'est ce qui rendait la couche muette quand le plancher etait
+  a z9 et la carte a z5,5. Deux garde-fous subsistent : `setIrisVisible` remonte
+  la camera au plancher a l'activation, et `IrisSection` affiche un bandeau
+  quand la couche est active en dessous.
+
 - **« Vrais IRIS uniquement » est DECOCHE par defaut.** `is_true_iris = true`
   sert l'analyse statistique, jamais l'affichage (regle `CLAUDE.md`) : le defaut
   inverse masquait toute la France rurale, ou l'IRIS est la commune entiere.
+
+- A rejouer apres tout import IRIS, dans cet ordre :
+  `construire_iris_agg('departement')`, `construire_iris_agg('commune')`,
+  puis `construire_iris_bornes()`.
+
 - Deux paliers : `geom_z7` sous z12, `geom_3857` au-dessus. `geom_z10` n'est PAS
   utilisee — mesure : elle conserve 98,8 % des points de l'originale.
 - La tuile porte toutes les colonnes numeriques et booleennes d'`iris`,

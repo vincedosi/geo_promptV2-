@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       adaptive_model_state: {
@@ -2987,6 +3012,330 @@ export type Database = {
         }
         Relationships: []
       }
+      iris_agg_commune: {
+        Row: {
+          code: string
+          densite_pop: number | null
+          geom_3857: unknown
+          indice_gini: number | null
+          indice_jeunesse: number | null
+          nb_csp_cadre: number | null
+          nb_csp_employe: number | null
+          nb_csp_ouvrier: number | null
+          nb_diplome_aucun: number | null
+          nb_diplome_bac: number | null
+          nb_diplome_sup: number | null
+          nb_emplois: number | null
+          nb_emplois_commune: number | null
+          nb_iris: number | null
+          nb_menages: number | null
+          nom: string | null
+          part_actifs_marche_velo: number | null
+          part_actifs_transport_commun: number | null
+          part_appartements: number | null
+          part_couples_avec_enfants: number | null
+          part_familles_monoparentales: number | null
+          part_femmes_actives: number | null
+          part_hommes_actifs: number | null
+          part_logements_sociaux: number | null
+          part_menages_emmenages_2ans: number | null
+          part_pop_65_plus: number | null
+          part_pop_etrangere: number | null
+          part_pop_moins_18: number | null
+          part_residences_principales: number | null
+          part_sans_diplome: number | null
+          pop_0_14: number | null
+          pop_15_29: number | null
+          pop_30_44: number | null
+          pop_45_59: number | null
+          pop_60_74: number | null
+          pop_75_plus: number | null
+          population: number | null
+          rev_d1: number | null
+          rev_d9: number | null
+          rev_median: number | null
+          superficie_km2: number | null
+          taux_chomage: number | null
+          taux_diplome_sup: number | null
+          taux_emploi: number | null
+          taux_pauvrete: number | null
+          taux_proprio: number | null
+        }
+        Insert: {
+          code: string
+          densite_pop?: number | null
+          geom_3857?: unknown
+          indice_gini?: number | null
+          indice_jeunesse?: number | null
+          nb_csp_cadre?: number | null
+          nb_csp_employe?: number | null
+          nb_csp_ouvrier?: number | null
+          nb_diplome_aucun?: number | null
+          nb_diplome_bac?: number | null
+          nb_diplome_sup?: number | null
+          nb_emplois?: number | null
+          nb_emplois_commune?: number | null
+          nb_iris?: number | null
+          nb_menages?: number | null
+          nom?: string | null
+          part_actifs_marche_velo?: number | null
+          part_actifs_transport_commun?: number | null
+          part_appartements?: number | null
+          part_couples_avec_enfants?: number | null
+          part_familles_monoparentales?: number | null
+          part_femmes_actives?: number | null
+          part_hommes_actifs?: number | null
+          part_logements_sociaux?: number | null
+          part_menages_emmenages_2ans?: number | null
+          part_pop_65_plus?: number | null
+          part_pop_etrangere?: number | null
+          part_pop_moins_18?: number | null
+          part_residences_principales?: number | null
+          part_sans_diplome?: number | null
+          pop_0_14?: number | null
+          pop_15_29?: number | null
+          pop_30_44?: number | null
+          pop_45_59?: number | null
+          pop_60_74?: number | null
+          pop_75_plus?: number | null
+          population?: number | null
+          rev_d1?: number | null
+          rev_d9?: number | null
+          rev_median?: number | null
+          superficie_km2?: number | null
+          taux_chomage?: number | null
+          taux_diplome_sup?: number | null
+          taux_emploi?: number | null
+          taux_pauvrete?: number | null
+          taux_proprio?: number | null
+        }
+        Update: {
+          code?: string
+          densite_pop?: number | null
+          geom_3857?: unknown
+          indice_gini?: number | null
+          indice_jeunesse?: number | null
+          nb_csp_cadre?: number | null
+          nb_csp_employe?: number | null
+          nb_csp_ouvrier?: number | null
+          nb_diplome_aucun?: number | null
+          nb_diplome_bac?: number | null
+          nb_diplome_sup?: number | null
+          nb_emplois?: number | null
+          nb_emplois_commune?: number | null
+          nb_iris?: number | null
+          nb_menages?: number | null
+          nom?: string | null
+          part_actifs_marche_velo?: number | null
+          part_actifs_transport_commun?: number | null
+          part_appartements?: number | null
+          part_couples_avec_enfants?: number | null
+          part_familles_monoparentales?: number | null
+          part_femmes_actives?: number | null
+          part_hommes_actifs?: number | null
+          part_logements_sociaux?: number | null
+          part_menages_emmenages_2ans?: number | null
+          part_pop_65_plus?: number | null
+          part_pop_etrangere?: number | null
+          part_pop_moins_18?: number | null
+          part_residences_principales?: number | null
+          part_sans_diplome?: number | null
+          pop_0_14?: number | null
+          pop_15_29?: number | null
+          pop_30_44?: number | null
+          pop_45_59?: number | null
+          pop_60_74?: number | null
+          pop_75_plus?: number | null
+          population?: number | null
+          rev_d1?: number | null
+          rev_d9?: number | null
+          rev_median?: number | null
+          superficie_km2?: number | null
+          taux_chomage?: number | null
+          taux_diplome_sup?: number | null
+          taux_emploi?: number | null
+          taux_pauvrete?: number | null
+          taux_proprio?: number | null
+        }
+        Relationships: []
+      }
+      iris_agg_departement: {
+        Row: {
+          code: string
+          densite_pop: number | null
+          geom_3857: unknown
+          indice_gini: number | null
+          indice_jeunesse: number | null
+          nb_csp_cadre: number | null
+          nb_csp_employe: number | null
+          nb_csp_ouvrier: number | null
+          nb_diplome_aucun: number | null
+          nb_diplome_bac: number | null
+          nb_diplome_sup: number | null
+          nb_emplois: number | null
+          nb_emplois_commune: number | null
+          nb_iris: number | null
+          nb_menages: number | null
+          nom: string | null
+          part_actifs_marche_velo: number | null
+          part_actifs_transport_commun: number | null
+          part_appartements: number | null
+          part_couples_avec_enfants: number | null
+          part_familles_monoparentales: number | null
+          part_femmes_actives: number | null
+          part_hommes_actifs: number | null
+          part_logements_sociaux: number | null
+          part_menages_emmenages_2ans: number | null
+          part_pop_65_plus: number | null
+          part_pop_etrangere: number | null
+          part_pop_moins_18: number | null
+          part_residences_principales: number | null
+          part_sans_diplome: number | null
+          pop_0_14: number | null
+          pop_15_29: number | null
+          pop_30_44: number | null
+          pop_45_59: number | null
+          pop_60_74: number | null
+          pop_75_plus: number | null
+          population: number | null
+          rev_d1: number | null
+          rev_d9: number | null
+          rev_median: number | null
+          superficie_km2: number | null
+          taux_chomage: number | null
+          taux_diplome_sup: number | null
+          taux_emploi: number | null
+          taux_pauvrete: number | null
+          taux_proprio: number | null
+        }
+        Insert: {
+          code: string
+          densite_pop?: number | null
+          geom_3857?: unknown
+          indice_gini?: number | null
+          indice_jeunesse?: number | null
+          nb_csp_cadre?: number | null
+          nb_csp_employe?: number | null
+          nb_csp_ouvrier?: number | null
+          nb_diplome_aucun?: number | null
+          nb_diplome_bac?: number | null
+          nb_diplome_sup?: number | null
+          nb_emplois?: number | null
+          nb_emplois_commune?: number | null
+          nb_iris?: number | null
+          nb_menages?: number | null
+          nom?: string | null
+          part_actifs_marche_velo?: number | null
+          part_actifs_transport_commun?: number | null
+          part_appartements?: number | null
+          part_couples_avec_enfants?: number | null
+          part_familles_monoparentales?: number | null
+          part_femmes_actives?: number | null
+          part_hommes_actifs?: number | null
+          part_logements_sociaux?: number | null
+          part_menages_emmenages_2ans?: number | null
+          part_pop_65_plus?: number | null
+          part_pop_etrangere?: number | null
+          part_pop_moins_18?: number | null
+          part_residences_principales?: number | null
+          part_sans_diplome?: number | null
+          pop_0_14?: number | null
+          pop_15_29?: number | null
+          pop_30_44?: number | null
+          pop_45_59?: number | null
+          pop_60_74?: number | null
+          pop_75_plus?: number | null
+          population?: number | null
+          rev_d1?: number | null
+          rev_d9?: number | null
+          rev_median?: number | null
+          superficie_km2?: number | null
+          taux_chomage?: number | null
+          taux_diplome_sup?: number | null
+          taux_emploi?: number | null
+          taux_pauvrete?: number | null
+          taux_proprio?: number | null
+        }
+        Update: {
+          code?: string
+          densite_pop?: number | null
+          geom_3857?: unknown
+          indice_gini?: number | null
+          indice_jeunesse?: number | null
+          nb_csp_cadre?: number | null
+          nb_csp_employe?: number | null
+          nb_csp_ouvrier?: number | null
+          nb_diplome_aucun?: number | null
+          nb_diplome_bac?: number | null
+          nb_diplome_sup?: number | null
+          nb_emplois?: number | null
+          nb_emplois_commune?: number | null
+          nb_iris?: number | null
+          nb_menages?: number | null
+          nom?: string | null
+          part_actifs_marche_velo?: number | null
+          part_actifs_transport_commun?: number | null
+          part_appartements?: number | null
+          part_couples_avec_enfants?: number | null
+          part_familles_monoparentales?: number | null
+          part_femmes_actives?: number | null
+          part_hommes_actifs?: number | null
+          part_logements_sociaux?: number | null
+          part_menages_emmenages_2ans?: number | null
+          part_pop_65_plus?: number | null
+          part_pop_etrangere?: number | null
+          part_pop_moins_18?: number | null
+          part_residences_principales?: number | null
+          part_sans_diplome?: number | null
+          pop_0_14?: number | null
+          pop_15_29?: number | null
+          pop_30_44?: number | null
+          pop_45_59?: number | null
+          pop_60_74?: number | null
+          pop_75_plus?: number | null
+          population?: number | null
+          rev_d1?: number | null
+          rev_d9?: number | null
+          rev_median?: number | null
+          superficie_km2?: number | null
+          taux_chomage?: number | null
+          taux_diplome_sup?: number | null
+          taux_emploi?: number | null
+          taux_pauvrete?: number | null
+          taux_proprio?: number | null
+        }
+        Relationships: []
+      }
+      iris_bornes_echelle: {
+        Row: {
+          classe: string
+          colonne: string
+          log_max: number
+          log_min: number
+          mesure_le: string
+          val_max: number
+          val_min: number
+        }
+        Insert: {
+          classe: string
+          colonne: string
+          log_max: number
+          log_min: number
+          mesure_le?: string
+          val_max: number
+          val_min: number
+        }
+        Update: {
+          classe?: string
+          colonne?: string
+          log_max?: number
+          log_min?: number
+          mesure_le?: string
+          val_max?: number
+          val_min?: number
+        }
+        Relationships: []
+      }
       iris_import_history: {
         Row: {
           column_mapping: Json | null
@@ -4399,6 +4748,7 @@ export type Database = {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean
       }
+      classe_iris: { Args: { p_colonne: string }; Returns: string }
       clip_geojson_to_france: { Args: { p_fc: Json }; Returns: Json }
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
       compte_poi_par_categorie: {
@@ -4433,6 +4783,21 @@ export type Database = {
       consommer_quota: {
         Args: { p_cle: string; p_fenetre_s: number; p_max: number }
         Returns: Json
+      }
+      construire_iris_agg: {
+        Args: { p_niveau: string }
+        Returns: {
+          duree_ms: number
+          lignes: number
+          niveau: string
+        }[]
+      }
+      construire_iris_bornes: {
+        Args: never
+        Returns: {
+          colonnes: number
+          duree_ms: number
+        }[]
       }
       count_emetteurs_par_radio: {
         Args: never
@@ -6272,6 +6637,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       job_status: ["pending", "processing", "completed", "failed"],

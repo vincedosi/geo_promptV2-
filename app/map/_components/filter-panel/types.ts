@@ -9,7 +9,7 @@
 import type React from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
-import type { IrisStats } from '@/app/copilote/_hooks/useMapLayers';
+import type { BornesIris } from '@/lib/iris/echelle';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 
@@ -109,7 +109,7 @@ export interface FilterPanelProps {
   setIris3D?:           (v: boolean) => void;
   irisHauteur?:         number;
   setIrisHauteur?:      (v: number) => void;
-  irisStats?:           IrisStats | null;
+  irisBornes?:          BornesIris | null;
   irisTrueOnly?:        boolean;
   zoomCourant?:         number | null;
   irisZoomPlancher?:    number;

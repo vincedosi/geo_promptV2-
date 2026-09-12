@@ -116,6 +116,154 @@ Aucun test unitaire ne pouvait attraper ce défaut : une carte vide est un
 succès pour tout ce qui n'est pas un œil. Les tests ajoutés verrouillent les
 mécanismes ; c'est le navigateur qui prouve le résultat.
 
+## Cascade de zoom des IRIS — 2026-09-12 (2e passe)
+
+Demande de Vincent après le correctif du silence : *« tu appliques la même
+stratégie de zoom que les carreaux pour les IRIS, il faut pouvoir voir les IRIS
+quand la France entière est affichée »*. C'était la bonne demande — le correctif
+précédent avait rendu l'absence **explicable**, pas l'affichage **possible**.
+
+### Ce qui bloquait
+
+Servir 49 448 IRIS à z5 : 1 694 kB par tuile, pour des polygones de 0,6 px.
+Baisser le plancher n'était pas la réponse ; **agréger** l'était, exactement
+comme `get_tile` sert des mailles de 20 km, 5 km, 2 km, 1 km ou 200 m selon le
+zoom.
+
+### Les paliers, et pourquoi ceux-là
+
+Règle du projet : une maille se lit entre 10 et 40 px.
+`m/px = 78271,517 × cos(lat) / 2^z`, soit `53 862 / 2^z` à 46,5°.
+
+| zoom | palier | mailles | taille apparente |
+|---|---|---|---|
+| z4–z6  | départements | 104    | 23 → 91 px |
+| z7–z8  | communes     | 34 921 | 11 → 22 px |
+| z ≥ 9  | IRIS         | 49 448 | 31 px à z9 |
+
+z6 est le palier bancal : la commune n'y fait que 5,6 px, le département 91.
+Le département l'emporte — une maille trop grande reste lisible, une maille de
+5 px est du bruit.
+
+Bonne surprise à la reconnaissance : **les géométries administratives existaient
+déjà** (`ref_departements` 104, `ref_communes` 34 921, `geom` renseignée
+partout). Aucun `ST_Union` à faire, le coût s'effondre : 4,8 s et 5,4 s pour
+construire les deux paliers.
+
+### La règle d'agrégation, et son piège
+
+Sommer un revenu médian n'a aucun sens. La classe d'un indicateur est **dérivée
+du nom** (jamais une liste en dur — les colonnes d'`iris` sont dynamiques) et
+n'a qu'**une** définition, `classe_iris()` en SQL, que lisent l'agrégateur, le
+calcul des bornes **et** le front :
+
+- `effectif` (population, pop_*, nb_*) → **somme**, puis rapporté au km²
+- `densite` (densite_*) → **recalculée** depuis les sommes
+- `proportion` (part_*, taux_*, indice_*, rev_*) → **moyenne pondérée** par la
+  population, sur les seules lignes renseignées
+
+Une première version n'avait que deux classes, et c'était un défaut mesurable :
+`densite_pop` est déjà une densité (ne pas rediviser) **mais** sa queue droite
+est longue comme celle d'un effectif. Classée `proportion`, elle recevait le
+quantile p95 au lieu du p99,9 : son plafond tombait à 14 460 hab/km² au lieu de
+60 555, et les 5 % d'IRIS les plus denses — le cœur des villes, là où travaille
+un média-planneur — saturaient. La classe portait deux questions distinctes
+(« diviser par la surface ? » et « quelle forme de distribution ? ») et les
+confondait.
+
+**Validation avant matérialisation**, contre des repères connus :
+population 67 760 552 · propriétaires 58,60 % · logements sociaux 14,97 % ·
+revenu médian 23 097 € · pop_15_29 11 860 704 (17,5 %). Et après, par
+département : Paris 105 km² / 2 113 697 hab / 20 066 hab/km² / 32,8 % ·
+Cantal 5 777 km² / 25 hab/km² / 72,2 % · Guyane 83 677 km² / 3,4 hab/km².
+Tous conformes à l'INSEE.
+
+### Rendre les paliers comparables
+
+Un département somme ~475 IRIS : sans normalisation, la vue France saturerait et
+la vue ville serait vide. La leçon des carreaux s'applique telle quelle —
+**densité/km² + échelle log10 + bornes nationales fixes**, le minimum pris sur
+le palier le plus grossier et le maximum sur le plus fin.
+
+Une différence avec les carreaux, et elle est structurelle :
+`lib/carreaux/bornes.ts` est une table **statique**, parce que les colonnes
+Filosofi sont figées. Celles d'`iris` sont dynamiques : une table statique y
+serait fausse dès le prochain indicateur importé, et fausse en silence. Les
+bornes vivent donc **en base** (`iris_bornes_echelle`) et se reconstruisent avec
+les données.
+
+Effet de bord bienvenu : la couche n'appelle plus `/api/iris/stats`, qui faisait
+un `percentile_cont` sur 49 448 lignes **par colonne consultée** — un balayage
+complet de la table à chaque changement d'indicateur. Un aller-retour de 4 kB
+par session le remplace. Cette route n'a désormais plus aucun appelant.
+
+### Ce que la mesure a donné
+
+Octets bruts avant gzip :
+
+| tuile | poids | tuile | poids |
+|---|---|---|---|
+| z4 France entière | **101 355** | z7 Paris (le pire) | 783 551 |
+| z5 France | 115 463 | z8 Paris | 353 524 |
+| z6 Paris | 97 432 | z9 Paris | 827 012 |
+
+**La France entière tient dans une tuile de 100 kB.** La plus lourde reste la
+z9 parisienne, qui était déjà servie avant ce chantier.
+
+`EXPLAIN (ANALYZE, BUFFERS)` sur le palier commune, tuile 7/64/44 :
+Bitmap Index Scan sur `idx_iris_agg_commune_geom`, 2 686 mailles,
+**54,9 ms, `shared hit=685`, zéro lecture disque**.
+
+### Le défaut que seul le navigateur a vu
+
+Au test, le panneau annonçait « Communes » quand la carte affichait des
+départements, et « IRIS » quand elle affichait des communes — décalé d'un cran
+sur **tout le demi-cran supérieur de chaque palier**. MapLibre demande la tuile
+`floor(zoom)` : à un zoom de carte de 6,5 la tuile servie est la z6. Mon
+`niveauAuZoom()` lisait le zoom exact. Corrigé par un `Math.floor`, et le test
+étendu aux zooms fractionnaires — sa première version ne testait que des
+entiers, et laissait donc passer précisément ce cas.
+
+### Vérification
+
+Au navigateur, le 2026-09-12 :
+
+1. Chargement à z5,5, un clic sur « Couche IRIS » → **la France entière
+   s'affiche**, 104 départements en densité de 15–29 ans, Paris au sommet de
+   l'échelle, légende en `/km²` sur échelle log.
+2. Zoom cran par cran : z5 Départements · z6 Départements · z7 Communes ·
+   z8 Communes · z9 IRIS · z10 IRIS. Le panneau colle à la tuile à chaque cran.
+3. Relief 3D au palier IRIS : les bourgs ressortent, les IRIS ruraux restent
+   plats. Au palier département : une carte en relief de la France, hauteur
+   proportionnelle à la densité de jeunes. La mise à l'échelle par largeur de
+   maille tient sur un facteur 700 entre les paliers.
+
+### Fichiers
+
+| Fichier | Changement |
+|---|---|
+| `sql/138_iris_agregats_cascade.sql` | `classe_iris()` + `construire_iris_agg()` ; tables `iris_agg_departement` / `iris_agg_commune` |
+| `sql/139_get_iris_tile_cascade.sql` | `get_iris_tile` devient une cascade à trois paliers, chaque feature portant `niveau` |
+| `sql/140_iris_bornes_echelle.sql` | table `iris_bornes_echelle` + `construire_iris_bornes()` |
+| `lib/iris/echelle.ts` | normalisation, échelle log, garde-fous d'expression, nommage des paliers |
+| `app/api/iris/bornes/route.ts` | sert les bornes nationales, cache CDN 24 h |
+| `lib/version.ts` | `IRIS_ZOOM_PLANCHER` 9 → 4, `IRIS_TILE_VERSION` 1 → 2 |
+| `app/copilote/_hooks/useMapLayers.ts` | couleur et hauteur sur l'échelle normalisée ; filtre conscient du palier ; `irisStats` → `irisBornes` |
+| `app/copilote/_hooks/useMapInit.ts` | arrêts de zoom des contours étendus à toute la cascade |
+| `app/map/_components/filter-panel/IrisSection.tsx` | palier affiché, légende en unités réelles |
+| `types/database.types.ts` | régénérés (nouvelles tables et fonctions) |
+| `tests/unit/iris/cascade-zoom.test.ts` | 18 tests : cohérence des paliers, unicité de la règle, comparabilité |
+
+### Limite connue
+
+82 IRIS (80 253 habitants, **0,12 %**) n'ont pas de commune correspondante dans
+`ref_communes` — communes fusionnées ou renommées. Ils sont absents du palier
+commune, présents aux paliers département et IRIS. Et quatre indicateurs que le
+panneau propose (`nb_emplois`, `nb_emplois_commune`, `part_couples_avec_enfants`,
+`part_menages_emmenages_2ans`) sont **entièrement vides en base** : ils
+affichent désormais « Aucune donnée pour cet indicateur » au lieu d'une carte
+grise sans explication.
+
 ## Ce qui reste, et qui n'est pas du code
 
 1. **Clés Inngest en production** — sans elles, pollen et qualité de l'air

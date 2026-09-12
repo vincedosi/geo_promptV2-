@@ -23,35 +23,45 @@ export const BUILD_DATE  = '2026-04-28';
 // serve.
 //
 // À incrémenter à chaque migration changeant le schéma de la tuile IRIS.
-// v1 — 2026-09-11 : création. Cascade à deux paliers (geom_z7 sous z12,
-//      geom_3857 au-dessus), plancher à z9, `superficie_km2` calculée pour la 3D.
-export const IRIS_TILE_VERSION = 1;
+// v1 — 2026-09-11 : création. Deux paliers de géométrie (geom_z7 sous z12,
+//      geom_3857 au-dessus), plancher à z9, `superficie_km2` pour la 3D.
+// v2 — 2026-09-12 : CASCADE d'agrégation (sql/138-139). Les mêmes coordonnées
+//      de tuile servent désormais un AUTRE objet — un département à z5, une
+//      commune à z7, un IRIS à z9 — et chaque feature porte `niveau`. Toute
+//      tuile en cache (jusqu'à une semaine au CDN) est donc périmée : sans ce
+//      bump, le front filtrerait sur un `niveau` que l'ancienne tuile n'a pas
+//      et la couche resterait vide.
+export const IRIS_TILE_VERSION = 2;
 
 /**
  * Zoom au-dessous duquel aucune tuile IRIS n'est servie ni demandée.
  *
  * Source unique : la route, la source MapLibre, les trois couches et l'indice
- * affiché dans le panneau lisent cette constante. Quatre copies du chiffre 9
+ * affiché dans le panneau lisent cette constante. Quatre copies du chiffre
  * vivaient dans deux fichiers ; il suffisait d'en changer une pour que la
  * couche demande des tuiles que la route refuse, ou l'inverse.
  *
- * Pourquoi 9, et pourquoi il ne peut pas descendre — mesuré le 2026-09-12 :
+ * ── Pourquoi 4, et pourquoi 9 était un défaut ──────────────────────────────
  *
- *   tuile            IRIS couverts   MVT brut
- *   5/15/11            31 149        1 694 kB   (un IRIS fait 0,6 px)
- *   8/129/88 Paris      4 251            —      (la RPC rend NULL sous z9)
- *   9/259/176 Paris     3 387          788 kB
+ * Le plancher a valu 9 pendant une journée, parce que les 49 448 IRIS ne se
+ * servent pas à z5 : 1 694 kB de tuile pour des polygones de 0,6 px. Mais la
+ * carte démarre à z5,5, et sous le minzoom d'une source MapLibre ne demande
+ * AUCUNE tuile ni n'émet d'erreur : activer la couche depuis la vue France ne
+ * montrait rien du tout.
  *
- * Un palier z8 coûterait 4 251 IRIS sur la tuile parisienne, et la France
- * entière tient en ~75 tuiles z8 : un utilisateur qui dézoome déclencherait
- * exactement l'incident du 28/03 (bbox France entière → I/O épuisé → 504).
+ * La réponse n'était pas de baisser le plancher sur les IRIS bruts — une tuile
+ * z8 parisienne couvre 4 251 IRIS et la France tient en ~75 tuiles z8, soit
+ * l'incident du 28/03 rejoué. C'était de faire ce que font les carreaux :
+ * AGRÉGER. `get_iris_tile` sert maintenant des départements sous z7 et des
+ * communes à z7-z8 (sql/138-139), et la France entière tient dans une tuile de
+ * 100 kB. Le plancher rejoint donc celui des carreaux, z4.
  *
- * Conséquence assumée : la carte démarre à z5,5 et la couche n'a rien à y
- * montrer. C'est pourquoi l'activer sous ce plancher amène la caméra au
- * plancher (`setIrisVisible`) et pourquoi le panneau l'annonce — une carte
- * vide sans explication passe pour une panne, et c'est ce qui est arrivé.
+ * Mesures du 2026-09-12, octets bruts avant gzip :
+ *   z4 France entière  101 355      z7 Paris (le pire)  783 551
+ *   z5 France          115 463      z8 Paris            353 524
+ *   z6 Paris            97 432      z9 Paris            827 012
  */
-export const IRIS_ZOOM_PLANCHER = 9;
+export const IRIS_ZOOM_PLANCHER = 4;
 
 // À incrémenter à chaque migration modifiant la fonction MVT carreaux (get_carreaux_tile / tiles/{z}/{x}/{y})
 // v13 — 2026-04-24 : expose code_dept + code_region dans les props MVT (JOIN ref_departements)

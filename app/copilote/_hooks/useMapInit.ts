@@ -782,8 +782,11 @@ export function useMapInit(
         minzoom: IRIS_ZOOM_PLANCHER,
         paint: {
           'line-color': 'rgba(66,146,198,0.7)',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 0.6, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
-          'line-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 12, 0.5, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
+          // Les arrêts couvrent toute la cascade : un contour de département à z5
+          // doit être plus fin qu'un contour d'IRIS à z14, sans quoi la vue France
+          // se noie dans le trait.
+          'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.2, 7, 0.3, 12, 0.6, 14, 1.2] as unknown as maplibregl.ExpressionSpecification,
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 4, 0.35, 7, 0.35, 12, 0.5, 14, 0.6] as unknown as maplibregl.ExpressionSpecification,
         },
         layout: { visibility: 'none' },
       });
