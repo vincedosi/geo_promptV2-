@@ -72,6 +72,7 @@ import { AIOverlay, LARGEUR_TIROIR_ASSISTANT } from '@/components/map/overlays/A
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
+import { CampagneActiveCard } from '@/components/magelian/CampagneActiveCard';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
 import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
 import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
@@ -115,7 +116,7 @@ export default function MapPage() {
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [railMasque, setRailMasque] = useState(false);
   const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
-  const { openOverlay } = useMagelianOverlay();
+  const { open: magelianOverlayOpen, openOverlay, closeOverlay: closeMagelianOverlay, setFiltreActif } = useMagelianOverlay();
   const { toast } = useToast();
   // Campagne active (SuiviMapLayer) : statut rediffusé par ce composant à
   // chaque changement (activation, fermeture, changement de métrique) — seul
@@ -134,11 +135,13 @@ export default function MapPage() {
   const handleEntree = useCallback((id: EntreeId) => {
     const entree = ENTREES_NAVIGATION.find(e => e.id === id);
     if (entree?.type === 'overlay-plein-ecran') {
-      openOverlay();
+      // Bascule Campagne / Carte (Tâche 9) : Alt+C ou le clic sur l'icône du
+      // rail alternent entre les deux, au lieu de rouvrir un overlay déjà ouvert.
+      if (magelianOverlayOpen) closeMagelianOverlay(); else openOverlay();
       return;
     }
     setEntreeActive(prev => prev === id ? null : id);
-  }, [openOverlay]);
+  }, [magelianOverlayOpen, openOverlay, closeMagelianOverlay]);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de PanneauCalques/PanneauAnalyse se perd → analyses
   // bloquées par le check exactlyOnePOI)
@@ -148,6 +151,9 @@ export default function MapPage() {
   // fetchs de couche bornés par bboxDuFiltre (useMapDirectActions, useMeteoLayer,
   // CivicHealthMapLayer). Pas de duplication d'état : un seul useState ici.
   const [filtre, setFiltre] = useState<FiltreActif | null>(null);
+  // Miroir dans le contexte MAGELIAN (Tâche 9) : l'onglet Stratégie affiche
+  // la note de périmètre (spec §3) sans dupliquer l'état du filtre.
+  useEffect(() => { setFiltreActif(filtre); }, [filtre, setFiltreActif]);
   // Périmètre territorial : même lift (filtre dept/région doit survivre au cycle
   // mount/unmount des overlays — sinon Bataille V2 ignore le filtre user)
   const [perimeterScope,           setPerimeterScope]           = useState<'metro' | 'all' | null>(null);
@@ -974,6 +980,7 @@ export default function MapPage() {
         pastille={filtre !== null}
       />
       <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
+      <CampagneActiveCard />
       {entreeActiveDef?.type === 'tiroir-droit' && (
         <AIOverlay
           chatSlot={chatSlotContent}

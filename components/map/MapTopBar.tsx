@@ -3,19 +3,27 @@
 import { SessionBadge } from '@/components/SessionBadge';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LARGEUR_RAIL } from '@/lib/navigation/config';
+import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 
 /** Hauteur de la top bar — utilisée par page.tsx pour caler paddingTop. */
 export const MAP_TOPBAR_HEIGHT = 44;
 
+const fInter = "'Inter', system-ui, sans-serif";
+
 /**
  * Top bar horizontale pour la page /map :
- *   [logo MAGELIAN] …………………… [theme toggle] [workspace ▾] [email ▾]
+ *   [logo MAGELIAN] …… [bascule Campagne / Carte] …… [theme toggle] [email ▾]
  *
  * Positionnée à droite du rail (left: LARGEUR_RAIL) pour ne pas chevaucher le
  * rail vertical. Reste au-dessus des overlays (z-index: 45, au-dessus de
- * l'OverlayPanel z:40).
+ * l'OverlayPanel z:40) — mais SOUS l'overlay MAGELIAN plein écran (z:10000,
+ * `MagelianOverlay.tsx`) : la bascule vers « Carte » depuis l'overlay se fait
+ * par Échap, le bouton Fermer, ou Alt+C (raccourci global, indépendant de la
+ * visibilité de ce bouton — `app/map/page.tsx`).
  */
 export function MapTopBar() {
+  const { open, campagneActive, openOverlay, closeOverlay } = useMagelianOverlay();
+
   return (
     <div
       role="banner"
@@ -47,7 +55,82 @@ export function MapTopBar() {
         />
       </div>
 
-      {/* ── Chrome : theme toggle + workspace dropdown + email ────── */}
+      {/* ── Campagne active + bascule Campagne / Carte (Tâche 9) ─────
+          Raccourci Alt+C déjà déclaré dans lib/navigation/config.ts,
+          branché sur le listener clavier unique de app/map/page.tsx. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          maxWidth: '46%',
+          minWidth: 0,
+        }}
+      >
+        {campagneActive && (
+          <span
+            title={campagneActive.annonceur ? `${campagneActive.nom} · ${campagneActive.annonceur}` : campagneActive.nom}
+            style={{
+              fontFamily: fInter,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+            }}
+          >
+            {campagneActive.nom}
+            {campagneActive.annonceur ? ` · ${campagneActive.annonceur}` : ''}
+          </span>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => { if (!open) openOverlay(); }}
+            aria-pressed={open}
+            title="Ouvrir la campagne (Alt+C)"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 2px',
+              fontFamily: fInter,
+              fontWeight: 500,
+              fontSize: 12,
+              color: open ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              borderBottom: open ? '2px solid var(--brand-teal)' : '2px solid transparent',
+            }}
+          >
+            Campagne
+          </button>
+          <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}>/</span>
+          <button
+            type="button"
+            onClick={() => { if (open) closeOverlay(); }}
+            aria-pressed={!open}
+            title="Revenir à la carte (Alt+C)"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 2px',
+              fontFamily: fInter,
+              fontWeight: 500,
+              fontSize: 12,
+              color: !open ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              borderBottom: !open ? '2px solid var(--brand-teal)' : '2px solid transparent',
+            }}
+          >
+            Carte
+          </button>
+        </div>
+      </div>
+
+      {/* ── Chrome : theme toggle + email ─────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <ThemeToggle />
         <SessionBadge />

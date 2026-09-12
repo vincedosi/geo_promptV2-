@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
-import { X } from 'lucide-react';
+import { X, Info } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { partitionCampaigns } from '@/lib/campaigns/overlay-partition';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
@@ -33,10 +33,14 @@ interface CampaignRef {
   name: string;
   dsp_source: string | null;
   total_tracked_ads: number | null;
+  /** Annonceur déclaré au wizard — porte `campagneActive` (Tâche 9). */
+  advertiser: string | null;
 }
 
 export function MagelianOverlay() {
-  const { open, request, closeOverlay, clearRequest } = useMagelianOverlay();
+  const {
+    open, request, closeOverlay, clearRequest, setCampagneActive, filtreActif,
+  } = useMagelianOverlay();
   // Sur /map il n'y a pas de sidebar 240px mais le rail de navigation
   // (LARGEUR_RAIL) : l'overlay se cale à droite du rail (rail + écart) au
   // lieu de la sidebar (256).
@@ -122,6 +126,7 @@ export function MagelianOverlay() {
         ? campData.map((c: CampaignRef) => ({
             id: c.id, name: c.name, dsp_source: c.dsp_source ?? null,
             total_tracked_ads: c.total_tracked_ads ?? null,
+            advertiser: c.advertiser ?? null,
           }))
         : [];
       setCampaigns(list);
@@ -164,7 +169,7 @@ export function MagelianOverlay() {
     const found = campaigns.find((c) => c.id === request.campaignId);
     if (found) {
       const consultable = (found.total_tracked_ads ?? 0) > 0 || strategyIds.has(found.id);
-      if ((request.tab ?? tab) === 'creation') setCreationCampaignId(found.id);
+      if ((request.tab ?? tab) === 'strategie') setCreationCampaignId(found.id);
       else if (consultable) setSelectedId(found.id);
     }
     clearRequest();
@@ -197,6 +202,18 @@ export function MagelianOverlay() {
     () => partitionCampaigns(campaigns ?? [], strategyIds),
     [campaigns, strategyIds],
   );
+
+  // Contexte global "campagne active" (Tâche 9) : dérivée de ce qui est
+  // actuellement en contexte dans l'overlay — consultée (Suivi/Aperçu) via
+  // `selectedId`, ou éditée (Stratégie) via `creationCampaignId` — pour la
+  // top bar et la carte flottante après retour à la carte. PERSISTE à la
+  // fermeture (cette instance ne démonte jamais). Aucun fetch : dérivé des
+  // listes déjà chargées par `refreshLists`.
+  useEffect(() => {
+    const id = tab === 'strategie' ? creationCampaignId : selectedId;
+    const trouvee = id ? (campaigns ?? []).find((c) => c.id === id) ?? null : null;
+    setCampagneActive(trouvee ? { id: trouvee.id, nom: trouvee.name, annonceur: trouvee.advertiser } : null);
+  }, [tab, selectedId, creationCampaignId, campaigns, setCampagneActive]);
 
   // Retire une campagne des listes ; répare la sélection de consultation.
   const removeCampaign = useCallback((id: string) => {
@@ -234,7 +251,7 @@ export function MagelianOverlay() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok || !d.campaign) return;
       setCampaigns((prev) => [
-        { id: d.campaign.id, name: d.campaign.name, dsp_source: 'magelian', total_tracked_ads: 0 },
+        { id: d.campaign.id, name: d.campaign.name, dsp_source: 'magelian', total_tracked_ads: 0, advertiser: null },
         ...(prev ?? []),
       ]);
       setCreationCampaignId(d.campaign.id);
@@ -411,7 +428,7 @@ export function MagelianOverlay() {
         </button>
       </div>
 
-      {/* Tab bar — Création (produire) séparée de Suivi/Aperçu (consulter) */}
+      {/* Tab bar — Stratégie (produire, ex-Programmer) séparée de Suivi/Aperçu (consulter) */}
       <div
         style={{
           display: 'flex',
@@ -422,8 +439,8 @@ export function MagelianOverlay() {
         }}
       >
         {([
-          ['creation', 'Programmer'],
-          ['suivi', 'Suivi campagne'],
+          ['strategie', 'Stratégie'],
+          ['suivi', 'Suivi'],
           ['apercu', 'Aperçu'],
         ] as const).map(([key, label]) => (
           <button
@@ -449,8 +466,8 @@ export function MagelianOverlay() {
       </div>
 
       {/* Sélecteur de consultation — partagé par Suivi et Aperçu uniquement :
-          on choisit LA campagne à regarder. La création a son propre hall. */}
-      {tab !== 'creation' && (
+          on choisit LA campagne à regarder. Stratégie a son propre hall. */}
+      {tab !== 'strategie' && (
         <div style={{ padding: '12px 16px 10px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <label
             htmlFor="magelian-campaign-select"
@@ -476,6 +493,10 @@ export function MagelianOverlay() {
           >
             {campaigns === null && <option value="">Chargement…</option>}
             {emptyConsultation && <option value="">Aucune campagne</option>}
+            {/* Sans campagne active (Tâche 9, étape 2) : campagnes disponibles mais aucune choisie. */}
+            {campaigns !== null && !emptyConsultation && !selectedId && (
+              <option value="">Choisir une campagne</option>
+            )}
             {consultables.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -492,7 +513,7 @@ export function MagelianOverlay() {
           minHeight: 0,
         }}
       >
-        {tab === 'creation' && (
+        {tab === 'strategie' && (
           creationCampaignId ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
@@ -511,6 +532,26 @@ export function MagelianOverlay() {
                   {creationCampaign ? ` — ${creationCampaign.name}` : ''}
                 </span>
               </div>
+              {/* Note de périmètre (Tâche 9, étape 4 — spec §3, règle non
+                  négociable) : un filtre de carte ne restreint JAMAIS le
+                  périmètre d'une stratégie, qui couvre toute la campagne.
+                  `filtreActif` est un miroir de lib/carte/filtre.ts porté
+                  par le contexte MAGELIAN — aucun fetch. */}
+              {filtreActif && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    background: 'var(--elevated)', border: '0.5px solid var(--border-default)',
+                    borderRadius: 6, padding: '10px 12px', marginBottom: 14,
+                  }}
+                >
+                  <Info size={14} strokeWidth={1.5} color="var(--brand-teal)" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Un filtre de carte est actif. Il ne s&apos;applique pas à cette stratégie : une stratégie
+                    couvre toute la campagne.
+                  </span>
+                </div>
+              )}
               <CampaignCockpit
                 key={creationCampaignId}
                 campaignId={creationCampaignId}
@@ -539,7 +580,7 @@ export function MagelianOverlay() {
             <CampaignSuivi key={selectedId} campaignId={selectedId} mapAvailable={onMap} onShowedMap={handleClose} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.
             </div>
           ) : null
         )}
@@ -549,7 +590,7 @@ export function MagelianOverlay() {
             <CampaignOverview key={selectedId} campaignId={selectedId} onDeleted={handleCampaignDeleted} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
-              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Programmer.
+              Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.
             </div>
           ) : null
         )}

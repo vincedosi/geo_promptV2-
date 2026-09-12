@@ -28,6 +28,19 @@ describe('parseMagelianParams', () => {
       .toEqual({ campaignId: 'x', tab: 'suivi' });
   });
 
+  it('parse le nouvel onglet strategie (ex-creation, Tâche 9)', () => {
+    expect(parseMagelianParams(new URLSearchParams('campaign=x&tab=strategie')))
+      .toEqual({ campaignId: 'x', tab: 'strategie' });
+  });
+
+  it('ancien lien tab=creation : dégrade sans casser (campaign conservée, tab ignoré)', () => {
+    // L'onglet "creation" a été renommé "strategie" (Tâche 9). Un lien publié
+    // avant le renommage ne doit ni planter ni rouvrir un onglet fantôme :
+    // il retombe sur undefined, exactement comme un tab inconnu quelconque.
+    expect(parseMagelianParams(new URLSearchParams('campaign=x&tab=creation')))
+      .toEqual({ campaignId: 'x', tab: undefined });
+  });
+
   it("n'intercepte pas les URLs adressées à un autre overlay", () => {
     expect(parseMagelianParams(new URLSearchParams('overlay=pilotage&action=new&campaign=x'))).toBeNull();
     expect(parseMagelianParams(new URLSearchParams('overlay=pilotage&campaign=x&tab=suivi'))).toBeNull();

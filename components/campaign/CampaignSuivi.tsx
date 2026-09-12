@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * CampaignSuivi — onglet « Suivi campagne » de l'overlay MAGELIAN.
+ * CampaignSuivi — onglet « Suivi » de l'overlay MAGELIAN.
  * Gauche : bilan (FinalReport si stratégie terminée, sinon KPI + état d'attente).
  * Droite : chat IA streaming sur les données de la campagne (historique éphémère,
  * envoyé au serveur à chaque tour — rien n'est persisté).
@@ -403,13 +403,13 @@ export function CampaignSuivi({
                     </span>
                     <button
                       type="button"
-                      onClick={() => window.location.assign(`/map?campaign=${campaignId}&tab=creation`)}
+                      onClick={() => window.location.assign(`/map?campaign=${campaignId}&tab=strategie`)}
                       style={{
                         background: 'transparent', border: '0.5px solid var(--brand-teal)', borderRadius: 6,
                         padding: '6px 12px', fontFamily: fInter, fontSize: 12, color: 'var(--brand-teal)', cursor: 'pointer',
                       }}
                     >
-                      Modifier dans Programmer
+                      Modifier dans Stratégie
                     </button>
                   </div>
                 )}

@@ -8,7 +8,7 @@
  *
  * Utilisé :
  * - embarqué dans CampaignCockpit (view "overview")
- * - embarqué dans CampaignSuivi (onglet "Suivi campagne" de l'overlay MAGELIAN)
+ * - embarqué dans CampaignSuivi (onglet "Suivi" de l'overlay MAGELIAN)
  */
 import { useState, useEffect, useCallback } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';

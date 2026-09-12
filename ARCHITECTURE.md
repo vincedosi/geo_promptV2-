@@ -3,7 +3,15 @@
 > Derniere mise a jour : 2026-09-08 (suppression de l'overlay Pilotage ML et de tout ce
 > qui n'etait atteignable que par lui — voir ci-dessous)
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
-> Deep-link overlay campagne : `/map?campaign=<id>&tab=<creation|suivi|apercu>` (ignore si `?overlay=` present).
+> Deep-link overlay campagne : `/map?campaign=<id>&tab=<strategie|suivi|apercu>` (ignore si `?overlay=` present).
+> Tache 9 (2026-09-12) : onglets de l'overlay MAGELIAN renommes — Programmer -> Strategie,
+> Suivi campagne -> Suivi (Apercu inchange ; l'onglet Activation n'existe pas encore, Phase 2).
+> Deep-link `tab=` : `creation` -> `strategie` — un ancien lien `tab=creation` degrade sans
+> casser (campagne conservee, onglet retombe sur Suivi, valeur par defaut). Campagne active
+> exposee globalement par `MagelianOverlayContext` (id/nom/annonceur), affichee dans
+> `MapTopBar` (bascule Campagne/Carte au centre, raccourci `alt+c` deja declare en Tache 1)
+> et dans `CampagneActiveCard` (carte flottante haut-gauche de la carte, aucune requete —
+> derivee du contexte deja charge). Persiste a la fermeture de l'overlay.
 > Retrait 2026-09-08 (2e passe) : `/api/iris-import/insee` et son onglet supprimes
 > — la route n'ecrivait rien dans `iris_import_history` et aucun des 8 imports
 > IRIS de la base n'en vient. Il ne reste qu'un chemin : le depot de CSV.
@@ -116,16 +124,20 @@ genesis_app/
 │   ├── campaign/               # Gestion campagne (embarquee dans l'overlay MAGELIAN)
 │   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
-│   │   │                       # la modification passe par l'onglet Programmer (wizard)
+│   │   │                       # la modification passe par l'onglet Strategie (wizard)
 │   │   ├── CampaignSuivi.tsx   # Cockpit de suivi en vol (tuiles/alertes/graphes/tableau via suivi/*)
 │   │   │                       # + reconciliation DSP ⇔ mesure + bilan + chat IA
 │   │   ├── suivi/              # SuiviCockpit, SuiviCharts, SuiviTable, ReconciliationPanel
 │   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
-│   ├── magelian/               # Overlay MAGELIAN (Programmer/Suivi/Apercu) + deep-link
-│   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Programmer/Suivi/Apercu ; selecteur
+│   ├── magelian/               # Overlay MAGELIAN (Strategie/Suivi/Apercu) + deep-link
+│   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Strategie/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
-│   │   ├── CreationHall.tsx    # Hall de l'onglet Programmer : nouvelle campagne, reprendre une
+│   │   ├── CreationHall.tsx    # Hall de l'onglet Strategie : nouvelle campagne, reprendre une
 │   │   │                       # coquille (badge brouillon, suppression), modifier une lancee
+│   │   ├── MagelianOverlayContext.tsx # open/request + campagneActive (id/nom/annonceur, globale,
+│   │   │                       # persiste a la fermeture) + filtreActif (miroir de lib/carte/filtre.ts)
+│   │   ├── CampagneActiveCard.tsx # Carte flottante haut-gauche de la carte : campagne active +
+│   │   │                       # bouton Ouvrir, visible quand l'overlay est ferme, aucune requete
 │   │   ├── MagelianDeepLink.tsx# Lit /map?campaign=&tab=, ouvre l'overlay, nettoie l'URL
 │   │   └── deep-link.ts        # parseMagelianParams (ignore ?overlay= des autres overlays)
 │   ├── CarreauxPMTilesLayer    # Couche PMTiles carreaux INSEE
