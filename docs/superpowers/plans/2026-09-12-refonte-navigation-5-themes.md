@@ -22,6 +22,65 @@ Vitest · Tailwind + tokens `DESIGN_SYSTEM.md`.
 
 ---
 
+## État d'avancement — 2026-09-12
+
+> Section tenue à jour à chaque tâche close. Les cases à cocher des tâches 1 à 6
+> sont cochées ci-dessous, dans leurs sections respectives.
+
+**Branche `feat/nav-5-themes`, 22 commits depuis `334577b`.** Chaque tâche est relue
+par un agent indépendant avant d'être close ; aucune n'est passée du premier coup.
+
+| Tâche | État | Rounds | Commits |
+|---|---|---|---|
+| 1 — Configuration de navigation | ✅ close | 2 | `a3ee328..3215af5` |
+| 2 — Le rail | ✅ close | 1 | `3215af5..e0acab9` |
+| 3 — Réducteur du filtre | ✅ close | 1 | `e0acab9..9f263c6` |
+| 4 — Panneau Filtre, chip, bornage | ✅ close | 2 | `9f263c6..95a64f1` |
+| 5 — Exclusivité des dégradés | ✅ close | 1 | `95a64f1..e9ffad6` |
+| 6 — Panneau Calques, légende unique | ✅ close | 1 | `e9ffad6..6af3609` |
+| 7 — Panneaux Analyse et Zones | 🔄 en cours | — | — |
+| 8 — Routage, pile Échap, raccourcis | ⬜ à faire | | |
+| 9 — Campagne active, bascule | ⬜ à faire | | |
+| 10 — Documentation et clôture | ⬜ à faire | | |
+| 23 — Catalogue du code (knip) | ⬜ après la 10 | | |
+| 11 à 13 — Analyses enregistrées, score, corrélation | ⬜ à faire | | |
+| 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ⬜ à faire | | |
+| 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
+| 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
+
+### Ajouté en cours de route, hors plan initial
+
+| Quoi | Pourquoi | Où |
+|---|---|---|
+| `sql/144_codes_postaux_dans_bbox.sql` | La carte santé environnementale au palier CP serait revenue **vide en permanence** : la route filtrait sur `ref_codes_postaux.centroid_lat` / `.centroid_lon`, NULL sur les 6 187 lignes. La colonne `centroid` (geometry) est pleine et indexée GIST | correctif tâche 4 |
+| Tâche 23 — catalogue du code | Répondre à « qu'est-ce qui sert encore ? » par génération (knip + test à cliquet), jamais par un fichier tenu à la main | placée après la tâche 10 |
+| `sql/150_classement_territoires.sql` + `communes_arrondissements` | Piloter MAGELIAN à la question (« les 10 villes où les 15-29 ans pèsent le plus »). **Hors refonte navigation** | chantier séparé, en cours |
+| Outil copilote `classementTerritoires` + carte de rendu | Le tableau **et** l'histogramme dans le chat. **Hors refonte navigation** | chantier séparé, en cours |
+| `docs/PLAN_COUVERTURE_RADIO.md` | Le rayon de couverture ignore la directivité, le relief et la fréquence — et une zone capturée depuis une couverture part au DSP. **Hors refonte** | document, non planifié en exécution |
+| Migrations 145 à 149 renumérotées | `sql/144` a été pris par le correctif ci-dessus | tâches 11, 12, 14, 19, 20 |
+
+### Ce que les relectures ont trouvé, et qui n'aurait pas été vu autrement
+
+- `entreeParRaccourci` ne testait que la **présence** d'un modificateur : `Ctrl+Shift+K`
+  — la console web de Firefox — aurait ouvert l'Assistant. **Défaut dicté par ce plan.**
+- `SuiviMapLayer.tsx` gardait `left: 68`, la position calée sur le rail de 48 px :
+  la légende du cockpit chevauchait le rail élargi.
+- La carte santé environnementale CP, cassée en silence par un bornage posé sur deux
+  colonnes vides. **Aucun des 646 tests ne couvrait cette route.**
+- La consigne « le filtre borne les requêtes » appliquée **même sans filtre** :
+  339 POI d'outre-mer devenaient invisibles et le sélecteur « France + DROM » inerte.
+- La bataille isochrone tournant **sans aucune restriction géographique**, l'état qui
+  la bornait ayant été gelé à vide — la famille de requêtes de l'incident du 08/04.
+- Un test qui ne pouvait pas échouer (union fermée déjà garantie par `tsc`), retiré.
+- `BBOX_METRO` mutable : `bboxDuFiltre` rend toujours la même référence, un `as number[]`
+  suffisait à corrompre le garde-fou d'I/O pour toute la session. Gelée depuis.
+- La clé `'civic'` absente de `SECTION_KEYS` — **bug préexistant** : « Tout replier »
+  ne refermait jamais la section Indicateurs civiques.
+- Et hors refonte, dans la RPC de classement que j'ai écrite : elle **sommait les taux**.
+  Marseille regroupée annonçait 234,4 % de chômage.
+
+---
+
 ## Contraintes globales
 
 Copiées de `CLAUDE.md`, `ARCHITECTURE.md`, `DESIGN_SYSTEM.md` et de la spec. Elles
@@ -129,7 +188,7 @@ listé en fin de document, chiffré, hors périmètre de ce plan, à arbitrer s�
   `function entreeParRaccourci(e: KeyboardEvent): EntreeId | null`.
   Toutes les tâches suivantes consomment ce module et ne redéclarent rien.
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/navigation/config.test.ts
@@ -216,12 +275,12 @@ describe('configuration de navigation', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer le test, vérifier qu'il échoue**
+- [x] **Étape 2 : lancer le test, vérifier qu'il échoue**
 
 Commande : `npx vitest run tests/unit/navigation/config.test.ts`
 Attendu : ÉCHEC — `Failed to resolve import "@/lib/navigation/config"`.
 
-- [ ] **Étape 3 : écrire la configuration**
+- [x] **Étape 3 : écrire la configuration**
 
 ```ts
 // lib/navigation/config.ts
@@ -351,12 +410,12 @@ export const PANNEAUX_OUTILS: readonly PanneauId[] =
     .map(e => e.id) as PanneauId[];
 ```
 
-- [ ] **Étape 4 : relancer le test, vérifier qu'il passe**
+- [x] **Étape 4 : relancer le test, vérifier qu'il passe**
 
 Commande : `npx vitest run tests/unit/navigation/config.test.ts`
 Attendu : SUCCÈS, 11 tests.
 
-- [ ] **Étape 5 : commit**
+- [x] **Étape 5 : commit**
 
 ```bash
 git add lib/navigation/config.ts tests/unit/navigation/config.test.ts
@@ -376,7 +435,7 @@ git commit -m "feat(nav): une source unique pour la navigation de /map"
 - Consomme : `ENTREES_NAVIGATION`, `LARGEUR_RAIL`, `EntreeId` (Tâche 1).
 - Produit : `<RailNavigation entreeActive={EntreeId | null} onEntree={(id: EntreeId) => void} masque?={boolean} badgeAlertes?={number} />`
 
-- [ ] **Étape 1 : déplacer le badge de dev Next.js**
+- [x] **Étape 1 : déplacer le badge de dev Next.js**
 
 `next.config.js`, juste après `eslint: { ignoreDuringBuilds: true },` (ligne 49) :
 
@@ -385,7 +444,7 @@ git commit -m "feat(nav): une source unique pour la navigation de /map"
   devIndicators: { position: 'bottom-right' },
 ```
 
-- [ ] **Étape 2 : écrire le rail**
+- [x] **Étape 2 : écrire le rail**
 
 Reprendre `IconBar.tsx` comme base et appliquer exactement ces changements :
 
@@ -406,7 +465,7 @@ Reprendre `IconBar.tsx` comme base et appliquer exactement ces changements :
 8. Le raccourci `/` de `IconBar.tsx:53-65` est **retiré** : il est remplacé par `Ctrl+K`,
    branché en Tâche 8. Ne pas laisser les deux.
 
-- [ ] **Étape 3 : brancher le rail et purger les offsets en dur**
+- [x] **Étape 3 : brancher le rail et purger les offsets en dur**
 
 Quatre fichiers calent une position sur l'ancienne largeur 48. Remplacer :
 
@@ -417,7 +476,7 @@ Quatre fichiers calent une position sur l'ancienne largeur 48. Remplacer :
 | `components/map/MapTopBar.tsx:22-37` | `left: 48` | `left: LARGEUR_RAIL` |
 | `components/magelian/MagelianOverlay.tsx:36-39` | `panelLeft = onMap ? 56 : 256` et `calc(100vw - 68px)` | `panelLeft = onMap ? LARGEUR_RAIL + ECART_RAIL_PANNEAU : 256` et `calc(100vw - ${LARGEUR_RAIL + ECART_RAIL_PANNEAU + 12}px)` |
 
-- [ ] **Étape 4 : supprimer l'ancien rail et vérifier qu'il ne reste aucun appelant**
+- [x] **Étape 4 : supprimer l'ancien rail et vérifier qu'il ne reste aucun appelant**
 
 ```bash
 git rm components/map/IconBar.tsx
@@ -425,14 +484,14 @@ grep -rn "IconBar\|OverlayId" app components lib --include=*.ts --include=*.tsx
 ```
 Attendu : aucune occurrence hors `RailNavigation.tsx`.
 
-- [ ] **Étape 5 : vérifier**
+- [x] **Étape 5 : vérifier**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
 ```
 Attendu : 0 erreur de type, tous les tests verts.
 
-- [ ] **Étape 6 : commit**
+- [x] **Étape 6 : commit**
 
 ```bash
 git add -A
@@ -453,7 +512,7 @@ git commit -m "feat(nav): le rail passe a cinq themes, sans libelle tronque"
 - Produit : `type FiltreActif`, `function poserFiltre(prochain)`, `function retirerFiltre()`,
   `function bboxDuFiltre(f)`, `const BBOX_METRO`.
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/carte/filtre.test.ts
@@ -499,12 +558,12 @@ describe('filtre unique', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
 Commande : `npx vitest run tests/unit/carte/filtre.test.ts`
 Attendu : ÉCHEC — module introuvable.
 
-- [ ] **Étape 3 : écrire le module**
+- [x] **Étape 3 : écrire le module**
 
 ```ts
 // lib/carte/filtre.ts
@@ -568,11 +627,11 @@ export function bboxDuFiltre(f: FiltreActif | null): readonly [number, number, n
 }
 ```
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
 Commande : `npx vitest run tests/unit/carte/filtre.test.ts` → SUCCÈS, 7 tests.
 
-- [ ] **Étape 5 : commit**
+- [x] **Étape 5 : commit**
 
 ```bash
 git add lib/carte/filtre.ts tests/unit/carte/filtre.test.ts
@@ -594,7 +653,7 @@ git commit -m "feat(carte): un seul filtre actif, et il borne les requetes"
 - Produit : `<PanneauFiltre filtre onFiltre zonesEnregistrees />`,
   `<FiltreChip filtre onRetirer />`.
 
-- [ ] **Étape 1 : construire le panneau à partir de l'existant**
+- [x] **Étape 1 : construire le panneau à partir de l'existant**
 
 Contenu, dans cet ordre (spec §3) :
 1. Recherche locale (adresse, commune, CP) — code repris tel quel de `PerimeterSections.tsx:162-182`
@@ -605,7 +664,7 @@ Contenu, dans cet ordre (spec §3) :
 
 Chaque sélection appelle `onFiltre(poserFiltre(filtreCourant, { type, code, label, bbox }))`.
 
-- [ ] **Étape 2 : le chip**
+- [x] **Étape 2 : le chip**
 
 `FiltreChip` : `position: absolute`, haut-gauche de la carte, sous la top bar
 (`top: MAP_TOPBAR_HEIGHT + 12`, `left: LARGEUR_RAIL + ECART_RAIL_PANNEAU`),
@@ -616,7 +675,7 @@ croix `X` 12px `var(--text-tertiary)` → `onRetirer()`. Rien affiché si `filtr
 Pastille sur l'icône Filtre du rail : passer `pastille={filtre !== null}` à
 `RailNavigation` (point 6px `var(--brand-teal)` en haut-droite de l'icône).
 
-- [ ] **Étape 3 : brancher la bbox sur les requêtes**
+- [x] **Étape 3 : brancher la bbox sur les requêtes**
 
 Tous les fetchs de couche qui prennent une bbox lisent `bboxDuFiltre(filtre)` au lieu du
 viewport quand un filtre est actif. Points d'appel à modifier :
@@ -624,13 +683,13 @@ viewport quand un filtre est actif. Points d'appel à modifier :
 `useMeteoLayer.ts:121`. **Ne pas toucher** aux tuiles MVT (`/api/tiles/...`) : MapLibre
 demande ses tuiles par z/x/y, le filtre n'y change rien.
 
-- [ ] **Étape 4 : vérifier**
+- [x] **Étape 4 : vérifier**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
 ```
 
-- [ ] **Étape 5 : commit**
+- [x] **Étape 5 : commit**
 
 ```bash
 git add -A && git commit -m "feat(nav): panneau Filtre — un perimetre, un chip, des requetes bornees"
@@ -650,7 +709,7 @@ git add -A && git commit -m "feat(nav): panneau Filtre — un perimetre, un chip
 - Produit : `type DegradeId`, `function activerDegrade(actif, cible)`,
   `function libelleDegrade(id)`.
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/carte/degrades.test.ts
@@ -684,9 +743,9 @@ describe('exclusivite des degrades de couleur', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec** — `npx vitest run tests/unit/carte/degrades.test.ts`
+- [x] **Étape 2 : lancer, vérifier l'échec** — `npx vitest run tests/unit/carte/degrades.test.ts`
 
-- [ ] **Étape 3 : écrire le module**
+- [x] **Étape 3 : écrire le module**
 
 ```ts
 // lib/carte/degrades.ts
@@ -735,9 +794,9 @@ export function activerDegrade(actif: DegradeId | null, cible: DegradeId): Bascu
 }
 ```
 
-- [ ] **Étape 4 : relancer, vérifier le succès** — 5 tests verts.
+- [x] **Étape 4 : relancer, vérifier le succès** — 5 tests verts.
 
-- [ ] **Étape 5 : commit**
+- [x] **Étape 5 : commit**
 
 ```bash
 git add lib/carte/degrades.ts tests/unit/carte/degrades.test.ts
@@ -764,7 +823,7 @@ git commit -m "feat(carte): un seul degrade de couleur a la fois"
   `<GroupeCalques titre ouvert onToggle>{children}</GroupeCalques>`,
   `<LegendeCarte calquesActifs />`.
 
-- [ ] **Étape 1 : les groupes (spec §2 et §4)**
+- [x] **Étape 1 : les groupes (spec §2 et §4)**
 
 | Groupe | Sections déplacées telles quelles |
 |---|---|
@@ -779,7 +838,7 @@ En tête : **« Actifs (n) »**, un item par calque affiché avec une croix `X` 
 Les réglages d'un calque (maillage, indicateur, palette, opacité) restent **dans** sa
 section existante et ne s'affichent que quand le calque est actif.
 
-- [ ] **Étape 2 : chevrons cohérents**
+- [x] **Étape 2 : chevrons cohérents**
 
 `GroupeCalques` est le **seul** composant qui rend un chevron de groupe :
 `ChevronRight` fermé, `ChevronDown` ouvert, 14px, `var(--text-tertiary)`, `ml-auto`.
@@ -789,13 +848,13 @@ contredit `DESIGN_SYSTEM.md` §5 qui impose un dot teal sur les **section header
 panneau** : le dot reste sur l'en-tête du panneau lui-même (`OverlayPanel.tsx:140`), il
 disparaît des groupes internes.
 
-- [ ] **Étape 3 : le toast d'exclusivité**
+- [x] **Étape 3 : le toast d'exclusivité**
 
 À l'activation d'un dégradé, si `eteint !== null` :
 `toast("${libelleDegrade(eteint)} a été masqué — un seul dégradé de couleur à la fois")`
 via `components/ui/geo-toast.tsx`.
 
-- [ ] **Étape 4 : la légende unique**
+- [x] **Étape 4 : la légende unique**
 
 `LegendeCarte` en bas à gauche, repliable, `position: absolute`,
 `left: LARGEUR_RAIL + ECART_RAIL_PANNEAU`, `bottom: 12`, `zIndex: 35`.
@@ -810,9 +869,9 @@ Les 8 légendes locales (`CarreauxSection:188-215`, `IrisSection:275-290`,
 stops** et cessent de les rendre elles-mêmes. `digital/MapLegend.tsx` reste en place :
 la page `/map/analyse/digital` est hors périmètre de cette refonte.
 
-- [ ] **Étape 5 : vérifier** — `npx tsc --noEmit && npm test -- --run`
+- [x] **Étape 5 : vérifier** — `npx tsc --noEmit && npm test -- --run`
 
-- [ ] **Étape 6 : commit**
+- [x] **Étape 6 : commit**
 
 ```bash
 git add -A && git commit -m "feat(nav): panneau Calques — six groupes, une legende, un degrade"
