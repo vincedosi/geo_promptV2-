@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   perimetreChoisi, messageGardePerimetre, MESSAGE_PERIMETRE_MANQUANT,
-  lancementsAutorises, type OutilAnalyse,
 } from '@/lib/carte/garde-perimetre';
 import type { FiltreActif } from '@/lib/carte/filtre';
 
@@ -46,36 +45,8 @@ describe('garde de perimetre (spec §5)', () => {
   });
 });
 
-describe('lancementsAutorises — les CINQ outils du panneau Analyse', () => {
-  const OUTILS: OutilAnalyse[] = ['voronoi', 'battleV1', 'battleV2', 'appliquerBataille', 'clustering'];
-
-  it('enumere exactement les cinq outils, ni plus ni moins', () => {
-    const res = lancementsAutorises(null);
-    expect(Object.keys(res).sort()).toEqual([...OUTILS].sort());
-  });
-
-  it('sans perimetre, aucun des cinq outils n est autorise', () => {
-    const res = lancementsAutorises(null);
-    for (const outil of OUTILS) expect(res[outil]).toBe(false);
-  });
-
-  it('avec un filtre actif, les cinq outils sont autorises', () => {
-    const res = lancementsAutorises(dept);
-    for (const outil of OUTILS) expect(res[outil]).toBe(true);
-  });
-
-  it('avec une zone selectionnee hors filtre, les cinq outils sont autorises', () => {
-    const res = lancementsAutorises(null, 'zone-id');
-    for (const outil of OUTILS) expect(res[outil]).toBe(true);
-  });
-
-  it('le clustering suit la meme regle que les quatre autres — pas d exception', () => {
-    expect(lancementsAutorises(null).clustering).toBe(false);
-    expect(lancementsAutorises(dept).clustering).toBe(true);
-  });
-
-  it('appliquerBataille (ST_Difference) suit la meme regle — second point de lancement', () => {
-    expect(lancementsAutorises(null).appliquerBataille).toBe(false);
-    expect(lancementsAutorises(dept).appliquerBataille).toBe(true);
-  });
-});
+// Le cablage reel de cette garde sur les cinq outils du panneau Analyse est
+// verifie structurellement par tests/unit/carte/panneau-analyse-garde.test.ts
+// (round 2 de correction, Tache 7) — voir l'en-tete de garde-perimetre.ts
+// pour pourquoi une fonction "lancementsAutorises" testee ici a ete retiree :
+// elle n'etait appelee nulle part en production.

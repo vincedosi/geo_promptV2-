@@ -9,6 +9,16 @@
  * que son API accepte ou non un filtre géographique en argument.
  *
  * Logique pure, testée sans monter React (tests/unit/carte/garde-perimetre.test.ts).
+ * Le CÂBLAGE réel de cette garde sur les cinq outils du panneau Analyse
+ * (Voronoï, bataille V1/V2, application de la bataille, lancement du
+ * clustering) est vérifié structurellement par
+ * tests/unit/carte/panneau-analyse-garde.test.ts, qui lit le SOURCE de
+ * `PanneauAnalyse.tsx` — round 2 de correction (Tâche 7, 2026-09-12) : une
+ * première version ajoutait ici une fonction `lancementsAutorises` qui
+ * énumérait les cinq outils mais recopiait une seule valeur booléenne cinq
+ * fois et n'était appelée nulle part en production — un test qui l'exerçait
+ * ne pouvait pas détecter un câblage nu dans le composant réel. Supprimée :
+ * le test structurel lit le vrai composant, pas une façade.
  *
  * Un périmètre est choisi si :
  *   - un `FiltreActif` est posé (lib/carte/filtre.ts) — quel que soit son type,
@@ -36,42 +46,4 @@ export function perimetreChoisi(filtre: FiltreActif | null, zoneSelectionnee?: s
  */
 export function messageGardePerimetre(filtre: FiltreActif | null, zoneSelectionnee?: string | null): string | null {
   return perimetreChoisi(filtre, zoneSelectionnee) ? null : MESSAGE_PERIMETRE_MANQUANT;
-}
-
-/**
- * Les CINQ points de lancement du panneau Analyse (Tâche 7, round de
- * correction 1) — un calcul PostGIS/ORS ou une requête base de données sans
- * borne géographique, chacun capable de rejouer les incidents du 28/03 et du
- * 08/04 :
- *   - `voronoi`            : `VoronoiTool` → geo.prompt → RPC Voronoï
- *   - `battleV1`           : `IsochronesTool` → vérif. cache / remplissage
- *                             ORS / lancement de la bataille isochrone V1
- *   - `battleV2`           : `BattleV2Tool` → vérif. cache / remplissage ORS /
- *                             lancement de la bataille isochrone V2
- *   - `appliquerBataille`  : bouton « BATAILLE (ST_Difference) » d'`IsochronesTool`
- *                             (`onApplyBattle`) — un second point de calcul
- *                             PostGIS, distinct du lancement de la bataille
- *   - `clustering`         : `ClusteringSection` → `onLoadClusters`
- */
-export type OutilAnalyse = 'voronoi' | 'battleV1' | 'battleV2' | 'appliquerBataille' | 'clustering';
-
-const OUTILS_ANALYSE: readonly OutilAnalyse[] = [
-  'voronoi', 'battleV1', 'battleV2', 'appliquerBataille', 'clustering',
-];
-
-/**
- * Pour un périmètre donné, dit quels lancements du panneau Analyse sont
- * autorisés — LES CINQ nommément, jamais une valeur unique qu'on suppose
- * partagée. Les cinq obéissent aujourd'hui à la MÊME règle (aucune variation
- * par outil : la garde ne regarde que le périmètre, pas l'outil), mais les
- * énumérer un par un est ce qui permet à un test de repérer l'oubli d'un
- * outil au prochain ajout — c'est précisément ce qui a laissé passer
- * `clustering` au premier passage de cette tâche.
- */
-export function lancementsAutorises(
-  filtre: FiltreActif | null,
-  zoneSelectionnee?: string | null,
-): Record<OutilAnalyse, boolean> {
-  const autorise = perimetreChoisi(filtre, zoneSelectionnee);
-  return Object.fromEntries(OUTILS_ANALYSE.map(outil => [outil, autorise])) as Record<OutilAnalyse, boolean>;
 }

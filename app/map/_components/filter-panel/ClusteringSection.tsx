@@ -52,6 +52,9 @@ export interface ClusteringSectionProps {
   onFitBounds?:             (bounds: [[number, number], [number, number]]) => void;
   onWizardHighlight?:       (poiTypes: string[], metropolitaine: boolean) => void;
   onWizardClose?:           () => void;
+  /** Garde de périmètre (spec §5) — relayée jusqu'à ClusteringWizard sans
+   *  aucune logique ici (round 2 de correction, Tâche 7, 2026-09-12). */
+  verifierPerimetre?:       () => boolean;
 }
 
 export function ClusteringSection({
@@ -68,6 +71,7 @@ export function ClusteringSection({
   onFitBounds,
   onWizardHighlight,
   onWizardClose,
+  verifierPerimetre,
 }: ClusteringSectionProps) {
   const [modeles, setModeles] = useState<ClusterModelSummary[]>([]);
   const [versionOuverte, setVersionOuverte] = useState<number | null>(null);
@@ -198,6 +202,7 @@ export function ClusteringSection({
                   onFitBounds={onFitBounds ?? (() => {})}
                   onWizardHighlight={onWizardHighlight}
                   onWizardClose={onWizardClose}
+                  verifierPerimetre={verifierPerimetre}
                 />
               </div>
             </div>

@@ -16,22 +16,37 @@
  *     Isochrones routiers (ORS) — exclusion mutuelle CONSERVÉE telle quelle
  *     (chaque outil ferme les deux autres, comportement de
  *     `FilterPanel.tsx:787-851` avant cette tâche).
- *   - Clustering (K-Means) — `ClusteringSection` telle quelle. GARDÉE (round
- *     de correction 1, voir ci-dessous) : ni le composant ni son wiring
- *     interne ne sont modifiés, seule la fonction passée en prop est
- *     enveloppée — même patron que les quatre autres.
+ *   - Clustering (K-Means) — `ClusteringSection` telle quelle. GARDÉE en DEUX
+ *     points distincts (voir ci-dessous) : ni `ClusteringSection.tsx`, ni
+ *     `ClusterPanel.tsx`, ni `ClusteringWizard.tsx` ne voient leur LOGIQUE
+ *     modifiée — chacun ne fait que relayer une nouvelle prop
+ *     `verifierPerimetre` d'un niveau à l'autre, exactement comme les props
+ *     de lancement enveloppées ci-dessous.
  *
  * **Garde de périmètre (spec §5, CLAUDE.md — incidents du 28/03 et du 08/04) :**
- * `lib/carte/garde-perimetre.ts` (logique pure, testée, voir
- * `lancementsAutorises` pour les CINQ points de lancement énumérés) bloque
- * tant qu'aucun `FiltreActif` n'est posé : Voronoï, bataille isochrone V1
- * (vérif. cache, remplissage ORS, lancement), bataille V2 (idem), le bouton
- * « BATAILLE (ST_Difference) » (`onApplyBattle`, un second point de calcul
- * PostGIS distinct du lancement) et le Clustering (`onLoadClusters`). La
- * garde bloque un LANCEMENT, elle ne paramètre rien : elle s'applique donc
- * même à un outil dont le contrat n'expose aucun argument de bbox/zone —
- * round 1 de correction, la garde ne couvrait au départ que quatre des cinq
- * outils, `onLoadClusters` et `onApplyBattle` étaient transmis nus.
+ * `lib/carte/garde-perimetre.ts` (logique pure, testée) bloque tant qu'aucun
+ * `FiltreActif` n'est posé. Câblage vérifié structurellement par
+ * `tests/unit/carte/panneau-analyse-garde.test.ts` (lit le SOURCE de ce
+ * fichier) — SIX points de lancement, à CINQ endroits distincts :
+ *   1. Voronoï (`VoronoiTool` → geo.prompt)
+ *   2. Bataille isochrone V1 (`IsochronesTool` → vérif. cache/lancement)
+ *   3. Bataille isochrone V2 (`BattleV2Tool` → vérif. cache/remplissage ORS/lancement)
+ *   4. Application de la bataille — bouton « BATAILLE (ST_Difference) »
+ *      (`IsochronesTool.onApplyBattle`), un second point de calcul PostGIS
+ *      distinct du lancement
+ *   5. Clustering — DEUX points, round 2 de correction (voir ci-dessous) :
+ *      a. `ClusteringSection.onLoadClusters` — un simple GET de relecture
+ *         d'un modèle déjà calculé, gardé par prudence (round 1) mais qui
+ *         N'EST PAS le calcul lourd ;
+ *      b. `ClusteringWizard.handleLaunch` (POST `/api/poi-clusters/run`,
+ *         `geo_filter` optionnel construit par LE WIZARD LUI-MÊME, sans
+ *         aucun rapport avec `FiltreActif`) — LE VRAI point de calcul,
+ *         gardé en relayant `verifierPerimetre` en prop à travers
+ *         `ClusteringSection` → `ClusterPanel` → `ClusteringWizard`, qui
+ *         l'appelle juste avant son `fetch`. Round 1 gardait UNIQUEMENT (a),
+ *         en croyant border (b) — ce qui ne bloquait rien : `onLoadClusters`
+ *         et le POST du wizard sont deux chemins de code totalement
+ *         indépendants.
  *
  * **Parité stricte avec l'ex-FilterPanel pour le territoire de la bataille**
  * (`scope`/`selectedRegions`/`selectedDepts`/`ville`, dérivés via
@@ -179,10 +194,8 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
 
   // ── Garde de perimetre (spec §5) — logique pure dans garde-perimetre.ts,
   // ce composant se contente d'appeler la fonction et d'afficher son message
-  // avant tout lancement des CINQ outils (Voronoi, bataille V1 — verif.
-  // cache/remplissage ORS/lancement —, bataille V2 idem, application de la
-  // bataille ST_Difference, clustering). Voir `lancementsAutorises` pour
-  // l'enumeration testee des cinq. ─────────────────────────────────────────
+  // avant tout lancement. Cablage verifie structurellement par
+  // tests/unit/carte/panneau-analyse-garde.test.ts (lit ce fichier). ───────
   const [gardeMessage, setGardeMessage] = useState<string | null>(null);
   useEffect(() => { if (filtre) setGardeMessage(null); }, [filtre]);
   const verifierPerimetre = (): boolean => {
@@ -201,14 +214,15 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   const handleFillMissingV2Garde = () => { if (verifierPerimetre()) handleFillMissingV2(); };
   const handleBattleV2Garde = (force = false) => { if (verifierPerimetre()) handleBattleV2(force); };
 
-  // ── Round 1 de correction : deux points de lancement transmis nus au
-  // premier passage — le patron est le même que ci-dessus (enveloppe la
-  // fonction passée en prop, ne touche ni ClusteringSection.tsx ni
-  // IsochronesTool.tsx). ────────────────────────────────────────────────
+  // ── Round 1 de correction : point de lancement transmis nu au premier
+  // passage — même patron que ci-dessus (enveloppe la fonction passée en
+  // prop, ne touche pas IsochronesTool.tsx). ───────────────────────────────
   const handleApplyBattleGarde: FilterPanelProps['onApplyBattle'] = async (rings, category, poisForMap, onProgress) => {
     if (!verifierPerimetre()) return;
     await onApplyBattle(rings, category, poisForMap, onProgress);
   };
+  // Round 1 : gardait cette relecture GET (prudence). Round 2 : ce n'est PAS
+  // le calcul lourd — voir plus bas `verifierPerimetre` relayé au wizard.
   const handleLoadClustersGarde = () => { if (verifierPerimetre()) props.onLoadClusters?.(); };
 
   return (
@@ -346,7 +360,10 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
         </div>
         )}
 
-        {/* ── Accordéon : CLUSTERING — composant telle quelle, lancement gardé ── */}
+        {/* ── Accordéon : CLUSTERING — composant telle quelle, DEUX points gardés :
+            onLoadClusters (relecture, round 1) et verifierPerimetre relayé
+            jusqu'à ClusteringWizard pour son POST /api/poi-clusters/run —
+            le VRAI calcul (round 2, voir en-tête du fichier). ──────────── */}
         <ClusteringSection
           analyseOpen={analyseOpen}
           toggleAnalyse={toggleAnalyse}
@@ -361,6 +378,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
           onFitBounds={props.onFitBounds}
           onWizardHighlight={props.onWizardHighlight}
           onWizardClose={props.onWizardClose}
+          verifierPerimetre={verifierPerimetre}
         />
 
       </div>

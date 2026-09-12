@@ -200,12 +200,16 @@ export interface ClusterPanelProps {
   onFitBounds:      (bounds: [[number, number], [number, number]]) => void;
   onWizardHighlight?: (poiTypes: string[], metropolitaine: boolean) => void;
   onWizardClose?:     () => void;
+  /** Garde de périmètre (spec §5) — transmise telle quelle à ClusteringWizard,
+   *  qui l'appelle avant son POST /api/poi-clusters/run (round 2 de correction,
+   *  Tâche 7, 2026-09-12). Voir ClusteringWizard.tsx pour le pourquoi. */
+  verifierPerimetre?: () => boolean;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function ClusterPanel({
   geojson, visible, loading, duration, onToggle, onLoad, onDurationChange, onFlyTo, onFitBounds,
-  onWizardHighlight, onWizardClose,
+  onWizardHighlight, onWizardClose, verifierPerimetre,
 }: ClusterPanelProps) {
 
   const [section,    setSection]    = useState<'legend' | 'table' | 'compare'>('legend');
@@ -352,6 +356,7 @@ export function ClusterPanel({
             onClose={() => { setWizardOpen(false); onWizardClose?.(); }}
             onJobStarted={() => { setWizardOpen(false); onWizardClose?.(); onLoad(); }}
             onHighlight={onWizardHighlight}
+            verifierPerimetre={verifierPerimetre}
           />
         )}
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -423,6 +428,7 @@ export function ClusterPanel({
           onClose={() => { setWizardOpen(false); onWizardClose?.(); }}
           onJobStarted={() => { setWizardOpen(false); onWizardClose?.(); onLoad(); }}
           onHighlight={onWizardHighlight}
+          verifierPerimetre={verifierPerimetre}
         />
       )}
 
