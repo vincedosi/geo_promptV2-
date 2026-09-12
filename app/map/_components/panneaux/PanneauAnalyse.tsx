@@ -16,17 +16,22 @@
  *     Isochrones routiers (ORS) — exclusion mutuelle CONSERVÉE telle quelle
  *     (chaque outil ferme les deux autres, comportement de
  *     `FilterPanel.tsx:787-851` avant cette tâche).
- *   - Clustering (K-Means) — `ClusteringSection` telle quelle, PAS de garde
- *     de périmètre (voir ci-dessous).
+ *   - Clustering (K-Means) — `ClusteringSection` telle quelle. GARDÉE (round
+ *     de correction 1, voir ci-dessous) : ni le composant ni son wiring
+ *     interne ne sont modifiés, seule la fonction passée en prop est
+ *     enveloppée — même patron que les quatre autres.
  *
  * **Garde de périmètre (spec §5, CLAUDE.md — incidents du 28/03 et du 08/04) :**
- * `lib/carte/garde-perimetre.ts` (logique pure, testée) bloque le lancement de
- * Voronoï et de la bataille isochrone (vérif. cache, remplissage ORS, lancement
- * V1/V2) tant qu'aucun `FiltreActif` n'est posé — un calcul France entière est
- * précisément la famille de requêtes qui a épuisé le budget I/O Nano. NON
- * appliquée au Clustering : la brief le désigne explicitement « telle quelle »,
- * et son contrat actuel (`onLoadClusters`, entraînement k-means) n'accepte de
- * toute façon aucun paramètre de bbox/zone à border.
+ * `lib/carte/garde-perimetre.ts` (logique pure, testée, voir
+ * `lancementsAutorises` pour les CINQ points de lancement énumérés) bloque
+ * tant qu'aucun `FiltreActif` n'est posé : Voronoï, bataille isochrone V1
+ * (vérif. cache, remplissage ORS, lancement), bataille V2 (idem), le bouton
+ * « BATAILLE (ST_Difference) » (`onApplyBattle`, un second point de calcul
+ * PostGIS distinct du lancement) et le Clustering (`onLoadClusters`). La
+ * garde bloque un LANCEMENT, elle ne paramètre rien : elle s'applique donc
+ * même à un outil dont le contrat n'expose aucun argument de bbox/zone —
+ * round 1 de correction, la garde ne couvrait au départ que quatre des cinq
+ * outils, `onLoadClusters` et `onApplyBattle` étaient transmis nus.
  *
  * **Parité stricte avec l'ex-FilterPanel pour le territoire de la bataille**
  * (`scope`/`selectedRegions`/`selectedDepts`/`ville`, dérivés via
@@ -174,8 +179,10 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
 
   // ── Garde de perimetre (spec §5) — logique pure dans garde-perimetre.ts,
   // ce composant se contente d'appeler la fonction et d'afficher son message
-  // avant tout lancement de Voronoi ou de bataille (verif. cache, remplissage
-  // ORS, lancement V1/V2). Le Clustering n'est PAS garde — voir en-tete. ────
+  // avant tout lancement des CINQ outils (Voronoi, bataille V1 — verif.
+  // cache/remplissage ORS/lancement —, bataille V2 idem, application de la
+  // bataille ST_Difference, clustering). Voir `lancementsAutorises` pour
+  // l'enumeration testee des cinq. ─────────────────────────────────────────
   const [gardeMessage, setGardeMessage] = useState<string | null>(null);
   useEffect(() => { if (filtre) setGardeMessage(null); }, [filtre]);
   const verifierPerimetre = (): boolean => {
@@ -194,8 +201,37 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   const handleFillMissingV2Garde = () => { if (verifierPerimetre()) handleFillMissingV2(); };
   const handleBattleV2Garde = (force = false) => { if (verifierPerimetre()) handleBattleV2(force); };
 
+  // ── Round 1 de correction : deux points de lancement transmis nus au
+  // premier passage — le patron est le même que ci-dessus (enveloppe la
+  // fonction passée en prop, ne touche ni ClusteringSection.tsx ni
+  // IsochronesTool.tsx). ────────────────────────────────────────────────
+  const handleApplyBattleGarde: FilterPanelProps['onApplyBattle'] = async (rings, category, poisForMap, onProgress) => {
+    if (!verifierPerimetre()) return;
+    await onApplyBattle(rings, category, poisForMap, onProgress);
+  };
+  const handleLoadClustersGarde = () => { if (verifierPerimetre()) props.onLoadClusters?.(); };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+
+      {/* Garde de perimetre (spec §5) — message affiche apres une tentative de
+          lancement bloquee, POUR N'IMPORTE LEQUEL des cinq outils (Voronoi,
+          bataille V1/V2, application de la bataille, clustering) : place au
+          niveau du panneau, pas dans l'accordeon Analyse spatiale, sinon un
+          lancement de clustering bloque restait muet (round 1 de correction —
+          le clustering se lance hors de ce bloc, sans passer par
+          `exactlyOnePOI`). S'efface des qu un filtre est pose (effet
+          ci-dessus). */}
+      {gardeMessage && (
+        <div style={{
+          margin: '10px 14px 0', padding: '8px 10px', borderRadius: 4,
+          background: 'rgba(255,87,87,0.08)', border: '0.5px solid rgba(255,87,87,0.25)',
+          color: 'var(--danger)', fontFamily: fInter, fontSize: 12, lineHeight: 1.5,
+        }}>
+          ! {gardeMessage}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
@@ -224,19 +260,6 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
           {/* Outils — visibles uniquement si exactement 1 POI */}
           {exactlyOnePOI && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-
-              {/* Garde de perimetre (spec §5) — message affiche apres une
-                  tentative de lancement bloquee ; efface des qu un filtre
-                  est pose (effet ci-dessus). */}
-              {gardeMessage && (
-                <div style={{
-                  padding: '8px 10px', borderRadius: 4,
-                  background: 'rgba(255,87,87,0.08)', border: '0.5px solid rgba(255,87,87,0.25)',
-                  color: 'var(--danger)', fontFamily: fInter, fontSize: 12, lineHeight: 1.5,
-                }}>
-                  ! {gardeMessage}
-                </div>
-              )}
 
               {/* Mode de transport — visible globalement */}
               <div>
@@ -313,7 +336,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
                 setBattleApplyLoading={setBattleApplyLoading}
                 battleApplyPct={battleApplyPct}
                 setBattleApplyPct={setBattleApplyPct}
-                onApplyBattle={onApplyBattle}
+                onApplyBattle={handleApplyBattleGarde}
               />
 
             </div>
@@ -323,7 +346,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
         </div>
         )}
 
-        {/* ── Accordéon : CLUSTERING — telle quelle, pas de garde ────────── */}
+        {/* ── Accordéon : CLUSTERING — composant telle quelle, lancement gardé ── */}
         <ClusteringSection
           analyseOpen={analyseOpen}
           toggleAnalyse={toggleAnalyse}
@@ -332,7 +355,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
           clusterLoading={props.clusterLoading}
           clusterDuration={props.clusterDuration}
           onToggleClusters={props.onToggleClusters}
-          onLoadClusters={props.onLoadClusters}
+          onLoadClusters={handleLoadClustersGarde}
           onClusterDurationChange={props.onClusterDurationChange}
           onFlyTo={props.onFlyTo}
           onFitBounds={props.onFitBounds}

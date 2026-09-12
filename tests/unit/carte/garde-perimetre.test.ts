@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   perimetreChoisi, messageGardePerimetre, MESSAGE_PERIMETRE_MANQUANT,
+  lancementsAutorises, type OutilAnalyse,
 } from '@/lib/carte/garde-perimetre';
 import type { FiltreActif } from '@/lib/carte/filtre';
 
@@ -35,8 +36,46 @@ describe('garde de perimetre (spec §5)', () => {
     expect(messageGardePerimetre(null, 'zone-id')).toBeNull();
   });
 
-  it('messageGardePerimetre rend le message exact de la spec quand rien n est choisi', () => {
+  it('messageGardePerimetre rend le message exact (verbatim) de la spec quand rien n est choisi', () => {
     expect(messageGardePerimetre(null)).toBe(MESSAGE_PERIMETRE_MANQUANT);
-    expect(messageGardePerimetre(null)).toBe('Choisissez un périmètre (filtre ou zone) avant de lancer un calcul.');
+    expect(messageGardePerimetre(null)).toBe('Choisissez un périmètre (filtre ou zone) avant de lancer un calcul');
+  });
+
+  it('le message verbatim ne porte pas de point final (la spec n en portait pas)', () => {
+    expect(MESSAGE_PERIMETRE_MANQUANT.endsWith('.')).toBe(false);
+  });
+});
+
+describe('lancementsAutorises — les CINQ outils du panneau Analyse', () => {
+  const OUTILS: OutilAnalyse[] = ['voronoi', 'battleV1', 'battleV2', 'appliquerBataille', 'clustering'];
+
+  it('enumere exactement les cinq outils, ni plus ni moins', () => {
+    const res = lancementsAutorises(null);
+    expect(Object.keys(res).sort()).toEqual([...OUTILS].sort());
+  });
+
+  it('sans perimetre, aucun des cinq outils n est autorise', () => {
+    const res = lancementsAutorises(null);
+    for (const outil of OUTILS) expect(res[outil]).toBe(false);
+  });
+
+  it('avec un filtre actif, les cinq outils sont autorises', () => {
+    const res = lancementsAutorises(dept);
+    for (const outil of OUTILS) expect(res[outil]).toBe(true);
+  });
+
+  it('avec une zone selectionnee hors filtre, les cinq outils sont autorises', () => {
+    const res = lancementsAutorises(null, 'zone-id');
+    for (const outil of OUTILS) expect(res[outil]).toBe(true);
+  });
+
+  it('le clustering suit la meme regle que les quatre autres — pas d exception', () => {
+    expect(lancementsAutorises(null).clustering).toBe(false);
+    expect(lancementsAutorises(dept).clustering).toBe(true);
+  });
+
+  it('appliquerBataille (ST_Difference) suit la meme regle — second point de lancement', () => {
+    expect(lancementsAutorises(null).appliquerBataille).toBe(false);
+    expect(lancementsAutorises(dept).appliquerBataille).toBe(true);
   });
 });

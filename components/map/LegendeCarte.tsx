@@ -294,7 +294,7 @@ function BlocAnalyse(props: LegendeCarteProps) {
 
         {!!zoneData.rayon_metres && (
           <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', ...swatchRow }}>
-            <span style={{ width: 9, height: 9, background: 'rgba(240,240,240,0.05)', borderRadius: 1, border: '1.5px dashed #444444', flexShrink: 0 }} />
+            <span style={{ width: 9, height: 9, background: 'rgba(240,240,240,0.05)', borderRadius: 1, border: '1.5px dashed var(--border-hover)', flexShrink: 0 }} />
             <span style={labelStyle}>Zone {(zoneData.rayon_metres / 1000).toFixed(1)} km</span>
           </div>
         )}
@@ -349,7 +349,7 @@ function BlocAnalyse(props: LegendeCarteProps) {
         {!!props.battleVisible && !!props.battleCategory && (
           <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={swatchRow}>
-              <span style={{ width: 9, height: 9, background: 'rgba(239,68,68,0.1)', borderRadius: 1, border: '1.5px solid #ef4444', flexShrink: 0 }} />
+              <span style={{ width: 9, height: 9, background: 'rgba(255,87,87,0.1)', borderRadius: 1, border: '1.5px solid var(--danger)', flexShrink: 0 }} />
               <span style={{ color: 'var(--text-primary)', fontSize: 9, fontFamily: fInter, letterSpacing: '0.08em' }}>BATAILLE · {props.battleCategory}</span>
             </div>
 
@@ -357,14 +357,14 @@ function BlocAnalyse(props: LegendeCarteProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 8, color: 'var(--text-tertiary)', fontFamily: fInter, letterSpacing: '0.08em' }}>PALIER_MAX</span>
-                <span style={{ fontSize: 9, color: '#ef4444', fontFamily: fMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
+                <span style={{ fontSize: 9, color: 'var(--danger)', fontFamily: fMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
               </div>
               <input
                 type="range"
                 min={10} max={90} step={10}
                 value={battleMaxPalier}
                 onChange={e => props.setBattleMaxPalier?.(Number(e.target.value))}
-                style={{ width: '100%', cursor: 'pointer', accentColor: '#ef4444', height: 14 }}
+                style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--danger)', height: 14 }}
               />
               {/* Rampe opacité */}
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 1 }}>
@@ -374,7 +374,7 @@ function BlocAnalyse(props: LegendeCarteProps) {
                     <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 1 }}>
                       <span style={{
                         display: 'inline-block', width: '100%', height: 6,
-                        background: active ? `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p] ?? 0.15})` : 'var(--bg-level-2)',
+                        background: active ? `rgba(255,87,87,${BATTLE_PALIER_OPACITY[p] ?? 0.15})` : 'var(--bg-level-2)',
                         borderRadius: 1,
                         border: active ? 'none' : '1px solid var(--border-subtle)',
                         transition: 'background 0.2s',
