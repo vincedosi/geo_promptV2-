@@ -55,10 +55,14 @@ export function AIOverlay({ chatSlot, onClose, topOffset = 0 }: AIOverlayProps) 
     closeTimerRef.current = setTimeout(() => onCloseRef.current(), EXIT_DURATION_MS);
   }, []);
 
+  // Deps VIDES à dessein (round de correction 2) : `handleClose` est stable
+  // (useCallback à deps vides ci-dessus) — voir OverlayPanel.tsx pour le
+  // raisonnement complet, verrouillé par
+  // tests/unit/carte/pile-echap-usage.test.ts.
   useEffect(() => {
     empiler(PILE_ID, handleClose);
     return () => depiler(PILE_ID);
-  }, [handleClose]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);

@@ -75,6 +75,17 @@ export function MagelianOverlay() {
     }, EXIT_DURATION_MS);
   }, [closing, closeOverlay]);
 
+  // Round de correction 2 (Tâche 8) : `handleClose` change d'identité
+  // exactement quand `closing` bascule à `true` — c'est-à-dire au moment
+  // même où l'on ferme. S'il était le callback empilé tel quel, React
+  // exécuterait le nettoyage de l'effet (`depiler`) avant de relancer le
+  // nouveau, verrait l'id ABSENT et le ré-empilerait au sommet en pleine
+  // fermeture. Cette ref + ce wrapper stable isolent la pile Echap de ce
+  // churn : seul `open` doit gouverner le cycle empiler/depiler.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
+  const fermerPourPile = useCallback(() => handleCloseRef.current(), []);
+
   // Monté côté client uniquement (createPortal a besoin de document).
   useEffect(() => { setMounted(true); }, []);
 
@@ -246,11 +257,17 @@ export function MagelianOverlay() {
 
   // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
   // dernier ouvert se ferme en premier, plus de listener direct concurrent.
+  // `fermerPourPile` est stable (deps vides ci-dessus) : seul `open` doit
+  // gouverner ce cycle push/pop, jamais l'identité du callback — c'est
+  // exactement l'exception documentée et vérifiée par
+  // tests/unit/carte/pile-echap-usage.test.ts (cette instance persiste tout
+  // au long des cycles ouverture/fermeture, contrairement à OverlayPanel /
+  // AIOverlay / ClusterResultsOverlay qui montent et démontent).
   useEffect(() => {
     if (!open) return;
-    empiler(PILE_ID, handleClose);
+    empiler(PILE_ID, fermerPourPile);
     return () => depiler(PILE_ID);
-  }, [open, handleClose]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Click-outside : ferme si le clic est hors du panel ET hors du bouton sidebar.
   useEffect(() => {

@@ -92,10 +92,17 @@ export function OverlayPanel({
 
   // Esc ferme l'overlay — via la pile Echap (lib/carte/pile-echap.ts) : le
   // dernier ouvert se ferme en premier, plus de listener direct concurrent.
+  // Deps VIDES à dessein (round de correction 2) : `handleClose` est stable
+  // (useCallback à deps vides ci-dessus), donc l'omettre ne perd aucune
+  // fraîcheur — et surtout, ça verrouille l'effet pour qu'il ne se relance
+  // JAMAIS après le montage. Un tableau `[handleClose]` serait équivalent en
+  // pratique, mais `tests/unit/carte/pile-echap-usage.test.ts` exige `[]`
+  // littéralement : c'est la seule forme qu'aucun reformattage ni aucune
+  // future dépendance ajoutée par erreur ne peut faire dériver en silence.
   useEffect(() => {
     empiler(PILE_ID, handleClose);
     return () => depiler(PILE_ID);
-  }, [handleClose]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Click-outside : ferme si le clic est hors de l'overlay ET hors du rail
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
@@ -22,15 +22,30 @@ interface Props {
 }
 
 export function ClusterResultsOverlay({ version, onClose }: Props) {
+  // Identité stable de la fermeture empilée (round de correction 2, Tâche 8) :
+  // `ClusteringSection.tsx` passe `onClose={() => setVersionOuverte(null)}`,
+  // une fléchée inline recréée à chaque rendu du parent. Sans cette ref,
+  // React exécute le nettoyage de l'ANCIEN effet (`depiler(PILE_ID)`) avant
+  // de relancer le nouveau — l'id est alors vu comme ABSENT au moment de
+  // l'empilage suivant et repart au sommet de la pile, même sans ouverture
+  // réelle. `empiler()` seul (round 1) ne suffit pas : il ne protège que le
+  // cas où l'id est encore présent au moment de l'appel, pas l'ordre
+  // nettoyage-puis-effet de React.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  const fermer = useCallback(() => onCloseRef.current(), []);
+
   // Escape — via la pile Echap (lib/carte/pile-echap.ts) : ce tiroir peut
   // s'ouvrir alors que le panneau Analyse est empilé en dessous (il est monté
   // par ClusteringSection) ; un listener direct fermait les DEUX d'un coup sur
   // une seule pression (round de correction 1, Tâche 8, signalé sans être
-  // corrigé au round précédent).
+  // corrigé au round précédent). Deps VIDES à dessein (round de correction 2) :
+  // `fermer` est stable, l'effet ne se relance jamais après le montage
+  // (verrouillé par tests/unit/carte/pile-echap-usage.test.ts).
   useEffect(() => {
-    empiler(PILE_ID, onClose);
+    empiler(PILE_ID, fermer);
     return () => depiler(PILE_ID);
-  }, [onClose]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Monte-t-on dans le DOM ? `createPortal` exige un `document`, absent au
   // rendu serveur.
