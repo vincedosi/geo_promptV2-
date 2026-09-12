@@ -1227,30 +1227,30 @@ somme diffère, ligne écartée si **toutes** ses valeurs sont nulles.
 -- normalises puis ponderes. La normalisation se fait EN SQL sur le perimetre
 -- demande, JAMAIS sur la France entiere (budget I/O Nano).
 CREATE OR REPLACE FUNCTION public.calculer_score_composite(
-  p_indicateurs   text[],    -- variable_code de indicator_cp_values
+  p_indicateurs   text[],    -- indicator_code de indicator_cp_values
   p_poids         numeric[],
   p_sens          text[],    -- 'croissant' | 'decroissant', un par indicateur
   p_codes_postaux text[]     -- perimetre OBLIGATOIRE : la liste de CP du filtre/zone
 ) RETURNS TABLE (postal_code text, score numeric)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $fn$
   WITH base AS (
-    SELECT v.postal_code, v.variable_code, v.valeur, i.poids, i.sens
+    SELECT v.postal_code, v.indicator_code, v.value, i.poids, i.sens
     FROM public.indicator_cp_values v
     JOIN LATERAL (
       SELECT p_poids[g.ord] AS poids, p_sens[g.ord] AS sens
       FROM generate_subscripts(p_indicateurs, 1) AS g(ord)
-      WHERE p_indicateurs[g.ord] = v.variable_code
+      WHERE p_indicateurs[g.ord] = v.indicator_code
     ) i ON true
     WHERE v.postal_code = ANY(p_codes_postaux)
   ), bornes AS (
-    SELECT variable_code, MIN(valeur) AS mn, MAX(valeur) AS mx FROM base GROUP BY 1
+    SELECT indicator_code, MIN(value) AS mn, MAX(value) AS mx FROM base GROUP BY 1
   ), normalise AS (
     SELECT b.postal_code, b.poids,
            CASE WHEN bo.mx = bo.mn THEN 50
                 WHEN b.sens = 'decroissant'
-                  THEN 100 - 100 * (b.valeur - bo.mn) / (bo.mx - bo.mn)
-                ELSE 100 * (b.valeur - bo.mn) / (bo.mx - bo.mn) END AS v
-    FROM base b JOIN bornes bo USING (variable_code)
+                  THEN 100 - 100 * (b.value - bo.mn) / (bo.mx - bo.mn)
+                ELSE 100 * (b.value - bo.mn) / (bo.mx - bo.mn) END AS v
+    FROM base b JOIN bornes bo USING (indicator_code)
   )
   SELECT postal_code, ROUND(SUM(v * poids) / NULLIF(SUM(poids), 0), 1)
   FROM normalise GROUP BY postal_code;
