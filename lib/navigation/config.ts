@@ -16,14 +16,21 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-/** Les quatre outils qui ouvrent un panneau gauche. */
-export type PanneauId = 'filtre' | 'calques' | 'analyse' | 'zones';
+/**
+ * Les quatre outils qui ouvrent un panneau gauche.
+ * Non exporte : aucun consommateur externe (verifie par `npm run catalogue`) —
+ * seul `EntreeId` en a besoin, dans ce fichier.
+ */
+type PanneauId = 'filtre' | 'calques' | 'analyse' | 'zones';
 
 /** Toutes les entrees du rail. */
 export type EntreeId = 'assistant' | 'campagne' | PanneauId | 'reglages' | 'aide';
 
-/** Ou et comment s'ouvre le contenu d'une entree. */
-export type TypePanneau =
+/**
+ * Ou et comment s'ouvre le contenu d'une entree.
+ * Non exporte : consomme uniquement par `EntreeNavigation.type` ci-dessous.
+ */
+type TypePanneau =
   | 'tiroir-droit'          // Assistant : tiroir a DROITE de la carte
   | 'panneau-gauche'        // Les quatre outils : OverlayPanel a gauche
   | 'overlay-plein-ecran'   // Campagne : overlay MAGELIAN par-dessus la carte
@@ -125,8 +132,3 @@ export function entreeParRaccourci(e: KeyboardEvent): EntreeId | null {
   const prefixe = hasCtrl ? 'ctrl+' : 'alt+';
   return PAR_RACCOURCI.get(prefixe + e.key.toLowerCase()) ?? null;
 }
-
-/** Les quatre outils, dans l'ordre du rail. */
-export const PANNEAUX_OUTILS: readonly PanneauId[] =
-  ENTREES_NAVIGATION.filter(e => e.type === 'panneau-gauche' && e.position === 'haut')
-    .map(e => e.id) as PanneauId[];

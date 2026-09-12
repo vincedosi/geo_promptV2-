@@ -29,15 +29,17 @@ import type { AirIndicator, AtmoLevel, PollenIndicator } from '@/lib/civic-healt
 import type { FiltreActif } from '@/lib/carte/filtre';
 import { bboxPourRequete } from '@/lib/carte/bbox-requete';
 
-export const CIVIC_SOURCE_ID = 'civic-health-zones';
+// Non exportes : aucun consommateur externe (verifie par `npm run catalogue`),
+// usage interne a ce fichier uniquement.
+const CIVIC_SOURCE_ID = 'civic-health-zones';
 const FILL_ID = 'civic-health-zones-fill';
 const LINE_ID = 'civic-health-zones-line';
 
-export type CivicDataset = 'pollen' | 'atmo';
-export type CivicScale = 'departement' | 'cp';
+type CivicDataset = 'pollen' | 'atmo';
+type CivicScale = 'departement' | 'cp';
 
 /** Libellé d'un niveau selon le dataset (0 = indisponible côté pollen). */
-export function civicLevelLabel(dataset: CivicDataset, lvl: number): string {
+function civicLevelLabel(dataset: CivicDataset, lvl: number): string {
   if (dataset === 'pollen') return POLLEN_LEVEL_LABELS[lvl as keyof typeof POLLEN_LEVEL_LABELS] ?? '—';
   return lvl >= 1 && lvl <= 6 ? ATMO_LEVEL_LABELS[lvl as AtmoLevel] : 'indisponible';
 }

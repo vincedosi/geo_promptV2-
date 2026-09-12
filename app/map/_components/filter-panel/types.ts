@@ -15,22 +15,6 @@ import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 import type { FiltreActif } from '@/lib/carte/filtre';
 
-/**
- * Les catégories de blocs que le FilterPanel sait afficher en mode overlay.
- *
- * `'perimeter'` a été retiré à la Tâche 4 (2026-09-12) : le périmètre a son
- * propre panneau (`PanneauFiltre`, entrée « Filtre » du rail), qui enveloppe
- * `PerimeterSections` directement — plus besoin de la faire transiter par
- * `FilterPanel`.
- *
- * `'terrain'` et `'audience'` retirés à la Tâche 6 (2026-09-12, round de
- * correction 1) : leurs sections ont déménagé dans `PanneauCalques`
- * (entrée « Calques » du rail) et le JSX correspondant de `FilterPanel` a
- * été supprimé — il n'était plus jamais atteint par aucune entrée du rail.
- * Seule `'analyses'` reste ici, jusqu'à ce que la Tâche 7 la déménage à son
- * tour.
- */
-export type CategorieFiltre = 'analyses';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
@@ -224,11 +208,6 @@ export interface FilterPanelProps {
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
 
-  /** Mode overlay : rend uniquement la ou les CategoryGroup correspondantes, sans tabs/HOME/search.
-   *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe.
-   *  Un tableau affiche plusieurs catégories dans le même panneau — utilisé par
-   *  l'entrée « Calques » du rail (Tâche 2), qui regroupe audience + terrain. */
-  visibleCategory?: CategorieFiltre | CategorieFiltre[];
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];

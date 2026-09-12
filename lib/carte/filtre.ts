@@ -20,7 +20,9 @@
  */
 export const BBOX_METRO: readonly [number, number, number, number] = Object.freeze([-5.5, 41.2, 9.8, 51.2]);
 
-export type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone';
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`) —
+// seul `FiltreActif.type` ci-dessous en a besoin, dans ce fichier.
+type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone';
 
 export interface FiltreActif {
   type: TypeFiltre;

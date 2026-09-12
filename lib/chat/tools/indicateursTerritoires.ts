@@ -67,9 +67,3 @@ export async function listerIndicateursClassement(): Promise<IndicateurClassemen
   cacheAt = now;
   return liste;
 }
-
-/** Force le rafraîchissement au prochain appel (tests). */
-export function invalidateIndicateursClassementCache(): void {
-  cache = null;
-  cacheAt = 0;
-}

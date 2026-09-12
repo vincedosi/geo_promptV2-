@@ -43,7 +43,8 @@ export interface ClusterPoi {
   lng?:            number;
 }
 
-export interface ClusterSummaryEntry {
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+interface ClusterSummaryEntry {
   label:       string;
   count:       number;
   color:       string;

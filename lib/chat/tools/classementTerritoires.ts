@@ -19,7 +19,8 @@ type SupabaseAdmin = ReturnType<typeof createAdminClient>;
 
 export type Palier         = 'commune' | 'departement';
 export type TriClassement  = 'volume' | 'part';
-export type ClasseIndicateur = 'effectif' | 'proportion' | 'densite';
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+type ClasseIndicateur = 'effectif' | 'proportion' | 'densite';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 

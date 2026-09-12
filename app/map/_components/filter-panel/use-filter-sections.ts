@@ -32,7 +32,8 @@ import { useEffect, useRef, useState } from 'react';
  * systématiquement sur `undefined` (donc ouverte) et « Tout replier » ne la
  * refermait jamais.
  */
-export const SECTION_KEYS = [
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+const SECTION_KEYS = [
   'perimetre', 'regions', 'departements', 'recherche',
   'poi', 'transport', 'tmja', 'ooh', 'radio', 'civic', 'civicHealth', 'meteo',
 ] as const;

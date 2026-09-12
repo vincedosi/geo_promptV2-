@@ -13,7 +13,8 @@ import React from 'react';
 import { ChevronDown, HelpCircle } from 'lucide-react';
 
 // ─── Tooltip data for complex labels ──────────────────────────────────────────
-export const TOOLTIPS: Record<string, string> = {
+// Non exporte : aucun consommateur externe (verifie par `npm run catalogue`).
+const TOOLTIPS: Record<string, string> = {
   tmja:       'Trafic Moyen Journalier Annuel — nombre de véhicules/jour sur un tronçon routier',
   iris:       'Ilots Regroupés pour l\'Information Statistique — découpage INSEE de 2 000 habitants',
   carreaux:   'Maillage 200m de l\'INSEE avec revenus et données fiscales',

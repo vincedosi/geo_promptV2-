@@ -84,6 +84,7 @@
 | Fonts | Inter (UI) + JetBrains Mono (donnees/code) | — |
 | Validation | Zod | ^3.22 |
 | Tests | Vitest | ^2.0 |
+| Catalogue du code | knip (exports/fichiers morts, dependances inutilisees — `npm run catalogue`) | ^6.35 |
 | CI/CD | Vercel (deploiement automatique sur push `main`) | — |
 
 ---
@@ -1050,6 +1051,7 @@ npm run build            # Build production
 npx tsc --noEmit         # Type-check
 npm test                 # Vitest
 npm run lint             # ESLint
+npm run catalogue        # Regenere docs/CATALOGUE_CODE.md (knip — exports/fichiers morts, deps inutilisees)
 npx supabase db push     # Appliquer migrations
 npx supabase gen types typescript --project-id vkkdbygwbrxyogqosten > types/database.types.ts
 ```
