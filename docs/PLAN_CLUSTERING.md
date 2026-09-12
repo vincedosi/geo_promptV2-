@@ -149,6 +149,88 @@ Pourquoi Modal plutôt qu'une réécriture TypeScript :
 `MODAL_TOKEN_ID` et `MODAL_TOKEN_SECRET` sont **absentes de `.env.local`**.
 Sans elles, impossible de déployer sur Modal. Action Vincent.
 
+## Performance du profilage — mesurée, et une piste à 7,8×
+
+### Le coût réel
+
+`compute_filosofi_profiles_batch` est la phase lourde. Mesuré au
+`EXPLAIN (ANALYZE, BUFFERS)` le 2026-09-12, sur 5 POI BMW à 30 min voiture :
+
+```
+19 818 ms pour 5 POI  →  ~4 s par POI
+15 852 lectures disque + débordement en temp (3 256 lus / 3 263 écrits)
+```
+
+Extrapolation : 96 POI ≈ 6 min (le calcul de validation l'a confirmé), 254 POI
+> 17 min (mon délai de 9 min l'a tué en pleine phase), un clustering national se
+compte en heures.
+
+**C'est la preuve chiffrée que le calcul ne peut pas vivre dans une fonction
+Vercel** (60 à 300 s) : le plafond est atteint entre 15 et 75 POI.
+
+### La cause n'est pas la géométrie
+
+C'est le **jsonb**. La fonction joint `carreaux_filosofi` (2,3 M lignes, 4,6 Go)
+et extrait **vingt-six champs** de `metadata` par carreau — chacun détoasté,
+parsé, casté. Exactement le goulot que le projet avait déjà mesuré sur les
+tuiles : *« son jsonb de 806 o/ligne impose un plancher d'environ 4 s par tuile
+froide »* (`ARCHITECTURE.md`).
+
+### La piste : profiler sur le palier 2 km
+
+`carreaux_2km` porte **exactement les mêmes grandeurs en colonnes typées** —
+122 018 lignes, aucun jsonb. Une variante a été écrite (`sql/142`,
+`compute_filosofi_profiles_batch_2km`) et comparée à l'originale sur les mêmes
+POI :
+
+| | 200 m (actuel) | 2 km |
+|---|---|---|
+| Temps, 5 POI | 19 818 ms | **2 543 ms** (7,8×) |
+| Lectures disque | 15 852 | **2 636** (6×) |
+| Débordement temp | oui | **non** |
+
+Écart sur les valeurs, moyenne / max :
+
+| Variable | Écart moyen | Max |
+|---|---|---|
+| `revenu_moyen` | 0,52 % | 0,95 % |
+| `pct_55_79` | 0,59 % | 1,34 % |
+| `pct_0_17` | 0,61 % | 1,74 % |
+| `pct_18_39` | 0,70 % | 2,00 % |
+| `pct_40_54` | 0,71 % | 1,59 % |
+| `taux_pauvrete` | 2,04 % | 3,91 % |
+| `surface_moyenne` | 2,24 % | 3,53 % |
+| `taux_isoles` | 2,91 % | 5,46 % |
+| `taux_proprietaires` | 3,30 % | 5,36 % |
+| `taux_collectif` | 7,85 % | 14,16 % |
+| **`population_totale`** | **11,79 %** | **21,80 %** |
+
+### Ce que ça veut dire
+
+Les **seize variables du modèle** (`FEATURE_NAMES`) sont **toutes des ratios**,
+et dérivent de moins de 3,5 % — sauf `taux_collectif`, plus sensible parce que
+collectif/individuel bascule vite sur les mailles de bord.
+
+`population_totale`, la seule grandeur à dériver fortement, **n'est pas une
+variable du modèle** : elle est affichée
+(`poi_clusters.population_totale_couverte`). Une maille de 2 km inclut ou exclut
+en bloc, d'où les 12 %.
+
+### Recommandation
+
+**Profiler au 2 km, et recalculer la population au 200 m à la demande**, pour le
+seul POI que l'utilisateur consulte. On paie 4 s une fois à la consultation, au
+lieu de 4 s × N à chaque entraînement.
+
+Ce n'est **pas** appliqué : substituer un palier d'agrégation change les
+résultats, et ce n'est pas un choix à faire en silence. La variante est en base,
+mesurée, prête à être branchée — la décision revient à Vincent.
+
+Bénéfice secondaire, et il compte : sur Supabase **Nano**, 15 852 lectures
+disque pour 5 POI est le profil d'usage qui a déjà épuisé le budget d'I/O trois
+fois. Diviser par six le coût d'un job de plusieurs centaines de POI n'est pas
+un luxe.
+
 ## Reste à faire — hors priorité
 
 ### Exports du rapport

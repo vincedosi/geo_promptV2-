@@ -3946,7 +3946,9 @@ export type Database = {
           cluster_label: string | null
           created_at: string | null
           distance_to_centroid: number | null
+          duration_minutes: number | null
           id: number
+          mode: string | null
           model_version: number
           pca_components: Json | null
           poi_id: string
@@ -3960,7 +3962,9 @@ export type Database = {
           cluster_label?: string | null
           created_at?: string | null
           distance_to_centroid?: number | null
+          duration_minutes?: number | null
           id?: number
+          mode?: string | null
           model_version: number
           pca_components?: Json | null
           poi_id: string
@@ -3974,7 +3978,9 @@ export type Database = {
           cluster_label?: string | null
           created_at?: string | null
           distance_to_centroid?: number | null
+          duration_minutes?: number | null
           id?: number
+          mode?: string | null
           model_version?: number
           pca_components?: Json | null
           poi_id?: string
@@ -4983,6 +4989,10 @@ export type Database = {
       }
       compute_filosofi_national_averages: { Args: never; Returns: Json }
       compute_filosofi_profiles_batch: {
+        Args: { p_entries: Json; p_secret_stat?: number }
+        Returns: Json
+      }
+      compute_filosofi_profiles_batch_2km: {
         Args: { p_entries: Json; p_secret_stat?: number }
         Returns: Json
       }

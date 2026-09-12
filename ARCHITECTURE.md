@@ -718,6 +718,8 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `drop_carreaux_table` | DROP table carreaux dynamique | `api/admin/sources/[id]/` |
 | `log_smart_prompt_feedback` | Log feedback prompt IA | `api/smart-prompt/` |
 | `consommer_quota` | Consomme une unite de quota et dit si l'appel passe (sql/135) | `lib/api/rate-limit.ts` — tous les limiteurs |
+| `compute_filosofi_profiles_batch_2km` | Variante EXPERIMENTALE du profilage Filosofi sur `carreaux_2km` (colonnes typees, sans jsonb) — **7,8x plus rapide** (19 818 ms -> 2 543 ms pour 5 POI) et 6x moins de lectures disque. Les 16 variables du modele derivent de moins de 3,5 % ; seule `population_totale` derive de 11,8 %, et elle n'entre PAS dans le modele. Non substituee : voir docs/PLAN_CLUSTERING.md (sql/142) | *aucune pour l'instant — a brancher* |
+| `compute_filosofi_profiles_batch` | Profil sociodemographique Filosofi d'un lot de POI, par intersection avec leur isochrone. **~4 s par POI** : joint `carreaux_filosofi` (2,3 M lignes) et extrait 26 champs d'un jsonb par carreau | `scripts/clustering_poi_filosofi.py` |
 | `compte_poi_par_categorie` | Comptage des POI par categorie dans une ville ou une region, en UNE requete groupee (sql/136). `p_champ` limite a 'ville'/'region' | `lib/chat/tools/analyseComplete.ts` |
 | `smart_demographie_stats` | Stats demo smart prompt | `lib/smart-prompt/` |
 | `smart_demographie_top_villes` | Top villes smart prompt | `lib/smart-prompt/` |
