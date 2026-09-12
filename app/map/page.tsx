@@ -74,7 +74,7 @@ import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
-import { LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
+import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
@@ -86,19 +86,24 @@ import type { SelectedBillboard } from '@/types/map';
 // « Calques », « Filtre » et « Analyse » auront leurs propres panneaux.
 const CATEGORIES_FILTER_PANEL_PAR_ENTREE: Partial<Record<EntreeId, CategorieFiltre[]>> = {
   filtre: ['perimeter'],
-  calques: ['audience', 'terrain'], // socio-démo d'abord
+  // L'ordre d'affichage réel (Terrain puis Audience) vient de la structure
+  // JSX de FilterPanel, pas de l'ordre de ce tableau — la Tâche 6 refera ce
+  // regroupement pour de bon.
+  calques: ['audience', 'terrain'],
   analyse: ['analyses'],
 };
 
-/** Titre affiché dans l'en-tête de l'OverlayPanel, par entrée du rail. */
+/**
+ * Titre affiché dans l'en-tête de l'OverlayPanel, par entrée du rail —
+ * SEULEMENT pour les deux entrées dont le titre diffère réellement du
+ * libellé du rail. Toute autre entrée retombe sur `ENTREES_NAVIGATION`
+ * (source unique de la navigation, cf lib/navigation/config.ts) : recopier
+ * les cinq autres libellés ici les ferait diverger en silence le jour où la
+ * config change.
+ */
 const TITRE_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
   assistant: 'geo.prompt',
-  filtre: 'Filtre',
-  calques: 'Calques',
-  analyse: 'Analyse',
   zones: 'Zones sauvegardées',
-  reglages: 'Réglages',
-  aide: 'Aide',
 };
 
 /** Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail. */
@@ -694,7 +699,11 @@ export default function MapPage() {
         <OverlayPanel
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
           category={entreeActive}
-          title={TITRE_PAR_ENTREE[entreeActive] ?? ''}
+          title={
+            TITRE_PAR_ENTREE[entreeActive]
+            ?? ENTREES_NAVIGATION.find(e => e.id === entreeActive)?.label
+            ?? ''
+          }
           dotColor={DOT_PAR_ENTREE[entreeActive] ?? 'var(--text-tertiary)'}
           onClose={() => setEntreeActive(null)}
         >

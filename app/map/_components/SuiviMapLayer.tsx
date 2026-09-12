@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { echapperHtml as esc } from '@/lib/map/echapper-html';
 import { adminFetch } from '@/lib/admin-fetch';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
 
 const SOURCE_ID = 'suivi-campaign-zones';
 const FILL_ID = 'suivi-campaign-zones-fill';
@@ -229,7 +230,7 @@ export function SuiviMapLayer({ mapRef }: { mapRef: React.MutableRefObject<mapli
 
   return (
     <div style={{
-      position: 'fixed', left: 68, bottom: 28, zIndex: 5000,
+      position: 'fixed', left: LARGEUR_RAIL + ECART_RAIL_PANNEAU + 12, bottom: 28, zIndex: 5000,
       background: 'var(--card-overlay, rgba(10,10,10,0.92))', border: '0.5px solid var(--border-default)',
       borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 210,
     }}>
