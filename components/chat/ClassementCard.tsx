@@ -4,40 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { formaterNombreArrondi } from '@/lib/format/nombre';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-interface ResultatLigne {
-  code:       string;
-  nom:        string;
-  population: number;
-  valeur:     number;
-  part:       number | null;
-  classe:     'effectif' | 'proportion' | 'densite';
-  lat:        number | null;
-  lng:        number | null;
-}
-
-interface IndicateurDisponible {
-  key:   string;
-  label: string;
-}
-
-interface ClassementOutput {
-  type?:                                    string;
-  error?:                                   string;
-  indicateurs_disponibles?:                 IndicateurDisponible[];
-  indicateur?:                              string;
-  indicateur_label?:                        string;
-  palier?:                                  'commune' | 'departement';
-  palier_label?:                            string;
-  tri?:                                     'volume' | 'part';
-  classe?:                                  'effectif' | 'proportion' | 'densite' | null;
-  plancher_population?:                     number;
-  plancher_population_applique_par_defaut?: boolean;
-  regrouper_arrondissements?:               boolean;
-  limite?:                                  number;
-  resultats?:                               ResultatLigne[];
-}
+import {
+  decisionAffichageClassement,
+  type ResultatLigneAffichage,
+} from './classementAffichage';
 
 // ── Palette — tokens du design system, jamais de hex en dur ─────────────────
 const P = {
@@ -86,6 +56,34 @@ function ChartTooltip({ active, payload, label }: {
   );
 }
 
+// ── Carte-conteneur commune aux trois modes ─────────────────────────────────
+function Carte({ accent, children }: { accent: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      marginTop: 10,
+      background: 'var(--bg-surface)',
+      border: `0.5px solid ${P.border}`,
+      borderLeft: `3px solid ${accent}`,
+      borderRadius: '2px 12px 12px 12px',
+      padding: '14px 16px',
+      fontFamily: fontInter,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function Kicker({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 11, fontFamily: fontMono, letterSpacing: '0.12em',
+      textTransform: 'uppercase', color, marginBottom: 6,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 // ── Composant principal ──────────────────────────────────────────────────────
 interface ClassementCardProps {
   output:   Record<string, unknown> | undefined;
@@ -93,29 +91,20 @@ interface ClassementCardProps {
 }
 
 export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
-  if (!output || output.type !== 'classement_territoires') return null;
-  const data = output as unknown as ClassementOutput;
+  const decision = decisionAffichageClassement(output);
 
-  // ── État d'erreur : message FR + suggestions d'indicateurs valides ────────
-  if (data.error) {
-    const suggestions = (data.indicateurs_disponibles ?? []).slice(0, 12);
+  // ── Mode erreur ────────────────────────────────────────────────────────────
+  if (decision.mode === 'erreur') {
+    const suggestions = decision.suggestions.slice(0, 12);
     return (
-      <div style={{
-        marginTop: 10,
-        background: 'var(--bg-surface)',
-        border: `0.5px solid ${P.border}`,
-        borderLeft: `3px solid ${P.danger}`,
-        borderRadius: '2px 12px 12px 12px',
-        padding: '14px 16px',
-        fontFamily: fontInter,
-      }}>
-        <div style={{
-          fontSize: 11, fontFamily: fontMono, letterSpacing: '0.12em',
-          textTransform: 'uppercase', color: P.danger, marginBottom: 6,
-        }}>
-          Classement impossible
-        </div>
-        <div style={{ fontSize: 13, color: P.text, lineHeight: 1.5 }}>{data.error}</div>
+      <Carte accent={P.danger}>
+        <Kicker color={P.danger}>Classement impossible</Kicker>
+        {decision.indicateurDemande && (
+          <div style={{ fontSize: 11, color: P.dimmer, fontFamily: fontMono, marginBottom: 4 }}>
+            Indicateur demandé : {decision.indicateurDemande}
+          </div>
+        )}
+        <div style={{ fontSize: 13, color: P.text, lineHeight: 1.5 }}>{decision.message}</div>
         {suggestions.length > 0 && (
           <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {suggestions.map(s => (
@@ -129,18 +118,39 @@ export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
             ))}
           </div>
         )}
-      </div>
+      </Carte>
     );
   }
 
-  const resultats = data.resultats ?? [];
-  if (resultats.length === 0) return null;
+  // ── Mode vide : la RPC a répondu, zéro territoire ne passe le plancher ────
+  if (decision.mode === 'vide') {
+    return (
+      <Carte accent={P.warning}>
+        <Kicker color={P.warning}>Aucun résultat</Kicker>
+        <div style={{ fontSize: 13, color: P.text, lineHeight: 1.5 }}>
+          Aucun·e {decision.palierLabel} ne dépasse{' '}
+          <strong>{formaterNombreArrondi(decision.plancherPopulation)} habitants</strong> pour l&apos;indicateur{' '}
+          <strong>{decision.indicateurLabel}</strong>.
+        </div>
+        <div style={{ fontSize: 11, color: P.dimmer, marginTop: 6 }}>
+          {decision.plancherParDefaut
+            ? 'Ce seuil a été appliqué par défaut — demandez un seuil plus bas pour élargir le classement.'
+            : 'Essayez un seuil de population plus bas, ou un autre indicateur.'}
+        </div>
+      </Carte>
+    );
+  }
 
-  const tri            = data.tri ?? 'volume';
-  const classe          = data.classe ?? resultats[0]?.classe;
-  const estEffectif     = classe === 'effectif';
-  const dataKeyGraphe    = tri === 'part' ? 'part' : 'valeur';
-  const zoom            = data.palier === 'departement' ? 8 : 12;
+  // ── Mode rien : pas une sortie de cet outil ───────────────────────────────
+  if (decision.mode === 'rien') return null;
+
+  // ── Mode résultats ─────────────────────────────────────────────────────────
+  const { indicateur, indicateurLabel, palier, palierLabel, tri, classe, resultats,
+    plancherPopulation, plancherParDefaut, regrouperArrondissements } = decision;
+
+  const estEffectif  = classe === 'effectif';
+  const dataKeyGraphe = tri === 'part' ? 'part' : 'valeur';
+  const zoom          = palier === 'departement' ? 8 : 12;
 
   const chartData = resultats
     .filter(r => (dataKeyGraphe === 'part' ? r.part != null : true))
@@ -152,50 +162,43 @@ export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
       code:   r.code,
     }));
 
-  const handleClick = (row: ResultatLigne) => {
+  const handleClick = (row: ResultatLigneAffichage) => {
     if (row.lat != null && row.lng != null) onFlyTo?.(row.lat, row.lng, zoom);
   };
 
   return (
-    <div style={{
-      marginTop: 10,
-      background: 'var(--bg-surface)',
-      border: `0.5px solid ${P.border}`,
-      borderLeft: `3px solid ${P.teal}`,
-      borderRadius: '2px 12px 12px 12px',
-      padding: '14px 16px',
-      fontFamily: fontInter,
-    }}>
-      {/* Header */}
+    <Carte accent={P.teal}>
+      {/* Header — l'indicateur RÉELLEMENT interrogé, toujours affiché depuis la
+          donnée : quoi que dise le modèle dans sa prose (ex: "15-24 ans"),
+          l'écran montre le libellé exact de la colonne utilisée. */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{
-          fontSize: 11, fontFamily: fontMono, letterSpacing: '0.12em',
-          textTransform: 'uppercase', color: P.teal, marginBottom: 4,
-        }}>
-          Classement de territoires
-        </div>
+        <Kicker color={P.teal}>Classement de territoires</Kicker>
+        <div style={{ fontSize: 10.5, color: P.dimmer, marginBottom: 2 }}>Indicateur interrogé</div>
         <div style={{ fontSize: 16, fontWeight: 700, color: P.text }}>
-          {data.indicateur_label ?? data.indicateur}
+          {indicateurLabel}
+          <span style={{ fontSize: 11, fontFamily: fontMono, color: P.dimmer, fontWeight: 400, marginLeft: 8 }}>
+            {indicateur}
+          </span>
         </div>
         <div style={{ fontSize: 11, color: P.dim, marginTop: 3 }}>
-          Top {resultats.length} {data.palier_label ?? 'communes'} · tri par {tri === 'part' ? 'part' : 'volume'}
+          Top {resultats.length} {palierLabel} · tri par {tri === 'part' ? 'part' : 'volume'}
         </div>
       </div>
 
       {/* Notices — pièges de la donnée signalés, jamais masqués */}
-      {(data.plancher_population_applique_par_defaut || (data.palier === 'commune' && data.regrouper_arrondissements)) && (
+      {(plancherParDefaut || (palier === 'commune' && regrouperArrondissements)) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-          {data.plancher_population_applique_par_defaut && (
+          {plancherParDefaut && (
             <div style={{
               fontSize: 10.5, color: P.warning, background: 'rgba(247,183,49,0.1)',
               border: '0.5px solid rgba(247,183,49,0.2)', borderRadius: 4, padding: '5px 8px',
               fontFamily: fontInter,
             }}>
-              Seuil de population appliqué par défaut : {formaterNombreArrondi(data.plancher_population)} habitants
+              Seuil de population appliqué par défaut : {formaterNombreArrondi(plancherPopulation)} habitants
               (sans seuil, une très petite commune fausserait le classement en part).
             </div>
           )}
-          {data.palier === 'commune' && data.regrouper_arrondissements && (
+          {palier === 'commune' && regrouperArrondissements && (
             <div style={{
               fontSize: 10.5, color: P.dim, background: 'var(--bg-level-2)',
               border: `0.5px solid ${P.border}`, borderRadius: 4, padding: '5px 8px',
@@ -288,8 +291,8 @@ export function ClassementCard({ output, onFlyTo }: ClassementCardProps) {
         borderTop: '1px solid rgba(255,255,255,0.06)',
         fontSize: 9, color: P.dimmer, fontFamily: fontMono,
       }}>
-        INSEE RP 2022 / Filosofi 2021 — palier {data.palier_label ?? 'communes'}
+        INSEE RP 2022 / Filosofi 2021 — palier {palierLabel}
       </div>
-    </div>
+    </Carte>
   );
 }

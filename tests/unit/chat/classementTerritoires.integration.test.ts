@@ -65,7 +65,10 @@ beforeEach(() => {
 describe('classementTerritoires — appel RPC', () => {
   it('rejette sans appeler la RPC quand indicateur est vide', async () => {
     const result = await classementTerritoires({});
-    expect(result).toEqual({ error: "Indicateur requis pour classer les territoires." });
+    expect(result).toEqual({
+      type:  'classement_territoires',
+      error: "Indicateur requis pour classer les territoires.",
+    });
     expect(rpcCalls).toHaveLength(0);
   });
 
@@ -171,19 +174,42 @@ describe('classementTerritoires — résolution de coordonnées', () => {
 });
 
 describe('classementTerritoires — erreurs RPC', () => {
-  it("traduit l'erreur RPC et fournit des indicateurs disponibles (venus de la base)", async () => {
+  it("pose type: 'classement_territoires' sur l'erreur RPC — sans lui, ClassementCard rendait null en silence", async () => {
     rpcResponse = {
       data: null,
       error: { message: 'indicateur inconnu ou non numerique au palier commune : bidon' },
     };
 
     const result = await classementTerritoires({ indicateur: 'bidon' }) as {
+      type: string;
       error: string;
+      indicateur: string;
       indicateurs_disponibles: Array<{ key: string; label: string }>;
     };
 
+    expect(result.type).toBe('classement_territoires');
+    expect(result.indicateur).toBe('bidon');
     expect(result.error).toContain("n'existe pas ou n'est pas numérique");
     expect(result.indicateurs_disponibles.length).toBeGreaterThan(0);
     expect(rpcCalls.some(c => c.fn === 'get_iris_metric_columns')).toBe(true);
+  });
+
+  it("pose aussi type sur la garde 'indicateur requis' (pas d'appel RPC)", async () => {
+    const result = await classementTerritoires({}) as { type: string; error: string };
+    expect(result.type).toBe('classement_territoires');
+    expect(result.error).toBe('Indicateur requis pour classer les territoires.');
+  });
+
+  it("ne laisse jamais fuir un message Postgres non reconnu — message générique à l'écran", async () => {
+    rpcResponse = {
+      data: null,
+      error: { message: 'connection terminated unexpectedly at 10.0.0.1' },
+    };
+
+    const result = await classementTerritoires({ indicateur: 'population' }) as { error: string };
+
+    expect(result.error).not.toContain('10.0.0.1');
+    expect(result.error).not.toContain('connection terminated');
+    expect(result.error).toBe("Le classement n'a pas pu être calculé. Réessayez, ou changez d'indicateur.");
   });
 });

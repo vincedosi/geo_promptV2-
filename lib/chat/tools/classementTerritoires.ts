@@ -95,10 +95,21 @@ export function libellePalier(palier: Palier): string {
 }
 
 /**
+ * Message générique rendu à l'utilisateur pour toute erreur RPC NON reconnue
+ * (délai dépassé, contrainte inattendue, coupure de connexion…). Jamais le
+ * texte Postgres brut — un détail technique n'est ni actionnable ni rassurant
+ * pour l'utilisateur, et peut porter des fragments de la requête envoyée.
+ * Le détail réel part en log serveur (`classementTerritoires` — voir l'appel
+ * à `logger.error`), jamais à l'écran.
+ */
+export const MESSAGE_ERREUR_CLASSEMENT_GENERIQUE =
+  "Le classement n'a pas pu être calculé. Réessayez, ou changez d'indicateur.";
+
+/**
  * Traduit un message d'exception Postgres de `classer_territoires` (sql/150,
  * trois `RAISE EXCEPTION` documentés) en message FR utilisable par
- * l'utilisateur. Un message non reconnu passe quand même — jamais un throw —
- * préfixé pour rester lisible.
+ * l'utilisateur. Un message non reconnu ne remonte JAMAIS tel quel — voir
+ * `MESSAGE_ERREUR_CLASSEMENT_GENERIQUE` — jamais un throw non plus.
  */
 export function traduireErreurClassement(messageBrut: string | null | undefined): string {
   const m = messageBrut ?? '';
@@ -120,7 +131,7 @@ export function traduireErreurClassement(messageBrut: string | null | undefined)
   if (m.includes('tri inconnu')) {
     return "Tri inconnu : choisissez 'volume' ou 'part'.";
   }
-  return m ? `Le classement n'a pas pu être calculé : ${m}` : "Le classement n'a pas pu être calculé.";
+  return MESSAGE_ERREUR_CLASSEMENT_GENERIQUE;
 }
 
 // ── Résolution de coordonnées (best effort — jamais de repli trompeur) ──────
@@ -240,7 +251,7 @@ export async function classementTerritoires(args: Record<string, unknown>) {
   const { plancher, applique_par_defaut } = resoudrePlancherPopulation(tri, args.plancher_population);
 
   if (!indicateur) {
-    return { error: "Indicateur requis pour classer les territoires." };
+    return { type: 'classement_territoires' as const, error: "Indicateur requis pour classer les territoires." };
   }
 
   const supabase = createAdminClient();
@@ -255,10 +266,20 @@ export async function classementTerritoires(args: Record<string, unknown>) {
   });
 
   if (error) {
-    logger.debug('chat', `classement_territoires(${indicateur}, ${palier}, ${tri}) → erreur RPC: ${error.message}`);
+    const messageUtilisateur = traduireErreurClassement(error.message);
+    // Le détail technique Postgres ne doit jamais atteindre l'écran (voir
+    // MESSAGE_ERREUR_CLASSEMENT_GENERIQUE) — mais il doit survivre quelque
+    // part : `logger.error` reste actif en prod, contrairement à `debug`.
+    if (messageUtilisateur === MESSAGE_ERREUR_CLASSEMENT_GENERIQUE) {
+      logger.error('chat/classementTerritoires', `RPC classer_territoires — erreur non reconnue (${indicateur}, ${palier}, ${tri})`, error.message);
+    } else {
+      logger.debug('chat', `classement_territoires(${indicateur}, ${palier}, ${tri}) → erreur RPC connue: ${error.message}`);
+    }
     const indicateurs_disponibles = await listerIndicateursClassement();
     return {
-      error: traduireErreurClassement(error.message),
+      type:               'classement_territoires' as const,
+      error:              messageUtilisateur,
+      indicateur,
       indicateurs_disponibles,
     };
   }

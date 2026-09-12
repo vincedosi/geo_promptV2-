@@ -5,6 +5,7 @@ import {
   libelleIndicateur,
   libellePalier,
   traduireErreurClassement,
+  MESSAGE_ERREUR_CLASSEMENT_GENERIQUE,
   PLANCHER_POPULATION_PART_DEFAUT,
   LIMITE_MIN,
   LIMITE_MAX,
@@ -141,13 +142,17 @@ describe('traduireErreurClassement — mapping des 3 RAISE EXCEPTION de sql/150'
       .toContain("'volume' ou 'part'");
   });
 
-  it('ne jette jamais et rend un message lisible pour une erreur non reconnue — pas de 500 muet', () => {
-    expect(traduireErreurClassement('connection terminated unexpectedly'))
-      .toBe("Le classement n'a pas pu être calculé : connection terminated unexpectedly");
+  it('ne jette jamais et rend le message générique pour une erreur non reconnue — jamais le détail Postgres brut', () => {
+    const msg = traduireErreurClassement('connection terminated unexpectedly');
+    expect(msg).toBe(MESSAGE_ERREUR_CLASSEMENT_GENERIQUE);
+    // Le détail technique ne doit JAMAIS atteindre l'utilisateur : il part en
+    // log serveur (voir classementTerritoires.ts, appel à logger.error), pas
+    // dans le message affiché.
+    expect(msg).not.toContain('connection terminated');
   });
 
-  it('gère un message absent sans planter', () => {
-    expect(traduireErreurClassement(null)).toBe("Le classement n'a pas pu être calculé.");
-    expect(traduireErreurClassement(undefined)).toBe("Le classement n'a pas pu être calculé.");
+  it('gère un message absent sans planter — même message générique', () => {
+    expect(traduireErreurClassement(null)).toBe(MESSAGE_ERREUR_CLASSEMENT_GENERIQUE);
+    expect(traduireErreurClassement(undefined)).toBe(MESSAGE_ERREUR_CLASSEMENT_GENERIQUE);
   });
 });

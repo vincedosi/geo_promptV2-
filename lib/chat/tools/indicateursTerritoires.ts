@@ -8,14 +8,16 @@
  * `get_iris_metric_columns()` (information_schema, sql/047), qui existe déjà
  * et sert la même famille de garde-fous ailleurs dans l'app.
  *
- * Vérifié le 2026-09-12 : les 39 colonnes numériques que rend cette RPC sur la
- * table `iris` sont exactement un sous-ensemble des colonnes numériques de
- * `iris_agg_commune` / `iris_agg_departement` (qui en comptent 43 : les 39 +
- * `nb_iris` et `superficie_km2`, deux colonnes de construction de l'agrégat,
- * pas des indicateurs socio-démo). Aucune des 39 n'est donc jamais rejetée par
- * `classer_territoires` (sql/150) — la RPC reste malgré tout la seule autorité
- * qui tranche : cette liste n'est qu'une aide à la découverte, jamais un
- * remplacement de sa validation.
+ * Vérifié le 2026-09-12 : les colonnes numériques que rend cette RPC sur la
+ * table `iris` forment un sous-ensemble strict des colonnes numériques de
+ * `iris_agg_commune` / `iris_agg_departement` (qui en comptent quelques-unes de
+ * plus — `nb_iris` et `superficie_km2`, deux colonnes de construction de
+ * l'agrégat, pas des indicateurs socio-démo). Aucune ne devrait donc jamais
+ * être rejetée par `classer_territoires` (sql/150) — la RPC reste malgré tout
+ * la seule autorité qui tranche : cette liste n'est qu'une aide à la
+ * découverte, jamais un remplacement de sa validation. Pas de nombre figé ici
+ * à dessein : la liste est dynamique, un compte cité en dur mentirait dès le
+ * prochain import IRIS.
  *
  * Les libellés FR ne viennent PAS de la base (la RPC `get_iris_metric_columns`
  * ne renvoie que des clés, par design — sql/047) : ils viennent du dictionnaire
