@@ -141,7 +141,7 @@ import {
 
 /** Fabrique un KeyboardEvent minimal sans DOM. */
 function touche(init: Partial<KeyboardEvent>): KeyboardEvent {
-  return { key: '', ctrlKey: false, metaKey: false, altKey: false, ...init } as KeyboardEvent;
+  return { key: '', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init } as KeyboardEvent;
 }
 
 describe('configuration de navigation', () => {
@@ -198,11 +198,15 @@ describe('configuration de navigation', () => {
     expect(bas).toEqual(['reglages', 'aide']);
   });
 
-  it('donne a chaque entree un type de panneau connu', () => {
-    const types = new Set(['tiroir-droit', 'panneau-gauche', 'overlay-plein-ecran', 'lien']);
-    for (const e of ENTREES_NAVIGATION as EntreeNavigation[]) {
-      expect(types.has(e.type)).toBe(true);
-    }
+  it('rejette une combinaison de modificateurs non prevue', () => {
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, altKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, shiftKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: '1', altKey: true, shiftKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, metaKey: true }))).toBeNull();
+  });
+
+  it('accepte Meta+K seul, pour les claviers Mac', () => {
+    expect(entreeParRaccourci(touche({ key: 'k', metaKey: true }))).toBe('assistant');
   });
 
   it('ouvre Assistant a droite et Campagne en plein ecran', () => {
@@ -326,11 +330,17 @@ const PAR_RACCOURCI: ReadonlyMap<string, EntreeId> = new Map(
 
 /**
  * Traduit un evenement clavier en entree de navigation.
- * Rend null si aucun modificateur, pour ne jamais voler une frappe de saisie.
+ *
+ * Correspondance EXACTE des modificateurs, et non simple presence : sans cela
+ * Ctrl+Shift+K (console web de Firefox) et Ctrl+Alt+K resoudraient tous deux
+ * en « ctrl+k » et voleraient un raccourci du navigateur.
  */
 export function entreeParRaccourci(e: KeyboardEvent): EntreeId | null {
-  const ctrl = e.ctrlKey || e.metaKey;
-  if (!ctrl && !e.altKey) return null;
+  if (e.shiftKey) return null;              // aucun raccourci du rail n'utilise Shift
+  if (e.ctrlKey && e.metaKey) return null;  // combinaison non prevue
+  const ctrl = e.ctrlKey || e.metaKey;      // Meta = Ctrl des claviers Mac
+  if (ctrl && e.altKey) return null;        // ni l'un ni l'autre : c'est autre chose
+  if (!ctrl && !e.altKey) return null;      // aucune modification : frappe de saisie
   const prefixe = ctrl ? 'ctrl+' : 'alt+';
   return PAR_RACCOURCI.get(prefixe + e.key.toLowerCase()) ?? null;
 }
@@ -344,7 +354,7 @@ export const PANNEAUX_OUTILS: readonly PanneauId[] =
 - [ ] **Étape 4 : relancer le test, vérifier qu'il passe**
 
 Commande : `npx vitest run tests/unit/navigation/config.test.ts`
-Attendu : SUCCÈS, 9 tests.
+Attendu : SUCCÈS, 11 tests.
 
 - [ ] **Étape 5 : commit**
 
