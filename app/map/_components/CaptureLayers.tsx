@@ -31,6 +31,8 @@ export interface BattlePoiMeta {
   lng: number;
 }
 
+import type { ClusterGeoJSON } from './ClusterPanel';
+
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
 
@@ -40,6 +42,10 @@ interface Props {
   battleFeatures?: GeoJSON.Feature[];
   /** Liste des POI du battle (id, nom, lat, lng, categorie). */
   battlePois?: POI[];
+
+  // Cluster POI (capture directe client-side)
+  clusterGeoJSON: ClusterGeoJSON | null;
+  clustersVisible: boolean;
 
   // Radio coverage
   radioSelectedId: string | null;
@@ -94,6 +100,8 @@ export function CaptureLayers({
   carreauxIndicateur,
   carreauxSelectedBucket,
   tmjaGeoJSON,
+  clusterGeoJSON,
+  clustersVisible,
 }: Props) {
   // getActiveScope est ref-based donc stable (pas de re-render quand le scope change).
   // On le lit a chaque getGeometry() pour avoir la valeur courante.
@@ -277,6 +285,30 @@ export function CaptureLayers({
       features_count: tmjaGeoJSON?.features.length ?? 0,
       admin_scope: getActiveScope(),
     },
+  });
+
+  // ── Clusters POI (capture directe, sans aller-retour serveur) ───────────
+  //
+  // Les autres modules demandent leur geometrie a une route (la donnee vit en
+  // base). Les clusters sont deja charges cote client sous forme de points :
+  // les renvoyer au serveur pour qu'il les renvoie serait un aller-retour pour
+  // rien.
+  const getClusterGeom = useCallback((): ContributedGeometry => {
+    if (!clusterGeoJSON) return null;
+    const geoms: GeoJSON.Geometry[] = [];
+    for (const f of clusterGeoJSON.features) {
+      if (f.geometry) geoms.push(f.geometry as GeoJSON.Geometry);
+    }
+    return geoms.length > 0 ? geoms : null;
+  }, [clusterGeoJSON]);
+
+  useCustomGeoLayer({
+    id: 'map-poi-clusters',
+    sourceType: 'poi_clusters',
+    label: clusterGeoJSON ? `Clusters POI (${clusterGeoJSON.features.length} groupes)` : 'Clusters POI',
+    enabled: clustersVisible && !!clusterGeoJSON && clusterGeoJSON.features.length > 0,
+    getGeometry: getClusterGeom,
+    metadata: { cluster_count: clusterGeoJSON?.features.length ?? 0 },
   });
 
   return null;

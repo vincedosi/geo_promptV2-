@@ -25,12 +25,19 @@ const PROTECTED_API_PREFIXES = [
   // Tuiles vectorielles : les deux familles sont traitées à l'identique.
   // MapLibre les requête en same-origin, les cookies de session sont donc
   // transmis — c'est déjà le cas de /api/tiles, en service et fonctionnel.
-  // Les tuiles IRIS ne sont plus servies ici : elles passent par PMTiles
-  // (`IRIS_PMTILES_URL`), et /api/iris-tiles + son proxy ont été supprimés.
+  // Les tuiles IRIS passent par /api/tiles/iris (TER-001, 2026-09-11) —
+  // volontairement sous ce prefixe, deja couvert, pour ne pas avoir a
+  // toucher ce fichier. Le PMTiles qu'evoquait ce commentaire n'a jamais
+  // atteint la production.
   '/api/tiles',
   '/api/tmja-tiles',
   // Couvre aussi, par startsWith, toute route /api/iris-*.
   '/api/iris',
+  // Clustering POI x Filosofi, restaure le 2026-09-12 apres suppression du
+  // 2026-07-05. Les 13 routes lisent et ECRIVENT des modeles et des jobs :
+  // sans cette ligne ET sans l'entree du matcher plus bas, elles seraient
+  // ouvertes. Autorisation explicite de Vincent pour toucher ce fichier.
+  '/api/poi-clusters',
   '/api/isochrone-battle',
   '/api/isochrone-battle-v2',
   '/api/isochrone-cache-check',
@@ -146,6 +153,7 @@ export const config = {
     '/api/tiles/:path*',
     '/api/tmja-tiles/:path*',
     '/api/iris/:path*',
+    '/api/poi-clusters/:path*',
     '/api/isochrone-battle/:path*',
     '/api/isochrone-battle-v2/:path*',
     '/api/isochrone-cache-check/:path*',

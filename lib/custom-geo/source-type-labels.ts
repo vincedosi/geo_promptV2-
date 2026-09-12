@@ -11,6 +11,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   voronoi_cells: 'Voronoï',
   radio_coverage: 'Couverture radio',
   iris_selection: 'Sélection IRIS',
+  poi_clusters: 'Clusters POI',
   digital_analysis: 'Analyse digital',
   meteo_grid: 'Grille météo',
   tmja_routes: 'Trafic routier',

@@ -63,7 +63,7 @@
 | Inference ML bidding | **Modal** (serverless Python, HTTPS) — `-predict` / `-train` / `-detect-drift` | — |
 | Jobs asynchrones | Inngest (serverless queue) | ^3.52 |
 | Rate limiting | Upstash Redis | ^2.0 |
-| PDF export | @react-pdf/renderer | ^4.3 |
+| PDF export | @react-pdf/renderer — **plus installe** : retire en dommage collateral de la suppression du clustering (commit 7192c68), son seul consommateur. A reinstaller le jour ou le rapport PDF est restaure (docs/PLAN_CLUSTERING.md) | — |
 | Lecture tableurs | exceljs (.xlsx/.xlsm) + lecteur .ods maison (jszip) | ^4.4 |
 | Graphiques | Recharts | ^3.8 |
 | Styles | Tailwind CSS + Design System MAGELIAN (dark minimal) | ^3.4 |
@@ -318,6 +318,24 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/map/poi-natures` | GET | Natures de POI |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide sur Nano. Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
 
+### Clustering POI x Filosofi (restaure le 2026-09-12)
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/poi-clusters` | GET | GeoJSON des POI colories par cluster (`?duration=`) |
+| `/api/poi-clusters/run` | POST/GET | Lance un job (corps valide par Zod) / polling du statut. **Le moteur est un script Python lance en processus fils : il n'y a aucun runtime Python sur Vercel.** La route repond 503 explicite si le script est absent. Portage Modal : `docs/PLAN_CLUSTERING.md` |
+| `/api/poi-clusters/models` | GET | Liste des modeles calcules |
+| `/api/poi-clusters/models/[version]` | GET/DELETE | Detail d'un modele (resume par cluster + POI) / suppression |
+| `/api/poi-clusters/models/[version]/analysis` | GET/DELETE | Analyse Gemini du modele |
+| `/api/poi-clusters/models/[version]/generate-analysis` | POST | (Re)genere l'analyse Gemini |
+| `/api/poi-clusters/[clusterId]` | GET | Detail d'un cluster |
+| `/api/poi-clusters/poi/[poiId]` | GET | Clusters d'un POI, toutes durees |
+| `/api/poi-clusters/history/[poiId]` | GET | Historique des assignations d'un POI |
+| `/api/poi-clusters/count`, `/poi-types`, `/france-averages`, `/model` | GET | Comptages, types disponibles, moyennes France, modele courant |
+
+> Les 13 routes sont protegees par `middleware.ts` (`/api/poi-clusters` dans
+> `PROTECTED_API_PREFIXES` **et** `/api/poi-clusters/:path*` dans le matcher —
+> les deux, sans quoi elles restent publiques).
+
 ### IRIS
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -545,6 +563,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `iris_indicator_registry` | Registre indicateurs IRIS | 51 indicateurs |
 | `iris_agg_departement` | Palier departement de la cascade IRIS (104) — sert z4-z6 | Geometrie stockee en **3857** simplifiee a 400 m, `superficie_km2` = SOMME des IRIS du groupe. Construite par `construire_iris_agg` (sql/138) |
 | `iris_agg_commune` | Palier commune de la cascade IRIS (34 921) — sert z7-z8 | Idem, simplifiee a 100 m. 82 IRIS (0,12 % de la population) sans commune correspondante y sont absents, presents aux deux autres paliers |
+| `clustering_models` | Modeles k-means POI x Filosofi (scaler + PCA + centroides, assez complet pour rejouer une prediction avec numpy seul) | Restauree le 2026-09-12 (sql/141). RLS deny-all |
+| `poi_clusters` | Un enregistrement par POI x duree x mode | `imputed_features` distingue une valeur reconstituee d'une valeur mesuree. RLS deny-all |
+| `poi_cluster_history` | Historique des assignations, avec le cluster precedent dans le numbering de l'ANCIEN modele | RLS deny-all |
+| `clustering_jobs` | Suivi des jobs lances depuis l'UI (pending -> running -> done/failed) | `log_tail` porte la sortie tronquee du script. RLS deny-all |
 | `iris_bornes_echelle` | Bornes nationales log10 de l'echelle IRIS, par colonne (37 lignes) | min = p05 du palier departement, max = p99,9 (effectif/densite) ou p95 (proportion) du palier IRIS. Reconstruire avec `construire_iris_bornes()` (sql/140) apres tout import |
 | `iris_metadata` | Metadonnees IRIS | |
 | `carreaux_filosofi` | Carreaux INSEE 200m (2.3M lignes, 4.5 GB) | `geom_3857` pre-calcule |

@@ -739,6 +739,99 @@ export function useMapInit(
       map.addLayer({ id: 'isochrones-fill', type: 'fill', source: 'isochrones', paint: { 'fill-color': '#22c55e', 'fill-opacity': 0.18 }, layout: { visibility: 'none' } });
       map.addLayer({ id: 'isochrones-line', type: 'line', source: 'isochrones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.85 }, layout: { visibility: 'none' } });
 
+      // ── Clustering POI × Filosofi ─────────────────────────────────────────
+      //
+      // Restauré le 2026-09-12, après la suppression du 2026-07-05. Deux
+      // sources : l'aperçu des POI du wizard, et les POI coloriés par cluster.
+      map.addSource('wizard-highlight', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+      });
+      map.addLayer({
+        id: 'wizard-highlight-layer', type: 'circle', source: 'wizard-highlight',
+        paint: {
+          'circle-color': '#f59e0b',
+          'circle-radius': 5,
+          'circle-opacity': 0.80,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#050505',
+        },
+        layout: { visibility: 'none' },
+      });
+
+      map.addSource('clusters-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection,
+        generateId: true,
+      });
+      map.addLayer({
+        id: 'clusters-layer',
+        type: 'circle',
+        source: 'clusters-source',
+        paint: {
+          'circle-color':        ['get', 'cluster_color'] as unknown as maplibregl.ExpressionSpecification,
+          'circle-radius':       7,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity':      0.92,
+        },
+        layout: { visibility: 'none' },
+      });
+
+      const onClustersClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        if (!e.features?.length) return;
+        const p = e.features[0].properties as Record<string, string>;
+        let profileFeatures: Record<string, number> = {};
+        try { profileFeatures = JSON.parse(p.profile_features ?? '{}'); } catch { /* propriété absente ou tronquée */ }
+
+        // Le panneau de détail écoute cet événement — il n'a pas de référence
+        // vers la carte, et la carte n'en a pas vers React.
+        window.dispatchEvent(new CustomEvent('genesis:cluster-select', {
+          detail: {
+            poi_id:           p.poi_id,
+            poi_name:         p.poi_name,
+            cluster_id:       Number(p.cluster_id),
+            cluster_label:    p.cluster_label,
+            cluster_color:    p.cluster_color,
+            categorie:        p.categorie,
+            ville:            p.ville,
+            profile_features: profileFeatures,
+            lat:              e.lngLat.lat,
+            lng:              e.lngLat.lng,
+          },
+        }));
+
+        // `esc()` sur CHAQUE valeur : `poi_name` et `ville` viennent de
+        // `poi_france`, alimentée par des imports CSV/XLSX/ArcGIS. La version
+        // d'origine de ce popup interpolait sans échapper — c'est précisément
+        // la XSS fermée depuis (voir lib/map/echapper-html.ts). La restaurer
+        // telle quelle aurait rouvert la faille dans le même geste.
+        //
+        // `cluster_color` entre dans un attribut `style` : on ne lui fait pas
+        // confiance non plus, on n'accepte qu'un hexadécimal.
+        const couleur = /^#[0-9a-f]{3,8}$/i.test(p.cluster_color ?? '') ? p.cluster_color : '#64748b';
+        new maplibregl.Popup({ closeButton: true, maxWidth: '220px' })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div style="font-size:12px;padding:6px 8px;font-family:sans-serif">` +
+            `<b style="color:#1e293b">${esc(p.poi_name) || '—'}</b><br/>` +
+            `<span style="display:inline-block;margin-top:3px;padding:1px 6px;border-radius:2px;font-size:10px;background:${couleur};color:#fff">${esc(p.cluster_label)}</span>` +
+            `<div style="color:#94a3b8;font-size:10px;margin-top:3px">${esc(p.ville)}</div>` +
+            `</div>`
+          )
+          .addTo(map);
+      };
+      const onClustersMousemove  = () => { map.getCanvas().style.cursor = 'pointer'; };
+      const onClustersMouseleave = () => { map.getCanvas().style.cursor = ''; };
+      map.on('click', 'clusters-layer', onClustersClick);
+      map.on('mousemove',  'clusters-layer', onClustersMousemove);
+      map.on('mouseleave', 'clusters-layer', onClustersMouseleave);
+      cleanupFns.push(() => {
+        map.off('click', 'clusters-layer', onClustersClick);
+        map.off('mousemove', 'clusters-layer', onClustersMousemove);
+        map.off('mouseleave', 'clusters-layer', onClustersMouseleave);
+      });
+
       // ── IRIS choroplèthe — tuiles MVT servies par /api/tiles/iris ───────────
       //
       // Remplace un PMTiles de 361 Mo qui n'atteignait jamais la production :

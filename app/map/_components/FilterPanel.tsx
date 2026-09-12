@@ -42,6 +42,7 @@ import { TmjaSection } from './filter-panel/TmjaSection';
 import { RadioSection } from './filter-panel/RadioSection';
 import { CarreauxSection } from './filter-panel/CarreauxSection';
 import { IrisSection } from './filter-panel/IrisSection';
+import { ClusteringSection } from './filter-panel/ClusteringSection';
 import { CivicIndicatorsSection } from './filter-panel/CivicIndicatorsSection';
 import { CivicHealthSection } from './filter-panel/CivicHealthSection';
 import { MeteoSection } from './filter-panel/MeteoSection';
@@ -105,6 +106,9 @@ export function FilterPanel({
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
   irisVisible, irisIndicateur, irisPalette, irisOpacity, irisBornes, irisTrueOnly,
   zoomCourant, irisZoomPlancher,
+  clusterGeoJSON, clustersVisible, clusterLoading, clusterDuration,
+  onToggleClusters, onLoadClusters, onClusterDurationChange, onFitBounds,
+  onWizardHighlight, onWizardClose,
   iris3D, setIris3D, irisHauteur, setIrisHauteur,
   setIrisVisible, setIrisIndicateur, setIrisPalette, setIrisOpacity, setIrisTrueOnly,
   mainMapRef,
@@ -174,7 +178,7 @@ export function FilterPanel({
 
   // ── Analyse accordions ────────────────────────────────────────────────────
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({
-    spatiale: false, iris: false, carreaux: false,
+    spatiale: false, clustering: false, iris: false, carreaux: false,
   });
   const toggleAnalyse = (key: string) =>
     setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
@@ -852,6 +856,23 @@ export function FilterPanel({
             </div>{/* fin section analyse spatiale */}
             </div>
             )}
+
+            {/* ── Accordéon : CLUSTERING ──────────────────────────────────── */}
+            <ClusteringSection
+              analyseOpen={analyseOpen}
+              toggleAnalyse={toggleAnalyse}
+              clusterGeoJSON={clusterGeoJSON}
+              clustersVisible={clustersVisible}
+              clusterLoading={clusterLoading}
+              clusterDuration={clusterDuration}
+              onToggleClusters={onToggleClusters}
+              onLoadClusters={onLoadClusters}
+              onClusterDurationChange={onClusterDurationChange}
+              onFlyTo={onFlyTo}
+              onFitBounds={onFitBounds}
+              onWizardHighlight={onWizardHighlight}
+              onWizardClose={onWizardClose}
+            />
 
           </div>
         </CategoryGroup>

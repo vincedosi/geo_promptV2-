@@ -1719,6 +1719,117 @@ export type Database = {
         }
         Relationships: []
       }
+      clustering_jobs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          geo_filter: Json | null
+          id: string
+          log_tail: string | null
+          params: Json | null
+          poi_types: string[]
+          result_meta: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          geo_filter?: Json | null
+          id?: string
+          log_tail?: string | null
+          params?: Json | null
+          poi_types: string[]
+          result_meta?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          geo_filter?: Json | null
+          id?: string
+          log_tail?: string | null
+          params?: Json | null
+          poi_types?: string[]
+          result_meta?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      clustering_models: {
+        Row: {
+          analysis: Json | null
+          centroids: Json
+          cluster_avg_profiles: Json
+          cluster_labels: Json
+          cluster_mapping_from_previous: Json | null
+          created_at: string | null
+          duration_minutes: number
+          feature_names: Json
+          feature_themes: Json | null
+          id: number
+          k: number
+          mode: string
+          n_pca_components: number | null
+          n_poi_trained: number | null
+          pca_components: Json
+          pca_mean: Json
+          scaler_mean: Json
+          scaler_scale: Json
+          silhouette_score: number | null
+          variance_explained: number | null
+          version: number
+        }
+        Insert: {
+          analysis?: Json | null
+          centroids: Json
+          cluster_avg_profiles: Json
+          cluster_labels: Json
+          cluster_mapping_from_previous?: Json | null
+          created_at?: string | null
+          duration_minutes?: number
+          feature_names: Json
+          feature_themes?: Json | null
+          id?: number
+          k: number
+          mode?: string
+          n_pca_components?: number | null
+          n_poi_trained?: number | null
+          pca_components: Json
+          pca_mean: Json
+          scaler_mean: Json
+          scaler_scale: Json
+          silhouette_score?: number | null
+          variance_explained?: number | null
+          version: number
+        }
+        Update: {
+          analysis?: Json | null
+          centroids?: Json
+          cluster_avg_profiles?: Json
+          cluster_labels?: Json
+          cluster_mapping_from_previous?: Json | null
+          created_at?: string | null
+          duration_minutes?: number
+          feature_names?: Json
+          feature_themes?: Json | null
+          id?: number
+          k?: number
+          mode?: string
+          n_pca_components?: number | null
+          n_poi_trained?: number | null
+          pca_components?: Json
+          pca_mean?: Json
+          scaler_mean?: Json
+          scaler_scale?: Json
+          silhouette_score?: number | null
+          variance_explained?: number | null
+          version?: number
+        }
+        Relationships: []
+      }
       comptages_routiers: {
         Row: {
           annee_mesure: number | null
@@ -3826,6 +3937,113 @@ export type Database = {
           sous_categorie?: string | null
         }
         Relationships: []
+      }
+      poi_cluster_history: {
+        Row: {
+          action: string
+          changed: boolean | null
+          cluster_id: number
+          cluster_label: string | null
+          created_at: string | null
+          distance_to_centroid: number | null
+          id: number
+          model_version: number
+          pca_components: Json | null
+          poi_id: string
+          previous_cluster_id: number | null
+          profile_features: Json | null
+        }
+        Insert: {
+          action: string
+          changed?: boolean | null
+          cluster_id: number
+          cluster_label?: string | null
+          created_at?: string | null
+          distance_to_centroid?: number | null
+          id?: number
+          model_version: number
+          pca_components?: Json | null
+          poi_id: string
+          previous_cluster_id?: number | null
+          profile_features?: Json | null
+        }
+        Update: {
+          action?: string
+          changed?: boolean | null
+          cluster_id?: number
+          cluster_label?: string | null
+          created_at?: string | null
+          distance_to_centroid?: number | null
+          id?: number
+          model_version?: number
+          pca_components?: Json | null
+          poi_id?: string
+          previous_cluster_id?: number | null
+          profile_features?: Json | null
+        }
+        Relationships: []
+      }
+      poi_clusters: {
+        Row: {
+          cluster_avg_profile: Json | null
+          cluster_id: number
+          cluster_label: string | null
+          created_at: string | null
+          duration_minutes: number
+          id: number
+          imputed_features: Json | null
+          mode: string
+          model_version: number
+          n_carreaux_intersected: number | null
+          pca_components: Json | null
+          poi_id: string
+          population_totale_couverte: number | null
+          profile_features: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          cluster_avg_profile?: Json | null
+          cluster_id: number
+          cluster_label?: string | null
+          created_at?: string | null
+          duration_minutes?: number
+          id?: number
+          imputed_features?: Json | null
+          mode?: string
+          model_version?: number
+          n_carreaux_intersected?: number | null
+          pca_components?: Json | null
+          poi_id: string
+          population_totale_couverte?: number | null
+          profile_features?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          cluster_avg_profile?: Json | null
+          cluster_id?: number
+          cluster_label?: string | null
+          created_at?: string | null
+          duration_minutes?: number
+          id?: number
+          imputed_features?: Json | null
+          mode?: string
+          model_version?: number
+          n_carreaux_intersected?: number | null
+          pca_components?: Json | null
+          poi_id?: string
+          population_totale_couverte?: number | null
+          profile_features?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poi_clusters_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "poi_france"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       poi_france: {
         Row: {

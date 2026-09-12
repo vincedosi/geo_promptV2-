@@ -64,7 +64,29 @@ function listerRoutes(dossier: string, acc: string[] = []): string[] {
   return acc;
 }
 
-const middleware = readFileSync(join(RACINE, 'middleware.ts'), 'utf-8');
+const middlewareBrut = readFileSync(join(RACINE, 'middleware.ts'), 'utf-8');
+
+/**
+ * `middleware.ts` SANS ses commentaires de ligne.
+ *
+ * Les deux listes sont lues par une expression rationnelle qui prend toute
+ * apostrophe pour un delimiteur de chaine. Or les commentaires du fichier sont
+ * en francais : « a l'identique », « l'entree du matcher »… Un nombre IMPAIR
+ * d'apostrophes dans un commentaire decale toutes les chaines suivantes, et la
+ * liste lue devient un melange de vrais prefixes et de fragments de phrases.
+ *
+ * Constate le 2026-09-12 en ajoutant `/api/poi-clusters` : le test a soudain
+ * declare non protegees quatre routes `isochrone-battle` qui l'etaient depuis
+ * toujours. Le defaut etait DANS CE TEST, pas dans le middleware — et il aurait
+ * aussi bien pu produire un faux prefixe qui couvre une route ouverte.
+ *
+ * La classe `[^\r\n]` est explicite A DESSEIN. `.` ne franchit pas un
+ * terminateur de ligne en JavaScript, et `\r` EN EST UN : sur un fichier en
+ * CRLF — ce depot est sous Windows — un `/\/\/.*$/` ne matche jamais rien, et
+ * le nettoyage ne nettoie rien du tout, en silence. Mesure le 2026-09-12 :
+ * 22 « prefixes » lus au lieu de 19, dont des morceaux de phrases francaises.
+ */
+const middleware = middlewareBrut.replace(/\/\/[^\r\n]*/g, '');
 
 /** Préfixes protégés, lus dans le tableau `PROTECTED_API_PREFIXES`. */
 function lirePrefixes(): string[] {

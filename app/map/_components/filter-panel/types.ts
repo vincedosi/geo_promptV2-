@@ -10,6 +10,7 @@ import type React from 'react';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { ZoneData } from '@/types/spatial';
 import type { BornesIris } from '@/lib/iris/echelle';
+import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 
@@ -110,6 +111,17 @@ export interface FilterPanelProps {
   irisHauteur?:         number;
   setIrisHauteur?:      (v: number) => void;
   irisBornes?:          BornesIris | null;
+  // ── Clustering POI x Filosofi (restaure le 2026-09-12) ───────────────────
+  clusterGeoJSON?:          ClusterGeoJSON | null;
+  clustersVisible?:         boolean;
+  clusterLoading?:          boolean;
+  clusterDuration?:         number;
+  onToggleClusters?:        () => void;
+  onLoadClusters?:          () => void;
+  onClusterDurationChange?: (d: number) => void;
+  onFitBounds?:             (bounds: [[number, number], [number, number]]) => void;
+  onWizardHighlight?:       (poiTypes: string[], metropolitaine: boolean) => void;
+  onWizardClose?:           () => void;
   irisTrueOnly?:        boolean;
   zoomCourant?:         number | null;
   irisZoomPlancher?:    number;

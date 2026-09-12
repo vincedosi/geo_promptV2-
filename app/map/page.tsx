@@ -63,6 +63,7 @@ import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { SuiviMapLayer } from '@/app/map/_components/SuiviMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
+import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
 import { IconBar, type OverlayId } from '@/components/map/IconBar';
@@ -100,6 +101,15 @@ export default function MapPage() {
   const [poiStyles,           setPoiStyles]           = useState<POIStylesMap>({});
   // TMJA — flux routier (comptages_routiers)
   const [tmjaGeoJSON, setTmjaGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+
+  // ── Clustering POI x Filosofi (restaure le 2026-09-12) ────────────────────
+  const [clusterGeoJSON,  setClusterGeoJSON]  = useState<ClusterGeoJSON | null>(null);
+  const [clustersVisible, setClustersVisible] = useState(false);
+  const [clusterLoading,  setClusterLoading]  = useState(false);
+  const [clusterDuration, setClusterDuration] = useState(60);
+  // Apercu des POI pendant la configuration d'un nouveau calcul : on montre
+  // CE QUI SERA clusterise avant de lancer un job qui dure des minutes.
+  const [wizardHighlightGeoJSON, setWizardHighlightGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // Masquer les axes <5 000 véh/j par défaut pour limiter la densité visuelle
   // et alléger le rendu (tier 5-6 = ~80% des tronçons en France).
   const [tmjaHideLowTraffic, setTmjaHideLowTraffic] = useState(true);
@@ -188,6 +198,107 @@ export default function MapPage() {
     radioBorderWidth, setRadioBorderWidth,
     radioPointSize, setRadioPointSize,
   } = useRadioLayer(mapRef, mapReady);
+
+  // ── Clustering : synchronisation carte ↔ état ────────────────────────────
+  //
+  // Trois effets séparés, et c'est voulu : l'aperçu du wizard, les données de
+  // clusters et leur visibilité changent à des moments différents. Les fondre
+  // en un seul rejouerait un `setData` de plusieurs milliers de points à chaque
+  // bascule de visibilité.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const src = map.getSource('wizard-highlight') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (wizardHighlightGeoJSON) {
+      src.setData(wizardHighlightGeoJSON);
+      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'visible'); } catch { /* couche absente */ }
+    } else {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      try { map.setLayoutProperty('wizard-highlight-layer', 'visibility', 'none'); } catch { /* couche absente */ }
+    }
+  }, [wizardHighlightGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !clusterGeoJSON) return;
+    const src = map.getSource('clusters-source') as maplibregl.GeoJSONSource | undefined;
+    src?.setData(clusterGeoJSON as unknown as GeoJSON.FeatureCollection);
+  }, [clusterGeoJSON, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    try { map.setLayoutProperty('clusters-layer', 'visibility', clustersVisible ? 'visible' : 'none'); } catch { /* couche absente */ }
+  }, [clustersVisible, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Cadre la carte sur une emprise — utilisé par le tableau de clusters. */
+  const handleFitBounds = (bounds: [[number, number], [number, number]]) => {
+    if (mapRef.current && mapReady) {
+      mapRef.current.fitBounds(
+        new maplibregl.LngLatBounds(bounds[0], bounds[1]),
+        { padding: 60, duration: 1000 },
+      );
+    }
+  };
+
+  /** Aperçu des POI qui seront clusterisés, pendant la config du wizard. */
+  const handleWizardHighlight = async (poiTypes: string[], metropolitaine: boolean) => {
+    try {
+      const res = await fetch('/api/map/pois', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poi_types: poiTypes,
+          scope:     metropolitaine ? 'metro' : 'all',
+          regions:   [], depts: [], ville: '', rayon_poi: null,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { pois?: { id: string; nom: string; lat: number; lng: number }[] };
+      if (!data.pois?.length) { setWizardHighlightGeoJSON(null); return; }
+      setWizardHighlightGeoJSON({
+        type: 'FeatureCollection',
+        features: data.pois.map(p => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+          properties: { id: p.id, nom: p.nom },
+        })),
+      });
+    } catch { /* aperçu best-effort : son absence ne bloque pas le calcul */ }
+  };
+
+  /** Charge les clusters à la première ouverture, bascule ensuite. */
+  const handleToggleClusters = async () => {
+    if (!clustersVisible && !clusterGeoJSON) {
+      setClusterLoading(true);
+      try {
+        const res  = await fetch(`/api/poi-clusters?duration=${clusterDuration}`);
+        const data = await res.json() as ClusterGeoJSON & { type?: string };
+        if (data.type === 'FeatureCollection') {
+          setClusterGeoJSON(data);
+          setClustersVisible(true);
+        }
+      } catch { /* rien à afficher, la couche reste éteinte */ } finally { setClusterLoading(false); }
+    } else {
+      setClustersVisible(v => !v);
+    }
+  };
+
+  /** Changer la durée d'exposition rejoue la requête : ce sont d'autres clusters. */
+  const handleClusterDurationChange = async (d: number) => {
+    setClusterDuration(d);
+    setClusterLoading(true);
+    try {
+      const res  = await fetch(`/api/poi-clusters?duration=${d}`);
+      const data = await res.json() as ClusterGeoJSON & { type?: string };
+      if (data.type === 'FeatureCollection') {
+        setClusterGeoJSON(data);
+        setClustersVisible(true);
+      }
+    } catch { /* la durée change, l'affichage reste sur les données précédentes */ } finally { setClusterLoading(false); }
+  };
 
   // ── Sync TMJA visibility + filtre seuil bas → layer (vector tiles) ──────────
   useEffect(() => {
@@ -302,6 +413,7 @@ export default function MapPage() {
         'tmja-source', 'radio-emetteurs', 'radio-coverage',
         'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
         'battle-borders', 'battle-pois', 'test-iso',
+        'clusters-source', 'wizard-highlight',
         'territory-mask',
       ];
       for (const id of geojsonSources) {
@@ -331,6 +443,9 @@ export default function MapPage() {
     mapLayers.setIsochroneVisible(false);
     mapLayers.setCarreauxVisible(false);
     mapLayers.setIrisVisible(false);
+    setClusterGeoJSON(null);
+    setClustersVisible(false);
+    setWizardHighlightGeoJSON(null);
 
     // États de données de la page
     setZoneData(null);
@@ -610,6 +725,16 @@ export default function MapPage() {
               irisTrueOnly={mapLayers.irisTrueOnly}
               zoomCourant={mapLayers.zoomCourant}
               irisZoomPlancher={mapLayers.irisZoomPlancher}
+              clusterGeoJSON={clusterGeoJSON}
+              clustersVisible={clustersVisible}
+              clusterLoading={clusterLoading}
+              clusterDuration={clusterDuration}
+              onToggleClusters={handleToggleClusters}
+              onLoadClusters={handleToggleClusters}
+              onClusterDurationChange={handleClusterDurationChange}
+              onFitBounds={handleFitBounds}
+              onWizardHighlight={handleWizardHighlight}
+              onWizardClose={() => setWizardHighlightGeoJSON(null)}
               setIrisVisible={mapLayers.setIrisVisible}
               setIrisIndicateur={mapLayers.setIrisIndicateur}
               setIrisPalette={mapLayers.setIrisPalette}
@@ -746,6 +871,8 @@ export default function MapPage() {
       />
       <SuiviMapLayer mapRef={mapRef} />
       <CaptureLayers
+        clusterGeoJSON={clusterGeoJSON}
+        clustersVisible={clustersVisible}
         mapRef={mapRef}
         battleCacheKey={battleCacheKey}
         battleFeatures={battleFeatures}
