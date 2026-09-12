@@ -118,5 +118,19 @@ export function buildTools(
       execute: (args: Record<string, unknown>) =>
         executeToolCall('analyse_complete', args, categoriesList, {}),
     },
+
+    classement_territoires: {
+      description: "Classe les communes ou départements sur N'IMPORTE QUEL indicateur numérique IRIS (ex: pop_15_29, taux_chomage, rev_median), en volume ou en part. Répond à « les 10 villes où il y a le plus de X, en volume et en % ». Rend un tableau ET un histogramme. Les tranches d'âge INSEE font 15 ans (pop_0_14, pop_15_29, pop_30_44, pop_45_59, pop_60_74, pop_75_plus) — il n'existe PAS de tranche 15-24 : utiliser pop_15_29 et le dire explicitement. Un tri en 'part' sur un indicateur qui n'est pas un effectif (taux, indice, revenu…) échoue — trier ces indicateurs en 'volume'.",
+      inputSchema: z.object({
+        indicateur: z.string().describe("Colonne numérique du palier (ex: pop_15_29, population, taux_chomage, rev_median)."),
+        palier:     z.enum(['commune', 'departement']).optional().describe("Palier géographique (déf: commune). Paris/Lyon/Marseille n'existent qu'en arrondissements — voir regrouper_arrondissements."),
+        tri:        z.enum(['volume', 'part']).optional().describe("volume=valeur brute (déf), part=% de la population — uniquement valable si l'indicateur est un effectif."),
+        plancher_population: z.number().optional().describe("Seuil de population minimum. Indispensable pour un tri en 'part' (sinon une petite commune fausse le classement) — 20 000 appliqué par défaut si omis."),
+        limite:     z.number().optional().describe("Nombre de territoires à renvoyer, 100 au plus (déf 10)."),
+        regrouper_arrondissements: z.boolean().optional().describe("Reconstitue Paris/Lyon/Marseille depuis leurs arrondissements (déf true)."),
+      }),
+      execute: (args: Record<string, unknown>) =>
+        executeToolCall('classement_territoires', args, categoriesList, {}),
+    },
   };
 }

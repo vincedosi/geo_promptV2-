@@ -1808,6 +1808,24 @@ export type Database = {
         }
         Relationships: []
       }
+      communes_arrondissements: {
+        Row: {
+          code_arrondissement: string
+          code_commune_mere: string
+          nom_commune_mere: string
+        }
+        Insert: {
+          code_arrondissement: string
+          code_commune_mere: string
+          nom_commune_mere: string
+        }
+        Update: {
+          code_arrondissement?: string
+          code_commune_mere?: string
+          nom_commune_mere?: string
+        }
+        Relationships: []
+      }
       comptages_routiers: {
         Row: {
           annee_mesure: number | null
@@ -4954,6 +4972,24 @@ export type Database = {
         Returns: boolean
       }
       classe_iris: { Args: { p_colonne: string }; Returns: string }
+      classer_territoires: {
+        Args: {
+          p_indicateur: string
+          p_limite?: number
+          p_palier?: string
+          p_plancher_population?: number
+          p_regrouper_arrondissements?: boolean
+          p_tri?: string
+        }
+        Returns: {
+          classe: string
+          code: string
+          nom: string
+          part: number
+          population: number
+          valeur: number
+        }[]
+      }
       clip_geojson_to_france: { Args: { p_fc: Json }; Returns: Json }
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
       codes_postaux_dans_bbox: {

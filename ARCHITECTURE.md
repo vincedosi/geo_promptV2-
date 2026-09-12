@@ -569,7 +569,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `clustering_jobs` | Suivi des jobs lances depuis l'UI (pending -> running -> done/failed) | `log_tail` porte la sortie tronquee du script. RLS deny-all |
 | `iris_bornes_echelle` | Bornes nationales log10 de l'echelle IRIS, par colonne (37 lignes) | min = p05 du palier departement, max = p99,9 (effectif/densite) ou p95 (proportion) du palier IRIS. Reconstruire avec `construire_iris_bornes()` (sql/140) apres tout import |
 | `iris_metadata` | Metadonnees IRIS | |
-| `communes_arrondissements` | Correspondance arrondissement -> commune mere (45 lignes : Paris 20, Lyon 9, Marseille 16) | Seedee par derivation des codes presents dans `iris_agg_commune`, pas par une liste tapee. Existe parce que `iris_agg_commune` ne contient QUE les arrondissements : les codes 75056 / 69123 / 13055 en sont absents, donc aucun double comptage mais Paris, Lyon et Marseille n'apparaissent jamais entieres. RLS deny-all (sql/150) |
+| `communes_arrondissements` | Correspondance arrondissement -> commune mere (45 lignes : Paris 20, Lyon 9, Marseille 16) | Seedee par derivation des codes presents dans `iris_agg_commune`, pas par une liste tapee. Existe parce que `iris_agg_commune` ne contient QUE les arrondissements : les codes 75056 / 69123 / 13055 en sont absents, donc aucun double comptage mais Paris, Lyon et Marseille n'apparaissent jamais entieres. RLS deny-all (sql/150). Relue par `lib/chat/tools/classementTerritoires.ts` pour reconstituer un centroide (moyenne ponderee par population des IRIS d'arrondissement) permettant le clic-carte sur ces 3 villes dans l'outil `classement_territoires` |
 | `carreaux_filosofi` | Carreaux INSEE 200m (2.3M lignes, 4.5 GB) | `geom_3857` pre-calcule |
 | `carreaux_1km` | Agregation 1km (374 511 mailles, 151 Mo) — **sert z9-z11** | `grid_id` en PK, geometrie stockee en **3857** (pas de ST_Transform par tuile), sommes brutes. Construite par `fill_carreaux_1km_bande` (sql/129), journal des bandes dans `carreaux_1km_bandes` |
 | `carreaux_2km` | Agregation 2km (122 018) — sert z8 | Colonnes directes, <100ms |
@@ -643,7 +643,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `classe_iris` | Classe d'un indicateur IRIS (effectif / densite / proportion), DERIVEE du nom (sql/138). Source unique : agregation, bornes et front en dependent | `construire_iris_agg`, `construire_iris_bornes` |
 | `construire_iris_agg` | (Re)construit un palier agrege de la cascade IRIS | outil de construction, sql/138 |
 | `construire_iris_bornes` | (Re)calcule les bornes nationales de l'echelle IRIS | outil de construction, sql/140 |
-| `classer_territoires` | Classe les territoires d'un palier (commune / departement) sur N'IMPORTE QUEL indicateur numerique, en volume ou en part, avec plancher de population et regroupement optionnel des arrondissements. La colonne est decouverte dans `information_schema` — seule barriere contre l'injection par nom de colonne — et l'agregation est deleguee a `classe_iris` : effectif=somme, proportion=moyenne ponderee par la population, densite=recalculee sur les surfaces. La colonne `part` ne vaut que pour un effectif (sql/150) | outil du copilote, a brancher |
+| `classer_territoires` | Classe les territoires d'un palier (commune / departement) sur N'IMPORTE QUEL indicateur numerique, en volume ou en part, avec plancher de population et regroupement optionnel des arrondissements. La colonne est decouverte dans `information_schema` — seule barriere contre l'injection par nom de colonne — et l'agregation est deleguee a `classe_iris` : effectif=somme, proportion=moyenne ponderee par la population, densite=recalculee sur les surfaces. La colonne `part` ne vaut que pour un effectif (sql/150) | `lib/chat/tools/classementTerritoires.ts` (outil copilote `classement_territoires`, branche le 2026-09-12) |
 | `fill_carreaux_1km_bande` | Agrege les carreaux 200 m en mailles 1 km, par bande verticale (progression + journal anti-rejeu) | outil de construction, sql/129 |
 | `import_carreaux_batch` | Upsert batch carreaux | `api/admin/import-geo/` |
 | `populate_carreaux_columns` | Colonnes derivees post-import | `lib/inngest/functions/` |
@@ -653,7 +653,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 |-----|-------------|----------------|
 | `get_iris_stats_by_bbox` | Stats IRIS par bbox | `api/iris/stats/` |
 | `get_iris_dept_stats` | Stats IRIS departementales | `api/iris/stats/` |
-| `get_iris_metric_columns` | Colonnes metriques dynamiques | `api/iris/` |
+| `get_iris_metric_columns` | Colonnes metriques dynamiques | `api/admin/sync-iris-system/`, `lib/chat/tools/indicateursTerritoires.ts` (catalogue d'indicateurs de l'outil `classement_territoires`, cache 5 min) |
 | `get_iris_fill_status` | Taux de remplissage IRIS | `api/admin/iris/` |
 | `get_iris_iris_residual_inputs` | Inputs residus correlation | `api/correlation/compute/` |
 | `update_iris_core_batch` | Update batch colonnes core | `api/iris-crawler/manual-import/` |

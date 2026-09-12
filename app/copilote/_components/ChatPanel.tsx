@@ -10,6 +10,7 @@ import { PromptsPanel }    from './PromptsPanel';
 import { ChatMarkdown }    from './ChatMarkdown';
 import { DataGouvCard }    from './DataGouvCard';
 import { AnalyseCard }     from './AnalyseCard';
+import { ClassementCard }  from '@/components/chat/ClassementCard';
 import { useSmartPrompt }  from '../_hooks/useSmartPrompt';
 import type { Provider, ProviderStatus } from '../_hooks/useProviderSelector';
 import type { SmartPromptResponse, AgentName } from '@/lib/smart-prompt/types';
@@ -93,6 +94,7 @@ const runningToolLabels: Record<string, string> = {
   'tool-query_resource_data':         'Interrogation des données…',
   'tool-search_dataservices':         'Recherche API data.gouv.fr…',
   'tool-get_metrics':                 'Métriques data.gouv.fr…',
+  'tool-classement_territoires':      'Classement des territoires…',
 };
 
 // ─── Agent badges ─────────────────────────────────────────────────────────────
@@ -565,6 +567,13 @@ export function ChatPanel({
                   p.state === 'output-available' && p.output?.type === 'analyse_complete')
               : null;
 
+            const classementPart = msg.role === 'assistant'
+              ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).find(p =>
+                  p.type === 'tool-classement_territoires' &&
+                  p.state === 'output-available' &&
+                  (p.output?.type === 'classement_territoires' || p.output?.error))
+              : null;
+
             const datagouvParts = msg.role === 'assistant'
               ? (msg.parts as Array<{ type: string; state?: string; output?: Record<string, unknown> }>).filter(p =>
                   ['tool-search_datasets','tool-get_dataset_info','tool-list_dataset_resources','tool-query_resource_data','tool-search_dataservices','tool-get_metrics'].includes(p.type) &&
@@ -599,6 +608,7 @@ export function ChatPanel({
                         </div>
                       )}
                       {analysePart && <AnalyseCard output={analysePart.output} onFlyTo={onFlyTo} onHighlightIris={onHighlightIris} />}
+                      {classementPart && <ClassementCard output={classementPart.output} onFlyTo={onFlyTo} />}
                       {zonePart    && <ZoneCard zone={zonePart.output as unknown as ZoneData} />}
                       {datagouvParts.length > 0 && <DataGouvCard parts={datagouvParts as unknown as Parameters<typeof DataGouvCard>[0]['parts']} />}
                       {textContent && (() => {

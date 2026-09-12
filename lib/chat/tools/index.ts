@@ -9,6 +9,7 @@ import { afficherCarreaux }  from './carreaux';
 import { isochroneBattle, isochroneBattleV2 } from './isochrones';
 import { askConfiguration }  from './askConfiguration';
 import { analyseComplete }   from './analyseComplete';
+import { classementTerritoires } from './classementTerritoires';
 
 export async function executeToolCall(
   name:            string,
@@ -37,6 +38,9 @@ export async function executeToolCall(
 
     case 'analyse_complete':
       return analyseComplete(args);
+
+    case 'classement_territoires':
+      return classementTerritoires(args);
 
     default:
       console.error('[tools] Outil inconnu:', name);
