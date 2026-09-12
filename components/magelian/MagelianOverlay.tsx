@@ -12,6 +12,7 @@ import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
+import { deriveCampagneActive } from '@/lib/campaigns/campagne-active';
 import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
 
@@ -39,7 +40,7 @@ interface CampaignRef {
 
 export function MagelianOverlay() {
   const {
-    open, request, closeOverlay, clearRequest, setCampagneActive, filtreActif,
+    open, request, closeOverlay, clearRequest, setCampagneActive, filtreActif, closeRequestId,
   } = useMagelianOverlay();
   // Sur /map il n'y a pas de sidebar 240px mais le rail de navigation
   // (LARGEUR_RAIL) : l'overlay se cale à droite du rail (rail + écart) au
@@ -71,13 +72,13 @@ export function MagelianOverlay() {
   useEffect(() => { requestRef.current = request; }, [request]);
 
   const handleClose = useCallback(() => {
-    if (closing) return;
+    if (!open || closing) return;
     setClosing(true);
     closeTimerRef.current = setTimeout(() => {
       closeOverlay();
       setClosing(false);
     }, EXIT_DURATION_MS);
-  }, [closing, closeOverlay]);
+  }, [open, closing, closeOverlay]);
 
   // Round de correction 2 (Tâche 8) : `handleClose` change d'identité
   // exactement quand `closing` bascule à `true` — c'est-à-dire au moment
@@ -89,6 +90,21 @@ export function MagelianOverlay() {
   const handleCloseRef = useRef(handleClose);
   useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
   const fermerPourPile = useCallback(() => handleCloseRef.current(), []);
+
+  // Round de correction 1 (Tâche 9, point 4) : `requestClose()` du contexte
+  // (bascule Alt+C, bouton « Campagne / Carte » de la top bar, bouton
+  // « Carte » de cet en-tête) passe par le MÊME `handleClose` animé
+  // qu'Échap et le bouton Fermer, au lieu de couper `open` sec via
+  // `closeOverlay()`. `lastCloseRequestIdRef` initialisé à la valeur
+  // courante : seule une INCRÉMENTATION déclenche la fermeture, jamais le
+  // montage initial.
+  const lastCloseRequestIdRef = useRef(closeRequestId);
+  useEffect(() => {
+    if (closeRequestId !== lastCloseRequestIdRef.current) {
+      lastCloseRequestIdRef.current = closeRequestId;
+      handleCloseRef.current();
+    }
+  }, [closeRequestId]);
 
   // Monté côté client uniquement (createPortal a besoin de document).
   useEffect(() => { setMounted(true); }, []);
@@ -203,16 +219,16 @@ export function MagelianOverlay() {
     [campaigns, strategyIds],
   );
 
-  // Contexte global "campagne active" (Tâche 9) : dérivée de ce qui est
-  // actuellement en contexte dans l'overlay — consultée (Suivi/Aperçu) via
-  // `selectedId`, ou éditée (Stratégie) via `creationCampaignId` — pour la
-  // top bar et la carte flottante après retour à la carte. PERSISTE à la
-  // fermeture (cette instance ne démonte jamais). Aucun fetch : dérivé des
-  // listes déjà chargées par `refreshLists`.
+  // Contexte global "campagne active" (Tâche 9) : dérivée par la fonction
+  // PURE `deriveCampagneActive` (lib/campaigns/campagne-active.ts, testée
+  // isolément) de ce qui est actuellement en contexte dans l'overlay —
+  // consultée (Suivi/Aperçu) via `selectedId`, ou éditée (Stratégie) via
+  // `creationCampaignId` — pour la top bar et la carte flottante après
+  // retour à la carte. PERSISTE à la fermeture (cette instance ne démonte
+  // jamais, et ni `closeOverlay` ni `requestClose` ne dépendent de cet
+  // effet). Aucun fetch : dérivé des listes déjà chargées par `refreshLists`.
   useEffect(() => {
-    const id = tab === 'strategie' ? creationCampaignId : selectedId;
-    const trouvee = id ? (campaigns ?? []).find((c) => c.id === id) ?? null : null;
-    setCampagneActive(trouvee ? { id: trouvee.id, nom: trouvee.name, annonceur: trouvee.advertiser } : null);
+    setCampagneActive(deriveCampagneActive(tab, creationCampaignId, selectedId, campaigns));
   }, [tab, selectedId, creationCampaignId, campaigns, setCampagneActive]);
 
   // Retire une campagne des listes ; répare la sélection de consultation.
@@ -407,6 +423,32 @@ export function MagelianOverlay() {
             Mode démo
           </label>
         )}
+        {/* Bascule vers la carte (Tâche 9, round de correction 1, point 3) :
+            le bouton `Campagne / Carte` de MapTopBar est recouvert par cet
+            overlay (z-index supérieur) tant qu'il est ouvert — ce contrôle
+            rend la bascule disponible DANS les deux états, sans toucher au
+            z-index. Même chemin animé que Échap/Fermer (`handleClose`). */}
+        <button
+          type="button"
+          onClick={handleClose}
+          title="Revenir à la carte (Alt+C)"
+          style={{
+            background: 'transparent',
+            border: '0.5px solid var(--border-default)',
+            borderRadius: 6,
+            padding: '5px 10px',
+            cursor: 'pointer',
+            fontFamily: fInter,
+            fontWeight: 500,
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            transition: 'color var(--duration-hover, 150ms) var(--ease-hover, ease), border-color var(--duration-hover, 150ms) var(--ease-hover, ease)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+        >
+          Carte
+        </button>
         <button
           type="button"
           onClick={handleClose}

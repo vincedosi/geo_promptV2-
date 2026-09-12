@@ -33,12 +33,15 @@ describe('parseMagelianParams', () => {
       .toEqual({ campaignId: 'x', tab: 'strategie' });
   });
 
-  it('ancien lien tab=creation : dégrade sans casser (campaign conservée, tab ignoré)', () => {
-    // L'onglet "creation" a été renommé "strategie" (Tâche 9). Un lien publié
-    // avant le renommage ne doit ni planter ni rouvrir un onglet fantôme :
-    // il retombe sur undefined, exactement comme un tab inconnu quelconque.
+  it('ancien lien tab=creation (alias hérité, round de correction 1) : ouvre toujours Stratégie', () => {
+    // L'onglet "creation" a été renommé "strategie" (Tâche 9). Le traiter
+    // comme une simple valeur invalide (repli sur undefined -> Suivi) perd
+    // SILENCIEUSEMENT une campagne coquille/brouillon derrière un ancien
+    // lien : n'étant pas consultable sur l'onglet Suivi, MagelianOverlay ne
+    // l'assigne ni à `selectedId` ni à `creationCampaignId`. `creation` doit
+    // donc résoudre EXACTEMENT comme `strategie`, jamais comme un tab inconnu.
     expect(parseMagelianParams(new URLSearchParams('campaign=x&tab=creation')))
-      .toEqual({ campaignId: 'x', tab: undefined });
+      .toEqual({ campaignId: 'x', tab: 'strategie' });
   });
 
   it("n'intercepte pas les URLs adressées à un autre overlay", () => {

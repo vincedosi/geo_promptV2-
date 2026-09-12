@@ -6,12 +6,18 @@
 > Deep-link overlay campagne : `/map?campaign=<id>&tab=<strategie|suivi|apercu>` (ignore si `?overlay=` present).
 > Tache 9 (2026-09-12) : onglets de l'overlay MAGELIAN renommes — Programmer -> Strategie,
 > Suivi campagne -> Suivi (Apercu inchange ; l'onglet Activation n'existe pas encore, Phase 2).
-> Deep-link `tab=` : `creation` -> `strategie` — un ancien lien `tab=creation` degrade sans
-> casser (campagne conservee, onglet retombe sur Suivi, valeur par defaut). Campagne active
-> exposee globalement par `MagelianOverlayContext` (id/nom/annonceur), affichee dans
+> Deep-link `tab=` : `creation` -> `strategie` — `creation` reste un ALIAS HERITE (round de
+> correction 1) : un ancien lien `tab=creation` ouvre toujours l'onglet Stratégie, jamais
+> Suivi par defaut. Le traiter comme une simple valeur invalide perdait silencieusement les
+> campagnes coquilles/brouillons (non consultables sur Suivi) derriere un tel lien. Campagne
+> active exposee globalement par `MagelianOverlayContext` (id/nom/annonceur, derivee par la
+> fonction pure `deriveCampagneActive` de `lib/campaigns/campagne-active.ts`), affichee dans
 > `MapTopBar` (bascule Campagne/Carte au centre, raccourci `alt+c` deja declare en Tache 1)
 > et dans `CampagneActiveCard` (carte flottante haut-gauche de la carte, aucune requete —
-> derivee du contexte deja charge). Persiste a la fermeture de l'overlay.
+> derivee du contexte deja charge). Persiste a la fermeture de l'overlay. La bascule ferme
+> TOUJOURS par le chemin anime (`requestClose` -> `handleClose`), meme depuis Alt+C ou la
+> top bar ; l'overlay porte aussi un bouton "Carte" dans son en-tete (le bouton de la top bar
+> est recouvert tant que l'overlay est ouvert, z-index superieur).
 > Retrait 2026-09-08 (2e passe) : `/api/iris-import/insee` et son onglet supprimes
 > — la route n'ecrivait rien dans `iris_import_history` et aucun des 8 imports
 > IRIS de la base n'en vient. Il ne reste qu'un chemin : le depot de CSV.

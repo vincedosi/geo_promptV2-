@@ -2,13 +2,20 @@
 
 import { SessionBadge } from '@/components/SessionBadge';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { LARGEUR_RAIL } from '@/lib/navigation/config';
+import { ENTREES_NAVIGATION, LARGEUR_RAIL } from '@/lib/navigation/config';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 
 /** Hauteur de la top bar — utilisée par page.tsx pour caler paddingTop. */
 export const MAP_TOPBAR_HEIGHT = 44;
 
 const fInter = "'Inter', system-ui, sans-serif";
+
+/** Libellé de l'entrée « Campagne » — lu depuis la source unique de la
+ *  navigation (lib/navigation/config.ts), jamais recopié (round de
+ *  correction 1, point 5 : c'est exactement la dérive déjà survenue une
+ *  fois dans ce chantier). Garanti présent : verrouillé par
+ *  tests/unit/navigation/config.test.ts. */
+const CAMPAGNE_ENTREE = ENTREES_NAVIGATION.find((e) => e.id === 'campagne')!;
 
 /**
  * Top bar horizontale pour la page /map :
@@ -17,12 +24,15 @@ const fInter = "'Inter', system-ui, sans-serif";
  * Positionnée à droite du rail (left: LARGEUR_RAIL) pour ne pas chevaucher le
  * rail vertical. Reste au-dessus des overlays (z-index: 45, au-dessus de
  * l'OverlayPanel z:40) — mais SOUS l'overlay MAGELIAN plein écran (z:10000,
- * `MagelianOverlay.tsx`) : la bascule vers « Carte » depuis l'overlay se fait
- * par Échap, le bouton Fermer, ou Alt+C (raccourci global, indépendant de la
- * visibilité de ce bouton — `app/map/page.tsx`).
+ * `MagelianOverlay.tsx`) : ce bouton « Carte » n'est donc PAS cliquable une
+ * fois l'overlay ouvert (round de correction 1, point 3) — l'overlay porte
+ * son propre bouton « Carte » dans son en-tête pour ce cas. Fermeture
+ * TOUJOURS via `requestClose()` (jamais `closeOverlay()` directement), pour
+ * que la bascule joue la même animation de sortie qu'Échap et le bouton
+ * Fermer (round de correction 1, point 4).
  */
 export function MapTopBar() {
-  const { open, campagneActive, openOverlay, closeOverlay } = useMagelianOverlay();
+  const { open, campagneActive, openOverlay, requestClose } = useMagelianOverlay();
 
   return (
     <div
@@ -105,12 +115,12 @@ export function MapTopBar() {
               borderBottom: open ? '2px solid var(--brand-teal)' : '2px solid transparent',
             }}
           >
-            Campagne
+            {CAMPAGNE_ENTREE.label}
           </button>
           <span style={{ fontFamily: fInter, fontSize: 12, color: 'var(--text-tertiary)' }}>/</span>
           <button
             type="button"
-            onClick={() => { if (open) closeOverlay(); }}
+            onClick={() => { if (open) requestClose(); }}
             aria-pressed={!open}
             title="Revenir à la carte (Alt+C)"
             style={{

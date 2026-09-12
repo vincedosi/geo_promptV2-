@@ -116,7 +116,7 @@ export default function MapPage() {
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [railMasque, setRailMasque] = useState(false);
   const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
-  const { open: magelianOverlayOpen, openOverlay, closeOverlay: closeMagelianOverlay, setFiltreActif } = useMagelianOverlay();
+  const { open: magelianOverlayOpen, openOverlay, requestClose: requestCloseMagelianOverlay, setFiltreActif } = useMagelianOverlay();
   const { toast } = useToast();
   // Campagne active (SuiviMapLayer) : statut rediffusé par ce composant à
   // chaque changement (activation, fermeture, changement de métrique) — seul
@@ -136,12 +136,15 @@ export default function MapPage() {
     const entree = ENTREES_NAVIGATION.find(e => e.id === id);
     if (entree?.type === 'overlay-plein-ecran') {
       // Bascule Campagne / Carte (Tâche 9) : Alt+C ou le clic sur l'icône du
-      // rail alternent entre les deux, au lieu de rouvrir un overlay déjà ouvert.
-      if (magelianOverlayOpen) closeMagelianOverlay(); else openOverlay();
+      // rail alternent entre les deux, au lieu de rouvrir un overlay déjà
+      // ouvert. `requestClose` (jamais `closeOverlay` en direct, round de
+      // correction 1 point 4) : même chemin de fermeture animée que le
+      // bouton Fermer et Échap.
+      if (magelianOverlayOpen) requestCloseMagelianOverlay(); else openOverlay();
       return;
     }
     setEntreeActive(prev => prev === id ? null : id);
-  }, [magelianOverlayOpen, openOverlay, closeMagelianOverlay]);
+  }, [magelianOverlayOpen, openOverlay, requestCloseMagelianOverlay]);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de PanneauCalques/PanneauAnalyse se perd → analyses
   // bloquées par le check exactlyOnePOI)
