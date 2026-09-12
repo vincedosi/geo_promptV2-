@@ -1776,6 +1776,7 @@ export type Database = {
           n_poi_trained: number | null
           pca_components: Json
           pca_mean: Json
+          profil_palier: string | null
           scaler_mean: Json
           scaler_scale: Json
           silhouette_score: number | null
@@ -1799,6 +1800,7 @@ export type Database = {
           n_poi_trained?: number | null
           pca_components: Json
           pca_mean: Json
+          profil_palier?: string | null
           scaler_mean: Json
           scaler_scale: Json
           silhouette_score?: number | null
@@ -1822,6 +1824,7 @@ export type Database = {
           n_poi_trained?: number | null
           pca_components?: Json
           pca_mean?: Json
+          profil_palier?: string | null
           scaler_mean?: Json
           scaler_scale?: Json
           silhouette_score?: number | null
@@ -4004,6 +4007,7 @@ export type Database = {
           pca_components: Json | null
           poi_id: string
           population_totale_couverte: number | null
+          profil_palier: string | null
           profile_features: Json | null
           updated_at: string | null
         }
@@ -4021,6 +4025,7 @@ export type Database = {
           pca_components?: Json | null
           poi_id: string
           population_totale_couverte?: number | null
+          profil_palier?: string | null
           profile_features?: Json | null
           updated_at?: string | null
         }
@@ -4038,6 +4043,7 @@ export type Database = {
           pca_components?: Json | null
           poi_id?: string
           population_totale_couverte?: number | null
+          profil_palier?: string | null
           profile_features?: Json | null
           updated_at?: string | null
         }

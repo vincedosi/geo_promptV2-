@@ -231,6 +231,81 @@ disque pour 5 POI est le profil d'usage qui a déjà épuisé le budget d'I/O tr
 fois. Diviser par six le coût d'un job de plusieurs centaines de POI n'est pas
 un luxe.
 
+## Le palier 2 km est BRANCHÉ (par défaut) — 2026-09-12
+
+`PALIER_PROFIL_DEFAUT = '2km'` dans `scripts/clustering_poi_filosofi.py`.
+Le 200 m reste à un drapeau : `--palier 200m`. Le palier retenu est écrit en
+base (`poi_clusters.profil_palier`, `clustering_models.profil_palier`, sql/143) :
+deux modèles de paliers différents ne se comparent pas terme à terme.
+
+### Gain réel, mesuré sur le même calcul
+
+Rejeu du clustering CIRFA 15 min voiture, 95 POI :
+
+| | 200 m | 2 km |
+|---|---|---|
+| Profilage | ~6 min | **6,5 s** (69 ms/POI) |
+| Calcul complet | ~6-7 min | **17 s** |
+| K retenu | 7 | 4 |
+| Silhouette | 0,3248 | 0,2992 |
+
+Soit **~25×** sur ce cas — davantage que les 7,8× mesurés sur les isochrones de
+30 min, qui balaient plus de carreaux.
+
+### Ce que les partitions ont en commun
+
+Indice de Rand ajusté **0,489**, information mutuelle ajustée 0,567 — accord
+modéré. Mais la structure est plus parlante que l'indice : **cinq des sept
+clusters du 200 m atterrissent en bloc dans un seul cluster du 2 km.**
+
+```
+C1 (22 POI) → C1 100 %      C4 ( 3) → C3 100 %
+C5 (32 POI) → C0 100 %      C3 ( 8) → C2  87 %
+C6 ( 3 POI) → C0 100 %      C0 (12) → C1  75 %   C2 (15) → C1 60 %
+```
+
+Les partitions sont **emboîtées, pas contradictoires** : le 2 km produit un
+regroupement plus grossier de la même structure. L'indice de Rand est
+mécaniquement plafonné quand K diffère.
+
+### Un contresens que j'ai failli écrire
+
+Le contrôle de cohérence n° 8 passe de « couverture 69 %, min 28 % » à
+« 98 %, min 75 % », et le bilan de 8/9 à 9/9. J'allais en conclure que le 200 m
+perdait un tiers de ses données au secret statistique INSEE.
+
+**C'est faux, et la mesure le dit.** Sur un isochrone CIRFA de 15 min :
+
+| Palier | Carreaux | Retenus | Population | Population perdue |
+|---|---|---|---|---|
+| 200 m | 2 478 | 2 233 | 743 926 | **0,18 %** |
+| 2 km | 30 | 30 | 702 551 | 0 % |
+
+Le filtre `ind > 11` écarte 10 % des **carreaux** mais 0,18 % des **habitants** :
+les carreaux exclus sont quasi vides, c'est exactement leur raison d'être. Le
+contrôle n° 8 compte des carreaux, pas des gens — « 98 % contre 69 % » ne veut
+donc **pas** dire « plus de données ».
+
+Et dans l'autre sens : le 2 km compte **5,6 % de population en moins** sur cet
+isochrone, parce qu'une maille de 2 km est incluse ou exclue par son centroïde.
+C'est le coût réel de l'approximation, et il est sur les bords.
+
+### Donc
+
+Le 2 km est un **raccourci acceptable**, pas une correction :
+
+- ce qu'on gagne : 25× de vitesse, et une fonctionnalité qui devient utilisable
+  au-delà de quelques dizaines de POI ;
+- ce qu'on paie : des bords à 2 km, une population approchée à ~6 %, et un
+  modèle plus grossier (K 4 au lieu de 7) ;
+- ce qui ne bouge pas : les seize variables du modèle, à moins de 3,5 %.
+
+`population_totale_couverte` n'est **affichée nulle part** aujourd'hui —
+déclarée dans les types de `ClusterDetails`, renvoyée par l'API, jamais rendue.
+C'est ce qui rend la bascule acceptable sans machinerie de recalcul. **Le jour
+où ce chiffre sera affiché**, il faudra soit le recalculer au 200 m à la demande
+pour le seul POI consulté (~4 s), soit l'annoncer comme approché.
+
 ## Reste à faire — hors priorité
 
 ### Exports du rapport

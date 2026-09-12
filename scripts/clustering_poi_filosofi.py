@@ -97,6 +97,35 @@ TABLE_MODELS    = 'clustering_models'
 TABLE_HISTORY   = 'poi_cluster_history'
 TABLE_SANITY    = 'clustering_sanity_reports'  # Phase 10 (optionnel)
 
+# ── Palier de carreaux utilise pour le profilage Filosofi ────────────────────
+#
+# '2km' appelle compute_filosofi_profiles_batch_2km (carreaux_2km, colonnes
+# typees) ; '200m' appelle compute_filosofi_profiles_batch (carreaux_filosofi,
+# jsonb).
+#
+# Mesure le 2026-09-12 sur 5 POI BMW a 30 min voiture :
+#   200m : 19 818 ms, 15 852 lectures disque, debordement en temp
+#   2km  :  2 543 ms,  2 636 lectures disque  -> 7,8x plus rapide
+#
+# La cause n'est pas la geometrie mais le JSONB : au 200 m, la fonction extrait
+# VINGT-SIX champs de `metadata` par carreau sur une table de 4,6 Go.
+#
+# Les SEIZE variables du modele (FEATURE_NAMES) sont toutes des RATIOS et
+# derivent de moins de 3,5 % entre les deux paliers. Seule `population_totale`
+# derive fortement (11,8 % en moyenne) — une maille de 2 km inclut ou exclut en
+# bloc — et elle N'EST PAS une variable du modele.
+#
+# Le palier retenu est ecrit dans `poi_clusters.profil_palier` et
+# `clustering_models.profil_palier` : deux modeles de paliers differents ne se
+# comparent pas terme a terme sur les effectifs.
+PALIER_PROFIL_DEFAUT = '2km'
+RPC_PROFILS = {
+    '200m': 'compute_filosofi_profiles_batch',
+    '2km':  'compute_filosofi_profiles_batch_2km',
+}
+# Rempli par main() a partir de --palier ; les fonctions de profilage le lisent.
+PALIER_PROFIL = PALIER_PROFIL_DEFAUT
+
 # Secret statistique INSEE : carreaux avec ind <= seuil exclus du calcul
 SECRET_STAT_SEUIL = 11
 
@@ -671,7 +700,7 @@ def _rpc_profiles_chunk(
     payload = [{'poi_id': e['poi_id'], 'cache_key': e['cache_key']} for e in chunk]
     try:
         res = sb.rpc(
-            'compute_filosofi_profiles_batch',
+            RPC_PROFILS[PALIER_PROFIL],
             {'p_entries': payload, 'p_secret_stat': float(SECRET_STAT_SEUIL)},
         ).execute()
     except Exception as exc:
@@ -1123,6 +1152,7 @@ def persist_model(
         'n_poi_trained':        n_poi,
         'duration_minutes':     duration,
         'mode':                 mode,
+        'profil_palier':        PALIER_PROFIL,
     }
     if dry_run:
         log.info(f"[DRY-RUN] Modele v{version} non persiste (K={model['k']})")
@@ -1206,6 +1236,7 @@ def _upsert_cluster(
         'model_version':              model_version,
         'duration_minutes':           duration,
         'mode':                       mode,
+        'profil_palier':              PALIER_PROFIL,
         'imputed_features':           imputed_features,
         'updated_at':                 datetime.now(timezone.utc).isoformat(),
     }
@@ -3118,6 +3149,17 @@ def main() -> None:
         help='Duree isochrone en minutes (ex: 30, 45, 60) ou "all" pour 30+45+60',
     )
     parser.add_argument('--transport', default='drive', choices=['drive', 'walk', 'bike'])
+    parser.add_argument(
+        '--palier', default=PALIER_PROFIL_DEFAUT, choices=['200m', '2km'],
+        help=(
+            'Palier de carreaux pour le profilage Filosofi. Defaut: 2km '
+            '(colonnes typees, 7,8x plus rapide que le 200m et son jsonb). '
+            'Les 16 variables du modele derivent de moins de 3,5 %% entre les '
+            'deux ; seule population_totale derive (~12 %%), et elle n est pas '
+            'une variable du modele. Le palier retenu est ecrit en base '
+            '(profil_palier).'
+        ),
+    )
     parser.add_argument('--force-k',   type=int, help='Forcer K clusters')
     parser.add_argument(
         '--features', default=None,
@@ -3153,6 +3195,10 @@ def main() -> None:
         help='UUID du job clustering_jobs — met à jour le statut/log en base si fourni',
     )
     args = parser.parse_args()
+
+    # Le palier choisi pilote la RPC de profilage ET la provenance ecrite en base.
+    global PALIER_PROFIL
+    PALIER_PROFIL = args.palier
 
     log = setup_logging(args.verbose)
 
