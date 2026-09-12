@@ -18,17 +18,29 @@
  * Chaque selection compose un `FiltreActif` et appelle `onFiltre(poserFiltre(...))`
  * — un seul filtre actif a la fois, source unique dans `page.tsx`.
  *
+ * Round 1 de correction (2026-09-12) : le perimetre global (Metro/+DROM) est
+ * REDEVENU un etat partage avec `FilterPanel` (props `scope`/`onScopeChange`,
+ * memes `perimeterScope`/`setPerimeterScope` que `page.tsx` passe deja a
+ * `FilterPanel`) — avant ce round le pill etait purement local et ne pilotait
+ * plus rien, alors qu'il controle reellement le parametre `scope` envoye a
+ * `/api/map/pois` par `FilterPanel.handleSearchPOI`. Region/departement/ville/CP
+ * restent des etats LOCAUX (non partages) : seul le scope pilotait une requete
+ * en dehors de ce panneau.
+ *
  * Simplifications assumees (TypeFiltre est un fichier protege, pas de valeur
  * pour un perimetre national) :
- *   - Le perimetre global (« France Metro » / « France + DROM ») reste un
- *     reglage purement visuel du widget reutilise : il ne compose PAS de
- *     `FiltreActif` (aucune valeur de `TypeFiltre` ne correspond a un scope
- *     national, et elargir la bbox sur « + DROM » violerait la regle
- *     CLAUDE.md « jamais France entiere »).
+ *   - Le perimetre global (« France Metro » / « France + DROM ») ne compose
+ *     PAS de `FiltreActif` (aucune valeur de `TypeFiltre` ne correspond a un
+ *     scope national, et elargir la bbox sur « +DROM » violerait la regle
+ *     CLAUDE.md « jamais France entiere ») — il pilote uniquement `scope`
+ *     (voir ci-dessus), pas `bboxDuFiltre`.
  *   - Region / departement / commune / code postal composent un `FiltreActif`
  *     SANS bbox resolue (le referentiel regions/departements ne porte pas de
  *     bbox) : `bboxDuFiltre` replie alors sur `BBOX_METRO`, jamais une bbox
- *     plus large — comportement volontaire, jamais un elargissement.
+ *     plus large — comportement volontaire, jamais un elargissement. Ce
+ *     `FiltreActif` n'est envoye aux fetchs de couche QUE quand il est actif
+ *     (voir useMapDirectActions/useMeteoLayer/CivicHealthMapLayer) : sans lui,
+ *     aucune bbox n'est ajoutee, comportement inchange.
  *   - Seule une zone enregistree porte une bbox reellement resolue (colonne
  *     `bbox` de `custom_geo_zones`), donc borne les requetes plus finement.
  *   - `PerimeterSections` accepte une SELECTION MULTIPLE de regions/departements
@@ -41,6 +53,15 @@
  *     contexte de capture GLOBAL (`useAdminScopeLayer`/`useCustomGeoCaptureContext`)
  *     deja instancie par `FilterPanel` pour Calques/Analyse — une seconde
  *     instance ici entrerait en conflit avec le meme id de couche.
+ *
+ * Remonter/redescendre ce panneau (ouverture/fermeture de l'`OverlayPanel`)
+ * REMONTE ce composant : region/departement/ville/CP sont donc re-seedes
+ * depuis `filtre` a chaque montage (effet mount-only ci-dessous), pour que le
+ * widget affiche le filtre actif au lieu de sections vides.
+ *
+ * La logique de seed/composition (ville, code postal) est extraite dans
+ * `./panneau-filtre-logique.ts`, pure et testee sans monter React —
+ * voir `tests/unit/carte/panneau-filtre.test.ts`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '@/lib/auth-client';
@@ -52,41 +73,48 @@ import { useFilterSections } from '@/app/map/_components/filter-panel/use-filter
 import { useTerritorySelection } from '@/app/map/_components/filter-panel/use-territory-selection';
 import { C, fInter, fMono } from '@/app/map/_components/filter-panel/tokens';
 import { poserFiltre, type FiltreActif } from '@/lib/carte/filtre';
+import { seedDepuisFiltre, composerFiltreVille, composerFiltreCodePostal } from './panneau-filtre-logique';
+
+type Scope = 'metro' | 'all' | null;
 
 interface PanneauFiltreProps {
   /** Filtre actif — un seul, source unique dans `page.tsx`. */
   filtre: FiltreActif | null;
   /** Remonte le nouveau filtre (ou null) au parent. */
   onFiltre: (filtre: FiltreActif | null) => void;
+  /** Perimetre global (Metro/+DROM) — PARTAGE avec `FilterPanel` (meme etat
+   *  que `perimeterScope`/`setPerimeterScope` dans `page.tsx`) : c'est le
+   *  parametre `scope` reellement envoye a `/api/map/pois`. */
+  scope: Scope;
+  onScopeChange: (scope: Scope) => void;
 }
 
-/** Debounce recherche locale (ville) : evite de composer un filtre a chaque frappe. */
+/** Debounce recherche locale (ville/CP) : evite de composer un filtre a chaque frappe. */
 const DEBOUNCE_MS = 400;
 
-export function PanneauFiltre({ filtre, onFiltre }: PanneauFiltreProps) {
+export function PanneauFiltre({ filtre, onFiltre, scope: scopeProp, onScopeChange }: PanneauFiltreProps) {
   const { session } = useSession();
   const orgId = session?.user?.organizationId ?? '';
 
-  // ── Filtre courant lu depuis une ref : les effets debounces ci-dessous ne
-  // doivent PAS re-declencher sur chaque changement de `filtre` (poser un
-  // filtre re-lancerait le debounce, qui reposerait le meme filtre → bascule
-  // « re-poser le meme le retire » de poserFiltre → le filtre s'eteindrait
-  // tout seul juste apres avoir ete pose).
+  // ── Filtre courant lu depuis une ref : les composeurs debounces ci-dessous
+  // (setVille/setCodePostal) lisent la valeur la plus recente sans redeclarer
+  // leur callback a chaque changement de filtre.
   const filtreRef = useRef(filtre);
   filtreRef.current = filtre;
 
-  // ── Widget de decoupage administratif (instance LOCALE, non liee au
-  // perimetre de recherche POI/bataille de FilterPanel — deux concerns
-  // distincts depuis cette tache) ───────────────────────────────────────────
+  // ── Widget de decoupage administratif — scope PARTAGE (props controlees),
+  // region/departement/ville/CP LOCAUX (non lies au perimetre de recherche
+  // POI/bataille de FilterPanel, qui derive desormais du `filtre` actif
+  // directement — voir FilterPanel.tsx) ───────────────────────────────────
   const {
     scope, setScope, selectScope,
     selectedRegions, setSelectedRegions: setSelectedRegionsRaw,
     selectedDepts, setSelectedDepts: setSelectedDeptsRaw,
-    ville, setVille,
-    codePostal, setCodePostal,
+    ville, setVille: setVilleRaw,
+    codePostal, setCodePostal: setCodePostalRaw,
     REF_REGIONS, availableDepts,
     territoire, hasTerritoire,
-  } = useTerritorySelection({});
+  } = useTerritorySelection({ scope: scopeProp, onScopeChange });
 
   const { filterSearch, sectionsOpen, toggleSection } = useFilterSections(true, null);
 
@@ -98,6 +126,21 @@ export function PanneauFiltre({ filtre, onFiltre }: PanneauFiltreProps) {
     const m = new Map(availableDepts.map(d => [d.code_dept, `${d.code_dept} — ${d.nom_dept}`]));
     return (code: string) => m.get(code) ?? code;
   }, [availableDepts]);
+
+  // ── Re-seed region/departement/ville/CP depuis le filtre actif AU MONTAGE
+  // UNIQUEMENT, via la fonction pure `seedDepuisFiltre` (raw setters :
+  // n'appelle jamais onFiltre — un simple affichage, pas une nouvelle
+  // selection). Sans ca, rouvrir le panneau montrait des sections vides alors
+  // qu'un filtre etait actif (round 1 de correction). Voir
+  // tests/unit/carte/panneau-filtre.test.ts.
+  useEffect(() => {
+    const seed = seedDepuisFiltre(filtreRef.current);
+    setVilleRaw(seed.ville);
+    setCodePostalRaw(seed.codePostal);
+    setSelectedRegionsRaw(seed.selectedRegions);
+    setSelectedDeptsRaw(seed.selectedDepts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- montage uniquement
+  }, []);
 
   // Emule une selection simple sur un widget multi-select : la region ajoutee
   // remplace la selection, une region retiree retire le filtre s'il portait
@@ -127,36 +170,42 @@ export function PanneauFiltre({ filtre, onFiltre }: PanneauFiltreProps) {
     onFiltre(poserFiltre(filtreRef.current, { type: 'departement', code: ajoute, label: deptLabelOf(ajoute) }));
   }, [selectedDepts, setSelectedDeptsRaw, deptLabelOf, onFiltre]);
 
-  // ── Recherche locale : debounce, composent un FiltreActif 'commune'/'cp' ──
-  useEffect(() => {
-    const trimmed = ville.trim();
-    const id = setTimeout(() => {
-      if (trimmed) {
-        onFiltre(poserFiltre(filtreRef.current, { type: 'commune', code: trimmed.toLowerCase(), label: trimmed }));
-      } else if (filtreRef.current?.type === 'commune') {
-        onFiltre(null);
-      }
-    }, trimmed ? DEBOUNCE_MS : 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filtreRef evite la boucle poser/re-poser
-  }, [ville]);
+  // ── Recherche locale : debounce PAR SETTER (pas par useEffect keye sur la
+  // valeur) — un effet remonte au montage avec l'etat local qu'il vient de
+  // recevoir en seed, ce qui retirerait aussitot le filtre (bug du round 1).
+  // Ici, le debounce ne se declenche QUE sur un appel explicite du setter,
+  // jamais au montage : le seed ci-dessus appelle les setters RAW, qui ne
+  // programment aucun debounce.
+  const villeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setVille = useCallback((next: string | ((prev: string) => string)) => {
+    const value = typeof next === 'function' ? (next as (p: string) => string)(ville) : next;
+    setVilleRaw(value);
+    if (villeTimerRef.current) clearTimeout(villeTimerRef.current);
+    villeTimerRef.current = setTimeout(() => {
+      onFiltre(composerFiltreVille(filtreRef.current, value));
+    }, value.trim() ? DEBOUNCE_MS : 0);
+  }, [ville, setVilleRaw, onFiltre]);
 
-  useEffect(() => {
-    const trimmed = codePostal.trim();
-    const id = setTimeout(() => {
-      if (/^\d{5}$/.test(trimmed)) {
-        onFiltre(poserFiltre(filtreRef.current, { type: 'cp', code: trimmed, label: `CP ${trimmed}` }));
-      } else if (!trimmed && filtreRef.current?.type === 'cp') {
-        onFiltre(null);
-      }
-    }, trimmed ? DEBOUNCE_MS : 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filtreRef evite la boucle poser/re-poser
-  }, [codePostal]);
+  const codePostalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setCodePostal = useCallback((next: string) => {
+    setCodePostalRaw(next);
+    if (codePostalTimerRef.current) clearTimeout(codePostalTimerRef.current);
+    codePostalTimerRef.current = setTimeout(() => {
+      onFiltre(composerFiltreCodePostal(filtreRef.current, next));
+    }, next.trim() ? DEBOUNCE_MS : 0);
+  }, [setCodePostalRaw, onFiltre]);
+
+  // Nettoyage des debounces en attente au demontage — fermer le panneau
+  // n'engage pas une edition de recherche locale laissee en suspens.
+  useEffect(() => () => {
+    if (villeTimerRef.current) clearTimeout(villeTimerRef.current);
+    if (codePostalTimerRef.current) clearTimeout(codePostalTimerRef.current);
+  }, []);
 
   // ── Zones enregistrees : GET /api/custom-geo/list, meme contrat que
   // ZonesOverlay (components/map/overlays/ZonesOverlay.tsx). Cache useRef :
-  // un seul fetch par montage du panneau (contrainte Nano). ──────────────────
+  // un seul fetch par montage du panneau (contrainte Nano). `cancelled` evite
+  // un setState apres demontage (patron de CivicHealthMapLayer). ───────────
   const [zones, setZones] = useState<CustomGeoZoneSummary[]>([]);
   const [zonesLoading, setZonesLoading] = useState(false);
   const [zonesError, setZonesError] = useState<string | null>(null);
@@ -166,6 +215,7 @@ export function PanneauFiltre({ filtre, onFiltre }: PanneauFiltreProps) {
   useEffect(() => {
     if (!orgId || zonesFetchedRef.current) return;
     zonesFetchedRef.current = true;
+    let cancelled = false;
     setZonesLoading(true);
     setZonesError(null);
     const sp = new URLSearchParams({ org_id: orgId, _t: String(Date.now()) });
@@ -173,10 +223,15 @@ export function PanneauFiltre({ filtre, onFiltre }: PanneauFiltreProps) {
       .then(async res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as { zones: CustomGeoZoneSummary[] };
-        setZones(data.zones ?? []);
+        if (!cancelled) setZones(data.zones ?? []);
       })
-      .catch((e: unknown) => setZonesError(e instanceof Error ? e.message : 'Erreur de chargement'))
-      .finally(() => setZonesLoading(false));
+      .catch((e: unknown) => {
+        if (!cancelled) setZonesError(e instanceof Error ? e.message : 'Erreur de chargement');
+      })
+      .finally(() => {
+        if (!cancelled) setZonesLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [orgId]);
 
   const selectZone = (zone: CustomGeoZoneSummary) => {

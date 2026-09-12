@@ -13,6 +13,7 @@ import type { BornesIris } from '@/lib/iris/echelle';
 import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
+import type { FiltreActif } from '@/lib/carte/filtre';
 
 /**
  * Les catégories de blocs que le FilterPanel sait afficher en mode overlay.
@@ -235,4 +236,13 @@ export interface FilterPanelProps {
   onVilleChange?: (ville: string) => void;
   scope?: 'metro' | 'all' | null;
   onScopeChange?: (scope: 'metro' | 'all' | null) => void;
+  /**
+   * Filtre unique actif (lib/carte/filtre.ts, Tâche 4 — round 1). Dérive
+   * `filtre_ville`/`filtre_regions`/`filtre_depts` pour `useIsochroneBattle` :
+   * les anciens `selectedRegions`/`selectedDepts`/`ville` de ce composant ne
+   * sont plus alimentés par aucune UI (le widget a déménagé dans
+   * `PanneauFiltre`), la bataille isochrone partait donc sans aucune borne
+   * géographique avant cette correction.
+   */
+  filtre?: FiltreActif | null;
 }

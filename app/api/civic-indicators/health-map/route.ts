@@ -14,10 +14,13 @@
  *
  *   scale=cp — lit pollen_map_daily / atmo_map_daily (ingestion bulk WFS
  *   nationale, niveaux max des communes du CP). Filtre SQL min_level sur la
- *   métrique demandée, et `bbox` (Tâche 4, 2026-09-12) sur les codes postaux
- *   dont le centroïde (`ref_codes_postaux.centroid_lat/centroid_lon`) tombe
- *   dans la bbox — avant cette tâche cet appel chargeait la France entière
- *   (~6 200 lignes, jugé « léger » à l'époque). JSON :
+ *   métrique demandée, et `bbox` optionnelle (Tâche 4, corrigée round 1,
+ *   2026-09-12) sur les codes postaux resolus par la RPC PostGIS
+ *   `codes_postaux_dans_bbox` (sql/144) — PAS un filtre direct sur
+ *   `ref_codes_postaux.centroid_lat/centroid_lon`, qui sont NULL sur les
+ *   6187 lignes (colonne reellement peuplee : `centroid`, geometry, GIST).
+ *   Sans `bbox`, comportement d'avant : lecture nationale complète
+ *   (~6 200 lignes, léger). JSON :
  *     {"date":"2026-07-03","rows":[{"code_postal":"29200","indice_global":4,...}]}
  *     ou {"date":null,"rows":[],"error":"no_data"} si l'ingestion n'a jamais tourné.
  *
@@ -104,21 +107,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ date: null, rows: [], error: 'no_data' });
     }
 
-    // bbox (Tache 4) : resout d'abord les codes postaux dont le centroide
-    // tombe dans la bbox (table de reference, ~6 187 lignes — leger), puis
-    // filtre la lecture pollen/atmo dessus. Jamais un masque cote client.
+    // bbox (Tache 4, corrigee round 1) : resout d'abord les codes postaux dont
+    // le centroide tombe dans la bbox via la RPC `codes_postaux_dans_bbox`
+    // (sql/144). `ref_codes_postaux.centroid_lat`/`centroid_lon` sont NULL sur
+    // les 6187 lignes — un `.gte()` dessus ne matche jamais rien et rendait
+    // silencieusement `rows: []` en toutes circonstances. La colonne qui porte
+    // reellement l'information est `centroid` (geometry, indexee GIST) : la
+    // RPC l'interroge en PostGIS (`&&` sur ST_MakeEnvelope). Jamais un masque
+    // cote client.
     let codesPostauxBbox: string[] | null = null;
     if (bbox) {
       const [west, south, east, north] = bbox.split(',').map(Number);
       const { data: cps, error: cpsErr } = await supabase
-        .from('ref_codes_postaux')
-        .select('code_postal')
-        .gte('centroid_lon', west).lte('centroid_lon', east)
-        .gte('centroid_lat', south).lte('centroid_lat', north);
+        .rpc('codes_postaux_dans_bbox', { p_ouest: west, p_sud: south, p_est: east, p_nord: north });
       if (cpsErr) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
       }
-      codesPostauxBbox = (cps ?? []).map(c => c.code_postal);
+      codesPostauxBbox = ((cps ?? []) as { code_postal: string }[]).map(c => c.code_postal);
       if (codesPostauxBbox.length === 0) {
         return NextResponse.json({ date, rows: [] }, { headers: { 'Cache-Control': 'no-store' } });
       }

@@ -33,7 +33,7 @@ import { logger } from '@/lib/logger';
  *   - lire docs/known_tech_debt.md avant tout refactor structurel.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, X } from 'lucide-react';
 import { CategoryGroup } from '@/components/ui/CategoryGroup';
 import { C, fInter, fMono } from './filter-panel/tokens';
@@ -145,6 +145,7 @@ export function FilterPanel({
   selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
   ville:           villeProp,           onVilleChange,
   scope:           scopeProp,           onScopeChange,
+  filtre = null,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
   // `visibleCategory` accepte une categorie seule ou un tableau (l'entree
@@ -256,6 +257,24 @@ export function FilterPanel({
   const exactlyOnePOI = selectedPOI.length === 1;
   const hasAnyPOI     = selectedPOI.length > 0;
 
+  // ── Territoire de la bataille isochrone, dérivé du filtre actif (Tâche 4,
+  // round 1 de correction) ────────────────────────────────────────────────
+  // `selectedRegions`/`selectedDepts`/`ville` de CE composant ne sont plus
+  // alimentés par aucune UI depuis que PerimeterSections a déménagé dans
+  // PanneauFiltre (widget local, non lié) : la bataille partait donc sans
+  // AUCUNE borne géographique, la famille de requêtes qui a mis la base à
+  // terre le 08/04. On dérive le territoire du `filtre` unique à la place —
+  // cp/zone/aucun filtre : rien, comme avant cette tâche.
+  const filtreVilleBattle   = filtre?.type === 'commune' ? filtre.label : '';
+  const filtreRegionsBattle = useMemo(
+    () => (filtre?.type === 'region' ? [filtre.code] : []),
+    [filtre],
+  );
+  const filtreDeptsBattle = useMemo(
+    () => (filtre?.type === 'departement' ? [filtre.code] : []),
+    [filtre],
+  );
+
   // ── Outils isochrones / bataille ─────────────────────────────────
   const {
     transportMode, setTransportMode,
@@ -273,7 +292,8 @@ export function FilterPanel({
     handleCheckV2, handleCheckORS, handleFillMissingV2,
     handleBattle, handleBattleV2,
   } = useIsochroneBattle({
-    selectedPOI, exactlyOnePOI, ville, selectedRegions, selectedDepts,
+    selectedPOI, exactlyOnePOI,
+    ville: filtreVilleBattle, selectedRegions: filtreRegionsBattle, selectedDepts: filtreDeptsBattle,
     refRegions: REF_REGIONS,
     onDirectBattle, onDirectBattleV2, onFillIsochroneCache,
   });

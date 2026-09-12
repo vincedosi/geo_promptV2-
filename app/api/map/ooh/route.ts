@@ -8,10 +8,13 @@ import { lireCorps } from '@/lib/api/valider-corps';
 export const dynamic = 'force-dynamic';
 
 /** Filtre optionnel sur les regies. Absent ou vide = toutes. */
-// bbox : [west, south, east, north] — lib/carte/filtre.ts (Tache 4). Borne
-// TOUJOURS la requete cote serveur (jamais un masque cote client) : envoyee
-// par useMapDirectActions via bboxDuFiltre(filtre), repliee sur BBOX_METRO
-// (jamais la France entiere) quand aucun filtre n'est actif.
+// bbox : [west, south, east, north] — lib/carte/filtre.ts (Tache 4, corrigee
+// round 1). Optionnelle : useMapDirectActions ne l'envoie QUE si un filtre
+// est actif (bboxDuFiltre(filtre)) — un premier essai l'envoyait toujours en
+// repli sur BBOX_METRO, ce qui masquait l'outre-mer en permanence. Quand elle
+// est presente, elle borne REELLEMENT la requete cote serveur (jamais un
+// masque cote client) ; absente, la requete se comporte comme avant (aucune
+// borne geographique).
 const PanneauxSchema = z.object({
   regies: z.array(z.string()).optional(),
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),

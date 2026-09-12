@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       adaptive_model_state: {
@@ -4981,6 +4956,12 @@ export type Database = {
       classe_iris: { Args: { p_colonne: string }; Returns: string }
       clip_geojson_to_france: { Args: { p_fc: Json }; Returns: Json }
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
+      codes_postaux_dans_bbox: {
+        Args: { p_est: number; p_nord: number; p_ouest: number; p_sud: number }
+        Returns: {
+          code_postal: string
+        }[]
+      }
       compte_poi_par_categorie: {
         Args: {
           p_categories: string[]
@@ -6871,9 +6852,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       job_status: ["pending", "processing", "completed", "failed"],

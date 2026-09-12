@@ -17,11 +17,12 @@ const poisPostSchema = z.object({
   ville:        z.string().max(200).default(''),
   rayon_poi:    z.string().max(20).nullable().default(null),
   poi_natures:  z.record(z.string(), z.array(z.string())).optional(),
-  // [west, south, east, north] — lib/carte/filtre.ts (Tache 4). Envoyee par
-  // useMapDirectActions via bboxDuFiltre(filtre) : borne TOUJOURS la requete
-  // (repliee sur BBOX_METRO sans filtre actif, jamais la France entiere) —
-  // c'est ce qui remplace le filtrage geographique dept/region/ville quand
-  // aucun de ces trois n'est fourni (recherche POI "scope national").
+  // [west, south, east, north] — lib/carte/filtre.ts (Tache 4, corrigee
+  // round 1). Optionnelle : useMapDirectActions ne l'envoie QUE si un filtre
+  // est actif (bboxDuFiltre(filtre)) — un premier essai l'envoyait toujours
+  // en repli sur BBOX_METRO, ce qui masquait 339 POI d'outre-mer et rendait
+  // le scope 'all' (pill France + DROM) inerte. Absente, le comportement est
+  // celui d'avant cette tache : scope/regions/depts/ville seuls decident.
   bbox:         z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
 });
 
@@ -150,7 +151,8 @@ export async function POST(req: NextRequest) {
       const natures = poi_natures?.[poiType] ?? [];
 
       // Helper : applique cat + filtres nature + filtre org (data_source_id)
-      // + bbox (Tache 4 — jamais la France entiere, meme sur le scope national).
+      // + bbox si presente (Tache 4, envoyee uniquement quand un filtre carte
+      // est actif — voir schema ci-dessus).
       // Note: typed as `any` because Supabase's PostgrestFilterBuilder generic
       // chain causes "Type instantiation excessively deep" errors when narrowed.
       const applyFilters = (q: any): any => {

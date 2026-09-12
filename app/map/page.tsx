@@ -719,7 +719,12 @@ export default function MapPage() {
         >
           {entreeActive === 'assistant' && <AIOverlay chatSlot={chatSlotContent} />}
           {entreeActive === 'filtre' && (
-            <PanneauFiltre filtre={filtre} onFiltre={setFiltre} />
+            <PanneauFiltre
+              filtre={filtre}
+              onFiltre={setFiltre}
+              scope={perimeterScope}
+              onScopeChange={setPerimeterScope}
+            />
           )}
           {CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive] && (
             <FilterPanel
@@ -862,6 +867,7 @@ export default function MapPage() {
               onVilleChange={setPerimeterVille}
               scope={perimeterScope}
               onScopeChange={setPerimeterScope}
+              filtre={filtre}
             />
           )}
           {entreeActive === 'zones' && (

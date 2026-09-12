@@ -311,9 +311,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Donnees cartographiques
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/map/pois` | GET | POI dans une zone avec filtres categorie |
+| `/api/map/pois` | GET | POI dans une zone avec filtres categorie. `bbox` optionnelle (Tache 4, `[west,south,east,north]`) : envoyee par la carte uniquement quand un filtre carte est actif (`lib/carte/bbox-requete.ts`) — absente, comportement inchange (scope/regions/depts/ville seuls decident) |
 | `/api/map/categories` | GET | Categories POI distinctes |
-| `/api/map/ooh` | POST | Panneaux OOH dans bbox |
+| `/api/map/ooh` | POST | Panneaux OOH. `bbox` optionnelle (Tache 4), meme regle que `/api/map/pois` |
 | `/api/map/transport` | GET | Donnees transport |
 | `/api/map/poi-natures` | GET | Natures de POI |
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide sur Nano. Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
@@ -347,7 +347,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
-| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric`) — layer CivicHealthMapLayer, section Sante environnementale |
+| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric` + `bbox` optionnelle, Tache 4 — resolue via la RPC `codes_postaux_dans_bbox`, PAS un filtre direct sur `ref_codes_postaux.centroid_lat/lon` qui sont NULL sur toutes les lignes) — layer CivicHealthMapLayer, section Sante environnementale |
 
 ### Import IRIS (protegees par `requireAdmin()`)
 | Route | Methode | Description |
@@ -705,6 +705,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `build_ref_codes_postaux` | Construction ref CP | `api/admin/import-laposte/` |
 | `truncate_laposte_hexasmal` | Reset ref La Poste | `api/admin/import-laposte/` |
 | `update_laposte_centroids` | Centroides CP | `api/admin/import-laposte/` |
+| `codes_postaux_dans_bbox` | Codes postaux dont le centroide (`ref_codes_postaux.centroid`, geometry GIST) tombe dans une bbox (sql/144). `centroid_lat`/`centroid_lon` sont NULL sur les 6187 lignes — seule cette RPC (PostGIS `&&`/`ST_MakeEnvelope`) donne un resultat correct | `api/civic-indicators/health-map/` (scale=cp, Tache 4) |
 
 ### Admin & Monitoring
 | RPC | Description | Appelee depuis |
