@@ -1,0 +1,35 @@
+import { describe, it, expect } from 'vitest';
+import {
+  poserFiltre, retirerFiltre, bboxDuFiltre, BBOX_METRO, type FiltreActif,
+} from '@/lib/carte/filtre';
+
+const region: FiltreActif = { type: 'region', code: '93', label: 'Provence-Alpes-Côte d’Azur' };
+const dept: FiltreActif  = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
+
+describe('filtre unique', () => {
+  it('remplace toujours : un seul filtre actif a la fois', () => {
+    expect(poserFiltre(region, dept)).toEqual(dept);
+  });
+
+  it('re-poser le meme filtre le retire (bascule)', () => {
+    expect(poserFiltre(region, region)).toBeNull();
+  });
+
+  it('retirer rend null', () => {
+    expect(retirerFiltre()).toBeNull();
+  });
+
+  it('sans filtre, la bbox est la metropole et jamais le monde', () => {
+    expect(bboxDuFiltre(null)).toEqual(BBOX_METRO);
+    expect(BBOX_METRO).toEqual([-5.5, 41.2, 9.8, 51.2]);
+  });
+
+  it('rend la bbox portee par le filtre quand elle existe', () => {
+    const avecBbox: FiltreActif = { ...dept, bbox: [4.2, 43.1, 5.8, 43.9] };
+    expect(bboxDuFiltre(avecBbox)).toEqual([4.2, 43.1, 5.8, 43.9]);
+  });
+
+  it('retombe sur la metropole si le filtre n a pas encore sa bbox', () => {
+    expect(bboxDuFiltre(dept)).toEqual(BBOX_METRO);
+  });
+});
