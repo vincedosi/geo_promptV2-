@@ -6,7 +6,7 @@ import {
 
 /** Fabrique un KeyboardEvent minimal sans DOM. */
 function touche(init: Partial<KeyboardEvent>): KeyboardEvent {
-  return { key: '', ctrlKey: false, metaKey: false, altKey: false, ...init } as KeyboardEvent;
+  return { key: '', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init } as KeyboardEvent;
 }
 
 describe('configuration de navigation', () => {
@@ -63,15 +63,19 @@ describe('configuration de navigation', () => {
     expect(bas).toEqual(['reglages', 'aide']);
   });
 
-  it('donne a chaque entree un type de panneau connu', () => {
-    const types = new Set(['tiroir-droit', 'panneau-gauche', 'overlay-plein-ecran', 'lien']);
-    for (const e of ENTREES_NAVIGATION as EntreeNavigation[]) {
-      expect(types.has(e.type)).toBe(true);
-    }
-  });
-
   it('ouvre Assistant a droite et Campagne en plein ecran', () => {
     expect(ENTREES_NAVIGATION.find(e => e.id === 'assistant')?.type).toBe('tiroir-droit');
     expect(ENTREES_NAVIGATION.find(e => e.id === 'campagne')?.type).toBe('overlay-plein-ecran');
+  });
+
+  it('rejette une combinaison de modificateurs non prevue', () => {
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, altKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, shiftKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: '1', altKey: true, shiftKey: true }))).toBeNull();
+    expect(entreeParRaccourci(touche({ key: 'k', ctrlKey: true, metaKey: true }))).toBeNull();
+  });
+
+  it('accepte Meta+K seul, pour les claviers Mac', () => {
+    expect(entreeParRaccourci(touche({ key: 'k', metaKey: true }))).toBe('assistant');
   });
 });

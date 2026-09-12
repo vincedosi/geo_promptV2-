@@ -63,7 +63,7 @@ export const ENTREES_NAVIGATION: readonly EntreeNavigation[] = [
   },
   {
     id: 'campagne', label: 'Campagne', icone: Megaphone,
-    tooltip: 'Ce que j\'active', type: 'overlay-plein-ecran',
+    tooltip: "Ce que j'active", type: 'overlay-plein-ecran',
     raccourci: 'alt+c', position: 'haut', separateurApres: true, accent: true,
   },
   {
@@ -103,12 +103,26 @@ const PAR_RACCOURCI: ReadonlyMap<string, EntreeId> = new Map(
 
 /**
  * Traduit un evenement clavier en entree de navigation.
+ * Verifie exactement les modificateurs : rejette Shift toujours, rejette les combinaisons.
  * Rend null si aucun modificateur, pour ne jamais voler une frappe de saisie.
  */
 export function entreeParRaccourci(e: KeyboardEvent): EntreeId | null {
-  const ctrl = e.ctrlKey || e.metaKey;
-  if (!ctrl && !e.altKey) return null;
-  const prefixe = ctrl ? 'ctrl+' : 'alt+';
+  // Rejette Shift toujours
+  if (e.shiftKey) return null;
+
+  // Rejette si Ctrl ET Meta ensemble
+  if (e.ctrlKey && e.metaKey) return null;
+
+  // Un modificateur "ctrl" (ctrlKey ou metaKey, pas les deux)
+  const hasCtrl = e.ctrlKey || e.metaKey;
+
+  // Rejette si un modificateur ctrl ET Alt ensemble
+  if (hasCtrl && e.altKey) return null;
+
+  // Aucun modificateur → null
+  if (!hasCtrl && !e.altKey) return null;
+
+  const prefixe = hasCtrl ? 'ctrl+' : 'alt+';
   return PAR_RACCOURCI.get(prefixe + e.key.toLowerCase()) ?? null;
 }
 
