@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join, sep } from 'node:path';
 
 /**
  * Détection de dérive entre ARCHITECTURE.md et le code réel.
@@ -128,5 +128,144 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
       + "Si c'est parce que la clé anon est enfin utilisée, tant mieux — mettre à jour ce test. "
       + "Sinon, la mention doit rester : un lecteur en conclut que la base est protégée.",
     ).toBe(true);
+  });
+
+  // ── Section « Navigation de /map » (tâche 10, 2026-09-12) ──────────────────
+  //
+  // Les cinq contrôles ci-dessus ne couvrent rien de cette section : ni les
+  // raccourcis, ni LARGEUR_RAIL, ni le nombre de dégradés, ni l'affirmation
+  // « ClusteringResultsContent.tsx n'est importé nulle part ». Un relecteur
+  // l'a fait remarquer en round de correction 1 : c'est exactement l'angle
+  // mort qui a produit l'incident « 70 tables — RLS partout » — une section
+  // qui se lit comme un fait vérifié alors qu'aucun test ne la regarde.
+  //
+  // Le dernier contrôle compte le plus : la décision parquée sur
+  // `ClusteringResultsContent.tsx` (garde de périmètre non relayée, laissée
+  // en l'état PARCE QU'aucun composant vivant ne le monte) n'est sûre que
+  // tant que cette affirmation reste vraie. Le jour où quelqu'un l'importe,
+  // ce test doit rougir — sinon la doc ment ET le trou de garde devient
+  // vivant sans qu'on le sache.
+
+  const configNav = lire('lib/navigation/config.ts');
+  const navSection = archi.slice(archi.indexOf('## Navigation de /map'), archi.indexOf('## Modele multi-tenant'));
+
+  it('LARGEUR_RAIL citée dans la doc correspond à lib/navigation/config.ts', () => {
+    const reelle = configNav.match(/export const LARGEUR_RAIL = (\d+);/)?.[1];
+    expect(reelle, 'LARGEUR_RAIL introuvable dans lib/navigation/config.ts — a-t-elle été renommée ?').toBeDefined();
+
+    const citee = navSection.match(/`LARGEUR_RAIL`\s*\((\d+)\s*px/)?.[1];
+    expect(citee, 'ARCHITECTURE.md ne cite plus LARGEUR_RAIL sous la forme "`LARGEUR_RAIL` (NN px" attendue').toBeDefined();
+
+    expect(
+      citee,
+      `ARCHITECTURE.md annonce LARGEUR_RAIL = ${citee}, lib/navigation/config.ts dit ${reelle}.`,
+    ).toBe(reelle);
+  });
+
+  it('les raccourcis du tableau de navigation correspondent à ENTREES_NAVIGATION', () => {
+    // Découpe le tableau ENTREES_NAVIGATION en objets `{ ... }` par comptage
+    // d'accolades (style repris de tests/unit/carte/pile-echap-usage.test.ts),
+    // puis extrait id + raccourci de chaque objet.
+    const debutTableau = configNav.indexOf('export const ENTREES_NAVIGATION');
+    expect(debutTableau, 'ENTREES_NAVIGATION introuvable dans lib/navigation/config.ts').toBeGreaterThanOrEqual(0);
+    // Ne pas confondre avec le `[]` du TYPE `readonly EntreeNavigation[]` qui
+    // précède le `= [` du littéral : chercher "= [" d'abord.
+    const debutCrochet = configNav.indexOf('[', configNav.indexOf('= [', debutTableau));
+    let profondeur = 0;
+    let i = debutCrochet;
+    for (; i < configNav.length; i++) {
+      if (configNav[i] === '[') profondeur++;
+      else if (configNav[i] === ']') { profondeur--; if (profondeur === 0) break; }
+    }
+    const corpsTableau = configNav.slice(debutCrochet, i + 1);
+
+    const raccourcisReels = new Map<string, string | null>();
+    for (const m of corpsTableau.matchAll(/\{\s*id:\s*'([a-z]+)'[\s\S]*?\n\s*\},/g)) {
+      const bloc = m[0];
+      const id = m[1];
+      const raccourci = bloc.match(/raccourci:\s*'([^']+)'/)?.[1] ?? null;
+      raccourcisReels.set(id, raccourci);
+    }
+    expect(raccourcisReels.size, 'aucune entrée extraite de ENTREES_NAVIGATION — le motif d\'extraction a-t-il divergé du style du fichier ?').toBeGreaterThanOrEqual(8);
+
+    // Table doc : | Nom francais | ... | `Raccourci` (ou —) | ... |
+    const idParLabel: Record<string, string> = {
+      Filtre: 'filtre', Calques: 'calques', Analyse: 'analyse', Zones: 'zones',
+      Campagne: 'campagne', Assistant: 'assistant',
+    };
+    const divergences: string[] = [];
+    for (const [label, id] of Object.entries(idParLabel)) {
+      const ligne = navSection.match(new RegExp(`\\|\\s*${label}\\s*\\|[^|]*\\|\\s*([^|]+)\\|`));
+      expect(ligne, `ligne du tableau pour "${label}" introuvable dans la section Navigation`).not.toBeNull();
+      const celluleRaccourci = ligne![1].trim();
+      const raccourciDoc = celluleRaccourci.match(/`([^`]+)`/)?.[1]?.toLowerCase() ?? null;
+      const raccourciReel = raccourcisReels.get(id) ?? null;
+      if (raccourciDoc !== raccourciReel) {
+        divergences.push(`${label} : doc dit "${raccourciDoc}", config.ts dit "${raccourciReel}"`);
+      }
+    }
+    expect(divergences, divergences.join(' ; ')).toEqual([]);
+  });
+
+  it('le nombre de dégradés cité correspond au nombre de DegradeId', () => {
+    const degrades = lire('lib/carte/degrades.ts');
+    const blocType = degrades.match(/export type DegradeId =\s*([\s\S]*?);/)?.[1];
+    expect(blocType, 'union DegradeId introuvable dans lib/carte/degrades.ts').toBeDefined();
+    const nombreReel = (blocType!.match(/\|\s*'[^']+'/g) ?? []).length;
+    expect(nombreReel, 'aucune valeur DegradeId extraite — le motif a-t-il divergé du style du fichier ?').toBeGreaterThan(0);
+
+    const motsVersNombre: Record<string, number> = {
+      deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10,
+    };
+    const mot = navSection.match(/jusqu'a\s+(\w+)\s+choroplethes/)?.[1];
+    expect(mot, 'ARCHITECTURE.md ne cite plus le nombre de choroplèthes concurrentes avant le dégradé unique').toBeDefined();
+    const nombreCite = motsVersNombre[mot!.toLowerCase()];
+    expect(nombreCite, `mot-nombre "${mot}" non reconnu par le dictionnaire du test — l'étendre`).toBeDefined();
+
+    expect(
+      nombreCite,
+      `ARCHITECTURE.md cite "${mot}" (${nombreCite}) choroplèthes, lib/carte/degrades.ts déclare ${nombreReel} DegradeId.`,
+    ).toBe(nombreReel);
+  });
+
+  it('ClusteringResultsContent.tsx n est importe nulle part — la decision parquee reste sure', () => {
+    // Round 1 de correction (tâche 10) : la doc affirmait ce fait sans qu'
+    // aucun test ne le vérifie. Balayage du dépôt, même patron que
+    // tests/unit/carte/pile-echap-usage.test.ts.
+    const FICHIER_CIBLE = join('components', 'map', 'ClusteringResultsContent.tsx').split(sep).join('/');
+    expect(
+      navSection.includes('ClusteringResultsContent'),
+      'ARCHITECTURE.md ne mentionne plus ClusteringResultsContent.tsx dans la section Navigation — ' +
+      'la décision parquée a-t-elle été retirée ou déplacée ? Mettre à jour ce test en conséquence.',
+    ).toBe(true);
+
+    function fichiers(dossier: string): string[] {
+      const trouves: string[] = [];
+      for (const entree of readdirSync(dossier)) {
+        if (entree === 'node_modules' || entree === '.next') continue;
+        const chemin = join(dossier, entree);
+        if (statSync(chemin).isDirectory()) trouves.push(...fichiers(chemin));
+        else if (entree.endsWith('.ts') || entree.endsWith('.tsx')) trouves.push(chemin);
+      }
+      return trouves;
+    }
+
+    const importeurs: string[] = [];
+    for (const dossier of ['app', 'components', 'lib']) {
+      for (const chemin of fichiers(join(RACINE, dossier))) {
+        const relatif = join(chemin.slice(RACINE.length + 1)).split(sep).join('/');
+        if (relatif === FICHIER_CIBLE) continue; // le fichier qui LE DÉFINIT, pas un appelant
+        const source = readFileSync(chemin, 'utf8');
+        if (/\bClusteringResultsContent\b/.test(source)) importeurs.push(relatif);
+      }
+    }
+
+    expect(
+      importeurs,
+      `ClusteringResultsContent.tsx est désormais référencé par : ${importeurs.join(', ')}. ` +
+      'La décision parquée de tâche 10 (ARCHITECTURE.md § Navigation de /map) supposait ce fichier ' +
+      "mort et sans appelant — vérifier que la garde de périmètre est bien relayée avant d'accepter " +
+      'ce nouvel appelant, puis mettre à jour la doc.',
+    ).toEqual([]);
   });
 });

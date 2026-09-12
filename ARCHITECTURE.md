@@ -248,18 +248,22 @@ caracteres) et `ECART_RAIL_PANNEAU` (8 px, entre le rail et le panneau qu'il
 ouvre) : toute position calee sur le rail lit ces constantes, jamais un 48/56
 en dur.
 
-Cinq themes, dans l'ordre de lecture voulu (« ou je regarde » -> « ce que je
-vois » -> « ce que je calcule » -> « ce que je fabrique » -> « ce que
-j'active ») :
+**Cinq themes** forment la chaine mentale de la carte, dans l'ordre exact de
+`lib/navigation/config.ts:4-9` (« ou je regarde » -> « ce que je vois » ->
+« ce que je calcule » -> « ce que je fabrique » -> « ce que j'active ») :
+Filtre, Calques, Analyse, Zones, Campagne. **L'Assistant est a part** :
+`type: 'tiroir-droit'`, pas un theme de cette chaine — un tiroir de
+geo.prompt qui s'ouvre a cote, pas une etape dedans. Le rail complet expose
+ces cinq themes plus Assistant, Reglages et Aide, soit huit entrees :
 
 | Entree | Ouvre | Raccourci | Role |
 |---|---|---|---|
-| Assistant | tiroir a DROITE de la carte | `Ctrl+K` | geo.prompt, le copilote IA |
-| Campagne | overlay MAGELIAN plein ecran | `Alt+C` | active/pilote une campagne (accent teal, pastille d'alertes) |
 | Filtre | panneau gauche | `Alt+1` | pose le filtre unique (voir plus bas) |
 | Calques | panneau gauche | `Alt+2` | affiche des donnees, ne fabrique rien |
 | Analyse | panneau gauche | `Alt+3` | lance un calcul (Voronoi, bataille, clustering) |
 | Zones | panneau gauche | `Alt+4` | seul endroit qui fabrique une geometrie + une liste de CP |
+| Campagne | overlay MAGELIAN plein ecran | `Alt+C` | active/pilote une campagne (accent teal, pastille d'alertes) |
+| Assistant | tiroir a DROITE de la carte | `Ctrl+K` | geo.prompt, le copilote IA — a part de la chaine ci-dessus |
 | Reglages, Aide | panneau gauche, en bas du rail | — | pas de raccourci, pas de tooltip |
 
 Les quatre panneaux (Filtre/Calques/Analyse/Zones) vivent dans
