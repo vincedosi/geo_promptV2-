@@ -26,6 +26,12 @@ import { join } from 'node:path';
  * (un nouvel outil, un nouveau bouton qui déclenche un calcul PostGIS/ORS/API)
  * DOIT être ajoutée à `PROPS_DE_LANCEMENT` ci-dessous. Une prop absente de
  * cette liste n'est couverte par AUCUN garde-fou automatique.
+ *
+ * Round 3 de correction : les deux extractions ci-dessous (`valeurDeLaProp`,
+ * `corpsDuHandler`) ont été durcies après qu'un relecteur a démontré qu'un
+ * simple reformattage multi-lignes d'une prop JSX (`attribut={\n valeur\n}`,
+ * ce que Prettier peut produire) faisait rougir ce test SANS que le câblage
+ * ne change — un faux rouge qui aurait fini par le faire désactiver.
  */
 const SOURCE = readFileSync(
   join(process.cwd(), 'app/map/_components/panneaux/PanneauAnalyse.tsx'),
@@ -63,27 +69,51 @@ const HANDLERS_GARDES = [
 ];
 
 /**
- * Extrait le corps d'un `const <nom> = ...;` — jusqu'au PREMIER `};`
- * rencontré après la déclaration. Les handlers de ce fichier sont soit des
- * fonctions fléchées sur une ligne, soit un petit bloc `async (...) => {...}`
- * sans `};` imbriqué avant leur propre fermeture : le premier `};` rencontré
- * est donc bien LE LEUR, jamais celui d'un handler suivant.
+ * Extrait la valeur d'une prop JSX `attribut={...}`, tolérante aux espaces
+ * ET aux sauts de ligne des deux côtés de la valeur — round 3 de correction :
+ * la première version (`\{([\w.?]+)\}` sans `\s*`) produisait un faux rouge
+ * sur un simple reformattage multi-lignes (`attribut={\n  valeur\n}`), que
+ * Prettier ou une relecture future peuvent produire sans rien casser.
+ */
+function valeurDeLaProp(attribut: string): string | null {
+  const re = new RegExp(`\\b${attribut}=\\{\\s*([\\w.?]+)\\s*\\}`);
+  return SOURCE.match(re)?.[1] ?? null;
+}
+
+/**
+ * Extrait le corps d'un `const <nom> = ...;` par COMPTAGE D'ACCOLADES depuis
+ * la première `{` suivant la déclaration jusqu'à sa fermeture équilibrée —
+ * round 3 de correction : la première version s'arrêtait au premier `};`
+ * littéral rencontré, ce qui aurait coupé l'extraction trop tôt si un futur
+ * handler contenait une instruction intermédiaire se terminant par un objet
+ * littéral (`const x = { a: 1 };`) avant son appel à `verifierPerimetre(`.
  */
 function corpsDuHandler(nom: string): string {
-  const re = new RegExp(`const ${nom}[^=]*=[\\s\\S]*?\\};`);
-  const m = SOURCE.match(re);
-  expect(m, `déclaration "const ${nom} = ...;" introuvable dans PanneauAnalyse.tsx`).not.toBeNull();
-  return m![0];
+  const marqueur = `const ${nom}`;
+  const debut = SOURCE.indexOf(marqueur);
+  expect(debut, `déclaration "${marqueur}" introuvable dans PanneauAnalyse.tsx`).toBeGreaterThanOrEqual(0);
+  const ouvrante = SOURCE.indexOf('{', debut);
+  expect(ouvrante, `accolade ouvrante du corps introuvable pour "${marqueur}"`).toBeGreaterThan(debut);
+  let profondeur = 0;
+  let i = ouvrante;
+  for (; i < SOURCE.length; i++) {
+    if (SOURCE[i] === '{') profondeur++;
+    else if (SOURCE[i] === '}') {
+      profondeur--;
+      if (profondeur === 0) break;
+    }
+  }
+  expect(i, `accolade fermante du corps introuvable pour "${marqueur}"`).toBeLessThan(SOURCE.length);
+  return SOURCE.slice(debut, i + 1);
 }
 
 describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §5)', () => {
   it.each(PROPS_DE_LANCEMENT)(
     'la prop JSX "%s" est cablee sur son handler garde attendu ("%s")',
     (attribut, attendu) => {
-      const re = new RegExp(`\\b${attribut}=\\{([\\w.?]+)\\}`);
-      const m = SOURCE.match(re);
-      expect(m, `prop JSX "${attribut}" introuvable — a-t-elle ete renommee/retiree de PanneauAnalyse.tsx ?`).not.toBeNull();
-      expect(m![1]).toBe(attendu);
+      const valeur = valeurDeLaProp(attribut);
+      expect(valeur, `prop JSX "${attribut}" introuvable — a-t-elle ete renommee/retiree de PanneauAnalyse.tsx ?`).not.toBeNull();
+      expect(valeur).toBe(attendu);
     },
   );
 
@@ -97,23 +127,28 @@ describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §
     // monte par ClusterPanel, monte par ClusteringSection. La garde y est
     // relayee via la prop verifierPerimetre jusqu'a ClusteringWizard, qui
     // l'appelle avant son fetch POST (round 2 de correction).
-    expect(SOURCE).toMatch(/<ClusteringSection[\s\S]*?verifierPerimetre=\{verifierPerimetre\}/);
+    const blocClusteringSection = SOURCE.match(/<ClusteringSection[\s\S]*?\/>/)?.[0];
+    expect(blocClusteringSection, '<ClusteringSection ... /> introuvable dans PanneauAnalyse.tsx').toBeTruthy();
+    expect(blocClusteringSection).toMatch(/verifierPerimetre=\{\s*verifierPerimetre\s*\}/);
   });
 
   it('aucune des props de lancement n est cablee nue sur son identifiant brut issu de "props"', () => {
     // Regression directe du defaut d'origine (round 1) : onLoadClusters
-    // transmis tel quel, sans garde.
-    const PATTERNS_INTERDITS = [
-      /onLoadClusters=\{props\.onLoadClusters\}/,
-      /onApplyBattle=\{onApplyBattle\}/,
-      /handleBattle=\{handleBattle\}/,
-      /handleCheckORS=\{handleCheckORS\}/,
-      /handleCheckV2=\{handleCheckV2\}/,
-      /handleFillMissingV2=\{handleFillMissingV2\}/,
-      /handleBattleV2=\{handleBattleV2\}/,
+    // transmis tel quel, sans garde. Tolerant aux espaces/sauts de ligne
+    // (round 3), sinon un reformattage masquerait la regression au lieu de
+    // rester neutre.
+    const PROPS_BRUTES_INTERDITES: Array<[attribut: string, brut: string]> = [
+      ['onLoadClusters', 'props.onLoadClusters'],
+      ['onApplyBattle', 'onApplyBattle'],
+      ['handleBattle', 'handleBattle'],
+      ['handleCheckORS', 'handleCheckORS'],
+      ['handleCheckV2', 'handleCheckV2'],
+      ['handleFillMissingV2', 'handleFillMissingV2'],
+      ['handleBattleV2', 'handleBattleV2'],
     ];
-    for (const re of PATTERNS_INTERDITS) {
-      expect(SOURCE).not.toMatch(re);
+    for (const [attribut, brut] of PROPS_BRUTES_INTERDITES) {
+      const re = new RegExp(`\\b${attribut}=\\{\\s*${brut.replace('.', '\\.')}\\s*\\}`);
+      expect(SOURCE, `"${attribut}" semble cablee sur son identifiant brut "${brut}" (sans garde)`).not.toMatch(re);
     }
   });
 });
