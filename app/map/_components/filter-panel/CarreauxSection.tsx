@@ -10,8 +10,6 @@
 
 import React from 'react';
 import { CARREAUX_INDICATEURS, CARREAUX_PALETTES } from '@/lib/carreaux/catalogue';
-import { uniteNormalisee } from '@/lib/carreaux/normalisation';
-import { palierEchelle, versValeurReelle, formaterValeur } from '@/lib/carreaux/bornes';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import { C, fInter, fMono } from './tokens';
 
@@ -57,16 +55,6 @@ export function CarreauxSection({
   setCarreauxHauteur,
   setCarreauxSelectedBucket,
 }: CarreauxSectionProps) {
-  // `carreauxRange` porte des bornes NATIONALES fixes en log10 de la valeur
-  // normalisée (cf. lib/carreaux/bornes.ts) : un effectif y est rapporté au
-  // km², une somme Filosofi à son effectif. Ce ne sont plus des percentiles du
-  // viewport — c'est précisément pour ça que le renommage p5/p95 → min/max a
-  // eu lieu. L'unité affichée doit suivre le même dénominateur, sinon la
-  // légende annonce « pers. » pour une densité.
-  const indicateur = carreauxIndicateur ?? 'population_totale';
-  const uniteBrute = CARREAUX_INDICATEURS.find(i => i.id === indicateur)?.unit ?? '';
-  const unite = uniteNormalisee(indicateur, uniteBrute);
-
   return (
     <>
       <button
@@ -185,60 +173,10 @@ export function CarreauxSection({
           )}
         </div>
 
-        {/* Légende */}
-        <div>
-          <div style={{ fontFamily: fInter, fontSize: 11, fontWeight: 500, color: C.textDim, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-            Légende
-            {unite && (
-              <span style={{ fontFamily: fMono, fontSize: 10, fontWeight: 400, color: C.textDim }}>
-                {unite}
-              </span>
-            )}
-            {carreauxSelectedBucket !== null && (
-              <button onClick={() => setCarreauxSelectedBucket?.(null)}
-                style={{ background: 'none', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: 11, fontFamily: fInter, padding: 0 }}
-              >✕ Tout</button>
-            )}
-          </div>
-          {(() => {
-            const pal = CARREAUX_PALETTES.find(p => p.id === (carreauxPalette ?? 'rouge')) ?? CARREAUX_PALETTES[0];
-            if (carreauxRange) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {pal.stops.map((color, i) => {
-                    // L'échelle est logarithmique, la légende ne l'est pas : on
-                    // repasse chaque borne en unité réelle avant affichage. Même
-                    // découpage (palierEchelle) que le filtre par palier, et
-                    // formatage à précision adaptative — un arrondi à l'entier
-                    // affichait « 0 – 0 » sur les indicateurs rares.
-                    const palier = palierEchelle(carreauxRange, i, 6);
-                    const min = versValeurReelle(palier.min);
-                    const max = versValeurReelle(palier.max);
-                    const isSelected = carreauxSelectedBucket === i;
-                    const fmt = formaterValeur;
-                    return (
-                      <button key={i} onClick={() => setCarreauxSelectedBucket?.(isSelected ? null : i)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left', background: isSelected ? color + '22' : 'none', border: `0.5px solid ${isSelected ? color : 'transparent'}`, borderRadius: 2, padding: '1px 3px', cursor: 'pointer' }}
-                      >
-                        <span style={{ width: 14, height: 8, background: color, borderRadius: 1, flexShrink: 0 }} />
-                        <span style={{ color: isSelected ? C.text : C.textDim, fontSize: 10, fontFamily: fMono, flex: 1 }}>
-                          {i === 5 ? `≥ ${fmt(min)}` : `${fmt(min)} – ${fmt(max)}`}
-                        </span>
-                        {isSelected && <span style={{ color, fontSize: 8, fontFamily: fMono }}>●</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            }
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {pal.stops.map((c, i) => <span key={i} style={{ display: 'inline-block', flex: 1, height: 7, background: c, borderRadius: 1 }} />)}
-                <span style={{ color: C.textDim, fontSize: 9, marginLeft: 4, fontFamily: fMono }}>z≥10</span>
-              </div>
-            );
-          })()}
-        </div>
+        {/* Légende — rendue par la légende unique de la carte (LegendeCarte,
+            Tâche 6), cliquable pour filtrer par palier exactement comme ici
+            avant cette tâche (mêmes props carreauxRange/carreauxSelectedBucket/
+            setCarreauxSelectedBucket, désormais lues par page.tsx). */}
 
       </div>
       )}

@@ -76,23 +76,26 @@ import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
+import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
+import { LegendeCarte } from '@/components/map/LegendeCarte';
 import { FiltreChip } from '@/components/map/FiltreChip';
 import { retirerFiltre, type FiltreActif } from '@/lib/carte/filtre';
+import { libelleDegrade, type DegradeId } from '@/lib/carte/degrades';
+import {
+  SUIVI_MAP_STATUS_EVENT, SUIVI_MAP_CLEAR_EVENT, type SuiviMapEventDetail,
+} from '@/app/map/_components/SuiviMapLayer';
+import { useToast } from '@/components/ui/geo-toast';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
 // ─── Adaptateur transitoire rail → panneaux (Tâche 2) ──────────────────────────
 // Le rail (lib/navigation/config.ts) émet cinq thèmes. « Filtre » a son propre
-// panneau depuis la Tâche 4 (PanneauFiltre, rendu à part — voir plus bas) ;
-// « Calques » et « Analyse » retombent encore sur les anciennes catégories
-// terrain/audience/analyses de FilterPanel. Cette table sera retirée aux
-// Tâches 6 et 7 quand « Calques » et « Analyse » auront leurs propres panneaux.
+// panneau depuis la Tâche 4 (PanneauFiltre) et « Calques » le sien depuis la
+// Tâche 6 (PanneauCalques, rendus à part — voir plus bas). Seule « Analyse »
+// retombe encore sur l'ancienne catégorie `analyses` de FilterPanel : cette
+// table sera retirée à la Tâche 7 quand « Analyse » aura son propre panneau.
 const CATEGORIES_FILTER_PANEL_PAR_ENTREE: Partial<Record<EntreeId, CategorieFiltre[]>> = {
-  // L'ordre d'affichage réel (Terrain puis Audience) vient de la structure
-  // JSX de FilterPanel, pas de l'ordre de ce tableau — la Tâche 6 refera ce
-  // regroupement pour de bon.
-  calques: ['audience', 'terrain'],
   analyse: ['analyses'],
 };
 
@@ -128,6 +131,16 @@ export default function MapPage() {
   const [railMasque, setRailMasque] = useState(false);
   const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
   const { openOverlay } = useMagelianOverlay();
+  const { toast } = useToast();
+  // Campagne active (SuiviMapLayer) : statut rediffusé par ce composant à
+  // chaque changement (activation, fermeture, changement de métrique) — seul
+  // moyen pour cette page de savoir si une campagne est active, l'état réel
+  // vivant dans SuiviMapLayer (déclenché par un événement DOM émis ailleurs,
+  // ex. CampaignSuivi.tsx). Tâche 6 : pilote le groupe « Campagne active » du
+  // panneau Calques + l'exclusivité des dégradés de couleur (effet plus bas,
+  // après la définition de `onDegrade`, qui dépend de `mapLayers`).
+  const [campagneActive, setCampagneActive] = useState<SuiviMapEventDetail | null>(null);
+  const campagneActiveRef = useRef<SuiviMapEventDetail | null>(null);
   // Adaptateur transitoire (Tâche 2) : « Campagne » n'ouvre pas un panneau du
   // rail mais l'overlay MAGELIAN plein écran, via son propre contexte — elle
   // ne devient donc jamais `entreeActive`.
@@ -404,6 +417,44 @@ export default function MapPage() {
     setSaveName:              savedMaps.setSaveName,
   });
 
+  // ── Exclusivité des dégradés de couleur (Tâche 6) — un seul à la fois
+  // (lib/carte/degrades.ts). `mapLayers.basculerDegrade` porte carreaux et
+  // IRIS (son état) et applique déjà leur propre extinction ; cette fonction
+  // applique celle des trois dégradés qui vivent hors de `useMapLayers`
+  // (indicateurs civiques, santé environnementale, météo, impressions de
+  // campagne) et le toast d'exclusivité (spec §3) — quel que soit le calque
+  // qui vient de s'activer.
+  const onDegrade = useCallback((cible: DegradeId, next: boolean) => {
+    const eteint = mapLayers.basculerDegrade(cible, next);
+    if (!eteint) return;
+    if (eteint === 'civic-indicateurs') setCivicVariableCode(null);
+    if (eteint === 'civic-sante') setCivicHealthLayer(null);
+    if (eteint === 'meteo') handleMeteoClear();
+    if (eteint === 'campagne-impressions') window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
+    toast.info(`${libelleDegrade(eteint)} a été masqué — un seul dégradé de couleur à la fois`);
+  }, [mapLayers, handleMeteoClear, toast]);
+
+  // Statut « campagne active » (SuiviMapLayer) — ne demande l'exclusivité
+  // qu'à la transition null ⇄ non-null (jamais à chaque changement de
+  // métrique, qui rediffuse aussi ce statut).
+  useEffect(() => {
+    const onStatus = (e: Event) => {
+      const detail = (e as CustomEvent<SuiviMapEventDetail | null>).detail ?? null;
+      const etaitActive = campagneActiveRef.current !== null;
+      const estActive = detail !== null;
+      campagneActiveRef.current = detail;
+      setCampagneActive(detail);
+      if (estActive && !etaitActive) onDegrade('campagne-impressions', true);
+      if (!estActive && etaitActive) onDegrade('campagne-impressions', false);
+    };
+    window.addEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
+    return () => window.removeEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
+  }, [onDegrade]);
+
+  const handleFermerCampagneActive = useCallback(() => {
+    window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
+  }, []);
+
   // ── Actions directes POI / OOH / isochrones + état de bataille
   //    (cf _hooks/useMapDirectActions) ─────────────────────────────────────
   const {
@@ -514,6 +565,10 @@ export default function MapPage() {
     setCivicVariableCode(null);
     setCivicHealthLayer(null);
     setCivicProgress(null);
+    // Dégradé de couleur actif (Tâche 6) — reset direct, jamais via
+    // `onDegrade` : un « tout effacer » n'a pas à afficher de toast d'éviction.
+    mapLayers.setDegradeActif(null);
+    window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
     setRadioVisible(false);
     setRadioHeatmapMode(false);
     setRadioCoverageMode(false);
@@ -726,6 +781,116 @@ export default function MapPage() {
               onScopeChange={setPerimeterScope}
             />
           )}
+          {entreeActive === 'calques' && (
+            <PanneauCalques
+              degradeActif={mapLayers.degradeActif}
+              onDegrade={onDegrade}
+              carreauxVisible={mapLayers.carreauxVisible}
+              carreauxLoaded={mapLayers.carreauxLoaded}
+              carreauxIndicateur={mapLayers.carreauxIndicateur}
+              carreauxPalette={mapLayers.carreauxPalette}
+              carreauxOpacity={mapLayers.carreauxOpacity}
+              carreaux3D={mapLayers.carreaux3D}
+              setCarreaux3D={mapLayers.setCarreaux3D}
+              carreauxHauteur={mapLayers.carreauxHauteur}
+              setCarreauxHauteur={mapLayers.setCarreauxHauteur}
+              carreauxRange={mapLayers.carreauxRange}
+              carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+              setCarreauxVisible={mapLayers.setCarreauxVisible}
+              setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
+              setCarreauxPalette={mapLayers.setCarreauxPalette}
+              setCarreauxOpacity={mapLayers.setCarreauxOpacity}
+              setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+              irisVisible={mapLayers.irisVisible}
+              irisIndicateur={mapLayers.irisIndicateur}
+              irisPalette={mapLayers.irisPalette}
+              irisOpacity={mapLayers.irisOpacity}
+              iris3D={mapLayers.iris3D}
+              setIris3D={mapLayers.setIris3D}
+              irisHauteur={mapLayers.irisHauteur}
+              setIrisHauteur={mapLayers.setIrisHauteur}
+              irisBornes={mapLayers.irisBornes}
+              irisTrueOnly={mapLayers.irisTrueOnly}
+              zoomCourant={mapLayers.zoomCourant}
+              irisZoomPlancher={mapLayers.irisZoomPlancher}
+              setIrisVisible={mapLayers.setIrisVisible}
+              setIrisIndicateur={mapLayers.setIrisIndicateur}
+              setIrisPalette={mapLayers.setIrisPalette}
+              setIrisOpacity={mapLayers.setIrisOpacity}
+              setIrisTrueOnly={mapLayers.setIrisTrueOnly}
+              campagneActive={campagneActive}
+              onFermerCampagneActive={handleFermerCampagneActive}
+              selectedPOI={selectedPOI}
+              onSelectedPOIChange={setSelectedPOI}
+              onDirectSearch={handleDirectSearch}
+              onPOIStylesChange={setPoiStyles}
+              densityMode={densityMode}
+              onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
+              scope={perimeterScope}
+              selectedRegions={perimeterSelectedRegions}
+              selectedDepts={perimeterSelectedDepts}
+              ville={perimeterVille}
+              onDirectOOH={handleDirectOOH}
+              onLoadTransport={handleLoadTransport}
+              onLoadTMJA={handleLoadTMJA}
+              tmjaVisible={!!tmjaGeoJSON}
+              onClearTMJA={() => setTmjaGeoJSON(null)}
+              tmjaHideLowTraffic={tmjaHideLowTraffic}
+              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
+              radioVisible={radioVisible}
+              onToggleRadio={() => setRadioVisible(v => !v)}
+              radioHeatmapMode={radioHeatmapMode}
+              onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
+              radioCoverageMode={radioCoverageMode}
+              onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
+              radioLoading={radioLoading}
+              radioSystemeFilter={radioSystemeFilter}
+              onRadioSystemeChange={v => setRadioSystemeFilter(v)}
+              onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
+              radioCount={radioGeoJSON?.features.length ?? 0}
+              radioSelectedNom={radioSelectedNom}
+              onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
+              radioFilterOptions={radioFilterOptions}
+              radioFilterIds={radioFilterIds}
+              onRadioFilterIdsChange={setRadioFilterIds}
+              radioExcludeCategories={radioExcludeCategories}
+              onRadioExcludeCategoriesChange={setRadioExcludeCategories}
+              radioCoverageColor={radioCoverageColor}
+              onRadioCoverageColorChange={setRadioCoverageColor}
+              radioCoverageOpacity={radioCoverageOpacity}
+              onRadioCoverageOpacityChange={setRadioCoverageOpacity}
+              radioBorderWidth={radioBorderWidth}
+              onRadioBorderWidthChange={setRadioBorderWidth}
+              radioPointSize={radioPointSize}
+              onRadioPointSizeChange={setRadioPointSize}
+              onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
+              civicVariableCode={civicVariableCode}
+              onCivicVariableChange={setCivicVariableCode}
+              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
+              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
+              civicHealthLayer={civicHealthLayer}
+              onCivicHealthLayerChange={layer => {
+                setCivicProgress(null);
+                setCivicMetric('global');
+                setCivicHealthLayer(layer);
+              }}
+              civicProgress={civicProgress}
+              civicLoading={civicLoading}
+              civicScale={civicScale}
+              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
+              civicMetric={civicMetric}
+              onCivicMetricChange={setCivicMetric}
+              civicMinLevel={civicMinLevel}
+              onCivicMinLevelChange={setCivicMinLevel}
+              civicCpStatus={civicCpStatus}
+              civicCpDate={civicCpDate}
+              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
+              onOpenMeteo={() => setMeteoPanelOpen(true)}
+              onClearMeteo={() => { onDegrade('meteo', false); handleMeteoClear(); }}
+              meteoVisible={meteoVisible}
+              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
+            />
+          )}
           {CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive] && (
             <FilterPanel
               visibleCategory={CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive]}
@@ -929,6 +1094,26 @@ export default function MapPage() {
         onLoadingChange={setCivicLoading}
       />
       <SuiviMapLayer mapRef={mapRef} />
+      <LegendeCarte
+        degradeActif={mapLayers.degradeActif}
+        carreauxIndicateur={mapLayers.carreauxIndicateur}
+        carreauxPalette={mapLayers.carreauxPalette}
+        carreauxRange={mapLayers.carreauxRange}
+        carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
+        setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
+        irisPalette={mapLayers.irisPalette}
+        irisBornes={mapLayers.irisBornes}
+        civicVariableCode={civicVariableCode}
+        civicHealthLayer={civicHealthLayer}
+        civicMinLevel={civicMinLevel}
+        meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
+        campagneActive={campagneActive}
+        selectedPOI={selectedPOI}
+        tmjaVisible={!!tmjaGeoJSON}
+        tmjaHideLowTraffic={tmjaHideLowTraffic}
+        radioVisible={radioVisible}
+        radioCoverageColor={radioCoverageColor}
+      />
       <CaptureLayers
         clusterGeoJSON={clusterGeoJSON}
         clustersVisible={clustersVisible}
@@ -1102,7 +1287,12 @@ export default function MapPage() {
                 // Panneau maintenu ouvert pendant le fetch (spinner) et en cas
                 // d'erreur (le message s'affiche dedans) — fermé sur succès.
                 const ok = await handleMeteoApply(params);
-                if (ok) setMeteoPanelOpen(false);
+                if (ok) {
+                  // Exclusivité des dégradés (Tâche 6) : la météo devient le
+                  // dégradé actif, évince l'ancien (toast) si besoin.
+                  onDegrade('meteo', true);
+                  setMeteoPanelOpen(false);
+                }
               }}
               onClose={() => setMeteoPanelOpen(false)}
               loading={meteo.loading}
