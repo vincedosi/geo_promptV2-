@@ -491,6 +491,11 @@ describe('filtre unique', () => {
   it('retombe sur la metropole si le filtre n a pas encore sa bbox', () => {
     expect(bboxDuFiltre(dept)).toEqual(BBOX_METRO);
   });
+
+  it('ne bascule pas sur un meme code porte par un type different', () => {
+    const zone: FiltreActif = { type: 'zone', code: '13', label: 'Zone 13' };
+    expect(poserFiltre(dept, zone)).toEqual(zone);
+  });
 });
 ```
 
@@ -517,8 +522,16 @@ Attendu : ÉCHEC — module introuvable.
  * strategie couvre toute la campagne (voir l'encart de l'onglet Strategie).
  */
 
-/** Bbox metropole — plafond impose par CLAUDE.md, jamais la France entiere + DROM. */
-export const BBOX_METRO: readonly [number, number, number, number] = [-5.5, 41.2, 9.8, 51.2];
+/**
+ * Bbox metropole — plafond impose par CLAUDE.md, jamais la France entiere + DROM.
+ *
+ * GELEE a l'execution, et pas seulement `readonly` : `bboxDuFiltre` rend TOUJOURS
+ * cette meme reference pour le cas par defaut. Un `as number[]` suffirait a la
+ * muter en place, et la bbox de secours serait corrompue pour tous les appels
+ * suivants — c'est-a-dire le garde-fou du budget I/O lui-meme.
+ */
+export const BBOX_METRO: readonly [number, number, number, number] =
+  Object.freeze([-5.5, 41.2, 9.8, 51.2]) as readonly [number, number, number, number];
 
 export type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone';
 
@@ -557,7 +570,7 @@ export function bboxDuFiltre(f: FiltreActif | null): readonly [number, number, n
 
 - [ ] **Étape 4 : relancer, vérifier le succès**
 
-Commande : `npx vitest run tests/unit/carte/filtre.test.ts` → SUCCÈS, 6 tests.
+Commande : `npx vitest run tests/unit/carte/filtre.test.ts` → SUCCÈS, 7 tests.
 
 - [ ] **Étape 5 : commit**
 
