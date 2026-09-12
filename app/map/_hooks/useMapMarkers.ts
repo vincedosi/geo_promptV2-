@@ -14,8 +14,9 @@
  *   - > 500 POI (ou mode densite force) -> heatmap `pois-heat`
  *   - > 300 POI                         -> couches MapLibre (pas de DOM)
  *   - sinon                             -> marqueurs DOM + popups
- * Pas d'opacite conditionnee au zoom sur /map : les requetes nationales du
- * FilterPanel cadrent la France (z ~5-6) et masqueraient tous les marqueurs.
+ * Pas d'opacite conditionnee au zoom sur /map : les requetes nationales des
+ * panneaux (PanneauFiltre, PanneauCalques) cadrent la France (z ~5-6) et
+ * masqueraient tous les marqueurs.
  */
 import { useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
@@ -201,5 +202,5 @@ export function useMapMarkers(
   }, [zoneData, mapReady, densityMode, poiStyles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Note: no zoom-based opacity hiding on /map page — markers stay visible at all zoom levels.
-  // (FilterPanel sends national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
+  // (the panels send national queries that fitBounds to France zoom ~5-6, hiding markers at z<10)
 }

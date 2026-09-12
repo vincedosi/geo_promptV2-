@@ -48,6 +48,16 @@ export function OverlayPanel({
   const [closing, setClosing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Identité stable de `handleClose` (round de correction 1, Tâche 8) :
+  // `onClose` est souvent une fonction fléchée inline côté appelant
+  // (`onClose={() => setEntreeActive(null)}`), recréée à chaque rendu de
+  // `MapPage`. Sans ces refs, `handleClose` changeait d'identité à chaque
+  // rendu, ré-empilait dans la pile Echap à chaque rendu (page.tsx re-rend à
+  // chaque jeton de streaming du chat) et pouvait — même après le correctif
+  // du module `pile-echap.ts` — refaire tourner cet effet inutilement.
+  const closingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   // Morph inter-catégories : quand l'utilisateur switch d'overlay (Périmètre →
   // Analyses) sans fermer, on re-trigger une mini-animation sur header+body
@@ -65,12 +75,16 @@ export function OverlayPanel({
     }
   }, [category]);
 
-  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après EXIT_DURATION
+  // Wrappe l'appel parent : déclenche l'animation de sortie puis unmount après
+  // EXIT_DURATION. Deps vides : identité stable (voir les refs ci-dessus),
+  // condition de garde sur `closingRef` (pas sur le state `closing`, qui
+  // romprait la stabilité), `onClose` toujours lu via sa ref à jour.
   const handleClose = useCallback(() => {
-    if (closing) return;
+    if (closingRef.current) return;
+    closingRef.current = true;
     setClosing(true);
-    closeTimerRef.current = setTimeout(() => onClose(), EXIT_DURATION_MS);
-  }, [closing, onClose]);
+    closeTimerRef.current = setTimeout(() => onCloseRef.current(), EXIT_DURATION_MS);
+  }, []);
 
   useEffect(() => () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);

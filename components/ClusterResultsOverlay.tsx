@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
+import { empiler, depiler } from '@/lib/carte/pile-echap';
+
+/** Identifiant fixe dans la pile Echap. */
+const PILE_ID = 'cluster-results';
 
 const ClusterDetails = dynamic(
   () => import('@/components/ClusterDetails').then((m) => ({ default: m.ClusterDetails })),
@@ -18,13 +22,14 @@ interface Props {
 }
 
 export function ClusterResultsOverlay({ version, onClose }: Props) {
-  // Close on Escape
+  // Escape — via la pile Echap (lib/carte/pile-echap.ts) : ce tiroir peut
+  // s'ouvrir alors que le panneau Analyse est empilé en dessous (il est monté
+  // par ClusteringSection) ; un listener direct fermait les DEUX d'un coup sur
+  // une seule pression (round de correction 1, Tâche 8, signalé sans être
+  // corrigé au round précédent).
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    empiler(PILE_ID, onClose);
+    return () => depiler(PILE_ID);
   }, [onClose]);
 
   // Monte-t-on dans le DOM ? `createPortal` exige un `document`, absent au

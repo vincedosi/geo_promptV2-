@@ -5,6 +5,17 @@
  * OverlayPanel.tsx:74, MagelianOverlay.tsx:241, ClusterPanel.tsx:243) sans
  * ordre impose : le commentaire de page.tsx:146 assumait une priorite que
  * rien ne garantissait. Ici, dernier ouvert = premier ferme.
+ *
+ * Round de correction 1 (2026-09-12) : `empiler` faisait `depiler(id)` puis
+ * repoussait l'entree — donc RE-empiler un id deja present le faisait
+ * remonter au sommet. Or les composants appelants passent une fonction de
+ * fermeture dont l'identite change a chaque rendu (`onClose` inline,
+ * `handleClose` qui en depend) et re-empilent a chaque effet. Concretement :
+ * Assistant ouvert (re-rendu a chaque jeton de streaming), Campagne ouverte
+ * par-dessus — a chaque jeton, `'assistant'` repassait au sommet et Echap
+ * fermait l'Assistant au lieu de l'overlay reellement au-dessus. Desormais,
+ * ré-empiler un id EXISTANT met a jour sa fonction de fermeture SANS changer
+ * sa position ; seul un id NOUVEAU part au sommet.
  */
 interface Entree { id: string; fermer: () => void; }
 
@@ -14,7 +25,11 @@ const pile: Entree[] = [];
 export function etatPile(): Entree[] { return pile; }
 
 export function empiler(id: string, fermer: () => void): void {
-  depiler(id);
+  const existante = pile.find(e => e.id === id);
+  if (existante) {
+    existante.fermer = fermer;
+    return;
+  }
   pile.push({ id, fermer });
 }
 

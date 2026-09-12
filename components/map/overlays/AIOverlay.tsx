@@ -37,12 +37,23 @@ const EXIT_DURATION_MS = 200;
 export function AIOverlay({ chatSlot, onClose, topOffset = 0 }: AIOverlayProps) {
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Identité stable de `handleClose` (round de correction 1, Tâche 8) :
+  // `onClose` est une fonction fléchée inline côté page.tsx
+  // (`onClose={() => setEntreeActive(null)}`), recréée à chaque rendu de
+  // `MapPage` — et ce composant se re-rend à chaque jeton de streaming du
+  // chat. Sans ces refs, `handleClose` changeait d'identité à chaque rendu et
+  // ré-empilait dans la pile Echap à chaque jeton (corrigé aussi côté module
+  // pur, `lib/carte/pile-echap.ts`, mais autant ne pas refaire ce travail).
+  const closingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   const handleClose = useCallback(() => {
-    if (closing) return;
+    if (closingRef.current) return;
+    closingRef.current = true;
     setClosing(true);
-    closeTimerRef.current = setTimeout(() => onClose(), EXIT_DURATION_MS);
-  }, [closing, onClose]);
+    closeTimerRef.current = setTimeout(() => onCloseRef.current(), EXIT_DURATION_MS);
+  }, []);
 
   useEffect(() => {
     empiler(PILE_ID, handleClose);

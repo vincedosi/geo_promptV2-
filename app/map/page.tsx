@@ -73,6 +73,7 @@ import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
+import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
 import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
@@ -212,14 +213,14 @@ export default function MapPage() {
 
   // ── Un seul listener clavier global : raccourcis du rail (entreeParRaccourci,
   // lib/navigation/config.ts) + Escape (fermerLePlusHaut, lib/carte/pile-echap.ts).
-  // Ne vole jamais une frappe de saisie : ignore si le focus est dans un champ
-  // (garde reprise de l'ancien IconBar.tsx:57-59, supprimé Tâche 2). ──
+  // La garde de saisie (lib/navigation/garde-saisie.ts, round de correction 1)
+  // ne s'applique JAMAIS à Echap : taper dans l'Assistant ou une recherche de
+  // panneau ne doit pas désactiver la touche qui les ferme. Elle ne filtre que
+  // les raccourcis à modificateur, portée reprise de l'ancien IconBar.tsx:57-59
+  // (supprimé Tâche 2), qui ne scopait sa garde qu'au seul raccourci `/`. ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const el = document.activeElement;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) {
-        return;
-      }
+      if (ignorerRaccourciClavier(e.key, document.activeElement)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         fermerLePlusHaut();
@@ -936,15 +937,26 @@ export default function MapPage() {
     aide: () => <HelpOverlay />,
   };
 
+  // Définition de l'entrée active — source unique pour savoir OÙ elle
+  // s'affiche (round de correction 1, Tâche 8) : lire `type` depuis
+  // `ENTREES_NAVIGATION` au lieu de comparer l'id à `'assistant'` en dur,
+  // précisément pour ne pas reproduire la dette que cette tâche referme
+  // (une seule entrée porte aujourd'hui `'tiroir-droit'`, mais le jour où une
+  // deuxième apparaît, une comparaison d'id ne la verrait pas).
+  const entreeActiveDef = entreeActive ? ENTREES_NAVIGATION.find(e => e.id === entreeActive) : undefined;
+
   // Décalage horizontal des boutons flottants de la carte (immersif, tout
   // effacer, script bidding, rouvrir le plan média) : ils s'écartaient déjà du
   // plan média (`PANEL_WIDTH`) ; ils doivent s'écarter du tiroir Assistant
   // aussi maintenant qu'il s'ouvre à droite (Tâche 8), sans quoi il flotte
-  // par-dessus le chat (les deux sont ancrés `right: 0`).
-  const railBoutonsRight =
+  // par-dessus le chat (les deux sont ancrés `right: 0`). Plafonné à
+  // `calc(100vw - 60px)` (round de correction 1) : plan média (600) + tiroir
+  // (380) ouverts ensemble poussaient les boutons hors d'un écran étroit.
+  const railBoutonsRight = `min(${
     10
     + (planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 0)
-    + (entreeActive === 'assistant' ? LARGEUR_TIROIR_ASSISTANT + 10 : 0);
+    + (entreeActiveDef?.type === 'tiroir-droit' ? LARGEUR_TIROIR_ASSISTANT + 10 : 0)
+  }px, calc(100vw - 60px))`;
 
   return (
     <div style={{
@@ -962,18 +974,18 @@ export default function MapPage() {
         pastille={filtre !== null}
       />
       <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
-      {entreeActive === 'assistant' && (
+      {entreeActiveDef?.type === 'tiroir-droit' && (
         <AIOverlay
           chatSlot={chatSlotContent}
           onClose={() => setEntreeActive(null)}
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
         />
       )}
-      {entreeActive && entreeActive !== 'assistant' && (
+      {entreeActive && entreeActiveDef?.type === 'panneau-gauche' && (
         <OverlayPanel
           topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
           category={entreeActive}
-          title={ENTREES_NAVIGATION.find(e => e.id === entreeActive)?.label ?? ''}
+          title={entreeActiveDef.label}
           dotColor={DOT_PAR_ENTREE[entreeActive] ?? 'var(--text-tertiary)'}
           onClose={() => setEntreeActive(null)}
         >

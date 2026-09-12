@@ -25,4 +25,21 @@ describe('pile Echap', () => {
   it('ne casse pas quand la pile est vide', () => {
     expect(() => fermerLePlusHaut()).not.toThrow();
   });
+
+  it('re-empiler un id deja present conserve sa position (round de correction 1)', () => {
+    // Un composant dont le callback de fermeture change d'identite a chaque
+    // rendu (onClose inline, handleClose qui en depend) ne doit PAS remonter
+    // au sommet de la pile a chaque re-rendu — seule une VRAIE ouverture doit
+    // le faire. Sans ce comportement, un Assistant qui re-rend a chaque jeton
+    // de streaming reprend le sommet sur une Campagne ouverte par-dessus, et
+    // Echap ferme le mauvais overlay.
+    const ordre: string[] = [];
+    empiler('A', () => ordre.push('A'));
+    empiler('B', () => ordre.push('B'));
+    empiler('A', () => ordre.push('A')); // re-empilage : A ne doit pas remonter
+    fermerLePlusHaut();
+    expect(ordre).toEqual(['B']);
+    fermerLePlusHaut();
+    expect(ordre).toEqual(['B', 'A']);
+  });
 });
