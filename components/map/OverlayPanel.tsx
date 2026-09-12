@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import type { OverlayId } from './IconBar';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU, type EntreeId } from '@/lib/navigation/config';
 
 interface OverlayPanelProps {
-  category: OverlayId;
+  category: EntreeId;
   title: string;
   dotColor: string;
   onClose: () => void;
@@ -82,13 +82,13 @@ export function OverlayPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [handleClose]);
 
-  // Click-outside : ferme si le clic est hors de l'overlay ET hors de l'IconBar
+  // Click-outside : ferme si le clic est hors de l'overlay ET hors du rail
   useEffect(() => {
     function onClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest('.overlay-panel')) return;
-      if (target.closest('.icon-bar')) return;
+      if (target.closest('.rail-navigation')) return;
       handleClose();
     }
     // Décaler d'un tick pour ne pas catcher le clic d'ouverture
@@ -110,7 +110,7 @@ export function OverlayPanel({
       style={{
         position: 'fixed',
         top: 12 + topOffset,
-        left: 56, // 48 IconBar + 8 gap
+        left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
         width: expanded ? 'calc(100vw - 80px)' : width,
         maxWidth: expanded ? 'calc(100vw - 80px)' : undefined,
         maxHeight: `calc(100vh - 24px - ${topOffset}px)`,

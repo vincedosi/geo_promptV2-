@@ -12,6 +12,7 @@ import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
+import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
 
 // ── Design tokens (DESIGN_SYSTEM.md — jamais de hex en dur) ─────────────────────
 const fInter = "'Inter', system-ui, sans-serif";
@@ -31,12 +32,13 @@ interface CampaignRef {
 
 export function MagelianOverlay() {
   const { open, request, closeOverlay, clearRequest } = useMagelianOverlay();
-  // Sur /map il n'y a pas de sidebar 240px mais le rail d'icônes 48px :
-  // l'overlay se cale à droite du rail (56) au lieu de la sidebar (256).
+  // Sur /map il n'y a pas de sidebar 240px mais le rail de navigation
+  // (LARGEUR_RAIL) : l'overlay se cale à droite du rail (rail + écart) au
+  // lieu de la sidebar (256).
   const pathname = usePathname();
   const onMap = pathname?.startsWith('/map') ?? false;
-  const panelLeft = onMap ? 56 : 256;
-  const panelWidth = onMap ? 'calc(100vw - 68px)' : 'calc(100vw - 268px)';
+  const panelLeft = onMap ? LARGEUR_RAIL + ECART_RAIL_PANNEAU : 256;
+  const panelWidth = onMap ? `calc(100vw - ${LARGEUR_RAIL + ECART_RAIL_PANNEAU + 12}px)` : 'calc(100vw - 268px)';
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);

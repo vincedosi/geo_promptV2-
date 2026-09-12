@@ -2,6 +2,7 @@
 
 import { SessionBadge } from '@/components/SessionBadge';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LARGEUR_RAIL } from '@/lib/navigation/config';
 
 /** Hauteur de la top bar — utilisée par page.tsx pour caler paddingTop. */
 export const MAP_TOPBAR_HEIGHT = 44;
@@ -10,7 +11,7 @@ export const MAP_TOPBAR_HEIGHT = 44;
  * Top bar horizontale pour la page /map :
  *   [logo MAGELIAN] …………………… [theme toggle] [workspace ▾] [email ▾]
  *
- * Positionnée à droite de l'IconBar (left: 48) pour ne pas chevaucher le
+ * Positionnée à droite du rail (left: LARGEUR_RAIL) pour ne pas chevaucher le
  * rail vertical. Reste au-dessus des overlays (z-index: 45, au-dessus de
  * l'OverlayPanel z:40).
  */
@@ -21,7 +22,7 @@ export function MapTopBar() {
       style={{
         position: 'fixed',
         top: 0,
-        left: 48,
+        left: LARGEUR_RAIL,
         right: 0,
         height: MAP_TOPBAR_HEIGHT,
         zIndex: 45,

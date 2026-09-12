@@ -4,8 +4,10 @@ import { logger } from '@/lib/logger';
 /**
  * @file FilterPanel.tsx — composant central de filtrage MAGELIAN (carte /map)
  *
- * Rendu par /map dans l'overlay du rail, avec `visibleCategory` qui selectionne
- * un des 4 blocs de sections (perimeter / terrain / audience / analyses).
+ * Rendu par /map dans le panneau ouvert par le rail, avec `visibleCategory` qui
+ * selectionne un ou plusieurs des 4 blocs de sections (perimeter / terrain /
+ * audience / analyses) — un tableau affiche plusieurs blocs dans le meme panneau
+ * (entree « Calques » du rail, cf lib/navigation/config.ts).
  *
  * Ce fichier n'est plus qu'un ASSEMBLEUR : il cable des hooks d'etat a des
  * composants de section, et ne porte que le squelette de rendu (tabs, barre de
@@ -85,8 +87,9 @@ export type {
   DirectBattleV2Params,
   FillIsochroneCacheParams,
   FilterPanelProps,
+  CategorieFiltre,
 } from './filter-panel/types';
-import type { FilterPanelProps } from './filter-panel/types';
+import type { FilterPanelProps, CategorieFiltre } from './filter-panel/types';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function FilterPanel({
@@ -143,6 +146,13 @@ export function FilterPanel({
   scope:           scopeProp,           onScopeChange,
 }: FilterPanelProps) {
   const isOverlayMode = !!visibleCategory;
+  // `visibleCategory` accepte une categorie seule ou un tableau (l'entree
+  // « Calques » du rail affiche audience + terrain dans le meme panneau —
+  // voir lib/navigation/config.ts, Tache 2).
+  const categoriesVisibles: CategorieFiltre[] | null = visibleCategory == null
+    ? null
+    : Array.isArray(visibleCategory) ? visibleCategory : [visibleCategory];
+  const categorieVisible = (cat: CategorieFiltre) => !categoriesVisibles || categoriesVisibles.includes(cat);
 
   // ── Recherche + sections repliables ────────────────────────────────
   const {
@@ -508,7 +518,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — CONTEXTE (ex-Territoire)
         ════════════════════════════════════════ */}
-        {(!visibleCategory || visibleCategory === 'perimeter') && (
+        {categorieVisible('perimeter') && (
           <PerimeterSections
             isOverlayMode={isOverlayMode}
             filterSearch={filterSearch}
@@ -539,7 +549,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — DONNÉES TERRAIN (ex-POI)
         ════════════════════════════════════════ */}
-        {(!visibleCategory || visibleCategory === 'terrain') && (
+        {categorieVisible('terrain') && (
         <CategoryGroup title="Données terrain" color="var(--cat-terrain)" colorRgb="78,205,196" defaultOpen={true} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -641,7 +651,7 @@ export function FilterPanel({
             Règle de tri : Terrain = le physique · Audience = les gens et
             leur environnement · Analyses = ce qui se calcule.
         ════════════════════════════════════════ */}
-        {(!visibleCategory || visibleCategory === 'audience') && (
+        {categorieVisible('audience') && (
         <CategoryGroup title="Audience" color="var(--cat-socio)" colorRgb="91,155,213" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
@@ -741,7 +751,7 @@ export function FilterPanel({
         {/* ════════════════════════════════════════
             CATÉGORIE — ANALYSES (ex-Analyse)
         ════════════════════════════════════════ */}
-        {(!visibleCategory || visibleCategory === 'analyses') && (
+        {categorieVisible('analyses') && (
         <CategoryGroup title="Analyses" color="var(--cat-analysis)" colorRgb="232,132,92" defaultOpen={isOverlayMode ? true : false} collapsible={!isOverlayMode} hideHeader={isOverlayMode}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 

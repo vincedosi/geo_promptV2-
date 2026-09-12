@@ -14,6 +14,9 @@ import type { ClusterGeoJSON } from '../ClusterPanel';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
 import type { POIStylesMap } from './poi-style';
 
+/** Les quatre catégories de blocs que le FilterPanel sait afficher en mode overlay. */
+export type CategorieFiltre = 'perimeter' | 'terrain' | 'audience' | 'analyses';
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface DirectPOISearchParams {
   poi_types: string[];
@@ -206,9 +209,11 @@ export interface FilterPanelProps {
   onRadioPointSizeChange?: (v: number) => void;
   onRecenterFrance?:      () => void;
 
-  /** Mode overlay : rend uniquement la CategoryGroup correspondante sans tabs/HOME/search.
-   *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe. */
-  visibleCategory?: 'perimeter' | 'terrain' | 'audience' | 'analyses';
+  /** Mode overlay : rend uniquement la ou les CategoryGroup correspondantes, sans tabs/HOME/search.
+   *  Quand set, le FilterPanel sert de contenu à un OverlayPanel externe.
+   *  Un tableau affiche plusieurs catégories dans le même panneau — utilisé par
+   *  l'entrée « Calques » du rail (Tâche 2), qui regroupe audience + terrain. */
+  visibleCategory?: CategorieFiltre | CategorieFiltre[];
   /** POI sélectionnés (controlled). Si fourni avec onSelectedPOIChange, l'état persiste
    *  au-delà du cycle mount/unmount du FilterPanel (overlay close → reopen). */
   selectedPOI?: string[];

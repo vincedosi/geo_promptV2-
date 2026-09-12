@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
  *   3. Appels des hooks de domaine (cf ci-dessous)
  *   4. Deep-links URL (?customZone, ?layer=digital, ?overlay=)
  *   5. Marqueurs POI + effacement global des couches
- *   6. Render JSX (MapTopBar + IconBar + OverlayPanel + panneaux latéraux)
+ *   6. Render JSX (MapTopBar + RailNavigation + OverlayPanel + panneaux latéraux)
  *
  * @hooks de domaine — app/map/_hooks/
  *   - useRadioLayer       : émetteurs FM/DAB+, filtres, clusters/heatmap/couverture
@@ -23,7 +23,7 @@ import { logger } from '@/lib/logger';
  * @maintainers Pour étendre ce fichier :
  *   - NE PAS ajouter de `useState` au top pour un nouveau domaine — créer un
  *     hook dans `app/map/_hooks/`, appelé après `useMapInit`
- *   - Les overlays (IconBar items) sont déjà isolés dans
+ *   - Les overlays (entrées du rail) sont déjà isolés dans
  *     `components/map/overlays/`
  *   - Lire docs/known_tech_debt.md avant refactor structurel
  */
@@ -54,7 +54,7 @@ import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
 import { FilterPanel } from '@/app/map/_components/FilterPanel';
-import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap } from '@/app/map/_components/FilterPanel';
+import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap, CategorieFiltre } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
@@ -66,26 +66,70 @@ import dynamic from 'next/dynamic';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
 import type { ZoneData, BattleResult } from '@/types/spatial';
 import { ChatPanel }       from '@/app/copilote/_components/ChatPanel';
-import { IconBar, type OverlayId } from '@/components/map/IconBar';
+import { RailNavigation } from '@/components/map/RailNavigation';
 import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
+import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
+import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
+import { LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
 import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
+
+// ─── Adaptateur transitoire rail → panneaux (Tâche 2) ──────────────────────────
+// Le rail (lib/navigation/config.ts) émet cinq thèmes, mais les panneaux
+// existants n'existent qu'aux anciennes catégories perimeter/terrain/audience/
+// analyses (FilterPanel). Cette table sera retirée aux Tâches 4, 6 et 7 quand
+// « Calques », « Filtre » et « Analyse » auront leurs propres panneaux.
+const CATEGORIES_FILTER_PANEL_PAR_ENTREE: Partial<Record<EntreeId, CategorieFiltre[]>> = {
+  filtre: ['perimeter'],
+  calques: ['audience', 'terrain'], // socio-démo d'abord
+  analyse: ['analyses'],
+};
+
+/** Titre affiché dans l'en-tête de l'OverlayPanel, par entrée du rail. */
+const TITRE_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
+  assistant: 'geo.prompt',
+  filtre: 'Filtre',
+  calques: 'Calques',
+  analyse: 'Analyse',
+  zones: 'Zones sauvegardées',
+  reglages: 'Réglages',
+  aide: 'Aide',
+};
+
+/** Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail. */
+const DOT_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
+  assistant: 'var(--brand-teal)',
+  filtre: 'var(--cat-context)',
+  calques: 'var(--cat-terrain)',
+  analyse: 'var(--cat-analysis)',
+  zones: 'var(--brand-teal)',
+  reglages: 'var(--text-tertiary)',
+  aide: 'var(--text-tertiary)',
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
-  const [iconBarHidden, setIconBarHidden] = useState(false);
-  const [activeOverlay, setActiveOverlay] = useState<OverlayId | null>(null);
-  const handleOverlayToggle = useCallback((id: OverlayId) => {
-    setActiveOverlay(prev => prev === id ? null : id);
-  }, []);
+  const [railMasque, setRailMasque] = useState(false);
+  const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
+  const { openOverlay } = useMagelianOverlay();
+  // Adaptateur transitoire (Tâche 2) : « Campagne » n'ouvre pas un panneau du
+  // rail mais l'overlay MAGELIAN plein écran, via son propre contexte — elle
+  // ne devient donc jamais `entreeActive`.
+  const handleEntree = useCallback((id: EntreeId) => {
+    if (id === 'campagne') {
+      openOverlay();
+      return;
+    }
+    setEntreeActive(prev => prev === id ? null : id);
+  }, [openOverlay]);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
   // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
@@ -143,14 +187,14 @@ export default function MapPage() {
 
 
 
-  // ── Esc : si IconBar masquée, la ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
+  // ── Esc : si le rail est masqué, le ré-afficher (priorité basse — OverlayPanel Esc gère en premier) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && iconBarHidden) { setIconBarHidden(false); e.preventDefault(); }
+      if (e.key === 'Escape' && railMasque) { setRailMasque(false); e.preventDefault(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [iconBarHidden]);
+  }, [railMasque]);
 
   useEffect(() => {
     const stored = localStorage.getItem('genesis_map_style');
@@ -635,44 +679,29 @@ export default function MapPage() {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', background: 'var(--bg-primary)',
-      paddingLeft: iconBarHidden ? 0 : 48,
-      paddingTop: iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT,
+      paddingLeft: railMasque ? 0 : LARGEUR_RAIL,
+      paddingTop: railMasque ? 0 : MAP_TOPBAR_HEIGHT,
       transition: 'padding-left 200ms var(--ease-out), padding-top 200ms var(--ease-out)',
     }}>
-      {!iconBarHidden && <MapTopBar />}
-      <IconBar
-        activeItem={activeOverlay}
-        onItemClick={handleOverlayToggle}
-        hidden={iconBarHidden}
+      {!railMasque && <MapTopBar />}
+      <RailNavigation
+        entreeActive={entreeActive}
+        onEntree={handleEntree}
+        masque={railMasque}
+        badgeAlertes={0 /* source du compte d'alertes : viendra avec l'onglet Suivi */}
       />
-      {activeOverlay && (
+      {entreeActive && (
         <OverlayPanel
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
-          category={activeOverlay}
-          title={
-            activeOverlay === 'ai' ? 'geo.prompt' :
-            activeOverlay === 'perimeter' ? 'Périmètre' :
-            activeOverlay === 'terrain' ? 'Données terrain' :
-            activeOverlay === 'audience' ? 'Audience' :
-            activeOverlay === 'analyses' ? 'Analyses' :
-            activeOverlay === 'zones' ? 'Zones sauvegardées' :
-            'Réglages'
-          }
-          dotColor={
-            activeOverlay === 'ai' ? 'var(--brand-teal)' :
-            activeOverlay === 'perimeter' ? 'var(--cat-context)' :
-            activeOverlay === 'terrain' ? 'var(--cat-terrain)' :
-            activeOverlay === 'audience' ? 'var(--cat-socio)' :
-            activeOverlay === 'analyses' ? 'var(--cat-analysis)' :
-            activeOverlay === 'zones' ? 'var(--brand-teal)' :
-            'var(--text-tertiary)'
-          }
-          onClose={() => setActiveOverlay(null)}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
+          category={entreeActive}
+          title={TITRE_PAR_ENTREE[entreeActive] ?? ''}
+          dotColor={DOT_PAR_ENTREE[entreeActive] ?? 'var(--text-tertiary)'}
+          onClose={() => setEntreeActive(null)}
         >
-          {activeOverlay === 'ai' && <AIOverlay chatSlot={chatSlotContent} />}
-          {(activeOverlay === 'perimeter' || activeOverlay === 'terrain' || activeOverlay === 'audience' || activeOverlay === 'analyses') && (
+          {entreeActive === 'assistant' && <AIOverlay chatSlot={chatSlotContent} />}
+          {CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive] && (
             <FilterPanel
-              visibleCategory={activeOverlay}
+              visibleCategory={CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive]}
               chatSlot={null}
               sendMessage={chat.sendMessage}
               onDirectOOH={handleDirectOOH}
@@ -813,10 +842,10 @@ export default function MapPage() {
               onScopeChange={setPerimeterScope}
             />
           )}
-          {activeOverlay === 'zones' && (
+          {entreeActive === 'zones' && (
             <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
           )}
-          {activeOverlay === 'settings' && (
+          {entreeActive === 'reglages' && (
             <SettingsOverlay
               mapStyles={MAP_STYLES as unknown as { id: string; label: string; url: string }[]}
               currentMapStyleUrl={mapStyleUrl}
@@ -825,6 +854,7 @@ export default function MapPage() {
               saveLoading={savedMaps.saveLoading}
             />
           )}
+          {entreeActive === 'aide' && <HelpOverlay />}
         </OverlayPanel>
       )}
       <CivicIndicatorsLayer mapRef={mapRef} variableCode={civicVariableCode} />
@@ -832,7 +862,7 @@ export default function MapPage() {
       {planZones.length > 0 && planPanelOpen && (
         <ZoneMediaPlanPanel
           zones={planZones}
-          topOffset={iconBarHidden ? 0 : MAP_TOPBAR_HEIGHT}
+          topOffset={railMasque ? 0 : MAP_TOPBAR_HEIGHT}
           onClose={() => setPlanPanelOpen(false)}
         />
       )}
@@ -842,7 +872,7 @@ export default function MapPage() {
           title="Rouvrir le plan média des zones affichées"
           style={{
             position: 'fixed',
-            top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
+            top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 126,
             right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
             zIndex: 50,
             display: 'flex', alignItems: 'center', gap: 6,
@@ -894,15 +924,15 @@ export default function MapPage() {
         {/* Map area */}
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
 
-          {/* Mode immersif : toggle IconBar — z=50 pour rester cliquable au-dessus de l'overlay
+          {/* Mode immersif : toggle du rail — z=50 pour rester cliquable au-dessus de l'overlay
              Le bouton descend sous la MapTopBar quand elle est affichée. */}
           <button
-            onClick={() => setIconBarHidden(h => !h)}
-            title={iconBarHidden ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
-            aria-pressed={iconBarHidden}
+            onClick={() => setRailMasque(h => !h)}
+            title={railMasque ? 'Afficher la barre (Escape)' : 'Masquer la barre (mode immersif)'}
+            aria-pressed={railMasque}
             style={{
               position: 'fixed',
-              top: iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8,
+              top: railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8,
               right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
@@ -914,7 +944,7 @@ export default function MapPage() {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-level-2)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            {iconBarHidden ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
+            {railMasque ? <Maximize2 size={16} strokeWidth={1.5} /> : <Minimize2 size={16} strokeWidth={1.5} />}
           </button>
 
           {/* Tout effacer — vide toutes les couches et zones affichées */}
@@ -923,7 +953,7 @@ export default function MapPage() {
             title="Tout effacer (couches et zones affichées)"
             style={{
               position: 'fixed',
-              top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
+              top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 42,
               right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
               zIndex: 50,
               background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
@@ -946,7 +976,7 @@ export default function MapPage() {
               title={`Générer le fichier custom bidding DV360 pour « ${battlePois[0]?.nom ?? 'zone custom'} »`}
               style={{
                 position: 'fixed',
-                top: (iconBarHidden ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
+                top: (railMasque ? 10 : MAP_TOPBAR_HEIGHT + 8) + 84,
                 right: planPanelOpen && planZones.length ? PANEL_WIDTH + 10 : 10,
                 zIndex: 50,
                 display: 'flex', alignItems: 'center', gap: 6,

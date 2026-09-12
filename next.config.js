@@ -47,6 +47,8 @@ const nextConfig = {
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: true },
+  // Le badge de dev se posait en bas a gauche, sur les dernieres entrees du rail.
+  devIndicators: { position: 'bottom-right' },
   // Pas de bloc `experimental` : les deux cles qui s'y trouvaient sont parties
   // au passage a Next 15 (2026-09-10).
   //
