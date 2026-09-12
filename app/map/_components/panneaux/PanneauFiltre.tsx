@@ -27,6 +27,16 @@
  * restent des etats LOCAUX (non partages) : seul le scope pilotait une requete
  * en dehors de ce panneau.
  *
+ * Round 2 de correction : cliquer un pill Metro/+DROM vide deja les
+ * selecteurs region/departement/ville/CP du widget (via `selectScope` de
+ * `use-territory-selection.ts`, non modifie — hook partage avec `FilterPanel`)
+ * mais ne le disait jamais au `FiltreActif` : le panneau affichait un
+ * territoire vierge pendant que le chip, lui, continuait de borner les
+ * requetes et la bataille isochrone sur le filtre resté actif. `selectScope`
+ * est enveloppe ici pour retirer aussi le filtre s'il est territorial
+ * (region/departement/commune/cp) — un filtre `zone` survit, il n'est pas
+ * administratif. Voir `filtreApresChangementScope` (panneau-filtre-logique.ts).
+ *
  * Simplifications assumees (TypeFiltre est un fichier protege, pas de valeur
  * pour un perimetre national) :
  *   - Le perimetre global (« France Metro » / « France + DROM ») ne compose
@@ -73,7 +83,9 @@ import { useFilterSections } from '@/app/map/_components/filter-panel/use-filter
 import { useTerritorySelection } from '@/app/map/_components/filter-panel/use-territory-selection';
 import { C, fInter, fMono } from '@/app/map/_components/filter-panel/tokens';
 import { poserFiltre, type FiltreActif } from '@/lib/carte/filtre';
-import { seedDepuisFiltre, composerFiltreVille, composerFiltreCodePostal } from './panneau-filtre-logique';
+import {
+  seedDepuisFiltre, composerFiltreVille, composerFiltreCodePostal, filtreApresChangementScope,
+} from './panneau-filtre-logique';
 
 type Scope = 'metro' | 'all' | null;
 
@@ -107,7 +119,7 @@ export function PanneauFiltre({ filtre, onFiltre, scope: scopeProp, onScopeChang
   // POI/bataille de FilterPanel, qui derive desormais du `filtre` actif
   // directement — voir FilterPanel.tsx) ───────────────────────────────────
   const {
-    scope, setScope, selectScope,
+    scope, setScope, selectScope: selectScopeRaw,
     selectedRegions, setSelectedRegions: setSelectedRegionsRaw,
     selectedDepts, setSelectedDepts: setSelectedDeptsRaw,
     ville, setVille: setVilleRaw,
@@ -115,6 +127,20 @@ export function PanneauFiltre({ filtre, onFiltre, scope: scopeProp, onScopeChang
     REF_REGIONS, availableDepts,
     territoire, hasTerritoire,
   } = useTerritorySelection({ scope: scopeProp, onScopeChange });
+
+  // ── Round 2 de correction : changer le perimetre global (pill Metro/+DROM)
+  // vide deja les selecteurs region/departement/ville/CP DANS le widget
+  // (selectScope de use-territory-selection.ts, non modifie — hook partage
+  // avec FilterPanel, le toucher risquerait un effet de bord ailleurs) mais
+  // ne le disait jamais au FiltreActif : le chip continuait de borner les
+  // requetes et la bataille isochrone sur un territoire que le panneau
+  // affichait pourtant comme vide. Un filtre 'zone' n'est pas territorial au
+  // sens administratif : il survit au changement de perimetre.
+  const selectScope = useCallback((s: 'metro' | 'all') => {
+    selectScopeRaw(s);
+    const next = filtreApresChangementScope(filtreRef.current);
+    if (next !== filtreRef.current) onFiltre(next);
+  }, [selectScopeRaw, onFiltre]);
 
   const { filterSearch, sectionsOpen, toggleSection } = useFilterSections(true, null);
 

@@ -13,6 +13,14 @@
  *     retrait, jamais un appel à `onFiltre` : un simple affichage.
  *   - `composerFiltreVille` / `composerFiltreCodePostal` : ce qu'une frappe
  *     utilisateur (débouncée) doit composer comme nouveau filtre.
+ *
+ * Round 2 de correction : `filtreApresChangementScope` — cliquer un pill
+ * Métro/+DROM vide déjà les sélecteurs région/département/ville/CP du
+ * widget (`use-territory-selection.ts`, non modifié : hook partagé avec
+ * `FilterPanel`), mais ne disait rien au `FiltreActif` — le chip et le
+ * panneau divergeaient, le chip continuant de borner les requêtes et la
+ * bataille isochrone sur un territoire que le panneau prétendait avoir
+ * quitté.
  */
 import { poserFiltre, type FiltreActif } from '@/lib/carte/filtre';
 
@@ -53,4 +61,19 @@ export function composerFiltreCodePostal(filtreCourant: FiltreActif | null, vale
   const trimmed = valeur.trim();
   if (/^\d{5}$/.test(trimmed)) return poserFiltre(filtreCourant, { type: 'cp', code: trimmed, label: `CP ${trimmed}` });
   return filtreCourant?.type === 'cp' ? null : filtreCourant;
+}
+
+/** Types de filtre « territorial » au sens administratif — un changement de
+ *  périmètre global (Métro/+DROM) les retire, puisqu'il vide déjà les
+ *  sélecteurs région/département/ville/CP correspondants dans le widget. */
+const TYPES_FILTRE_TERRITORIAL = new Set<FiltreActif['type']>(['region', 'departement', 'commune', 'cp']);
+
+/**
+ * Filtre résultant d'un changement de périmètre global (pill Métro/+DROM).
+ * Retire le filtre actif s'il est territorial (region/departement/commune/cp) ;
+ * laisse en place un filtre `'zone'` (zone enregistrée) — pas administratif,
+ * pas concerné par le pill.
+ */
+export function filtreApresChangementScope(filtreCourant: FiltreActif | null): FiltreActif | null {
+  return filtreCourant && TYPES_FILTRE_TERRITORIAL.has(filtreCourant.type) ? null : filtreCourant;
 }

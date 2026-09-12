@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  seedDepuisFiltre, composerFiltreVille, composerFiltreCodePostal,
+  seedDepuisFiltre, composerFiltreVille, composerFiltreCodePostal, filtreApresChangementScope,
 } from '@/app/map/_components/panneaux/panneau-filtre-logique';
 import { bboxPourRequete } from '@/lib/carte/bbox-requete';
 import { BBOX_METRO, type FiltreActif } from '@/lib/carte/filtre';
@@ -69,6 +69,29 @@ describe('panneau-filtre-logique — composerFiltreVille / composerFiltreCodePos
 
   it('vider le champ code postal retire le filtre s il portait sur un cp', () => {
     expect(composerFiltreCodePostal(cp, '')).toBeNull();
+  });
+});
+
+describe('panneau-filtre-logique — filtreApresChangementScope (round 2)', () => {
+  it('un filtre departement actif est retire par un changement de perimetre global', () => {
+    // Le panneau videait deja ses selecteurs (use-territory-selection.ts) sans
+    // le dire au FiltreActif : le chip continuait de borner requetes ET
+    // bataille isochrone sur un territoire que le panneau affichait vide.
+    expect(filtreApresChangementScope(departement)).toBeNull();
+  });
+
+  it('un filtre region/commune/cp actif est retire de meme', () => {
+    expect(filtreApresChangementScope(region)).toBeNull();
+    expect(filtreApresChangementScope(commune)).toBeNull();
+    expect(filtreApresChangementScope(cp)).toBeNull();
+  });
+
+  it('un filtre zone (zone enregistree) survit au changement de perimetre — pas administratif', () => {
+    expect(filtreApresChangementScope(zone)).toBe(zone);
+  });
+
+  it('sans filtre actif, rend null sans effet', () => {
+    expect(filtreApresChangementScope(null)).toBeNull();
   });
 });
 
