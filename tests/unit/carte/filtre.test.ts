@@ -32,4 +32,9 @@ describe('filtre unique', () => {
   it('retombe sur la metropole si le filtre n a pas encore sa bbox', () => {
     expect(bboxDuFiltre(dept)).toEqual(BBOX_METRO);
   });
+
+  it('ne bascule pas sur un meme code porte par un type different', () => {
+    const zone: FiltreActif = { type: 'zone', code: '13', label: 'Zone 13' };
+    expect(poserFiltre(dept, zone)).toEqual(zone);
+  });
 });

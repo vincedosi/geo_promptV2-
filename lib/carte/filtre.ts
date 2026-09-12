@@ -12,8 +12,13 @@
  * strategie couvre toute la campagne (voir l'encart de l'onglet Strategie).
  */
 
-/** Bbox metropole — plafond impose par CLAUDE.md, jamais la France entiere + DROM. */
-export const BBOX_METRO: readonly [number, number, number, number] = [-5.5, 41.2, 9.8, 51.2];
+/**
+ * Bbox metropole — plafond impose par CLAUDE.md, jamais la France entiere + DROM.
+ * Gelee a l'execution via Object.freeze() : c'est une valeur partagee par reference,
+ * et sa mutation corromprait le garde-fou pour tous les appels suivants. Le gel protege
+ * au-dela du contrat readonly du compilateur.
+ */
+export const BBOX_METRO: readonly [number, number, number, number] = Object.freeze([-5.5, 41.2, 9.8, 51.2]);
 
 export type TypeFiltre = 'region' | 'departement' | 'commune' | 'cp' | 'zone';
 
