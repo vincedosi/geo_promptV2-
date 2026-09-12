@@ -1,6 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+/**
+ * @file components/map/overlays/SettingsOverlay.tsx — panneau « Réglages »
+ *
+ * La capture de zone custom (« Capturer zone custom ») a déménagé dans
+ * `PanneauZones` (entrée « Zones » du rail, Tâche 7, 2026-09-12) : elle
+ * fabrique une zone, ce n'est pas un réglage. Voir `app/map/_components/panneaux/PanneauZones.tsx`.
+ *
+ * Le choix du modèle IA (Gemini/Mistral) et l'état de la clé restent pour
+ * l'instant dans l'Assistant (`app/copilote/_components/ChatPanel.tsx`) — la
+ * spec de cette tâche demande de les reclasser ici, mais ce fichier est hors
+ * du périmètre que cette tâche a le droit de toucher (frontière de fichiers
+ * du prompt de tâche). Voir le rapport de tâche 7 pour le signalement complet.
+ */
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,18 +22,9 @@ import {
   Activity,
   Database,
   Users,
-  Save as SaveIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { COLORS, FONTS } from './_shared/styles';
-import dynamic from 'next/dynamic';
-import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
-import { retryImport } from '@/lib/dynamic-with-retry';
-
-const CustomGeoCaptureModal = dynamic(
-  retryImport(() => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
-  { ssr: false, loading: () => null }
-);
 
 export interface SettingsOverlayProps {
   mapStyles: { id: string; label: string; url: string }[];
@@ -74,9 +77,6 @@ export function SettingsOverlay({
   saveLoading,
 }: SettingsOverlayProps) {
   const router = useRouter();
-  const { layerCount } = useCustomGeoCaptureContext();
-  const [customGeoModalOpen, setCustomGeoModalOpen] = useState(false);
-  const customGeoDisabled = layerCount === 0;
 
   return (
     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 20, fontFamily: FONTS.inter }}>
@@ -138,48 +138,8 @@ export function SettingsOverlay({
           >
             {saveLoading ? 'Sauvegarde…' : 'Sauvegarder la vue actuelle'}
           </button>
-          <button
-            type="button"
-            onClick={() => setCustomGeoModalOpen(true)}
-            disabled={customGeoDisabled}
-            title={customGeoDisabled ? 'Aucune zone à capturer (active au moins un layer terrain)' : 'Capturer la vue comme zone custom'}
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: `0.5px solid ${customGeoDisabled ? COLORS.borderDefault : 'var(--brand-teal)'}`,
-              color: customGeoDisabled ? COLORS.textTertiary : 'var(--brand-teal)',
-              borderRadius: 6,
-              padding: '8px 16px',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: customGeoDisabled ? 'not-allowed' : 'pointer',
-              opacity: customGeoDisabled ? 0.5 : 1,
-              fontFamily: FONTS.inter,
-              transition: 'background-color 150ms var(--ease-hover)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-            }}
-            onMouseEnter={e => { if (!customGeoDisabled) e.currentTarget.style.background = 'rgba(78,205,196,0.1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            <SaveIcon size={14} strokeWidth={1.5} />
-            Capturer zone custom
-            {layerCount > 0 && (
-              <span style={{
-                marginLeft: 'auto',
-                minWidth: 18, height: 18, padding: '0 5px',
-                borderRadius: 9, background: 'var(--brand-teal)',
-                color: '#050505', fontFamily: FONTS.mono,
-                fontSize: 10, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{layerCount}</span>
-            )}
-          </button>
         </div>
       </section>
-      {customGeoModalOpen && <CustomGeoCaptureModal onClose={() => setCustomGeoModalOpen(false)} />}
 
       {/* Apparence */}
       <section>

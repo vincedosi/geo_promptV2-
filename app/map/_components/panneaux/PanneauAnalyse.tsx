@@ -1,0 +1,346 @@
+'use client';
+
+/**
+ * @file app/map/_components/panneaux/PanneauAnalyse.tsx — panneau « Analyse »
+ * (Tâche 7, 2026-09-12).
+ *
+ * Contenu de l'entrée « Analyse » du rail (lib/navigation/config.ts) : « Ce que
+ * je calcule ». Regroupe deux blocs repris TELS QUELS depuis l'ex-catégorie
+ * `analyses` de `FilterPanel.tsx` (`VoronoiTool`, `IsochronesTool`,
+ * `BattleV2Tool`, `ClusteringSection`, `SpatialAnalysisEmptyState`/
+ * `SpatialAnalysisTooManyPoi` — fichiers NON déplacés physiquement, seulement
+ * réimportés ici depuis `../filter-panel/`, comme `PanneauCalques` l'a fait
+ * pour les sections Calques à la Tâche 6) :
+ *
+ *   - Analyse spatiale : Voronoï géométrique, Bataille V2 (multi-paliers),
+ *     Isochrones routiers (ORS) — exclusion mutuelle CONSERVÉE telle quelle
+ *     (chaque outil ferme les deux autres, comportement de
+ *     `FilterPanel.tsx:787-851` avant cette tâche).
+ *   - Clustering (K-Means) — `ClusteringSection` telle quelle, PAS de garde
+ *     de périmètre (voir ci-dessous).
+ *
+ * **Garde de périmètre (spec §5, CLAUDE.md — incidents du 28/03 et du 08/04) :**
+ * `lib/carte/garde-perimetre.ts` (logique pure, testée) bloque le lancement de
+ * Voronoï et de la bataille isochrone (vérif. cache, remplissage ORS, lancement
+ * V1/V2) tant qu'aucun `FiltreActif` n'est posé — un calcul France entière est
+ * précisément la famille de requêtes qui a épuisé le budget I/O Nano. NON
+ * appliquée au Clustering : la brief le désigne explicitement « telle quelle »,
+ * et son contrat actuel (`onLoadClusters`, entraînement k-means) n'accepte de
+ * toute façon aucun paramètre de bbox/zone à border.
+ *
+ * **Parité stricte avec l'ex-FilterPanel pour le territoire de la bataille**
+ * (`scope`/`selectedRegions`/`selectedDepts`/`ville`, dérivés via
+ * `useTerritorySelection`) : ces props restent câblées depuis `page.tsx`
+ * EXACTEMENT comme avant cette tâche — `FilterPanel.tsx` documentait déjà ce
+ * code comme « injoignable, piège pour la Tâche 8 » (plus aucune UI ne les
+ * fait varier depuis que `PerimeterSections` a déménagé dans `PanneauFiltre`).
+ * Ni corrigé ni retiré ici : ce n'est pas l'objet de cette tâche, et la
+ * bataille elle-même dérive son VRAI territoire du `filtre` actif
+ * (`filtreVilleBattle`/`filtreRegionsBattle`/`filtreDeptsBattle`, identique à
+ * l'ex-FilterPanel).
+ */
+import { useEffect, useMemo, useState } from 'react';
+import { ISO_MODES } from '@/lib/geo/france-admin';
+import { C, fInter } from '../filter-panel/tokens';
+import { labelStyle, pill } from '../filter-panel/styles';
+import { ClusteringSection } from '../filter-panel/ClusteringSection';
+import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from '../filter-panel/SpatialAnalysisIntro';
+import { VoronoiTool } from '../filter-panel/VoronoiTool';
+import { BattleV2Tool } from '../filter-panel/BattleV2Tool';
+import { IsochronesTool } from '../filter-panel/IsochronesTool';
+import { useTerritorySelection } from '../filter-panel/use-territory-selection';
+import { useIsochroneBattle } from '../filter-panel/use-isochrone-battle';
+import type { ClusterGeoJSON } from '../ClusterPanel';
+import type { FilterPanelProps } from '../filter-panel/types';
+import type { FiltreActif } from '@/lib/carte/filtre';
+import { messageGardePerimetre } from '@/lib/carte/garde-perimetre';
+
+export interface PanneauAnalyseProps {
+  // ── Territoire — parité stricte avec l'ex-FilterPanel (voir en-tête) ──────
+  scope?: 'metro' | 'all' | null;
+  onScopeChange?: (scope: 'metro' | 'all' | null) => void;
+  selectedRegions?: string[];
+  onSelectedRegionsChange?: (regions: string[]) => void;
+  selectedDepts?: string[];
+  onSelectedDeptsChange?: (depts: string[]) => void;
+  ville?: string;
+  onVilleChange?: (ville: string) => void;
+
+  /** Filtre unique actif — garde de périmètre (spec §5). */
+  filtre: FiltreActif | null;
+
+  /** POI sélectionnés (lifted à page.tsx, partagé avec PanneauCalques). */
+  selectedPOI: string[];
+
+  /** Voronoï passe par le chat geo.prompt (function calling), pas un appel direct. */
+  sendMessage: (text: string) => void;
+  isLoading: boolean;
+
+  onDirectBattle: FilterPanelProps['onDirectBattle'];
+  onDirectBattleV2: FilterPanelProps['onDirectBattleV2'];
+  onFillIsochroneCache: FilterPanelProps['onFillIsochroneCache'];
+  onApplyBattle: FilterPanelProps['onApplyBattle'];
+
+  voronoiVisible: boolean;
+  setVoronoiVisible: (v: boolean | ((p: boolean) => boolean)) => void;
+  battleVisible: boolean;
+  setBattleVisible: (v: boolean | ((p: boolean) => boolean)) => void;
+  battleOuterFillVisible: boolean;
+  setBattleOuterFillVisible: (v: boolean) => void;
+
+  // ── Clustering (K-Means) ───────────────────────────────────────────────
+  clusterGeoJSON?: ClusterGeoJSON | null;
+  clustersVisible?: boolean;
+  clusterLoading?: boolean;
+  clusterDuration?: number;
+  onToggleClusters?: () => void;
+  onLoadClusters?: () => void;
+  onClusterDurationChange?: (d: number) => void;
+  onFlyTo?: (lat: number, lng: number, zoom?: number) => void;
+  onFitBounds?: (bounds: [[number, number], [number, number]]) => void;
+  onWizardHighlight?: (poiTypes: string[], metropolitaine: boolean) => void;
+  onWizardClose?: () => void;
+}
+
+export function PanneauAnalyse(props: PanneauAnalyseProps) {
+  const {
+    scope: scopeProp, onScopeChange,
+    selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
+    selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
+    ville: villeProp, onVilleChange,
+    filtre, selectedPOI,
+    sendMessage, isLoading,
+    onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle,
+    voronoiVisible, setVoronoiVisible,
+    battleVisible, setBattleVisible,
+    battleOuterFillVisible, setBattleOuterFillVisible,
+  } = props;
+
+  // ── Perimetre territorial — voir en-tete du fichier (parite, non corrige) ─
+  const { REF_REGIONS, territoire } = useTerritorySelection({
+    scope: scopeProp, onScopeChange,
+    selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
+    selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
+    ville: villeProp, onVilleChange,
+  });
+
+  // ── Accordeons ────────────────────────────────────────────────────────
+  const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({ spatiale: false, clustering: false });
+  const toggleAnalyse = (key: string) => setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // ── Exclusion mutuelle des trois outils — conservee telle quelle ────────
+  const [showVoronoi, setShowVoronoi] = useState(false);
+  const [showBattle, setShowBattle] = useState(false);
+  const [showBattleV2, setShowBattleV2] = useState(false);
+
+  const exactlyOnePOI = selectedPOI.length === 1;
+  const hasAnyPOI = selectedPOI.length > 0;
+
+  // ── Territoire REEL de la bataille, derive du filtre actif (Tache 4,
+  // round 1 de correction) — identique a l'ex-FilterPanel. ────────────────
+  const filtreVilleBattle = filtre?.type === 'commune' ? filtre.label : '';
+  const filtreRegionsBattle = useMemo(
+    () => (filtre?.type === 'region' ? [filtre.code] : []),
+    [filtre],
+  );
+  const filtreDeptsBattle = useMemo(
+    () => (filtre?.type === 'departement' ? [filtre.code] : []),
+    [filtre],
+  );
+
+  const {
+    transportMode, setTransportMode,
+    isoDurations, toggleDuration,
+    battleV2Paliers, setBattleV2Paliers,
+    battleV2Loading, battleV2Log, setBattleV2Log,
+    v2CacheStatus, setV2CacheStatus, v2Checking, v2Filling,
+    v2FillTotal, v2FillCompleted, v2FillPct, v2FillRings,
+    orsCacheStatus, orsChecking,
+    battleLoading, battleLog, setBattleLog,
+    battleMeta, battleRings,
+    battleApplyLoading, setBattleApplyLoading,
+    battleApplyPct, setBattleApplyPct,
+    battleProgress, battleTotal, battleCompleted,
+    handleCheckV2, handleCheckORS, handleFillMissingV2,
+    handleBattle, handleBattleV2,
+  } = useIsochroneBattle({
+    selectedPOI, exactlyOnePOI,
+    ville: filtreVilleBattle, selectedRegions: filtreRegionsBattle, selectedDepts: filtreDeptsBattle,
+    refRegions: REF_REGIONS,
+    onDirectBattle, onDirectBattleV2, onFillIsochroneCache,
+  });
+
+  const send = (text: string) => { if (!isLoading) sendMessage(text); };
+
+  // ── Garde de perimetre (spec §5) — logique pure dans garde-perimetre.ts,
+  // ce composant se contente d'appeler la fonction et d'afficher son message
+  // avant tout lancement de Voronoi ou de bataille (verif. cache, remplissage
+  // ORS, lancement V1/V2). Le Clustering n'est PAS garde — voir en-tete. ────
+  const [gardeMessage, setGardeMessage] = useState<string | null>(null);
+  useEffect(() => { if (filtre) setGardeMessage(null); }, [filtre]);
+  const verifierPerimetre = (): boolean => {
+    const msg = messageGardePerimetre(filtre);
+    setGardeMessage(msg);
+    return msg === null;
+  };
+
+  const handleVoronoi = () => {
+    if (!exactlyOnePOI || !verifierPerimetre()) return;
+    send(`Fais le Voronoi des ${selectedPOI[0]} ${territoire}`);
+  };
+  const handleCheckORSGarde = () => { if (verifierPerimetre()) handleCheckORS(); };
+  const handleBattleGarde = (force = false) => { if (verifierPerimetre()) handleBattle(force); };
+  const handleCheckV2Garde = () => { if (verifierPerimetre()) handleCheckV2(); };
+  const handleFillMissingV2Garde = () => { if (verifierPerimetre()) handleFillMissingV2(); };
+  const handleBattleV2Garde = (force = false) => { if (verifierPerimetre()) handleBattleV2(force); };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Accordéon : ANALYSE SPATIALE ────────────────────────────── */}
+        <button
+          onClick={() => toggleAnalyse('spatiale')}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 14px', background: 'var(--bg-level-2)',
+            border: 'none', borderTop: '1px solid var(--border-subtle)', borderLeft: '2px solid rgba(78,205,196,0.25)', borderBottom: `0.5px solid ${C.border}`, cursor: 'pointer', transition: 'background-color 180ms var(--ease-out)',
+          }}
+        >
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-teal)', flexShrink: 0 }} />
+          <span style={{ fontFamily: fInter, fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>
+            Analyse spatiale
+          </span>
+          <span style={{ color: C.textDim, fontSize: 10 }}>{analyseOpen.spatiale ? '▲' : '▼'}</span>
+        </button>
+        {analyseOpen.spatiale && (
+        <div style={{ padding: '16px', borderBottom: `0.5px solid ${C.border}` }}>
+        <div style={{ paddingBottom: 4 }}>
+
+          {!hasAnyPOI && <SpatialAnalysisEmptyState />}
+
+          {selectedPOI.length > 1 && <SpatialAnalysisTooManyPoi selectedCount={selectedPOI.length} />}
+
+          {/* Outils — visibles uniquement si exactement 1 POI */}
+          {exactlyOnePOI && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+
+              {/* Garde de perimetre (spec §5) — message affiche apres une
+                  tentative de lancement bloquee ; efface des qu un filtre
+                  est pose (effet ci-dessus). */}
+              {gardeMessage && (
+                <div style={{
+                  padding: '8px 10px', borderRadius: 4,
+                  background: 'rgba(255,87,87,0.08)', border: '0.5px solid rgba(255,87,87,0.25)',
+                  color: 'var(--danger)', fontFamily: fInter, fontSize: 12, lineHeight: 1.5,
+                }}>
+                  ! {gardeMessage}
+                </div>
+              )}
+
+              {/* Mode de transport — visible globalement */}
+              <div>
+                <div style={labelStyle}>Mode de transport</div>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {ISO_MODES.map(m => (
+                    <button key={m.id} style={{ ...pill(transportMode === m.id, 'var(--text-primary)'), flex: 1, textAlign: 'center' }} onClick={() => setTransportMode(m.id)}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <VoronoiTool
+                showVoronoi={showVoronoi}
+                setShowVoronoi={setShowVoronoi}
+                setShowBattle={setShowBattle}
+                setShowBattleV2={setShowBattleV2}
+                isLoading={isLoading}
+                voronoiVisible={voronoiVisible}
+                setVoronoiVisible={setVoronoiVisible}
+                handleVoronoi={handleVoronoi}
+              />
+
+              <BattleV2Tool
+                showBattleV2={showBattleV2}
+                setShowBattleV2={setShowBattleV2}
+                setShowBattle={setShowBattle}
+                setShowVoronoi={setShowVoronoi}
+                battleVisible={battleVisible}
+                setBattleVisible={setBattleVisible}
+                battleV2Paliers={battleV2Paliers}
+                setBattleV2Paliers={setBattleV2Paliers}
+                battleV2Loading={battleV2Loading}
+                battleV2Log={battleV2Log}
+                setBattleV2Log={setBattleV2Log}
+                v2CacheStatus={v2CacheStatus}
+                setV2CacheStatus={setV2CacheStatus}
+                v2Checking={v2Checking}
+                v2Filling={v2Filling}
+                v2FillTotal={v2FillTotal}
+                v2FillCompleted={v2FillCompleted}
+                v2FillPct={v2FillPct}
+                v2FillRings={v2FillRings}
+                handleCheckV2={handleCheckV2Garde}
+                handleFillMissingV2={handleFillMissingV2Garde}
+                handleBattleV2={handleBattleV2Garde}
+              />
+
+              <IsochronesTool
+                showBattle={showBattle}
+                setShowBattle={setShowBattle}
+                setShowVoronoi={setShowVoronoi}
+                setShowBattleV2={setShowBattleV2}
+                battleVisible={battleVisible}
+                setBattleVisible={setBattleVisible}
+                battleOuterFillVisible={battleOuterFillVisible}
+                setBattleOuterFillVisible={setBattleOuterFillVisible}
+                isoDurations={isoDurations}
+                toggleDuration={toggleDuration}
+                orsCacheStatus={orsCacheStatus}
+                orsChecking={orsChecking}
+                handleCheckORS={handleCheckORSGarde}
+                battleLoading={battleLoading}
+                battleLog={battleLog}
+                setBattleLog={setBattleLog}
+                battleTotal={battleTotal}
+                battleCompleted={battleCompleted}
+                battleProgress={battleProgress}
+                handleBattle={handleBattleGarde}
+                battleRings={battleRings}
+                battleMeta={battleMeta}
+                battleApplyLoading={battleApplyLoading}
+                setBattleApplyLoading={setBattleApplyLoading}
+                battleApplyPct={battleApplyPct}
+                setBattleApplyPct={setBattleApplyPct}
+                onApplyBattle={onApplyBattle}
+              />
+
+            </div>
+          )}
+
+        </div>{/* fin section analyse spatiale */}
+        </div>
+        )}
+
+        {/* ── Accordéon : CLUSTERING — telle quelle, pas de garde ────────── */}
+        <ClusteringSection
+          analyseOpen={analyseOpen}
+          toggleAnalyse={toggleAnalyse}
+          clusterGeoJSON={props.clusterGeoJSON}
+          clustersVisible={props.clustersVisible}
+          clusterLoading={props.clusterLoading}
+          clusterDuration={props.clusterDuration}
+          onToggleClusters={props.onToggleClusters}
+          onLoadClusters={props.onLoadClusters}
+          onClusterDurationChange={props.onClusterDurationChange}
+          onFlyTo={props.onFlyTo}
+          onFitBounds={props.onFitBounds}
+          onWizardHighlight={props.onWizardHighlight}
+          onWizardClose={props.onWizardClose}
+        />
+
+      </div>
+    </div>
+  );
+}

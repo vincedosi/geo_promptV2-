@@ -53,8 +53,7 @@ import { useRateLimitHandler } from '@/app/copilote/_hooks/useRateLimitHandler';
 import { useToolProcessor } from '@/app/copilote/_hooks/useToolProcessor';
 import { useProviderSelector } from '@/app/copilote/_hooks/useProviderSelector';
 import { MapPanel }            from '@/app/copilote/_components/MapPanel';
-import { FilterPanel } from '@/app/map/_components/FilterPanel';
-import type { DirectPOISearchParams, DirectBattleParams, DirectBattleV2Params, FillIsochroneCacheParams, POIStylesMap, CategorieFiltre } from '@/app/map/_components/FilterPanel';
+import type { POIStylesMap } from '@/app/map/_components/FilterPanel';
 import { IrisDetailPanel }    from '@/app/map/_components/IrisDetailPanel';
 import type { IrisDetailData } from '@/app/map/_components/IrisDetailPanel';
 import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
@@ -71,12 +70,13 @@ import { MapTopBar, MAP_TOPBAR_HEIGHT } from '@/components/map/MapTopBar';
 import { OverlayPanel } from '@/components/map/OverlayPanel';
 import { AIOverlay } from '@/components/map/overlays/AIOverlay';
 import { SettingsOverlay } from '@/components/map/overlays/SettingsOverlay';
-import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, type EntreeId } from '@/lib/navigation/config';
 import { PanneauFiltre } from '@/app/map/_components/panneaux/PanneauFiltre';
 import { PanneauCalques } from '@/app/map/_components/panneaux/PanneauCalques';
+import { PanneauAnalyse } from '@/app/map/_components/panneaux/PanneauAnalyse';
+import { PanneauZones } from '@/app/map/_components/panneaux/PanneauZones';
 import { LegendeCarte } from '@/components/map/LegendeCarte';
 import { FiltreChip } from '@/components/map/FiltreChip';
 import { retirerFiltre, type FiltreActif } from '@/lib/carte/filtre';
@@ -89,27 +89,18 @@ import { Maximize2, Minimize2, Eraser, FileDown } from 'lucide-react';
 import type { POI } from '@/types/poi';
 import type { SelectedBillboard } from '@/types/map';
 
-// ─── Adaptateur transitoire rail → panneaux (Tâche 2) ──────────────────────────
-// Le rail (lib/navigation/config.ts) émet cinq thèmes. « Filtre » a son propre
-// panneau depuis la Tâche 4 (PanneauFiltre) et « Calques » le sien depuis la
-// Tâche 6 (PanneauCalques, rendus à part — voir plus bas). Seule « Analyse »
-// retombe encore sur l'ancienne catégorie `analyses` de FilterPanel : cette
-// table sera retirée à la Tâche 7 quand « Analyse » aura son propre panneau.
-const CATEGORIES_FILTER_PANEL_PAR_ENTREE: Partial<Record<EntreeId, CategorieFiltre[]>> = {
-  analyse: ['analyses'],
-};
-
 /**
  * Titre affiché dans l'en-tête de l'OverlayPanel, par entrée du rail —
- * SEULEMENT pour les deux entrées dont le titre diffère réellement du
- * libellé du rail. Toute autre entrée retombe sur `ENTREES_NAVIGATION`
- * (source unique de la navigation, cf lib/navigation/config.ts) : recopier
- * les cinq autres libellés ici les ferait diverger en silence le jour où la
- * config change.
+ * SEULEMENT pour l'entrée dont le titre diffère réellement du libellé du
+ * rail. Toute autre entrée retombe sur `ENTREES_NAVIGATION` (source unique
+ * de la navigation, cf lib/navigation/config.ts) : recopier les autres
+ * libellés ici les ferait diverger en silence le jour où la config change.
+ * « Zones » a perdu son override « Zones sauvegardées » à la Tâche 7 : le
+ * panneau contient désormais aussi « Créer une zone », plus seulement la
+ * liste des zones enregistrées.
  */
 const TITRE_PAR_ENTREE: Partial<Record<EntreeId, string>> = {
   assistant: 'geo.prompt',
-  zones: 'Zones sauvegardées',
 };
 
 /** Couleur du dot de l'en-tête de l'OverlayPanel, par entrée du rail. */
@@ -152,7 +143,8 @@ export default function MapPage() {
     setEntreeActive(prev => prev === id ? null : id);
   }, [openOverlay]);
   // POI sélectionnés : lifted ici pour persistance entre fermeture/réouverture overlay
-  // (sinon le state local de FilterPanel se perd → analyses bloquées par le check exactlyOnePOI)
+  // (sinon le state local de PanneauCalques/PanneauAnalyse se perd → analyses
+  // bloquées par le check exactlyOnePOI)
   const [selectedPOI, setSelectedPOI] = useState<string[]>([]);
   // Filtre unique « où je regarde » (Tâche 4, lib/carte/filtre.ts) — source
   // unique partagée par PanneauFiltre, FiltreChip, la pastille du rail et les
@@ -402,7 +394,7 @@ export default function MapPage() {
 
   // ── Toggle TMJA (vector tiles : affichage instantané, lazy par viewport) ───
   // On garde un FeatureCollection vide en sentinel pour réutiliser la prop
-  // tmjaVisible existante côté FilterPanel et CaptureLayers — la vraie data
+  // tmjaVisible existante côté PanneauCalques et CaptureLayers — la vraie data
   // est servie par les tiles MVT via la source vector tmja-source.
   const handleLoadTMJA = async () => {
     setTmjaGeoJSON({ type: 'FeatureCollection', features: [] });
@@ -670,7 +662,9 @@ export default function MapPage() {
 
   const activeCats = zoneData?.categories ? Object.keys(zoneData.categories).sort() : [];
 
-  // Chat slot partagé : utilisé par FilterPanel (legacy, tant que monté) et AIOverlay (nouveau)
+  // Chat slot : rendu par AIOverlay (entrée « Assistant » du rail). FilterPanel
+  // ne le monte plus depuis la Tâche 7 (son unique appelant, l'entrée « Analyse »,
+  // a migré vers PanneauAnalyse).
   const chatSlotContent = (
     <ChatPanel
       containerStyle={{ width: '100%', minWidth: 0, flex: 1, borderRight: 'none', minHeight: 0 }}
@@ -891,61 +885,30 @@ export default function MapPage() {
               meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
             />
           )}
-          {CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive] && (
-            <FilterPanel
-              visibleCategory={CATEGORIES_FILTER_PANEL_PAR_ENTREE[entreeActive]}
-              chatSlot={null}
+          {entreeActive === 'analyse' && (
+            <PanneauAnalyse
+              scope={perimeterScope}
+              onScopeChange={setPerimeterScope}
+              selectedRegions={perimeterSelectedRegions}
+              onSelectedRegionsChange={setPerimeterSelectedRegions}
+              selectedDepts={perimeterSelectedDepts}
+              onSelectedDeptsChange={setPerimeterSelectedDepts}
+              ville={perimeterVille}
+              onVilleChange={setPerimeterVille}
+              filtre={filtre}
+              selectedPOI={selectedPOI}
               sendMessage={chat.sendMessage}
-              onDirectOOH={handleDirectOOH}
-              onDirectSearch={handleDirectSearch}
+              isLoading={chat.isLoading}
               onDirectBattle={handleDirectBattle}
               onDirectBattleV2={handleDirectBattleV2}
               onFillIsochroneCache={handleFillIsochroneCache}
               onApplyBattle={handleApplyBattle}
-              isLoading={chat.isLoading}
-              error={error}
-              zoneData={zoneData}
               voronoiVisible={mapLayers.voronoiVisible}
               setVoronoiVisible={mapLayers.setVoronoiVisible}
               battleVisible={mapLayers.battleVisible}
               setBattleVisible={mapLayers.setBattleVisible}
               battleOuterFillVisible={mapLayers.battleOuterFillVisible}
               setBattleOuterFillVisible={mapLayers.setBattleOuterFillVisible}
-              isochroneVisible={mapLayers.isochroneVisible}
-              setIsochroneVisible={mapLayers.setIsochroneVisible}
-              setShowSavePanel={savedMaps.setShowSavePanel}
-              densityMode={densityMode}
-              onDensityModeChange={(v) => { setDensityMode(v); localStorage.setItem('genesis_density_mode', String(v)); }}
-              onPOIStylesChange={setPoiStyles}
-              onFlyTo={handleFlyTo}
-              carreauxVisible={mapLayers.carreauxVisible}
-              carreauxLoaded={mapLayers.carreauxLoaded}
-              carreauxIndicateur={mapLayers.carreauxIndicateur}
-              carreauxPalette={mapLayers.carreauxPalette}
-              carreauxOpacity={mapLayers.carreauxOpacity}
-              carreaux3D={mapLayers.carreaux3D}
-              setCarreaux3D={mapLayers.setCarreaux3D}
-              carreauxHauteur={mapLayers.carreauxHauteur}
-              setCarreauxHauteur={mapLayers.setCarreauxHauteur}
-              carreauxRange={mapLayers.carreauxRange}
-              carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
-              setCarreauxVisible={mapLayers.setCarreauxVisible}
-              setCarreauxIndicateur={mapLayers.setCarreauxIndicateur}
-              setCarreauxPalette={mapLayers.setCarreauxPalette}
-              setCarreauxOpacity={mapLayers.setCarreauxOpacity}
-              setCarreauxSelectedBucket={mapLayers.setCarreauxSelectedBucket}
-              irisVisible={mapLayers.irisVisible}
-              irisIndicateur={mapLayers.irisIndicateur}
-              irisPalette={mapLayers.irisPalette}
-              irisOpacity={mapLayers.irisOpacity}
-              iris3D={mapLayers.iris3D}
-              setIris3D={mapLayers.setIris3D}
-              irisHauteur={mapLayers.irisHauteur}
-              setIrisHauteur={mapLayers.setIrisHauteur}
-              irisBornes={mapLayers.irisBornes}
-              irisTrueOnly={mapLayers.irisTrueOnly}
-              zoomCourant={mapLayers.zoomCourant}
-              irisZoomPlancher={mapLayers.irisZoomPlancher}
               clusterGeoJSON={clusterGeoJSON}
               clustersVisible={clustersVisible}
               clusterLoading={clusterLoading}
@@ -956,87 +919,11 @@ export default function MapPage() {
               onFitBounds={handleFitBounds}
               onWizardHighlight={handleWizardHighlight}
               onWizardClose={() => setWizardHighlightGeoJSON(null)}
-              setIrisVisible={mapLayers.setIrisVisible}
-              setIrisIndicateur={mapLayers.setIrisIndicateur}
-              setIrisPalette={mapLayers.setIrisPalette}
-              setIrisOpacity={mapLayers.setIrisOpacity}
-              setIrisTrueOnly={mapLayers.setIrisTrueOnly}
-              mainMapRef={mapRef}
-              onLoadTransport={handleLoadTransport}
-              onLoadTMJA={handleLoadTMJA}
-              tmjaVisible={!!tmjaGeoJSON}
-              tmjaHideLowTraffic={tmjaHideLowTraffic}
-              onToggleTmjaHideLowTraffic={setTmjaHideLowTraffic}
-              onOpenMeteo={() => setMeteoPanelOpen(true)}
-              onClearMeteo={handleMeteoClear}
-              meteoVisible={meteoVisible}
-              meteoLabel={meteo.meta ? METEO_LABEL[meteo.meta.variable] : null}
-              onClearTMJA={() => setTmjaGeoJSON(null)}
-              civicVariableCode={civicVariableCode}
-              onCivicVariableChange={setCivicVariableCode}
-              selectedIrisCommuneCode={selectedIrisData?.code_commune ?? null}
-              selectedIrisCommuneName={selectedIrisData?.nom_commune ?? null}
-              civicHealthLayer={civicHealthLayer}
-              onCivicHealthLayerChange={layer => {
-                // Changer de couche remet la métrique sur l'indice global
-                // (les métriques pollen/air ne se recouvrent pas)
-                setCivicProgress(null);
-                setCivicMetric('global');
-                setCivicHealthLayer(layer);
-              }}
-              civicProgress={civicProgress}
-              civicLoading={civicLoading}
-              civicScale={civicScale}
-              onCivicScaleChange={s => { setCivicProgress(null); setCivicScale(s); }}
-              civicMetric={civicMetric}
-              onCivicMetricChange={setCivicMetric}
-              civicMinLevel={civicMinLevel}
-              onCivicMinLevelChange={setCivicMinLevel}
-              civicCpStatus={civicCpStatus}
-              civicCpDate={civicCpDate}
-              onCivicIngested={() => setCivicRefreshKey(k => k + 1)}
-              radioVisible={radioVisible}
-              onToggleRadio={() => setRadioVisible(v => !v)}
-              radioHeatmapMode={radioHeatmapMode}
-              onToggleRadioHeatmap={() => setRadioHeatmapMode(v => !v)}
-              radioCoverageMode={radioCoverageMode}
-              onToggleRadioCoverage={() => setRadioCoverageMode(v => !v)}
-              radioLoading={radioLoading}
-              radioSystemeFilter={radioSystemeFilter}
-              onRadioSystemeChange={v => { setRadioSystemeFilter(v); }}
-              onSelectRadio={(id, nom) => { setRadioSelectedId(id); setRadioSelectedNom(nom); setRadioVisible(true); }}
-              radioCount={radioGeoJSON?.features.length ?? 0}
-              radioSelectedNom={radioSelectedNom}
-              onClearRadioSelection={() => { setRadioSelectedId(null); setRadioSelectedNom(null); }}
-              radioFilterOptions={radioFilterOptions}
-              radioFilterIds={radioFilterIds}
-              onRadioFilterIdsChange={setRadioFilterIds}
-              radioExcludeCategories={radioExcludeCategories}
-              onRadioExcludeCategoriesChange={setRadioExcludeCategories}
-              radioCoverageColor={radioCoverageColor}
-              onRadioCoverageColorChange={setRadioCoverageColor}
-              radioCoverageOpacity={radioCoverageOpacity}
-              onRadioCoverageOpacityChange={setRadioCoverageOpacity}
-              radioBorderWidth={radioBorderWidth}
-              onRadioBorderWidthChange={setRadioBorderWidth}
-              radioPointSize={radioPointSize}
-              onRadioPointSizeChange={setRadioPointSize}
-              onRecenterFrance={() => { mapRef.current?.fitBounds([[-5.5, 41.3], [9.6, 51.1]], { padding: 20, duration: 1000 }); }}
-              selectedPOI={selectedPOI}
-              onSelectedPOIChange={setSelectedPOI}
-              selectedDepts={perimeterSelectedDepts}
-              onSelectedDeptsChange={setPerimeterSelectedDepts}
-              selectedRegions={perimeterSelectedRegions}
-              onSelectedRegionsChange={setPerimeterSelectedRegions}
-              ville={perimeterVille}
-              onVilleChange={setPerimeterVille}
-              scope={perimeterScope}
-              onScopeChange={setPerimeterScope}
-              filtre={filtre}
+              onFlyTo={handleFlyTo}
             />
           )}
           {entreeActive === 'zones' && (
-            <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
+            <PanneauZones mapRef={mapRef} onLoadedZonesChange={handleLoadedZonesChange} />
           )}
           {entreeActive === 'reglages' && (
             <SettingsOverlay
@@ -1113,6 +1000,22 @@ export default function MapPage() {
         tmjaHideLowTraffic={tmjaHideLowTraffic}
         radioVisible={radioVisible}
         radioCoverageColor={radioCoverageColor}
+        zoneData={zoneData}
+        activeCats={activeCats}
+        isochroneVisible={mapLayers.isochroneVisible}
+        isochroneMinutes={mapLayers.isochroneMinutes}
+        isochroneMode={mapLayers.isochroneMode}
+        voronoiVisible={mapLayers.voronoiVisible}
+        voronoiCategory={mapLayers.voronoiCategory}
+        voronoiPois={mapLayers.voronoiPois}
+        voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
+        setShowSavePanel={savedMaps.setShowSavePanel}
+        setSaveError={savedMaps.setSaveError}
+        battleVisible={mapLayers.battleVisible}
+        battleCategory={mapLayers.battleCategory}
+        battlePois={mapLayers.battlePois}
+        battleMaxPalier={mapLayers.battleMaxPalier}
+        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
       />
       <CaptureLayers
         clusterGeoJSON={clusterGeoJSON}
@@ -1212,7 +1115,6 @@ export default function MapPage() {
       <MapPanel
         mapContainerRef={mapContainerRef}
         zoneData={zoneData}
-        activeCats={activeCats}
         isochroneVisible={mapLayers.isochroneVisible}
         isochroneMinutes={mapLayers.isochroneMinutes}
         isochroneMode={mapLayers.isochroneMode}
@@ -1223,17 +1125,10 @@ export default function MapPage() {
         isLoading={chat.isLoading}
         voronoiVisible={mapLayers.voronoiVisible}
         voronoiCategory={mapLayers.voronoiCategory}
-        voronoiPois={mapLayers.voronoiPois}
         setVoronoiVisible={mapLayers.setVoronoiVisible}
-        voronoiDataForSaveRef={savedMaps.voronoiDataForSaveRef}
-        setShowSavePanel={savedMaps.setShowSavePanel}
-        setSaveError={savedMaps.setSaveError}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
-        battlePois={mapLayers.battlePois}
         setBattleVisible={mapLayers.setBattleVisible}
-        battleMaxPalier={mapLayers.battleMaxPalier}
-        setBattleMaxPalier={mapLayers.setBattleMaxPalier}
         carreauxRange={mapLayers.carreauxRange}
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
         setCarreauxVisible={mapLayers.setCarreauxVisible}

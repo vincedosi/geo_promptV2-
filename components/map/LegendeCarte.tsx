@@ -20,14 +20,18 @@
  * bascule de métrique, hors périmètre de ce composant : voir le rapport de
  * tâche pour cette divergence assumée).
  *
- * Divergence assumée avec `app/copilote/_components/MapPanel.tsx` (légende
- * catégories POI / isochrone / voronoi / bataille, lignes ~267-300) :
- * NON absorbée ici. Cette légende décrit un résultat d'ANALYSE (geo.prompt,
- * bataille isochrone, Voronoï) hors des six groupes du panneau Calques que
- * cette tâche définit — l'absorber aurait mélangé deux axes de données
- * différents pour un composant central de 493 lignes, hors périmètre motivé
- * par un risque disproportionné. `app/map/analyse/digital/_components/MapLegend.tsx`
- * reste également en place (page hors périmètre de la refonte, spec §4).
+ * Absorption du 2026-09-12 (Tâche 7) : la légende catégories POI / isochrone /
+ * Voronoï / bataille d'`app/copilote/_components/MapPanel.tsx` (ex-lignes
+ * ~267-393, boîte titrée « LEGENDE ») a été RAPATRIÉE ici (`BlocAnalyse`) et
+ * retirée de `MapPanel.tsx` — avant cette tâche, deux légendes pouvaient
+ * coexister à l'écran dans deux coins opposés. Les actions embarquées dans la
+ * légende d'origine (bouton SAVE du Voronoï, slider du palier max de la
+ * bataille) sont conservées : ce ne sont pas de simples clés de lecture, les
+ * retirer aurait supprimé une fonctionnalité. Les badges de STATUT (zoom,
+ * ZONE_ACTIVE, bascules Voronoï/Bataille, drawer Street View) restent dans
+ * `MapPanel.tsx` : ce ne sont pas des légendes.
+ * `app/map/analyse/digital/_components/MapLegend.tsx` reste en place (page
+ * hors périmètre de la refonte, spec §4).
  */
 import { useState } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
@@ -44,7 +48,8 @@ import { ABSTENTION_LEGEND, ABSTENTION_LEGEND_REPERES } from '@/app/map/_compone
 import { ATMO_LEVEL_LABELS, POLLEN_LEVEL_LABELS } from '@/lib/civic-health/levels';
 import { TMJA_LEGEND } from '@/app/map/_components/filter-panel/TmjaSection';
 import { legendePourMetrique, type SuiviMapEventDetail } from '@/app/map/_components/SuiviMapLayer';
-import { getCatColor } from '@/app/copilote/_lib/constants';
+import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/copilote/_lib/constants';
+import type { ZoneData, VoronoiData } from '@/types/spatial';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -84,6 +89,26 @@ export interface LegendeCarteProps {
   radioVisible?: boolean;
   radioCoverageColor?: string;
   oohActif?: boolean;
+
+  // ── Analyse spatiale (geo.prompt) — absorbé de MapPanel.tsx (Tâche 7) ─────
+  /** Résultat de recherche geo.prompt courant — porte les catégories POI. */
+  zoneData?: ZoneData | null;
+  /** Catégories de `zoneData`, triées — vide/absent si aucun résultat. */
+  activeCats?: string[];
+  isochroneVisible?: boolean;
+  isochroneMinutes?: number;
+  isochroneMode?: string;
+  voronoiVisible?: boolean;
+  voronoiCategory?: string;
+  voronoiPois?: { id: string; nom: string; color: string }[];
+  voronoiDataForSaveRef?: React.MutableRefObject<VoronoiData | null>;
+  setShowSavePanel?: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setSaveError?: (v: string | null) => void;
+  battleVisible?: boolean;
+  battleCategory?: string;
+  battlePois?: { id: string; nom: string; color: string }[];
+  battleMaxPalier?: number;
+  setBattleMaxPalier?: (v: number) => void;
 }
 
 const swatchRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 };
@@ -239,6 +264,145 @@ function BlocDegrade(props: LegendeCarteProps) {
   return null;
 }
 
+/**
+ * Bloc légende d'analyse — résultat geo.prompt (catégories POI, isochrone,
+ * Voronoï, bataille). Absorbé depuis `MapPanel.tsx` (Tâche 7, 2026-09-12) —
+ * voir la note en tête de fichier. Conserve les actions embarquées dans la
+ * légende d'origine (bouton SAVE du Voronoï, slider du palier max de la
+ * bataille) : ce ne sont pas de simples clés de lecture.
+ */
+function BlocAnalyse(props: LegendeCarteProps) {
+  const { zoneData } = props;
+  const activeCats = props.activeCats ?? [];
+  if (!zoneData || activeCats.length === 0) return null;
+
+  const isoColors = ISOCHRONE_COLORS[props.isochroneMode ?? ''] ?? ISOCHRONE_COLORS.walk;
+  const voronoiPois = props.voronoiPois ?? [];
+  const battlePois = props.battlePois ?? [];
+  const battleMaxPalier = props.battleMaxPalier ?? 90;
+
+  return (
+    <div>
+      <div style={titreStyle}>Analyse spatiale</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {activeCats.map(cat => (
+          <div key={cat} style={swatchRow}>
+            <span style={{ ...dotStyle, borderRadius: '50%', background: zoneData.couleur_overrides?.[cat] ?? getCatColor(cat) }} />
+            <span style={labelStyle}>{cat} <span style={{ color: 'var(--text-tertiary)' }}>({zoneData.categories[cat]})</span></span>
+          </div>
+        ))}
+
+        {!!zoneData.rayon_metres && (
+          <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', ...swatchRow }}>
+            <span style={{ width: 9, height: 9, background: 'rgba(240,240,240,0.05)', borderRadius: 1, border: '1.5px dashed #444444', flexShrink: 0 }} />
+            <span style={labelStyle}>Zone {(zoneData.rayon_metres / 1000).toFixed(1)} km</span>
+          </div>
+        )}
+
+        {!!zoneData.rayon_poi_metres && (
+          <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', ...swatchRow }}>
+            <span style={{ width: 9, height: 9, background: 'rgba(34,197,94,0.12)', borderRadius: '50%', border: '1.5px solid var(--success)', flexShrink: 0 }} />
+            <span style={labelStyle}>
+              R={zoneData.rayon_poi_metres >= 1000 ? `${(zoneData.rayon_poi_metres / 1000).toFixed(1)}km` : `${zoneData.rayon_poi_metres}m`}/POI
+            </span>
+          </div>
+        )}
+
+        {!!props.isochroneVisible && !!props.isochroneMinutes && (
+          <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', ...swatchRow }}>
+            <span style={{ width: 9, height: 9, background: `${isoColors.fill}30`, borderRadius: 1, border: `1.5px solid ${isoColors.line}`, flexShrink: 0 }} />
+            <span style={labelStyle}>Iso {props.isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[props.isochroneMode ?? ''] ?? props.isochroneMode})</span>
+          </div>
+        )}
+
+        {!!props.voronoiVisible && !!props.voronoiCategory && (() => {
+          const regionLabel = props.voronoiDataForSaveRef?.current?._meta?.filtre_region
+            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_ville
+            ?? props.voronoiDataForSaveRef?.current?._meta?.filtre_dept
+            ?? null;
+          return (
+            <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 9, height: 9, background: (voronoiPois[0]?.color ?? 'var(--warning)') + '40', borderRadius: 1, border: `1.5px solid ${voronoiPois[0]?.color ?? 'var(--warning)'}`, flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-primary)', fontSize: 9, fontFamily: fInter, letterSpacing: '0.08em' }}>
+                    VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { props.setShowSavePanel?.(true); props.setSaveError?.(null); }}
+                  title="Sauvegarder ce Voronoï"
+                  style={{ background: 'var(--border-subtle)', border: '0.5px solid var(--border-default)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: fInter }}
+                >SAVE</button>
+              </div>
+              {voronoiPois.map(c => (
+                <div key={c.id} style={swatchRow}>
+                  <span style={{ width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                  <span style={labelStyle}>{c.nom}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {!!props.battleVisible && !!props.battleCategory && (
+          <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={swatchRow}>
+              <span style={{ width: 9, height: 9, background: 'rgba(239,68,68,0.1)', borderRadius: 1, border: '1.5px solid #ef4444', flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-primary)', fontSize: 9, fontFamily: fInter, letterSpacing: '0.08em' }}>BATAILLE · {props.battleCategory}</span>
+            </div>
+
+            {/* Slider palier max */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 8, color: 'var(--text-tertiary)', fontFamily: fInter, letterSpacing: '0.08em' }}>PALIER_MAX</span>
+                <span style={{ fontSize: 9, color: '#ef4444', fontFamily: fMono, fontWeight: 600 }}>{battleMaxPalier} min</span>
+              </div>
+              <input
+                type="range"
+                min={10} max={90} step={10}
+                value={battleMaxPalier}
+                onChange={e => props.setBattleMaxPalier?.(Number(e.target.value))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#ef4444', height: 14 }}
+              />
+              {/* Rampe opacité */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 1 }}>
+                {[10, 20, 30, 40, 50, 60, 90].map(p => {
+                  const active = p <= battleMaxPalier;
+                  return (
+                    <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 1 }}>
+                      <span style={{
+                        display: 'inline-block', width: '100%', height: 6,
+                        background: active ? `rgba(239,68,68,${BATTLE_PALIER_OPACITY[p] ?? 0.15})` : 'var(--bg-level-2)',
+                        borderRadius: 1,
+                        border: active ? 'none' : '1px solid var(--border-subtle)',
+                        transition: 'background 0.2s',
+                      }} />
+                      <span style={{ fontSize: 7, color: 'var(--text-tertiary)' }}>{p}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Légende POIs */}
+            {battlePois.slice(0, 8).map(c => (
+              <div key={c.id} style={swatchRow}>
+                <span style={{ width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
+                <span style={labelStyle}>{c.nom}</span>
+              </div>
+            ))}
+            {battlePois.length > 8 && (
+              <span style={labelStyle}>+{battlePois.length - 8} autres</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Bloc figurés ponctuels — POI, TMJA, radio, OOH actuellement actifs. */
 function BlocFigures(props: LegendeCarteProps) {
   const poi = props.selectedPOI ?? [];
@@ -305,8 +469,9 @@ export function LegendeCarte(props: LegendeCarteProps) {
   const degradeVisible = props.degradeActif != null;
   const poiCount = props.selectedPOI?.length ?? 0;
   const figuresVisible = poiCount > 0 || !!props.tmjaVisible || !!props.radioVisible || !!props.oohActif;
+  const analyseVisible = !!props.zoneData && (props.activeCats?.length ?? 0) > 0;
 
-  if (!degradeVisible && !figuresVisible) return null;
+  if (!degradeVisible && !figuresVisible && !analyseVisible) return null;
 
   return (
     <div
@@ -343,6 +508,7 @@ export function LegendeCarte(props: LegendeCarteProps) {
       </button>
       {ouvert && (
         <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <BlocAnalyse {...props} />
           <BlocDegrade {...props} />
           <BlocFigures {...props} />
         </div>
