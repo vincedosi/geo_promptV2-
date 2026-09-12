@@ -1090,7 +1090,7 @@ Deux corrections au relevé initial, faites après vérification du code :
 ### Tâche 11 : la table des analyses et le rejeu
 
 **Fichiers :**
-- Créer : `sql/144_analyses_enregistrees.sql`, `app/api/analyses/route.ts`,
+- Créer : `sql/145_analyses_enregistrees.sql`, `app/api/analyses/route.ts`,
   `app/api/analyses/[id]/route.ts`, `app/api/analyses/[id]/rejouer/route.ts`,
   `lib/analyses/types.ts`, `tests/unit/analyses/parametres.test.ts`
 - Modifier : `types/database.types.ts` (régénérer), `ARCHITECTURE.md`
@@ -1103,7 +1103,7 @@ Deux corrections au relevé initial, faites après vérification du code :
 - [ ] **Étape 1 : la migration**
 
 ```sql
--- sql/144_analyses_enregistrees.sql
+-- sql/145_analyses_enregistrees.sql
 -- Une analyse lancee est un objet : nom, parametres, maillage, date, rejouable.
 -- N'existait que pour le clustering (clustering_models / clustering_jobs) ; les
 -- battles, voronois et isochrones ne laissaient aucune trace.
@@ -1195,7 +1195,7 @@ git add -A && git commit -m "feat(analyse): une analyse lancee devient un objet 
 ### Tâche 12 : score composite
 
 **Fichiers :**
-- Créer : `sql/145_score_composite.sql`, `app/api/analyses/score/route.ts`,
+- Créer : `sql/146_score_composite.sql`, `app/api/analyses/score/route.ts`,
   `lib/analyses/score.ts`, `tests/unit/analyses/score.test.ts`
 - Modifier : `app/map/_components/panneaux/PanneauAnalyse.tsx` (Tâche 7)
 
@@ -1245,7 +1245,7 @@ somme diffère, ligne écartée si **toutes** ses valeurs sont nulles.
 - [ ] **Étape 5 : la RPC**
 
 ```sql
--- sql/145_score_composite.sql
+-- sql/146_score_composite.sql
 -- Score composite par CP : plusieurs indicateurs de indicator_cp_values,
 -- normalises puis ponderes. La normalisation se fait EN SQL sur le perimetre
 -- demande, JAMAIS sur la France entiere (budget I/O Nano).
@@ -1359,7 +1359,7 @@ describe('correlation', () => {
 ### Tâche 14 : intersection et soustraction
 
 **Fichiers :**
-- Créer : `sql/146_zones_booleen.sql`, `app/api/custom-geo/source/intersection/route.ts`,
+- Créer : `sql/147_zones_booleen.sql`, `app/api/custom-geo/source/intersection/route.ts`,
   `app/api/custom-geo/source/difference/route.ts`
 - Modifier : `PanneauZones.tsx`
 
@@ -1371,7 +1371,7 @@ deux nouvelles routes en reprennent **exactement** la structure : `requireAuth`,
 - [ ] **Étape 1 : la migration**
 
 ```sql
--- sql/146_zones_booleen.sql
+-- sql/147_zones_booleen.sql
 -- Intersection et difference de zones custom. L'union existe deja cote route
 -- (composite). ST_MakeValid avant toute operation : une geometrie capturee
 -- depuis des carreaux ou des isochrones peut etre invalide, et ST_Intersection
@@ -1574,7 +1574,7 @@ rayon de **recherche de POI** et reste où il est.
 ### Tâche 19 : versionnage de stratégie
 
 **Fichiers :**
-- Créer : `sql/147_strategie_versions.sql`,
+- Créer : `sql/148_strategie_versions.sql`,
   `app/api/bidding/strategies/[id]/publier/route.ts`,
   `lib/campaigns/version-strategie.ts`, `tests/unit/campaigns/version-strategie.test.ts`
 - Modifier : l'onglet Stratégie (Tâche 9), `ARCHITECTURE.md`
@@ -1582,7 +1582,7 @@ rayon de **recherche de POI** et reste où il est.
 - [ ] **Étape 1 : la migration**
 
 ```sql
--- sql/147_strategie_versions.sql
+-- sql/148_strategie_versions.sql
 -- Une strategie publiee est figee : on garde l'empreinte des zones au moment
 -- de la publication, pour pouvoir dire « la zone X a change depuis la vN ».
 CREATE TABLE IF NOT EXISTS public.strategie_versions (
@@ -1655,7 +1655,7 @@ describe('derive d une strategie publiee', () => {
 ### Tâche 20 : onglet Activation
 
 **Fichiers :**
-- Créer : `components/campaign/ActivationPanel.tsx`, `sql/148_activation_lots.sql`,
+- Créer : `components/campaign/ActivationPanel.tsx`, `sql/149_activation_lots.sql`,
   `app/api/campaigns/[id]/activation/previol/route.ts`,
   `app/api/campaigns/[id]/activation/pousser/route.ts`,
   `app/api/campaigns/[id]/activation/historique/route.ts`,
@@ -1671,7 +1671,7 @@ protégé.
 - [ ] **Étape 1 : la migration**
 
 ```sql
--- sql/148_activation_lots.sql
+-- sql/149_activation_lots.sql
 -- Historique des poussees vers les DSP, par lot et par line item, pour afficher
 -- un statut et pouvoir revenir en arriere.
 CREATE TABLE IF NOT EXISTS public.activation_lots (
