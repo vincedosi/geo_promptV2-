@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `a7919b5`.
+> Généré le 2026-09-13 — commit `1f42303`.
 
 ## Totaux
 
@@ -60,8 +60,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/constants.ts` | 2 | PERIOD_LEN_DAYS, CALENDAR_START | — |
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
-| `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
 | `lib/import/geocoder.ts` | 2 | reverseGeocodeRows | ReverseResult |
+| `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
 | `lib/bidding-ml/comparison.ts` | 2 | aggregateByDate | DailyComparison |
 | `lib/bidding-ml/targeting-kpis.ts` | 2 | quantile, selectTargetZones | — |
 | `lib/agent/intents/index.ts` | 2 | getIntent, listIntents | — |
@@ -73,9 +73,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
-| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/campaigns/actor-metrics.ts` | 1 | toneColor | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
@@ -99,9 +99,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |

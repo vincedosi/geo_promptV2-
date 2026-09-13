@@ -6887,6 +6887,8 @@ export type Database = {
         }
         Returns: string
       }
+      zone_difference: { Args: { p_base: string; p_retires: string[] }; Returns: Json }
+      zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
     }
     Enums: {
       job_status: "pending" | "processing" | "completed" | "failed"

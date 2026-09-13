@@ -18,6 +18,7 @@ import { getSourceTypeLabel } from '@/lib/custom-geo/source-type-labels';
 import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { ZoneDeleteDialog } from '@/app/map/custom-geo/_components/ZoneDeleteDialog';
 import type { CustomGeoZoneSummary } from '@/types/custom-geo';
+import { ZonesOperations } from './ZonesOperations';
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
@@ -78,6 +79,10 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
   const orgId = session?.user?.organizationId ?? '';
 
   const [zones, setZones] = useState<CustomGeoZoneSummary[]>([]);
+  // Selection pour les operations booleennes (Tache 14). TABLEAU et non Set :
+  // l'ordre de cochage designe la base de la soustraction, qui n'est pas
+  // symetrique — un Set perdrait cette information.
+  const [selection, setSelection] = useState<string[]>([]);
   const [stats, setStats] = useState<ZonesStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -358,6 +363,13 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
           Aucune zone sauvegardée. Utilise le bouton « Sauvegarder la vue » pour créer ta première zone.
         </div>
       )}
+      <ZonesOperations
+        selection={selection}
+        nomsParId={new Map(zones.map(z => [z.id, z.name]))}
+        orgId={orgId}
+        onTermine={() => { setSelection([]); void fetchAll(); }}
+      />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {zones.map(zone => (
           <ZoneCard
@@ -368,6 +380,10 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
             onShow={() => showZoneOnMap(zone)}
             onHide={() => hideZoneFromMap(zone.id)}
             onDelete={() => setZoneToDelete(zone)}
+            rangSelection={selection.indexOf(zone.id)}
+            onBasculerSelection={() => setSelection(prev => (
+              prev.includes(zone.id) ? prev.filter(id => id !== zone.id) : [...prev, zone.id]
+            ))}
           />
         ))}
       </div>
@@ -387,7 +403,7 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
 // ─── ZoneCard ─────────────────────────────────────────────────────────────
 
 function ZoneCard({
-  zone, loaded, pending, onShow, onHide, onDelete,
+  zone, loaded, pending, onShow, onHide, onDelete, rangSelection, onBasculerSelection,
 }: {
   zone: CustomGeoZoneSummary;
   loaded: LoadedZone | null;
@@ -395,6 +411,9 @@ function ZoneCard({
   onShow: () => void;
   onHide: () => void;
   onDelete: () => void;
+  /** Position dans la selection (0 = base d'une soustraction), -1 si non cochee. */
+  rangSelection: number;
+  onBasculerSelection: () => void;
 }) {
   const sourceLabel = getSourceTypeLabel(zone.source_type);
   const dept = zone.dept_codes ?? [];
@@ -409,8 +428,25 @@ function ZoneCard({
       display: 'flex', flexDirection: 'column', gap: 6,
       transition: 'border-color 150ms var(--ease-hover)',
     }}>
-      {/* Title + status dot */}
+      {/* Title + status dot — la case a cocher precede le titre : elle sert les
+          operations booleennes (Tache 14), et son RANG est affiche parce que
+          l'ordre de cochage designe la base d'une soustraction. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}>
+          <input
+            type="checkbox"
+            checked={rangSelection >= 0}
+            onChange={onBasculerSelection}
+            aria-label={`Selectionner ${zone.name} pour une operation`}
+            style={{ accentColor: 'var(--brand-teal)', cursor: 'pointer' }}
+          />
+          {rangSelection >= 0 && (
+            <span style={{
+              fontFamily: fMono, fontSize: 9, color: 'var(--brand-teal)',
+              minWidth: 10, textAlign: 'center',
+            }}>{rangSelection + 1}</span>
+          )}
+        </label>
         {loaded && (
           <span style={{
             width: 6, height: 6, borderRadius: '50%', background: loaded.color, flexShrink: 0,
