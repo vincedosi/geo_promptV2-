@@ -150,13 +150,37 @@ Deux écarts assumés avec la consigne d'origine :
   désormais l'entrée en queue.
 8 tests verrouillent les deux comportements.
 
-**6. Supprimer les 12 index jamais parcourus de plus de 1 Mo (236 Mo), après avoir vérifié qu'aucune fonctionnalité en préparation ne les attend.**
-Dont `bidding_daily_state` : **0 ligne, 11 Mo d'index**. Réserve explicite : les
-169 Mo de `comptages_routiers` (`geom_geog`, `midpoint_geog`, `midpoint`) ne
-doivent partir que si le TMJA ne les attend pas — `idx_scan = 0` prouve qu'ils
-ne servent pas, pas qu'ils ne serviront jamais.
-· Effort : 0,5 j dont l'essentiel en vérification · Gain : **−236 Mo**, cache
-moins dilué, écritures allégées.
+**6. Supprimer les index jamais parcourus — 3 SUPPRIMÉS le 2026-09-13 (sql/163, −34 Mo), 8 conservés avec motif, 192 Mo encore en jeu.**
+
+**Préalable qui valide tout le reste : `pg_stat_database.stats_reset` vaut
+NULL.** Les compteurs courent depuis la création de la base (février 2026), donc
+`idx_scan = 0` signifie vraiment « jamais parcouru ». Sans cette vérification, le
+raisonnement entier serait nul — c'est la première chose à refaire si quelqu'un
+reprend ce point.
+
+Supprimés, avec preuve :
+- `idx_poi_france_geom_geography_gist` (23 Mo) — aucune requête du dépôt
+  n'interroge `poi_france` en `geography`.
+- `idx_bds_metrics_gin` (5,6 Mo) — la table `bidding_daily_state` est vide MAIS
+  a de vrais lecteurs, donc « vide » ne suffisait pas. Ce qui conclut : ces
+  lecteurs sélectionnent `metrics` et filtrent sur `strategy_id`, sans jamais
+  descendre DANS le jsonb. Un GIN serait inutile même la table remplie.
+- `idx_dsp_data_impressions` (5 Mo) — les trois `ORDER BY impressions DESC` du
+  dépôt portent sur le résultat d'une agrégation, pas sur les lignes de la
+  table.
+
+Conservés, avec motif :
+- Les trois de `comptages_routiers` (**169 Mo, l'essentiel du gain**) attendent
+  l'arbitrage du **point 18** : si le proxy OSM disparaît, c'est la table
+  entière qui part. Les supprimer maintenant trancherait par la bande une
+  décision produit qui n'est pas prise.
+- `idx_poi_france_geom` (14 Mo) — **le point 7 en aura besoin.** Son jumeau
+  partiel `idx_poi_france_geom_cat` ne couvre que `categorie IS NOT NULL`, et le
+  planificateur ne peut s'en servir que si la requête porte ce prédicat : la
+  route rend la catégorie facultative. Les deux ne sont pas redondants.
+- `idx_poi_france_organization` (3,1 Mo) — le **point 10** filtrera dessus.
+- `idx_iris_centroid`, `idx_ref_communes_geom`, `idx_emetteurs_freq` — moins de
+  2 Mo chacun sur des tables de travail actif : le gain ne paie pas le risque.
 
 ---
 
