@@ -4733,6 +4733,44 @@ export type Database = {
         }
         Relationships: []
       }
+      strategie_versions: {
+        Row: {
+          charge_utile: Json
+          empreinte_zones: Json
+          id: string
+          publiee_le: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Insert: {
+          charge_utile: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Update: {
+          charge_utile?: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par?: string
+          strategie_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "strategie_versions_strategie_id_fkey"
+            columns: ["strategie_id"]
+            isOneToOne: false
+            referencedRelation: "bidding_strategies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       smart_ville_stats: {
         Row: {
           indicateur: string
@@ -6199,6 +6237,10 @@ export type Database = {
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
       purge_old_agent_chat_messages: { Args: never; Returns: number }
+      publier_strategie: {
+        Args: { p_charge_utile: Json; p_empreinte: Json; p_publiee_par: string; p_strategie_id: string }
+        Returns: Json
+      }
       qualite_colonnes_iris: { Args: never; Returns: Json }
       qualite_fraicheur: { Args: never; Returns: Json }
       qualite_indicateurs: { Args: never; Returns: Json }
