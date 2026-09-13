@@ -51,7 +51,11 @@ interface LigneIndicateur {
   n_total_source: number | null;
   n_cp: number | null;
   cp_calcules_le: string | null;
-  verdict: 'colonne_absente' | 'source_vide' | 'partiel' | 'ok';
+  part_population: number | null;
+  age_source_jours: number | null;
+  n_cp_reference: number | null;
+  verdict: 'colonne_absente' | 'source_vide' | 'perime' | 'non_verifie' | 'partiel' | 'ok';
+  gravite: number;
 }
 
 interface LigneSource {
@@ -70,15 +74,25 @@ interface Controle {
   unite: string;
   attendu: number;
   mesure: number;
+  ecart_absolu: number | null;
   ecart_relatif: number | null;
   tolerance: number;
+  n_renseignes: number | null;
+  pop_couverte: number | null;
   ok: boolean;
 }
 
 /** Les quatre familles, dites en clair — un verdict brut ne se lit pas seul. */
 const VERDICTS: Record<LigneIndicateur['verdict'], { texte: string; couleur: string; fond: string }> = {
-  colonne_absente: { texte: 'colonne absente du schéma', couleur: 'var(--danger)', fond: 'rgba(255,87,87,0.08)' },
+  colonne_absente: { texte: 'colonne non mesurable dans le schéma', couleur: 'var(--danger)', fond: 'rgba(255,87,87,0.08)' },
   source_vide:     { texte: 'source vide — ne produira jamais rien', couleur: 'var(--danger)', fond: 'rgba(255,87,87,0.08)' },
+  // Ajoutés après relecture : ces deux verdicts N'EXISTAIENT PAS, si bien que
+  // les indicateurs pollen et ATMO — dont la source est figée depuis 72 jours —
+  // tombaient dans le `ELSE` et s'affichaient « ok ». La page se contredisait
+  // elle-même : « les 19 indicateurs pointent vers des données exploitables »
+  // juste au-dessus d'un encadré annonçant leur source périmée.
+  perime:          { texte: 'source périmée', couleur: 'var(--warning)', fond: 'rgba(247,183,49,0.08)' },
+  non_verifie:     { texte: 'jamais calculé — non vérifié', couleur: 'var(--text-secondary)', fond: 'rgba(78,205,196,0.06)' },
   partiel:         { texte: 'couverture partielle', couleur: 'var(--warning)', fond: 'rgba(247,183,49,0.08)' },
   ok:              { texte: 'ok', couleur: 'var(--text-tertiary)', fond: 'transparent' },
 };
@@ -248,6 +262,7 @@ function VueIndicateurs({ releve }: { releve: unknown }) {
               <th style={th}>Indicateur</th>
               <th style={th}>Colonne source</th>
               <th style={{ ...th, textAlign: 'right' }}>IRIS renseignés</th>
+              <th style={{ ...th, textAlign: 'right' }}>Population couverte</th>
               <th style={{ ...th, textAlign: 'right' }}>CP calculés</th>
               <th style={th}>Verdict</th>
             </tr>
@@ -267,8 +282,18 @@ function VueIndicateurs({ releve }: { releve: unknown }) {
                       ? `${formaterNombre(l.n_source)}${part != null ? ` · ${part} %` : ''}`
                       : '—'}
                   </td>
+                  {/* La couverture qui compte est celle de la POPULATION, pas
+                      celle des lignes : `iris` mélange 16 404 IRIS urbains et
+                      33 044 communes-IRIS rurales. `rev_median` couvre 29 % des
+                      lignes mais 57 % des habitants — et une colonne renseignée
+                      sur les seules communes rurales ferait 67 % des lignes
+                      pour 40 % de la population. */}
+                  <td style={{ ...tdMono, textAlign: 'right' }}>
+                    {l.part_population != null ? `${l.part_population} %` : '—'}
+                  </td>
                   <td style={{ ...tdMono, textAlign: 'right' }}>
                     {l.n_cp != null ? formaterNombre(l.n_cp) : '—'}
+                    {l.age_source_jours != null && ` · ${l.age_source_jours} j`}
                   </td>
                   <td style={{ ...td, color: v.couleur, fontSize: 11 }}>{v.texte}</td>
                 </tr>
@@ -359,8 +384,12 @@ function VueInvariants({ releve }: { releve: unknown }) {
                 <td style={{ ...tdMono, textAlign: 'right', color: c.ok ? undefined : 'var(--danger)' }}>
                   {formaterNombre(c.mesure)} {c.unite}
                 </td>
+                {/* L'écart en unité métier à côté du pourcentage : « 0,004 % »
+                    ne dit rien, « 2 800 habitants » si. */}
                 <td style={{ ...tdMono, textAlign: 'right', color: c.ok ? 'var(--text-tertiary)' : 'var(--danger)' }}>
-                  {c.ecart_relatif != null ? `${(c.ecart_relatif * 100).toFixed(3)} %` : '—'}
+                  {c.ecart_absolu != null && c.ecart_absolu !== 0
+                    ? `${c.ecart_absolu > 0 ? '+' : ''}${formaterNombre(c.ecart_absolu)} ${c.unite}`
+                    : c.ecart_relatif != null ? `${(c.ecart_relatif * 100).toFixed(4)} %` : '—'}
                 </td>
               </tr>
             ))}

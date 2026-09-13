@@ -78,11 +78,20 @@ const VERIFICATIONS = {
 type CleVerification = keyof typeof VERIFICATIONS;
 
 /**
- * Quota serré, et assumé : chaque relance peut coûter 220 Mo de lecture.
- * Compteur PARTAGÉ en base (`consommer_quota`, sql/135) — jamais une Map
- * locale, qui ne limiterait rien sur Vercel (CLAUDE.md).
+ * Quota, resserré après relecture (2026-09-13).
+ *
+ * Trois des quatre vérifications coûtent **220 Mo de lecture chacune**
+ * (mesuré). À 6 relances par minute, le quota autorisait donc 1,32 Go/min —
+ * contre ~300 Mo/min pour un Nano à 5 Mo/s soutenu : **4,4 fois le budget
+ * qu'il prétendait protéger**. À 2/min, le plafond passe sous ce budget.
+ *
+ * Le garde-fou « une à la fois » de la page est purement client, donc par
+ * onglet : deux onglets ouverts, ou deux super_admins, et deux balayages
+ * partent en parallèle. Ce quota est la seule limite RÉELLE, d'où sa valeur
+ * basse. Compteur PARTAGÉ en base (`consommer_quota`, sql/135) — jamais une
+ * Map locale, qui ne limiterait rien sur Vercel (CLAUDE.md).
  */
-const limiteur = createRateLimiter({ max: 6, window: '60 s', prefix: 'geo:rl:qualite-donnees' });
+const limiteur = createRateLimiter({ max: 2, window: '60 s', prefix: 'geo:rl:qualite-donnees' });
 
 export async function GET(request: NextRequest) {
   const profile = await requireAdmin(request);
