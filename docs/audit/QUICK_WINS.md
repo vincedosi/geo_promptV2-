@@ -97,11 +97,12 @@ Gain : la carte et les zones cessent d'annoncer une mesure là où il n'y en a p
 
 ## Moins d'une journée
 
-**1. Poser `s-maxage=604800` sur `/api/tiles/[z]/[x]/[y]`, comme le font déjà les tuiles IRIS et TMJA.**
-Aujourd'hui : `public, max-age=3600`, sans directive CDN. La route pèse **77 %
-du temps base du projet** (40 510 798 ms sur 6 519 appels).
-· Effort : 15 min · Gain : la même tuile vue par un deuxième utilisateur passe
-de **750 ms de base à ~0**.
+**1. ~~Poser `s-maxage=604800` sur `/api/tiles/[z]/[x]/[y]`~~ — FAIT le 2026-09-13.**
+L'en-tête valait `public, max-age=3600`, sans aucune directive CDN. Il vaut
+désormais `public, max-age=86400, s-maxage=604800, immutable` — `immutable` est
+sûr parce que la réponse est versionnée par `?v=`.
+⚠ Le gain reste **partiel tant que le point 2 n'est pas fait** : un CDN ne
+mutualise pas une réponse authentifiée.
 
 **2. Sortir `/api/tiles/**` du cookie de session pour que le CDN puisse vraiment mutualiser.**
 Sans cela, le point 1 ne sert qu'à moitié : un CDN ne partage pas une réponse
@@ -112,24 +113,42 @@ middleware.
 · Effort : 0,5 j · Gain : **plafond 2-4 → 60-120 utilisateurs simultanés**,
 combiné au point 1. C'est le plus gros gain de toute la liste.
 
-**3. Compresser les tuiles carreaux (`gzipSync` + `Content-Encoding: gzip`), exactement comme `/api/tiles/iris`.**
-`CLAUDE.md` déclare le gzip **obligatoire** sur les réponses MVT ; les routes
-IRIS et TMJA s'y tiennent, la route carreaux **non**. Au passage : trancher si
-la règle est vraie, ou la réécrire.
-· Effort : 30 min · Gain : une salve de 12 tuiles passe de **3,56 Mo à ~0,89 Mo**.
+**3. ~~Compresser les tuiles carreaux~~ — FAIT le 2026-09-13.**
+`gzipSync` au stockage, `Content-Encoding: gzip` et `Vary: Accept-Encoding` à la
+sortie, dégzippage à la volée pour le client qui n'accepte pas l'encodage — même
+patron que `/api/tiles/iris`.
+**Gain RÉEL mesuré, et il est deux fois plus petit qu'annoncé ici :** la tuile
+z9/253/176 passe de 200 841 à **103 439 octets sur le fil, soit 1,94x**, pas les
+4x que laissait entendre « 3,56 Mo → 0,89 Mo ». Le MVT est du protobuf, déjà
+compact : il ne se comprime pas comme du texte. Vérifié de bout en bout, la
+couche carreaux s'affiche sur toute la France au palier 20 km.
 
-**4. Lancer `ANALYZE` sur `poi_france`, `carreaux_filosofi` et `iris`, et vérifier pourquoi l'autovacuum ne les a jamais touchées.**
-`last_autoanalyze IS NULL` sur les **trois plus grosses tables du projet**. Le
-planificateur estime `rows=1` sur une table de 290 877 lignes : toutes ses
-décisions de jointure et de tri sont prises à l'aveugle.
-· Effort : 10 min pour l'`ANALYZE`, 1 h pour comprendre l'autovacuum · Gain :
-des plans justes, partout, gratuitement.
+**4. ~~Lancer `ANALYZE` sur `poi_france`, `carreaux_filosofi` et `iris`~~ — SANS OBJET, la prémisse était fausse (vérifié le 2026-09-13).**
+L'audit lisait `pg_stat_user_tables.n_live_tup`, qui vaut bien 0 sur ces trois
+tables. Mais **ce n'est pas ce que lit le planificateur** : lui lit
+`pg_class.reltuples`, et il y trouve les bons chiffres — 290 877 pour
+`poi_france`, 2 298 582 pour `carreaux_filosofi`, 49 448 pour `iris`. Les deux
+compteurs ont été confondus.
 
-**5. Ramener le cache mémoire de tuiles de 1 000 à 200 entrées et purger par ancienneté d'usage, pas d'insertion.**
-1 000 tuiles × 297 Ko = **297 Mo de RSS** dans une fonction de 1 Go. Et la purge
-actuelle supprime les 200 **premières clés insérées** : une tuile très demandée
-est évincée avant une tuile vue une seule fois.
-· Effort : 1 h · Gain : RSS **297 Mo → 59 Mo**, et un cache qui garde ce qui sert.
+Les statistiques de colonnes existent et sont **exactes**, contre-vérifiées
+sur les données : `poi_france.categorie` annonce 4 valeurs distinctes, il y en a
+4 ; `ville` annonce 97,92 % de nuls, il y en a 97,98 %.
+
+Le seul manque réel est `carreaux_filosofi.geom_centroid`, seule colonne sans
+statistiques. Son index GiST n'a été parcouru que **6 fois** : un `ANALYZE`
+ciblé coûterait environ 234 Mo de lectures aléatoires pour un gain nul. **Ne pas
+le faire.**
+
+**5. ~~Ramener le cache mémoire de tuiles à 200 entrées et purger par usage~~ — FAIT le 2026-09-13, autrement et mieux.**
+`lib/tiles/cache-lru.ts`, partagé par les **trois** routes de tuiles, qui
+portaient toutes la même copie du même défaut.
+Deux écarts assumés avec la consigne d'origine :
+- **Borne en OCTETS, pas en entrées.** Une tuile pèse de 101 ko à 827 ko : un
+  plafond en nombre d'entrées ne borne pas la mémoire. Budget 24 Mo par route.
+- **LRU réel.** `Map.keys()` rend l'ordre d'INSERTION ; la purge évinçait donc
+  une tuile très demandée avant une tuile vue une fois. Une lecture remet
+  désormais l'entrée en queue.
+8 tests verrouillent les deux comportements.
 
 **6. Supprimer les 12 index jamais parcourus de plus de 1 Mo (236 Mo), après avoir vérifié qu'aucune fonctionnalité en préparation ne les attend.**
 Dont `bidding_daily_state` : **0 ligne, 11 Mo d'index**. Réserve explicite : les
