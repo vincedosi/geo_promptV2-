@@ -573,7 +573,16 @@ export function PanneauCalques(props: PanneauCalquesProps) {
       <GroupeCalques
         titre="Mes analyses"
         ouvert={groupesOuverts.analyses}
-        onToggle={() => { toggleGroupe('analyses'); analysesState.demanderChargement(); }}
+        onToggle={() => {
+            // Charger a l'OUVERTURE seulement (relecture du 2026-09-13) :
+            // `onToggle` est appele dans les deux sens, et apres un echec
+            // reseau `use-analyses.ts` remet `fetchedRef` a false — replier
+            // le groupe lancait alors une requete dont personne ne verrait
+            // jamais le resultat.
+            const ouvrir = !groupesOuverts.analyses;
+            toggleGroupe('analyses');
+            if (ouvrir) analysesState.demanderChargement();
+          }}
       >
         {analysesState.loading && (
           <div style={{ padding: '24px 16px', textAlign: 'center' }}>

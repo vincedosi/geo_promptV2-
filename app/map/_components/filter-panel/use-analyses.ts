@@ -7,10 +7,19 @@
  * Garde I/O Nano : `fetchedRef` empêche tout refetch au simple repliage/
  * dépliage du groupe — le composant qui monte les enfants de `GroupeCalques`
  * est démonté à la fermeture (`{ouvert && <div>{children}</div>}`), donc un
- * état local à ces enfants serait perdu à chaque toggle ; ce hook vit au
- * niveau de `PanneauCalques`, qui lui ne démonte jamais. `demanderChargement`
- * est donc appelé au premier dépliage, jamais au montage du panneau lui-même
- * (pas de prefetch — CLAUDE.md).
+ * état local à ces enfants serait perdu à chaque toggle ; ce hook vit un cran
+ * plus haut, dans `PanneauCalques`. `demanderChargement` est appelé au premier
+ * dépliage du groupe, jamais au montage du panneau (pas de prefetch — CLAUDE.md).
+ *
+ * **Portée exacte de ce cache, corrigée le 2026-09-13** (relecture de la tâche
+ * 11) : il vaut le temps d'UNE ouverture du panneau Calques, pas la session.
+ * `page.tsx` ne monte le panneau actif que tant qu'il est ouvert
+ * (`{entreeActive && … PANNEAUX[entreeActive]?.()}`), donc fermer Calques ou
+ * basculer vers Filtre/Analyse/Zones démonte ce hook et vide `fetchedRef`. La
+ * première version de ce commentaire affirmait que `PanneauCalques` « ne
+ * démonte jamais » — c'était faux, et une garantie de performance écrite et
+ * fausse coûte plus cher qu'une garantie absente. Le coût réel reste bas : une
+ * requête indexée, 50 lignes, aucune colonne jsonb.
  */
 import { useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';

@@ -5073,6 +5073,15 @@ export type Database = {
           code_postal: string
         }[]
       }
+      compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
+      correlation_campagne_indicateur: {
+        Args: { p_campaign_id: string; p_indicator_code: string }
+        Returns: {
+          impressions: number
+          postal_code: string
+          valeur: number
+        }[]
+      }
       compte_poi_par_categorie: {
         Args: {
           p_categories: string[]
@@ -5338,6 +5347,7 @@ export type Database = {
           type_iris: string
         }[]
       }
+      etat_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       fill_carreaux_1km_bande: {
         Args: { p_x0: number; p_x1: number }
         Returns: {
@@ -6068,6 +6078,7 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: number
       }
+      materialiser_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       materialize_indicator_cp_values: {
         Args: { p_indicator_code: string }
         Returns: number

@@ -1,29 +1,45 @@
 /**
  * POST /api/analyses/[id]/rejouer
  *
- * Enregistre un NOUVEAU lancement, avec les mêmes `type`/`parametres`/
- * `maillage`/`perimetre` que l'analyse source (scopée à l'org courante).
- * `statut` repart à `en_cours`, `resultat`/`erreur` sont réinitialisés.
+ * Rend de quoi RELANCER une analyse enregistrée : son type, ses paramètres,
+ * son maillage, son périmètre, et — quand le moteur correspondant est câblé —
+ * l'appel exact à faire pour la rejouer.
  *
- * Portée de cette tâche (11) : cette route rejoue les PARAMÈTRES — elle ne
- * déclenche PAS le moteur de calcul (clustering, bataille, voronoï,
- * corrélation, ELM n'ont ni la même forme d'appel ni le même propriétaire de
- * code, et `isochrone-battle` est un fichier protégé). Le câblage de chaque
- * moteur sur ce rejeu est explicitement la charge des Tâches 12, 13 et 22
- * (voir le brief : « Consommé par les tâches 12, 13, 22 »).
+ * **N'ÉCRIT RIEN** (corrigé le 2026-09-13, relecture de la tâche 11). La
+ * première version insérait une ligne `statut: 'en_cours'` : comme aucun
+ * moteur n'était branché dessus, comme la table n'a ni trigger ni timeout et
+ * comme l'UI affiche ce statut tel quel, chaque rejeu laissait en base un
+ * fantôme « en cours » ÉTERNEL, que rien ne pouvait finir, marquer en échec
+ * ni supprimer (aucune UI de suppression). Pire depuis la tâche 12 :
+ * `/api/analyses/score` enregistre SON PROPRE lancement, si bien qu'un rejeu
+ * suivi d'un vrai calcul produisait un doublon « terminé » plus un orphelin.
+ *
+ * La ligne est donc écrite par le moteur qui calcule vraiment, au moment où il
+ * calcule — c'est déjà ce que font `/api/analyses/score` (tâche 12) et
+ * `/api/analyses/correlation` (tâche 13). Cette route dit quoi appeler ; elle
+ * ne prétend plus avoir lancé quoi que ce soit.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
-import { toJson } from '@/lib/supabase/rpc-json';
-import type { TableInsert } from '@/lib/supabase/tables';
-import type { AnalyseEnregistree } from '@/lib/analyses/types';
+import type { AnalyseEnregistree, TypeAnalyse } from '@/lib/analyses/types';
 
 export const dynamic = 'force-dynamic';
 
 const IdSchema = z.string().uuid();
+
+/** Comment relancer chaque type d'analyse. `satisfies` force l'exhaustivité :
+ *  un type ajouté à `TYPES_ANALYSE` sans entrée ici fait échouer `tsc`. */
+const MOTEURS = {
+  score:       { cable: true,  endpoint: '/api/analyses/score',       methode: 'POST' },
+  correlation: { cable: true,  endpoint: '/api/analyses/correlation', methode: 'GET'  },
+  clusters:    { cable: false, endpoint: null, methode: null },
+  battle:      { cable: false, endpoint: null, methode: null },
+  voronoi:     { cable: false, endpoint: null, methode: null },
+  elm:         { cable: false, endpoint: null, methode: null },
+} satisfies Record<TypeAnalyse, { cable: boolean; endpoint: string | null; methode: string | null }>;
 
 const RejouerSchema = z.object({
   /** Nom du nouveau lancement. Par défaut : nom de la source + suffixe. */
@@ -65,25 +81,19 @@ export async function POST(
   // `source.type` sort en `string` du générateur (CHECK non vu) — resserré via
   // `AnalyseEnregistree`, source de vérité `lib/analyses/types.ts`.
   const typeSource = source as Pick<AnalyseEnregistree, 'type' | 'nom' | 'parametres' | 'maillage' | 'perimetre'>;
+  const moteur = MOTEURS[typeSource.type];
 
-  const ligne: TableInsert<'analyses'> = {
-    org_id: orgId,
-    created_by: profile.id,
-    type: typeSource.type,
-    nom: corps.valeur.nom ?? `${source.nom} (rejoué)`,
-    parametres: toJson(source.parametres),
-    maillage: source.maillage,
-    perimetre: source.perimetre ? toJson(source.perimetre) : null,
-    resultat: null,
-    erreur: null,
-    statut: 'en_cours',
-  };
-
-  const { data, error } = await supabase.from('analyses').insert(ligne).select().single();
-  if (error) {
-    console.error('[POST /api/analyses/[id]/rejouer]', error.message);
-    return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
-  }
-
-  return NextResponse.json({ analyse: data as AnalyseEnregistree }, { status: 201 });
+  return NextResponse.json({
+    rejeu: {
+      type: typeSource.type,
+      nom: corps.valeur.nom ?? `${source.nom} (rejoué)`,
+      parametres: source.parametres,
+      maillage: source.maillage,
+      perimetre: source.perimetre,
+    },
+    // `cable: false` n'est pas une erreur : c'est l'état réel des moteurs que
+    // les tâches 14 à 22 n'ont pas encore branchés. Le dire explicitement vaut
+    // mieux que rendre 201 sur une relance qui n'a pas eu lieu.
+    moteur,
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

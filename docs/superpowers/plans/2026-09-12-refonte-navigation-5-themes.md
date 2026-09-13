@@ -47,17 +47,29 @@ document, et qui ne conditionnent pas la refonte.
 | 9 — Campagne active, bascule | ✅ close | 1 | `1f5893c..8727bef` |
 | 10 — Documentation et clôture | ✅ close | 1 | `8727bef..950a1ba` |
 | 23 — Catalogue du code (knip) | ✅ close | 1 | `950a1ba..c40fc55` |
-| 11 — Analyses enregistrées, rejeu | ⚠️ livrée, **non relue** | 0 | `c40fc55..2a29ba1` |
-| 12 — Score composite | ✅ livrée, **non relue** | 0 | ce commit |
-| 13 — Corrélation impressions × indicateur | 🔄 suivante | | |
+| 11 — Analyses enregistrées, rejeu | ✅ close | 1 | `c40fc55..2a29ba1` + corrections |
+| 12 — Score composite | ✅ close | 1 | `1a77a03` + corrections |
+| 13 — Corrélation impressions × indicateur | ✅ livrée, **non relue** | 0 | ce commit |
 | 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ⬜ à faire | | |
 | 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
 | 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
 
-> **Tâche 11 : seule tâche livrée sans relecture indépendante.** Toutes les autres
-> ont été reprises au moins une fois par un relecteur — aucune n'est passée du premier
-> coup. Le rejeu (`/api/analyses/[id]/rejouer`) ne déclenche par ailleurs aucun moteur
-> de calcul : il réenregistre des paramètres. Le câblage revient aux tâches 12, 13, 22.
+> **Les tâches 11 et 12 ont été relues le 2026-09-13** — et la règle du chantier tient
+> une fois de plus : aucune n'est passée du premier coup.
+>
+> Tâche 11 : rien de bloquant, mais un DELETE qui répondait « introuvable » quand la
+> base tombe, un POST sans borne ni quota, un commentaire affirmant une garantie de
+> cache FAUSSE, et un rejeu qui laissait en base un fantôme « en cours » éternel à
+> chaque appel. Corrigés.
+>
+> Tâche 12 : **trois bloquants**. Le calque n'écoutait jamais son événement (un seul
+> `useEffect` à dépendances stables, `mapRef.current` encore `null` au montage — il ne
+> se peignait JAMAIS). Un indicateur à colonne vide se rematérialisait à chaque
+> lancement : un seq scan complet d'`iris`, ~173 Mo et 1,3 s, à 12 lancements/minute —
+> la famille exacte des incidents du 28/03 et du 08/04. Et l'exclusivité des dégradés se
+> corrompait dans un sens sur deux, par lecture d'état périmée dans une pile synchrone,
+> rouvrant le défaut que la tâche 5 avait fermé. Plus un IDOR sur le périmètre de type
+> `zone`. Tous corrigés et vérifiés en base.
 
 ### Ce que la tâche 12 a trouvé de faux dans ce plan, avant d'écrire une ligne
 
@@ -1402,7 +1414,7 @@ score 0-100 plus un bouton « Créer une zone au-dessus d'un seuil » qui appell
   `tests/unit/analyses/correlation.test.ts`
 - Modifier : `PanneauAnalyse.tsx`, `ARCHITECTURE.md`
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/analyses/correlation.test.ts
@@ -1427,26 +1439,26 @@ describe('correlation', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : implémenter** — `pearson` rend `0` et non `NaN` quand un écart-type est
+- [x] **Étape 3 : implémenter** — `pearson` rend `0` et non `NaN` quand un écart-type est
       nul : un `NaN` remonterait jusqu'au graphe et casserait l'axe.
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : la route**
+- [x] **Étape 5 : la route**
 
 `GET /api/analyses/correlation?campaignId=&variable=` apparie `campaign_cp_rollup`
 (impressions par CP, **déjà agrégé** — ne jamais scanner `dsp_campaign_data`) avec
 `indicator_cp_values`. Enregistre l'analyse via la Tâche 11.
 
-- [ ] **Étape 6 : l'UI** — nuage de points Recharts (`ScatterChart`, déjà installé),
+- [x] **Étape 6 : l'UI** — nuage de points Recharts (`ScatterChart`, déjà installé),
       coefficient et `n` affichés.
 
-- [ ] **Étape 7 : `ARCHITECTURE.md`** — ajouter la route, et **retirer** la mention fausse
+- [x] **Étape 7 : `ARCHITECTURE.md`** — ajouter la route, et **retirer** la mention fausse
       de `api/correlation/compute/`.
 
-- [ ] **Étape 8 : vérifier et commit**
+- [x] **Étape 8 : vérifier et commit**
 
 ---
 

@@ -441,6 +441,10 @@ export default function MapPage() {
     setSaveName:              savedMaps.setSaveName,
   });
 
+  // Etat du calque de score, en REF : lu et ecrit dans la meme pile
+  // synchrone que `onDegrade` (voir le deroule detaille plus bas).
+  const scoreActifRef = useRef(false);
+
   // ── Exclusivité des dégradés de couleur (Tâche 6) — un seul à la fois
   // (lib/carte/degrades.ts). `mapLayers.basculerDegrade` porte carreaux et
   // IRIS (son état) et applique déjà leur propre extinction ; cette fonction
@@ -456,11 +460,29 @@ export default function MapPage() {
     if (eteint === 'meteo') handleMeteoClear();
     if (eteint === 'campagne-impressions') window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
     // Tache 12 : eteindre le score = rediffuser l'evenement avec zero score.
-    // Pas de boucle — `basculerDegrade(..., false)` ne rend jamais d'`eteint`,
-    // donc le listener ci-dessous s'arrete la.
-    if (eteint === 'score') window.dispatchEvent(new CustomEvent(SCORE_MAP_EVENT, {
-      detail: { scores: [], libelle: '', nIndicateurs: 0 } satisfies ScoreMapEventDetail,
-    }));
+    //
+    // `scoreActifRef` est mis a jour AVANT le dispatch, et ce n'est pas un
+    // detail : `dispatchEvent` est SYNCHRONE, donc le listener `onScore`
+    // ci-dessous s'executerait dans cette meme pile et rappellerait
+    // `onDegrade('score', false)` — avec le `degradeActif` du DERNIER RENDU,
+    // pas celui qu'on vient de poser. Deroule du defaut (relecture du
+    // 2026-09-13), au depart score allume :
+    //   1. l'utilisateur coche IRIS   -> setDegradeActif('iris') en file
+    //   2. dispatch synchrone          -> onScore -> onDegrade('score', false)
+    //   3. degradeActif y vaut encore 'score' (etat non rafraichi)
+    //      -> setDegradeActif(null) en file, APRES le 'iris'
+    //   4. React applique dans l'ordre : degradeActif finit a null alors
+    //      qu'IRIS est affiche.
+    // La legende n'annoncait donc plus rien, et le degrade suivant n'evincait
+    // plus IRIS : deux chorophletes empilees, le defaut meme que la Tache 5 a
+    // ferme. Poser la ref d'abord neutralise l'etape 2 par la garde de
+    // transition du listener.
+    if (eteint === 'score') {
+      scoreActifRef.current = false;
+      window.dispatchEvent(new CustomEvent(SCORE_MAP_EVENT, {
+        detail: { scores: [], libelle: '', nIndicateurs: 0 } satisfies ScoreMapEventDetail,
+      }));
+    }
     toast.info(`${libelleDegrade(eteint)} a été masqué — un seul dégradé de couleur à la fois`);
   }, [mapLayers, handleMeteoClear, toast]);
 
@@ -485,7 +507,6 @@ export default function MapPage() {
   // depuis une checkbox de calque — page.tsx doit donc apprendre son etat par
   // le meme evenement, pour appliquer l'exclusivite des degrades. Ne demande
   // la bascule qu'aux transitions, comme le statut de campagne ci-dessus.
-  const scoreActifRef = useRef(false);
   useEffect(() => {
     const onScore = (e: Event) => {
       const detail = (e as CustomEvent<ScoreMapEventDetail>).detail;

@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { TYPES_ANALYSE, STATUTS_ANALYSE } from '@/lib/analyses/types';
 import type { AnalyseEnregistree, TypeAnalyse, StatutAnalyse } from '@/lib/analyses/types';
 import { toJson } from '@/lib/supabase/rpc-json';
@@ -27,6 +28,15 @@ export const dynamic = 'force-dynamic';
 
 /** Une page de la liste au maximum — Nano, pas de scan/liste illimités. */
 const LIMITE_LISTE = 50;
+
+/**
+ * Quota d'écriture, ajouté le 2026-09-13 après relecture. Compteur PARTAGÉ en
+ * base (`consommer_quota`, sql/135) et jamais une Map locale, qui ne limiterait
+ * rien sur Vercel — chaque invocation peut être une instance différente
+ * (CLAUDE.md). Sans lui, rien ne plafonnait le nombre de lignes qu'une org
+ * pouvait écrire dans `analyses`.
+ */
+const limiteurEcriture = createRateLimiter({ max: 30, window: '60 s', prefix: 'geo:rl:analyses-post' });
 
 const QuerySchema = z.object({
   type: z.enum(TYPES_ANALYSE).optional(),
@@ -70,15 +80,49 @@ export async function GET(request: NextRequest) {
   );
 }
 
+/**
+ * Plafond de taille des trois colonnes jsonb, ajouté le 2026-09-13 après
+ * relecture. `z.record(z.unknown())` n'a AUCUNE borne : un client bogué en
+ * boucle de retry pouvait écrire des lignes de plusieurs Mo, et sur un disque
+ * Nano à 5 Mo/s quelques dizaines d'appels suffisent à manger le budget
+ * d'écriture (CLAUDE.md — « endpoints acceptant des listes illimitées »
+ * interdits). 256 ko couvrent très largement le pire cas connu : la liste de
+ * codes postaux d'un score national, 6 187 entrées, pèse ~55 ko.
+ */
+const MAX_JSONB_OCTETS = 256 * 1024;
+
+function tailleRaisonnable(valeur: unknown): boolean {
+  try {
+    return new TextEncoder().encode(JSON.stringify(valeur ?? null)).length <= MAX_JSONB_OCTETS;
+  } catch {
+    // Valeur non sérialisable (cycle, BigInt) : refusée plutôt que 500 plus loin.
+    return false;
+  }
+}
+
 const EnregistrerSchema = z.object({
   type: z.enum(TYPES_ANALYSE),
-  nom: z.string().min(1),
-  parametres: z.record(z.unknown()),
-  maillage: z.string().min(1).optional(),
-  perimetre: z.record(z.unknown()).optional(),
-  resultat: z.record(z.unknown()).optional(),
+  nom: z.string().min(1).max(200),
+  parametres: z.record(z.unknown()).refine(tailleRaisonnable, { message: 'parametres trop volumineux' }),
+  maillage: z.string().min(1).max(64).optional(),
+  perimetre: z.record(z.unknown()).refine(tailleRaisonnable, { message: 'perimetre trop volumineux' }).optional(),
+  resultat: z.record(z.unknown()).refine(tailleRaisonnable, { message: 'resultat trop volumineux' }).optional(),
   statut: z.enum(STATUTS_ANALYSE).optional(),
-  erreur: z.string().optional(),
+  erreur: z.string().max(2000).optional(),
+}).superRefine((c, ctx) => {
+  // Trois incohérences que le schéma acceptait sans broncher, et qui
+  // produisaient des lignes qui se contredisent elles-mêmes.
+  if (c.statut === 'echec' && !c.erreur) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['erreur'], message: 'un statut « echec » doit porter son erreur' });
+  }
+  if (c.statut !== 'echec' && c.erreur) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['erreur'], message: 'une erreur ne se renseigne que sur un statut « echec »' });
+  }
+  if (!Object.keys(c.parametres).length) {
+    // Une analyse sans paramètre n'est PAS rejouable — or c'est la raison
+    // d'être de cette table.
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['parametres'], message: 'des paramètres vides rendent l analyse non rejouable' });
+  }
 });
 
 export async function POST(request: NextRequest) {
@@ -86,6 +130,9 @@ export async function POST(request: NextRequest) {
   if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée à ce compte.' }, { status: 400 });
+
+  const quota = await limiteurEcriture(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const corps = await lireCorps(request, EnregistrerSchema);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });

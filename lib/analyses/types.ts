@@ -52,6 +52,15 @@ function trierClesRecursivement(valeur: unknown): unknown {
   if (Array.isArray(valeur)) {
     return valeur.map(trierClesRecursivement);
   }
+  // Une `Date` DOIT être traitée ici, avant la branche « objet » : `Object.keys`
+  // d'une date rend `[]`, donc le tri la réduirait à `{}` et DEUX DATES
+  // DIFFÉRENTES produiraient la même clé. Le remplaçant de `JSON.stringify`
+  // ne peut pas rattraper le coup — il ne voit que ce que cette fonction lui
+  // laisse. (Défaut trouvé par le test de ce cas, pas par relecture : la
+  // première version du durcissement plaçait la garde dans le remplaçant.)
+  if (valeur instanceof Date) {
+    return `@date:${valeur.toISOString()}`;
+  }
   if (valeur !== null && typeof valeur === 'object') {
     const objet = valeur as Record<string, unknown>;
     const clesTriees = Object.keys(objet).sort();
@@ -75,7 +84,41 @@ function trierClesRecursivement(valeur: unknown): unknown {
  *
  * Aucune dépendance ajoutée : sérialisation JSON native après un tri récursif
  * des clés d'objet.
+ *
+ * ── Préconditions, explicitées le 2026-09-13 (relecture de la tâche 11) ────
+ * La signature accepte `Record<string, unknown>`, mais la fonction ne promet
+ * un résultat juste que sur des valeurs JSON pures — ce que sont les
+ * paramètres d'un lancement, qui viennent tous d'un corps de requête déjà
+ * parsé. Sur le reste, elle serait silencieusement fausse plutôt que fausse
+ * bruyamment, ce qui est pire ici : la clé sert à reconnaître un rejeu à
+ * l'identique, et une COLLISION ferait passer deux lancements différents pour
+ * le même.
+ *   - `Date` : `Object.keys()` d'une date rend `[]`, donc deux dates
+ *     différentes produiraient la MÊME clé. Converties en ISO — dans
+ *     `trierClesRecursivement`, seul endroit où c'est possible.
+ *   - `undefined`, `NaN`, `Infinity` : `JSON.stringify` les efface ou les
+ *     rend `null`, d'où collision. Marqués explicitement.
+ *   - cycle, `BigInt` : `JSON.stringify` LÈVE. Attrapé plutôt que de laisser
+ *     un 500 remonter d'une fonction de comparaison.
+ *
+ * **Aucun appelant applicatif à ce jour** : seul son test l'exerce. Les deux
+ * moteurs branchés (`/api/analyses/score`, `/api/analyses/correlation`)
+ * enregistrent chaque lancement sans chercher de doublon. Le jour où l'un le
+ * fera, c'est cette fonction qu'il appellera — d'où ce durcissement plutôt
+ * qu'une suppression.
  */
 export function cleParametres(parametres: Record<string, unknown>): string {
-  return JSON.stringify(trierClesRecursivement(parametres));
+  try {
+    return JSON.stringify(trierClesRecursivement(parametres), (_cle, valeur) => {
+      if (valeur === undefined) return '@undefined';
+      if (typeof valeur === 'bigint') return `@bigint:${valeur.toString()}`;
+      if (typeof valeur === 'number' && !Number.isFinite(valeur)) return `@nonfini:${String(valeur)}`;
+      return valeur;
+    });
+  } catch {
+    // Référence circulaire : aucune clé stable n'est calculable. Rendre une
+    // chaîne qui ne peut égaler aucune autre vaut mieux que lever — deux
+    // lancements incomparables ne doivent surtout pas passer pour identiques.
+    return `@incomparable:${Date.now()}:${Math.random()}`;
+  }
 }

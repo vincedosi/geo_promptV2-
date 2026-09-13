@@ -9,14 +9,29 @@
  * sql/146) : normaliser côté client supposerait de faire descendre toutes les
  * valeurs de tous les indicateurs sur tout le périmètre, ce que le budget I/O
  * Nano interdit (CLAUDE.md). Ce module tient la même règle en TypeScript —
- * il est la spécification exécutable de la RPC, testé sans base
- * (`tests/unit/analyses/score.test.ts`), et sert aux recalculs locaux quand
- * les valeurs sont déjà en main (curseur de poids déplacé : on repondère sans
- * refaire un aller-retour).
+ * il est la SPÉCIFICATION EXÉCUTABLE de la RPC, testée sans base
+ * (`tests/unit/analyses/score.test.ts`).
+ *
+ * **Aucun consommateur en production**, et c'est assumé : seul son test
+ * l'importe. Une version antérieure de ce commentaire annonçait qu'il servait
+ * « aux recalculs locaux quand les valeurs sont déjà en main (curseur de poids
+ * déplacé : on repondère sans refaire un aller-retour) » — ce chemin n'existe
+ * pas, déplacer un curseur ne recalcule rien tant qu'on ne relance pas le
+ * POST. `npm run catalogue` (knip) le remontera donc comme export mort : il
+ * est gardé délibérément, parce qu'une règle de calcul écrite deux fois dans
+ * deux langages doit être vérifiable dans celui des deux qui se teste sans
+ * base.
  *
  * Toute évolution de l'une doit être répercutée dans l'autre DANS LE MÊME
- * COMMIT — c'est le même arrondi au dixième et la même règle de poids des
- * deux côtés.
+ * COMMIT — même règle de poids et même arrondi au dixième des deux côtés.
+ *
+ * Une réserve sur « même arrondi », pour ne pas promettre plus que le code ne
+ * tient : `ROUND(numeric, 1)` en SQL est exact, `Math.round(x*10)/10` en JS
+ * passe par le binaire. Une moyenne pondérée valant exactement 0,35 rendrait
+ * 0,4 côté SQL et 0,3 côté TS. Aucune divergence mesurée sur 45 codes postaux
+ * réels (Marseille, Lozère), et sans conséquence sur un score dont la lecture
+ * est au dixième — mais c'est le seul écart théorique subsistant entre les
+ * deux jumeaux, et il vaut mieux l'écrire que le découvrir.
  */
 
 /** Sens de lecture d'un indicateur : une valeur haute est-elle favorable ? */

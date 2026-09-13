@@ -61,10 +61,19 @@ export async function POST(request: NextRequest) {
   const { indicateurs, codes_postaux, seuil } = corps.valeur;
   const auDessus = corps.valeur.au_dessus !== false;
 
+  // Même garde que `/api/analyses/score` : deux fois le même code passe deux
+  // fois dans le LATERAL de `calculer_score_composite`, ce qui le compte
+  // double dans la pondération ET gonfle `n_indicateurs`. L'asymétrie entre
+  // deux routes qui appellent la MÊME RPC est un piège en soi.
+  const codes = indicateurs.map((i) => i.code);
+  if (new Set(codes).size !== codes.length) {
+    return NextResponse.json({ error: 'indicateur_duplique' }, { status: 400 });
+  }
+
   const supabase = createAdminClient();
 
   const { data: lignes, error } = await supabase.rpc('calculer_score_composite', {
-    p_indicateurs: indicateurs.map((i) => i.code),
+    p_indicateurs: codes,
     p_poids: indicateurs.map((i) => i.poids),
     p_sens: indicateurs.map((i) => i.sens),
     p_codes_postaux: codes_postaux,

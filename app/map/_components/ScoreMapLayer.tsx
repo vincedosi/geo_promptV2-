@@ -7,6 +7,23 @@
  * Activée par l'événement `magelian:score-map` : detail = { scores, libelle }.
  * Éteinte par le même événement avec `scores: []`.
  *
+ * ── Patron d'écoute : DEUX effets, jamais un seul ──────────────────────────
+ * Un effet `[]` écoute l'événement et ne fait que poser un ÉTAT ; un second
+ * effet, déclenché par cet état, lit `mapRef.current` et touche la carte.
+ * C'est le patron de `SuiviMapLayer`, et il n'est pas cosmétique : la première
+ * version de ce fichier faisait tout dans un seul effet à dépendances stables
+ * (`[mapRef, eteindre]`), avec un `if (!m) return` en tête. React exécute les
+ * effets des ENFANTS avant ceux du parent, et `mapRef.current` n'est renseigné
+ * que dans un effet de `MapPage` (`useMapInit.ts:1071`) — donc au montage la
+ * ref valait `null`, l'effet sortait, aucun listener n'était posé, et comme
+ * ses dépendances ne changent jamais il n'y avait pas de seconde chance.
+ * **Le calque ne se peignait jamais.** Trouvé en relecture, pas par les tests.
+ *
+ * Corollaire du même défaut : capturer la carte une fois aurait fait peindre
+ * sur une instance détruite après un changement de fond (`useMapInit` fait
+ * `map.remove()` puis recrée l'instance à chaque `mapStyleUrl`). La carte est
+ * donc relue à chaque passage, y compris dans le gestionnaire de clic.
+ *
  * **Les géométries ne sont PAS refetchées par ce calque.** Elles viennent de
  * `/api/meteo-geo/zones?scale=cp` — la même route que `CivicHealthMapLayer`,
  * cachée un jour au navigateur et une semaine au CDN. Les valeurs y sont
@@ -77,123 +94,184 @@ function echelleScore(teal: string): maplibregl.ExpressionSpecification {
   ] as maplibregl.ExpressionSpecification;
 }
 
+/**
+ * Un score PARTIEL (moins d'indicateurs que demandé) est peint en retrait.
+ * Sa normalisation porte sur la sous-population qui possède ces indicateurs :
+ * il n'est pas comparable à un score complet, et les peindre à l'identique
+ * laissait croire le contraire.
+ */
+const OPACITE: maplibregl.ExpressionSpecification =
+  ['case', ['==', ['get', 'partiel'], true], 0.32, 0.85];
+
 export function ScoreMapLayer({ mapRef }: Props) {
+  const [actif, setActif] = useState<ScoreMapEventDetail | null>(null);
+  const [chargement, setChargement] = useState(false);
+  const [echec, setEchec] = useState(false);
   const geometriesRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
-  const [legende, setLegende] = useState<{ libelle: string; n: number; partiels: number } | null>(null);
-  const [chargement, setChargement] = useState(false);
+  const clickRef = useRef<((e: maplibregl.MapMouseEvent) => void) | null>(null);
 
-  const eteindre = useCallback((m: maplibregl.Map) => {
-    if (m.getLayer(FILL_ID)) m.removeLayer(FILL_ID);
-    if (m.getLayer(LINE_ID)) m.removeLayer(LINE_ID);
-    if (m.getSource(SOURCE_ID)) m.removeSource(SOURCE_ID);
-    popupRef.current?.remove();
-    popupRef.current = null;
-    setLegende(null);
+  // ── 1. Écoute seule : pose un état, ne touche jamais la carte ───────────
+  useEffect(() => {
+    const onEvent = (e: Event) => {
+      const detail = (e as CustomEvent<ScoreMapEventDetail>).detail;
+      setActif(detail && detail.scores.length ? detail : null);
+    };
+    window.addEventListener(SCORE_MAP_EVENT, onEvent);
+    return () => window.removeEventListener(SCORE_MAP_EVENT, onEvent);
   }, []);
 
-  useEffect(() => {
+  const nettoyer = useCallback(() => {
     const m = mapRef.current;
     if (!m) return;
+    if (clickRef.current) { m.off('click', FILL_ID, clickRef.current); clickRef.current = null; }
+    popupRef.current?.remove();
+    popupRef.current = null;
+    if (m.getLayer(LINE_ID)) m.removeLayer(LINE_ID);
+    if (m.getLayer(FILL_ID)) m.removeLayer(FILL_ID);
+    if (m.getSource(SOURCE_ID)) m.removeSource(SOURCE_ID);
+  }, [mapRef]);
 
-    const onScoreMap = async (evenement: Event) => {
-      const detail = (evenement as CustomEvent<ScoreMapEventDetail>).detail;
-      if (!detail || !detail.scores.length) { eteindre(m); return; }
+  // ── 2. Travail carte : relit mapRef.current à CHAQUE passage ────────────
+  useEffect(() => {
+    if (!actif) { nettoyer(); setEchec(false); return; }
 
-      // Géométries : une seule fois pour toute la session (cache `useRef`,
-      // règle CLAUDE.md « vérifier le cache AVANT tout fetch »).
+    // Jeton d'annulation : le chargement des contours pèse 3,8 Mo. Sans lui,
+    // activer un autre dégradé pendant ce chargement laissait la promesse
+    // reprendre ensuite et AJOUTER la couche — deux choroplèthes empilées,
+    // après que le nettoyage n'eut rien trouvé à retirer.
+    let annule = false;
+    setEchec(false);
+
+    (async () => {
       if (!geometriesRef.current) {
         setChargement(true);
         try {
           const res = await adminFetch('/api/meteo-geo/zones?scale=cp');
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          geometriesRef.current = await res.json() as GeoJSON.FeatureCollection;
+          const contours = await res.json() as GeoJSON.FeatureCollection;
+          if (annule) return;
+          geometriesRef.current = contours;
         } catch {
-          setChargement(false);
+          if (!annule) { setEchec(true); setChargement(false); }
           return;
         }
+        if (annule) return;
         setChargement(false);
       }
 
-      const parCode = new Map(detail.scores.map((s) => [s.code, s]));
+      const carte = mapRef.current;
+      if (annule || !carte) return;
+
+      const parCode = new Map(actif.scores.map((s) => [s.code, s]));
       const features = geometriesRef.current.features
         .filter((f) => parCode.has(String(f.properties?.code ?? '')))
         .map((f) => {
           const s = parCode.get(String(f.properties?.code ?? ''))!;
-          return { ...f, properties: { ...f.properties, score: s.score, n_indicateurs: s.n_indicateurs } };
+          return {
+            ...f,
+            properties: {
+              ...f.properties,
+              score: s.score,
+              n_indicateurs: s.n_indicateurs,
+              partiel: s.n_indicateurs < actif.nIndicateurs,
+            },
+          };
         });
       const collection: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features };
 
       const teal = getComputedStyle(document.documentElement).getPropertyValue('--brand-teal').trim() || '#4ecdc4';
-      const source = m.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      const source = carte.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (source) {
         source.setData(collection);
       } else {
-        m.addSource(SOURCE_ID, { type: 'geojson', data: collection });
-        m.addLayer({
+        carte.addSource(SOURCE_ID, { type: 'geojson', data: collection });
+        carte.addLayer({
           id: FILL_ID, type: 'fill', source: SOURCE_ID,
-          paint: { 'fill-color': echelleScore(teal), 'fill-opacity': 0.85 },
+          paint: { 'fill-color': echelleScore(teal), 'fill-opacity': OPACITE },
         });
-        m.addLayer({
+        carte.addLayer({
           id: LINE_ID, type: 'line', source: SOURCE_ID,
           paint: { 'line-color': 'rgba(255,255,255,0.12)', 'line-width': 0.5 },
         });
       }
 
-      setLegende({
-        libelle: detail.libelle,
-        n: detail.scores.length,
-        partiels: detail.scores.filter((s) => s.n_indicateurs < detail.nIndicateurs).length,
-      });
-    };
+      // `esc` sur TOUTE valeur reprise dans le HTML du popup (correctif XSS des
+      // popups, 2026-09-11).
+      if (!clickRef.current) {
+        const onClick = (e: maplibregl.MapMouseEvent) => {
+          const carteClic = mapRef.current;
+          if (!carteClic?.getLayer(FILL_ID)) return;
+          const f = carteClic.queryRenderedFeatures(e.point, { layers: [FILL_ID] })[0];
+          if (!f) return;
+          const code = esc(String(f.properties?.code ?? ''));
+          const nom = esc(String(f.properties?.nom ?? ''));
+          const score = Number(f.properties?.score ?? 0).toFixed(1);
+          const n = Number(f.properties?.n_indicateurs ?? 0);
+          const partiel = Boolean(f.properties?.partiel);
+          popupRef.current?.remove();
+          popupRef.current = new maplibregl.Popup({ closeButton: true, className: 'magelian-popup' })
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<div style="font-family:${fInter};font-size:12px;color:var(--text-primary)">` +
+              `<div style="font-weight:500">${code}${nom ? ` — ${nom}` : ''}</div>` +
+              `<div style="font-family:${fMono};font-size:16px;margin:4px 0">${score}<span style="font-size:11px;color:var(--text-tertiary)">/100</span></div>` +
+              `<div style="font-size:11px;color:${partiel ? 'var(--warning)' : 'var(--text-tertiary)'}">` +
+              `sur ${n} indicateur${n > 1 ? 's' : ''}${partiel ? ' — partiel, non comparable' : ''}</div>` +
+              `</div>`,
+            )
+            .addTo(carteClic);
+        };
+        clickRef.current = onClick;
+        carte.on('click', FILL_ID, onClick);
+      }
+    })();
 
-    // `esc` sur TOUTE valeur reprise dans le HTML du popup : le libellé d'un
-    // indicateur vient de la base (CORRECTIF XSS des popups, 2026-09-11).
-    const onClick = (e: maplibregl.MapMouseEvent) => {
-      if (!m.getLayer(FILL_ID)) return;
-      const f = m.queryRenderedFeatures(e.point, { layers: [FILL_ID] })[0];
-      if (!f) return;
-      const code = esc(String(f.properties?.code ?? ''));
-      const nom = esc(String(f.properties?.nom ?? ''));
-      const score = Number(f.properties?.score ?? 0).toFixed(1);
-      const n = Number(f.properties?.n_indicateurs ?? 0);
-      popupRef.current?.remove();
-      popupRef.current = new maplibregl.Popup({ closeButton: true, className: 'magelian-popup' })
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `<div style="font-family:${fInter};font-size:12px;color:var(--text-primary)">` +
-          `<div style="font-weight:500">${code}${nom ? ` — ${nom}` : ''}</div>` +
-          `<div style="font-family:${fMono};font-size:16px;margin:4px 0">${score}<span style="font-size:11px;color:var(--text-tertiary)">/100</span></div>` +
-          `<div style="font-size:11px;color:var(--text-tertiary)">sur ${n} indicateur${n > 1 ? 's' : ''}</div>` +
-          `</div>`,
-        )
-        .addTo(m);
-    };
+    return () => { annule = true; };
+  }, [actif, mapRef, nettoyer]);
 
-    window.addEventListener(SCORE_MAP_EVENT, onScoreMap as EventListener);
-    m.on('click', FILL_ID, onClick);
-    return () => {
-      window.removeEventListener(SCORE_MAP_EVENT, onScoreMap as EventListener);
-      m.off('click', FILL_ID, onClick);
-      eteindre(m);
-    };
-  }, [mapRef, eteindre]);
+  // Retrait à la disparition du composant — séparé du travail ci-dessus, qui
+  // ne doit PAS effacer la couche à chaque changement d'`actif`.
+  useEffect(() => nettoyer, [nettoyer]);
 
-  if (!legende && !chargement) return null;
+  if (!actif && !chargement && !echec) return null;
+
+  const partiels = actif ? actif.scores.filter((s) => s.n_indicateurs < actif.nIndicateurs).length : 0;
 
   return (
     <div style={{
       position: 'absolute', bottom: 24, left: LARGEUR_RAIL + ECART_RAIL_PANNEAU,
       background: 'var(--card)', border: '0.5px solid var(--border-subtle)',
-      borderRadius: 6, padding: '10px 12px', zIndex: 5, minWidth: 200,
+      borderRadius: 6, padding: '10px 12px', zIndex: 5, minWidth: 200, maxWidth: 260,
       fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)',
     }}>
-      {chargement ? 'Chargement des contours…' : legende && (
+      {chargement && 'Chargement des contours…'}
+
+      {/* Un échec silencieux laissait l'utilisateur sans calque ET sans
+          explication — alors que son dégradé précédent avait déjà été éteint. */}
+      {echec && (
+        <span style={{ color: 'var(--danger)' }}>
+          Contours des codes postaux indisponibles — le score est calculé, mais ne peut pas être affiché.
+        </span>
+      )}
+
+      {actif && !chargement && !echec && (
         <>
-          <div style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-            Score composite
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, flex: 1 }}>
+              Score composite
+            </span>
+            {/* Sans cette croix, la seule façon d'éteindre le score était
+                d'activer un autre dégradé. */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent<ScoreMapEventDetail>(SCORE_MAP_EVENT, {
+                detail: { scores: [], libelle: '', nIndicateurs: 0 },
+              }))}
+              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+              aria-label="Masquer le score composite"
+            >×</button>
           </div>
-          <div style={{ marginBottom: 8, lineHeight: 1.4 }}>{legende.libelle}</div>
+          <div style={{ marginBottom: 8, lineHeight: 1.4 }}>{actif.libelle}</div>
           <div style={{
             height: 6, borderRadius: 3, marginBottom: 4,
             background: 'linear-gradient(to right, rgba(78,205,196,0.10), var(--brand-teal))',
@@ -202,11 +280,13 @@ export function ScoreMapLayer({ mapRef }: Props) {
             <span>0</span><span>100</span>
           </div>
           <div style={{ marginTop: 8, fontFamily: fMono, fontSize: 10, color: 'var(--text-tertiary)' }}>
-            {legende.n} code{legende.n > 1 ? 's' : ''} postal{legende.n > 1 ? 'ux' : ''}
-            {/* Un score porté par moins d'indicateurs que demandé n'est pas
-                comparable aux autres : le taire serait mentir par omission. */}
-            {legende.partiels > 0 && ` · ${legende.partiels} partiel${legende.partiels > 1 ? 's' : ''}`}
+            {actif.scores.length} code{actif.scores.length > 1 ? 's' : ''} postal{actif.scores.length > 1 ? 'ux' : ''}
           </div>
+          {partiels > 0 && (
+            <div style={{ marginTop: 4, fontFamily: fMono, fontSize: 10, color: 'var(--warning)' }}>
+              {partiels} partiel{partiels > 1 ? 's' : ''}, peint{partiels > 1 ? 's' : ''} en transparence
+            </div>
+          )}
         </>
       )}
     </div>

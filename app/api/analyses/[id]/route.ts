@@ -62,12 +62,21 @@ export async function DELETE(
 
   // Scope org vérifié AVANT le DELETE : un id valide d'une autre org ne doit
   // ni supprimer, ni révéler par son message d'erreur qu'il existe ailleurs.
-  const { data: existante } = await supabase
+  // L'erreur de CETTE lecture se lit aussi, pas seulement celle du DELETE :
+  // sans ça, un echec de lecture (budget I/O Nano epuise — le mode de panne
+  // documente trois fois dans CLAUDE.md) rend `data` null et la route repond
+  // « Analyse introuvable » a propos d'une analyse parfaitement intacte. Un
+  // client qui purge sa liste sur 404 l'effacerait de l'affichage.
+  const { data: existante, error: lectureErr } = await supabase
     .from('analyses')
     .select('id')
     .eq('id', id)
     .eq('org_id', orgId)
     .maybeSingle();
+  if (lectureErr) {
+    console.error('[DELETE /api/analyses/[id]] lecture:', lectureErr.message);
+    return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
+  }
   if (!existante) return NextResponse.json({ error: 'Analyse introuvable.' }, { status: 404 });
 
   // supabase-js ne lève jamais : lire `error` est la seule façon de détecter

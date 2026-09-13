@@ -67,6 +67,7 @@ import { ClusteringSection } from '../filter-panel/ClusteringSection';
 import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from '../filter-panel/SpatialAnalysisIntro';
 import { VoronoiTool } from '../filter-panel/VoronoiTool';
 import { ScoreCompositeTool } from '../filter-panel/ScoreCompositeTool';
+import { CorrelationTool } from '../filter-panel/CorrelationTool';
 import { BattleV2Tool } from '../filter-panel/BattleV2Tool';
 import { IsochronesTool } from '../filter-panel/IsochronesTool';
 import { useTerritorySelection } from '../filter-panel/use-territory-selection';
@@ -367,6 +368,17 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
             juste avant le POST, comme pour le wizard de clustering. Sans
             périmètre, le score porterait sur les 6 187 CP de France. */}
         <ScoreCompositeTool filtre={filtre} verifierPerimetre={verifierPerimetre} />
+
+        {/* ── Accordéon : CORRÉLATION (Tâche 13, 2026-09-13) ───────────────
+            PAS de garde de périmètre, et c'est délibéré : cet outil est borné
+            par une CAMPAGNE, pas par une zone géographique. Il lit
+            `campaign_cp_rollup` (déjà agrégé, scopé à une campagne dont
+            l'accès est vérifié côté route) — il n'existe aucun balayage à
+            empêcher, et exiger un filtre carte interdirait une analyse
+            parfaitement bornée. Le verrou structurel de la garde le déclare
+            explicitement pour que cette absence reste un choix lisible et non
+            un oubli. */}
+        <CorrelationTool />
 
         {/* ── Accordéon : CLUSTERING — composant telle quelle, DEUX points gardés :
             onLoadClusters (relecture, round 1) et verifierPerimetre relayé

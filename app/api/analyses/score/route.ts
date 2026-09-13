@@ -20,19 +20,15 @@
  *    `abstention_pres_2022` (6 186 CP). Sans matérialisation préalable, la RPC
  *    aurait rendu du vide **en silence** pour tout autre indicateur — un score
  *    absent se serait lu comme « pas de données ici », pas comme « je n'ai
- *    jamais calculé cet indicateur ». Matérialisation paresseuse ci-dessous,
- *    STRICTEMENT SÉQUENTIELLE (chaque appel agrège `iris` ⋈
- *    `postal_code_commune` ; les lancer en parallèle est exactement le patron
- *    d'I/O des incidents du 28/03 et du 08/04 — CLAUDE.md).
+ *    jamais calculé cet indicateur ». Matérialisation paresseuse déléguée à
+ *    `lib/analyses/indicateurs.ts` (partagée avec la corrélation), et
+ *    STRICTEMENT SÉQUENTIELLE ici : chaque appel agrège `iris` ⋈
+ *    `postal_code_commune`, et les lancer en parallèle est exactement le
+ *    patron d'I/O des incidents du 28/03 et du 08/04 (CLAUDE.md).
  *
- *    Différence volontaire avec `/api/bidding/strategies`, qui rematérialise
- *    au-delà de 30 jours : ici on matérialise seulement ce qui est **absent**.
- *    Une stratégie de bidding écrit des enchères de production, où la
- *    fraîcheur se paie ; ce panneau est un outil d'exploration qu'on relance
- *    des dizaines de fois, et les valeurs ne bougent qu'à un import IRIS. La
- *    date de calcul part dans la réponse (`calcule_le`) pour que l'ancienneté
- *    soit affichée plutôt que subie — les deux indicateurs présents datent du
- *    2026-07-16.
+ *    Le journal `indicator_cp_materializations` (sql/148) est ce qui empêche
+ *    un indicateur à source VIDE de se rematérialiser à chaque lancement —
+ *    voir l'en-tête de `lib/analyses/indicateurs.ts` pour la mesure.
  *
  * 3. **Le périmètre.** Le plan exigeait une liste de CP sans dire d'où elle
  *    vient : un `FiltreActif` porte un code de région/département/commune/CP
@@ -55,8 +51,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { assurerIndicateurCp } from '@/lib/analyses/indicateurs';
 import { toJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
 
@@ -129,6 +127,19 @@ export async function POST(request: NextRequest) {
   // ── 1. Le périmètre, borné ────────────────────────────────────────────
   let codesPostaux = corps.valeur.codes_postaux ?? [];
   if (!codesPostaux.length && perimetre) {
+    // Une zone appartient à une organisation : `codes_postaux_du_perimetre`
+    // joint `custom_geo_zones` sur l'uuid SANS filtre d'org (c'est une
+    // fonction de référentiel, elle n'a pas à connaître l'appelant). Sans ce
+    // contrôle, un utilisateur de l'org A qui devine l'uuid d'une zone de
+    // l'org B obtenait la liste complète de ses codes postaux — la garde
+    // standard du projet, appliquée partout ailleurs (cf.
+    // `app/api/custom-geo/[id]/route.ts`), manquait ici.
+    if (perimetre.type === 'zone') {
+      const acces = await checkZoneAccess(supabase, profile, perimetre.code);
+      if (acces !== 'ok') {
+        return NextResponse.json({ error: 'Zone introuvable.' }, { status: 404 });
+      }
+    }
     const { data, error } = await supabase.rpc('codes_postaux_du_perimetre', {
       p_type: perimetre.type, p_code: perimetre.code,
     });
@@ -180,33 +191,20 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 3. Matérialisation paresseuse, SÉQUENTIELLE (voir en-tête, point 2) ─
+  // Logique partagée avec /api/analyses/correlation : lib/analyses/indicateurs.ts.
+  // Séquentielle et jamais en parallèle — chaque matérialisation agrège
+  // `iris` ⋈ `postal_code_commune`.
   const calculeLe: Record<string, string | null> = {};
   for (const code of codes) {
-    const { data: present, error: erreurPresence } = await supabase
-      .from('indicator_cp_values')
-      .select('computed_at')
-      .eq('indicator_code', code)
-      .limit(1)
-      .maybeSingle();
-    if (erreurPresence) {
-      console.error('[POST /api/analyses/score] présence:', erreurPresence.message);
-      return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
-    }
-    if (present) {
-      calculeLe[code] = present.computed_at;
-      continue;
-    }
-    const { error: erreurMat } = await supabase.rpc('materialize_indicator_cp_values', {
-      p_indicator_code: code,
-    });
-    if (erreurMat) {
-      console.error('[POST /api/analyses/score] matérialisation:', erreurMat.message);
+    const etat = await assurerIndicateurCp(supabase, code);
+    if (!etat.ok) {
+      console.error('[POST /api/analyses/score] indicateur:', code, etat.raison, etat.message);
       return NextResponse.json(
-        { error: `Indicateur « ${code} » indisponible : son calcul par code postal a échoué.`, detail: erreurMat.message },
-        { status: 422 },
+        { error: etat.message, raison: etat.raison },
+        { status: etat.raison === 'inconnu' ? 400 : etat.raison === 'sans_donnees' ? 422 : 500 },
       );
     }
-    calculeLe[code] = new Date().toISOString();
+    calculeLe[code] = etat.calculeLe;
   }
 
   // ── 4. Le score ───────────────────────────────────────────────────────

@@ -177,3 +177,30 @@ describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §
     }
   });
 });
+
+/**
+ * Tâche 13 (2026-09-13) — l'outil Corrélation est le SEUL outil de calcul du
+ * panneau Analyse sans garde de périmètre. Ce test existe pour que cette
+ * absence reste un choix documenté et non un oubli : si quelqu'un ajoute un
+ * jour un balayage géographique à cet outil, il tombera dessus.
+ */
+describe('PanneauAnalyse — Correlation, absence de garde ASSUMEE', () => {
+  it('est monte sans verifierPerimetre, et le commentaire dit pourquoi', () => {
+    const bloc = SOURCE.match(/<CorrelationTool[\s\S]{0,40}?\/>/)?.[0];
+    expect(bloc, '<CorrelationTool /> introuvable dans PanneauAnalyse.tsx').toBeTruthy();
+    expect(bloc).not.toMatch(/verifierPerimetre/);
+    // La justification doit rester ecrite a cote du montage.
+    const avant = SOURCE.slice(Math.max(0, SOURCE.indexOf('<CorrelationTool') - 700), SOURCE.indexOf('<CorrelationTool'));
+    expect(avant, 'la raison de l absence de garde doit rester ecrite pres du montage').toMatch(/campagne/i);
+  });
+
+  it('CorrelationTool ne lance aucun calcul geographique non borne', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'app/map/_components/filter-panel/CorrelationTool.tsx'),
+      'utf-8',
+    );
+    // Son seul appel de calcul est borne par un campaignId.
+    expect(source).toMatch(/\/api\/analyses\/correlation\?campaignId=/);
+    expect(source).not.toMatch(/bbox/);
+  });
+});

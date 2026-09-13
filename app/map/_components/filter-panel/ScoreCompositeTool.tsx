@@ -72,6 +72,17 @@ export function ScoreCompositeTool({ filtre, verifierPerimetre }: ScoreComposite
   const [resultat, setResultat] = useState<ResultatScore | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
+  /**
+   * L'enregistrement dans « Mes analyses » est OPT-IN (défaut : non).
+   *
+   * La route enregistre par défaut, ce qui est le bon contrat côté API. Mais
+   * cet outil se relance à chaque glissement de curseur : enregistrer chaque
+   * fois remplissait la liste — bornée à 50 — en quelques minutes
+   * d'exploration, chaque ligne portant jusqu'à 3 000 codes postaux en jsonb.
+   * L'utilisateur dit donc explicitement quel lancement mérite d'être gardé.
+   */
+  const [enregistrer, setEnregistrer] = useState(false);
+
   const [seuil, setSeuil] = useState(70);
   const [creationZone, setCreationZone] = useState(false);
   const [messageZone, setMessageZone] = useState<string | null>(null);
@@ -96,16 +107,43 @@ export function ScoreCompositeTool({ filtre, verifierPerimetre }: ScoreComposite
       .finally(() => setChargementCatalogue(false));
   };
 
+  /**
+   * Tout changement de paramètres PÉRIME le résultat affiché.
+   *
+   * Sans cela (défaut trouvé en relecture, 2026-09-13), l'écran affichait
+   * « 42 codes postaux retenus » calculés avec les ANCIENS poids, pendant que
+   * « Créer la zone » renvoyait au serveur les NOUVEAUX : la zone créée
+   * n'était pas celle annoncée. Pire à l'ajout d'un indicateur — la zone
+   * repartait de `resultat.scores`, donc d'un périmètre déjà restreint aux CP
+   * du calcul précédent, et les bornes du nouvel indicateur se calculaient
+   * sur ce sous-ensemble.
+   */
+  const perimerResultat = () => {
+    setResultat(null);
+    setMessageZone(null);
+    // La carte ne doit pas continuer à peindre un score qui n'est plus celui
+    // des réglages à l'écran.
+    window.dispatchEvent(new CustomEvent(SCORE_MAP_EVENT, {
+      detail: { scores: [], libelle: '', nIndicateurs: 0 },
+    }));
+  };
+
   const ajouter = (code: string) => {
     const meta = catalogue.find((i) => i.indicator_code === code);
     if (!meta || choisis.some((c) => c.code === code) || choisis.length >= MAX_INDICATEURS) return;
     setChoisis((prev) => [...prev, { code, label: meta.label, poids: 1, sens: 'croissant' }]);
+    perimerResultat();
   };
 
-  const retirer = (code: string) => setChoisis((prev) => prev.filter((c) => c.code !== code));
+  const retirer = (code: string) => {
+    setChoisis((prev) => prev.filter((c) => c.code !== code));
+    perimerResultat();
+  };
 
-  const modifier = (code: string, champ: Partial<IndicateurChoisi>) =>
+  const modifier = (code: string, champ: Partial<IndicateurChoisi>) => {
     setChoisis((prev) => prev.map((c) => (c.code === code ? { ...c, ...champ } : c)));
+    perimerResultat();
+  };
 
   // ── Lancement ──────────────────────────────────────────────────────────
   const lancer = async () => {
@@ -123,6 +161,7 @@ export function ScoreCompositeTool({ filtre, verifierPerimetre }: ScoreComposite
         body: JSON.stringify({
           indicateurs: choisis.map((c) => ({ code: c.code, poids: c.poids, sens: c.sens })),
           perimetre: { type: filtre.type, code: filtre.code },
+          enregistrer,
           nom: `Score composite — ${filtre.label}`,
         }),
       });
@@ -294,6 +333,18 @@ export function ScoreCompositeTool({ filtre, verifierPerimetre }: ScoreComposite
               </div>
             </div>
           ))}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={enregistrer}
+              onChange={(e) => setEnregistrer(e.target.checked)}
+              style={{ accentColor: 'var(--brand-teal)' }}
+            />
+            <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
+              Enregistrer dans « Mes analyses »
+            </span>
+          </label>
 
           <button
             onClick={lancer}
