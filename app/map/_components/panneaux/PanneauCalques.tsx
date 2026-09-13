@@ -16,9 +16,11 @@
  *   - Médias offline      → OohSection, RadioSection
  *   - Environnement       → CivicIndicatorsSection, CivicHealthSection,
  *                           MeteoSection
- *   - Mes analyses        → NAÎT VIDE (décision du contrôleur) : la Tâche 11
- *                           créera la table `analyses` et `GET /api/analyses`.
- *                           Aucun appel réseau ici.
+ *   - Mes analyses        → branché sur `GET /api/analyses` (Tâche 11,
+ *                           `use-analyses.ts`) : vide à la Tâche 6, la table
+ *                           `analyses` (sql/145) et la route n'existaient pas
+ *                           encore. Chargé au premier dépliage du groupe
+ *                           seulement (garde `useRef`, pas de prefetch).
  *
  * `GroupeCalques` est le SEUL composant à rendre un chevron DE GROUPE — les
  * accordéons internes aux sections déplacées (FilterSectionHeader, le ▲/▼ de
@@ -57,6 +59,8 @@ import { useFilterSections } from '../filter-panel/use-filter-sections';
 import { usePoiCatalog } from '../filter-panel/use-poi-catalog';
 import { usePoiStyles } from '../filter-panel/use-poi-styles';
 import { useCivicIngest } from '../filter-panel/use-civic-ingest';
+import { useAnalyses } from '../filter-panel/use-analyses';
+import type { AnalyseListItem } from '../filter-panel/use-analyses';
 import type { POIStylesMap } from '../filter-panel/poi-style';
 import type { DirectPOISearchParams } from '../filter-panel/types';
 import type { BornesEchelle } from '@/lib/carreaux/bornes';
@@ -233,6 +237,7 @@ export function PanneauCalques(props: PanneauCalquesProps) {
 
   const { poiStyles, setPoiStyles, getPOIStyle, setPOIStyle } = usePoiStyles(onPOIStylesChange);
   const { civicIngestState, runCivicIngestStream } = useCivicIngest(props.onCivicIngested);
+  const analysesState = useAnalyses();
 
   // ── État local — mêmes portées qu'avant cette tâche dans FilterPanel ──────
   const [selectedOOH, setSelectedOOH] = useState<string[]>([]);
@@ -564,13 +569,67 @@ export function PanneauCalques(props: PanneauCalquesProps) {
         </div>
       </GroupeCalques>
 
-      {/* ── Mes analyses — naît VIDE (décision du contrôleur), aucun appel réseau. */}
-      <GroupeCalques titre="Mes analyses" ouvert={groupesOuverts.analyses} onToggle={() => toggleGroupe('analyses')}>
-        <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-          <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--text-tertiary)' }}>
-            Aucune analyse enregistrée
+      {/* ── Mes analyses — GET /api/analyses au premier dépliage (Tâche 11). */}
+      <GroupeCalques
+        titre="Mes analyses"
+        ouvert={groupesOuverts.analyses}
+        onToggle={() => { toggleGroupe('analyses'); analysesState.demanderChargement(); }}
+      >
+        {analysesState.loading && (
+          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+            <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Chargement…
+            </div>
           </div>
-        </div>
+        )}
+        {!analysesState.loading && analysesState.error && (
+          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+            <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--danger)' }}>
+              {analysesState.error}
+            </div>
+          </div>
+        )}
+        {!analysesState.loading && !analysesState.error && analysesState.analyses.length === 0 && (
+          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+            <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Aucune analyse enregistrée
+            </div>
+          </div>
+        )}
+        {!analysesState.loading && !analysesState.error && analysesState.analyses.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {analysesState.analyses.map((a: AnalyseListItem) => (
+              <div
+                key={a.id}
+                style={{
+                  padding: '10px 14px', borderTop: '0.5px solid var(--border-subtle)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{
+                    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, color: 'var(--text-primary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {a.nom}
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                    {new Date(a.created_at).toLocaleDateString('fr-FR')}
+                    {a.maillage ? ` · ${a.maillage}` : ''}
+                    {a.statut !== 'termine' ? ` · ${a.statut === 'echec' ? 'échec' : 'en cours'}` : ''}
+                  </div>
+                </div>
+                <span style={{
+                  fontFamily: "'Inter', system-ui, sans-serif", fontSize: 10, color: 'var(--text-tertiary)',
+                  background: 'var(--overlay)', border: '0.5px solid var(--border-default)',
+                  borderRadius: 4, padding: '2px 8px', flexShrink: 0,
+                }}>
+                  {a.type}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </GroupeCalques>
 
     </div>

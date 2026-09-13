@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-12 — commit `950a1ba`.
+> Généré le 2026-09-13 — commit `c40fc55`.
 
 ## Totaux
 
-- Exports morts : 188
+- Exports morts : 187
 - Fichiers morts : 4
 - Dépendances inutilisées : 3
 
@@ -68,7 +68,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/prompting/rate-limiter.ts` | 2 | getClientKey, rateLimitResponse | — |
 | `lib/iris-crawler/parser.ts` | 2 | GEO_COLUMNS, classifyColumns | — |
 | `lib/smart-prompt/geo-resolver.ts` | 2 | resolveZoneToBbox | ZoneResolution |
-| `lib/supabase/tables.ts` | 2 | — | TableRow, TableUpdate |
 | `lib/agent/types.ts` | 2 | — | ActionRisk, ActionType |
 | `lib/dsp/validation.ts` | 2 | — | Dv360ConnectInput, Dv360OAuthConfigInput |
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
@@ -102,6 +101,7 @@ Trié par nombre d’occurrences décroissant.
 | `lib/logger.ts` | 1 | — | Logger |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |

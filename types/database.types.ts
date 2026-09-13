@@ -227,6 +227,62 @@ export type Database = {
           },
         ]
       }
+      analyses: {
+        Row: {
+          created_at: string
+          created_by: string
+          erreur: string | null
+          id: string
+          maillage: string | null
+          nom: string
+          org_id: string
+          parametres: Json
+          perimetre: Json | null
+          resultat: Json | null
+          statut: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          erreur?: string | null
+          id?: string
+          maillage?: string | null
+          nom: string
+          org_id: string
+          parametres: Json
+          perimetre?: Json | null
+          resultat?: Json | null
+          statut?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          erreur?: string | null
+          id?: string
+          maillage?: string | null
+          nom?: string
+          org_id?: string
+          parametres?: Json
+          perimetre?: Json | null
+          resultat?: Json | null
+          statut?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analyses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atmo_map_daily: {
         Row: {
           code_postal: string

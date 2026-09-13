@@ -622,6 +622,13 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/custom-geo/[id]/export?weights=` | GET | Variantes ponderees de `bidding_script` (paliers de score DV360 par item) et `tiktok_geo` (un ad group par item avec part de budget) — poids du plan media, RPC `get_zone_items_export` (sql/089) |
 | `/api/custom-geo/media-plan` | GET/POST/DELETE | Rattachement du plan media a une campagne DSP — persiste budget/CPM/cible/poids dans `dsp_campaigns.geo_strategy.media_plan` (sous-cle namespacee, scope org) |
 
+### Analyses enregistrees (Tache 11, 2026-09-12)
+| Route | Methode | Description |
+|-------|---------|-------------|
+| `/api/analyses` | GET/POST | GET : liste des analyses de l'org (`?type=`, bornee a 50, `idx_analyses_org_date`). POST : enregistre un lancement (nom, parametres complets, maillage, perimetre) |
+| `/api/analyses/[id]` | GET/DELETE | Detail complet (avec `parametres`/`perimetre`/`resultat`) / suppression, scopes org |
+| `/api/analyses/[id]/rejouer` | POST | Enregistre un nouveau lancement avec les memes `type`/`parametres`/`maillage`/`perimetre` que la source. Rejoue les PARAMETRES uniquement : ne declenche aucun moteur de calcul (clustering/battle/voronoi/correlation/elm n'ont pas la meme forme d'appel) — le cablage de chaque moteur sur ce rejeu est la charge des Taches 12, 13, 22 |
+
 ### Export & Sauvegarde
 | Route | Methode | Description |
 |-------|---------|-------------|
@@ -729,6 +736,11 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Table | Description | Notes |
 |-------|-------------|-------|
 | `isochrones_cache` | Cache isochrones ORS | Cle : poi_id + mode + minutes |
+
+### Analyses enregistrees
+| Table | Description | Notes |
+|-------|-------------|-------|
+| `analyses` | Une analyse lancee (clusters/score/battle/voronoi/correlation/elm) devenue un objet rejouable : nom, `parametres` complets (cle de rejeu via `cleParametres`, `lib/analyses/types.ts`), `maillage`, `perimetre`, `resultat` leger, `statut` | sql/145 (2026-09-12). `type`/`statut` sont `text` + `CHECK` — le generateur sort `string`, les unions TS vivent dans `lib/analyses/types.ts` et doivent rester synchronisees a la main avec la contrainte. Index `idx_analyses_org_date` (org_id, created_at DESC) et `idx_analyses_type` (org_id, type). RLS deny-all, routes en `service_role`. Auparavant, seul le clustering laissait une trace (`clustering_models`/`clustering_jobs`) ; battles/voronois/isochrones n'en laissaient aucune |
 
 ### Support
 | Table | Description | Notes |
