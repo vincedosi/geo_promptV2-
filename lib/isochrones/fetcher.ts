@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import type { PoiRow } from '@/types/poi';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { fetchLectureAvecReprise } from '@/lib/http/lecture-avec-reprise';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type { PoiRow };
@@ -22,6 +23,11 @@ export const ORS_PROFILES: Record<string, string> = {
 export const ORS_BATCH_SIZE  = 5;
 export const ORS_MAX_RETRIES = 3;
 export const ORS_RETRY_DELAY = 20_000; // 20s entre retries (rate limit ORS)
+/** Délai par tentative. ORS répond en 1-4 s pour 5 points ; au-delà de 12 s il ne répondra pas. */
+export const ORS_DELAI_MS    = 12_000;
+/** Une expiration se rejoue vite : le service est en général déjà revenu. */
+const ORS_ATTENTE_DELAI_MS   = 5_000;
+const ORS_URL = 'https://api.openrouteservice.org/v2/isochrones';
 
 // Limite de POIs pour /api/chat (timeout 120s)
 export const ORS_MAX_POIS_CHAT = 50;
@@ -75,7 +81,7 @@ export async function fetchIsochrones(
 ): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) {
-    console.warn('[isochrone] ORS_API_KEY non définie — isochrones ignorés');
+    logger.warn('isochrone', 'ORS_API_KEY non définie — isochrones ignorés');
     return null;
   }
 
@@ -83,11 +89,13 @@ export async function fetchIsochrones(
 
   // ── Cache Supabase ──────────────────────────────────────────────────────
   if (!forceRecalculate) {
+    // maybeSingle : l'absence de ligne est un cas NORMAL (cache froid), pas
+    // une erreur PGRST116 à ignorer.
     const { data: cached } = await supabase
       .from('isochrones_cache')
       .select('geojson, created_at, poi_count')
       .eq('cache_key', cacheCtx.cacheKey)
-      .single();
+      .maybeSingle();
 
     if (cached) {
       logger.debug('isochrone', `Cache HIT: ${cacheCtx.cacheKey} (calculé le ${cached.created_at})`);
@@ -109,7 +117,7 @@ export async function fetchIsochrones(
   const sliced   = pois.slice(0, maxPois);
 
   if (pois.length > maxPois) {
-    console.warn(`[isochrone] Troncature: ${pois.length} POIs → ${maxPois}`);
+    logger.warn('isochrone', `Troncature: ${pois.length} POIs → ${maxPois}`);
   }
 
   const allFeatures: unknown[] = [];
@@ -119,60 +127,55 @@ export async function fetchIsochrones(
     const locations = batch.map(p => [p.lng, p.lat]);
     const batchNum  = Math.floor(i / ORS_BATCH_SIZE) + 1;
 
+    // Un isochrone est un CALCUL : rejouer la demande est sans effet de bord.
+    // Reprise : 429 → 20 s (quota ORS par minute) ; 5xx et erreur réseau →
+    // 20 s ; expiration → 5 s. Un 4xx autre que 429 n'est pas rejoué.
     let success = false;
-    for (let attempt = 0; attempt < ORS_MAX_RETRIES; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12_000);
-      try {
-        const res = await fetch(
-          `https://api.openrouteservice.org/v2/isochrones/${profile}`,
-          {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Authorization':  `Bearer ${apiKey}`,
-              'Content-Type':   'application/json',
-              'Accept':         'application/geo+json',
-            },
-            body: JSON.stringify({ locations, range: [rangeSec], range_type: 'time' }),
+    try {
+      const res = await fetchLectureAvecReprise(`${ORS_URL}/${profile}`, {
+        method: 'POST',
+        headers: {
+          'Authorization':  `Bearer ${apiKey}`,
+          'Content-Type':   'application/json',
+          'Accept':         'application/geo+json',
+        },
+        body: JSON.stringify({ locations, range: [rangeSec], range_type: 'time' }),
+      }, {
+        delaiMs: ORS_DELAI_MS,
+        tentatives: ORS_MAX_RETRIES,
+        attente: (tentative, cause) => {
+          if (cause.type === 'delai') {
+            logger.warn('isochrone', `Expiration ${ORS_DELAI_MS / 1000}s batch ${batchNum} (tentative ${tentative + 1}/${ORS_MAX_RETRIES})`);
+            return ORS_ATTENTE_DELAI_MS;
           }
-        );
-        clearTimeout(timer);
+          if (cause.type === 'reseau') {
+            logger.warn('isochrone', `Erreur réseau batch ${batchNum} (tentative ${tentative + 1}/${ORS_MAX_RETRIES}) : ${cause.erreur.message}`);
+            return ORS_RETRY_DELAY;
+          }
+          const statut = cause.reponse.status;
+          if (statut !== 429 && statut < 500) return null;
+          logger.warn('isochrone', `ORS HTTP ${statut} batch ${batchNum} (tentative ${tentative + 1}/${ORS_MAX_RETRIES}), attente ${ORS_RETRY_DELAY / 1000}s`);
+          return ORS_RETRY_DELAY;
+        },
+      });
 
-        if (res.status === 429) {
-          console.warn(`[isochrone] Rate limit batch ${batchNum} (tentative ${attempt + 1}/${ORS_MAX_RETRIES}), attente ${ORS_RETRY_DELAY / 1000}s...`);
-          await new Promise(r => setTimeout(r, ORS_RETRY_DELAY));
-          continue;
-        }
-
-        if (!res.ok) {
-          const errText = await res.text();
-          console.error(`[isochrone] ORS HTTP ${res.status} batch ${batchNum}: ${errText}`);
-          break;
-        }
-
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        logger.error('isochrone', `ORS HTTP ${res.status} batch ${batchNum}: ${errText.slice(0, 300)}`);
+      } else {
         const data = await res.json();
         if (Array.isArray(data.features)) {
           allFeatures.push(...data.features);
         }
         success = true;
         logger.debug('isochrone', `Batch ${batchNum}: ${data.features?.length ?? 0} polygones`);
-        break;
-      } catch (e: unknown) {
-        clearTimeout(timer);
-        const isTimeout = e instanceof Error && e.name === 'AbortError';
-        console.error(
-          `[isochrone] ${isTimeout ? 'Timeout 12s' : 'Fetch error'} batch ${batchNum} (tentative ${attempt + 1}):`,
-          e instanceof Error ? e.message : e
-        );
-        if (attempt < ORS_MAX_RETRIES - 1) {
-          await new Promise(r => setTimeout(r, isTimeout ? 5_000 : ORS_RETRY_DELAY));
-        }
       }
+    } catch (e: unknown) {
+      logger.error('isochrone', `Batch ${batchNum} injoignable : ${e instanceof Error ? e.message : String(e)}`);
     }
 
     if (!success) {
-      console.warn(`[isochrone] Batch ${batchNum} échoué après ${ORS_MAX_RETRIES} tentatives`);
+      logger.warn('isochrone', `Batch ${batchNum} échoué après ${ORS_MAX_RETRIES} tentatives`);
     }
   }
 
@@ -188,7 +191,7 @@ export async function fetchIsochrones(
       { p_fc: toJson(rawGeojson) }
     );
     if (clipErr) {
-      console.warn('[isochrone] clip_geojson_to_france error (fallback brut):', clipErr.message);
+      logger.warn('isochrone', `clip_geojson_to_france error (fallback brut): ${clipErr.message}`);
     } else if (clipped) {
       geojson = clipped as typeof rawGeojson;
       const nb = (geojson as { features?: unknown[] }).features?.length ?? 0;
@@ -214,7 +217,7 @@ export async function fetchIsochrones(
     );
 
   if (cacheErr) {
-    console.error('[isochrone] Erreur sauvegarde cache:', cacheErr.message);
+    logger.error('isochrone', `Erreur sauvegarde cache: ${cacheErr.message}`);
   } else {
     logger.debug('isochrone', `Cache sauvegardé: ${cacheCtx.cacheKey} (${allFeatures.length} polygones)`);
   }

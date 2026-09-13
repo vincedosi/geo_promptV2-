@@ -8,6 +8,8 @@
 import proj4 from 'proj4';
 import Papa from 'papaparse';
 import type { GeoResult, GeocodeDetailedResult, GeocodeStatus } from './types';
+import { fetchLectureAvecReprise, type CauseReprise } from '@/lib/http/lecture-avec-reprise';
+import { logger } from '@/lib/logger';
 
 // ============================================================
 // proj4 — Lambert-93 (EPSG:2154) definition
@@ -28,6 +30,23 @@ const SCORE_THRESHOLD     = 0.6;
 const BAN_TIMEOUT_MS      = 10_000;  // timeout par requête single
 const BAN_BATCH_TIMEOUT_MS = 60_000; // timeout pour requête CSV batch
 
+/**
+ * Un 4xx (autre que 429) ne se corrigera pas en rejouant : on ne reprend que
+ * sur 429, 5xx, expiration et erreur réseau. Attente 1 s, 2 s, 3 s… (même
+ * cadence que l'ancien geocoder.py).
+ */
+function attenteBan(pasMs: number) {
+  return (tentative: number, cause: CauseReprise): number | null =>
+    cause.type === 'statut' && cause.reponse.status !== 429 && cause.reponse.status < 500
+      ? null
+      : pasMs * (tentative + 1);
+}
+
+/**
+ * Géocode une adresse : 1 appel BAN borné à 10 s par tentative, `retries`
+ * reprises. Rend {null, null, 0} si rien n'est trouvé ou si la BAN est
+ * injoignable — jamais d'exception, l'import continue.
+ */
 export async function geocodeSingle(adresse: string, retries = 2): Promise<GeoResult> {
   if (!adresse || !adresse.trim()) {
     return { lat: null, lng: null, score: 0 };
@@ -35,41 +54,31 @@ export async function geocodeSingle(adresse: string, retries = 2): Promise<GeoRe
 
   const params = new URLSearchParams({ q: adresse.trim(), limit: '1' });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), BAN_TIMEOUT_MS);
-
-      const response = await fetch(`${BAN_API_URL}?${params}`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`BAN API HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const features = data.features || [];
-
-      if (features.length === 0) {
-        return { lat: null, lng: null, score: 0 };
-      }
-
-      const best = features[0];
-      const [lng, lat] = best.geometry.coordinates; // GeoJSON: [lng, lat]
-      const score = best.properties?.score ?? 0;
-
-      return { lat, lng, score };
-    } catch (err: unknown) {
-      if (attempt < retries) {
-        // Exponential backoff (matches Python geocoder.py retry logic)
-        await sleep(1000 * (attempt + 1));
-      }
+  try {
+    const response = await fetchLectureAvecReprise(`${BAN_API_URL}?${params}`, {}, {
+      delaiMs: BAN_TIMEOUT_MS,
+      tentatives: retries + 1,
+      attente: attenteBan(1000),
+    });
+    if (!response.ok) {
+      logger.warn('GEOCODER', `BAN API HTTP ${response.status}`);
+      return { lat: null, lng: null, score: 0 };
     }
-  }
 
-  return { lat: null, lng: null, score: 0 };
+    const data = await response.json();
+    const features = data.features || [];
+    if (features.length === 0) {
+      return { lat: null, lng: null, score: 0 };
+    }
+
+    const best = features[0];
+    const [lng, lat] = best.geometry.coordinates; // GeoJSON: [lng, lat]
+    const score = best.properties?.score ?? 0;
+    return { lat, lng, score };
+  } catch (err: unknown) {
+    logger.warn('GEOCODER', `BAN injoignable : ${err instanceof Error ? err.message : String(err)}`);
+    return { lat: null, lng: null, score: 0 };
+  }
 }
 
 /**
@@ -204,15 +213,12 @@ export async function reverseGeocodeRows(
       const formData = new FormData();
       formData.append('data', new Blob([csvContent], { type: 'text/csv' }), 'points.csv');
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), BAN_BATCH_TIMEOUT_MS);
-
-      const res = await fetch(BAN_REVERSE_URL, {
+      // Borné à 60 s, sans reprise automatique : un corps FormData ne se
+      // rejoue pas une fois consommé. Un lot en échec rend des nulls (ci-dessous).
+      const res = await fetchLectureAvecReprise(BAN_REVERSE_URL, {
         method: 'POST',
         body: formData,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      }, { delaiMs: BAN_BATCH_TIMEOUT_MS, tentatives: 1 });
 
       if (!res.ok) throw new Error(`BAN reverse HTTP ${res.status}`);
 
@@ -240,7 +246,7 @@ export async function reverseGeocodeRows(
       }
     } catch (err: unknown) {
       // On failure, push nulls for this chunk
-      console.error('[GEOCODER] reverse batch failed:', err);
+      logger.error('GEOCODER', `reverse batch failed: ${err instanceof Error ? err.message : String(err)}`);
       for (const p of chunk) {
         allResults.push({ index: p.index, dept_code: null, dept_nom: null, region: null, ville: null, code_postal: null });
       }
@@ -325,27 +331,27 @@ async function geocodeChunkCSV(
   resultCity: string;
   resultPostcode: string;
 }>> {
+  // Tell BAN which columns to use
+  // columns=adresse means: use 'adresse' column for full-text search
+  // postcode=code_postal means: use 'code_postal' to restrict by postal code
+  // citycode is not used; instead we let BAN use the full address + postal code
+  const url = `${BAN_CSV_URL}?columns=adresse&columns=ville&postcode=code_postal`;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
+      // Un FormData consommé ne se rejoue pas : reconstruit à CHAQUE tentative,
+      // d'où la boucle ici plutôt que `tentatives` dans l'aide de lecture.
       const formData = new FormData();
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      formData.append('data', blob, 'addresses.csv');
+      formData.append('data', new Blob([csvContent], { type: 'text/csv' }), 'addresses.csv');
 
-      // Tell BAN which columns to use
-      // columns=adresse means: use 'adresse' column for full-text search
-      // postcode=code_postal means: use 'code_postal' to restrict by postal code
-      // citycode is not used; instead we let BAN use the full address + postal code
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), BAN_BATCH_TIMEOUT_MS); // 60s timeout for batch
-
-      const response = await fetch(`${BAN_CSV_URL}?columns=adresse&columns=ville&postcode=code_postal`, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
+      const response = await fetchLectureAvecReprise(url, { method: 'POST', body: formData }, {
+        delaiMs: BAN_BATCH_TIMEOUT_MS,
+        tentatives: 1,
       });
-      clearTimeout(timeout);
 
       if (!response.ok) {
+        // Le catch ci-dessous distingue un 4xx définitif (abandon immédiat)
+        // d'un 429/5xx transitoire (reprise).
         throw new Error(`BAN CSV API HTTP ${response.status}: ${await response.text()}`);
       }
 
@@ -374,13 +380,14 @@ async function geocodeChunkCSV(
         };
       });
     } catch (err: unknown) {
-      if (attempt < retries) {
-        console.warn(`[GEOCODER] BAN CSV attempt ${attempt + 1} failed, retrying...`, err);
-        await sleep(2000 * (attempt + 1));
-      } else {
-        console.error('[GEOCODER] BAN CSV all retries failed:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      const definitif = /HTTP 4\d\d/.test(message) && !/HTTP 429/.test(message);
+      if (definitif || attempt >= retries) {
+        logger.error('GEOCODER', `BAN CSV : abandon après ${attempt + 1} tentative(s) — ${message}`);
         throw err;
       }
+      logger.warn('GEOCODER', `BAN CSV tentative ${attempt + 1} en échec, reprise… (${message})`);
+      await sleep(2000 * (attempt + 1));
     }
   }
 
@@ -445,7 +452,7 @@ export async function geocodeBatchDetailed(
       }
     } catch (err: unknown) {
       // If BAN CSV fails for this chunk, mark all as red
-      console.error(`[GEOCODER] Chunk ${offset}-${offset + chunk.length} failed:`, err);
+      logger.error('GEOCODER', `Chunk ${offset}-${offset + chunk.length} failed: ${err instanceof Error ? err.message : String(err)}`);
       for (let i = 0; i < chunk.length; i++) {
         const inputParts = [chunk[i].adresse, chunk[i].code_postal, chunk[i].ville].filter(Boolean);
         allResults.push({
