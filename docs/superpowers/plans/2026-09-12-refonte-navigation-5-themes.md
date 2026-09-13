@@ -29,12 +29,28 @@ Vitest · Tailwind + tokens `DESIGN_SYSTEM.md`.
 > ossature seule produirait un rapport PDF vide derrière une route qui prétend en
 > rendre un.
 >
-> **Trois lots n'ont PAS été relus** : Zones (14-18) et Campagne (19-21), plus la
-> tâche 13 dont la relecture a eu lieu mais dont les correctifs sont postérieurs.
-> Ce n'est pas un détail de procédure : les cinq relectures menées aujourd'hui ont
-> trouvé **trois bloquants, un IDOR, et un vrai défaut de production** (91 189
-> habitants absents de la carte de z4 à z8). Aucune tâche de ce chantier n'est
-> jamais passée du premier coup. Le silence d'un lot non relu ne vaut rien.
+> **Les lots Zones (14-18) et Campagne (19-21) ONT ÉTÉ RELUS** et leurs correctifs
+> sont appliqués (`255c4e1`). La relecture a confirmé que le silence d'un lot non
+> relu ne vaut rien : elle a trouvé, entre autres, **un lot d'activation qui
+> s'enregistrait « terminé, 20 poussés » alors que DV360 avait TOUT refusé** —
+> `bulkEditAssignedTargetingOptions` répond HTTP 200 avec `failedLineItemIds` non
+> vide, et la boucle ne testait que `res.ok`. C'est-à-dire exactement le défaut que
+> les tables de la tâche 20 prétendaient supprimer.
+>
+> Les deux autres conclusions structurantes :
+> - **L'empreinte de dérive portait sur la mauvaise chose.** Avec `updated_at`, un
+>   RENOMMAGE bloquait l'activation, tandis qu'aucun chemin applicatif ne modifie la
+>   géométrie d'une zone existante — les cinq opérations du lot Zones en CRÉENT une
+>   nouvelle. La dérive visée n'était atteignable par rien. `sql/159` hache le
+>   CONTENU (géométrie + comptes de CP/IRIS résolus).
+> - **« Le numéro attribué en base évite la course » était faux**, et le plan comme
+>   le code l'affirmaient. Un `INSERT … SELECT max+1` sans verrou est aussi exposé
+>   qu'un `SELECT max` suivi d'un `INSERT`. Corrigé par `pg_advisory_xact_lock`.
+>
+> Bilan des six relectures du jour : **trois bloquants, un IDOR, deux vrais défauts
+> de production** (91 189 habitants absents de la carte de z4 à z8 ; un historique
+> d'activation vert sur une poussée morte). Aucune tâche de ce chantier n'est jamais
+> passée du premier coup.
 
 ## Détail
 
@@ -64,8 +80,8 @@ document, et qui ne conditionnent pas la refonte.
 | 11 — Analyses enregistrées, rejeu | ✅ close | 1 | `c40fc55..2a29ba1` + corrections |
 | 12 — Score composite | ✅ close | 1 | `1a77a03` + corrections |
 | 13 — Corrélation impressions × indicateur | ✅ close | 1 | `a7919b5` + `dad5034` |
-| 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ✅ livrées, **non relues** | 0 | `4e82a58`, `3a1a9c2`, `7ae69bc`, `fd66aab` |
-| 19 à 21 — Versionnage, Activation, priorités | ✅ livrées, **non relues** | 0 | `8452511`, `d8ba435`, `1cf8faf` |
+| 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ✅ close | 1 | `4e82a58`, `3a1a9c2`, `7ae69bc`, `fd66aab` + `255c4e1` |
+| 19 à 21 — Versionnage, Activation, priorités | ✅ close | 1 | `8452511`, `d8ba435`, `1cf8faf` + `255c4e1` (sql/159) |
 | 22 — ELM | ⛔ bloqué EN ENTIER | | contenu du rapport non spécifié ; la justification de son étape 1 est périmée (voir la tâche) |
 
 > **Les tâches 11 et 12 ont été relues le 2026-09-13** — et la règle du chantier tient
@@ -141,6 +157,18 @@ document, et qui ne conditionnent pas la refonte.
   ne refermait jamais la section Indicateurs civiques.
 - Et hors refonte, dans la RPC de classement que j'ai écrite : elle **sommait les taux**.
   Marseille regroupée annonçait 234,4 % de chômage.
+- Le push DV360 répond **HTTP 200 avec `failedLineItemIds` non vide** : un lot
+  entièrement refusé s'enregistrait « terminé, 20 poussés ». Le défaut vivait dans
+  la fonctionnalité écrite pour le rendre impossible.
+- L'empreinte de dérive sur `updated_at` : **faux positif garanti** sur un simple
+  renommage, et **aveugle** au seul changement qui compte — qu'aucun chemin du code
+  ne produit, ce que ni la tâche ni le plan n'avaient vérifié.
+- `postgrest-js` encode chaque virgule d'un `.in()` en `%2C` : 2 000 codes postaux
+  faisaient une URL de **16 104 caractères** pour une limite usuelle de 16 384. Il
+  restait 1,7 % de marge, et le dépassement aurait échoué MUETTEMENT.
+- `ARCHITECTURE.md` annonçait que l'ordre des zones cibles (tâche 21) décidait de la
+  priorité. Il ne décide de rien : `resolveFinalZone` fait une UNION, commutative.
+  Une promesse dans la doc vaut un mensonge.
 
 ---
 
