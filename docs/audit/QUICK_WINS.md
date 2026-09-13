@@ -1,7 +1,8 @@
 # QUICK WINS — liste ordonnée
 
 > Audit du 2026-09-13. Un titre par ligne, prêt à devenir un prompt. Ordre =
-> (impact sur le plafond d'utilisateurs) / (effort). Les chiffres sont ceux de
+> (impact sur le plafond d'utilisateurs) / (effort) — **sauf le point 18**, qui
+> ouvre la liste parce qu'il ne s'agit pas de vitesse mais de justesse. Les chiffres sont ceux de
 > [`ARCHITECTURE_SCALE_AUDIT.md`](./ARCHITECTURE_SCALE_AUDIT.md) et
 > [`SCALE_MODEL.md`](./SCALE_MODEL.md).
 
@@ -15,6 +16,82 @@ Supabase → Settings → Compute and Disk. Tout le classement ci-dessous suppos
 réglages relevés (1 Go de RAM) suggèrent un palier Micro, pas Nano. Les
 correctifs restent bons dans tous les cas — seule leur **urgence** en dépend.
 · Effort : 5 min · Gain : sait-on de quoi on parle.
+
+---
+
+## Avant même les optimisations : une donnée qui ment
+
+> Numérotée 18 parce que trouvée après l'audit du 2026-09-13, placée ici parce
+> que l'ordre du reste de cette liste est celui de l'impact sur le **plafond
+> d'utilisateurs**. Ce point-ci ne ralentit personne : il donne des réponses
+> fausses. Un chiffre faux se corrige avant un chiffre lent.
+
+**18. Le « flux routier TMJA » n'est du TMJA que pour 1 100 de ses 408 030 lignes — séparer les deux sources, ou cesser de les présenter comme une mesure.**
+
+Mesuré le 2026-09-13 :
+
+| source | lignes | valeurs de trafic distinctes | année de mesure |
+|---|---|---|---|
+| `tmja_rrn_national` | 1 100 | 857 | 2021 à 2024 |
+| `osm_highway_proxy` | 406 930 | **11** | **aucune** (`NULL` partout) |
+
+Les onze valeurs sont 800, 1 500, 3 000, 4 000, 5 000, 7 000, 10 000, 12 000,
+15 000, 20 000, 30 000. C'est une **constante par classe de route OSM**, pas une
+mesure de trafic. Les deux sources sont stockées dans la même table, servies par
+la même RPC et peintes sous le même nom et la même échelle de couleur.
+
+**Le consommateur le plus grave n'est pas la carte, c'est la capture de zone.**
+`POST /api/custom-geo/source/tmja` → `get_tmja_capture_geometry` filtre sur
+`tmja >= p_min_tmja` et **jamais sur `source`**. Ce que rend un seuil :
+
+| seuil demandé | segments mesurés | segments proxy | part de proxy |
+|---:|---:|---:|---:|
+| 5 000 | 1 095 | 109 182 | **99,0 %** |
+| 10 000 | 1 039 | 54 580 | **98,1 %** |
+| 20 000 | 772 | 13 621 | **94,6 %** |
+| 30 000 | 521 | 4 306 | **89,2 %** |
+
+Un utilisateur qui demande « les axes à plus de 20 000 véhicules par jour »
+obtient une géométrie construite à 94,6 % sur une constante de classe de route.
+Cette géométrie devient une zone, la zone part au DSP, et le budget suit.
+
+Second défaut du même ressort : avec onze valeurs seulement, le seuil n'est pas
+continu. Demander 21 000 ou 29 000 rend **exactement le même jeu** que demander
+30 000. La réglette se présente comme continue et se comporte comme un
+sélecteur à onze crans.
+
+**Ce qui n'est PAS touché, vérifié.** `panneaux_affichage.score_flux_routier` et
+`flux_routier_tmja` sont **vides sur les 1 434 panneaux** : aucun score de
+panneau n'est aujourd'hui bâti sur cette donnée. Le défaut est réel mais son
+rayon s'arrête à la carte et à la capture de zone. Ne pas le présenter comme
+une contamination du scoring — ce serait remplacer une exagération par une autre.
+
+**Trois issues, à trancher avant de coder :**
+
+1. **Séparer en deux calques nommés.** Le TMJA réel garde son échelle continue ;
+   le proxy devient « hiérarchie routière OSM » avec une légende à onze classes,
+   catégorielle et non continue. Garde la couverture nationale, supprime la
+   confusion. Coût : moyen.
+2. **N'exposer que le TMJA mesuré.** Honnête et immédiat, mais 1 100 segments
+   pour toute la France, c'est un réseau très maigre à l'écran.
+3. **Assumer le proxy sous son vrai nom**, et retirer la capture de zone par
+   seuil tant qu'elle ne sait pas distinguer les deux.
+
+**Quelle que soit l'issue, quatre choses à faire :**
+
+- Émettre `source` dans la tuile (`get_tmja_tile` ne la porte pas aujourd'hui,
+  le client ne PEUT donc pas distinguer) — et bumper la version de tuile, sinon
+  le cache CDN sert l'ancien schéma.
+- Ajouter un paramètre de source à `get_tmja_capture_geometry`, avec le proxy
+  **exclu par défaut** : le défaut doit être le comportement honnête.
+- Reprendre la ligne « Flux routier » de l'onglet Fraîcheur données une fois
+  tranché — elle décrit aujourd'hui le problème, elle devra décrire la solution.
+- Arbitrer les 701 Mo. C'est la deuxième table du projet, et le point 6 de cette
+  liste réserve déjà 169 Mo d'index `comptages_routiers` jamais parcourus. Si
+  l'issue 2 est retenue, ce sont **700 Mo qui partent** sur un disque contraint.
+
+· Effort : 0,5 j pour le calque et la tuile, 0,5 j pour la capture de zone ·
+Gain : la carte et les zones cessent d'annoncer une mesure là où il n'y en a pas.
 
 ---
 

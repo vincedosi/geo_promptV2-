@@ -134,7 +134,7 @@ export const SOURCES_DONNEES: readonly SourceDonnee[] = [
     journal: null,
     cadenceAttendueJours: null,
     coutMesure: 'lourd',
-    note: "Seules 1 100 lignes sont des comptages mesurés. Les 406 930 autres viennent d'un proxy OSM qui ne porte que 11 valeurs de trafic distinctes et aucune année : c'est une constante par classe de route, pas une mesure. Le millésime affiché est celui des comptages réels.",
+    note: "Seules 1 100 lignes sont des comptages mesurés. Les 406 930 autres viennent d'un proxy OSM qui ne porte que 11 valeurs de trafic distinctes et aucune année : c'est une constante par classe de route, pas une mesure. Le millésime affiché est celui des comptages réels. La capture de zone par seuil ne distingue pas les deux sources : à « plus de 20 000 véhicules par jour », 94,6 % des segments retenus sont du proxy. Correction à trancher, point 18 de docs/audit/QUICK_WINS.md.",
   },
   {
     id: 'radio_emetteurs',
