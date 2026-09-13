@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `dad5034`.
+> Généré le 2026-09-13 — commit `3a1a9c2`.
 
 ## Totaux
 
@@ -46,19 +46,19 @@ Trié par nombre d’occurrences décroissant.
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
 | `lib/geo/france-admin.ts` | 3 | POI_TYPES, AUDIENCE_METRICS, POI_RAYONS | — |
-| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
-| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `components/ui/button.tsx` | 2 | buttonVariants | ButtonProps |
 | `components/ui/badge.tsx` | 2 | badgeVariants | BadgeProps |
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
+| `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
+| `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
 | `lib/isochrones/fetcher.ts` | 2 | ORS_MAX_RETRIES, ORS_RETRY_DELAY | — |
 | `lib/campaigns/derive-metrics.ts` | 2 | nextMesh, prevMesh | — |
 | `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
 | `lib/prompting/code-generation/ttd.ts` | 2 | TTD_PROMPT_SECTION | TTDLine |
-| `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/demo/constants.ts` | 2 | PERIOD_LEN_DAYS, CALENDAR_START | — |
+| `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
 | `lib/import/geocoder.ts` | 2 | reverseGeocodeRows | ReverseResult |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
@@ -73,9 +73,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
-| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/campaigns/actor-metrics.ts` | 1 | toneColor | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
@@ -85,8 +85,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
 | `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
 | `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
-| `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/demo/controller.ts` | 1 | latestVersion | — |
+| `lib/api/safe-path.ts` | 1 | isValidUuid | — |
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
@@ -97,16 +97,16 @@ Trié par nombre d’occurrences décroissant.
 | `lib/metrics-display/types.ts` | 1 | UnknownMetricError | — |
 | `components/campaign/_shared.tsx` | 1 | SH | — |
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
-| `lib/logger.ts` | 1 | — | Logger |
 | `components/ui/input.tsx` | 1 | — | InputProps |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `types/admin.ts` | 1 | — | HealthCheck |
+| `lib/logger.ts` | 1 | — | Logger |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
-| `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
+| `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
 | `lib/report/types.ts` | 1 | — | ReportHeader |

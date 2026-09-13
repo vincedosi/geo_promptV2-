@@ -13,7 +13,9 @@
  *     `SettingsOverlay.tsx` (avant cette tâche), qui la perd. Dessin libre,
  *     rayon comme outil de zone et import de codes postaux **n'existent pas**
  *     dans le code — décision du contrôleur : ne pas poser de bouton mort,
- *     ils arrivent aux Tâches 16-18 (Phase 2).
+ *     ils arrivent aux Tâches 16-18 (Phase 2). **Import de codes postaux et
+ *     rayon livrés le 2026-09-13** (Tâches 16 et 17) ; le dessin libre reste
+ *     à faire.
  *   - « Mes zones » : `ZonesOverlay` (components/map/overlays/ZonesOverlay.tsx)
  *     déplacée TELLE QUELLE (fichier non relocalisé physiquement, seulement
  *     réimporté ici — même convention que `PanneauCalques`/`PanneauAnalyse`
@@ -28,6 +30,8 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import { useCustomGeoCaptureContext } from '@/lib/custom-geo/CustomGeoCaptureContext';
 import { retryImport } from '@/lib/dynamic-with-retry';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
+import { CreerZoneCodesPostaux } from './CreerZoneCodesPostaux';
+import { CreerZoneRayon } from './CreerZoneRayon';
 
 const CustomGeoCaptureModal = dynamic(
   retryImport(() => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
@@ -53,6 +57,10 @@ const sectionTitleStyle: React.CSSProperties = {
 export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps) {
   const { layerCount } = useCustomGeoCaptureContext();
   const [customGeoModalOpen, setCustomGeoModalOpen] = useState(false);
+  // Remonte « Mes zones » apres une creation : ZonesOverlay recharge sa liste
+  // au montage, une cle qui change suffit donc a la rafraichir sans lui ajouter
+  // de prop ni toucher a ses 550 lignes.
+  const [rafraichir, setRafraichir] = useState(0);
   const customGeoDisabled = layerCount === 0;
 
   return (
@@ -100,13 +108,20 @@ export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps)
             }}>{layerCount}</span>
           )}
         </button>
+
+        {/* Tache 16 et 17 : deux autres facons de fabriquer une zone, a cote de
+            la capture de couches. L'en-tete de ce fichier annoncait qu'elles
+            « n'existent pas dans le code » et arriveraient en Phase 2 — c'est
+            fait. Le dessin libre (Tache 18) reste a venir. */}
+        <CreerZoneCodesPostaux onCree={() => setRafraichir((n) => n + 1)} />
+        <CreerZoneRayon mapRef={mapRef} onCree={() => setRafraichir((n) => n + 1)} />
       </section>
       {customGeoModalOpen && <CustomGeoCaptureModal onClose={() => setCustomGeoModalOpen(false)} />}
 
       {/* ── Mes zones ──────────────────────────────────────────────────── */}
       <section style={{ padding: '12px 0 0' }}>
         <h4 style={{ ...sectionTitleStyle, padding: '0 16px' }}>Mes zones</h4>
-        <ZonesOverlay mapRef={mapRef} onLoadedZonesChange={onLoadedZonesChange} />
+        <ZonesOverlay key={rafraichir} mapRef={mapRef} onLoadedZonesChange={onLoadedZonesChange} />
       </section>
 
     </div>
