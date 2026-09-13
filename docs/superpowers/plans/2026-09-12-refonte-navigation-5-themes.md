@@ -22,7 +22,21 @@ Vitest · Tailwind + tokens `DESIGN_SYSTEM.md`.
 
 ---
 
-## État d'avancement — 2026-09-13
+## État d'avancement — 2026-09-13 (fin de journée)
+
+> **Vingt et une tâches sur vingt-deux sont livrées.** Seule la 22 (ELM) reste
+> bloquée, et elle l'est EN ENTIER : son contenu n'est pas spécifié, et livrer son
+> ossature seule produirait un rapport PDF vide derrière une route qui prétend en
+> rendre un.
+>
+> **Trois lots n'ont PAS été relus** : Zones (14-18) et Campagne (19-21), plus la
+> tâche 13 dont la relecture a eu lieu mais dont les correctifs sont postérieurs.
+> Ce n'est pas un détail de procédure : les cinq relectures menées aujourd'hui ont
+> trouvé **trois bloquants, un IDOR, et un vrai défaut de production** (91 189
+> habitants absents de la carte de z4 à z8). Aucune tâche de ce chantier n'est
+> jamais passée du premier coup. Le silence d'un lot non relu ne vaut rien.
+
+## Détail
 
 > Section tenue à jour à chaque tâche close. Les cases à cocher des tâches
 > closes sont cochées ci-dessous, dans leurs sections respectives.
@@ -51,8 +65,8 @@ document, et qui ne conditionnent pas la refonte.
 | 12 — Score composite | ✅ close | 1 | `1a77a03` + corrections |
 | 13 — Corrélation impressions × indicateur | ✅ close | 1 | `a7919b5` + `dad5034` |
 | 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ✅ livrées, **non relues** | 0 | `4e82a58`, `3a1a9c2`, `7ae69bc`, `fd66aab` |
-| 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
-| 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
+| 19 à 21 — Versionnage, Activation, priorités | ✅ livrées, **non relues** | 0 | `8452511`, `d8ba435`, `1cf8faf` |
+| 22 — ELM | ⛔ bloqué EN ENTIER | | contenu du rapport non spécifié ; la justification de son étape 1 est périmée (voir la tâche) |
 
 > **Les tâches 11 et 12 ont été relues le 2026-09-13** — et la règle du chantier tient
 > une fois de plus : aucune n'est passée du premier coup.
@@ -1687,7 +1701,7 @@ rayon de **recherche de POI** et reste où il est.
   `lib/campaigns/version-strategie.ts`, `tests/unit/campaigns/version-strategie.test.ts`
 - Modifier : l'onglet Stratégie (Tâche 9), `ARCHITECTURE.md`
 
-- [ ] **Étape 1 : la migration**
+- [x] **Étape 1 : la migration**
 
 ```sql
 -- sql/148_strategie_versions.sql
@@ -1711,7 +1725,7 @@ CREATE INDEX IF NOT EXISTS idx_strategie_versions_strat
 ALTER TABLE public.strategie_versions ENABLE ROW LEVEL SECURITY;
 ```
 
-- [ ] **Étape 2 : écrire le test qui échoue**
+- [x] **Étape 2 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/campaigns/version-strategie.test.ts
@@ -1746,17 +1760,17 @@ describe('derive d une strategie publiee', () => {
 });
 ```
 
-- [ ] **Étape 3 : lancer, vérifier l'échec**
+- [x] **Étape 3 : lancer, vérifier l'échec**
 
-- [ ] **Étape 4 : implémenter**
+- [x] **Étape 4 : implémenter**
 
-- [ ] **Étape 5 : relancer, vérifier le succès**
+- [x] **Étape 5 : relancer, vérifier le succès**
 
-- [ ] **Étape 6 : l'UI** — encart « Vérifier et publier » (crée la version N+1), bandeau
+- [x] **Étape 6 : l'UI** — encart « Vérifier et publier » (crée la version N+1), bandeau
       « a changé depuis la publication de la v{N}, republier » quand `zonesModifiees` n'est
       pas vide, et un tag sur chaque ligne concernée.
 
-- [ ] **Étape 7 : vérifier, `ARCHITECTURE.md` (1 route + 1 table), commit**
+- [x] **Étape 7 : vérifier, `ARCHITECTURE.md` (1 route + 1 table), commit**
 
 ---
 
@@ -1776,7 +1790,7 @@ ni pré-vol, ni statut par line item, ni historique, ni retour arrière. Ces rou
 l'**enveloppent**, elles ne le réécrivent pas — et elles ne touchent à aucun fichier
 protégé.
 
-- [ ] **Étape 1 : la migration**
+- [x] **Étape 1 : la migration**
 
 ```sql
 -- sql/149_activation_lots.sql
@@ -1817,31 +1831,31 @@ ALTER TABLE public.activation_lots   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activation_cibles ENABLE ROW LEVEL SECURITY;
 ```
 
-- [ ] **Étape 2 : le pré-vol, en LECTURE SEULE**
+- [x] **Étape 2 : le pré-vol, en LECTURE SEULE**
 
 Liste ce qui sera poussé : canal, line items visés, nombre de CP, nombre de geo IDs
 résolus, bornes de CPM, version de stratégie. **Aucun appel d'écriture au DSP.** Bloque si
 la stratégie n'est pas publiée, ou si `zonesModifiees` (Tâche 19) n'est pas vide.
 
-- [ ] **Étape 3 : le push par lots**
+- [x] **Étape 3 : le push par lots**
 
 Réutilise les routes DV360 existantes, par lots de 500 geo IDs (limite déjà appliquée par
 `/zones/push`). **Progression SSE/NDJSON obligatoire** — règle `CLAUDE.md` : jamais de
 traitement DB silencieux. Un `activation_cibles` par line item, `etat_avant` enregistré
 **avant** l'appel sortant.
 
-- [ ] **Étape 4 : historique et rollback**
+- [x] **Étape 4 : historique et rollback**
 
 Rollback = repousser `etat_avant` pour chaque cible du lot, puis statut `annule`.
 Confirmation explicite côté UI : c'est une action sortante et difficilement réversible.
 
-- [ ] **Étape 5 : le quatrième onglet**
+- [x] **Étape 5 : le quatrième onglet**
 
 `MagelianOverlay.tsx:405-409` passe à : Stratégie · **Activation** · Suivi · Aperçu.
 Mettre à jour `MagelianTab` (`deep-link.ts:3`) et `tests/unit/magelian-deep-link.test.ts`
 **dans le même commit**.
 
-- [ ] **Étape 6 : vérifier, `ARCHITECTURE.md` (4 routes + 2 tables), commit**
+- [x] **Étape 6 : vérifier, `ARCHITECTURE.md` (4 routes + 2 tables), commit**
 
 ---
 
@@ -1851,7 +1865,7 @@ Mettre à jour `MagelianTab` (`deep-link.ts:3`) et `tests/unit/magelian-deep-lin
 - Créer : `lib/campaigns/priorite.ts`, `tests/unit/campaigns/priorite.test.ts`
 - Modifier : `components/campaign/wizard/` (tableau des zones cibles)
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/campaigns/priorite.test.ts
@@ -1879,14 +1893,14 @@ describe('reordonnancement des zones cibles', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : implémenter** — aucune dépendance de drag & drop ajoutée : l'API HTML5
+- [x] **Étape 3 : implémenter** — aucune dépendance de drag & drop ajoutée : l'API HTML5
       `draggable` suffit pour une liste de quelques lignes.
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : persister l'ordre** dans `geo_strategy`, vérifier, commit
+- [x] **Étape 5 : persister l'ordre** dans `geo_strategy`, vérifier, commit
 
 ---
 
@@ -1901,11 +1915,21 @@ describe('reordonnancement des zones cibles', () => {
 
 **Ce qui est décidable sans la réponse :**
 
-- [ ] **Étape 1 : réinstaller `@react-pdf/renderer`**, retiré en dommage collatéral de la
-      suppression du clustering (commit `7192c68`) — il n'avait pas d'autre consommateur.
-      `ARCHITECTURE.md` le liste pourtant encore comme dépendance : le doc redeviendra
-      vrai. Le composant d'origine est récupérable :
+- [ ] **Étape 1 : réinstaller `@react-pdf/renderer`** — ⛔ **NON FAITE, et sa
+      justification est périmée** (constaté le 2026-09-13). Le plan invoquait le fait
+      qu'« `ARCHITECTURE.md` le liste pourtant encore comme dépendance : le doc
+      redeviendra vrai ». C'est faux depuis : le doc dit déjà « **plus installé** :
+      retiré en dommage collatéral de la suppression du clustering, son seul
+      consommateur. À réinstaller le jour où le rapport PDF est restauré ». Il est donc
+      exact, et l'installer maintenant ajouterait une dépendance sans consommateur —
+      que `npm run catalogue` (knip) signalerait aussitôt comme jamais importée.
+      Le composant d'origine reste récupérable :
       `git show 9213439^:components/ClusteringPDFReport.tsx`.
+
+      **Décision : la tâche 22 reste bloquée EN ENTIER.** Livrer l'ossature sans le
+      contenu produirait un rapport PDF vide derrière une route qui prétend en rendre
+      un — précisément le défaut que ce chantier a passé la journée à traquer : un
+      artefact qui rassure sans rien garantir.
 - [ ] **Étape 2 : l'ossature** — `POST /api/analyses/elm` prend `{ zone_id, activite }`,
       enregistre une analyse de type `elm` (Tâche 11) et rend un PDF.
 - [ ] **Étape 3 : le contenu du rapport** — **bloqué** sur la réponse à la question
