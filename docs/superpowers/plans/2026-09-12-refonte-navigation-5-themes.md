@@ -24,10 +24,30 @@ Vitest · Tailwind + tokens `DESIGN_SYSTEM.md`.
 
 ## État d'avancement — 2026-09-13 (fin de journée)
 
-> **Vingt et une tâches sur vingt-deux sont livrées.** Seule la 22 (ELM) reste
+> **Vingt-deux tâches sur vingt-trois sont livrées** — la tâche 23 (catalogue du
+> code par knip) est close elle aussi, ce que le décompte précédent
+> (« 21 sur 22 ») oubliait. Les seules cases non cochées du document sont les
+> trois étapes de la 22. Seule la 22 (ELM) reste
 > bloquée, et elle l'est EN ENTIER : son contenu n'est pas spécifié, et livrer son
 > ossature seule produirait un rapport PDF vide derrière une route qui prétend en
 > rendre un.
+>
+> ### Ce que la relecture du lot Campagne n'a PAS vu
+>
+> La tâche 20 avait créé `app/api/campaigns/[id]/activation/*` à côté de
+> `app/api/campaigns/[campaignId]/channels`, livré en juillet. Next.js interdit
+> deux noms de slug sur le même chemin dynamique : **le serveur de développement
+> refusait de démarrer**, sur toutes les pages, pas seulement l'activation.
+>
+> Le défaut a survécu à la relecture du lot ET au build annoncé vert le même
+> jour. Ni `tsc`, ni `npm test`, ni `npm run build` ne le lèvent : `next build`
+> ne compile que les routes qu'il atteint, et le conflit se déclare au démarrage
+> du serveur. **Le seul contrôle qui l'attrape est de lancer l'application.**
+> Corrigé par `b32260c`, découvert en démarrant le serveur pour autre chose.
+>
+> À retenir pour la clôture de ce chantier : la liste de vérification d'une
+> tâche qui ajoute une route doit inclure un démarrage réel, pas seulement une
+> compilation.
 >
 > **Les lots Zones (14-18) et Campagne (19-21) ONT ÉTÉ RELUS** et leurs correctifs
 > sont appliqués (`255c4e1`). La relecture a confirmé que le silence d'un lot non
