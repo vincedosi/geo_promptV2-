@@ -22,13 +22,17 @@ Vitest · Tailwind + tokens `DESIGN_SYSTEM.md`.
 
 ---
 
-## État d'avancement — 2026-09-12
+## État d'avancement — 2026-09-13
 
-> Section tenue à jour à chaque tâche close. Les cases à cocher des tâches 1 à 6
-> sont cochées ci-dessous, dans leurs sections respectives.
+> Section tenue à jour à chaque tâche close. Les cases à cocher des tâches
+> closes sont cochées ci-dessous, dans leurs sections respectives.
 
-**Branche `feat/nav-5-themes`, 22 commits depuis `334577b`.** Chaque tâche est relue
+**Branche `feat/nav-5-themes`, 39 commits depuis `306e08d`.** Chaque tâche est relue
 par un agent indépendant avant d'être close ; aucune n'est passée du premier coup.
+
+**La refonte navigation elle-même (tâches 1 à 10) est CLOSE**, tâche 23 comprise.
+Ce qui suit (11 à 22) sont les chantiers de fond que le plan avait accrochés au même
+document, et qui ne conditionnent pas la refonte.
 
 | Tâche | État | Rounds | Commits |
 |---|---|---|---|
@@ -38,15 +42,37 @@ par un agent indépendant avant d'être close ; aucune n'est passée du premier 
 | 4 — Panneau Filtre, chip, bornage | ✅ close | 2 | `9f263c6..95a64f1` |
 | 5 — Exclusivité des dégradés | ✅ close | 1 | `95a64f1..e9ffad6` |
 | 6 — Panneau Calques, légende unique | ✅ close | 1 | `e9ffad6..6af3609` |
-| 7 — Panneaux Analyse et Zones | 🔄 en cours | — | — |
-| 8 — Routage, pile Échap, raccourcis | ⬜ à faire | | |
-| 9 — Campagne active, bascule | ⬜ à faire | | |
-| 10 — Documentation et clôture | ⬜ à faire | | |
-| 23 — Catalogue du code (knip) | ⬜ après la 10 | | |
-| 11 à 13 — Analyses enregistrées, score, corrélation | ⬜ à faire | | |
+| 7 — Panneaux Analyse et Zones | ✅ close | 3 | `6af3609..5d3f484` |
+| 8 — Routage, pile Échap, raccourcis | ✅ close | 2 | `5d3f484..1f5893c` |
+| 9 — Campagne active, bascule | ✅ close | 1 | `1f5893c..8727bef` |
+| 10 — Documentation et clôture | ✅ close | 1 | `8727bef..950a1ba` |
+| 23 — Catalogue du code (knip) | ✅ close | 1 | `950a1ba..c40fc55` |
+| 11 — Analyses enregistrées, rejeu | ⚠️ livrée, **non relue** | 0 | `c40fc55..2a29ba1` |
+| 12 — Score composite | 🔄 en cours | — | — |
+| 13 — Corrélation impressions × indicateur | ⬜ à faire | | |
 | 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ⬜ à faire | | |
 | 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
 | 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
+
+> **Tâche 11 : seule tâche livrée sans relecture indépendante.** Toutes les autres
+> ont été reprises au moins une fois par un relecteur — aucune n'est passée du premier
+> coup. Le rejeu (`/api/analyses/[id]/rejouer`) ne déclenche par ailleurs aucun moteur
+> de calcul : il réenregistre des paramètres. Le câblage revient aux tâches 12, 13, 22.
+
+### Ce que la tâche 12 a trouvé de faux dans ce plan, avant d'écrire une ligne
+
+- **Le plan désigne le mauvais registre.** L'étape 6 fait lire les indicateurs dans
+  `iris_indicator_registry` ; `materialize_indicator_cp_values` les cherche dans
+  `cible_indicator_registry` et **lève** sur un code absent (`indicateur inconnu ou
+  inactif`). La route `/api/cibles/indicators` sert déjà le bon registre.
+- **`indicator_cp_values` ne contient que DEUX indicateurs** (`rev_median`,
+  `abstention_pres_2022`) : c'est une table matérialisée à la demande, pas un
+  référentiel. La RPC du plan, telle qu'écrite, aurait rendu du vide **en silence**
+  pour tout autre indicateur. Matérialisation paresseuse reprise de
+  `/api/bidding/strategies` (fraîcheur 30 j), en séquentiel.
+- **Le périmètre CP obligatoire n'a aucune source** dans le plan : un `FiltreActif`
+  porte un code de région/département/commune/CP ou un uuid de zone, jamais une liste
+  de codes postaux. Résolu par `codes_postaux_dans_bbox` (sql/144, GIST).
 
 ### Ajouté en cours de route, hors plan initial
 
@@ -893,7 +919,7 @@ git add -A && git commit -m "feat(nav): panneau Calques — six groupes, une leg
 - Modifier : `SettingsOverlay.tsx` (perd la capture, gagne le choix du modèle IA et
   l'état de la clé, retirés de l'Assistant)
 
-- [ ] **Étape 1 : Analyse**
+- [x] **Étape 1 : Analyse**
 
 Contenu : Clusters (K-Means) — `ClusteringSection` telle quelle ;
 Battle isochrone — `IsochronesTool` + `BattleV2Tool` ; Voronoï — `VoronoiTool`.
@@ -905,7 +931,7 @@ qu'aucune zone n'est sélectionnée, bloquer et afficher : « Choisissez un pér
 (filtre ou zone) avant de lancer un calcul ». C'est la traduction directe de la règle I/O
 Nano — un calcul France entière est ce qui a fait tomber la base le 28/03 et le 08/04.
 
-- [ ] **Étape 2 : Zones**
+- [x] **Étape 2 : Zones**
 
 Section « Créer une zone » : la capture des couches actives
 (`CustomGeoCaptureModal`, 11 sources). **Dessin libre, rayon et import de CP n'existent
@@ -915,7 +941,7 @@ Section « Mes zones » : `ZonesOverlay` déplacée telle quelle. Elle affiche d
 `source_type`, compteurs. Composition en clair et opérations booléennes
 (Fusionner / Intersection / Soustraire) : Phase 2.
 
-- [ ] **Étape 3 : vérifier et commit**
+- [x] **Étape 3 : vérifier et commit**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
@@ -933,7 +959,7 @@ git add -A && git commit -m "feat(nav): panneaux Analyse et Zones"
 - Modifier : `app/map/page.tsx:648-829` (la cascade de ternaires)
 - Supprimer : `app/map/_components/FilterPanel.tsx` (vidé par les lots 2 à 4)
 
-- [ ] **Étape 1 : test de la pile Échap**
+- [x] **Étape 1 : test de la pile Échap**
 
 ```ts
 // tests/unit/carte/pile-echap.test.ts
@@ -967,9 +993,9 @@ describe('pile Echap', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : écrire la pile**
+- [x] **Étape 3 : écrire la pile**
 
 ```ts
 // lib/carte/pile-echap.ts
@@ -1005,9 +1031,9 @@ export function fermerLePlusHaut(): void {
 }
 ```
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : remplacer la cascade de ternaires**
+- [x] **Étape 5 : remplacer la cascade de ternaires**
 
 Dans `page.tsx`, à la place de `:652-669` (titres + couleurs) et `:672-827` (enfants) :
 
@@ -1024,13 +1050,13 @@ Le titre et le tooltip viennent de `ENTREES_NAVIGATION`, plus aucun ternaire.
 `reglages` garde `SettingsOverlay`, `assistant` devient un tiroir **droit**
 (`right: 0`, largeur 380) au lieu d'un panneau gauche.
 
-- [ ] **Étape 6 : raccourcis**
+- [x] **Étape 6 : raccourcis**
 
 Un seul listener global dans `page.tsx`, qui appelle `entreeParRaccourci(e)` (Tâche 1),
 ignore la frappe si le focus est dans `INPUT`/`TEXTAREA`/`contentEditable` (garde reprise
 de `IconBar.tsx:57-59`), et `Escape` → `fermerLePlusHaut()`.
 
-- [ ] **Étape 7 : vérifier et commit**
+- [x] **Étape 7 : vérifier et commit**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
@@ -1046,7 +1072,7 @@ git add -A && git commit -m "feat(nav): une table de routage, une pile Echap, de
   `components/map/MapTopBar.tsx` (bouton de bascule au centre),
   `components/magelian/MagelianOverlay.tsx` (onglets renommés)
 
-- [ ] **Étape 1 : onglets**
+- [x] **Étape 1 : onglets**
 
 `MagelianOverlay.tsx:405-409` : `Programmer` → **Stratégie**, `Suivi campagne` → **Suivi**.
 `Aperçu` est conservé. **L'onglet Activation n'est pas créé** : son contenu (pré-vol,
@@ -1055,25 +1081,25 @@ Mettre à jour `deep-link.ts:3` (`MagelianTab`) et ses tests
 (`tests/unit/magelian-deep-link.test.ts`) **dans le même commit**, ainsi que le deep-link
 documenté en tête d'`ARCHITECTURE.md`.
 
-- [ ] **Étape 2 : contexte global**
+- [x] **Étape 2 : contexte global**
 
 `campagneActive` (id + nom + annonceur) vit dans `MagelianOverlayContext`, s'affiche dans
 la top bar et dans une carte flottante haut-gauche de la carte avec un bouton « Ouvrir ».
 Sans campagne active, l'overlay affiche « Choisir une campagne » et les quatre outils
 restent pleinement utilisables.
 
-- [ ] **Étape 3 : bascule**
+- [x] **Étape 3 : bascule**
 
 Bouton `Campagne / Carte` au centre de `MapTopBar`, raccourci `Alt+C` (déjà déclaré en
 Tâche 1). La campagne sélectionnée reste active au retour à la carte.
 
-- [ ] **Étape 4 : note de périmètre dans Stratégie**
+- [x] **Étape 4 : note de périmètre dans Stratégie**
 
 Quand `filtre !== null`, afficher dans l'onglet Stratégie :
 « Un filtre de carte est actif. Il ne s'applique pas à cette stratégie : une stratégie
 couvre toute la campagne. » (spec §3, règle non négociable).
 
-- [ ] **Étape 5 : vérifier et commit**
+- [x] **Étape 5 : vérifier et commit**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
@@ -1086,17 +1112,17 @@ git add -A && git commit -m "feat(nav): campagne active globale et bascule Campa
 
 ### Tâche 10 : doc et nettoyage
 
-- [ ] **Étape 1 : `ARCHITECTURE.md`**
+- [x] **Étape 1 : `ARCHITECTURE.md`**
   - nouvelle section « Navigation de /map » : les 5 thèmes, `lib/navigation/config.ts`
     comme source unique, `LARGEUR_RAIL`
   - retirer la mention de `api/correlation/compute/` (route inexistante, RPC
     `get_iris_iris_residual_inputs` sans appelant)
   - corriger le deep-link MAGELIAN (`creation` → `strategie`)
 
-- [ ] **Étape 2 : `page.tsx:13`** — supprimer la mention du deep-link `?overlay=`, qui
+- [x] **Étape 2 : `page.tsx:13`** — supprimer la mention du deep-link `?overlay=`, qui
   n'a jamais existé.
 
-- [ ] **Étape 3 : vérification finale**
+- [x] **Étape 3 : vérification finale**
 
 ```bash
 npx tsc --noEmit
@@ -1107,7 +1133,7 @@ grep -rn "\bany\b" --include=*.tsx --include=*.ts lib/navigation lib/carte app/m
 ```
 Attendu : tsc 0 erreur · tests verts (628 + les nouveaux) · build vert · aucun `any`.
 
-- [ ] **Étape 4 : commit final + `@cleanup-geomatik` Parties 2 et 3** sur les fichiers
+- [x] **Étape 4 : commit final + `@cleanup-geomatik` Parties 2 et 3** sur les fichiers
       modifiés uniquement (failles sécu, `any` introduits, `catch` non typés).
 
 ---
@@ -1159,7 +1185,7 @@ Deux corrections au relevé initial, faites après vérification du code :
   `interface AnalyseEnregistree`, `function cleParametres(p): string`.
   Consommé par les tâches 12, 13, 22 et par Calques > Mes analyses (Tâche 6).
 
-- [ ] **Étape 1 : la migration**
+- [x] **Étape 1 : la migration**
 
 ```sql
 -- sql/145_analyses_enregistrees.sql
@@ -1196,7 +1222,7 @@ ALTER TABLE public.analyses ENABLE ROW LEVEL SECURITY;
 
 Appliquer par **MCP Supabase `apply_migration`**, jamais à la main.
 
-- [ ] **Étape 2 : test de la clé de paramètres**
+- [x] **Étape 2 : test de la clé de paramètres**
 
 La clé sert à reconnaître un rejeu à l'identique. Elle doit être **stable à l'ordre des
 clés JSON près**, sinon deux lancements identiques produiraient deux entrées.
@@ -1222,16 +1248,16 @@ describe('cle de parametres d analyse', () => {
 });
 ```
 
-- [ ] **Étape 3 : lancer, vérifier l'échec**
+- [x] **Étape 3 : lancer, vérifier l'échec**
 
 Commande : `npx vitest run tests/unit/analyses/parametres.test.ts` → module introuvable.
 
-- [ ] **Étape 4 : implémenter `lib/analyses/types.ts`**
+- [x] **Étape 4 : implémenter `lib/analyses/types.ts`**
 
 `cleParametres` = sérialisation avec tri récursif des clés d'objet, tableaux laissés en
 ordre. Aucune dépendance ajoutée.
 
-- [ ] **Étape 5 : les routes**
+- [x] **Étape 5 : les routes**
 
 `GET /api/analyses?type=` (liste scopée org), `POST /api/analyses` (enregistre),
 `GET|DELETE /api/analyses/[id]`, `POST /api/analyses/[id]/rejouer` (relance avec les mêmes
@@ -1239,10 +1265,10 @@ paramètres). Toutes : `export const dynamic = 'force-dynamic'`, corps via `lire
 (`lib/api/valider-corps.ts`), validation Zod, `createAdminClient()`, `requireAuth`,
 scope org.
 
-- [ ] **Étape 6 : brancher Calques > Mes analyses** — le groupe créé en Tâche 6 lit
+- [x] **Étape 6 : brancher Calques > Mes analyses** — le groupe créé en Tâche 6 lit
       `GET /api/analyses` au lieu d'une liste vide.
 
-- [ ] **Étape 7 : vérifier, régénérer les types, commit**
+- [x] **Étape 7 : vérifier, régénérer les types, commit**
 
 ```bash
 npx tsc --noEmit && npm test -- --run
@@ -1904,7 +1930,7 @@ tient en quelques lignes. `jscpd` (détection de copier-coller) est **délibér�
 été trouvées par `grep` ciblé, pas par un détecteur, et le bruit d'un tel outil
 noierait le signal.
 
-- [ ] **Étape 1 : installer et configurer**
+- [x] **Étape 1 : installer et configurer**
 
 ```bash
 npm install --save-dev knip
@@ -1937,7 +1963,7 @@ morte toute l'application :
 Supabase et déclare toutes les tables de la base, dont beaucoup ne sont pas lues
 par l'application. Le signaler serait un faux positif permanent.
 
-- [ ] **Étape 2 : le générateur**
+- [x] **Étape 2 : le générateur**
 
 `scripts/catalogue.mjs` lance `knip --reporter json`, et écrit
 `docs/CATALOGUE_CODE.md` avec, dans cet ordre :
@@ -1947,7 +1973,7 @@ par l'application. Le signaler serait un faux positif permanent.
 3. le détail par fichier, trié par nombre d'occurrences décroissant ;
 4. la liste des dépendances déclarées et jamais importées.
 
-- [ ] **Étape 3 : le test à cliquet**
+- [x] **Étape 3 : le test à cliquet**
 
 ```ts
 // tests/unit/docs/catalogue-code.test.ts
@@ -1988,18 +2014,18 @@ Au premier passage : lancer `npm run catalogue`, lire le nombre réel, poser
 morts qui sont des résidus de la migration de navigation** — c'est l'intérêt de
 lancer cette tâche juste après la tâche 10.
 
-- [ ] **Étape 4 : vérifier**
+- [x] **Étape 4 : vérifier**
 
 ```bash
 npm run catalogue
 npx tsc --noEmit && npm test -- --run
 ```
 
-- [ ] **Étape 5 : `ARCHITECTURE.md`** — déclarer `knip` en dépendance de
+- [x] **Étape 5 : `ARCHITECTURE.md`** — déclarer `knip` en dépendance de
       développement et la commande `npm run catalogue`, **dans le même commit**
       (`tests/unit/docs/derive-documentation.test.ts` le vérifie).
 
-- [ ] **Étape 6 : commit**
+- [x] **Étape 6 : commit**
 
 ## Auto-revue
 
