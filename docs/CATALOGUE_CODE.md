@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `8452511`.
+> Généré le 2026-09-13 — commit `d8ba435`.
 
 ## Totaux
 

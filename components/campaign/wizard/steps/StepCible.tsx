@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { buildCibleMetadata, buildCibleName, type CibleIndicator } from '@/lib/cibles/naming';
 import { addCible, removeCible } from '@/lib/cibles/draft';
+import { deplacer } from '@/lib/campaigns/priorite';
 import type { StepProps } from './types';
 import { B, FieldBlock, Lead, OptionRow, OptsList, Row2, StandardFooter, StepShell } from './ui';
 
@@ -233,21 +234,69 @@ export function StepCible({
             Aucune zone cible — diffusion nationale (métropole + DROM).
           </div>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {draft.cibles.map((c) => (
-              <span key={c.id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px',
-                borderRadius: 4, background: 'var(--brand-teal-10)', border: '0.5px solid var(--brand-teal-30)',
-                fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, color: 'var(--brand-teal)',
-              }}>
-                {c.name}
+          /* Tache 21 : liste VERTICALE et ordonnee, plus des puces en ligne.
+             L'ordre n'est pas decoratif — c'est lui qui decide quelle zone
+             l'emporte quand deux se recouvrent, donc quel multiplicateur
+             d'enchere s'applique a un code postal partage. Des puces qui
+             passent a la ligne ne montrent aucun ordre.
+             Le panier `draft.cibles` etant deja un tableau ordonne, le
+             reordonner EST la persistance : le brouillon part tel quel dans
+             `geo_strategy` au lancement.
+             Aucune dependance de glisser-deposer : l'API HTML5 `draggable`
+             suffit pour quelques lignes, et une bibliotheque de plus se
+             paierait au chargement de /map. */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {draft.cibles.map((c, index) => (
+              <div
+                key={c.id}
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(index)); e.dataTransfer.effectAllowed = 'move'; }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const de = Number(e.dataTransfer.getData('text/plain'));
+                  setDraft((prev) => ({ ...prev, cibles: deplacer(prev.cibles, de, index) }));
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
+                  borderRadius: 4, background: 'var(--brand-teal-10)',
+                  border: '0.5px solid var(--brand-teal-30)',
+                  fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11,
+                  color: 'var(--brand-teal)', cursor: 'grab',
+                }}
+              >
+                {/* Le rang est AFFICHE : sans lui, l'utilisateur ne sait pas
+                    que l'ordre compte, ni lequel il vient de poser. */}
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', minWidth: 12 }}>
+                  {index + 1}
+                </span>
+                <span style={{ flex: 1 }}>{c.name}</span>
+                {/* Les fleches doublent le glisser-deposer : au clavier et sur
+                    tactile, `draggable` ne repond pas. */}
+                <button
+                  onClick={() => setDraft((prev) => ({ ...prev, cibles: deplacer(prev.cibles, index, index - 1) }))}
+                  disabled={index === 0}
+                  style={{ background: 'transparent', border: 'none', cursor: index === 0 ? 'default' : 'pointer', padding: 0, color: 'var(--text-tertiary)', fontSize: 11, opacity: index === 0 ? 0.3 : 1 }}
+                  aria-label={`Monter ${c.name}`}
+                >▲</button>
+                <button
+                  onClick={() => setDraft((prev) => ({ ...prev, cibles: deplacer(prev.cibles, index, index + 1) }))}
+                  disabled={index === draft.cibles.length - 1}
+                  style={{ background: 'transparent', border: 'none', cursor: index === draft.cibles.length - 1 ? 'default' : 'pointer', padding: 0, color: 'var(--text-tertiary)', fontSize: 11, opacity: index === draft.cibles.length - 1 ? 0.3 : 1 }}
+                  aria-label={`Descendre ${c.name}`}
+                >▼</button>
                 <button
                   onClick={() => setDraft((prev) => ({ ...prev, cibles: removeCible(prev.cibles, c.id) }))}
                   style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-tertiary)', fontSize: 13, lineHeight: 1 }}
                   aria-label={`Retirer ${c.name}`}
                 >×</button>
-              </span>
+              </div>
             ))}
+            {draft.cibles.length > 1 && (
+              <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                L’ordre décide de la priorité : la première zone l’emporte là où deux se recouvrent.
+              </div>
+            )}
           </div>
         )}
       </FieldBlock>

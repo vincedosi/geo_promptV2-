@@ -136,7 +136,11 @@ genesis_app/
 │   │   ├── CampaignSuivi.tsx   # Cockpit de suivi en vol (tuiles/alertes/graphes/tableau via suivi/*)
 │   │   │                       # + reconciliation DSP ⇔ mesure + bilan + chat IA
 │   │   ├── suivi/              # SuiviCockpit, SuiviCharts, SuiviTable, ReconciliationPanel
-│   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max)
+│   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max ;
+│   │                        #   StepCible : panier de zones ORDONNE (Tache 21) — l'ordre decide de la
+│   │                        #   priorite quand deux zones se recouvrent, donc du multiplicateur
+│   │                        #   applique a un CP partage. Glisser-deposer HTML5 + fleches clavier,
+│   │                        #   aucune dependance ajoutee ; logique pure dans lib/campaigns/priorite.ts)
 │   ├── magelian/               # Overlay MAGELIAN (Strategie/Suivi/Apercu) + deep-link
 │   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Strategie/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
