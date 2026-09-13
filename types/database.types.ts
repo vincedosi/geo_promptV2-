@@ -6883,6 +6883,7 @@ export type Database = {
         }
         Returns: string
       }
+      zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: { Args: { p_base: string; p_retires: string[] }; Returns: Json }
       zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
       zone_rayon: {

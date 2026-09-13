@@ -14,8 +14,7 @@
  *     rayon comme outil de zone et import de codes postaux **n'existent pas**
  *     dans le code — décision du contrôleur : ne pas poser de bouton mort,
  *     ils arrivent aux Tâches 16-18 (Phase 2). **Import de codes postaux et
- *     rayon livrés le 2026-09-13** (Tâches 16 et 17) ; le dessin libre reste
- *     à faire.
+ *     rayon et dessin libre livrés le 2026-09-13** (Tâches 16, 17 et 18).
  *   - « Mes zones » : `ZonesOverlay` (components/map/overlays/ZonesOverlay.tsx)
  *     déplacée TELLE QUELLE (fichier non relocalisé physiquement, seulement
  *     réimporté ici — même convention que `PanneauCalques`/`PanneauAnalyse`
@@ -32,6 +31,7 @@ import { retryImport } from '@/lib/dynamic-with-retry';
 import { ZonesOverlay } from '@/components/map/overlays/ZonesOverlay';
 import { CreerZoneCodesPostaux } from './CreerZoneCodesPostaux';
 import { CreerZoneRayon } from './CreerZoneRayon';
+import { CreerZoneDessin } from './CreerZoneDessin';
 
 const CustomGeoCaptureModal = dynamic(
   retryImport(() => import('@/components/custom-geo/CustomGeoCaptureModal').then((m) => ({ default: m.CustomGeoCaptureModal }))),
@@ -115,6 +115,7 @@ export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps)
             fait. Le dessin libre (Tache 18) reste a venir. */}
         <CreerZoneCodesPostaux onCree={() => setRafraichir((n) => n + 1)} />
         <CreerZoneRayon mapRef={mapRef} onCree={() => setRafraichir((n) => n + 1)} />
+        <CreerZoneDessin mapRef={mapRef} onCree={() => setRafraichir((n) => n + 1)} />
       </section>
       {customGeoModalOpen && <CustomGeoCaptureModal onClose={() => setCustomGeoModalOpen(false)} />}
 
