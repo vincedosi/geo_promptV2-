@@ -49,8 +49,8 @@ document, et qui ne conditionnent pas la refonte.
 | 23 — Catalogue du code (knip) | ✅ close | 1 | `950a1ba..c40fc55` |
 | 11 — Analyses enregistrées, rejeu | ✅ close | 1 | `c40fc55..2a29ba1` + corrections |
 | 12 — Score composite | ✅ close | 1 | `1a77a03` + corrections |
-| 13 — Corrélation impressions × indicateur | ✅ livrée, **non relue** | 0 | ce commit |
-| 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ⬜ à faire | | |
+| 13 — Corrélation impressions × indicateur | ✅ close | 1 | `a7919b5` + `dad5034` |
+| 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ✅ livrées, **non relues** | 0 | `4e82a58`, `3a1a9c2`, `7ae69bc`, `fd66aab` |
 | 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
 | 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
 
@@ -1476,7 +1476,7 @@ deux nouvelles routes en reprennent **exactement** la structure : `requireAuth`,
 `checkZoneAccess` par lots de 3 (contrainte Nano), `lireCorps()`, Zod,
 `createAdminClient()`.
 
-- [ ] **Étape 1 : la migration**
+- [x] **Étape 1 : la migration**
 
 ```sql
 -- sql/147_zones_booleen.sql
@@ -1509,25 +1509,25 @@ GRANT EXECUTE ON FUNCTION public.zone_intersection(uuid[]) TO service_role;
 GRANT EXECUTE ON FUNCTION public.zone_difference(uuid, uuid[]) TO service_role;
 ```
 
-- [ ] **Étape 2 : le cas limite, traité explicitement**
+- [x] **Étape 2 : le cas limite, traité explicitement**
 
 Une intersection vide rend une géométrie vide : la route répond **409
 `intersection_vide`** avec un message français. Elle ne crée pas une zone à zéro CP en
 silence — cette zone partirait ensuite au DSP.
 
-- [ ] **Étape 3 : l'UI**
+- [x] **Étape 3 : l'UI**
 
 Cases à cocher sur « Mes zones », barre d'opérations **Fusionner / Intersection /
 Soustraire**. Soustraire exige exactement une zone de base (la première cochée) et au
 moins une retirée ; le bouton reste désactivé sinon.
 
-- [ ] **Étape 4 : recalculer la liste de CP**
+- [x] **Étape 4 : recalculer la liste de CP**
 
 Après chaque opération, appeler `resolve_custom_geo_zone_codes` (existant). Sans cela la
 zone aurait une géométrie neuve et une liste de CP périmée — et c'est cette liste que
 consomme le DSP.
 
-- [ ] **Étape 5 : `EXPLAIN ANALYZE`, vérifier, `ARCHITECTURE.md` (2 routes + 2 RPC), commit**
+- [x] **Étape 5 : `EXPLAIN ANALYZE`, vérifier, `ARCHITECTURE.md` (2 routes + 2 RPC), commit**
 
 ---
 
@@ -1537,7 +1537,7 @@ consomme le DSP.
 - Créer : `lib/custom-geo/composition.ts`, `tests/unit/custom-geo/composition.test.ts`
 - Modifier : `PanneauZones.tsx`
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/custom-geo/composition.test.ts
@@ -1567,17 +1567,17 @@ describe('composition lisible d une zone', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : implémenter** — lecture de `source_type` + `source_metadata`,
+- [x] **Étape 3 : implémenter** — lecture de `source_type` + `source_metadata`,
       **aucune requête** : la description est dérivée, jamais stockée.
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : afficher** dans « Mes zones », avec le nombre de CP (`feature_count_cp`,
+- [x] **Étape 5 : afficher** dans « Mes zones », avec le nombre de CP (`feature_count_cp`,
       déjà en base) et la population (`audience_stats`).
 
-- [ ] **Étape 6 : commit**
+- [x] **Étape 6 : commit**
 
 ---
 
@@ -1588,7 +1588,7 @@ describe('composition lisible d une zone', () => {
   `lib/custom-geo/parse-cp.ts`, `tests/unit/custom-geo/parse-cp.test.ts`
 - Modifier : `PanneauZones.tsx`, `ARCHITECTURE.md`
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/custom-geo/parse-cp.test.ts
@@ -1617,22 +1617,22 @@ describe('parseur de liste de CP', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : implémenter** — un CP valide fait exactement 5 chiffres. `.trim()`
+- [x] **Étape 3 : implémenter** — un CP valide fait exactement 5 chiffres. `.trim()`
       obligatoire (règle `CLAUDE.md` sur les données CSV INSEE).
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : la route** — résout la géométrie depuis `ref_codes_postaux`, **borne à
+- [x] **Étape 5 : la route** — résout la géométrie depuis `ref_codes_postaux`, **borne à
       2 000 CP** par appel, rend les CP inconnus séparément pour que l'UI les affiche.
       Fichier déposé lu par `lireFormulaire()` + `fichierDeFormulaire()`, **jamais**
       `formData.get('file') as File`.
 
-- [ ] **Étape 6 : l'UI** — zone de texte **ou** dépôt de fichier dans « Créer une zone »,
+- [x] **Étape 6 : l'UI** — zone de texte **ou** dépôt de fichier dans « Créer une zone »,
       avec l'aperçu du nombre reconnu / rejeté avant création.
 
-- [ ] **Étape 7 : `ARCHITECTURE.md`, vérifier, commit**
+- [x] **Étape 7 : `ARCHITECTURE.md`, vérifier, commit**
 
 ---
 
@@ -1645,13 +1645,13 @@ describe('parseur de liste de CP', () => {
 **Ne pas confondre** avec `rayon_poi` / `poisRayon` (`FilterPanel.tsx:230`), qui est un
 rayon de **recherche de POI** et reste où il est.
 
-- [ ] **Étape 1 : la route** — corps `{ lon, lat, rayon_m }`, `rayon_m` borné à
+- [x] **Étape 1 : la route** — corps `{ lon, lat, rayon_m }`, `rayon_m` borné à
       **100 000 m** (au-delà, la zone couvre une région entière et la résolution de CP
       explose). Géométrie = `ST_Buffer(geography, rayon_m)::geometry`, **clippée sur
       `france_borders`** comme les isochrones.
-- [ ] **Étape 2 : l'UI** — clic sur la carte pour poser le centre, curseur de rayon,
+- [x] **Étape 2 : l'UI** — clic sur la carte pour poser le centre, curseur de rayon,
       aperçu du cercle avant enregistrement.
-- [ ] **Étape 3 : `ARCHITECTURE.md`, vérifier, commit**
+- [x] **Étape 3 : `ARCHITECTURE.md`, vérifier, commit**
 
 ---
 
@@ -1663,16 +1663,16 @@ rayon de **recherche de POI** et reste où il est.
 - Créer : `app/map/_components/DessinLibre.tsx`,
   `app/api/custom-geo/source/dessin/route.ts`
 
-- [ ] **Étape 1 : la dépendance** — `terra-draw` est le seul moteur de dessin qui pilote
+- [x] **Étape 1 : la dépendance** — `terra-draw` est le seul moteur de dessin qui pilote
       MapLibre 5 nativement (`mapbox-gl-draw` exige un adaptateur non maintenu).
       **Vérifier la CSP de `next.config.js:9-43`** avant de coder : la librairie est
       bundlée et non chargée d'un CDN, donc aucune directive ne devrait être à ouvrir —
       le confirmer, ne pas le supposer.
-- [ ] **Étape 2 : le composant** — modes polygone et rectangle, annuler / refaire,
+- [x] **Étape 2 : le composant** — modes polygone et rectangle, annuler / refaire,
       fermeture automatique du tracé.
-- [ ] **Étape 3 : la route** — reçoit le GeoJSON tracé, `ST_MakeValid`, clip sur
+- [x] **Étape 3 : la route** — reçoit le GeoJSON tracé, `ST_MakeValid`, clip sur
       `france_borders`, refuse en 409 une géométrie auto-intersectante irrécupérable.
-- [ ] **Étape 4 : `ARCHITECTURE.md`** (nouvelle dépendance externe — le test de dérive
+- [x] **Étape 4 : `ARCHITECTURE.md`** (nouvelle dépendance externe — le test de dérive
       documentaire la vérifie), vérifier, commit
 
 ---
