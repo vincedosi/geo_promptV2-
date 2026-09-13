@@ -162,13 +162,42 @@ moins dilué, écritures allégées.
 
 ## Un à trois jours
 
-**7. Faire passer le filtre bbox de `/api/map/pois` par l'index spatial au lieu de quatre comparaisons sur `lat`/`lng`.**
-`245 337 466 tuples lus séquentiellement` = **843 balayages complets
-équivalents**, pendant que **quatre index GiST sur `geom` affichent zéro
-parcours** pour 48 Mo. Le plan montre la bbox en `Filter`, jamais en
-`Index Cond`.
-· Effort : 1-2 j · Gain : c'est le deuxième poste de lecture disque du projet
-(77 Go).
+**7. Faire passer le filtre bbox de `/api/map/pois` par l'index spatial — LE COUPABLE EST L'`ORDER BY id`, pas les comparaisons `lat`/`lng` (mesuré le 2026-09-13).**
+
+Le diagnostic d'origine était incomplet, et le corriger change la solution.
+Trois plans mesurés sur la même bbox (Île-de-France) et la même catégorie
+(`arret_transport`, 285 015 des 290 877 POI) :
+
+| requête | index choisi | blocs touchés | temps |
+|---|---|---:|---:|
+| `lat/lng` + `ORDER BY id LIMIT 1000` | `poi_france_pkey` | 10 993 | 4 485 ms |
+| `geom &&` + `ORDER BY id LIMIT 1000` | `poi_france_pkey` | 10 986 | — |
+| `geom &&` **sans `ORDER BY`**, `LIMIT 1000` | `idx_poi_france_geom_cat` | **1 005** | — |
+
+**Remplacer `lat`/`lng` par `&&` ne suffit PAS.** Tant que `ORDER BY id LIMIT`
+est là, le planificateur préfère parcourir la clé primaire dans l'ordre des id
+et appliquer la géométrie en `Filter` : il écarte **9 931 lignes pour en trouver
+1 000**. Sans le tri, le même prédicat devient un `Index Cond` et n'écarte plus
+que 25 lignes. **10,9x moins de blocs.**
+
+L'`ORDER BY id` est là pour rendre la pagination par `range()` stable. La
+correction est donc structurelle, pas un remplacement de prédicat :
+
+- Une RPC qui prend la bbox, la catégorie, les natures et les ids de source,
+  applique `geom && ST_MakeEnvelope(...)`, et rend **tout le jeu en une fois**
+  sous un plafond — au lieu de dix allers-retours paginés de 1 000 lignes.
+- Le plafond existe déjà côté route (10 000, ou 4 000 pour une ville) : une
+  seule requête bornée rend le même résultat.
+
+⚠ **Le piège à ne pas sous-estimer.** La bbox n'est envoyée QUE si un filtre
+carte est actif, donc elle arrive presque toujours COMBINÉE à un département,
+une région ou une ville. Les quatre branches de la route doivent être portées
+ensemble, sinon le cas courant n'est pas couvert. C'est ce qui rend cette tâche
+irréductible à un correctif d'une ligne, et ce qui justifie ses 1-2 jours.
+
+L'index nécessaire **existe déjà** : `idx_poi_france_geom_cat` (GiST partiel,
+`WHERE categorie IS NOT NULL`), aujourd'hui à zéro parcours. Rien à créer.
+· Effort : 1-2 j · Gain : deuxième poste de lecture disque du projet (77 Go).
 
 **8. Remonter le filtre « par région » de `/api/map/pois` dans SQL, au lieu de tirer 10 000 lignes et de filtrer en JavaScript.**
 Le chemin région ne pose **aucun** prédicat géographique : dix pages de 1 000
