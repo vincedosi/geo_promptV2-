@@ -52,7 +52,16 @@ interface ResultatCorrelation {
  * couramment en analyse de campagne ; ils sont là pour empêcher de sur-lire un
  * r = 0,25, pas pour trancher une question scientifique.
  */
-function lireCoefficient(r: number): string {
+/** Sous ce nombre de points, un coefficient ne se commente pas. */
+const N_MIN_INTERPRETATION = 30;
+
+function lireCoefficient(r: number, n: number): string {
+  // L'en-tete de ce fichier promet qu'« un r = 0,9 sur 4 codes postaux ne dit
+  // rien ». Le seul garde-fou etait n < 3, justifie par la LISIBILITE du
+  // nuage — pas par la signification. Un indicateur peu couvert sur une
+  // campagne locale rendait donc « 0,92 · relation positive forte » sur cinq
+  // points, avec le n affiche juste a cote pour le contredire.
+  if (n < N_MIN_INTERPRETATION) return `trop peu de points pour interpréter (n = ${n})`;
   const a = Math.abs(r);
   const sens = r >= 0 ? 'positive' : 'négative';
   if (a < 0.1) return 'aucune relation linéaire';
@@ -160,7 +169,12 @@ export function CorrelationTool() {
             <>
               <div>
                 <div style={labelStyle}>Campagne</div>
-                <select value={campagneId} onChange={(e) => setCampagneId(e.target.value)} style={styleChamp}>
+                {/* Le resultat est PERIME des qu'un champ change : sans cela,
+                    choisir une autre campagne laissait a l'ecran le r, le n, la
+                    couverture et le nuage de la PRECEDENTE — et comme le bloc
+                    de resultat n'affichait pas le nom de la campagne, rien ne
+                    trahissait le decalage. */}
+                <select value={campagneId} onChange={(e) => { setCampagneId(e.target.value); setResultat(null); }} style={styleChamp}>
                   <option value="">Choisir une campagne…</option>
                   {campagnes.map((c) => (
                     <option key={c.id} value={c.id}>{c.name ?? c.nom ?? c.id}</option>
@@ -170,7 +184,7 @@ export function CorrelationTool() {
 
               <div>
                 <div style={labelStyle}>Indicateur</div>
-                <select value={variable} onChange={(e) => setVariable(e.target.value)} style={styleChamp}>
+                <select value={variable} onChange={(e) => { setVariable(e.target.value); setResultat(null); }} style={styleChamp}>
                   <option value="">Choisir un indicateur…</option>
                   {indicateurs.map((i) => (
                     <option key={i.indicator_code} value={i.indicator_code}>
@@ -213,11 +227,14 @@ export function CorrelationTool() {
                   {resultat.r.toFixed(2)}
                 </span>
                 <span style={{ fontFamily: fInter, fontSize: 11, color: C.textSec }}>
-                  {lireCoefficient(resultat.r)}
+                  {lireCoefficient(resultat.r, resultat.n)}
                 </span>
               </div>
 
               <div style={{ fontFamily: fMono, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
+                {campagnes.find((c) => c.id === campagneId)?.name
+                  ?? campagnes.find((c) => c.id === campagneId)?.nom ?? '—'}
+                <br />
                 n = {formaterNombre(resultat.n)} codes postaux
                 {resultat.couverture.cp_campagne != null && (
                   <> sur {formaterNombre(resultat.couverture.cp_campagne)} touchés par la campagne</>

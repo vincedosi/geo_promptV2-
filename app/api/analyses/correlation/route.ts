@@ -26,6 +26,7 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { pearson, type PaireAppariee } from '@/lib/analyses/correlation';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 import { assurerIndicateurCp } from '@/lib/analyses/indicateurs';
 import { toJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
@@ -62,9 +63,12 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
 
   // ── Cloisonnement par organisation ────────────────────────────────────
+  // 404 dans les DEUX cas, jamais 403 : c'est le contrat écrit de
+  // `lib/campaigns/access.ts` — « ne pas divulguer l'existence d'une campagne à
+  // une autre org ». Un 403 serait un oracle d'existence : 404 = n'existe pas,
+  // 403 = existe et appartient à quelqu'un d'autre.
   const acces = await checkCampaignAccess(supabase, profile, campaignId);
-  if (acces === 'not_found') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
-  if (acces !== 'ok') return NextResponse.json({ error: 'Accès refusé à cette campagne.' }, { status: 403 });
+  if (acces !== 'ok') return NextResponse.json({ error: 'Campagne introuvable.' }, { status: 404 });
 
   // ── L'indicateur existe-t-il au registre ? ────────────────────────────
   const { data: meta, error: erreurRegistre } = await supabase
@@ -93,7 +97,7 @@ export async function GET(request: NextRequest) {
   const calculeLe = etat.calculeLe;
 
   // ── Les paires ────────────────────────────────────────────────────────
-  const { data: lignes, error } = await supabase.rpc('correlation_campagne_indicateur', {
+  const { data: brut, error } = await supabase.rpc('correlation_campagne_indicateur', {
     p_campaign_id: campaignId,
     p_indicator_code: variable,
   });
@@ -102,10 +106,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Calcul de la corrélation impossible.' }, { status: 500 });
   }
 
-  const paires: PaireAppariee[] = (lignes ?? []).map((l) => ({
-    code: l.postal_code,
-    x: Number(l.impressions),
-    y: Number(l.valeur),
+  // La RPC rend du `jsonb` et non un `TABLE`, et ce n'est pas cosmétique :
+  // PostgREST tronque à 5 000 lignes AUSSI les RPC `RETURNS TABLE` — mesuré
+  // sur ce projet, `codes_postaux_dans_bbox` rend 5 000 lignes pour 6 051
+  // réelles, sans erreur ni en-tête exploitable. Une campagne nationale
+  // dépassant 5 000 CP (le référentiel en compte 6 187, et
+  // `abstention_pres_2022` en couvre 6 186) aurait vu son coefficient calculé
+  // sur la moitié nord-est de la France — la RPC trie par code postal — avec
+  // un `n` faux, un statut « terminé », et une couverture partielle qui se
+  // lit comme un manque d'indicateur plutôt que comme une troncature.
+  // L'en-tête de sql/147 invoquait ce plafond tout en le subissant.
+  const resultat = rpcJson<{ n: number; paires: PaireAppariee[] }>(brut);
+  const paires: PaireAppariee[] = (resultat?.paires ?? []).map((p) => ({
+    code: p.code,
+    x: Number(p.x),
+    y: Number(p.y),
   }));
 
   const r = pearson(paires.map((p) => p.x), paires.map((p) => p.y));
@@ -125,8 +140,11 @@ export async function GET(request: NextRequest) {
   if (erreurCompte) console.error('[GET /api/analyses/correlation] compte:', erreurCompte.message);
 
   // ── Le lancement devient une analyse enregistrée (Tâche 11) ───────────
+  // Une analyse enregistree avec `r = 0, n = 0` se relit plus tard « aucune
+  // relation » et non « aucune donnee ». On n'enregistre donc pas un
+  // appariement vide.
   let analyseId: string | null = null;
-  if (parsed.data.enregistrer !== 'false') {
+  if (parsed.data.enregistrer !== 'false' && paires.length > 0) {
     const ligne: TableInsert<'analyses'> = {
       org_id: orgId,
       created_by: profile.id,

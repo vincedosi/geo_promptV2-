@@ -74,7 +74,20 @@ export function pearson(xs: number[], ys: number[]): number {
   const denominateur = Math.sqrt(varianceX * varianceY);
   if (denominateur === 0) return 0;
 
+  const r = covariance / denominateur;
+
+  // `Number.isFinite` ferme le seul trou de la garantie « jamais NaN », mesuré
+  // en relecture : au-delà d'environ 1e154, `varianceX * varianceY` déborde à
+  // `Infinity`, et `Infinity / Infinity` vaut `NaN` — que `Math.max`/`Math.min`
+  // propagent au lieu de le borner. Le cas symétrique est plus sournois : si
+  // seul le dénominateur déborde, `fini / Infinity` vaut `0`, soit exactement
+  // le message « aucune relation linéaire » sur une relation parfaite.
+  // Inatteignable avec les données du domaine (impressions max 4 560 par CP),
+  // mais c'était une garantie écrite trois fois et sur laquelle la route
+  // s'appuie explicitement.
+  if (!Number.isFinite(r)) return 0;
+
   // Les arrondis flottants peuvent sortir de [-1, 1] au millionième près sur
   // une relation parfaite ; un |r| > 1 affiché serait une aberration visible.
-  return Math.max(-1, Math.min(1, covariance / denominateur));
+  return Math.max(-1, Math.min(1, r));
 }

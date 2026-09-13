@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `4e82a58`.
+> Généré le 2026-09-13 — commit `b3f1e41`.
 
 ## Totaux
 
@@ -73,9 +73,9 @@ Trié par nombre d’occurrences décroissant.
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
+| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
-| `lib/version.ts` | 1 | APP_NAME | — |
 | `lib/campaigns/actor-metrics.ts` | 1 | toneColor | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
@@ -99,16 +99,16 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
-| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
 | `types/admin.ts` | 1 | — | HealthCheck |
+| `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
+| `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
 | `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |

@@ -45,3 +45,23 @@ describe('correlation', () => {
     expect(Number.isNaN(r)).toBe(false);
   });
 });
+
+/**
+ * Ajoutés après relecture (2026-09-13) : la garantie « jamais NaN », écrite
+ * trois fois dans le code et invoquée par la route, était FAUSSE au-delà
+ * d'environ 1e154. Inatteignable avec les données du domaine, mais une
+ * garantie écrite doit tenir.
+ */
+describe('pearson — debordement', () => {
+  it('ne rend pas NaN quand les deux variances debordent', () => {
+    expect(pearson([1e200, 2e200, 3e200], [2e200, 4e200, 6e200])).toBe(0);
+  });
+  it('ne rend pas NaN quand une seule variance deborde', () => {
+    expect(pearson([1e160, 2e160, 3e160], [1, 2, 3.5])).toBe(0);
+  });
+  it('reste borne sur des valeurs grandes mais finies', () => {
+    const r = pearson([1e6, 2e6, 3e6], [2e6, 4e6, 6e6]);
+    expect(Number.isNaN(r)).toBe(false);
+    expect(r).toBeCloseTo(1, 6);
+  });
+});

@@ -19,6 +19,14 @@
 --     ARCHITECTURE.md). Les faire descendre dans Node pour les agréger aurait
 --     été plus lourd ET silencieusement tronqué — le pire des deux.
 --
+-- ⚠ CORRIGÉ EN sql/154 — ce raisonnement était juste, et cette fonction le
+-- subissait quand même. Mesuré en relecture : PostgREST tronque à 5 000 lignes
+-- AUSSI les RPC `RETURNS TABLE` (`codes_postaux_dans_bbox` rend 5 000 lignes
+-- pour 6 051 réelles, sans erreur). Une campagne nationale dépassant 5 000 CP —
+-- le référentiel en compte 6 187 — aurait vu son coefficient calculé sur la
+-- moitié nord-est de la France, la fonction triant par code postal. La version
+-- en vigueur rend du `jsonb`, non tronqué.
+--
 -- Lit les ROLLUPS, jamais `dsp_campaign_data` (règle du cockpit de suivi).
 --
 -- Mesure : 11 ms à cache chaud (zéro lecture disque), 364 ms à froid, pour

@@ -5121,11 +5121,7 @@ export type Database = {
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       correlation_campagne_indicateur: {
         Args: { p_campaign_id: string; p_indicator_code: string }
-        Returns: {
-          impressions: number
-          postal_code: string
-          valeur: number
-        }[]
+        Returns: Json
       }
       compte_poi_par_categorie: {
         Args: {
