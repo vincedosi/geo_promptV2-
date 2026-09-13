@@ -194,6 +194,10 @@ genesis_app/
 │   ├── http/                   # fetch-avec-delai.ts — tout appel sortant vers un tiers
 │   │                           # DOIT passer par la : delai d'expiration, PAS de reprise
 │   │                           # (la plupart de ces appels ne sont pas idempotents)
+│   │                           # + lecture-avec-reprise.ts (2026-09-13) : le meme, AVEC
+│   │                           #   reprise, reserve aux LECTURES idempotentes (Open-Meteo,
+│   │                           #   ORS, BAN). Importer l'un ou l'autre EST la declaration
+│   │                           #   d'idempotence. Audit : docs/AUDIT_APPELS_EXTERNES.md
 │   ├── import/                 # Pipeline d'import universel (+ identite-poi.ts : id deterministe,
 │   │                           #   schemas.ts : ConfigImportSchema partage par dry-run et execute)
 │   ├── inngest/                # Jobs async (colonnes derivees)
@@ -489,7 +493,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | Route | Methode | Description |
 |-------|---------|-------------|
 | `/api/civic-indicators/health/[code_insee]` | GET | Indice ATMO + pollen pour une commune (cache 24h, fallback stale 48h, ODbL Atmo France) |
-| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric` + `bbox` optionnelle, Tache 4 — resolue via la RPC `codes_postaux_dans_bbox`, PAS un filtre direct sur `ref_codes_postaux.centroid_lat/lon` qui sont NULL sur toutes les lignes) — layer CivicHealthMapLayer, section Sante environnementale |
+| `/api/civic-indicators/health-map` | GET | Carte sante environnementale : `dataset=pollen\|atmo`, `scale=departement` (stream NDJSON 1 commune/dept, pollen ET air par ligne) ou `scale=cp` (lecture `pollen_map_daily`/`atmo_map_daily`, filtres `min_level` 0-6 + `metric` + `bbox` optionnelle, Tache 4 — resolue via la RPC `codes_postaux_dans_bbox`, PAS un filtre direct sur `ref_codes_postaux.centroid_lat/lon` qui sont NULL sur toutes les lignes) — layer CivicHealthMapLayer, section Sante environnementale. **2026-09-13** : `scale=departement` passe par `getHealthEnMasse` (lib/civic-health/get-health.ts) — cache lu et ecrit PAR LOTS, ~5 requetes de base au lieu de jusqu'a 312 (3 par commune) ; `scale=cp` avec plus de 500 CP dans la bbox lit la table nationale et filtre en memoire, un `.in()` plus long depassait la limite d'URL PostgREST en silence |
 
 ### Import IRIS (protegees par `requireAdmin()`)
 | Route | Methode | Description |
@@ -551,7 +555,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Meteo
 | Route | Methode | Description |
 |-------|---------|-------------|
-| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming, echantillonnage spatial ≤500 points/appel, bbox viewport optionnelle en mode cp) |
+| `/api/meteo-geo` | GET | Meteo Open-Meteo agregee par zones admin (NDJSON streaming, echantillonnage spatial ≤500 points/appel, bbox viewport optionnelle en mode cp). **Corrigee le 2026-09-13** : le palier `cp` repondait TOUJOURS `500 No zones found` (sql/160, voir `get_zone_centroids`) ; l'appel Open-Meteo etait un `fetch` NU sans delai (desormais 20 s par tentative, reprise sur 429 minute, echec immediat sur quota horaire) ; la bbox est arrondie VERS L'EXTERIEUR au demi-degre et c'est cette bbox arrondie qui filtre les zones ET forme la cle de cache (avant, deux vues voisines partageaient une cle pour des jeux de zones differents) ; periode bornee des deux cotes ; quota `geo:rl:meteo-geo` 20/min par utilisateur (un appel = jusqu'a 500 unites du quota Open-Meteo gratuit). Logique pure testee dans `lib/meteo/requete.ts` |
 | `/api/meteo-geo/zones` | GET | Polygones simplifies des zones admin (choroplethe meteo, cache CDN 1 sem.) |
 
 ### Administration campagnes (protegees par `requireAdmin()`)
@@ -873,7 +877,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Meteo
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_zone_centroids` | Centroides zones admin | `api/meteo-geo/` |
+| `get_zone_centroids` | Centroides zones admin. **sql/160 (2026-09-13)** : le palier `cp` lisait `centroid_lat`/`centroid_lon`, NULL sur les 6 187 lignes de `ref_codes_postaux` (meme piege que sql/144) et rendait 0 ligne — la meteo par code postal n'a jamais fonctionne. Lit `ST_X/ST_Y(centroid)`, avec le meme repli sur la geometrie pour region et departement. Mesure : 6 187 lignes en 34 ms | `api/meteo-geo/` |
 | `get_zone_polygons` | Polygones simplifies zones admin (choroplethe) | `api/meteo-geo/zones/` |
 | `zone_intersection` | Intersection de zones custom, `ST_MakeValid` avant toute operation (une geometrie capturee depuis des carreaux ou isochrones peut etre invalide, et `ST_Intersection` LEVE dessus). Rend `vide: true` explicite, jamais NULL | `api/custom-geo/source/intersection/` (sql/151) |
 | `zone_difference` | Zone de base moins l'union des zones retirees, memes garanties | `api/custom-geo/source/difference/` (sql/151) |

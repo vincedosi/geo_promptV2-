@@ -19,6 +19,7 @@ function faux(table: string) {
     select: () => chaine,
     in: (_col: string, codes: string[]) => { codesIn = codes; return chaine; },
     gte: (_col: string, v: string) => { cutoff = v; return chaine; },
+    returns: () => chaine,
     then: (resolve: (v: unknown) => void) => {
       appels.push({ table, op: 'select', codes: codesIn });
       const data = codesIn
