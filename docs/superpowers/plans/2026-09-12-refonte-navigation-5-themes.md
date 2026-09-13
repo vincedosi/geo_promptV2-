@@ -1806,10 +1806,10 @@ describe('derive d une strategie publiee', () => {
 
 **Fichiers :**
 - Créer : `components/campaign/ActivationPanel.tsx`, `sql/149_activation_lots.sql`,
-  `app/api/campaigns/[id]/activation/previol/route.ts`,
-  `app/api/campaigns/[id]/activation/pousser/route.ts`,
-  `app/api/campaigns/[id]/activation/historique/route.ts`,
-  `app/api/campaigns/[id]/activation/rollback/route.ts`
+  `app/api/campaigns/[campaignId]/activation/previol/route.ts`,
+  `app/api/campaigns/[campaignId]/activation/pousser/route.ts`,
+  `app/api/campaigns/[campaignId]/activation/historique/route.ts`,
+  `app/api/campaigns/[campaignId]/activation/rollback/route.ts`
 - Modifier : `MagelianOverlay.tsx`, `components/magelian/deep-link.ts`,
   `tests/unit/magelian-deep-link.test.ts`, `ARCHITECTURE.md`
 

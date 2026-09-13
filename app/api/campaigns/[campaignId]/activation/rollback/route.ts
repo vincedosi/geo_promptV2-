@@ -1,5 +1,5 @@
 /**
- * POST /api/campaigns/[id]/activation/rollback — marque un lot comme annulé
+ * POST /api/campaigns/[campaignId]/activation/rollback — marque un lot comme annulé
  *
  * Tâche 20 (2026-09-13).
  *
@@ -50,12 +50,12 @@ const CorpsSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ campaignId: string }> },
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
-  const { id: campaignId } = await params;
+  const { campaignId } = await params;
   if (!IdSchema.safeParse(campaignId).success) {
     return NextResponse.json({ error: 'Identifiant invalide.' }, { status: 400 });
   }

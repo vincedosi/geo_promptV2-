@@ -1,5 +1,5 @@
 /**
- * GET /api/campaigns/[id]/activation/historique — ce qui a été poussé, et quand
+ * GET /api/campaigns/[campaignId]/activation/historique — ce qui a été poussé, et quand
  *
  * Tâche 20 (2026-09-13). Le push DV360 existait mais **nu** : aucune trace de
  * ce qui était parti, vers quels line items, avec quel résultat. Un push raté à
@@ -21,12 +21,12 @@ const LIMITE_LOTS = 50;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ campaignId: string }> },
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
 
-  const { id: campaignId } = await params;
+  const { campaignId } = await params;
   if (!IdSchema.safeParse(campaignId).success) {
     return NextResponse.json({ error: 'Identifiant invalide.' }, { status: 400 });
   }

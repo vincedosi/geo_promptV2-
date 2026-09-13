@@ -1,5 +1,5 @@
 /**
- * POST /api/campaigns/[id]/activation/pousser — pousse le ciblage, ligne par
+ * POST /api/campaigns/[campaignId]/activation/pousser — pousse le ciblage, ligne par
  * ligne, en disant ce qu'il fait (Tâche 20, 2026-09-13).
  *
  * **Cette route ENVELOPPE le push DV360 existant, elle ne le réécrit pas.**
@@ -69,14 +69,14 @@ function ligne(objet: Record<string, unknown>): Uint8Array {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ campaignId: string }> },
 ) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
   const orgId = profile.organization_id;
   if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée à ce compte.' }, { status: 400 });
 
-  const { id: campaignId } = await params;
+  const { campaignId } = await params;
   if (!IdSchema.safeParse(campaignId).success) {
     return NextResponse.json({ error: 'Identifiant invalide.' }, { status: 400 });
   }
