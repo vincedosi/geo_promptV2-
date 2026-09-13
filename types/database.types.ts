@@ -5023,6 +5023,19 @@ export type Database = {
       }
       archive_and_purge_radio: { Args: never; Returns: Json }
       build_ref_codes_postaux: { Args: never; Returns: undefined }
+      calculer_score_composite: {
+        Args: {
+          p_codes_postaux: string[]
+          p_indicateurs: string[]
+          p_poids: number[]
+          p_sens: string[]
+        }
+        Returns: {
+          n_indicateurs: number
+          postal_code: string
+          score: number
+        }[]
+      }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean
@@ -5050,6 +5063,12 @@ export type Database = {
       clip_rings_to_france: { Args: { p_rings: Json }; Returns: Json }
       codes_postaux_dans_bbox: {
         Args: { p_est: number; p_nord: number; p_ouest: number; p_sud: number }
+        Returns: {
+          code_postal: string
+        }[]
+      }
+      codes_postaux_du_perimetre: {
+        Args: { p_code: string; p_type: string }
         Returns: {
           code_postal: string
         }[]

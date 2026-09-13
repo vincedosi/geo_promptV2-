@@ -60,6 +60,7 @@ import { CaptureLayers } from '@/app/map/_components/CaptureLayers';
 import { CivicIndicatorsLayer, type CivicVariableCode } from '@/app/map/_components/CivicIndicatorsLayer';
 import { CivicHealthMapLayer } from '@/app/map/_components/CivicHealthMapLayer';
 import { SuiviMapLayer } from '@/app/map/_components/SuiviMapLayer';
+import { ScoreMapLayer, SCORE_MAP_EVENT, type ScoreMapEventDetail } from '@/app/map/_components/ScoreMapLayer';
 import { ZoneMediaPlanPanel, PANEL_WIDTH } from '@/app/map/_components/ZoneMediaPlanPanel';
 import dynamic from 'next/dynamic';
 import type { ClusterGeoJSON } from '@/app/map/_components/ClusterPanel';
@@ -454,6 +455,12 @@ export default function MapPage() {
     if (eteint === 'civic-sante') setCivicHealthLayer(null);
     if (eteint === 'meteo') handleMeteoClear();
     if (eteint === 'campagne-impressions') window.dispatchEvent(new Event(SUIVI_MAP_CLEAR_EVENT));
+    // Tache 12 : eteindre le score = rediffuser l'evenement avec zero score.
+    // Pas de boucle — `basculerDegrade(..., false)` ne rend jamais d'`eteint`,
+    // donc le listener ci-dessous s'arrete la.
+    if (eteint === 'score') window.dispatchEvent(new CustomEvent(SCORE_MAP_EVENT, {
+      detail: { scores: [], libelle: '', nIndicateurs: 0 } satisfies ScoreMapEventDetail,
+    }));
     toast.info(`${libelleDegrade(eteint)} a été masqué — un seul dégradé de couleur à la fois`);
   }, [mapLayers, handleMeteoClear, toast]);
 
@@ -472,6 +479,23 @@ export default function MapPage() {
     };
     window.addEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
     return () => window.removeEventListener(SUIVI_MAP_STATUS_EVENT, onStatus);
+  }, [onDegrade]);
+
+  // Score composite (Tache 12) : le calque s'allume depuis PanneauAnalyse, pas
+  // depuis une checkbox de calque — page.tsx doit donc apprendre son etat par
+  // le meme evenement, pour appliquer l'exclusivite des degrades. Ne demande
+  // la bascule qu'aux transitions, comme le statut de campagne ci-dessus.
+  const scoreActifRef = useRef(false);
+  useEffect(() => {
+    const onScore = (e: Event) => {
+      const detail = (e as CustomEvent<ScoreMapEventDetail>).detail;
+      const actif = Boolean(detail?.scores?.length);
+      if (actif === scoreActifRef.current) return;
+      scoreActifRef.current = actif;
+      onDegrade('score', actif);
+    };
+    window.addEventListener(SCORE_MAP_EVENT, onScore);
+    return () => window.removeEventListener(SCORE_MAP_EVENT, onScore);
   }, [onDegrade]);
 
   const handleFermerCampagneActive = useCallback(() => {
@@ -1046,6 +1070,7 @@ export default function MapPage() {
         onLoadingChange={setCivicLoading}
       />
       <SuiviMapLayer mapRef={mapRef} />
+      <ScoreMapLayer mapRef={mapRef} />
       <LegendeCarte
         degradeActif={mapLayers.degradeActif}
         carreauxIndicateur={mapLayers.carreauxIndicateur}

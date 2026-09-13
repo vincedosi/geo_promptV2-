@@ -1,0 +1,290 @@
+/**
+ * POST /api/analyses/score — score composite multi-indicateurs par code postal
+ * (Tâche 12, 2026-09-13).
+ *
+ * Agrège plusieurs indicateurs INSEE de poids et de sens différents en un seul
+ * nombre 0-100 par CP, sur un périmètre BORNÉ. Calcul délégué à la RPC
+ * `calculer_score_composite` (sql/146) ; sa spécification exécutable en
+ * TypeScript est `lib/analyses/score.ts` (mêmes poids, même arrondi).
+ *
+ * ── Trois écarts assumés avec le plan, chacun pour une raison mesurée ──────
+ *
+ * 1. **Registre.** Le plan faisait lire les indicateurs dans
+ *    `iris_indicator_registry`. C'est `cible_indicator_registry` qui fait foi
+ *    ici : `materialize_indicator_cp_values` y cherche ses codes et **lève**
+ *    sur un code absent ou inactif. Le catalogue est servi au client par
+ *    `GET /api/cibles/indicators` (route existante) — jamais une liste en dur.
+ *
+ * 2. **`indicator_cp_values` est matérialisée à la demande, pas peuplée.** Au
+ *    2026-09-13 elle ne contient QUE `rev_median` (1 952 CP) et
+ *    `abstention_pres_2022` (6 186 CP). Sans matérialisation préalable, la RPC
+ *    aurait rendu du vide **en silence** pour tout autre indicateur — un score
+ *    absent se serait lu comme « pas de données ici », pas comme « je n'ai
+ *    jamais calculé cet indicateur ». Matérialisation paresseuse ci-dessous,
+ *    STRICTEMENT SÉQUENTIELLE (chaque appel agrège `iris` ⋈
+ *    `postal_code_commune` ; les lancer en parallèle est exactement le patron
+ *    d'I/O des incidents du 28/03 et du 08/04 — CLAUDE.md).
+ *
+ *    Différence volontaire avec `/api/bidding/strategies`, qui rematérialise
+ *    au-delà de 30 jours : ici on matérialise seulement ce qui est **absent**.
+ *    Une stratégie de bidding écrit des enchères de production, où la
+ *    fraîcheur se paie ; ce panneau est un outil d'exploration qu'on relance
+ *    des dizaines de fois, et les valeurs ne bougent qu'à un import IRIS. La
+ *    date de calcul part dans la réponse (`calcule_le`) pour que l'ancienneté
+ *    soit affichée plutôt que subie — les deux indicateurs présents datent du
+ *    2026-07-16.
+ *
+ * 3. **Le périmètre.** Le plan exigeait une liste de CP sans dire d'où elle
+ *    vient : un `FiltreActif` porte un code de région/département/commune/CP
+ *    ou un uuid de zone, jamais une liste de codes postaux — et une bbox
+ *    résolue SEULEMENT pour une zone enregistrée. Passer par
+ *    `bboxDuFiltre` aurait donc replié sur `BBOX_METRO` pour tout filtre
+ *    régional ou départemental, soit les 6 187 CP de France, aussitôt refusés
+ *    comme « trop larges » : le score n'aurait marché nulle part.
+ *    Cette route accepte les trois formes, par ordre de précision :
+ *    `codes_postaux` explicites, un `perimetre` de filtre résolu par
+ *    `codes_postaux_du_perimetre` (sql/146), ou une `bbox` résolue par
+ *    `codes_postaux_dans_bbox` (sql/144, index GIST — `centroid_lat`/
+ *    `centroid_lon` sont NULL sur les 6 187 lignes, un filtre direct dessus
+ *    rendrait toujours vide).
+ *
+ * Mesure (`EXPLAIN ANALYZE`, périmètre de 500 CP, 2 indicateurs) :
+ * 23,5 ms, 632 blocs en cache, 13 lus.
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
+import { createAdminClient } from '@/lib/auth';
+import { lireCorps } from '@/lib/api/valider-corps';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
+import { toJson } from '@/lib/supabase/rpc-json';
+import type { TableInsert } from '@/lib/supabase/tables';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+/**
+ * Plafond de codes postaux d'un périmètre. Au-delà, ce n'est plus un périmètre
+ * mais la France (6 187 CP au total) — refusé plutôt que tronqué en silence.
+ */
+const MAX_CP = 3000;
+
+/** Au-delà, le score ne se lit plus : six curseurs de poids sont déjà beaucoup. */
+const MAX_INDICATEURS = 6;
+
+/**
+ * Une matérialisation manquante coûte une agrégation complète d'`iris` : le
+ * quota protège le budget I/O Nano contre un utilisateur qui ferait défiler les
+ * indicateurs. Compteur PARTAGÉ en base (`consommer_quota`, sql/135) — jamais
+ * une Map locale, qui ne limiterait rien sur Vercel (CLAUDE.md).
+ */
+const limiteur = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl:analyse-score' });
+
+const IndicateurSchema = z.object({
+  code: z.string().min(1).max(100),
+  poids: z.number().positive().finite(),
+  sens: z.enum(['croissant', 'decroissant']),
+});
+
+/** Miroir de `FiltreActif` (lib/carte/filtre.ts) — le périmètre tel que la carte le pose. */
+const PerimetreSchema = z.object({
+  type: z.enum(['region', 'departement', 'commune', 'cp', 'zone']),
+  code: z.string().min(1).max(64),
+});
+
+const CorpsSchema = z.object({
+  indicateurs: z.array(IndicateurSchema).min(1).max(MAX_INDICATEURS),
+  /** Périmètre : l'une des trois formes, jamais aucune (voir le raffinement plus bas). */
+  codes_postaux: z.array(z.string().min(2).max(10)).min(1).max(MAX_CP).optional(),
+  perimetre: PerimetreSchema.optional(),
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+  /** Enregistre le lancement dans `analyses` (Tâche 11) — défaut : oui. */
+  enregistrer: z.boolean().optional(),
+  nom: z.string().min(1).max(200).optional(),
+}).refine(
+  (c) => Boolean(c.codes_postaux?.length) || Boolean(c.perimetre) || Boolean(c.bbox),
+  { message: 'Périmètre obligatoire : fournissez `codes_postaux`, `perimetre` ou `bbox`.' },
+);
+
+export async function POST(request: NextRequest) {
+  const profile = await requireAuth(request);
+  if (!profile) return authUnauthorized();
+  const orgId = profile.organization_id;
+  if (!orgId) return NextResponse.json({ error: 'Aucune organisation associée à ce compte.' }, { status: 400 });
+
+  const quota = await limiteur(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
+
+  const corps = await lireCorps(request, CorpsSchema);
+  if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });
+  const { indicateurs, perimetre, bbox, enregistrer, nom } = corps.valeur;
+
+  const codes = indicateurs.map((i) => i.code);
+  if (new Set(codes).size !== codes.length) {
+    return NextResponse.json({ error: 'Un même indicateur est demandé plusieurs fois.' }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  // ── 1. Le périmètre, borné ────────────────────────────────────────────
+  let codesPostaux = corps.valeur.codes_postaux ?? [];
+  if (!codesPostaux.length && perimetre) {
+    const { data, error } = await supabase.rpc('codes_postaux_du_perimetre', {
+      p_type: perimetre.type, p_code: perimetre.code,
+    });
+    if (error) {
+      console.error('[POST /api/analyses/score] périmètre:', error.message);
+      return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
+    }
+    codesPostaux = (data ?? []).map((l) => l.code_postal);
+  }
+  if (!codesPostaux.length && bbox) {
+    const [ouest, sud, est, nord] = bbox;
+    const { data, error } = await supabase.rpc('codes_postaux_dans_bbox', {
+      p_ouest: ouest, p_sud: sud, p_est: est, p_nord: nord,
+    });
+    if (error) {
+      console.error('[POST /api/analyses/score] bbox:', error.message);
+      return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
+    }
+    codesPostaux = (data ?? []).map((l) => l.code_postal);
+  }
+  if (!codesPostaux.length) {
+    return NextResponse.json({ error: 'Périmètre vide : aucun code postal à scorer.' }, { status: 400 });
+  }
+  if (codesPostaux.length > MAX_CP) {
+    return NextResponse.json(
+      { error: `Périmètre trop large : ${codesPostaux.length} codes postaux pour un maximum de ${MAX_CP}. Resserrez le filtre.` },
+      { status: 400 },
+    );
+  }
+
+  // ── 2. Les indicateurs existent-ils au registre ? ─────────────────────
+  // Un code inconnu ferait LEVER la matérialisation ; on répond mieux que 500.
+  const { data: registre, error: erreurRegistre } = await supabase
+    .from('cible_indicator_registry')
+    .select('indicator_code, label, unit')
+    .in('indicator_code', codes)
+    .eq('active', true);
+  if (erreurRegistre) {
+    console.error('[POST /api/analyses/score] registre:', erreurRegistre.message);
+    return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
+  }
+  const connus = new Set((registre ?? []).map((r) => r.indicator_code));
+  const inconnus = codes.filter((c) => !connus.has(c));
+  if (inconnus.length) {
+    return NextResponse.json(
+      { error: `Indicateur inconnu ou inactif : ${inconnus.join(', ')}.` },
+      { status: 400 },
+    );
+  }
+
+  // ── 3. Matérialisation paresseuse, SÉQUENTIELLE (voir en-tête, point 2) ─
+  const calculeLe: Record<string, string | null> = {};
+  for (const code of codes) {
+    const { data: present, error: erreurPresence } = await supabase
+      .from('indicator_cp_values')
+      .select('computed_at')
+      .eq('indicator_code', code)
+      .limit(1)
+      .maybeSingle();
+    if (erreurPresence) {
+      console.error('[POST /api/analyses/score] présence:', erreurPresence.message);
+      return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
+    }
+    if (present) {
+      calculeLe[code] = present.computed_at;
+      continue;
+    }
+    const { error: erreurMat } = await supabase.rpc('materialize_indicator_cp_values', {
+      p_indicator_code: code,
+    });
+    if (erreurMat) {
+      console.error('[POST /api/analyses/score] matérialisation:', erreurMat.message);
+      return NextResponse.json(
+        { error: `Indicateur « ${code} » indisponible : son calcul par code postal a échoué.`, detail: erreurMat.message },
+        { status: 422 },
+      );
+    }
+    calculeLe[code] = new Date().toISOString();
+  }
+
+  // ── 4. Le score ───────────────────────────────────────────────────────
+  const { data: lignes, error: erreurScore } = await supabase.rpc('calculer_score_composite', {
+    p_indicateurs: codes,
+    p_poids: indicateurs.map((i) => i.poids),
+    p_sens: indicateurs.map((i) => i.sens),
+    p_codes_postaux: codesPostaux,
+  });
+  if (erreurScore) {
+    console.error('[POST /api/analyses/score] score:', erreurScore.message);
+    return NextResponse.json({ error: 'Calcul du score impossible.' }, { status: 500 });
+  }
+
+  const scores = (lignes ?? []).map((l) => ({
+    code: l.postal_code,
+    score: Number(l.score),
+    n_indicateurs: l.n_indicateurs,
+  }));
+
+  // Un score porté par un seul indicateur sur trois n'est pas comparable à un
+  // score complet : la couverture remonte au client, qui l'affiche.
+  const complets = scores.filter((s) => s.n_indicateurs === codes.length).length;
+
+  const metaIndicateurs = indicateurs.map((i) => {
+    const meta = (registre ?? []).find((r) => r.indicator_code === i.code);
+    return {
+      code: i.code,
+      label: meta?.label ?? i.code,
+      unit: meta?.unit ?? null,
+      poids: i.poids,
+      sens: i.sens,
+      calcule_le: calculeLe[i.code] ?? null,
+    };
+  });
+
+  // ── 5. Le lancement devient une analyse enregistrée (Tâche 11) ─────────
+  let analyseId: string | null = null;
+  if (enregistrer !== false) {
+    const parametres = {
+      indicateurs: indicateurs.map((i) => ({ code: i.code, poids: i.poids, sens: i.sens })),
+    };
+    const ligne: TableInsert<'analyses'> = {
+      org_id: orgId,
+      created_by: profile.id,
+      type: 'score',
+      nom: nom ?? `Score composite — ${metaIndicateurs.map((m) => m.label).join(' × ')}`,
+      parametres: toJson(parametres),
+      maillage: 'cp',
+      // La LISTE de CP est ce qui est rejoué, pas la bbox ni le filtre : un
+      // périmètre re-résolu plus tard ne rendrait pas forcément les mêmes
+      // codes (le référentiel bouge d'un import à l'autre), et un rejeu qui
+      // change de périmètre en silence ne rejoue rien. Le filtre d'origine est
+      // gardé à côté, pour que le périmètre reste LISIBLE (« Bouches-du-Rhône »
+      // plutôt que 127 codes postaux).
+      perimetre: toJson({ codes_postaux: codesPostaux, filtre: perimetre ?? null, bbox: bbox ?? null }),
+      resultat: toJson({
+        n_codes_postaux: codesPostaux.length,
+        n_scores: scores.length,
+        n_complets: complets,
+      }),
+      statut: 'termine',
+    };
+    const { data: analyse, error: erreurAnalyse } = await supabase
+      .from('analyses').insert(ligne).select('id').single();
+    // Un échec d'enregistrement ne doit pas faire perdre un calcul déjà payé
+    // en I/O : on rend le score, en le disant.
+    if (erreurAnalyse) console.error('[POST /api/analyses/score] enregistrement:', erreurAnalyse.message);
+    else analyseId = analyse.id;
+  }
+
+  return NextResponse.json(
+    {
+      scores,
+      indicateurs: metaIndicateurs,
+      perimetre: { n_codes_postaux: codesPostaux.length, n_scores: scores.length, n_complets: complets },
+      analyse_id: analyseId,
+    },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
+}

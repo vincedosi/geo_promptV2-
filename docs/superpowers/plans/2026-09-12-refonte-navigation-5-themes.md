@@ -48,8 +48,8 @@ document, et qui ne conditionnent pas la refonte.
 | 10 — Documentation et clôture | ✅ close | 1 | `8727bef..950a1ba` |
 | 23 — Catalogue du code (knip) | ✅ close | 1 | `950a1ba..c40fc55` |
 | 11 — Analyses enregistrées, rejeu | ⚠️ livrée, **non relue** | 0 | `c40fc55..2a29ba1` |
-| 12 — Score composite | 🔄 en cours | — | — |
-| 13 — Corrélation impressions × indicateur | ⬜ à faire | | |
+| 12 — Score composite | ✅ livrée, **non relue** | 0 | ce commit |
+| 13 — Corrélation impressions × indicateur | 🔄 suivante | | |
 | 14 à 18 — Zones : booléens, composition, CP, rayon, dessin | ⬜ à faire | | |
 | 19 à 21 — Versionnage, Activation, priorités | ⬜ à faire | | |
 | 22 — ELM | ⛔ bloqué | | contenu du rapport non spécifié |
@@ -72,7 +72,18 @@ document, et qui ne conditionnent pas la refonte.
   `/api/bidding/strategies` (fraîcheur 30 j), en séquentiel.
 - **Le périmètre CP obligatoire n'a aucune source** dans le plan : un `FiltreActif`
   porte un code de région/département/commune/CP ou un uuid de zone, jamais une liste
-  de codes postaux. Résolu par `codes_postaux_dans_bbox` (sql/144, GIST).
+  de codes postaux — et une bbox résolue SEULEMENT pour une zone enregistrée. Passer par
+  `bboxDuFiltre` aurait replié sur `BBOX_METRO` pour tout filtre régional : 6 187 CP,
+  aussitôt refusés comme « trop larges ». Le score n'aurait marché nulle part. Résolu
+  par une seconde fonction, `codes_postaux_du_perimetre` (sql/146).
+- **`/api/custom-geo/source/indicator-threshold` ne peut pas servir le score composite**,
+  contrairement à ce que l'étape 6 prévoyait : cette route sélectionne sur UN indicateur
+  du registre et n'a aucun moyen d'exprimer « score composite ≥ 60 ». L'appeler aurait
+  construit une zone sur un critère DIFFÉRENT de celui affiché, sans rien signaler.
+  Route sœur dédiée : `/api/custom-geo/source/score`.
+- **Le score est une choroplèthe**, donc un dégradé au sens de la Tâche 5. Le peindre à
+  côté du registre `lib/carte/degrades.ts` aurait rouvert le défaut que cette tâche-là a
+  fermé — sept choroplèthes empilables sans qu'aucune légende ne dise laquelle on lit.
 
 ### Ajouté en cours de route, hors plan initial
 
@@ -1289,7 +1300,7 @@ git add -A && git commit -m "feat(analyse): une analyse lancee devient un objet 
   la route `/api/custom-geo/source/indicator-threshold` (existante).
 - Produit : `function normaliser(valeurs, sens)`, `function scoreComposite(lignes, poids)`.
 
-- [ ] **Étape 1 : écrire le test qui échoue**
+- [x] **Étape 1 : écrire le test qui échoue**
 
 ```ts
 // tests/unit/analyses/score.test.ts
@@ -1317,17 +1328,17 @@ describe('score composite', () => {
 });
 ```
 
-- [ ] **Étape 2 : lancer, vérifier l'échec**
+- [x] **Étape 2 : lancer, vérifier l'échec**
 
-- [ ] **Étape 3 : implémenter**
+- [x] **Étape 3 : implémenter**
 
 `normaliser` : min-max sur la population observée, `50` si l'étendue est nulle.
 `scoreComposite` : somme pondérée des valeurs normalisées, poids re-normalisés à 1 si leur
 somme diffère, ligne écartée si **toutes** ses valeurs sont nulles.
 
-- [ ] **Étape 4 : relancer, vérifier le succès**
+- [x] **Étape 4 : relancer, vérifier le succès**
 
-- [ ] **Étape 5 : la RPC**
+- [x] **Étape 5 : la RPC**
 
 ```sql
 -- sql/146_score_composite.sql
@@ -1373,14 +1384,14 @@ GRANT EXECUTE ON FUNCTION public.calculer_score_composite(text[], numeric[], tex
 **Avant d'appliquer : `EXPLAIN ANALYZE` sur un périmètre d'environ 500 CP**, et reporter
 la mesure dans le message de commit (règle `CLAUDE.md`).
 
-- [ ] **Étape 6 : l'UI**
+- [x] **Étape 6 : l'UI**
 
 Dans `PanneauAnalyse` : choix des indicateurs lus depuis `iris_indicator_registry`
 (**jamais** une liste en dur), poids par curseur, sens par bascule ; sortie = calque de
 score 0-100 plus un bouton « Créer une zone au-dessus d'un seuil » qui appelle
 `/api/custom-geo/source/indicator-threshold` (existant).
 
-- [ ] **Étape 7 : vérifier, `ARCHITECTURE.md` (1 route + 1 RPC), commit**
+- [x] **Étape 7 : vérifier, `ARCHITECTURE.md` (1 route + 1 RPC), commit**
 
 ---
 

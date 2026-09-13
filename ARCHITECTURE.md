@@ -261,7 +261,7 @@ ces cinq themes plus Assistant, Reglages et Aide, soit huit entrees :
 |---|---|---|---|
 | Filtre | panneau gauche | `Alt+1` | pose le filtre unique (voir plus bas) |
 | Calques | panneau gauche | `Alt+2` | affiche des donnees, ne fabrique rien |
-| Analyse | panneau gauche | `Alt+3` | lance un calcul (Voronoi, bataille, clustering) |
+| Analyse | panneau gauche | `Alt+3` | lance un calcul (Voronoi, bataille, clustering, score composite) |
 | Zones | panneau gauche | `Alt+4` | seul endroit qui fabrique une geometrie + une liste de CP |
 | Campagne | overlay MAGELIAN plein ecran | `Alt+C` | active/pilote une campagne (accent teal, pastille d'alertes) |
 | Assistant | tiroir a DROITE de la carte | `Ctrl+K` | geo.prompt, le copilote IA — a part de la chaine ci-dessus |
@@ -289,15 +289,22 @@ du comportement metier de chaque outil.
 - **Un seul degrade de couleur a la fois** (`lib/carte/degrades.ts`, reducteur
   pur qui dit quoi eteindre sans rien eteindre lui-meme ; `lib/carte/
   calques-actifs.ts` l'enveloppe pour la bascule cochee/decochee et valide un
-  `DegradeId` relu a la frontiere — localStorage, URL). Avant, jusqu'a six
+  `DegradeId` relu a la frontiere — localStorage, URL). Avant, jusqu'a sept
   choroplethes (carreaux, IRIS, indicateurs civiques, sante environnementale,
-  meteo, impressions de campagne) pouvaient s'empiler sans qu'aucune legende
-  ne dise laquelle on lisait.
+  meteo, impressions de campagne, score composite) pouvaient s'empiler sans
+  qu'aucune legende ne dise laquelle on lisait. Le score composite (Tache 12,
+  2026-09-13) a ete ajoute a CE registre plutot que peint a cote : c'est la
+  seule chose qui l'empeche de s'empiler avec les six autres. Les valeurs
+  connues sont declarees DEUX fois — l'union `DegradeId` et le tableau
+  `DEGRADE_IDS` de `calques-actifs.ts` — et un type `UnionCouverte` fait
+  echouer `tsc` si la seconde oublie un membre de la premiere : sans lui, un
+  degrade ajoute serait REJETE en silence a la frontiere et ne se rallumerait
+  jamais depuis l'URL ou localStorage.
 - **Aucun calcul d'analyse sans perimetre** (`lib/carte/garde-perimetre.ts`) —
   bloque le lancement (Voronoi, bataille V1/V2, application de la bataille,
-  clustering) tant qu'aucun `FiltreActif` n'est pose et qu'aucune zone n'est
-  selectionnee. Meme famille d'incident que le filtre unique (28/03 et 08/04).
-  Le cablage reel sur les cinq outils est verrouille par
+  clustering, score composite) tant qu'aucun `FiltreActif` n'est pose et
+  qu'aucune zone n'est selectionnee. Meme famille d'incident que le filtre unique (28/03 et 08/04).
+  Le cablage reel sur les six outils est verrouille par
   `tests/unit/carte/panneau-analyse-garde.test.ts`, qui lit le SOURCE de
   `PanneauAnalyse.tsx` plutot que de simuler son comportement — une premiere
   version avait ecrit la garde correctement dans un test isole, tout en
@@ -627,7 +634,9 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 |-------|---------|-------------|
 | `/api/analyses` | GET/POST | GET : liste des analyses de l'org (`?type=`, bornee a 50, `idx_analyses_org_date`). POST : enregistre un lancement (nom, parametres complets, maillage, perimetre) |
 | `/api/analyses/[id]` | GET/DELETE | Detail complet (avec `parametres`/`perimetre`/`resultat`) / suppression, scopes org |
-| `/api/analyses/[id]/rejouer` | POST | Enregistre un nouveau lancement avec les memes `type`/`parametres`/`maillage`/`perimetre` que la source. Rejoue les PARAMETRES uniquement : ne declenche aucun moteur de calcul (clustering/battle/voronoi/correlation/elm n'ont pas la meme forme d'appel) — le cablage de chaque moteur sur ce rejeu est la charge des Taches 12, 13, 22 |
+| `/api/analyses/[id]/rejouer` | POST | Enregistre un nouveau lancement avec les memes `type`/`parametres`/`maillage`/`perimetre` que la source. Rejoue les PARAMETRES uniquement : ne declenche aucun moteur de calcul (clustering/battle/voronoi/correlation/elm n'ont pas la meme forme d'appel) — le cablage de chaque moteur sur ce rejeu est la charge des Taches 13 et 22 — la Tache 12 (score) est branchee, voir ci-dessous |
+| `/api/analyses/score` | POST | **Score composite** (Tache 12, sql/146) : plusieurs indicateurs de `cible_indicator_registry` normalises 0-100 sur le perimetre puis ponderes, un score par code postal. Perimetre OBLIGATOIRE sous l'une de trois formes (`codes_postaux`, `perimetre` d'un `FiltreActif`, `bbox`), plafonne a 3000 CP. Materialise a la demande tout indicateur ABSENT d'`indicator_cp_values` (sequentiellement — jamais en parallele), et rend la date de calcul de chacun. Enregistre le lancement dans `analyses` (type `score`). Quota `geo:rl:analyse-score` 12/min |
+| `/api/custom-geo/source/score` | POST | Geometrie des CP dont le score composite depasse un seuil — route soeur d'`indicator-threshold`, qui elle ne sait selectionner que sur UN indicateur et ne peut donc PAS exprimer « score composite >= 60 ». Recalcule le score cote serveur (jamais une liste de CP remontee par le client), plafond 1500 CP. Le client sauvegarde ensuite par `/api/custom-geo/save` (`source_type: 'score_composite'`) |
 
 ### Export & Sauvegarde
 | Route | Methode | Description |
@@ -847,6 +856,8 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `build_ref_codes_postaux` | Construction ref CP | `api/admin/import-laposte/` |
 | `truncate_laposte_hexasmal` | Reset ref La Poste | `api/admin/import-laposte/` |
 | `update_laposte_centroids` | Centroides CP | `api/admin/import-laposte/` |
+| `calculer_score_composite` | Score composite 0-100 par code postal : N indicateurs d'`indicator_cp_values` normalises min-max SUR LE PERIMETRE demande (jamais la France — budget I/O Nano), puis ponderes. Rend aussi `n_indicateurs`, sans quoi un score porte par un seul indicateur serait indiscernable d'un score complet — ce n'est pas theorique, `rev_median` ne couvre que 1952 des 6186 CP. Jumeau TypeScript teste : `lib/analyses/score.ts` (memes poids, meme arrondi). Mesure : 23,5 ms sur 500 CP | `api/analyses/score/`, `api/custom-geo/source/score/` (sql/146) |
+| `codes_postaux_du_perimetre` | Codes postaux d'un `FiltreActif` (region/departement/commune/CP/zone). Existe parce qu'un filtre ne porte de bbox resolue QUE pour une zone enregistree : `bboxDuFiltre` repliait sinon sur `BBOX_METRO`, soit les 6187 CP de France. Branches SEPAREES et non un `CASE` dans le `WHERE` — le CASE rendait `idx_ref_cp_dept` inutilisable (835 ms -> 6,5 ms). Le palier commune passe par `communes_arrondissements`, sans quoi Marseille/Paris/Lyon rendaient ZERO CP | `api/analyses/score/` (sql/146) |
 | `codes_postaux_dans_bbox` | Codes postaux dont le centroide (`ref_codes_postaux.centroid`, geometry GIST) tombe dans une bbox (sql/144). `centroid_lat`/`centroid_lon` sont NULL sur les 6187 lignes — seule cette RPC (PostGIS `&&`/`ST_MakeEnvelope`) donne un resultat correct | `api/civic-indicators/health-map/` (scale=cp, Tache 4) |
 
 ### Admin & Monitoring

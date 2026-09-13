@@ -66,6 +66,7 @@ import { labelStyle, pill } from '../filter-panel/styles';
 import { ClusteringSection } from '../filter-panel/ClusteringSection';
 import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from '../filter-panel/SpatialAnalysisIntro';
 import { VoronoiTool } from '../filter-panel/VoronoiTool';
+import { ScoreCompositeTool } from '../filter-panel/ScoreCompositeTool';
 import { BattleV2Tool } from '../filter-panel/BattleV2Tool';
 import { IsochronesTool } from '../filter-panel/IsochronesTool';
 import { useTerritorySelection } from '../filter-panel/use-territory-selection';
@@ -359,6 +360,13 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
         </div>{/* fin section analyse spatiale */}
         </div>
         )}
+
+        {/* ── Accordéon : SCORE COMPOSITE (Tâche 12, 2026-09-13) ──────────
+            Sixième outil de calcul du panneau, donc SEPTIÈME point de
+            lancement gardé : `verifierPerimetre` est relayé en prop et appelé
+            juste avant le POST, comme pour le wizard de clustering. Sans
+            périmètre, le score porterait sur les 6 187 CP de France. */}
+        <ScoreCompositeTool filtre={filtre} verifierPerimetre={verifierPerimetre} />
 
         {/* ── Accordéon : CLUSTERING — composant telle quelle, DEUX points gardés :
             onLoadClusters (relecture, round 1) et verifierPerimetre relayé

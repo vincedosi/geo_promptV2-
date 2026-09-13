@@ -11,15 +11,30 @@
  */
 import { activerDegrade, type DegradeId } from './degrades';
 
-/** Les six valeurs connues — narrowées explicitement, jamais un cast. */
-const DEGRADE_IDS: readonly DegradeId[] = [
+/** Les valeurs connues — narrowées explicitement, jamais un cast. */
+const DEGRADE_IDS = [
   'carreaux',
   'iris',
   'civic-indicateurs',
   'civic-sante',
   'meteo',
   'campagne-impressions',
-];
+  'score',
+] as const satisfies readonly DegradeId[];
+
+/**
+ * Verrou de dérive entre cette liste et l'union `DegradeId` (Tâche 12,
+ * 2026-09-13). Sans lui, ajouter un dégradé à `lib/carte/degrades.ts` sans
+ * l'ajouter ICI compile parfaitement — `readonly DegradeId[]` accepte un
+ * sous-ensemble — et le nouveau dégradé serait REJETÉ en silence à la
+ * frontière : relu depuis l'URL ou localStorage, `validerDegradeId` rendrait
+ * `null` et le calque ne se rallumerait jamais. Le type ci-dessous ne vaut
+ * `true` que si l'union est entièrement couverte : un membre manquant fait
+ * échouer `tsc`, pas un test qu'on peut oublier d'écrire.
+ */
+type UnionCouverte = Exclude<DegradeId, (typeof DEGRADE_IDS)[number]> extends never ? true : never;
+const _unionCouverte: UnionCouverte = true;
+void _unionCouverte;
 
 /**
  * Valide une valeur relue (localStorage, paramètre d'URL...) contre les six

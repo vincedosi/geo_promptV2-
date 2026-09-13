@@ -132,6 +132,31 @@ describe('PanneauAnalyse — verrou structurel de la garde de perimetre (spec §
     expect(blocClusteringSection).toMatch(/verifierPerimetre=\{\s*verifierPerimetre\s*\}/);
   });
 
+  it('l outil Score composite (POST /api/analyses/score) recoit verifierPerimetre en prop', () => {
+    // Tache 12 (2026-09-13), meme patron que ClusteringWizard ci-dessus : le
+    // calcul est lance DANS le composant enfant, pas par une prop de
+    // PanneauAnalyse — la garde ne peut donc pas etre enveloppee ici, elle est
+    // relayee. Sans elle, un score porterait sur les 6 187 CP de France.
+    const bloc = SOURCE.match(/<ScoreCompositeTool[\s\S]*?\/>/)?.[0];
+    expect(bloc, '<ScoreCompositeTool ... /> introuvable dans PanneauAnalyse.tsx').toBeTruthy();
+    expect(bloc).toMatch(/verifierPerimetre=\{\s*verifierPerimetre\s*\}/);
+  });
+
+  it('ScoreCompositeTool appelle verifierPerimetre() AVANT son fetch de calcul', () => {
+    // Relayer la prop ne suffit pas : la Tache 7 a vecu exactement ce defaut
+    // (garde relayee au wizard de clustering mais jamais appelee). On lit donc
+    // le source de l'enfant, pas seulement le cablage du parent.
+    const source = readFileSync(
+      join(process.cwd(), 'app/map/_components/filter-panel/ScoreCompositeTool.tsx'),
+      'utf-8',
+    );
+    const appelGarde = source.indexOf('verifierPerimetre()');
+    const appelCalcul = source.indexOf("'/api/analyses/score'");
+    expect(appelGarde, 'ScoreCompositeTool n appelle jamais verifierPerimetre()').toBeGreaterThanOrEqual(0);
+    expect(appelCalcul, 'ScoreCompositeTool n appelle jamais /api/analyses/score').toBeGreaterThanOrEqual(0);
+    expect(appelGarde, 'verifierPerimetre() doit etre appele AVANT le fetch de calcul').toBeLessThan(appelCalcul);
+  });
+
   it('aucune des props de lancement n est cablee nue sur son identifiant brut issu de "props"', () => {
     // Regression directe du defaut d'origine (round 1) : onLoadClusters
     // transmis tel quel, sans garde. Tolerant aux espaces/sauts de ligne

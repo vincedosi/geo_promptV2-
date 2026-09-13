@@ -14,7 +14,8 @@ export type DegradeId =
   | 'civic-indicateurs'
   | 'civic-sante'
   | 'meteo'
-  | 'campagne-impressions';
+  | 'campagne-impressions'
+  | 'score';
 
 const LIBELLES: Record<DegradeId, string> = {
   'carreaux': 'Carreaux Filosofi',
@@ -23,6 +24,11 @@ const LIBELLES: Record<DegradeId, string> = {
   'civic-sante': 'Santé environnementale',
   'meteo': 'Météo',
   'campagne-impressions': 'Impressions de la campagne',
+  // Tâche 12 (2026-09-13) : le score composite est une choroplèthe comme les
+  // autres. L'ajouter ICI plutôt que de le peindre à côté du registre est ce
+  // qui l'empêche de s'empiler avec les six premières — le défaut même que la
+  // Tâche 5 a fermé.
+  'score': 'Score composite',
 };
 
 export function libelleDegrade(id: DegradeId): string {
