@@ -230,11 +230,30 @@ en `OR`).
 · Effort : 2-3 j · Gain : évite que 109 défauts se réveillent le même jour sur
 un compute déjà juste.
 
-**12. Donner une clé primaire à `campaign_dsp_report` et couvrir les 19 clés étrangères sans index.**
-Advisors `no_primary_key` et `unindexed_foreign_keys`. `campaign_dsp_report` est
-déjà idempotente par DELETE ciblé + INSERT — la PK la rendrait vérifiable.
-· Effort : 1 j · Gain : suppressions en cascade et jointures qui cessent de
-balayer.
+**12. ~~Clé primaire sur `campaign_dsp_report` et 19 index de clés étrangères~~ — FAIT le 2026-09-13 (sql/162), avec deux écarts assumés.**
+
+**Un index UNIQUE, pas une clé primaire.** Impossible en l'état : `date` est
+NULLABLE et vaut NULL sur **2 041 des 2 131 lignes** — c'est le grain « par code
+postal », par opposition au grain « par jour ». Une clé primaire refuse les
+NULL. Le projet avait déjà résolu ce problème exact sur `dsp_campaign_data`
+avec un index d'EXPRESSION où `COALESCE` rend deux NULL égaux
+(`idx_dsp_data_unique`) ; même patron, même raison.
+`source` fait partie de la clé : les chemins `api` et `simulated` purgent chacun
+LEUR source et coexistent légitimement.
+Vérifié : 2 131 lignes pour 2 131 clés distinctes avant pose ; la RPC de démo
+rejoue sans violation ; un doublon injecté est bien refusé.
+
+**11 index de clés étrangères sur 19, pas 19.** Mesure : les 15 tables
+concernées portent **au plus 3 lignes**, et huit sont vides ET sans écrivain
+applicatif (`bidding_simulations`, `adaptive_model_state`,
+`bidding_drift_events` — voir `ARCHITECTURE.md`). Balayer une table vide est
+gratuit : le gain annoncé est nul aujourd'hui. Poser les 19 aurait créé 19 index
+à `idx_scan = 0`, c'est-à-dire précisément ce que le point 6 demande de
+supprimer.
+Les 11 posés réunissent deux conditions : la table parente a une route de
+suppression réelle dans l'application, ET la table enfant grossit avec l'usage.
+Les 8 autres restent nues **volontairement**, et c'est écrit ici pour que
+personne ne prenne cela pour un oubli.
 
 ---
 
