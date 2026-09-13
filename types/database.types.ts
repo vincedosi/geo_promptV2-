@@ -5522,6 +5522,10 @@ export type Database = {
           sources: number
         }[]
       }
+      fraicheur_sources: {
+        Args: { p_inclure_lourd?: boolean; p_sources: Json }
+        Returns: Json
+      }
       geo_alignment_baseline: {
         Args: {
           p_denominator: string
