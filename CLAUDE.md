@@ -8,14 +8,29 @@
 ## Projet
 
 **MAGELIAN** — SaaS B2B géomarketing OOH/DOOH. Planification d'affichage extérieur sur données INSEE.
-Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL 15 + PostGIS, compute **Nano**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
+Stack : Next.js 15 App Router · TypeScript strict · Supabase Pro (PostgreSQL **17.6** + PostGIS, compute **Micro**) · MapLibre GL JS · Vercel AI SDK (Gemini 2.5 Flash / Mistral Small) · Tailwind CSS · Inngest · Zod · Vitest
 Projet Supabase : `vkkdbygwbrxyogqosten` (eu-west-3). Utiliser MCP Supabase (`execute_sql`, `apply_migration`), JAMAIS de SQL manuel.
 
 ## ⛔ RÈGLES CRITIQUES — NON NÉGOCIABLE
 
-### Supabase Nano — Disk I/O (250 IOPS, 5 MB/s, burst 30 min/jour)
+### Disk I/O — les règles tiennent, les chiffres sont à revérifier
 
 **Budget I/O épuisé → Auth 504 → app down pendant des heures. Déjà arrivé 3 fois.**
+
+> **Mesuré le 2026-09-13, et cela contredit l'en-tête historique.** Ce titre
+> annonçait « Nano — 250 IOPS, 5 MB/s ». Or le compute est **Micro**
+> (`shared_buffers` 256 Mo, `effective_cache_size` 768 Mo, ≈ 1 Go de RAM), et une
+> lecture séquentielle de 348 Mo a été chronométrée à **≈ 195 Mo/s**, pas 5.
+>
+> **Cela ne relâche AUCUNE des interdictions ci-dessous.** Une mesure unique ne
+> distingue pas un débit soutenu d'une rafale sur crédits de burst, les trois
+> incidents ont bien eu lieu, et le plafond qui a lâché était peut-être le débit
+> **aléatoire**, que cette mesure séquentielle ne dit pas. Tant que le palier et
+> l'IOPS provisionnée ne sont pas relevés dans la console Supabase — point 0 de
+> `docs/audit/QUICK_WINS.md`, non lisible en SQL — on continue de coder comme si
+> la marge était étroite.
+>
+> Ce qui change : ne plus **citer** « 250 IOPS / 5 MB/s » comme un fait établi.
 
 INTERDIT :
 - Batch/parallèle > 1 colonne sur tables IRIS (51k) ou carreaux_filosofi (2.3M)

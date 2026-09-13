@@ -10,11 +10,25 @@
 
 ## Avant tout le reste
 
-**0. Relever l'IOPS réellement provisionnée du volume Supabase et la reporter dans `SCALE_MODEL.md` §1.**
-Supabase → Settings → Compute and Disk. Tout le classement ci-dessous suppose
-250 E/S/s, chiffre venu de `CLAUDE.md` et **non vérifiable en SQL** ; les
-réglages relevés (1 Go de RAM) suggèrent un palier Micro, pas Nano. Les
-correctifs restent bons dans tous les cas — seule leur **urgence** en dépend.
+**0. Relever l'IOPS réellement provisionnée du volume Supabase — TOUJOURS OUVERT, mais la moitié de la réponse est tombée le 2026-09-13.**
+
+Ce qui est désormais **mesuré** :
+- Le compute est **Micro**, pas Nano (`shared_buffers` 256 Mo,
+  `effective_cache_size` 768 Mo, ≈ 1 Go de RAM). `CLAUDE.md` et
+  `ARCHITECTURE.md` sont corrigés.
+- Une lecture **séquentielle** de 348 Mo a été chronométrée à **≈ 195 Mo/s**
+  (`EXPLAIN (ANALYZE, BUFFERS)`, `shared read=44505` en 1 785 ms), soit **39
+  fois** le « 5 Mo/s » qui fonde toute la doctrine d'E/S du projet.
+
+Ce qui reste **non mesurable en SQL**, et pourquoi la tâche reste ouverte :
+l'IOPS provisionnée, et surtout le débit **aléatoire** — lui seul explique les
+trois incidents, et une mesure séquentielle ne le dit pas. Une mesure unique ne
+distingue pas non plus un débit soutenu d'une rafale sur crédits de burst.
+
+**À faire, et cela prend cinq minutes :** Supabase → Settings → Compute and
+Disk, relever le palier et l'IOPS, les reporter dans `SCALE_MODEL.md` §1.
+Tant que ce n'est pas fait, les seuils du modèle sont des **bornes basses**, pas
+des prédictions — et les interdictions de `CLAUDE.md` restent toutes en vigueur.
 · Effort : 5 min · Gain : sait-on de quoi on parle.
 
 ---
@@ -283,10 +297,10 @@ personne ne prenne cela pour un oubli.
 
 ## À décider, pas à coder
 
-**13. Trancher la version de PostgreSQL dans `CLAUDE.md` et `ARCHITECTURE.md` : la base tourne en 17.6.1.063, les deux documents annoncent 15.**
-Deux versions majeures d'écart. Une doc périmée sur ce point ne se contente pas
-d'être inutile : elle fait écarter des outils disponibles et en fait attendre
-d'autres qui ont changé de comportement.
+**13. ~~Trancher la version de PostgreSQL dans `CLAUDE.md` et `ARCHITECTURE.md`~~ — FAIT le 2026-09-13.**
+Les deux documents annonçaient 15, la base tourne en **17.6.1.063** : deux
+versions majeures d'écart. Corrigé, et le palier de calcul avec — il était
+annoncé **Nano**, il est **Micro**.
 
 **14. Trancher l'invariant Adform : le brief annonce 4 campagnes / 294 135 lignes / 172 056 383 tracked_ads, la base contient 1 campagne Adform / 171 729 lignes / 70 844 538 tracked_ads.**
 Cause probable et bénigne : la route `/absorb` fusionne un import orphelin puis

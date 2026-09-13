@@ -67,7 +67,7 @@
 | Framework web | Next.js (App Router) | 15.5.25 |
 | Runtime UI | React | ^19.0 |
 | Langage | TypeScript (strict) | ^5.3 |
-| Base de donnees | Supabase (PostgreSQL 15 + PostGIS) | ^2.97 |
+| Base de donnees | Supabase (PostgreSQL **17.6.1.063** + PostGIS) — les docs annoncaient 15 jusqu'au 2026-09-13, soit deux versions majeures d'ecart. Compute **Micro** et non Nano (shared_buffers 256 Mo, effective_cache_size 768 Mo, soit ~1 Go de RAM) | ^2.97 |
 | Cartographie | MapLibre GL JS | ^5.18 |
 | Tuiles vectorielles | MVT servies par PostGIS (`ST_AsMVT`). PMTiles conserve pour les carreaux uniquement — les IRIS sont passes en MVT le 2026-09-11 | 4.4.0 |
 | LLM / Copilote | Vercel AI SDK + Gemini 2.5 Flash / Mistral Small | ai ^6.0 |

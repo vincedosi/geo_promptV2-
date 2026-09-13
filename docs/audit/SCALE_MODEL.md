@@ -23,11 +23,33 @@
 | `AUTH_CONNEXIONS` | **10** | `[MESURE]` | advisor `auth_db_connections_absolute` |
 | `POSTGREST_POOL` | ≤ 41, valeur réelle inconnue | `[HYPOTHESE]` | `MAX_CONNECTIONS − AUTH_CONNEXIONS − réserve admin/supavisor ≈ 9`. **Non mesurable en l'état** : le réglage vit dans `PGRST_DB_POOL`, hors SQL. Mesure : saturer puis `SELECT count(*) FROM pg_stat_activity WHERE application_name='postgrest'` |
 | `IOPS_DISQUE` | 250 | `[HYPOTHESE]` | valeur écrite dans `CLAUDE.md`. **Non vérifiable depuis la base** ; voir §6 du rapport, elle est peut-être périmée |
-| `DEBIT_DISQUE` | 5 Mo/s | `[HYPOTHESE]` | idem |
+| `DEBIT_DISQUE` | 5 Mo/s | `[HYPOTHESE]` | valeur écrite dans `CLAUDE.md`. **Contredite par la mesure ci-dessous** |
+| `DEBIT_SEQ_MESURE` | **≈ 195 Mo/s** | `[MESURE]` | 2026-09-13, `EXPLAIN (ANALYZE, BUFFERS)` d'un `max(created_at)` sur `comptages_routiers` : `shared read=44505` blocs, soit 348 Mo, en **1 785 ms**. Lecture séquentielle, pages absentes du cache partagé |
 | `BLOC_PG` | 8 Kio | `[MESURE]` | constante Postgres |
 | `IOPS_EQ_MO` | 2,0 Mo/s | `[CALCULE]` | `IOPS_DISQUE × BLOC_PG` — le plafond **aléatoire** est donc sous le plafond séquentiel annoncé |
 | `TAILLE_BASE` | 6 863 Mo | `[MESURE]` | `pg_database_size` |
 | `VERCEL_CONCURRENCE` | 1 000 invocations | `[HYPOTHESE]` | défaut plan Pro ; jamais atteint ici (voir §3) |
+
+> ### ⚠ Le débit disque assumé est 39 fois inférieur au débit mesuré
+>
+> Toute la doctrine d'E/S du projet (`CLAUDE.md`, section ⛔) repose sur
+> « 5 Mo/s soutenus ». Une lecture séquentielle de 348 Mo a été chronométrée à
+> **195 Mo/s** le 2026-09-13.
+>
+> **Ce que cela ne prouve PAS**, et il faut le dire avant d'en tirer quoi que ce
+> soit : une mesure unique ne distingue pas un débit soutenu d'une rafale sur
+> crédits de burst, ni d'un cache de page côté hôte. Les incidents du 28/03 et
+> du 08/04 ont bien eu lieu, et ils ont bien saturé quelque chose.
+>
+> **Ce que cela impose :** ne pas continuer à traiter « 5 Mo/s » comme un fait.
+> Soit la valeur est périmée — le palier a pu changer depuis février — soit elle
+> décrivait le débit **aléatoire**, pas séquentiel, et les deux ne se confondent
+> pas. Tant que l'arbitrage n'est pas fait, les seuils de ce modèle sont des
+> bornes basses, pas des prédictions.
+>
+> Mesure qui tranchera, et qui n'est pas faisable en SQL : relever le palier de
+> calcul et l'IOPS provisionnée dans Supabase → Settings → Compute and Disk.
+> C'est le point 0 de `QUICK_WINS.md`, et il reste ouvert pour cette raison.
 
 ---
 
