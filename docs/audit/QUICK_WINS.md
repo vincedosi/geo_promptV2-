@@ -107,6 +107,52 @@ une contamination du scoring — ce serait remplacer une exagération par une au
 · Effort : 0,5 j pour le calque et la tuile, 0,5 j pour la capture de zone ·
 Gain : la carte et les zones cessent d'annoncer une mesure là où il n'y en a pas.
 
+**19. Normaliser `poi_france.departement` et remplir `code_departement` — le filtre par département rendait ZÉRO lycée (contourné le 2026-09-13, pas guéri).**
+
+Mesuré sur les 5 862 POI non-transport : la colonne `departement` porte **trois
+formats incompatibles** selon l'import qui l'a remplie.
+
+| catégorie | lignes | contenu | exemples |
+|---|---:|---|---|
+| lycee | 5 584 | **le nom** | `Ain`, `Aisne`, `Allier` |
+| bmw | 177 | le code | `13`, `69`, `75` |
+| cirfa | 101 | le code, 8 déviants | `20A`, `20B`, `3`, `4` |
+
+`/api/map/pois` cherchait `ilike('departement', '%75%')`. Aucun lycée ne pouvait
+donc être trouvé : filtrer sur Paris rendait **0 lycée sur 241**, sans erreur ni
+message — et le lycée est la catégorie la plus fournie du sélecteur.
+`code_departement`, qui porterait le code proprement, n'est renseignée que sur
+**177 lignes sur 5 862**, toutes des bmw : c'est pourquoi
+`idx_poi_france_departement`, bâti dessus, n'a jamais servi.
+
+**Contournement posé** (`lib/geo/dept-lookup-server.ts`) : la route interroge
+désormais toutes les écritures connues du département demandé, sur les deux
+colonnes. Vérifié en conditions réelles — Paris 0 → **241**, Allier **32**
+(cas du code non complété), Corse-du-Sud **12** (cas `20A`), département
+inexistant **0**, et les bmw restent à **4**, donc aucune régression sur le
+format qui marchait déjà. Les quatre chiffres correspondent à la base.
+
+**Ce qui reste à faire, et pourquoi ça n'a pas été fait cette nuit.** Le
+contournement fait porter à la requête ce qui devrait être une propriété de la
+donnée. La vraie correction est de remplir `code_departement` par jointure
+spatiale, puis de filtrer dessus seulement. Coût mesuré : 2 000 points joints en
+**525 ms** via `idx_ref_communes_geom`, soit ~1,5 s pour les 5 862 POI concernés
+— négligeable. **Le piège est ailleurs** : validée contre les bmw, qui portent
+déjà les deux colonnes, la jointure `ST_Contains` concorde sur **167 sur 178**
+et rend NULL sur 11. Les points non appariés sont hors polygone (littoral,
+Monaco, `98`). Une reprise sans repli sur le département le plus proche
+créerait donc des NULL là où une valeur existait. C'est cette règle de repli
+qui reste à décider, pas le calcul.
+
+**À ne pas confondre avec les 285 015 arrêts de transport**, dont `region`,
+`departement`, `code_departement` ET `ville` sont TOUS nuls. Ceux-là ne sont pas
+affectés : ils ne sont pas servis par cette route — ils sont exclus du catalogue
+de catégories à dessein, et `/api/map/transport` les sert par bbox seule.
+· Effort : 0,5 j, dont l'essentiel pour trancher le repli · Gain : la donnée
+cesse de dépendre de la requête qui la lit.
+
+---
+
 ---
 
 ## Moins d'une journée

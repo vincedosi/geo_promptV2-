@@ -37,6 +37,7 @@ const poisPostSchema = z.object({
 // (organisation sans source, donc aucun accès).
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
 import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
+import { getDeptNameMap, ecrituresDuDepartement } from '@/lib/geo/dept-lookup-server';
 
 // Codes départements DROM (exclus en mode France métro)
 const DROM_CODES = ['971', '972', '973', '974', '976'];
@@ -166,11 +167,35 @@ export async function POST(req: NextRequest) {
       // ── Filtrage géographique ─────────────────────────────────────────────
 
       // 1. Par département(s)
+      //
+      // `departement` ne porte PAS le meme contenu selon l'import qui l'a
+      // remplie (mesure du 2026-09-13) : code pour bmw, NOM pour les 5 584
+      // lycees, code deviant pour 8 cirfa (`20A`, `3`). Un `ilike('%75%')` ne
+      // pouvait donc rien trouver pour un lycee — filtrer sur Paris rendait
+      // ZERO lycee, sans erreur ni message.
+      //
+      // On interroge desormais les ecritures possibles du departement demande,
+      // sur `code_departement` (renseignee sur 177 lignes) ET `departement`.
+      // C'est un contournement assume : la vraie correction est de normaliser
+      // la colonne — point 19 de docs/audit/QUICK_WINS.md.
       if (depts?.length > 0) {
+        const nomsDept = await getDeptNameMap(supabase);
         for (const dept of depts) {
+          const ecritures = ecrituresDuDepartement(dept, nomsDept);
+          if (ecritures.length === 0) continue;
+          // PostgREST : les valeurs d'un `or()` sont separees par des virgules,
+          // donc une valeur qui en contient une casserait le filtre. Aucun nom
+          // de departement francais n'en porte, mais on les ecarte plutot que
+          // de le supposer.
+          const sures = ecritures.filter((e) => !/[,()"]/.test(e));
+          const clauses = sures.flatMap((e) => [
+            `code_departement.eq.${e}`,
+            `departement.eq.${e}`,
+          ]);
+          if (clauses.length === 0) continue;
           await fetchAllPages((from, to) => {
             let q = supabase.from('poi_france').select(SELECT_COLS)
-              .ilike('departement', `%${dept}%`)
+              .or(clauses.join(','))
               .order('id')
               .range(from, to);
             return applyFilters(q);
