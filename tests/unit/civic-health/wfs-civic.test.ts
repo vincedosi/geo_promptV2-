@@ -90,3 +90,22 @@ describe('collectWfsAtmoFeatures', () => {
     expect(added).toBe(0);
   });
 });
+
+import { pageSuivanteAttendue } from '@/lib/civic-health/wfs-civic';
+
+describe('pageSuivanteAttendue — la pagination qui ne paginait pas', () => {
+  it("continue tant que numberMatched n'est pas atteint, même si le serveur plafonne count", () => {
+    // Serveur plafonné à 10 000 par page, 35 000 communes annoncées.
+    expect(pageSuivanteAttendue({ numberMatched: 35_000 }, 0, 10_000)).toBe(true);
+    expect(pageSuivanteAttendue({ numberMatched: 35_000 }, 30_000, 5_000)).toBe(false);
+  });
+
+  it("s'arrête sur une page vide, quoi qu'annonce numberMatched", () => {
+    expect(pageSuivanteAttendue({ numberMatched: 35_000 }, 40_000, 0)).toBe(false);
+  });
+
+  it('sans numberMatched, repli sur la taille de page', () => {
+    expect(pageSuivanteAttendue({}, 0, 40_000)).toBe(true);
+    expect(pageSuivanteAttendue({}, 0, 12_345)).toBe(false);
+  });
+});

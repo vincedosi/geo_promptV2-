@@ -6,8 +6,9 @@
  *
  *   scale=departement (défaut) — échantillonnage 1 commune représentative
  *   par département (RPC get_dept_representative_communes) via le pipeline
- *   getHealthWithCache. Streaming NDJSON (progression temps réel), chaque
- *   ligne dept porte pollen ET air (même coût, un seul pipeline) :
+ *   groupé getHealthEnMasse (cache lu et écrit PAR LOTS : ~5 requêtes de base
+ *   au lieu de jusqu'à 312, mesure du 2026-09-13). Streaming NDJSON
+ *   (progression temps réel), chaque ligne dept porte pollen ET air :
  *     {"type":"meta","total":104}
  *     {"type":"dept","code_dept":"22","nom_dept":"...","pollen":{...},"air":{...},"stale":false}
  *     {"type":"done","fetched":100,"failed":4}
@@ -34,12 +35,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
-import { getHealthWithCache } from '@/lib/civic-health/get-health';
+import { getHealthEnMasse } from '@/lib/civic-health/get-health';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-/** Concurrence des lookups dept (cache DB + API Atmo) — reste sous la limite Nano. */
+/** Appels provider simultanés (tiers HTTP, pas la base : le cache est lu et écrit par lots). */
 const CONCURRENCY = 3;
+/**
+ * Au-delà, un `.in('code_postal', …)` dépasse la limite d'URL de PostgREST
+ * (~8 caractères encodés par code ; 2 000 codes = 16 104 caractères mesurés
+ * pour une limite usuelle de 16 384, qui échoue MUETTEMENT). On lit alors la
+ * table nationale du jour (~6 200 lignes, « léger » : c'est déjà le chemin
+ * sans bbox) et on filtre en mémoire — deux requêtes au plus, quelle que soit
+ * la taille de la bbox.
+ */
+const MAX_CODES_DANS_IN = 500;
 
 const POLLEN_METRICS = ['global', 'ambroisie', 'armoise', 'aulne', 'bouleau', 'graminees', 'olivier'] as const;
 const ATMO_METRICS = ['global', 'no2', 'o3', 'pm10', 'pm25', 'so2'] as const;
@@ -134,15 +145,24 @@ export async function GET(request: NextRequest) {
       .select(columns)
       .eq('date_ech', date)
       .gte(levelColumn, Math.max(min_level, 1)); // 0 = indisponible, jamais peint
-    if (codesPostauxBbox) {
+    const filtrerEnMemoire = !!codesPostauxBbox && codesPostauxBbox.length > MAX_CODES_DANS_IN;
+    if (codesPostauxBbox && !filtrerEnMemoire) {
       query = query.in('code_postal', codesPostauxBbox);
     }
-    const { data: rows, error: rowsErr } = await query.limit(10_000);
+    const { data: rowsBrutes, error: rowsErr } = await query.limit(10_000);
     if (rowsErr) {
+      logger.error('civic-health/health-map', `${table} : ${rowsErr.message}`);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+    // `columns` est une chaîne construite : le générateur ne peut pas typer
+    // la ligne, d'où le passage par `unknown`. Seul `code_postal` est lu ici.
+    let rows = (rowsBrutes ?? []) as unknown as { code_postal: string }[];
+    if (filtrerEnMemoire && codesPostauxBbox) {
+      const retenus = new Set(codesPostauxBbox);
+      rows = rows.filter((r) => retenus.has(r.code_postal));
+    }
     return NextResponse.json(
-      { date, rows: rows ?? [] },
+      { date, rows },
       // no-store : le flux no_data → ingestion admin → refetch doit voir la
       // donnée fraîche immédiatement (un max-age ferait rejouer le no_data
       // depuis le cache navigateur). Lecture SQL indexée (PK date) — léger.
@@ -159,6 +179,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
+  // Une commune représentative peut, en théorie, servir plusieurs départements :
+  // on résout chaque commune UNE fois et on émet une ligne par département.
+  const deptsParCommune = new Map<string, DeptRow[]>();
+  for (const d of depts) {
+    const code = d.code_commune.toUpperCase();
+    const liste = deptsParCommune.get(code);
+    if (liste) liste.push(d); else deptsParCommune.set(code, [d]);
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -167,35 +196,35 @@ export async function GET(request: NextRequest) {
 
       let fetched = 0;
       let failed = 0;
-      let cursor = 0;
 
-      const worker = async () => {
-        while (cursor < depts.length) {
-          const dept = depts[cursor++];
-          try {
-            const { data } = await getHealthWithCache(dept.code_commune.toUpperCase());
-            if (data?.pollen || data?.air) {
-              fetched++;
-              send({
-                type: 'dept',
-                code_dept: dept.code_dept,
-                nom_dept: dept.nom_dept,
-                pollen: data.pollen,
-                air: data.air,
-                stale: data.stale,
-              });
-            } else {
-              failed++;
-              send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
+      try {
+        // Cache lu et écrit PAR LOTS (lib/civic-health/get-health.ts) : 1 lecture
+        // groupée + provider sur les seuls manquants + ⌈n/50⌉ écritures + 1
+        // lecture périmée, au lieu de jusqu'à 3 requêtes PAR département.
+        await getHealthEnMasse([...deptsParCommune.keys()], {
+          concurrence: CONCURRENCY,
+          surResultat: (code, data) => {
+            for (const dept of deptsParCommune.get(code) ?? []) {
+              if (data?.pollen || data?.air) {
+                fetched++;
+                send({
+                  type: 'dept',
+                  code_dept: dept.code_dept,
+                  nom_dept: dept.nom_dept,
+                  pollen: data.pollen,
+                  air: data.air,
+                  stale: data.stale,
+                });
+              } else {
+                failed++;
+                send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
+              }
             }
-          } catch {
-            failed++;
-            send({ type: 'dept', code_dept: dept.code_dept, nom_dept: dept.nom_dept, pollen: null, air: null });
-          }
-        }
-      };
-
-      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+          },
+        });
+      } catch (err) {
+        logger.error('civic-health/health-map', `département : ${err instanceof Error ? err.message : err}`);
+      }
       send({ type: 'done', fetched, failed });
       controller.close();
     },

@@ -86,6 +86,29 @@ async function fetchPage(layer: string, propertyName: string, date: string, star
 }
 
 /**
+ * Faut-il demander la page suivante ?
+ *
+ * L'ancienne condition (`returned < PAGE_SIZE` → stop) rendait la pagination
+ * INOPÉRANTE dans le seul cas où elle sert : un GeoServer qui plafonne `count`
+ * (à 10 000, valeur usuelle) rend 10 000 < 40 000 features, la boucle
+ * s'arrêtait, et 10 000 communes sur 35 000 passaient le seuil de
+ * vraisemblance (1 000) — une couverture partielle de la France, sans erreur.
+ * On s'appuie d'abord sur `numberMatched`, que WFS 2.0 rend toujours ; la
+ * comparaison à `PAGE_SIZE` ne reste qu'en repli quand il manque. Pure — testée.
+ */
+export function pageSuivanteAttendue(
+  page: { numberMatched?: number },
+  startIndex: number,
+  returned: number,
+): boolean {
+  if (returned === 0) return false;
+  if (typeof page.numberMatched === 'number' && Number.isFinite(page.numberMatched)) {
+    return startIndex + returned < page.numberMatched;
+  }
+  return returned >= PAGE_SIZE;
+}
+
+/**
  * Boucle générique jour J → J-1 avec pagination et seuil de vraisemblance.
  * Renvoie null si le WFS est indisponible — l'appelant retombe sur le
  * provider authentifié/mock.
@@ -107,7 +130,7 @@ async function fetchBulkWfs<T>(
         const added = collect(page, byCommune);
         onLog?.(`WFS ${label} ${date} : +${added} communes (cumul ${byCommune.size})`);
         const returned = page.numberReturned ?? page.features?.length ?? 0;
-        if (returned < PAGE_SIZE) break;
+        if (!pageSuivanteAttendue(page, startIndex, returned)) break;
       }
       if (byCommune.size >= MIN_PLAUSIBLE_COMMUNES) {
         return { byCommune, date };
