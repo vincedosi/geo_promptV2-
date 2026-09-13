@@ -14,6 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      activation_cibles: {
+        Row: {
+          erreur: string | null
+          etat_avant: Json | null
+          id: string
+          line_item_id: string
+          line_item_nom: string | null
+          lot_id: string
+          maj_le: string
+          statut: string
+        }
+        Insert: {
+          erreur?: string | null
+          etat_avant?: Json | null
+          id?: string
+          line_item_id: string
+          line_item_nom?: string | null
+          lot_id: string
+          maj_le?: string
+          statut?: string
+        }
+        Update: {
+          erreur?: string | null
+          etat_avant?: Json | null
+          id?: string
+          line_item_id?: string
+          line_item_nom?: string | null
+          lot_id?: string
+          maj_le?: string
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_cibles_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "activation_lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activation_lots: {
+        Row: {
+          campaign_id: string
+          canal: string
+          id: string
+          lance_le: string
+          lance_par: string
+          org_id: string
+          statut: string
+          termine_le: string | null
+          version_strategie: number | null
+        }
+        Insert: {
+          campaign_id: string
+          canal: string
+          id?: string
+          lance_le?: string
+          lance_par: string
+          org_id: string
+          statut?: string
+          termine_le?: string | null
+          version_strategie?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          canal?: string
+          id?: string
+          lance_le?: string
+          lance_par?: string
+          org_id?: string
+          statut?: string
+          termine_le?: string | null
+          version_strategie?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_lots_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       adaptive_model_state: {
         Row: {
           algorithm_code: string

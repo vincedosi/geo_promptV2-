@@ -3,9 +3,9 @@
 > Derniere mise a jour : 2026-09-08 (suppression de l'overlay Pilotage ML et de tout ce
 > qui n'etait atteignable que par lui — voir ci-dessous)
 > Regle structurelle : tout passe par /map et ses overlays (mediaplanner) ; le panneau Reglages = back office admin.
-> Deep-link overlay campagne : `/map?campaign=<id>&tab=<strategie|suivi|apercu>` (ignore si `?overlay=` present).
+> Deep-link overlay campagne : `/map?campaign=<id>&tab=<strategie|activation|suivi|apercu>` (ignore si `?overlay=` present).
 > Tache 9 (2026-09-12) : onglets de l'overlay MAGELIAN renommes — Programmer -> Strategie,
-> Suivi campagne -> Suivi (Apercu inchange ; l'onglet Activation n'existe pas encore, Phase 2).
+> Suivi campagne -> Suivi (Apercu inchange ; onglet Activation ajoute le 2026-09-13, Tache 20).
 > Deep-link `tab=` : `creation` -> `strategie` — `creation` reste un ALIAS HERITE (round de
 > correction 1) : un ancien lien `tab=creation` ouvre toujours l'onglet Stratégie, jamais
 > Suivi par defaut. Le traiter comme une simple valeur invalide perdait silencieusement les
@@ -521,6 +521,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/digital/[campaignId]/reconcile/pull` | POST | (Re)construit le rapport DSP (requireAdmin) : demo → RPC simulate_dsp_report ; prod → lib/dsp/report par canal connecte (API, skipped si non connecte — jamais d'import fichier) |
 | `/api/digital/[campaignId]/reconcile/map` | GET | Choroplethe CP de reconciliation (`?metric=measure\|dspcpm&bbox=`) — SuiviMapLayer source reconcile |
 | `/api/bidding/strategies/[id]/publier` | GET/POST | **Versionnage de strategie** (Tache 19, sql/157). POST fige l'etat courant et l'empreinte `{zone_id: updated_at}` de ses zones ; GET compare cette empreinte a l'etat courant et rend les zones qui ont DERIVE depuis. Une strategie publiee a envoye ses encheres au DSP avec un perimetre fige : si la zone bouge — et le lot Zones vient d'ajouter cinq facons de la modifier — la campagne diffuse sur un perimetre qui n'est plus celui de la carte, et rien ne le signalait. Ne pousse RIEN vers un DSP : publier, ici, c'est enregistrer un point de repere |
+| `/api/campaigns/[id]/activation/prevol` | GET | **Pre-vol, strictement en LECTURE** (Tache 20) : ce qui partirait, et surtout ce qui l'empeche. Bloque si la strategie n'est pas publiee (le retour arriere serait aveugle) ou si elle a DERIVE (une zone a bouge depuis la publication : pousser enverrait un perimetre que personne n'a valide). Les blocages sont rendus comme une liste, pas comme une erreur HTTP — la page doit montrer le reste du pre-vol en expliquant ce qui manque |
+| `/api/campaigns/[id]/activation/pousser` | POST | **Poussee par line item, flux NDJSON** (Tache 20). ENVELOPPE `/api/admin/dsp/dv360/targeting/push` sans le reecrire. Rejoue le pre-vol cote serveur — on ne pousse pas sur la foi d'un appel client, une zone a pu bouger entre son pre-vol et son clic. Le corps est lu AVANT d'ouvrir le flux (incident du 08/04 : `request.formData()` dans `ReadableStream.start()`), et `etat_avant` est ecrit AVANT chaque appel sortant |
+| `/api/campaigns/[id]/activation/historique` | GET | Les lots passes, leur statut et leurs compteurs par line item. Compteurs en UNE requete, jamais une par lot (incident du 08/04). Borne a 50 |
+| `/api/campaigns/[id]/activation/rollback` | POST | Marque un lot annule. **Ne retire RIEN du DSP, et le dit** (`retire_du_dsp: false`) : la poussee DV360 est additive et la route de push ne rend pas la liste exacte des geo IDs assignes — les retirer risquerait d'effacer un ciblage pose par un autre lot ou un operateur. Un retour arriere qui efface le travail de quelqu'un d'autre est pire qu'un retour arriere absent. Confirmation explicite exigee (`confirme: true`) |
 | `/api/bidding/strategies/[id]/export` | GET | Fichier custom bidding « fidèle à la pression » par canal (`?channel=` du dsp_channel_registry) : scores par CP interpolés sur la courbe INSEE, 5 paliers quantiles, hors-zone 0 (zones strictes) ou 1 (national+surpression) — dv360 script .py / tiktok fiche / autres CSV `postal_code;score` (lib/digital/bidding-export.ts, étape 5 Lancement) |
 
 ### Radio FM/DAB+ (protegees par `requireAuth()`)
@@ -759,6 +763,8 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 ### Analyses enregistrees
 | Table | Description | Notes |
 |-------|-------------|-------|
+| `activation_lots` | Un lot = une poussee de ciblage vers un canal DSP. Statut `partiel` a part : un lot ou 3 line items sur 20 ont echoue n'est ni un succes ni un echec | sql/158 (2026-09-13). RLS deny-all |
+| `activation_cibles` | Un line item d'un lot, avec son statut et son `etat_avant`. LIMITE CONNUE : `etat_avant` porte le CONTEXTE de la poussee, pas la liste des geo IDs assignes — que la route de push existante ne rend pas. C'est ce qui empeche un rollback reel | sql/158. RLS deny-all |
 | `strategie_versions` | Etat fige d'une strategie publiee : `empreinte_zones` (`{zone_id: updated_at}`), `charge_utile` (etat complet, independant de l'etat courant de `bidding_strategies`), numero de version attribue EN BASE pour eviter une course entre deux publications simultanees | sql/157 (2026-09-13). `ON DELETE CASCADE` sur la strategie. RLS deny-all. Comparaison dans `lib/campaigns/version-strategie.ts`, testee sans base |
 | `analyses` | Une analyse lancee (clusters/score/battle/voronoi/correlation/elm) devenue un objet rejouable : nom, `parametres` complets (cle de rejeu via `cleParametres`, `lib/analyses/types.ts`), `maillage`, `perimetre`, `resultat` leger, `statut` | sql/145 (2026-09-12). `type`/`statut` sont `text` + `CHECK` — le generateur sort `string`, les unions TS vivent dans `lib/analyses/types.ts` et doivent rester synchronisees a la main avec la contrainte. Index `idx_analyses_org_date` (org_id, created_at DESC) et `idx_analyses_type` (org_id, type). RLS deny-all, routes en `service_role`. Auparavant, seul le clustering laissait une trace (`clustering_models`/`clustering_jobs`) ; battles/voronois/isochrones n'en laissaient aucune |
 

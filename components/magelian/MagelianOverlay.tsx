@@ -9,6 +9,7 @@ import { partitionCampaigns } from '@/lib/campaigns/overlay-partition';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
 import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
 import { CampaignOverview } from '@/components/campaign/CampaignOverview';
+import { ActivationPanel } from '@/components/campaign/ActivationPanel';
 import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
@@ -482,6 +483,7 @@ export function MagelianOverlay() {
       >
         {([
           ['strategie', 'Stratégie'],
+          ['activation', 'Activation'],
           ['suivi', 'Suivi'],
           ['apercu', 'Aperçu'],
         ] as const).map(([key, label]) => (
@@ -615,6 +617,19 @@ export function MagelianOverlay() {
               onDelete={handleHallDelete}
             />
           )
+        )}
+
+        {/* Tache 20 : l'onglet Activation, entre « je programme » et « je suis ».
+            Il enveloppe le push DSP qui existait NU — ni pre-vol, ni statut par
+            line item, ni historique, ni retour arriere. */}
+        {tab === 'activation' && (
+          selectedId ? (
+            <ActivationPanel key={selectedId} campaignId={selectedId} />
+          ) : campaigns !== null ? (
+            <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
+              Aucune campagne à activer — crée ta première campagne dans l&apos;onglet Stratégie.
+            </div>
+          ) : null
         )}
 
         {tab === 'suivi' && (

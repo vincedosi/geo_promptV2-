@@ -1,4 +1,4 @@
-/** Deep-link de l'overlay MAGELIAN : /map?campaign=<id>&tab=<strategie|suivi|apercu>.
+/** Deep-link de l'overlay MAGELIAN : /map?campaign=<id>&tab=<strategie|activation|suivi|apercu>.
  *
  * `strategie` remplace `creation` (Tache 9 : onglet "Programmer" renomme
  * "Stratégie"). Round de correction 1 : traiter `creation` comme une valeur
@@ -16,14 +16,16 @@
  * invalide : un lien partage avant le renommage continue d'ouvrir ce qu'il
  * ouvrait. Voir tests/unit/magelian-deep-link.test.ts. */
 
-export type MagelianTab = 'strategie' | 'suivi' | 'apercu';
+export type MagelianTab = 'strategie' | 'activation' | 'suivi' | 'apercu';
 
 export interface MagelianDeepLinkRequest {
   campaignId?: string;
   tab?: MagelianTab;
 }
 
-const TABS: readonly MagelianTab[] = ['strategie', 'suivi', 'apercu'];
+/** Ordre du parcours : je programme, j'active, je suis, je regarde.
+ *  `activation` ajoutee par la Tache 20 (2026-09-13). */
+const TABS: readonly MagelianTab[] = ['strategie', 'activation', 'suivi', 'apercu'];
 
 /** Anciennes valeurs d'onglet renommees, mappees vers leur valeur actuelle. */
 const ALIAS_TAB: Readonly<Record<string, MagelianTab>> = {

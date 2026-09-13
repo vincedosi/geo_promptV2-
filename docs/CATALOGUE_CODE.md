@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `b2b8849`.
+> Généré le 2026-09-13 — commit `8452511`.
 
 ## Totaux
 
@@ -99,8 +99,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
-| `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
+| `types/admin.ts` | 1 | — | HealthCheck |
 | `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
@@ -108,8 +108,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
-| `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/qualite/verdict.ts` | 1 | — | Verdict |
+| `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |
