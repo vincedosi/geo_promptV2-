@@ -585,6 +585,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/admin/geocode/batch` | POST | Geocode batch BAN |
 | `/api/admin/geocode/update` | POST | Mise a jour geocodage |
 | `/api/admin/health` | GET | Monitoring DB |
+| `/api/admin/qualite-donnees` | GET/POST | **Etat des donnees manquantes** (sql/149) : indicateurs du registre pointant vers du vide, fraicheur des sources a cadence attendue, invariants metier valides contre l'INSEE, remplissage colonne par colonne d'`iris`. Distincte de `/api/admin/health`, qui regarde l'INFRASTRUCTURE : celle-ci regarde le CONTENU. GET lit les releves PERSISTES (`qualite_releves`) sans rien recalculer ; POST relance **UNE** verification, jamais plusieurs — le balayage d'`iris` coute ~220 Mo et 1,4 s, et un bouton « tout verifier » serait l'incident du 28/03 rejoue par l'outil cense le prevenir. Quota `geo:rl:qualite-donnees` 6/min |
 | `/api/admin/organizations` | GET/POST | CRUD organisations |
 | `/api/admin/organizations/[id]/members` | GET/POST/DELETE | Gestion membres |
 | `/api/admin/organizations/[id]/members/reset-password` | POST | Reset password membre |
@@ -762,6 +763,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `filosofi_national_averages` | Moyennes nationales Filosofi | |
 | `smart_prompt_feedback` | Feedback prompts IA (user_id) | |
 | `smart_ville_stats` | Stats villes | |
+| `qualite_releves` | Dernier releve de chaque verification de qualite des donnees | sql/149 (2026-09-13). Rouvrir `/admin/qualite-donnees` lit CETTE table, jamais les tables sources. RLS deny-all |
 | `quotas_appels` | Compteurs de quota d'appels PARTAGES entre instances (sql/135) | Une ligne par cle = prefixe de route + appelant. Ecrite par la RPC `consommer_quota` (un seul `INSERT … ON CONFLICT … RETURNING`, donc exact en concurrence). Se purge elle-meme. RLS deny-all. **C'est le garde-fou du budget I/O Nano** : avant, il comptait en memoire d'instance et ne limitait rien sur Vercel |
 | `civic_health_cache` | Cache indicateurs ATMO + pollen par code INSEE commune | TTL 24h, fallback stale 48h, RLS public read / service write, source ODbL Atmo France |
 | `pollen_map_daily` | Indice pollen national par code postal (max des communes du CP) + concentrations grains/m³ par espece + alerte | ~6 200 lignes/jour, purge J-2, ingestion bulk WFS (sql/084 + 086), RLS read auth / write service |
@@ -870,6 +872,10 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
 | `get_table_sizes` | Taille tables (monitoring) | `api/admin/health/` |
+| `qualite_colonnes_iris` | Remplissage de CHAQUE colonne numerique d'`iris` en UN SEUL balayage (~220 Mo, 1,4 s). Se distingue de `get_iris_fill_status`, qui fait un COUNT par colonne (~40 balayages, ~8,8 Go) et confond une colonne vide avec une colonne pleine de zeros | `api/admin/qualite-donnees/` (sql/149) |
+| `qualite_indicateurs` | Quels indicateurs ACTIFS du registre pointent vers une colonne vide, partielle ou absente. La verification la plus rentable du lot : elle aurait attrape `part_couples_enfants` (0 renseigne sur 49 448 IRIS, actif donc propose a l'utilisateur) avant qu'un score ne soit calcule dessus | `api/admin/qualite-donnees/` (sql/149) |
+| `qualite_fraicheur` | Age de chaque source a cadence attendue. Le champ `alimentation` evite LE contresens : une table figee alimentee par un cron signale un cron qui ne tourne pas, pas une donnee absente a la source | `api/admin/qualite-donnees/` (sql/149) |
+| `qualite_invariants` | Invariants metier chiffres (population 67 760 552, proprietaires 58,60 %, logements sociaux 14,97 %, revenu median 23 097 EUR, somme des tranches d'age = population). Seule famille qui detecte une donnee FAUSSE, par opposition a absente, partielle ou perimee | `api/admin/qualite-donnees/` (sql/149) |
 | `count_poi_by_categorie_source` | Compte POI par categorie/source | `api/admin/import-datagouv/` |
 | `get_sources_stats` | Stats sources de donnees | `api/admin/sources-stats/` |
 | `get_poi_categories` | Categories POI | `api/admin/poi-categories/` |

@@ -4,7 +4,7 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `1a77a03`.
+> Généré le 2026-09-13 — commit `a7919b5`.
 
 ## Totaux
 
@@ -60,8 +60,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/constants.ts` | 2 | PERIOD_LEN_DAYS, CALENDAR_START | — |
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
-| `lib/import/geocoder.ts` | 2 | reverseGeocodeRows | ReverseResult |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
+| `lib/import/geocoder.ts` | 2 | reverseGeocodeRows | ReverseResult |
 | `lib/bidding-ml/comparison.ts` | 2 | aggregateByDate | DailyComparison |
 | `lib/bidding-ml/targeting-kpis.ts` | 2 | quantile, selectTargetZones | — |
 | `lib/agent/intents/index.ts` | 2 | getIntent, listIntents | — |
@@ -107,8 +107,8 @@ Trié par nombre d’occurrences décroissant.
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
 | `lib/demo/pilot-types.ts` | 1 | — | PilotItem |
 | `lib/dsp/push/types.ts` | 1 | — | PushStatus |
-| `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/prompting/system-prompt-builder.ts` | 1 | — | SystemPromptSection |
+| `lib/report/types.ts` | 1 | — | ReportHeader |
 | `lib/radio/import-logger.ts` | 1 | — | LogEntry |
 | `types/campaign.ts` | 1 | — | DspCampaign |
 | `lib/meteo/use-meteo-data.ts` | 1 | — | MeteoProgress |

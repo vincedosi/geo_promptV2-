@@ -2963,6 +2963,30 @@ export type Database = {
         }
         Relationships: []
       }
+      indicator_cp_materializations: {
+        Row: {
+          computed_at: string
+          data_source: string
+          date_donnee: string | null
+          indicator_code: string
+          n_lignes: number
+        }
+        Insert: {
+          computed_at?: string
+          data_source: string
+          date_donnee?: string | null
+          indicator_code: string
+          n_lignes: number
+        }
+        Update: {
+          computed_at?: string
+          data_source?: string
+          date_donnee?: string | null
+          indicator_code?: string
+          n_lignes?: number
+        }
+        Relationships: []
+      }
       indicator_cp_values: {
         Row: {
           computed_at: string
@@ -4318,6 +4342,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      qualite_releves: {
+        Row: {
+          calcule_le: string
+          duree_ms: number | null
+          releve: Json
+          verification: string
+        }
+        Insert: {
+          calcule_le?: string
+          duree_ms?: number | null
+          releve: Json
+          verification: string
+        }
+        Update: {
+          calcule_le?: string
+          duree_ms?: number | null
+          releve?: Json
+          verification?: string
+        }
+        Relationships: []
       }
       quotas_appels: {
         Row: {
@@ -6158,6 +6203,10 @@ export type Database = {
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
       purge_old_agent_chat_messages: { Args: never; Returns: number }
+      qualite_colonnes_iris: { Args: never; Returns: Json }
+      qualite_fraicheur: { Args: never; Returns: Json }
+      qualite_indicateurs: { Args: never; Returns: Json }
+      qualite_invariants: { Args: never; Returns: Json }
       refresh_campaign_rollups: {
         Args: { p_campaign_id: string }
         Returns: Json
