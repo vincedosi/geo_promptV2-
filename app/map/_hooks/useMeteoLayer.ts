@@ -157,8 +157,15 @@ export function useMeteoLayer(
         if (b) bbox = `${b.getWest().toFixed(3)},${b.getSouth().toFixed(3)},${b.getEast().toFixed(3)},${b.getNorth().toFixed(3)}`;
       }
     }
-    await ensureMeteoZones(scale);
-    const ok = await meteo.fetch(scale, { ...params, bbox });
+    // Les polygones (GeoJSON stable, cache navigateur/CDN) et la météo
+    // (Open-Meteo) ne dépendent pas l'un de l'autre : on les charge ENSEMBLE.
+    // Au palier CP, les polygones pèsent ~3,8 Mo : les attendre AVANT de
+    // lancer l'appel météo ajoutait leur temps de transfert à celui d'Open-Meteo.
+    // Deux requêtes Supabase au plus en parallèle — sous la limite de trois.
+    const [, ok] = await Promise.all([
+      ensureMeteoZones(scale),
+      meteo.fetch(scale, { ...params, bbox }),
+    ]);
     if (ok) setMeteoVisible(true);
     return ok;
   }, [meteo, ensureMeteoZones, filtre, mapRef]);
