@@ -312,13 +312,46 @@ Vérifié en conditions réelles et recoupé avec la base : Île-de-France **981
 (inchangé), PACA **391**, La Réunion **82**, les deux régions ensemble **1 372**
 soit exactement la somme, région inexistante **0**.
 
-**9. Mettre bataille, Voronoï et clustering derrière une file d'attente, un calcul à la fois par organisation.**
-`get_voronoi_by_category` : **79 718 ms de moyenne**, 108 555 ms au pire, sur
-6 277 170 blocs disque. Un seul appel monopolise la base une minute. Deux
-utilisateurs qui lancent une bataille en même temps mettent tout le monde à
-terre.
-· Effort : 3-5 j · Gain : supprime le seul mode de panne où **un** utilisateur
-sature la plateforme.
+**9. Mettre bataille, Voronoï et clustering derrière une file d'attente — TOUJOURS VALABLE, mais le Voronoï lui-même a été corrigé le 2026-09-13 (sql/164).**
+
+L'audit concluait « file d'attente » sur la foi de 79 718 ms de moyenne et
+6 277 170 blocs. C'était traiter le symptôme : **la fonction était quadratique**.
+
+Pour CHAQUE cellule, un `CROSS JOIN LATERAL` cherchait le POI le plus proche
+avec `categorie ILIKE` et `ST_Distance(ST_MakePoint(lng, lat), ...)`. Ces deux
+formes interdisent tout index : un **balayage parallèle complet de
+`poi_france` par cellule**. Mesure d'une seule itération :
+
+| forme | plan | blocs | temps |
+|---|---|---:|---:|
+| `ILIKE` + `ST_Distance(ST_MakePoint())` | Parallel Seq Scan | 18 930 | 342,8 ms |
+| `= ANY` + `geom <->` | Index Scan | **25** | **0,33 ms** |
+
+**Mais le correctif décisif est ailleurs, et c'est le plus instructif :**
+`AS MATERIALIZED` sur la CTE des cellules découpées. Depuis PostgreSQL 12 une
+CTE est **inlinée par défaut**, donc `ST_Intersection` était recalculée à chaque
+référence à la cellule — trois fois par cellule, à 8,8 ms pièce contre une
+frontière de **45 781 sommets**. Sans ce seul mot-clé, les deux correctifs
+d'index ne suffisaient pas : la fonction expirait encore sur 95 points.
+
+| catégorie | cellules | avant | après |
+|---|---:|---|---:|
+| cirfa | 95 | expire au-delà de 30 s | **0,7 s** |
+| bmw | 175 | — | **13,3 s** |
+| lycee | 4 653 | 80 à 108 s | **31,1 s** |
+
+Correction vérifiée par l'invariant du diagramme : 95 cellules, 95 POI
+distincts, et **chaque POI tombe dans sa propre cellule**.
+
+**Pourquoi la file d'attente reste demandée.** Le gain est de 43x sur une petite
+catégorie mais de **2,6x seulement** sur les lycées : à 4 653 cellules, le
+goulot n'est plus la boucle mais la découpe elle-même, incompressible à
+géométrie égale. Le levier suivant serait de simplifier le polygone de découpe,
+mais cela change le tracé des côtes à l'écran — arbitrage produit, pas
+optimisation neutre. Tant qu'il n'est pas pris, 31 s d'occupation restent 31 s,
+et la bataille comme le clustering n'ont pas été touchés.
+· Effort restant : 3-5 j pour la file · Gain déjà acquis : le Voronoï ne lit
+plus 12 Go par appel.
 
 **10. Cloisonner le clustering par organisation (13 routes `/api/poi-clusters/*`).**
 `poi_clusters`, `clustering_models` et `clustering_jobs` n'ont **ni
