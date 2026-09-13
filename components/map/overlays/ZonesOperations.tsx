@@ -45,9 +45,14 @@ const OPERATIONS: Record<Operation, {
   min: number;
   aide: string;
 }> = {
-  union:        { libelle: 'Fusionner',    source: 'composite',    endpoint: '/api/custom-geo/source/composite',    min: 2, aide: 'tout ce que couvrent les zones cochées' },
-  intersection: { libelle: 'Intersection', source: 'intersection', endpoint: '/api/custom-geo/source/intersection', min: 2, aide: 'ce que la première a en commun avec les autres' },
-  difference:   { libelle: 'Soustraire',   source: 'difference',   endpoint: '/api/custom-geo/source/difference',   min: 2, aide: 'la première, moins toutes les autres' },
+  union:        { libelle: 'Fusionner',     source: 'composite',    endpoint: '/api/custom-geo/source/composite',    min: 2, aide: 'tout ce que couvrent les zones cochées' },
+  // « Intersection » etait un libelle FAUX au-dela de deux zones, et mesure :
+  // sur trois zones reelles, l'operation rendait 257,94 km2 quand la vraie
+  // intersection des trois en fait 2,83 — 98,9 % de la surface n'avait rien
+  // « en commun ». Le calcul est juste et voulu (A restreint a B ∪ C), c'est le
+  // mot qui mentait. « Restreindre a » le decrit exactement.
+  intersection: { libelle: 'Restreindre à', source: 'intersection', endpoint: '/api/custom-geo/source/intersection', min: 2, aide: 'la première, limitée à ce que couvrent les autres' },
+  difference:   { libelle: 'Soustraire',    source: 'difference',   endpoint: '/api/custom-geo/source/difference',   min: 2, aide: 'la première, moins toutes les autres' },
 };
 
 export interface ZonesOperationsProps {
@@ -102,7 +107,9 @@ export function ZonesOperations({ selection, nomsParId, orgId, onTermine }: Zone
 
       const nom = op === 'difference'
         ? `${nomDe(selection[0])} — moins ${selection.length - 1} zone${selection.length > 2 ? 's' : ''}`
-        : `${cfg.libelle} de ${selection.length} zones — ${nomDe(selection[0])}…`;
+        : op === 'intersection'
+          ? `${nomDe(selection[0])} — restreinte à ${selection.length - 1} zone${selection.length > 2 ? 's' : ''}`
+          : `Fusion de ${selection.length} zones — ${nomDe(selection[0])}…`;
 
       const saveRes = await adminFetch('/api/custom-geo/save', {
         method: 'POST', cache: 'no-store',
@@ -152,10 +159,14 @@ export function ZonesOperations({ selection, nomsParId, orgId, onTermine }: Zone
         {selection.length} zone{selection.length > 1 ? 's' : ''} sélectionnée{selection.length > 1 ? 's' : ''}
       </div>
 
-      {/* La base de la soustraction est nommée, jamais laissée à deviner. */}
+      {/* La base est nommée, jamais laissée à deviner — mais la notion ne vaut
+          que pour « Soustraire » et « Restreindre à ». Fusionner est
+          commutatif, et l'annoncer au-dessus des trois boutons laissait croire
+          le contraire. */}
       {selection.length >= 2 && (
         <div style={{ fontFamily: fInter, fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
-          Base : <span style={{ color: 'var(--text-primary)' }}>{nomDe(selection[0])}</span>
+          Base de <em>Soustraire</em> et <em>Restreindre à</em> :{' '}
+          <span style={{ color: 'var(--text-primary)' }}>{nomDe(selection[0])}</span>
         </div>
       )}
 

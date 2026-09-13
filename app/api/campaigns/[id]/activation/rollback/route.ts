@@ -84,6 +84,20 @@ export async function POST(
   if (lot.statut === 'annule') {
     return NextResponse.json({ error: 'Ce lot est déjà annulé.' }, { status: 409 });
   }
+  // Un lot `en_cours` a une boucle de poussée qui tourne ENCORE : elle
+  // repasserait les cibles en `pousse` puis le lot en `termine` juste après
+  // cette annulation. L'utilisateur verrait sa confirmation, puis le lot
+  // redeviendrait « terminé » au rechargement suivant — une annulation qui
+  // ment est pire qu'une annulation refusée.
+  if (lot.statut === 'en_cours') {
+    return NextResponse.json(
+      {
+        error: 'lot_en_cours',
+        message: 'Cette activation est encore en cours. Attendez qu’elle se termine avant de l’annuler.',
+      },
+      { status: 409 },
+    );
+  }
 
   // supabase-js ne lève pas : une mise à jour qui échoue passerait inaperçue,
   // et le lot resterait « terminé » alors qu'on le croit annulé (CLAUDE.md).

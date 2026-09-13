@@ -30,6 +30,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
+import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,14 +91,14 @@ export async function GET(
       blocages.push('La stratégie n’a jamais été publiée — publiez-la pour figer le périmètre poussé.');
     } else {
       version = derniere.version;
-      const courante: EmpreinteZones = {};
+      // Même empreinte de CONTENU que `/publier` (sql/159) : comparer deux
+      // mesures obtenues autrement rendrait la dérive systématique.
+      let courante: EmpreinteZones = {};
       if (strategie.zone_id) {
-        const { data: zone } = await supabase
-          .from('custom_geo_zones')
-          .select('id, updated_at')
-          .eq('id', strategie.zone_id)
-          .maybeSingle();
-        if (zone?.updated_at) courante[zone.id] = zone.updated_at;
+        const { data: emp } = await supabase.rpc('empreinte_zones', {
+          p_zone_ids: [strategie.zone_id],
+        });
+        courante = rpcJson<EmpreinteZones>(emp) ?? {};
       }
       modifiees = zonesModifiees((derniere.empreinte_zones ?? {}) as EmpreinteZones, courante);
       if (modifiees.length) {

@@ -32,7 +32,8 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { zonesModifiees, type EmpreinteZones } from '@/lib/campaigns/version-strategie';
-import { toJson } from '@/lib/supabase/rpc-json';
+import { fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
+import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
@@ -43,8 +44,17 @@ const IdSchema = z.string().uuid();
 /** Au-delà, ce n'est plus une activation mais un import de masse. */
 const MAX_CIBLES = 50;
 
+/**
+ * Seul canal réellement câblé. Accepter n'importe quelle chaîne enregistrait un
+ * lot étiqueté `tiktok` dans l'historique pendant que le ciblage partait chez
+ * DV360 — l'historique, dont c'est l'unique raison d'être, enregistrait un fait
+ * FAUX. Le registre `dsp_channel_registry` liste d'autres canaux : ils seront
+ * acceptés ici le jour où leur connecteur existe, pas avant.
+ */
+const CANAUX_CABLES = ['dv360'] as const;
+
 const CorpsSchema = z.object({
-  canal: z.string().min(1).max(40),
+  canal: z.enum(CANAUX_CABLES),
   advertiser_id: z.string().regex(/^\d+$/),
   /** Line items visés. Le pré-vol les a listés ; le client confirme lesquels. */
   cibles: z.array(z.object({
@@ -112,11 +122,12 @@ export async function POST(
     );
   }
 
-  const courante: EmpreinteZones = {};
+  let courante: EmpreinteZones = {};
   if (strategie.zone_id) {
-    const { data: zone } = await supabase
-      .from('custom_geo_zones').select('id, updated_at').eq('id', strategie.zone_id).maybeSingle();
-    if (zone?.updated_at) courante[zone.id] = zone.updated_at;
+    const { data: emp } = await supabase.rpc('empreinte_zones', {
+      p_zone_ids: [strategie.zone_id],
+    });
+    courante = rpcJson<EmpreinteZones>(emp) ?? {};
   }
   const modifiees = zonesModifiees((derniere.empreinte_zones ?? {}) as EmpreinteZones, courante);
   if (modifiees.length) {
@@ -157,21 +168,58 @@ export async function POST(
   const origine = new URL(request.url).origin;
   const autorisation = request.headers.get('authorization') ?? '';
 
+  // Partage entre `start()` et `cancel()` : le second signale l'abandon du
+  // client, le premier le lit a chaque tour de boucle.
+  let annule = false;
+
   const flux = new ReadableStream({
     async start(controller) {
       let pousses = 0;
       let echecs = 0;
+      let interrompu = false;
 
-      controller.enqueue(ligne({
+      /**
+       * Écrit dans le flux sans jamais laisser une exception sortir de la
+       * boucle (B5). Si le client ferme son onglet, `enqueue` lève
+       * « Controller is already closed » : sans cette garde, l'exception
+       * remontait hors du `for`, la mise à jour finale du lot n'était JAMAIS
+       * atteinte, et le lot restait `en_cours` pour toujours — alors que huit
+       * poussées étaient bel et bien parties chez DV360.
+       */
+      const emettre = (objet: Record<string, unknown>) => {
+        if (interrompu) return;
+        try { controller.enqueue(ligne(objet)); }
+        catch { interrompu = true; }
+      };
+
+      /**
+       * Toute mise à jour d'état est LUE (B7). supabase-js ne lève pas : un
+       * `update` qui échoue laisserait une cible `en_attente` alors que sa
+       * poussée est partie, et le lot `en_cours` indéfiniment.
+       */
+      const majCible = async (id: string, champs: Record<string, unknown>) => {
+        const { error } = await supabase.from('activation_cibles')
+          .update({ ...champs, maj_le: new Date().toISOString() })
+          .eq('id', id);
+        if (error) console.error('[activation/pousser] maj cible:', id, error.message);
+      };
+
+      emettre({
         etape: 'debut', lot_id: lot.id, canal,
         version_strategie: derniere.version, total: cibles.length,
-      }));
+      });
+
+      try {
 
       for (const [i, cible] of cibles.entries()) {
-        controller.enqueue(ligne({
+        // Le client est parti : on arrête d'appeler DV360 plutôt que de
+        // continuer à pousser dans le vide pendant cinq minutes.
+        if (interrompu || annule) { interrompu = true; break; }
+
+        emettre({
           etape: 'cible', n: i + 1, total: cibles.length,
           line_item_id: cible.line_item_id, statut: 'en_cours',
-        }));
+        });
 
         // La ligne de cible est écrite AVANT l'appel sortant — voir l'en-tête.
         const cibleLigne: TableInsert<'activation_cibles'> = {
@@ -193,72 +241,125 @@ export async function POST(
           .from('activation_cibles').insert(cibleLigne).select('id').single();
         if (erreurCible || !cibleCreee) {
           echecs++;
-          controller.enqueue(ligne({
+          emettre({
             etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
             statut: 'echec', erreur: 'Enregistrement impossible — poussée non tentée.',
-          }));
+          });
           continue;
         }
 
         // ── L'appel sortant : la route DV360 EXISTANTE, telle quelle ────
         try {
-          const res = await fetch(`${origine}/api/admin/dsp/dv360/targeting/push`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', authorization: autorisation },
-            body: JSON.stringify({
-              zone_id: zoneId,
-              advertiser_id,
-              line_item_id: cible.line_item_id,
-            }),
-          });
+          // `fetchAvecDelai` et non `fetch` nu : cet appel en déclenche un
+          // autre vers Google. Sans délai, un DV360 qui pend bloque les 49
+          // cibles suivantes jusqu'au `maxDuration` (ARCHITECTURE.md impose ce
+          // module pour tout appel sortant vers un tiers).
+          const res = await fetchAvecDelai(
+            `${origine}/api/admin/dsp/dv360/targeting/push`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', authorization: autorisation },
+              body: JSON.stringify({
+                zone_id: zoneId,
+                advertiser_id,
+                line_item_id: cible.line_item_id,
+              }),
+            },
+            60_000,
+          );
           const resultat = await res.json().catch(() => ({}));
 
-          if (res.ok) {
+          // ── LE point qui rendait cette tâche inutile ──────────────────
+          // `bulkEditAssignedTargetingOptions` répond **HTTP 200 avec
+          // `failedLineItemIds` non vide** quand DV360 refuse un line item :
+          // la route de push le remonte fidèlement dans
+          // `failed_line_item_ids` et répond quand même `{ ok: true }`.
+          // Ne tester que `res.ok` marquait donc la cible « poussée »,
+          // `echecs = 0`, lot « terminé », historique vert — alors que RIEN
+          // n'était parti. C'est exactement le défaut que cette tâche
+          // prétendait corriger : « un push raté à moitié était
+          // indiscernable d'un push réussi ».
+          const refuse = Array.isArray(resultat.failed_line_item_ids)
+            && resultat.failed_line_item_ids.includes(cible.line_item_id);
+
+          if (res.ok && !refuse) {
             pousses++;
-            await supabase.from('activation_cibles')
-              .update({ statut: 'pousse', maj_le: new Date().toISOString() })
-              .eq('id', cibleCreee.id);
-            controller.enqueue(ligne({
+            await majCible(cibleCreee.id, { statut: 'pousse' });
+            emettre({
               etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
-              statut: 'pousse', n_geo_ids: resultat.assigned ?? resultat.count ?? null,
-            }));
+              // Le champ rendu par la route s'appelle `pushed_geo_ids` — ni
+              // `assigned` ni `count`, qui valaient donc toujours `null`.
+              statut: 'pousse', n_geo_ids: resultat.pushed_geo_ids ?? null,
+              // Un CP sans geo ID Google n'est pas une erreur, mais c'est une
+              // perte de couverture : la taire serait mentir par omission.
+              cp_non_resolus: Array.isArray(resultat.unmapped_postal_codes)
+                ? resultat.unmapped_postal_codes.length : null,
+            });
           } else {
             echecs++;
-            const message = resultat.error ?? `HTTP ${res.status}`;
-            await supabase.from('activation_cibles')
-              .update({ statut: 'echec', erreur: String(message).slice(0, 500), maj_le: new Date().toISOString() })
-              .eq('id', cibleCreee.id);
-            controller.enqueue(ligne({
+            const message = refuse
+              ? 'DV360 a refusé ce line item (réponse 200, line item dans failedLineItemIds).'
+              : (resultat.error ?? `HTTP ${res.status}`);
+            await majCible(cibleCreee.id, { statut: 'echec', erreur: String(message).slice(0, 500) });
+            emettre({
               etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
               statut: 'echec', erreur: message,
-            }));
+            });
           }
         } catch (e) {
           echecs++;
           const message = e instanceof Error ? e.message : String(e);
-          await supabase.from('activation_cibles')
-            .update({ statut: 'echec', erreur: message.slice(0, 500), maj_le: new Date().toISOString() })
-            .eq('id', cibleCreee.id);
-          controller.enqueue(ligne({
+          await majCible(cibleCreee.id, { statut: 'echec', erreur: message.slice(0, 500) });
+          emettre({
             etape: 'cible', n: i + 1, line_item_id: cible.line_item_id,
             statut: 'echec', erreur: message,
-          }));
+          });
         }
       }
 
-      // « partiel » existe comme statut propre : un lot où trois line items sur
-      // vingt ont échoué n'est ni un succès ni un échec, et le ranger dans
-      // l'un des deux ferait perdre l'information qui compte.
-      const statut = echecs === 0 ? 'termine' : pousses === 0 ? 'echec' : 'partiel';
-      await supabase.from('activation_lots')
-        .update({ statut, termine_le: new Date().toISOString() })
-        .eq('id', lot.id);
+      } finally {
+        // ── Le lot est TOUJOURS clos, quoi qu'il arrive (B5) ────────────
+        // Sans ce `finally`, une déconnexion du client au 8e line item sur 20
+        // laissait le lot `en_cours` POUR TOUJOURS — alors que huit poussées
+        // étaient parties chez DV360 — et l'historique affichait indéfiniment
+        // une activation en cours que rien ne pouvait terminer.
+        //
+        // « partiel » existe comme statut propre : un lot où trois line items
+        // sur vingt ont échoué n'est ni un succès ni un échec, et le ranger
+        // dans l'un des deux ferait perdre l'information qui compte.
+        // Un lot interrompu est `partiel` dès qu'une poussée est partie : il
+        // reste des cibles non traitées, ce n'est pas un `termine`.
+        const traitees = pousses + echecs;
+        const statut = interrompu && traitees < cibles.length
+          ? (pousses > 0 ? 'partiel' : 'echec')
+          : echecs === 0 ? 'termine'
+          : pousses === 0 ? 'echec'
+          : 'partiel';
 
-      controller.enqueue(ligne({
-        etape: 'fin', lot_id: lot.id, statut,
-        pousses, echecs, total: cibles.length,
-      }));
-      controller.close();
+        // L'erreur est LUE (B7) : une clôture qui échoue en silence
+        // ramènerait le défaut que ce `finally` vient de fermer.
+        const { error: erreurCloture } = await supabase.from('activation_lots')
+          .update({ statut, termine_le: new Date().toISOString() })
+          .eq('id', lot.id);
+        if (erreurCloture) console.error('[activation/pousser] cloture du lot:', erreurCloture.message);
+
+        emettre({
+          etape: 'fin', lot_id: lot.id, statut,
+          pousses, echecs, total: cibles.length,
+          interrompu, non_traitees: cibles.length - traitees,
+        });
+        try { controller.close(); } catch { /* deja ferme par le client */ }
+      }
+    },
+
+    /**
+     * Le client a fermé son onglet. On le NOTE pour que la boucle s'arrête à
+     * la cible suivante, plutôt que de continuer à appeler DV360 dans le vide
+     * — chaque appel poussé après un abandon est un ciblage parti que
+     * personne n'a demandé.
+     */
+    cancel() {
+      annule = true;
     },
   });
 

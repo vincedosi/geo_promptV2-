@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
+import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { rpcJson } from '@/lib/supabase/rpc-json';
 
@@ -41,6 +42,17 @@ export const maxDuration = 30;
 const RAYON_MAX_M = 100_000;
 /** En deçà, un cercle ne contient aucun code postal entier : la zone serait vide. */
 const RAYON_MIN_M = 100;
+
+/**
+ * Quota, ajoute apres relecture (2026-09-13). Mesure du cout unitaire :
+ * `get_admin_filter_geometry` sur 2 000 codes postaux lit 540 blocs DISQUE
+ * par appel, `zone_dessin` sur un trace de 5 000 sommets prend 1,5 s, et
+ * `zone_rayon` a 100 km 355 ms. Sans plafond, une boucle sur l'une de ces
+ * routes est une porte ouverte sur le budget I/O Nano — la famille exacte
+ * de l'incident du 28/03. Compteur PARTAGE en base (`consommer_quota`,
+ * sql/135), jamais une Map locale qui ne limiterait rien sur Vercel.
+ */
+const limiteur = createRateLimiter({ max: 20, window: '60 s', prefix: 'geo:rl:zone-rayon' });
 
 const CorpsSchema = z.object({
   // Bornes du monde, pas de la France : le clip sur `france_borders` fait le
@@ -60,6 +72,9 @@ interface ResultatRayon {
 export async function POST(request: NextRequest) {
   const profile = await requireAuth(request);
   if (!profile) return authUnauthorized();
+
+  const quota = await limiteur(profile.id);
+  if (!quota.ok) return rateLimitResponse(quota.retrySec);
 
   const corps = await lireCorps(request, CorpsSchema);
   if (!corps.ok) return NextResponse.json({ error: corps.message }, { status: 400 });

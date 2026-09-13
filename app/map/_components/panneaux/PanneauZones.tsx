@@ -57,9 +57,16 @@ const sectionTitleStyle: React.CSSProperties = {
 export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps) {
   const { layerCount } = useCustomGeoCaptureContext();
   const [customGeoModalOpen, setCustomGeoModalOpen] = useState(false);
-  // Remonte « Mes zones » apres une creation : ZonesOverlay recharge sa liste
-  // au montage, une cle qui change suffit donc a la rafraichir sans lui ajouter
-  // de prop ni toucher a ses 550 lignes.
+  // Rafraichit « Mes zones » apres une creation.
+  //
+  // C'etait une `key` — et c'etait un defaut serieux, trouve en relecture. Une
+  // `key` qui change DEMONTE `ZonesOverlay`, dont le nettoyage de demontage
+  // capture le `loadedZones` du PREMIER rendu (deps `[]`) et n'itere donc
+  // jamais rien. Resultat : les couches MapLibre des zones affichees restaient
+  // peintes pendant que l'etat repartait vide — des zones visibles qu'aucun
+  // bouton ne pouvait plus masquer, et un `onLoadedZonesChange([])` qui mentait
+  // a ses consommateurs. Une simple prop relue par `fetchAll` recharge la liste
+  // SANS demonter.
   const [rafraichir, setRafraichir] = useState(0);
   const customGeoDisabled = layerCount === 0;
 
@@ -122,7 +129,7 @@ export function PanneauZones({ mapRef, onLoadedZonesChange }: PanneauZonesProps)
       {/* ── Mes zones ──────────────────────────────────────────────────── */}
       <section style={{ padding: '12px 0 0' }}>
         <h4 style={{ ...sectionTitleStyle, padding: '0 16px' }}>Mes zones</h4>
-        <ZonesOverlay key={rafraichir} mapRef={mapRef} onLoadedZonesChange={onLoadedZonesChange} />
+        <ZonesOverlay rafraichirCle={rafraichir} mapRef={mapRef} onLoadedZonesChange={onLoadedZonesChange} />
       </section>
 
     </div>

@@ -32,7 +32,13 @@ const SOURCE_APERCU = 'apercu-rayon';
 const FILL_APERCU = 'apercu-rayon-fill';
 const LINE_APERCU = 'apercu-rayon-line';
 
-/** Mêmes bornes que la route — annoncées ici pour ne pas offrir l'impossible. */
+/**
+ * Bornes du CURSEUR. Le maximum est celui de la route (100 km) ; le minimum est
+ * volontairement PLUS HAUT que le sien (500 m contre 100 m) — sous 500 m, un
+ * cercle ne contient presque jamais un code postal entier et la zone créée
+ * serait vide. Le commentaire disait « mêmes bornes que la route » : c'était
+ * faux, et un lecteur pressé en aurait conclu que la route refuse 200 m.
+ */
 const RAYON_MIN_M = 500;
 const RAYON_MAX_M = 100_000;
 

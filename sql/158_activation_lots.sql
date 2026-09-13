@@ -37,6 +37,14 @@
 -- ── Le statut « partiel » existe à part ───────────────────────────────────
 -- Un lot où trois line items sur vingt ont échoué n'est ni un succès ni un
 -- échec. Le ranger dans l'un des deux ferait perdre l'information qui compte.
+--
+-- ⚠ **Ce statut ne valait rien tant qu'un défaut n'était pas corrigé**, trouvé
+-- en relecture et corrigé le même jour : `bulkEditAssignedTargetingOptions`
+-- répond **HTTP 200 avec `failedLineItemIds` non vide** quand DV360 refuse un
+-- line item, et la route de push le remonte fidèlement tout en répondant
+-- `{ ok: true }`. La boucle de poussée ne testant que `res.ok`, un lot où DV360
+-- avait TOUT refusé s'enregistrait « terminé, 20 poussés », historique vert —
+-- c'est-à-dire exactement le défaut que ces tables prétendaient supprimer.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.activation_lots (

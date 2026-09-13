@@ -98,7 +98,13 @@ export function decrireComposition(
     return `${noms[0]} moins ${enumerer(noms.slice(1))}`;
   }
   if (operation === 'intersection' && noms.length >= 2) {
-    return `${enumerer(noms)} en commun`;
+    // « A, B et C en commun » etait FAUX des trois zones : l'operation rend
+    // A ∩ (B ∪ C), pas A ∩ B ∩ C. Mesure sur des zones reelles : 257,94 km2
+    // contre 2,83 pour la vraie intersection des trois. « Restreint a » decrit
+    // exactement ce qui est calcule.
+    return noms.length === 2
+      ? `${noms[0]} et ${noms[1]} en commun`
+      : `${noms[0]} restreint à ${enumerer(noms.slice(1))}`;
   }
 
   // ── Union / composite ──────────────────────────────────────────────────

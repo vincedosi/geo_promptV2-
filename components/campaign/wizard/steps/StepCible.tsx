@@ -235,10 +235,13 @@ export function StepCible({
           </div>
         ) : (
           /* Tache 21 : liste VERTICALE et ordonnee, plus des puces en ligne.
-             L'ordre n'est pas decoratif — c'est lui qui decide quelle zone
-             l'emporte quand deux se recouvrent, donc quel multiplicateur
-             d'enchere s'applique a un code postal partage. Des puces qui
-             passent a la ligne ne montrent aucun ordre.
+             Des puces qui passent a la ligne ne montrent aucun ordre, alors que
+             le tableau sous-jacent en porte un.
+             ⚠ L'ordre n'a AUCUN effet sur le ciblage aujourd'hui (voir la note
+             sous la liste) : la fusion des cibles multiples est une union
+             commutative. Il est conserve parce qu'il est le socle de la
+             priorite le jour ou elle sera implementee, et parce qu'il aide a
+             relire son panier.
              Le panier `draft.cibles` etant deja un tableau ordonne, le
              reordonner EST la persistance : le brouillon part tel quel dans
              `geo_strategy` au lancement.
@@ -293,8 +296,22 @@ export function StepCible({
               </div>
             ))}
             {draft.cibles.length > 1 && (
+              /* CORRIGE le 2026-09-13 apres relecture. Cette ligne affirmait :
+                 « L'ordre decide de la priorite : la premiere zone l'emporte la
+                 ou deux se recouvrent. » C'etait FAUX. `resolveFinalZone`
+                 (lib/campaigns/resolve-zone.ts) fusionne les cibles multiples
+                 par `/source/composite`, c'est-a-dire une UNION — qui est
+                 commutative — puis applique UNE courbe d'enchere unique a toute
+                 la zone. Reordonner ne changeait donc rien au ciblage pousse au
+                 DSP, et un media planner qui reordonnait croyait avoir modifie
+                 ses multiplicateurs sur les CP partages.
+                 La priorite reste a implementer (soustraction en cascade a la
+                 fusion, ou multiplicateurs resolus zone par zone). D'ici la,
+                 l'ordre est un confort de lecture, et on le dit. */
               <div style={{ fontFamily: "'Inter', system-ui, sans-serif", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                L’ordre décide de la priorité : la première zone l’emporte là où deux se recouvrent.
+                Ordre de lecture. Les zones multiples sont <strong>fusionnées</strong> au lancement :
+                là où deux se recouvrent, la même enchère s’applique — l’ordre ne les départage
+                pas encore.
               </div>
             )}
           </div>

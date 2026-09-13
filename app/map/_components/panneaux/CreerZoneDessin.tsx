@@ -46,6 +46,9 @@ export function CreerZoneDessin({ mapRef, onCree }: CreerZoneDessinProps) {
 
   const [ouvert, setOuvert] = useState(false);
   const [trace, setTrace] = useState<GeoJSON.Polygon | null>(null);
+  // Incrémentée après une création : efface le tracé de la carte et désactive
+  // le bouton. Sans cela, deux clics créaient deux zones identiques.
+  const [effacerCle, setEffacerCle] = useState(0);
   const [nom, setNom] = useState('');
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -95,6 +98,8 @@ export function CreerZoneDessin({ mapRef, onCree }: CreerZoneDessinProps) {
         + (remarques.length ? ` · ${remarques.join(' · ')}` : ''),
       );
       setNom('');
+      setTrace(null);
+      setEffacerCle((n) => n + 1);
       onCree?.();
     } catch (e) {
       setErreur(e instanceof Error ? e.message : String(e));
@@ -125,6 +130,7 @@ export function CreerZoneDessin({ mapRef, onCree }: CreerZoneDessinProps) {
             mapRef={mapRef}
             onTrace={setTrace}
             onFermer={() => setOuvert(false)}
+            effacerCle={effacerCle}
           />
 
           <input

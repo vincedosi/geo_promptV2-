@@ -25,6 +25,17 @@ interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
   /** Notifie le parent des zones actuellement affichées sur la carte (plan média). */
   onLoadedZonesChange?: (zones: Array<{ id: string; name: string }>) => void;
+  /**
+   * Incrémentée par le parent après une création de zone : recharge la liste
+   * SANS démonter ce composant.
+   *
+   * Une `key` aurait été plus courte, et c'est ce qui avait été fait — à tort.
+   * Démonter ce composant laisse les couches MapLibre des zones affichées
+   * peintes sur la carte (le nettoyage de démontage capture le `loadedZones`
+   * du premier rendu, voir plus bas) : des zones visibles qu'aucun bouton ne
+   * peut plus masquer.
+   */
+  rafraichirCle?: number;
 }
 
 interface ZonesStats {
@@ -75,7 +86,7 @@ const lineIdOf   = (zoneId: string) => `custom-zone-line-${zoneId}`;
 
 // ─── Composant principal ──────────────────────────────────────────────────
 
-export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
+export function ZonesOverlay({ mapRef, onLoadedZonesChange, rafraichirCle = 0 }: Props) {
   const { session, isLoading: sessionLoading } = useSession();
   const orgId = session?.user?.organizationId ?? '';
 
@@ -145,7 +156,16 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
       ]);
       if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
       const listData = await listRes.json();
-      setZones(listData.zones ?? []);
+      const listeZones = listData.zones ?? [];
+      setZones(listeZones);
+      // A6g : une zone supprimee (ici ou ailleurs) doit sortir de la selection,
+      // sinon l'operation booleenne suivante part avec son uuid et repond 404
+      // sans que l'utilisateur comprenne laquelle est en cause.
+      const existants = new Set(listeZones.map((z: { id: string }) => z.id));
+      setSelection((prev) => {
+        const filtree = prev.filter((id) => existants.has(id));
+        return filtree.length === prev.length ? prev : filtree;
+      });
       if (statsRes.ok) {
         const s = await statsRes.json();
         setStats({
@@ -161,11 +181,16 @@ export function ZonesOverlay({ mapRef, onLoadedZonesChange }: Props) {
     }
   }, [orgId, sourceTypeFilter, searchQuery]);
 
-  // Initial fetch + debounce sur recherche
+  // Initial fetch + debounce sur recherche.
+  //
+  // `rafraichirCle` est un DECLENCHEUR, pas une donnee lue : sa place est ici
+  // et non dans les deps de `fetchAll`, qui ne s'en sert pas — ESLint le
+  // signalait a juste titre comme dependance inutile.
   useEffect(() => {
     const t = setTimeout(fetchAll, searchQuery ? 200 : 0);
     return () => clearTimeout(t);
-  }, [fetchAll, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchAll, searchQuery, rafraichirCle]);
 
   // ── Source types disponibles (pour le filtre dropdown) ────────────────
   const availableSourceTypes = useMemo(() => {

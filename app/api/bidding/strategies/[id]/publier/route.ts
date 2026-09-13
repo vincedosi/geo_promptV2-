@@ -11,9 +11,16 @@
  * façons de les modifier — la campagne en vol diffuse sur un périmètre qui
  * n'est plus celui qu'affiche la carte. **Rien ne le signalait.**
  *
- * D'où l'empreinte `{ zone_id: updated_at }` prise à la publication. Le GET la
- * compare à l'état courant et rend les zones qui ont bougé ; la comparaison
- * elle-même vit dans `lib/campaigns/version-strategie.ts`, testée sans base.
+ * D'où l'empreinte de CONTENU prise à la publication : `{ zone_id: hachage }`,
+ * où le hachage porte sur la géométrie ET sur les comptes de CP/IRIS résolus
+ * (`empreinte_zones`, sql/159). Le GET la compare à l'état courant et rend les
+ * zones qui ont bougé ; la comparaison vit dans
+ * `lib/campaigns/version-strategie.ts`, testée sans base.
+ *
+ * **Ce n'était PAS `updated_at`, et le corriger a compté** : renommer une zone
+ * — seul UPDATE que `PATCH /api/custom-geo/[id]` autorise — bougeait la date et
+ * bloquait l'activation pour un geste purement cosmétique, tandis que la vraie
+ * dérive (une géométrie qui change) n'était atteignable par aucun chemin.
  *
  * ── Ce que cette route ne fait PAS ────────────────────────────────────────
  * Elle ne pousse rien vers un DSP et ne modifie pas la stratégie. Publier, ici,
@@ -63,22 +70,35 @@ async function chargerContexte(
   // Le cloisonnement passe par la CAMPAGNE : une stratégie n'a pas d'org_id
   // propre. 404 et jamais 403 — contrat de `lib/campaigns/access.ts`, pour ne
   // pas divulguer l'existence d'une stratégie à une autre organisation.
-  if (strategie.campaign_id) {
-    const acces = await checkCampaignAccess(supabase, profile, strategie.campaign_id);
-    if (acces !== 'ok') return { erreur: 'introuvable' as const };
-  }
+  //
+  // Écrit de façon à échouer FERMÉ. La forme précédente était
+  // `if (strategie.campaign_id) { …contrôle… }` : `campaign_id` est `NOT NULL`
+  // en base aujourd'hui, donc le garde était toujours pris et il n'y avait pas
+  // d'IDOR — mais le jour où la colonne deviendrait nullable, la route
+  // serait devenue publique EN SILENCE. Une stratégie sans campagne n'est
+  // rattachable à aucune organisation : elle est donc introuvable, point.
+  if (!strategie.campaign_id) return { erreur: 'introuvable' as const };
+  const acces = await checkCampaignAccess(supabase, profile, strategie.campaign_id);
+  if (acces !== 'ok') return { erreur: 'introuvable' as const };
 
-  const empreinte: EmpreinteZones = {};
+  // L'empreinte porte sur le CONTENU de la zone (hachage de la géométrie plus
+  // les comptes de CP/IRIS résolus), pas sur son `updated_at` — corrigé après
+  // relecture. `updated_at` produisait deux défauts opposés : un simple
+  // RENOMMAGE, seul UPDATE que `PATCH /api/custom-geo/[id]` autorise, bougeait
+  // la date et bloquait l'activation ; et comme aucun chemin applicatif ne
+  // modifie la géométrie d'une zone existante, la dérive que cette
+  // fonctionnalité prétend détecter n'était atteignable par rien.
+  //
+  // Une zone SUPPRIMÉE depuis la publication n'apparaît pas dans le résultat :
+  // `zonesModifiees` la signalera comme retirée, ce qui est le bon message —
+  // la stratégie cible un périmètre qui n'existe plus.
+  let empreinte: EmpreinteZones = {};
   if (strategie.zone_id) {
-    const { data: zone } = await supabase
-      .from('custom_geo_zones')
-      .select('id, updated_at')
-      .eq('id', strategie.zone_id)
-      .maybeSingle();
-    // Une zone SUPPRIMÉE depuis la publication n'apparaît pas dans l'empreinte
-    // courante : `zonesModifiees` la signalera comme retirée, ce qui est le
-    // bon message — la stratégie cible un périmètre qui n'existe plus.
-    if (zone?.updated_at) empreinte[zone.id] = zone.updated_at;
+    const { data, error: erreurEmpreinte } = await supabase.rpc('empreinte_zones', {
+      p_zone_ids: [strategie.zone_id],
+    });
+    if (erreurEmpreinte) return { erreur: 'db' as const, message: erreurEmpreinte.message };
+    empreinte = (rpcJson<EmpreinteZones>(data) ?? {});
   }
 
   return { strategie, empreinte };
@@ -169,9 +189,15 @@ export async function POST(
     return NextResponse.json({ error: 'Stratégie introuvable.' }, { status: 404 });
   }
 
-  // Le numéro de version est attribué EN BASE, dans la même instruction que
-  // l'insertion : le calculer ici (max + 1) ouvrirait une course entre deux
-  // publications simultanées.
+  // Le numéro de version est attribué EN BASE, sous `pg_advisory_xact_lock`
+  // (sql/159). La première version de ce commentaire affirmait que l'attribuer
+  // « dans la même instruction que l'insertion » suffisait à éviter la course —
+  // c'était faux : un `INSERT … SELECT max(version)+1` sans verrou est
+  // exactement aussi exposé qu'un `SELECT max` suivi d'un `INSERT`.
+  //
+  // La RPC est aussi IDEMPOTENTE : republier sans rien avoir changé rend la
+  // version existante (`deja_publiee: true`) au lieu d'en créer une jumelle,
+  // qui viderait de son sens le numéro affiché par le pré-vol.
   const { data, error } = await supabase.rpc('publier_strategie', {
     p_strategie_id: id,
     p_publiee_par: profile.id,

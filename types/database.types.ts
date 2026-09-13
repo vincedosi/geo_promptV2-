@@ -5511,6 +5511,7 @@ export type Database = {
           type_iris: string
         }[]
       }
+      empreinte_zones: { Args: { p_zone_ids: string[] }; Returns: Json }
       etat_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       fill_carreaux_1km_bande: {
         Args: { p_x0: number; p_x1: number }

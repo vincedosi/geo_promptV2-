@@ -91,6 +91,12 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
   const [enPoussee, setEnPoussee] = useState(false);
   const [messageAnnulation, setMessageAnnulation] = useState<string | null>(null);
   const [lotAAnnuler, setLotAAnnuler] = useState<string | null>(null);
+  const [publication, setPublication] = useState(false);
+  // Saisis par l'utilisateur : la route DV360 exige un annonceur et des line
+  // items. Le pré-vol ne peut pas les deviner — la cascade de liaison DV360
+  // vit dans l'étape Canaux du wizard, pas ici.
+  const [advertiserId, setAdvertiserId] = useState('');
+  const [lineItems, setLineItems] = useState('');
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -113,6 +119,99 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
   }, [campaignId]);
 
   useEffect(() => { void charger(); }, [charger]);
+
+  /**
+   * Publie la stratégie — B1, trouvé en relecture.
+   *
+   * Sans ce bouton, `/publier` n'avait **aucun appelant** dans tout le dépôt :
+   * `strategie_versions` restait donc vide pour toute stratégie, le pré-vol
+   * empilait éternellement le blocage « la stratégie n'a jamais été publiée »,
+   * `activable` était TOUJOURS faux, et l'onglet Activation ne pouvait rien
+   * faire pour aucune campagne. Sa place est ici, à côté du blocage qu'il lève.
+   */
+  const publier = async () => {
+    if (publication || !prevol?.strategie) return;
+    setPublication(true);
+    setErreur(null);
+    try {
+      const res = await adminFetch(`/api/bidding/strategies/${prevol.strategie.id}/publier`, {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPublication(false);
+    }
+  };
+
+  /**
+   * Lance la poussée et consomme son flux NDJSON — B2, trouvé en relecture.
+   *
+   * `setFlux` et `setEnPoussee` étaient déclarés et **jamais appelés** : le
+   * bloc « Flux de poussée » était du code mort, et les 271 lignes de
+   * `/activation/pousser` — la route la plus risquée du lot, appels sortants
+   * en boucle — n'étaient joignables que par un `curl` fabriqué à la main.
+   *
+   * Le flux est lu ligne à ligne plutôt qu'attendu en bloc : c'est tout
+   * l'intérêt du NDJSON, et la règle CLAUDE.md sur les traitements silencieux.
+   */
+  const pousser = async () => {
+    if (enPoussee || !prevol?.activable || !advertiserId.trim() || !lineItems.trim()) return;
+
+    const cibles = lineItems
+      .split(/[\s,;]+/)
+      .map((v) => v.trim())
+      .filter((v) => /^\d+$/.test(v))
+      .map((line_item_id) => ({ line_item_id }));
+
+    if (!cibles.length) {
+      setErreur('Aucun identifiant de line item valide (chiffres uniquement).');
+      return;
+    }
+
+    setEnPoussee(true);
+    setErreur(null);
+    setFlux([]);
+    try {
+      const res = await adminFetch(`/api/campaigns/${campaignId}/activation/pousser`, {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canal: 'dv360', advertiser_id: advertiserId.trim(), cibles }),
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? data.error ?? `Erreur ${res.status}`);
+      }
+
+      const lecteur = res.body.getReader();
+      const decodeur = new TextDecoder();
+      let reste = '';
+      for (;;) {
+        const { done, value } = await lecteur.read();
+        if (done) break;
+        reste += decodeur.decode(value, { stream: true });
+        const lignes = reste.split('\n');
+        // La dernière peut être incomplète : elle repart au tour suivant.
+        reste = lignes.pop() ?? '';
+        for (const l of lignes) {
+          if (!l.trim()) continue;
+          try { setFlux((prev) => [...prev, JSON.parse(l) as LigneFlux]); }
+          catch { /* ligne tronquee : ignoree */ }
+        }
+      }
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEnPoussee(false);
+    }
+  };
 
   const annuler = async (lotId: string) => {
     setMessageAnnulation(null);
@@ -187,16 +286,79 @@ export function ActivationPanel({ campaignId }: ActivationPanelProps) {
               color: 'var(--warning)', fontSize: 11, lineHeight: 1.6,
             }}>
               {prevol.blocages.map((b) => <div key={b}>· {b}</div>)}
+
+              {/* Le bouton qui lève le blocage est À CÔTÉ du blocage : c'est
+                  le seul endroit où l'utilisateur le cherchera. */}
+              {prevol.strategie && (prevol.version_publiee === null || prevol.zones_modifiees.length > 0) && (
+                <button
+                  onClick={publier}
+                  disabled={publication}
+                  style={{
+                    marginTop: 10, background: 'transparent',
+                    border: '0.5px solid var(--brand-teal)', color: 'var(--brand-teal)',
+                    borderRadius: 6, padding: '6px 14px', fontFamily: fInter,
+                    fontSize: 11, fontWeight: 500,
+                    cursor: publication ? 'not-allowed' : 'pointer', opacity: publication ? 0.4 : 1,
+                  }}
+                >
+                  {publication
+                    ? 'Publication…'
+                    : prevol.version_publiee === null
+                      ? 'Publier la stratégie'
+                      : `Republier (v${prevol.version_publiee} → v${prevol.version_publiee + 1})`}
+                </button>
+              )}
             </div>
           )}
 
           {prevol.activable && (
-            <div style={{
-              marginTop: 12, padding: '9px 11px', borderRadius: 6,
-              background: 'rgba(61,255,160,0.08)', border: '0.5px solid rgba(61,255,160,0.2)',
-              color: 'var(--success)', fontSize: 11,
-            }}>
-              Prêt à activer. La poussée se fait depuis l’écran de connexion du canal.
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{
+                padding: '9px 11px', borderRadius: 6,
+                background: 'rgba(61,255,160,0.08)', border: '0.5px solid rgba(61,255,160,0.2)',
+                color: 'var(--success)', fontSize: 11,
+              }}>
+                Prêt à activer — v{prevol.version_publiee} sur {formaterNombre(prevol.n_codes_postaux)} codes postaux.
+              </div>
+
+              <input
+                type="text" value={advertiserId}
+                onChange={(e) => setAdvertiserId(e.target.value)}
+                placeholder="Identifiant annonceur DV360"
+                style={{
+                  background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 6, padding: '7px 10px', fontFamily: fMono, fontSize: 11,
+                  color: 'var(--text-primary)',
+                }}
+              />
+              <textarea
+                value={lineItems} rows={2}
+                onChange={(e) => setLineItems(e.target.value)}
+                placeholder="Identifiants de line items, séparés par des virgules ou des retours à la ligne"
+                style={{
+                  background: 'var(--bg-level-2)', border: '0.5px solid var(--border-subtle)',
+                  borderRadius: 6, padding: '7px 10px', fontFamily: fMono, fontSize: 11,
+                  color: 'var(--text-primary)', resize: 'vertical',
+                }}
+              />
+              <button
+                onClick={pousser}
+                disabled={enPoussee || !advertiserId.trim() || !lineItems.trim()}
+                style={{
+                  background: 'transparent', border: '0.5px solid var(--brand-teal)',
+                  color: 'var(--brand-teal)', borderRadius: 6, padding: '7px 14px',
+                  fontFamily: fInter, fontSize: 12, fontWeight: 500,
+                  cursor: enPoussee || !advertiserId.trim() || !lineItems.trim() ? 'not-allowed' : 'pointer',
+                  opacity: enPoussee || !advertiserId.trim() || !lineItems.trim() ? 0.4 : 1,
+                }}
+              >
+                {enPoussee ? 'Poussée en cours…' : 'Pousser le ciblage vers DV360'}
+              </button>
+              {/* Le geste est SORTANT et additif : le dire avant, pas après. */}
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                La poussée ajoute le ciblage aux line items ; elle n’efface rien de ce qui s’y
+                trouve déjà, et ne peut pas être défaite depuis MAGELIAN.
+              </div>
             </div>
           )}
         </section>

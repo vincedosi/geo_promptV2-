@@ -23,11 +23,19 @@
 --    l'état courant de `bidding_strategies` — c'est-à-dire de ce qui a pu
 --    changer depuis, ce qui vide l'exercice de son sens.
 --
--- 2. Le NUMÉRO DE VERSION est attribué en base, dans la même instruction que
---    l'insertion. Le calculer côté applicatif (`SELECT max(version)` puis
---    `INSERT version + 1`) ouvrirait une course entre deux publications
---    simultanées : la contrainte `UNIQUE` les ferait échouer, mais avec un
---    message illisible plutôt qu'un numéro correct.
+-- 2. Le NUMÉRO DE VERSION est attribué en base — mais ⚠ **la justification
+--    écrite ici au départ était FAUSSE**, et une relecture l'a démontrée : un
+--    `INSERT … SELECT max(version)+1` sans verrou est EXACTEMENT aussi exposé
+--    à la course qu'un `SELECT max` suivi d'un `INSERT`. En READ COMMITTED,
+--    deux transactions concurrentes lisent le même `max` et l'une viole la
+--    contrainte `UNIQUE` avec un message illisible.
+--    Corrigé en **sql/159** : `pg_advisory_xact_lock` sur l'identifiant de
+--    stratégie, plus l'idempotence (republier à empreinte et charge utile
+--    identiques rend la version existante au lieu d'en créer une jumelle).
+--
+-- 3. L'EMPREINTE portait sur `updated_at` — voir **sql/159**, qui la remplace
+--    par un hachage du CONTENU : renommer une zone bloquait l'activation, et
+--    la vraie dérive n'était atteignable par aucun chemin du code.
 --
 -- `ON DELETE CASCADE` : l'historique d'une stratégie supprimée n'a plus
 -- d'objet, et le garder laisserait des lignes orphelines qu'aucun code ne
