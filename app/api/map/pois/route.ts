@@ -36,7 +36,7 @@ const poisPostSchema = z.object({
 // AVANT la fusion, notamment la distinction entre `null` (aucun filtre) et `[]`
 // (organisation sans source, donc aucun accès).
 import { getOrgSourceIds } from '@/lib/auth/getOrgSourceIds';
-import { getRegionNameMap } from '@/lib/geo/region-lookup-server';
+import { getRegionNameMap, ecrituresDeLaRegion } from '@/lib/geo/region-lookup-server';
 import { getDeptNameMap, ecrituresDuDepartement } from '@/lib/geo/dept-lookup-server';
 
 // Codes départements DROM (exclus en mode France métro)
@@ -79,10 +79,6 @@ export async function POST(req: NextRequest) {
         pois: [], nb_pois: 0, categories: {},
       } satisfies ZoneData);
     }
-
-    // ── Normalisation pour filtre région JS ─────────────────────────────────
-    const normStr = (s: string) =>
-      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
     // ── helper: pagination avec retry schema cache ──────────────────────────
     interface PoiPageRow {
@@ -204,23 +200,55 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 2. Par région(s) — JS filter (ilike Postgres ne normalise pas les accents)
+      // 2. Par région(s) — filtre SQL sur les écritures connues
+      //
+      // Avant le 2026-09-13, cette branche ne posait AUCUN prédicat
+      // géographique : elle tirait les 10 000 premiers POI par `id`, puis
+      // filtrait en JavaScript sur le nom de région normalisé. Deux défauts.
+      //   - Le coût : 10 allers-retours et 10 000 lignes transférées pour en
+      //     rendre 1 015 en Île-de-France. Le filtre SQL équivalent lit
+      //     239 blocs en 1,4 ms via `idx_poi_france_region` (mesuré).
+      //   - La justesse : au-delà de 10 000 POI d'une catégorie, le plafond
+      //     tronquait SILENCIEUSEMENT la région. Latent aujourd'hui — seuls les
+      //     arrêts de transport dépassent ce seuil, et ils ne passent pas ici.
+      //
+      // La normalisation JS existait pour une vraie raison : l'Île-de-France
+      // est stockée sous DEUX orthographes (`Ile-de-France` sur 981 POI,
+      // `Île-de-France` sur 34). `ecrituresDeLaRegion` génère les variantes en
+      // amont, ce qui garde l'insensibilité aux accents SANS renoncer à l'index.
       if (regions?.length > 0) {
-        // Map code_region INSEE → nom_region depuis ref_regions (cache module)
         const regionNames = await getRegionNameMap(supabase);
-        const regionNorms = regions.map((code: string) => normStr(regionNames.get(code) ?? code));
-        // Détection "DROM sélectionné" : au moins une des régions est un DOM
+        const ecritures = [...new Set(
+          regions.flatMap((code: string) => ecrituresDeLaRegion(code, regionNames)),
+        )];
+        // Détection "DROM sélectionné" : au moins une des régions est un DOM.
+        // Repli conservé à l'identique — certains POI portent le département
+        // mais pas la région.
         const hasDrom = regions.some((code: string) => DROM_REGION_CODES.has(code));
-        const regionFilter = (p: { departement?: unknown; region?: unknown }) => {
-          if (hasDrom && DROM_CODES.includes(String(p.departement))) return true;
-          const pNorm = normStr(typeof p.region === 'string' ? p.region : '');
-          if (!pNorm) return false; // pas de région renseignée → n'appartient à aucune région
-          return regionNorms.some(rn => pNorm.includes(rn) || rn.includes(pNorm));
-        };
-        await fetchAllPages((from, to) => {
-          let q = supabase.from('poi_france').select(SELECT_COLS).order('id').range(from, to);
-          return applyFilters(q);
-        }, 10000, regionFilter);
+
+        if (ecritures.length > 0) {
+          await fetchAllPages((from, to) => {
+            let q = supabase.from('poi_france').select(SELECT_COLS)
+              .in('region', ecritures)
+              .order('id')
+              .range(from, to);
+            return applyFilters(q);
+          });
+        }
+        if (hasDrom) {
+          // Requête SÉPARÉE plutôt qu'un `or()` : les noms de région portent
+          // apostrophes et traits d'union (`Provence-Alpes-Côte d'Azur`), que
+          // la syntaxe `or()` de PostgREST demanderait d'échapper. Les deux
+          // jeux se fondent de toute façon dans `poisMap`, qui dédoublonne
+          // par `id`.
+          await fetchAllPages((from, to) => {
+            let q = supabase.from('poi_france').select(SELECT_COLS)
+              .in('departement', DROM_CODES)
+              .order('id')
+              .range(from, to);
+            return applyFilters(q);
+          });
+        }
         continue;
       }
 

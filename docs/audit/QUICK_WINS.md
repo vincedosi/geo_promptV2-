@@ -283,11 +283,34 @@ L'index nécessaire **existe déjà** : `idx_poi_france_geom_cat` (GiST partiel,
 `WHERE categorie IS NOT NULL`), aujourd'hui à zéro parcours. Rien à créer.
 · Effort : 1-2 j · Gain : deuxième poste de lecture disque du projet (77 Go).
 
-**8. Remonter le filtre « par région » de `/api/map/pois` dans SQL, au lieu de tirer 10 000 lignes et de filtrer en JavaScript.**
-Le chemin région ne pose **aucun** prédicat géographique : dix pages de 1 000
-lignes en `ORDER BY id`, puis un filtre JS sur le nom de région normalisé.
-· Effort : 1 j · Gain : −2,5 Mo de JSON par type de POI, et neuf allers-retours
-base en moins.
+**8. ~~Remonter le filtre « par région » dans SQL~~ — FAIT le 2026-09-13.**
+
+Le chemin région ne posait **aucun** prédicat géographique : dix pages de 1 000
+lignes en `ORDER BY id`, puis un filtre JavaScript sur le nom normalisé.
+
+**La normalisation JS avait une vraie raison**, qu'il fallait comprendre avant
+de la supprimer : l'Île-de-France est stockée sous **deux orthographes** —
+`Ile-de-France` sur 981 POI et `Île-de-France` sur 34. Un `eq` naïf en aurait
+perdu une. `ecrituresDeLaRegion` génère donc les variantes en amont, ce qui
+garde l'insensibilité aux accents **sans renoncer à l'index**.
+
+Mesure du prédicat SQL : `Index Scan using idx_poi_france_region`, **239 blocs,
+1,4 ms** pour les 1 015 POI d'Île-de-France, contre 10 000 lignes transférées
+auparavant.
+
+**Ce n'était pas qu'un coût.** Au-delà de 10 000 POI dans une catégorie, le
+plafond de pagination tronquait la région **en silence**. Latent aujourd'hui —
+seuls les arrêts de transport dépassent ce seuil et ils ne passent pas par cette
+route — mais c'était un résultat faux qui attendait son volume.
+
+Le repli DROM est conservé à l'identique, en requête séparée plutôt qu'en `or()`
+— les noms de région portent apostrophes et traits d'union
+(`Provence-Alpes-Côte d'Azur`), que la syntaxe `or()` de PostgREST demanderait
+d'échapper ; les deux jeux se fondent dans la table de dédoublonnage par `id`.
+
+Vérifié en conditions réelles et recoupé avec la base : Île-de-France **981**
+(inchangé), PACA **391**, La Réunion **82**, les deux régions ensemble **1 372**
+soit exactement la somme, région inexistante **0**.
 
 **9. Mettre bataille, Voronoï et clustering derrière une file d'attente, un calcul à la fois par organisation.**
 `get_voronoi_by_category` : **79 718 ms de moyenne**, 108 555 ms au pire, sur
