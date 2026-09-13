@@ -19,6 +19,7 @@ import { downloadZoneExport } from '@/lib/custom-geo/download-export';
 import { ZoneDeleteDialog } from '@/app/map/custom-geo/_components/ZoneDeleteDialog';
 import type { CustomGeoZoneSummary } from '@/types/custom-geo';
 import { ZonesOperations } from './ZonesOperations';
+import { decrireComposition } from '@/lib/custom-geo/composition';
 
 interface Props {
   mapRef: React.MutableRefObject<MaplibreMap | null>;
@@ -469,6 +470,16 @@ function ZoneCard({
         <span style={{ color: 'var(--text-tertiary)', fontFamily: fMono }}>
           {zone.feature_count_iris} IRIS · {zone.feature_count_cp} CP
         </span>
+      </div>
+
+      {/* De quoi la zone est FAITE (Tache 15) — derive de source_metadata,
+          jamais stocke, aucune requete : `source_metadata` est deja dans la
+          reponse de /api/custom-geo/list. « Cible composite (2 zones) » ne
+          disait pas si la zone venait d'un seuil de revenu, d'une bataille
+          isochrone ou d'une soustraction — or c'est cette zone qui part au
+          DSP. */}
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5, fontFamily: fInter }}>
+        {decrireComposition(zone.source_type, zone.source_metadata)}
       </div>
 
       {/* Dept + Region */}
