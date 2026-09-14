@@ -246,7 +246,12 @@ export function sessionVersUrl(s: CampagneSession): URLSearchParams {
   if (s.campaignId) p.set('campagne', s.campaignId)
   if (s.vue !== SESSION_DEFAUT.vue) p.set('vue', s.vue)
   if (s.onglet !== SESSION_DEFAUT.onglet) p.set('onglet', s.onglet)
-  if (s.maille !== SESSION_DEFAUT.maille) p.set('maille', s.maille)
+  // `maille` est émise dès qu'un `parent` l'accompagne, MÊME si c'est la
+  // valeur par défaut : un parent doit toujours voyager avec son niveau.
+  // Sans cette exception, un fil d'Ariane posé à la maille par défaut se
+  // sérialise en `parent=11` sans maille, et la relecture le jette — le
+  // lien partagé perd silencieusement la position de l'utilisateur.
+  if (s.maille !== SESSION_DEFAUT.maille || s.parent) p.set('maille', s.maille)
   if (s.parent) p.set('parent', s.parent)
   if (s.uniteSelectionnee) p.set('unite', s.uniteSelectionnee)
   if (s.tri !== SESSION_DEFAUT.tri) p.set('tri', s.tri)
