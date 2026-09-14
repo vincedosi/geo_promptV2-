@@ -5221,6 +5221,10 @@ export type Database = {
       }
       archive_and_purge_radio: { Args: never; Returns: Json }
       build_ref_codes_postaux: { Args: never; Returns: undefined }
+      calculer_alignement_geo: {
+        Args: { p_campaign_id: string; p_poids?: number; p_tolerance?: number }
+        Returns: Json
+      }
       calculer_score_composite: {
         Args: {
           p_codes_postaux: string[]
