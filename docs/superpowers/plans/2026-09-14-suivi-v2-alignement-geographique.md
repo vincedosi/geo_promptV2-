@@ -982,10 +982,16 @@ Expected: `score` ≈ 93, `conformes_pct` ≈ 72,5, `sous_pression_pct` ≈ 3,84
 
 ```ts
 // app/api/campaigns/[campaignId]/alignement/route.ts
-import { NextResponse } from 'next/server'
+// ⚠ Signatures RÉELLES du dépôt, vérifiées le 2026-09-14. La première version
+// de ce plan importait `@/lib/api/require-auth` (inexistant) et appelait
+// `checkCampaignAccess(profile, campaignId)` en attendant un booléen. Le vrai
+// module est `@/lib/api/middleware`, et `checkCampaignAccess` prend le client
+// Supabase en premier argument et rend `'ok' | 'not_found' | 'forbidden'`.
+// Le squelette ci-dessous copie celui de `activation/prevol/route.ts`.
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { requireAuth, authUnauthorized } from '@/lib/api/middleware'
 import { createAdminClient } from '@/lib/auth'
-import { requireAuth } from '@/lib/api/require-auth'
 import { checkCampaignAccess } from '@/lib/campaigns/access'
 import { rpcJson } from '@/lib/supabase/rpc-json'
 
@@ -997,14 +1003,19 @@ const QuerySchema = z.object({
 })
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ campaignId: string }> },
 ) {
   const auth = await requireAuth(request)
-  if (!auth.ok) return auth.response
+  if (!auth.profile) return authUnauthorized()
 
   const { campaignId } = await params
-  if (!(await checkCampaignAccess(auth.profile, campaignId))) {
+  const supabase = createAdminClient()
+
+  // 404 uniforme sur `forbidden` comme sur `not_found` : dire « interdit »
+  // révélerait l'existence d'une campagne d'une autre organisation.
+  const acces = await checkCampaignAccess(supabase, auth.profile, campaignId)
+  if (acces !== 'ok') {
     return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 })
   }
 
