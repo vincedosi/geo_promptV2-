@@ -458,11 +458,15 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   }, [session, pathname, router])
 
   // Relecture si l'URL change sous nos pieds (lien collé, bouton retour).
+  // La garde de chemin est SYMÉTRIQUE à celle de l'écriture : sans elle, une
+  // page quelconque portant un `?vue=` ou un `?tri=` muterait la session de
+  // campagne et la persisterait depuis un écran qui n'a rien à voir.
   useEffect(() => {
+    if (!doitLireUrl(pathname)) return
     const qs = searchParams.toString()
     if (!qs || qs === derniereUrlRef.current) return
     setSession(prev => ({ ...prev, ...urlVersSession(new URLSearchParams(qs)) }))
-  }, [searchParams])
+  }, [searchParams, pathname])
 
   const valeur = useMemo(() => ({ session, majSession, basculerVue }), [session, majSession, basculerVue])
   return <Ctx.Provider value={valeur}>{children}</Ctx.Provider>
