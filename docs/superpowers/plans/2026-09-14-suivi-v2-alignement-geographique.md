@@ -69,6 +69,8 @@
 | `lib/campagne/session-url.ts` | Fonctions **pures** de sérialisation/désérialisation session ↔ `URLSearchParams`. Testables sans DOM. |
 | `lib/campagne/CampagneSessionContext.tsx` | Provider React + `useCampagneSession()`. Persistance URL + localStorage. |
 | `lib/campagne/alignement.ts` | Jumeau TypeScript de la formule du score (mêmes arrondis) pour tests et affichage dérivé. |
+| `lib/campagne/constats.ts` | `calculerConstats` — les trois familles de constats, calculées. Aucun React. (Task 11) |
+| `lib/campagne/transitions.ts` | `appliquerBascule`, `appliquerChangementCampagne` — transitions pures de session. (Task 15) |
 | `lib/campagne/palette-divergente.ts` | Bornes et couleurs de l'échelle divergente, par thème, en hex littéraux pour MapLibre. |
 | `sql/165_alignement_geographique.sql` | RPC `calculer_alignement_geo`, `alignement_par_maille`, `alignement_dispersion_cp`. |
 | `sql/166_parametres_alignement.sql` | Colonnes `tolerance_pct` / `overpressure_weight` sur `dsp_campaigns`, + `etalon_alignement`. |
@@ -1008,6 +1010,13 @@ git commit -m "feat(alignement): la RPC du score au code postal, avec garde-fou 
 - Consomme : la RPC de Task 5
 - Produit : `alignement_par_maille(p_campaign_id uuid, p_maille text, p_parent text, p_tolerance numeric, p_limite int) → jsonb` · `GET …/alignement/maille?maille=&parent=&limite=` → `{ maille, parent, unites: [{code, nom, reel, plan, ecart_pct, impressions, spend, cpm, geometry}], n_total }`
 
+> **Région NULL** : `ref_regions` est joint en `LEFT JOIN`. Un département sans
+> `code_region` (cas possible sur certains territoires) grouperait toutes ses
+> lignes dans un seul seau `NULL` en maille Région, affiché comme une unité
+> anonyme. L'implémenteur doit soit exclure ces lignes, soit les nommer
+> explicitement « Hors région » — jamais les laisser en `null`. Vérifier d'abord
+> si le cas existe : `select count(*) from ref_departements where code_region is null`.
+>
 > **Le piège à ne pas reproduire** : `campaign_cp_rollup.dept` vaut
 > `LEFT(postal_code, 2)`. Tous les DROM s'y effondrent sur `97`, et la colonne
 > ne porte aucun nom. La seule voie correcte est la jointure
@@ -1227,7 +1236,7 @@ describe('échelle divergente', () => {
     expect(neg).toEqual(pos)
   })
 
-  it('donne la même couleur neutre au centre dans les deux thèmes… non : une par thème', () => {
+  it('a une teinte neutre PROPRE à chaque thème — un gris de dark est illisible sur fond clair', () => {
     expect(couleurDivergente(0, 'dark')).not.toBe(couleurDivergente(0, 'light'))
   })
 
