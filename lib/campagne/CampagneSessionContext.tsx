@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SESSION_DEFAUT, sessionVersUrl, urlVersSession } from './session-url'
 import type { CampagneSession, VueCampagne } from './session-types'
@@ -34,10 +34,24 @@ interface Valeur {
 
 const Ctx = createContext<Valeur | null>(null)
 
+/**
+ * Lit l'URL et la reverse dans la session. Isolé dans son propre composant
+ * parce que `useSearchParams()` impose une frontière Suspense en App Router :
+ * ceinturer le provider entier ferait disparaître l'application derrière un
+ * fallback (le provider enveloppe `children`, c'est-à-dire toute l'app —
+ * voir `app/layout.tsx`). Ici, seul ce composant vide peut suspendre. Même
+ * patron que `MagelianDeepLink` (`components/magelian/MagelianDeepLink.tsx`).
+ */
+function SynchroniseurUrl({ onUrl }: { onUrl: (qs: string) => void }) {
+  const searchParams = useSearchParams()
+  const qs = searchParams.toString()
+  useEffect(() => { onUrl(qs) }, [qs, onUrl])
+  return null
+}
+
 export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
 
   // Seed synchrone : évite un rendu avec les défauts puis un saut.
   const [session, setSession] = useState<CampagneSession>(() =>
@@ -79,14 +93,25 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   }, [session, pathname, router])
 
   // Relecture si l'URL change sous nos pieds (lien collé, bouton retour).
-  useEffect(() => {
-    const qs = searchParams.toString()
+  // Stable à dépendances vides : ne ferme que sur `setSession` (garanti
+  // stable par React) et `derniereUrlRef` (une ref) — sinon `onUrl`
+  // changerait d'identité à chaque rendu et redéclencherait l'effet de
+  // `SynchroniseurUrl` en boucle (piège déjà documenté dans
+  // `lib/carte/pile-echap.ts`).
+  const relireDepuisUrl = useCallback((qs: string) => {
     if (!qs || qs === derniereUrlRef.current) return
     setSession(prev => ({ ...prev, ...urlVersSession(new URLSearchParams(qs)) }))
-  }, [searchParams])
+  }, [])
 
   const valeur = useMemo(() => ({ session, majSession, basculerVue }), [session, majSession, basculerVue])
-  return <Ctx.Provider value={valeur}>{children}</Ctx.Provider>
+  return (
+    <Ctx.Provider value={valeur}>
+      <Suspense fallback={null}>
+        <SynchroniseurUrl onUrl={relireDepuisUrl} />
+      </Suspense>
+      {children}
+    </Ctx.Provider>
+  )
 }
 
 export function useCampagneSession(): Valeur {
