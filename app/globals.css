@@ -57,6 +57,17 @@
     --warning: #f7b731;
     --info:    #5b9bd5;
 
+    /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
+       Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
+       suffit pas pour un daltonien. */
+    --diverge-sous-3: #c2410c;
+    --diverge-sous-2: #ea7c4a;
+    --diverge-sous-1: #f0b48c;
+    --diverge-neutre: #4a4a4a;
+    --diverge-sur-1:  #8fb8d8;
+    --diverge-sur-2:  #4a86b8;
+    --diverge-sur-3:  #1f5c8f;
+
     --sidebar-width: 240px;
 
     /* Overlay flottant (IconBar overlay) — semi-transparent pour laisser voir la carte */
@@ -164,6 +175,17 @@
     --danger:  #d4202f;
     --warning: #c08400;
     --info:    #3a78c0;
+
+    /* ── Échelle divergente d'alignement (sous-pression ↔ conforme ↔ sur-pression)
+       Le sens se lit AUSSI par la position sur la barre : la teinte seule ne
+       suffit pas pour un daltonien. */
+    --diverge-sous-3: #9a2f08;
+    --diverge-sous-2: #cc5f27;
+    --diverge-sous-1: #e8a878;
+    --diverge-neutre: #c6d2cf;
+    --diverge-sur-1:  #7ba7cc;
+    --diverge-sur-2:  #2f6fa3;
+    --diverge-sur-3:  #14496f;
 
     /* Overlay flottant (light) */
     --card-overlay: rgba(248, 248, 248, 0.90);

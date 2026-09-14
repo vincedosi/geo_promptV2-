@@ -69,6 +69,30 @@ Style inspiré de Linear, Vercel, Raycast. Monochrome par défaut, couleur avec 
 | --warning | #f7b731 | Avertissements, billing |
 | --info | #5b9bd5 | Liens informatifs (usage rare) |
 
+### Échelle divergente (écart au plan média)
+Seule échelle divergente du projet — toutes les autres sont séquentielles. Encode
+l'écart en % entre la pression livrée et la pression planifiée d'une campagne :
+sous-pression d'un côté, conformité au centre, sur-pression de l'autre. Valeurs
+dans `app/globals.css` (`:root` et `html.light`) et dupliquées en hex littéraux
+dans `lib/campagne/palette-divergente.ts` (`RAMPE_MAPLIBRE`) — MapLibre ne résout
+pas `var()` dans `paint`, d'où les deux copies, verrouillées ensemble par
+`tests/unit/campagne/palette-divergente.test.ts`.
+
+| Token | Hex (dark) | Hex (light) | Usage |
+|-------|-----------|-------------|-------|
+| --diverge-sous-3 | #c2410c | #9a2f08 | Sous-pression forte (< -25 %) |
+| --diverge-sous-2 | #ea7c4a | #cc5f27 | Sous-pression |
+| --diverge-sous-1 | #f0b48c | #e8a878 | Légèrement sous |
+| --diverge-neutre | #4a4a4a | #c6d2cf | Conforme au plan |
+| --diverge-sur-1 | #8fb8d8 | #7ba7cc | Légèrement au-dessus |
+| --diverge-sur-2 | #4a86b8 | #2f6fa3 | Sur-pression |
+| --diverge-sur-3 | #1f5c8f | #14496f | Sur-pression forte (> +25 %) |
+
+**Le sens doit aussi se lire par la POSITION sur la barre, jamais la teinte
+seule** — sinon illisible pour un daltonien. Bornes symétriques autour de zéro
+(`BORNES_DIVERGENTES`) : la sur-pression ne doit jamais paraître moins grave
+que la sous-pression équivalente.
+
 ### RÈGLE D'OR
 Pas de violet (#a855f7) nulle part. Pas de vert fluo (#3dffa0) sauf indicateur de statut système. Pas d'orange sur les boutons.
 
