@@ -26,6 +26,16 @@ function lireStorage(): CampagneSession | null {
   }
 }
 
+/**
+ * La session de campagne ne vit que sur la carte. Les deux effets d'URL —
+ * lecture ET écriture — doivent partager cette garde : sans elle, une page
+ * quelconque portant un `?vue=` ou un `?tri=` muterait la session et la
+ * persisterait depuis un écran sans rapport.
+ */
+export function doitLireUrl(pathname: string): boolean {
+  return pathname === '/map'
+}
+
 interface Valeur {
   session: CampagneSession
   majSession: (patch: Partial<CampagneSession>) => void
@@ -41,11 +51,19 @@ const Ctx = createContext<Valeur | null>(null)
  * fallback (le provider enveloppe `children`, c'est-à-dire toute l'app —
  * voir `app/layout.tsx`). Ici, seul ce composant vide peut suspendre. Même
  * patron que `MagelianDeepLink` (`components/magelian/MagelianDeepLink.tsx`).
+ *
+ * `pathname` est reçu en prop plutôt que lu ici via `usePathname()` : la
+ * garde `doitLireUrl` doit rester la MÊME valeur que celle vue par l'effet
+ * d'écriture du provider (Ruling T2-2) — pas une lecture indépendante qui
+ * pourrait diverger d'un rendu à l'autre.
  */
-function SynchroniseurUrl({ onUrl }: { onUrl: (qs: string) => void }) {
+function SynchroniseurUrl({ pathname, onUrl }: { pathname: string; onUrl: (qs: string) => void }) {
   const searchParams = useSearchParams()
   const qs = searchParams.toString()
-  useEffect(() => { onUrl(qs) }, [qs, onUrl])
+  useEffect(() => {
+    if (!doitLireUrl(pathname)) return
+    onUrl(qs)
+  }, [qs, pathname, onUrl])
   return null
 }
 
@@ -85,7 +103,7 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   // une navigation, elle ne doit pas empiler d'entrée dans l'historique.
   const derniereUrlRef = useRef<string>('')
   useEffect(() => {
-    if (pathname !== '/map') return
+    if (!doitLireUrl(pathname)) return
     const qs = sessionVersUrl(session).toString()
     if (qs === derniereUrlRef.current) return
     derniereUrlRef.current = qs
@@ -107,7 +125,7 @@ export function CampagneSessionProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={valeur}>
       <Suspense fallback={null}>
-        <SynchroniseurUrl onUrl={relireDepuisUrl} />
+        <SynchroniseurUrl pathname={pathname} onUrl={relireDepuisUrl} />
       </Suspense>
       {children}
     </Ctx.Provider>

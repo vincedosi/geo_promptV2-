@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fusionnerSession, CLE_SESSION_STORAGE } from '@/lib/campagne/CampagneSessionContext'
+import { fusionnerSession, CLE_SESSION_STORAGE, doitLireUrl } from '@/lib/campagne/CampagneSessionContext'
 import { SESSION_DEFAUT } from '@/lib/campagne/session-url'
 
 describe('reprise de session', () => {
@@ -22,5 +22,21 @@ describe('reprise de session', () => {
 
   it('la clé de storage est stable — la changer perdrait les sessions en cours', () => {
     expect(CLE_SESSION_STORAGE).toBe('magelian-campagne-session')
+  })
+})
+
+describe('périmètre de la session', () => {
+  it('ne vit que sur la carte', () => {
+    expect(doitLireUrl('/map')).toBe(true)
+  })
+
+  it('ignore toute autre page — un ?vue= ailleurs ne doit pas muter la session', () => {
+    expect(doitLireUrl('/dashboard')).toBe(false)
+    expect(doitLireUrl('/admin/health')).toBe(false)
+    expect(doitLireUrl('/')).toBe(false)
+  })
+
+  it('ne se laisse pas avoir par un préfixe', () => {
+    expect(doitLireUrl('/map-ancien')).toBe(false)
   })
 })
