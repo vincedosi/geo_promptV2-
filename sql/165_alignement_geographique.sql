@@ -112,3 +112,110 @@ grant execute on function calculer_alignement_geo(uuid, numeric, numeric) to ser
 
 comment on function calculer_alignement_geo is
   'Score d alignement geographique 0-100, TOUJOURS calcule au code postal. Jumeau TS : lib/campagne/alignement.ts';
+
+-- ---------------------------------------------------------------------------
+-- alignement_par_maille — Tache 6. Rend les memes ecarts que
+-- calculer_alignement_geo, mais AGREGES a la maille demandee (region /
+-- departement / cp) pour le tableau, les tuiles carte et le fil d'Ariane. Le
+-- score lui-meme ne change JAMAIS avec la maille (il reste calcule au CP) ;
+-- seule la liste rendue ici change de granularite.
+--
+-- Jointure INSEE reelle, jamais campaign_cp_rollup.dept (LEFT(postal_code,2) :
+-- tous les DROM s effondrent sur '97' et la colonne ne porte aucun nom) —
+-- sql/117_campaign_derive_map.sql:34-42 emprunte deja cette jointure :
+-- campaign_cp_rollup -> ref_codes_postaux.code_dept -> ref_departements -> ref_regions.
+--
+-- PV-2 : mesure le 2026-09-14, 3 departements (975, 977, 978 — collectivites
+-- d'outre-mer sans region de rattachement) ont code_region NULL dans
+-- ref_departements. ref_regions est joint en LEFT JOIN : sans traitement, ces
+-- lignes se retrouveraient dans un seau 'null' anonyme en maille Region. Ici,
+-- coalesce() les regroupe explicitement sous le code 'HORS' / nom
+-- 'Hors region' plutot que de les laisser en null ou de les exclure.
+create or replace function alignement_par_maille(
+  p_campaign_id uuid,
+  p_maille      text default 'departement',   -- 'region' | 'departement' | 'cp'
+  p_parent      text default null,
+  p_tolerance   numeric default null,
+  p_limite      int default 500
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_tol numeric;
+  v_res jsonb;
+begin
+  if p_maille not in ('region', 'departement', 'cp') then
+    raise exception 'maille inconnue: %', p_maille;
+  end if;
+
+  select coalesce(p_tolerance, c.tolerance_pct) / 100.0 into v_tol
+    from dsp_campaigns c where c.id = p_campaign_id;
+  if v_tol is null then return jsonb_build_object('error', 'campagne_introuvable'); end if;
+
+  with cp as (
+    -- Sommer sur les acteurs AVANT tout calcul : la PK de campaign_cp_rollup
+    -- est (campaign_id, postal_code, actor), un CP apparait jusqu a 5 fois.
+    select r.postal_code,
+           sum(r.impressions)::numeric   as reel,
+           max(r.planned_share)::numeric as part_plan,
+           sum(r.spend)::numeric         as depense
+      from campaign_cp_rollup r
+     where r.campaign_id = p_campaign_id
+     group by r.postal_code
+  ),
+  -- Jointure INSEE reelle. JAMAIS `campaign_cp_rollup.dept`.
+  situe as (
+    select cp.*, rcp.code_dept, rd.nom_dept,
+           -- PV-2 : jamais de code_region/nom_region NULL en sortie.
+           coalesce(rd.code_region, 'HORS')      as code_region,
+           coalesce(rr.nom_region, 'Hors region') as nom_region
+      from cp
+      join ref_codes_postaux rcp on rcp.code_postal = cp.postal_code
+      join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+      left join ref_regions  rr  on rr.code_region = rd.code_region
+  ),
+  filtre as (
+    select * from situe
+     where p_parent is null
+        or (p_maille = 'departement' and code_region = p_parent)
+        or (p_maille = 'cp'          and code_dept   = p_parent)
+  ),
+  tot as (select sum(reel) t_reel, sum(part_plan) t_part from filtre),
+  groupe as (
+    select
+      case p_maille when 'region' then code_region when 'departement' then code_dept else postal_code end as code,
+      case p_maille when 'region' then max(nom_region) when 'departement' then max(nom_dept) else max(postal_code) end as nom,
+      sum(reel) as reel, sum(part_plan) as part_plan, sum(depense) as depense
+      from filtre
+     group by 1
+  )
+  select jsonb_build_object(
+    'maille', p_maille,
+    'parent', p_parent,
+    'n_total', (select count(*) from groupe),
+    'unites', coalesce(jsonb_agg(u order by u.ecart_abs desc), '[]'::jsonb)
+  ) into v_res
+  from (
+    select g.code, g.nom,
+           g.reel::bigint                                       as impressions,
+           round(g.depense, 2)                                  as spend,
+           round(g.depense / nullif(g.reel, 0) * 1000, 2)       as cpm,
+           round((g.part_plan / nullif(t.t_part, 0)) * t.t_reel) as plan,
+           round(((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) * 100, 1) as ecart_pct,
+           abs((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) as ecart_abs
+      from groupe g cross join tot t
+     order by ecart_abs desc
+     limit p_limite
+  ) u;
+
+  return v_res;
+end;
+$$;
+
+revoke all on function alignement_par_maille(uuid, text, text, numeric, int) from public, anon, authenticated;
+grant execute on function alignement_par_maille(uuid, text, text, numeric, int) to service_role;
+
+comment on function alignement_par_maille is
+  'Agregation d alignement par maille (region/departement/cp) via la jointure INSEE reelle (jamais campaign_cp_rollup.dept). Jumeau du score CP de calculer_alignement_geo.';

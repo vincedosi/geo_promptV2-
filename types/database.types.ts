@@ -5215,6 +5215,16 @@ export type Database = {
         }
         Returns: Json
       }
+      alignement_par_maille: {
+        Args: {
+          p_campaign_id: string
+          p_limite?: number
+          p_maille?: string
+          p_parent?: string
+          p_tolerance?: number
+        }
+        Returns: Json
+      }
       apply_zone_weights_to_strategy: {
         Args: { p_in_weights: Json; p_out_weights: Json; p_strategy_id: string }
         Returns: number
