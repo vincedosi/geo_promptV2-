@@ -1026,7 +1026,6 @@ export async function GET(
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
   const { data, error } = await supabase.rpc('calculer_alignement_geo', {
     p_campaign_id: campaignId,
     p_tolerance: parsed.data.tolerance ?? null,
