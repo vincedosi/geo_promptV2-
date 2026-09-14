@@ -161,9 +161,14 @@ const SESSION: CampagneSession = {
 }
 
 describe('sérialisation de la session campagne', () => {
-  it('fait un aller-retour sans perte', () => {
+  it('fait un aller-retour sans perte, une fois fusionné avec les défauts', () => {
+    // `urlVersSession` rend un Partial : ce qu'il n'a PAS lu doit rester absent,
+    // sinon Task 2 ne pourrait plus distinguer « l'URL est muette » de « l'URL
+    // impose la valeur par défaut » et écraserait la session reprise du storage.
+    // La propriété à vérifier n'est donc pas l'égalité brute, mais l'absence de
+    // PERTE : fusionné aux défauts, on retrouve exactement la session de départ.
     const params = sessionVersUrl(SESSION)
-    expect(urlVersSession(params)).toEqual(SESSION)
+    expect({ ...SESSION_DEFAUT, ...urlVersSession(params) }).toEqual(SESSION)
   })
 
   it('omet les valeurs par défaut pour garder une URL courte', () => {
