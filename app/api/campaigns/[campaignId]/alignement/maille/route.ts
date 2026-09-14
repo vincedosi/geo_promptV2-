@@ -17,6 +17,13 @@
  * déréglées », jamais laisser croire à une liste exhaustive. Avec un
  * `parent` (drill-down département/région), la limite demandée s'applique
  * normalement : l'ensemble drillé est déjà borné par construction.
+ *
+ * `parent` est TOUJOURS le niveau immédiatement au-dessus de `maille`
+ * (région pour un département, département pour un CP) — jamais un niveau
+ * arbitraire. Région est la racine de la hiérarchie : `maille=region` avec
+ * un `parent` est rejeté ici en 400 (ruling T6-4), plutôt que de laisser la
+ * RPC rendre un tableau vide en silence, indiscernable d'une campagne sans
+ * donnée.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -33,7 +40,16 @@ const QuerySchema = z.object({
   limite: z.coerce.number().int().min(1).max(500).default(200),
 });
 
-/** Une unité agrégée (région, département ou CP) rendue par la RPC. */
+/**
+ * Une unité agrégée (région, département ou CP) rendue par la RPC.
+ *
+ * `ecart_pct` est `null` quand `plan` vaut 0 (aucun pourcentage n'est
+ * définissable) — c'est `hors_plan` qui porte alors l'information : ~19,6 %
+ * des CP de la campagne demo sont dans ce cas (plan nul, impressions
+ * réelles). Le tri de la RPC se fait sur `volume_deplace`, jamais sur
+ * `ecart_pct` (ruling T6-3) : un ratio NULL remonterait en tête d'un tri
+ * `desc` (NULLS FIRST par défaut en PostgreSQL).
+ */
 interface UniteMaille {
   code: string | null;
   nom: string | null;
@@ -42,6 +58,8 @@ interface UniteMaille {
   cpm: number | null;
   plan: number | null;
   ecart_pct: number | null;
+  hors_plan: boolean;
+  volume_deplace: number;
 }
 
 /** Payload de `alignement_par_maille` (sql/165) — `error` porte les cas métier. */
@@ -76,6 +94,17 @@ export async function GET(
   }
 
   const { maille, parent, limite } = parsed.data;
+
+  // Région est la racine de la hiérarchie : elle n'a pas de parent. Sans
+  // cette garde, aucune branche du `where` de la RPC ne correspondrait et le
+  // tableau reviendrait vide en silence (ruling T6-4) — indiscernable d'une
+  // campagne sans donnée. 400 explicite à la place.
+  if (maille === 'region' && parent) {
+    return NextResponse.json(
+      { error: 'La maille région est la racine : elle n\'accepte pas de parent.' },
+      { status: 400 },
+    );
+  }
 
   // Maille CP sans parent = vue nationale (~2 041 unités) : plafond fixe de
   // 200, quelle que soit la limite demandée par le client. Avec un parent

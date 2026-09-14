@@ -131,6 +131,14 @@ comment on function calculer_alignement_geo is
 -- lignes se retrouveraient dans un seau 'null' anonyme en maille Region. Ici,
 -- coalesce() les regroupe explicitement sous le code 'HORS' / nom
 -- 'Hors region' plutot que de les laisser en null ou de les exclure.
+--
+-- T6-4 : p_parent est TOUJOURS le niveau immediatement au-dessus de p_maille
+-- (parent d'une maille 'departement' = code_region, parent d'une maille 'cp'
+-- = code_dept). Region est la racine de la hierarchie : elle n'a pas de
+-- parent. Passer p_parent avec p_maille='region' est refuse EN AMONT par la
+-- route (400 explicite), avant meme d'appeler cette RPC -- sans quoi aucune
+-- branche du `where` de `filtre` ne correspond et le tableau revient vide en
+-- silence, indiscernable d'une campagne sans donnees.
 create or replace function alignement_par_maille(
   p_campaign_id uuid,
   p_maille      text default 'departement',   -- 'region' | 'departement' | 'cp'
@@ -182,7 +190,13 @@ begin
         or (p_maille = 'departement' and code_region = p_parent)
         or (p_maille = 'cp'          and code_dept   = p_parent)
   ),
-  tot as (select sum(reel) t_reel, sum(part_plan) t_part from filtre),
+  -- T6-2 : totaux calcules sur `situe` (le perimetre COMPLET de la
+  -- campagne), JAMAIS sur `filtre` (le seul sous-ensemble du parent). Sinon,
+  -- descendre dans un parent rebase le plan sur la LIVRAISON REELLE de ce
+  -- parent : la somme des ecarts de ses enfants vaut alors zero par
+  -- construction, et le tableau ne peut plus jamais expliquer pourquoi le
+  -- parent derape. `filtre` ne sert plus qu'a choisir les LIGNES affichees.
+  tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
   groupe as (
     select
       case p_maille when 'region' then code_region when 'departement' then code_dept else postal_code end as code,
@@ -195,7 +209,7 @@ begin
     'maille', p_maille,
     'parent', p_parent,
     'n_total', (select count(*) from groupe),
-    'unites', coalesce(jsonb_agg(u order by u.ecart_abs desc), '[]'::jsonb)
+    'unites', coalesce(jsonb_agg(u order by u.volume_deplace desc), '[]'::jsonb)
   ) into v_res
   from (
     select g.code, g.nom,
@@ -203,10 +217,24 @@ begin
            round(g.depense, 2)                                  as spend,
            round(g.depense / nullif(g.reel, 0) * 1000, 2)       as cpm,
            round((g.part_plan / nullif(t.t_part, 0)) * t.t_reel) as plan,
-           round(((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) * 100, 1) as ecart_pct,
-           abs((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) as ecart_abs
+           -- T6-3 : aucun pourcentage n'est definissable quand le plan vaut
+           -- zero (400 CP sur 2041, 19,6 %, mesures le 2026-09-14 : plan NUL
+           -- avec des impressions reelles). NULL explicite plutot qu'une
+           -- division qui rendrait NULL en silence.
+           case when g.part_plan > 0
+                then round(((g.reel / ((g.part_plan / nullif(t.t_part,0)) * t.t_reel)) - 1) * 100, 1)
+           end                                                  as ecart_pct,
+           (g.part_plan = 0 and g.reel > 0)                     as hors_plan,
+           -- CLE DE TRI : le volume MAL PLACE (en impressions), jamais le
+           -- ratio -- ecart_pct est NULL sur ces 400 CP, et PostgreSQL trie
+           -- NULL en tete en DESC : ces unites blanches auraient occupe le
+           -- haut du tableau « zones les plus deregleees ». volume_deplace
+           -- est defini PARTOUT, actionnable (un CP a +300 % sur 10
+           -- impressions ne vaut pas un CP a +40 % sur 500 000) et
+           -- convertible en euros.
+           abs(g.reel - (g.part_plan / nullif(t.t_part,0)) * t.t_reel) as volume_deplace
       from groupe g cross join tot t
-     order by ecart_abs desc
+     order by volume_deplace desc nulls last
      limit p_limite
   ) u;
 
