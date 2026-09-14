@@ -247,3 +247,97 @@ grant execute on function alignement_par_maille(uuid, text, text, numeric, int) 
 
 comment on function alignement_par_maille is
   'Agregation d alignement par maille (region/departement/cp) via la jointure INSEE reelle (jamais campaign_cp_rollup.dept). Jumeau du score CP de calculer_alignement_geo.';
+
+
+-- ---------------------------------------------------------------------------
+-- alignement_dispersion_cp — Tache 12. En maille CP, une courbe de 2000
+-- points ne raconte rien (contrairement a la maille region/departement, ou
+-- la courbe plan/reel garde un sens) : cette RPC remplace le trace par un
+-- HISTOGRAMME de la dispersion des ecarts au plan, dans les 7 bandes FIXES
+-- et UNIVERSELLES de `BORNES_DIVERGENTES` (lib/campagne/palette-divergente.ts)
+-- -- jamais la tolerance propre a la campagne, qui reste un reglage du
+-- SCORE (`calculer_alignement_geo`), pas de cette echelle de lecture.
+--
+-- CORRECTION apres relecture (meme defaut que T6-2 ci-dessus, dans ce meme
+-- fichier) : les totaux de normalisation (tr, tp) DOIVENT etre calcules sur
+-- le PERIMETRE COMPLET de la campagne (`situe`), jamais sur le seul
+-- sous-ensemble filtre par `p_parent`. Verifie sur la campagne demo
+-- (dccc0000-0000-4000-8000-000000000002, departement '13') : ce departement
+-- ne recoit que 51,6 % de son plan national (119 160 sur 230 933 impressions
+-- prevues). Calculer `tot` sur le seul departement filtre renormalise
+-- mecaniquement le plan sur la livraison REELLE du departement -- la somme
+-- des ecarts a l'interieur du departement vaudrait alors zero par
+-- construction (98 CP se repartiraient en petits ecarts plausibles autour de
+-- zero), et l'histogramme ne pourrait plus jamais montrer qu'un departement
+-- ENTIER est sous-livre par rapport au plan national : exactement le defaut
+-- que T6-2 corrige deja une fois plus haut dans ce fichier pour
+-- `alignement_par_maille`. Avec les totaux calcules sur le perimetre
+-- complet, le meme departement '13' place desormais 98 de ses 102 CP dans
+-- les deux bandes de sous-pression la plus severe -- le signal qu'un
+-- calcul sur le sous-ensemble filtre aurait entierement efface.
+--
+-- Les 400 CP a plan nul (19,6 % de la campagne demo, meme trou de donnee que
+-- T6-3 pour `alignement_par_maille`) ont un ecart NULL (reel / NULL) donc un
+-- `width_bucket` NULL : `group by 1` les rassemble dans UNE ligne a
+-- `tranche` (et donc `borne_basse`/`borne_haute`) NULL plutot que de les
+-- perdre -- ils restent comptes dans `n_cp` et `impressions`, mais hors des
+-- 7 bandes numerotees. Au consommateur de decider s'il les affiche a part.
+create or replace function alignement_dispersion_cp(
+  p_campaign_id uuid,
+  p_parent      text default null,
+  p_tolerance   numeric default null  -- accepte pour la parite d'interface (Tache 12) ; les bandes de l'histogramme sont universelles (BORNES_DIVERGENTES), pas la tolerance de la campagne -- non utilise ici
+) returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  with situe as (
+    select r.postal_code,
+           sum(r.impressions)::numeric   as reel,
+           max(r.planned_share)::numeric as part,
+           rcp.code_dept,
+           rd.code_region
+      from campaign_cp_rollup r
+      join ref_codes_postaux rcp on rcp.code_postal = r.postal_code
+      join ref_departements  rd  on rd.code_dept   = rcp.code_dept
+     where r.campaign_id = p_campaign_id
+     group by r.postal_code, rcp.code_dept, rd.code_region
+  ),
+  -- Totaux sur le PERIMETRE COMPLET -- jamais sur `filtre`. Voir commentaire ci-dessus.
+  tot as (select sum(reel) tr, sum(part) tp from situe),
+  filtre as (
+    select * from situe
+     where p_parent is null or code_dept = p_parent or code_region = p_parent
+  ),
+  ecarts as (
+    select f.postal_code, f.reel,
+           ((f.reel / nullif((f.part / nullif(t.tp,0)) * t.tr, 0)) - 1) * 100 as ecart
+      from filtre f cross join tot t
+  ),
+  classe as (
+    select width_bucket(ecart, array[-50,-25,-10,10,25,50]) as tranche,
+           count(*) n_cp, sum(reel) impressions
+      from ecarts group by 1
+  ),
+  -- 7 bandes (index 0-6) pour 6 bornes -- meme decoupe que BORNES_DIVERGENTES
+  -- / RAMPE_MAPLIBRE / LIBELLES_TRANCHES (lib/campagne/palette-divergente.ts).
+  -- NULL = borne ouverte (extremite de l'echelle).
+  bornes(i, basse, haute) as (
+    values (0, null::numeric, -50::numeric), (1, -50, -25), (2, -25, -10),
+           (3, -10, 10), (4, 10, 25), (5, 25, 50), (6, 50, null)
+  )
+  select jsonb_build_object('tranches', coalesce(jsonb_agg(
+    jsonb_build_object(
+      'borne_basse', b.basse, 'borne_haute', b.haute,
+      'n_cp', c.n_cp, 'impressions', c.impressions
+    ) order by c.tranche nulls last
+  ), '[]'::jsonb))
+  from classe c
+  left join bornes b on b.i = c.tranche;
+$$;
+
+revoke all on function alignement_dispersion_cp(uuid, text, numeric) from public, anon, authenticated;
+grant execute on function alignement_dispersion_cp(uuid, text, numeric) to service_role;
+
+comment on function alignement_dispersion_cp is
+  'Histogramme de dispersion des ecarts au plan par CP (7 bandes fixes, BORNES_DIVERGENTES), maille CP uniquement. Totaux normalises sur le perimetre COMPLET de la campagne (meme ruling que alignement_par_maille), jamais sur le seul p_parent filtre.';

@@ -5215,6 +5215,10 @@ export type Database = {
         }
         Returns: Json
       }
+      alignement_dispersion_cp: {
+        Args: { p_campaign_id: string; p_parent?: string; p_tolerance?: number }
+        Returns: Json
+      }
       alignement_par_maille: {
         Args: {
           p_campaign_id: string
