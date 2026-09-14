@@ -1077,7 +1077,15 @@ git commit -m "feat(alignement): la RPC du score au code postal, avec garde-fou 
 
 **Interfaces:**
 - Consomme : la RPC de Task 5
-- Produit : `alignement_par_maille(p_campaign_id uuid, p_maille text, p_parent text, p_tolerance numeric, p_limite int) → jsonb` · `GET …/alignement/maille?maille=&parent=&limite=` → `{ maille, parent, unites: [{code, nom, reel, plan, ecart_pct, impressions, spend, cpm, geometry}], n_total }`
+- Produit : `alignement_par_maille(p_campaign_id uuid, p_maille text, p_parent text, p_tolerance numeric, p_limite int) → jsonb` · `GET …/alignement/maille?maille=&parent=&limite=` → `{ maille, parent, unites: [{code, nom, plan, ecart_pct, impressions, spend, cpm}], n_total }`
+
+> **Ni `reel` ni `geometry`** — corrigé le 2026-09-14, après que l'implémenteur a
+> signalé que ce bloc promettait deux champs que le SQL de la tâche ne produit
+> pas. `reel` s'appelle `impressions`. Et la **géométrie ne passe pas par ici** :
+> cette RPC sert le TABLEAU, qui affiche sept lignes ; lui faire porter 2 041
+> géométries serait un gaspillage d'E/S sur un compute contraint. Les cartes de
+> la tâche 13 prennent leur géométrie d'une route dédiée, exactement comme le
+> dépôt sépare déjà `/suivi` de `/suivi/map` et `/derive` de `/derive/map`.
 
 > **Région NULL** : `ref_regions` est joint en `LEFT JOIN`. Un département sans
 > `code_region` (cas possible sur certains territoires) grouperait toutes ses
@@ -1820,6 +1828,11 @@ git commit -m "feat(suivi): le graphique change de FORME en maille CP, pas seule
 - [ ] **Step 1: Vignette générique**
 
 Même projection et même cadrage pour les trois (`fitBounds` partagé sur la bbox du périmètre actif), mini-échelle propre à chacune, **pas d'annotation de noms** (trop petit — les noms restent sur la grande carte), zones hors périmètre **grisées et non masquées**, clic → `majSession({ vue: 'carte' })` avec le calque correspondant déjà actif.
+
+**Leur géométrie vient d'une route `…/alignement/maille/map` dédiée**, jamais de
+`alignement_par_maille`, qui sert le tableau : sept lignes affichées n'ont pas
+besoin de 2 041 polygones, et le budget d'E/S de ce compute ne le pardonnerait
+pas. Patron déjà établi dans le dépôt : `/suivi` contre `/suivi/map`.
 
 - [ ] **Step 2: Les trois sources**
 
