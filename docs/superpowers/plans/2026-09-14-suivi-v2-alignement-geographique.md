@@ -1625,7 +1625,11 @@ Trois exigences non négociables, chacune visible à l'écran :
       <span style={{ fontSize: 26, color: 'var(--text-tertiary)' }}>/100</span>
     </div>
     <Variation valeur={data.score - data.score_prev_7j} />
-    <Echelle score={data.score} etalon={data.etalon?.score_median ?? null} />
+    {/* L'etalon n'est affiche QUE s'il repose sur de vraies campagnes.
+        `score_median` vaut 64 par convention tant que `n_campagnes` est a zero :
+        le montrer comme une « moyenne du secteur » mettrait un chiffre fabrique
+        au centre d'un ecran dont tout l'argumentaire est la justesse. */}
+    <Echelle score={data.score} etalon={etalonAffichable(data.etalon)} />
     <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 10 }}>
       Toujours calculé au code postal, quelle que soit la maille affichée.
     </p>
