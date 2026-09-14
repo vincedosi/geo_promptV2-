@@ -59,8 +59,12 @@ export async function GET(
     p_tolerance: parsed.data.tolerance,
     p_poids: parsed.data.poids,
   });
+  // Le message d'erreur Postgres est JOURNALISÉ, jamais renvoyé : il porte la
+  // forme des tables et des colonnes. Le client reçoit une phrase neutre.
+  // Patron du dépôt : `activation/prevol/route.ts:67-70`.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[alignement] calculer_alignement_geo:', error.message);
+    return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 });
   }
 
   const resultat = rpcJson<AlignementPayload>(data);
@@ -70,10 +74,11 @@ export async function GET(
 
   // L'étalon est lu à part et SUR LES PARAMÈTRES PAR DÉFAUT : un étalon qui
   // suivrait le réglage de la campagne ne comparerait plus rien.
-  const { data: etalon } = await supabase
+  const { data: etalon, error: erreurEtalon } = await supabase
     .from('etalon_alignement')
     .select('score_median, n_campagnes, tolerance_pct')
     .single();
+  if (erreurEtalon) console.error('[alignement] etalon:', erreurEtalon.message);
 
   const variation_7j =
     typeof resultat?.score === 'number' && typeof resultat?.score_prev_7j === 'number'

@@ -82,7 +82,7 @@ begin
   )
   select jsonb_build_object(
     'maille_calcul',       'cp',
-    'tolerance_pct',       v_tol * 100,
+    'tolerance_pct',       round(v_tol * 100, 2),
     'overpressure_weight', v_poids,
     'plan_divergent',      v_divergent,
     'n_cp',                a.n_cp,
