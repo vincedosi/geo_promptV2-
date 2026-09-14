@@ -39,4 +39,17 @@ describe('constats de correction', () => {
     })
     expect(c.length).toBeLessThanOrEqual(3)
   })
+
+  // Ruling T11-2 : une unité hors plan (ecart_pct null, plan nul) est la
+  // sur-pression la plus pure — tout son volume est en trop. Avant ce
+  // ruling, le filtre sur ecart_pct l'excluait en silence.
+  it('compte la totalité du volume hors plan comme de la sur-pression', () => {
+    const c = calculerConstats({
+      unites: [
+        { code: '06', nom: 'Alpes-Maritimes', ecart_pct: null, impressions: 500, cpm: 7, hors_plan: true, volume_deplace: 500 },
+      ],
+      cpm_moyen: 6.5, canaux: [],
+    })
+    expect(c.some((x) => x.id === 'sur_pression' && x.titre.includes('06'))).toBe(true)
+  })
 })

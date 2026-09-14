@@ -24,6 +24,23 @@ export interface UniteConstat {
   ecart_pct: number | null
   impressions: number
   cpm: number | null
+  /**
+   * Vrai quand l'unité a reçu des impressions SANS AUCUN plan (`part_plan = 0`
+   * dans `alignement_par_maille`, sql/165) — 400 CP sur 2 041 sur la campagne
+   * démo (19,6 %, ruling T6-3). `ecart_pct` y est alors `null` : aucun
+   * pourcentage n'est définissable sur un plan nul. Optionnel pour que les
+   * fixtures qui l'ignorent (le test du brief) restent valides — `undefined`
+   * se comporte comme `false`.
+   */
+  hors_plan?: boolean
+  /**
+   * Volume déjà calculé par `alignement_par_maille` (`abs(réel − plan)`,
+   * défini PARTOUT y compris à plan nul). Utilisé tel quel pour une unité
+   * `hors_plan` plutôt que ré-estimé : à plan nul, `planEstime` renverrait de
+   * toute façon `impressions`, donc `volume_deplace` EST déjà la bonne
+   * réponse — pas une deuxième source.
+   */
+  volume_deplace?: number
 }
 
 /** Un canal/acteur avec son CPM moyen, tel que rendu par `get_campaign_actors`. */
@@ -113,10 +130,25 @@ function constatSousPression(unites: UniteConstat[]): Constat | null {
   }
 }
 
-/** Concentration de la sur-pression : symétrique, chiffrée en euros déplaçables via le CPM de l'unité. */
+/**
+ * Concentration de la sur-pression : symétrique, chiffrée en euros
+ * déplaçables via le CPM de l'unité.
+ *
+ * Ruling T11-2 : une unité `hors_plan` (plan nul, `ecart_pct` donc `null`)
+ * est la sur-pression la plus pure qui soit — LA TOTALITÉ de son volume est
+ * en trop, puisqu'aucun plan ne l'attendait. Le filtre sur `ecart_pct`
+ * ci-dessous l'aurait exclue en silence ; elle est comptée à part, AVANT ce
+ * filtre, avec tout son volume (`volume_deplace` si fourni, sinon
+ * `impressions` — les deux coïncident à plan nul).
+ */
 function constatSurPression(unites: UniteConstat[]): Constat | null {
   const candidats: { u: UniteConstat; trop: number; eur: number }[] = []
   for (const u of unites) {
+    if (u.hors_plan) {
+      const trop = u.volume_deplace ?? u.impressions
+      if (trop > 0) candidats.push({ u, trop, eur: u.cpm != null ? (trop / 1000) * u.cpm : 0 })
+      continue
+    }
     if (u.ecart_pct == null || u.ecart_pct <= SEUIL_ECART_SIGNALE_PCT) continue
     const plan = planEstime(u.impressions, u.ecart_pct)
     if (plan == null) continue
