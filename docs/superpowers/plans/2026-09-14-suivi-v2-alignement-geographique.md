@@ -1783,7 +1783,13 @@ as $$
        and (p_parent is null or rd.code_dept = p_parent or rd.code_region = p_parent)
      group by r.postal_code
   ),
-  tot as (select sum(reel) tr, sum(part) tp from cp),
+  -- ⚠ MEME PIEGE QUE `alignement_par_maille` (ruling T6-2), et il a ete ecrit
+  -- DEUX FOIS dans ce fichier avant d'etre vu. Les totaux doivent porter sur la
+  -- campagne ENTIERE, jamais sur le sous-ensemble filtre par `p_parent` :
+  -- sinon, descendre dans un departement rebase le plan sur sa propre livraison
+  -- reelle et l'histogramme s'effondre sur la tranche conforme, quel que soit
+  -- l'ecart national de ce departement.
+  tot as (select sum(reel) tr, sum(part) tp from cp_national),
   ecarts as (
     select cp.postal_code, cp.reel,
            ((cp.reel / nullif((cp.part / nullif(t.tp,0)) * t.tr, 0)) - 1) * 100 as ecart
