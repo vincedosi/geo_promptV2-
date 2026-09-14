@@ -61,6 +61,44 @@ describe('score d alignement géographique', () => {
     expect(calculerAlignement([], 10, 1).score).toBe(100)
   })
 
+  // ── Les deux tests suivants épinglent des VALEURS EXACTES. Sans eux, une
+  // analyse de mutation montre que trois défauts plausibles passent la suite
+  // sans faire rougir un seul test : intervertir le dénominateur (volume réel
+  // contre volume planifié), appliquer le poids au mauvais terme, et sauter
+  // les unités au plan nul au lieu de mesurer leur sur-pression. Ce fichier
+  // est l'ORACLE du jumeau SQL de la Task 5 : un oracle qui ne distingue pas
+  // ces trois cas ne vaut rien.
+
+  it('épingle le score exact sur un cas ASYMÉTRIQUE, dénominateur et poids compris', () => {
+    // Volume réel 1800, volume planifié 2000 — volontairement différents, pour
+    // qu'un dénominateur interverti change le résultat au lieu de passer.
+    const u: UniteAlignement[] = [
+      { code: 'a', reel: 400, plan: 1000 },  // bas 900  → manque 500
+      { code: 'b', reel: 900, plan: 500 },   // haut 550 → trop  350
+      { code: 'c', reel: 500, plan: 500 },   // conforme
+    ]
+    // Poids 2, non 1 : appliquer le poids au mauvais terme donnerait 25, pas 33.
+    const r = calculerAlignement(u, 10, 2)
+    expect(r.sous_pression_imps).toBe(500)
+    expect(r.sur_pression_imps).toBe(350)
+    expect(r.sous_pression_pct).toBe(27.78)   // 500/1800 — avec 2000 : 25
+    expect(r.sur_pression_pct).toBe(19.44)    // 350/1800 — avec 2000 : 17,5
+    expect(r.conformes_pct).toBe(33.3)
+    expect(r.n_unites).toBe(3)
+    expect(r.score).toBe(33)                  // dénominateur inverti : 40 · poids inversé : 25
+  })
+
+  it('MESURE la sur-pression d une unité au plan nul, au lieu de l ignorer', () => {
+    const r = calculerAlignement(
+      [{ code: 'a', reel: 10, plan: 0 }, { code: 'b', reel: 100, plan: 100 }],
+      10, 1,
+    )
+    // Sauter les unités au plan nul rendrait 0 ici, et un score de 100.
+    expect(r.sur_pression_imps).toBe(10)
+    expect(r.sous_pression_imps).toBe(0)
+    expect(r.score).toBe(91)
+  })
+
   it('reproduit la mesure du 2026-09-14 sur la campagne de démo', () => {
     // Valeurs mesurées en base : sous 3,84 % · sur 3,35 % · conformes 72,5 %
     // Ce test fige la formule, pas les données : il utilise un jeu réduit
