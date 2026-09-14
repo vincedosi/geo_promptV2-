@@ -1,7 +1,5 @@
 import { MAILLES, VUES, TRIS, type CampagneSession, type Maille, type VueCampagne, type Tri } from './session-types'
-import type { MagelianTab } from '@/components/magelian/deep-link'
-
-const ONGLETS: readonly MagelianTab[] = ['strategie', 'activation', 'suivi', 'apercu']
+import { TABS, ALIAS_TAB, type MagelianTab } from '@/components/magelian/deep-link'
 
 export const SESSION_DEFAUT: CampagneSession = {
   campaignId: null, vue: 'suivi', onglet: 'suivi', maille: 'departement',
@@ -40,7 +38,7 @@ function dansListe<T extends string>(v: string | null, liste: readonly T[]): T |
  * propagée : une maille « canton » venue d'un lien périmé ne doit pas traverser
  * la frontière et faire échouer une requête plus loin.
  */
-export function urlVersSession(p: URLSearchParams): CampagneSession {
+export function urlVersSession(p: URLSearchParams): Partial<CampagneSession> {
   const out: Partial<CampagneSession> = {}
 
   const campagne = p.get('campagne')
@@ -48,18 +46,15 @@ export function urlVersSession(p: URLSearchParams): CampagneSession {
 
   const vue = dansListe<VueCampagne>(p.get('vue'), VUES)
   if (vue) out.vue = vue
-  else if (p.has('vue')) out.vue = undefined // explicite mais invalide
 
   // `creation` est un ALIAS HÉRITÉ, pas une valeur invalide : le traiter comme
   // invalide perdrait silencieusement les campagnes ouvertes par un ancien lien.
   const ongletBrut = p.get('onglet')
-  const onglet = ongletBrut === 'creation' ? 'strategie' : dansListe<MagelianTab>(ongletBrut, ONGLETS)
+  const onglet = ALIAS_TAB[ongletBrut || ''] || dansListe<MagelianTab>(ongletBrut, TABS)
   if (onglet) out.onglet = onglet
-  else if (p.has('onglet')) out.onglet = undefined // explicite mais invalide
 
   const maille = dansListe<Maille>(p.get('maille'), MAILLES)
   if (maille) out.maille = maille
-  else if (p.has('maille')) out.maille = undefined // explicite mais invalide
 
   // Un parent sans maille explicite n'a pas de sens : on ne sait pas de quel
   // niveau il est le parent. On le laisse tomber plutôt que de deviner.
@@ -71,27 +66,9 @@ export function urlVersSession(p: URLSearchParams): CampagneSession {
 
   const tri = dansListe<Tri>(p.get('tri'), TRIS)
   if (tri) out.tri = tri
-  else if (p.has('tri')) out.tri = undefined // explicite mais invalide
 
   const acteurs = p.get('acteurs')
   if (acteurs) out.acteurs = acteurs.split(',').map(a => a.trim()).filter(Boolean)
 
-  // Retourner une session complète en fusionnant avec les défauts
-  // Les champs présents dans out (même si undefined) prennent leur valeur de out
-  // Les champs absents de out prennent leur défaut
-  const result: CampagneSession = { ...SESSION_DEFAUT }
-
-  if ('campaignId' in out) result.campaignId = out.campaignId ?? SESSION_DEFAUT.campaignId
-  if ('vue' in out) result.vue = out.vue ?? SESSION_DEFAUT.vue
-  if ('onglet' in out) result.onglet = out.onglet!
-  if ('maille' in out) result.maille = out.maille!
-  if ('parent' in out) result.parent = out.parent!
-  if ('uniteSelectionnee' in out) result.uniteSelectionnee = out.uniteSelectionnee ?? SESSION_DEFAUT.uniteSelectionnee
-  if ('tri' in out) result.tri = out.tri!
-  if ('acteurs' in out) result.acteurs = out.acteurs ?? SESSION_DEFAUT.acteurs
-
-  // Si parent n'est pas dans out (car condition maille non satisfaite), le rendre undefined
-  if (!('parent' in out)) result.parent = undefined as any
-
-  return result
+  return out
 }

@@ -25,10 +25,10 @@ export interface MagelianDeepLinkRequest {
 
 /** Ordre du parcours : je programme, j'active, je suis, je regarde.
  *  `activation` ajoutee par la Tache 20 (2026-09-13). */
-const TABS: readonly MagelianTab[] = ['strategie', 'activation', 'suivi', 'apercu'];
+export const TABS: readonly MagelianTab[] = ['strategie', 'activation', 'suivi', 'apercu'];
 
 /** Anciennes valeurs d'onglet renommees, mappees vers leur valeur actuelle. */
-const ALIAS_TAB: Readonly<Record<string, MagelianTab>> = {
+export const ALIAS_TAB: Readonly<Record<string, MagelianTab>> = {
   creation: 'strategie',
 };
 
