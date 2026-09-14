@@ -367,7 +367,11 @@ export function MagelianOverlay() {
         // Au-dessus de la carte MapLibre (conteneur /map en z-index 9999)
         // et du rail comme de la sidebar. Overlay porté sur <body>.
         zIndex: 10000,
-        display: 'flex',
+        // L'attribut `hidden` seul ne suffirait pas : sa règle par défaut
+        // (`[hidden] { display: none }`) est d'origine UA, qu'un style en
+        // ligne — même `display: 'flex'` — passe toujours devant. Le masquage
+        // doit donc être explicite ici, pas seulement porté par l'attribut.
+        display: masque ? 'none' : 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         willChange: 'transform, opacity',
