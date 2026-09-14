@@ -1151,7 +1151,15 @@ begin
         or (p_maille = 'departement' and code_region = p_parent)
         or (p_maille = 'cp'          and code_dept   = p_parent)
   ),
-  tot as (select sum(reel) t_reel, sum(part_plan) t_part from filtre),
+  -- ⚠ Totaux calculés sur `situe`, PAS sur `filtre`. C'est la nuance la plus
+  -- subtile de cette fonction, et la première version s'y est trompée.
+  -- Descendre dans un parent doit DÉCOMPOSER l'écart national, pas changer de
+  -- question. Calculés sur `filtre`, les totaux se rebasaient sur la livraison
+  -- réelle du parent : une région trois fois au-dessus de son plan affichait
+  -- alors 0 % d'écart sur CHACUN de ses départements. Le tableau « ce qu'il
+  -- faut corriger » ne pouvait plus rien expliquer, puisque la somme des écarts
+  -- des enfants valait zéro par construction.
+  tot as (select sum(reel) t_reel, sum(part_plan) t_part from situe),
   groupe as (
     select
       case p_maille when 'region' then code_region when 'departement' then code_dept else postal_code end as code,
@@ -1164,7 +1172,7 @@ begin
     'maille', p_maille,
     'parent', p_parent,
     'n_total', (select count(*) from groupe),
-    'unites', coalesce(jsonb_agg(u order by u.ecart_abs desc), '[]'::jsonb)
+    'unites', coalesce(jsonb_agg(u order by u.volume_deplace desc), '[]'::jsonb)
   ) into v_res
   from (
     select g.code, g.nom,
@@ -1172,10 +1180,27 @@ begin
            round(g.depense, 2)                                  as spend,
            round(g.depense / nullif(g.reel, 0) * 1000, 2)       as cpm,
            round((g.part_plan / nullif(t.t_part, 0)) * t.t_reel) as plan,
-           round(((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) * 100, 1) as ecart_pct,
-           abs((g.reel / nullif((g.part_plan / nullif(t.t_part,0)) * t.t_reel, 0)) - 1) as ecart_abs
+           -- Aucun pourcentage n'est définissable quand le plan vaut zéro : la
+           -- division n'existe pas. On rend NULL, et `hors_plan` dit pourquoi.
+           case when g.part_plan > 0
+                then round(((g.reel / ((g.part_plan / nullif(t.t_part,0)) * t.t_reel)) - 1) * 100, 1)
+           end                                                  as ecart_pct,
+           -- L'unité a reçu du volume sans en avoir au plan : la totalité de ce
+           -- volume est en trop. Mesure du 2026-09-14 : **400 CP sur 2 041**
+           -- sont dans ce cas sur la campagne de démo, soit 19,6 %.
+           (g.part_plan = 0 and g.reel > 0)                     as hors_plan,
+           -- CLÉ DE TRI : le volume d'impressions MAL PLACÉ, pas le ratio.
+           -- Trois raisons. (1) Elle est définie partout, y compris à plan nul —
+           -- alors qu'`abs(ratio-1)` y vaut NULL, et que PostgreSQL trie `desc`
+           -- en NULLS FIRST : les 400 unités hors plan occupaient le haut du
+           -- tableau en affichant une case vide. (2) Elle est actionnable : un
+           -- CP à +300 % sur 10 impressions ne vaut pas un CP à +40 % sur
+           -- 500 000. (3) Elle se convertit en euros, ce que le bloc « coût du
+           -- déséquilibre » affiche déjà.
+           abs(g.reel - (g.part_plan / nullif(t.t_part,0)) * t.t_reel)
+                                                                as volume_deplace
       from groupe g cross join tot t
-     order by ecart_abs desc
+     order by volume_deplace desc nulls last
      limit p_limite
   ) u;
 
