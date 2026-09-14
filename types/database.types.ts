@@ -2459,10 +2459,12 @@ export type Database = {
           kpi_target: number | null
           name: string
           organization_id: string | null
+          overpressure_weight: number
           product: string | null
           status_override: string | null
           status_override_at: string | null
           status_override_by: string | null
+          tolerance_pct: number
           total_budget: number | null
           total_tracked_ads: number | null
           total_unique_impressions: number
@@ -2483,10 +2485,12 @@ export type Database = {
           kpi_target?: number | null
           name: string
           organization_id?: string | null
+          overpressure_weight?: number
           product?: string | null
           status_override?: string | null
           status_override_at?: string | null
           status_override_by?: string | null
+          tolerance_pct?: number
           total_budget?: number | null
           total_tracked_ads?: number | null
           total_unique_impressions?: number
@@ -2507,10 +2511,12 @@ export type Database = {
           kpi_target?: number | null
           name?: string
           organization_id?: string | null
+          overpressure_weight?: number
           product?: string | null
           status_override?: string | null
           status_override_at?: string | null
           status_override_by?: string | null
+          tolerance_pct?: number
           total_budget?: number | null
           total_tracked_ads?: number | null
           total_unique_impressions?: number
@@ -2888,6 +2894,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      etalon_alignement: {
+        Row: {
+          calcule_le: string
+          id: boolean
+          n_campagnes: number
+          score_median: number
+          tolerance_pct: number
+        }
+        Insert: {
+          calcule_le?: string
+          id?: boolean
+          n_campagnes: number
+          score_median: number
+          tolerance_pct: number
+        }
+        Update: {
+          calcule_le?: string
+          id?: boolean
+          n_campagnes?: number
+          score_median?: number
+          tolerance_pct?: number
+        }
+        Relationships: []
       }
       filosofi_national_averages: {
         Row: {
@@ -4818,44 +4848,6 @@ export type Database = {
         }
         Relationships: []
       }
-      strategie_versions: {
-        Row: {
-          charge_utile: Json
-          empreinte_zones: Json
-          id: string
-          publiee_le: string
-          publiee_par: string
-          strategie_id: string
-          version: number
-        }
-        Insert: {
-          charge_utile: Json
-          empreinte_zones?: Json
-          id?: string
-          publiee_le?: string
-          publiee_par: string
-          strategie_id: string
-          version: number
-        }
-        Update: {
-          charge_utile?: Json
-          empreinte_zones?: Json
-          id?: string
-          publiee_le?: string
-          publiee_par?: string
-          strategie_id?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "strategie_versions_strategie_id_fkey"
-            columns: ["strategie_id"]
-            isOneToOne: false
-            referencedRelation: "bidding_strategies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       smart_ville_stats: {
         Row: {
           indicateur: string
@@ -4906,6 +4898,44 @@ export type Database = {
           srtext?: string | null
         }
         Relationships: []
+      }
+      strategie_versions: {
+        Row: {
+          charge_utile: Json
+          empreinte_zones: Json
+          id: string
+          publiee_le: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Insert: {
+          charge_utile: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par: string
+          strategie_id: string
+          version: number
+        }
+        Update: {
+          charge_utile?: Json
+          empreinte_zones?: Json
+          id?: string
+          publiee_le?: string
+          publiee_par?: string
+          strategie_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "strategie_versions_strategie_id_fkey"
+            columns: ["strategie_id"]
+            isOneToOne: false
+            referencedRelation: "bidding_strategies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       strategy_changes: {
         Row: {
@@ -5242,10 +5272,6 @@ export type Database = {
         }[]
       }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
-      correlation_campagne_indicateur: {
-        Args: { p_campaign_id: string; p_indicator_code: string }
-        Returns: Json
-      }
       compte_poi_par_categorie: {
         Args: {
           p_categories: string[]
@@ -5297,6 +5323,10 @@ export type Database = {
           colonnes: number
           duree_ms: number
         }[]
+      }
+      correlation_campagne_indicateur: {
+        Args: { p_campaign_id: string; p_indicator_code: string }
+        Returns: Json
       }
       count_emetteurs_par_radio: {
         Args: never
@@ -5369,8 +5399,10 @@ export type Database = {
           }
         | { Args: { schema_name: string; table_name: string }; Returns: string }
         | { Args: { table_name: string }; Returns: string }
+      empreinte_zones: { Args: { p_zone_ids: string[] }; Returns: Json }
       enablelongtransactions: { Args: never; Returns: string }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      etat_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       export_carreaux_after: {
         Args: { p_last_idcar: string; p_limit: number }
         Returns: {
@@ -5511,8 +5543,6 @@ export type Database = {
           type_iris: string
         }[]
       }
-      empreinte_zones: { Args: { p_zone_ids: string[] }; Returns: Json }
-      etat_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
       fill_carreaux_1km_bande: {
         Args: { p_x0: number; p_x1: number }
         Returns: {
@@ -6247,7 +6277,10 @@ export type Database = {
         Args: { p_campaign_id: string }
         Returns: number
       }
-      materialiser_indicateur_cp: { Args: { p_indicator_code: string }; Returns: Json }
+      materialiser_indicateur_cp: {
+        Args: { p_indicator_code: string }
+        Returns: Json
+      }
       materialize_indicator_cp_values: {
         Args: { p_indicator_code: string }
         Returns: number
@@ -6326,11 +6359,16 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
-      purge_old_agent_chat_messages: { Args: never; Returns: number }
       publier_strategie: {
-        Args: { p_charge_utile: Json; p_empreinte: Json; p_publiee_par: string; p_strategie_id: string }
+        Args: {
+          p_charge_utile: Json
+          p_empreinte: Json
+          p_publiee_par: string
+          p_strategie_id: string
+        }
         Returns: Json
       }
+      purge_old_agent_chat_messages: { Args: never; Returns: number }
       qualite_colonnes_iris: { Args: never; Returns: Json }
       qualite_fraicheur: { Args: never; Returns: Json }
       qualite_indicateurs: { Args: never; Returns: Json }
@@ -7016,7 +7054,10 @@ export type Database = {
         Returns: string
       }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
-      zone_difference: { Args: { p_base: string; p_retires: string[] }; Returns: Json }
+      zone_difference: {
+        Args: { p_base: string; p_retires: string[] }
+        Returns: Json
+      }
       zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
       zone_rayon: {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
