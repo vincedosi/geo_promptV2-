@@ -13,6 +13,7 @@ import { ActivationPanel } from '@/components/campaign/ActivationPanel';
 import { CreationHall } from './CreationHall';
 import { useMagelianOverlay } from './MagelianOverlayContext';
 import type { MagelianTab } from './deep-link';
+import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { deriveCampagneActive } from '@/lib/campaigns/campagne-active';
 import { LARGEUR_RAIL, ECART_RAIL_PANNEAU } from '@/lib/navigation/config';
 import { empiler, depiler } from '@/lib/carte/pile-echap';
@@ -55,7 +56,13 @@ export function MagelianOverlay() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  const [tab, setTab] = useState<MagelianTab>('suivi');
+  // L'onglet actif vit dans la session partagée carte/overlay (Tâche 2) : il
+  // survit à la bascule vers la carte au lieu de repartir sur Suivi à chaque
+  // réouverture. `setTab` reste le nom local pour ne pas toucher tous les
+  // appelants (clic sur un onglet, deep-link reçu overlay déjà ouvert).
+  const { session, majSession } = useCampagneSession();
+  const tab = session.onglet;
+  const setTab = useCallback((t: MagelianTab) => majSession({ onglet: t }), [majSession]);
   const [campaigns, setCampaigns] = useState<CampaignRef[] | null>(null);
   const [strategyIds, setStrategyIds] = useState<ReadonlySet<string>>(new Set());
   const [draftSavedAt, setDraftSavedAt] = useState<ReadonlyMap<string, string>>(new Map());
@@ -114,13 +121,12 @@ export function MagelianOverlay() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
   }, []);
 
-  // Reset l'onglet actif à chaque nouvelle ouverture (deep-link prioritaire) + horodate.
+  // Horodate l'ouverture (fenêtre de garde du click-outside, ligne ~312).
+  // L'onglet actif ne se réinitialise plus ici : il vit dans la session
+  // partagée (session.onglet, Tâche 2) et survit à la bascule carte/overlay
+  // au lieu de repartir sur Suivi à chaque réouverture.
   useEffect(() => {
-    if (open) {
-      setTab(request?.tab ?? 'suivi');
-      openedAtRef.current = Date.now();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (open) openedAtRef.current = Date.now();
   }, [open]);
 
   // Deep-link reçu overlay déjà ouvert : applique l'onglet demandé.
@@ -323,7 +329,12 @@ export function MagelianOverlay() {
     };
   }, [open, handleClose]);
 
-  if (!mounted || (!open && !closing)) return null;
+  // Le portail reste monté une fois `mounted` — `hidden` retire l'élément du
+  // flux ET de l'arbre d'accessibilité sans démonter les enfants (Tâche 2) :
+  // l'onglet Suivi de CampaignSuivi (et sa session locale) survit à la
+  // bascule vers la carte au lieu d'être détruit puis recréé.
+  if (!mounted) return null;
+  const masque = !open && !closing;
 
   const creationCampaign = creationCampaignId
     ? campaigns?.find((c) => c.id === creationCampaignId) ?? null
@@ -338,6 +349,9 @@ export function MagelianOverlay() {
       data-state={closing ? 'closing' : 'open'}
       role="dialog"
       aria-label="MAGELIAN"
+      hidden={masque}
+      aria-hidden={masque}
+      inert={masque}
       style={{
         position: 'fixed',
         top: 12,

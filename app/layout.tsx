@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/lib/theme/ThemeProvider'
 import { MainPadding } from '@/components/layout/MainPadding'
 import { TopRightChrome } from '@/components/layout/TopRightChrome'
 import { AgentProvider, AgentPanel, AgentTrigger } from '@/app/_components/agent'
+import { CampagneSessionProvider } from '@/lib/campagne/CampagneSessionContext'
 import { MagelianOverlayProvider } from '@/components/magelian/MagelianOverlayContext'
 import { MagelianOverlay } from '@/components/magelian/MagelianOverlay'
 import { MagelianDeepLink } from '@/components/magelian/MagelianDeepLink'
@@ -53,15 +54,17 @@ export default function RootLayout({
           <SplashScreen minDuration={2000} />
           <ToastProvider>
             <AgentProvider>
-              <MagelianOverlayProvider>
-                <AppSidebar />
-                <TopRightChrome />
-                <MainPadding>{children}</MainPadding>
-                <AgentTrigger />
-                <AgentPanel />
-                <MagelianOverlay />
-                <MagelianDeepLink />
-              </MagelianOverlayProvider>
+              <CampagneSessionProvider>
+                <MagelianOverlayProvider>
+                  <AppSidebar />
+                  <TopRightChrome />
+                  <MainPadding>{children}</MainPadding>
+                  <AgentTrigger />
+                  <AgentPanel />
+                  <MagelianOverlay />
+                  <MagelianDeepLink />
+                </MagelianOverlayProvider>
+              </CampagneSessionProvider>
             </AgentProvider>
           </ToastProvider>
         </ThemeProvider>
