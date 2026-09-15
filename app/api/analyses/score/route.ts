@@ -62,10 +62,27 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * Plafond de codes postaux d'un périmètre. Au-delà, ce n'est plus un périmètre
- * mais la France (6 187 CP au total) — refusé plutôt que tronqué en silence.
+ * Plafond de codes postaux d'un périmètre.
+ *
+ * **Relevé de 3 000 à 7 000 le 2026-09-15, sur mesure.** L'ancienne valeur
+ * refusait la France entière au motif que « ce n'est plus un périmètre » —
+ * un choix de conception, pas une contrainte technique. Or le référentiel
+ * compte 6 187 codes postaux, et le calcul national a été chronométré :
+ *
+ *   EXPLAIN (ANALYZE, BUFFERS) sur les 6 187 CP, 2 indicateurs
+ *   → 159 ms · shared hit=2795 read=80, soit 640 Ko lus
+ *
+ * Un sixième de seconde et moins d'un mégaoctet : rien qui justifie de
+ * fermer le cas d'usage le plus naturel de l'outil. Le plafond reste, au-dessus
+ * du référentiel complet, pour refuser une liste absurde envoyée par un client
+ * — pas pour interdire la France.
+ *
+ * ⚠️ Ce qui coûte vraiment n'est PAS ce plafond, c'est la matérialisation
+ * paresseuse : un indicateur jamais calculé déclenche un balayage complet
+ * d'`iris` (~220 Mo, ~1,4 s) dans `assurerIndicateurCp`, une fois pour toutes.
+ * Six indicateurs neufs sur un même lancement, c'est ~8 s — d'où `maxDuration`.
  */
-const MAX_CP = 3000;
+const MAX_CP = 7000;
 
 /** Au-delà, le score ne se lit plus : six curseurs de poids sont déjà beaucoup. */
 const MAX_INDICATEURS = 6;
