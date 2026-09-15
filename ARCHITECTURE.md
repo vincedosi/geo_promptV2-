@@ -29,6 +29,68 @@
 > Version : 7.7.x
 > Auteur initial : Vince Dosi
 
+> **Suppression de l'ancien ecran de suivi (Tache 16, 2026-09-15, branche
+> `feat/suivi-v2`).** L'onglet Suivi de l'overlay MAGELIAN affiche desormais
+> **uniquement** `SuiviV2` (`components/campagne/suivi-v2/`) — le montage lui-meme
+> datait deja de la Tache 15, cette tache retire ce qui ne servait plus qu'a
+> comparer les deux ecrans. Supprimes : `components/campaign/CampaignSuivi.tsx`,
+> et dans `components/campaign/suivi/` : `SuiviCockpit.tsx`, `SuiviCharts.tsx`,
+> `SuiviTable.tsx`, `ActorFilter.tsx`, `ActorPanel.tsx`, `SuiviDeriveMap.tsx`,
+> `DeriveTable.tsx`, `MeshSelector.tsx` ; les routes
+> `app/api/digital/[campaignId]/derive/map`, `.../derive/ranked` et
+> `.../suivi/cps` (cette derniere hors de la liste initiale de la tache —
+> trouvee orpheline par le meme grep, `SuiviTable.tsx` en etait le seul
+> appelant) ; et `lib/campaigns/derive-metrics.ts` (+ son test). Aucun de ces
+> fichiers n'avait plus d'appelant en dehors de cet ensemble — verifie par grep
+> avant suppression. Le re-export `fmtInt`/`fmtCpm`/`fmtPct`/`toneColor` de
+> `lib/campaigns/actor-metrics.ts` (depuis `suivi-metrics.ts`) est egalement
+> retire : ses seuls consommateurs etaient dans cet ensemble supprime, et le
+> laisser aurait introduit un export mort (detecte par `npm run catalogue`).
+>
+> **Trois fichiers du meme lot NE SONT PAS supprimes**, malgre le plan initial,
+> parce qu'un grep de consommateurs a trouve un appelant reel et vivant :
+> - `components/campaign/suivi/ReconciliationPanel.tsx` et
+>   `lib/campaigns/reconciliation-metrics.ts` (+ son test) — reutilises TEL QUEL
+>   par `components/campagne/suivi-v2/DetailTechnique.tsx` (bloc technique replie
+>   du cockpit Suivi V2, reconciliation DSP ⇔ ad server). Ce n'est pas un doublon
+>   temporaire de comparaison comme l'etait `CampaignSuivi.tsx` : c'est une
+>   reutilisation deliberee et definitive, documentee dans l'en-tete de
+>   `DetailTechnique.tsx` lui-meme (« props-driven, deja teste, pas de deuxieme
+>   table reecrite pour le meme besoin »).
+> - `app/map/_components/SuiviMapLayer.tsx` — toujours importe et monte par
+>   `app/map/page.tsx`, et ses exports (`SuiviMapEventDetail`,
+>   `legendePourMetrique`) toujours consommes par
+>   `app/map/_components/panneaux/PanneauCalques.tsx` (groupe « Campagne active »
+>   du panneau Calques) et `components/map/LegendeCarte.tsx`. L'en-tete de
+>   `DiffusionMapLayer.tsx` (Tache 13B) indique que ce fichier « remplace
+>   SuiviMapLayer.tsx dans l'intention, pas dans le code » et que sa suppression
+>   reelle est reservee a la Tache 16 — mais l'y retirer proprement suppose de
+>   toucher `app/map/page.tsx` (etat `campagneActive`/`campagneActiveRef`,
+>   l'effet `SUIVI_MAP_STATUS_EVENT`, `handleFermerCampagneActive`, la branche
+>   `'campagne-impressions'` de l'exclusivite des degrades), `PanneauCalques.tsx`,
+>   `LegendeCarte.tsx`, et potentiellement le `DegradeId`
+>   `'campagne-impressions'` de `lib/carte/degrades.ts` — fichier explicitement
+>   marque « protege » par le contrat de la Tache 5 dans l'en-tete de
+>   `lib/carte/calques-actifs.ts`. Ce perimetre depassait les fichiers annonces
+>   par cette tache (`components/magelian/MagelianOverlay.tsx` + ce document) ;
+>   la regle de cette meme tache est explicite — « un fichier avec un
+>   consommateur restant ne part pas encore, le dire plutot que de supprimer et
+>   rattraper les degats ». Reste donc a faire, en tache separee et revue :
+>   supprimer `SuiviMapLayer.tsx` et desactiver proprement le degrade
+>   `'campagne-impressions'` cote page.tsx/PanneauCalques/LegendeCarte.
+>
+> **Les RPC `get_campaign_derive_map`, `get_campaign_derive_ranked`,
+> `get_campaign_derive_headline` (sql/117-118) et `get_campaign_suivi_cps`
+> restent EN BASE**, bien qu'orphelines sur cette branche : `origin/main` (ce
+> que la prod execute aujourd'hui) appelle encore ces RPC depuis les routes
+> `derive/map`, `derive/ranked` et `suivi/cps` supprimees ici (`SuiviTable.tsx`,
+> leur seul appelant commun avec `SuiviDeriveMap.tsx`/`DeriveTable.tsx`, y
+> disparait aussi). La base de donnees Supabase est UNIQUE et partagee entre
+> branches — les supprimer maintenant casserait l'ecran de suivi en production,
+> en direct, pendant que cette branche n'est pas mergee. A traiter en tache SQL
+> separee, APRES le merge de `feat/suivi-v2`, une fois que `main` ne les
+> appelle plus.
+
 > **Retrait de Pilotage ML (2026-09-08).** L'overlay `pilotage` du rail /map a ete
 > supprime, avec le wizard de strategie A4.7 (`app/strategies/`), les pages de demo
 > `app/custom-bidding/`, `app/settings/agent/`, `CustomBiddingBar` et 22 routes
@@ -133,9 +195,12 @@ genesis_app/
 │   │   ├── CampaignCockpit.tsx # Fil d'Ariane + wizard prog (Cible→Canaux & budgets→Pression→Strategie→Lancement)
 │   │   ├── CampaignOverview.tsx# Apercu campagne + actions (Pause/Cloturer/Archiver/Supprimer) —
 │   │   │                       # la modification passe par l'onglet Strategie (wizard)
-│   │   ├── CampaignSuivi.tsx   # Cockpit de suivi en vol (tuiles/alertes/graphes/tableau via suivi/*)
-│   │   │                       # + reconciliation DSP ⇔ mesure + bilan + chat IA
-│   │   ├── suivi/              # SuiviCockpit, SuiviCharts, SuiviTable, ReconciliationPanel
+│   │   ├── FinalReport.tsx     # Bilan executif Gemini fin de campagne — consomme par suivi-v2/DetailTechnique
+│   │   ├── suivi/              # Tache 16 (2026-09-15) : ne contient plus que ReconciliationPanel.tsx,
+│   │   │                       # reutilise TEL QUEL par suivi-v2/DetailTechnique (reconciliation DSP ⇔ mesure).
+│   │   │                       # CampaignSuivi.tsx et le reste de suivi/ (SuiviCockpit/SuiviCharts/SuiviTable/
+│   │   │                       # ActorFilter/ActorPanel/SuiviDeriveMap/DeriveTable/MeshSelector) supprimes —
+│   │   │                       # ancien ecran de suivi, remplace par components/campagne/suivi-v2/
 │   │   └── wizard/             # Etapes du wizard (PressureControl = slider pression ↔ CPM min/max ;
 │   │                        #   StepCible : panier de zones ORDONNE (Tache 21). ⚠ L'ordre n'a AUCUN
 │   │                        #   effet sur le ciblage a ce jour : `resolveFinalZone` fusionne les
@@ -143,6 +208,17 @@ genesis_app/
 │   │                        #   courbe d'enchere a toute la zone. La priorite reste A IMPLEMENTER.
 │   │                        #   Glisser-deposer HTML5 + fleches clavier, aucune dependance ajoutee ;
 │   │                        #   logique pure dans lib/campaigns/priorite.ts)
+│   ├── campagne/               # Chantier suivi-v2 (Taches 9-16, 2026-09-14/15) — convention FRANCAISE
+│   │   │                       # du nom de dossier, distincte de campaign/ (anglais, plus ancien)
+│   │   ├── BarreContexteCampagne.tsx # Barre de contexte campagne active (carte /map)
+│   │   └── suivi-v2/           # Ecran de suivi actuel, seul monte par MagelianOverlay (onglet Suivi,
+│   │                           # Tache 16) : SuiviV2.tsx (assemblage), TrioCartes/ScoreAlignement/
+│   │                           # CarteVignette/GraphiqueEcart (vignettes), TableauDeregles/
+│   │                           # ConstatsCorrection (deregles), QuiADiffuse (vue par acteur,
+│   │                           # lib/campaigns/actor-metrics.ts), DetailTechnique (bloc technique
+│   │                           # replie — budget vs trajectoire + ReconciliationPanel reutilise de
+│   │                           # components/campaign/suivi/ + FinalReport), BandeauAvancement/
+│   │                           # BarreMaille/CoutEtRythme/TroisComposantes (etat/maille/cout)
 │   ├── magelian/               # Overlay MAGELIAN (Strategie/Suivi/Apercu) + deep-link
 │   │   ├── MagelianOverlay.tsx # Overlay plein ecran — onglets Strategie/Suivi/Apercu ; selecteur
 │   │   │                       # de campagne reserve a Suivi/Apercu (donnees OU strategie)
@@ -566,8 +642,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `/api/digital/[campaignId]/ai-analysis` | POST | Analyse Gemini performances geo |
 | `/api/digital/[campaignId]/bidding-chat` | POST | Chat bidding Gemini multi-turn |
 | `/api/digital/[campaignId]/campaign-chat` | POST | Chat IA « Suivi campagne » — streaming Gemini, historique ephemere cote client, contexte serveur borne (stats geo RPC 098 + journal strategie 25/15/10 + breakdown IRIS 30) |
-| `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie) |
-| `/api/digital/[campaignId]/suivi/cps` | GET | Drill niveau 3 du tableau : les CP d'un departement (`?dept=`, max 500, pires indices d'abord) |
+| `/api/digital/[campaignId]/suivi` | GET | Payload complet du cockpit de suivi (pacing, CPM, pression tenue, alertes, depts, quotidien) — lit les rollups uniquement, backfill lazy si absents (campagnes avec strategie). Route KEPT (Tache 16) : `pacing.total_budget` + `daily` alimentent la trajectoire budget de `suivi-v2/DetailTechnique.tsx` |
 | `/api/digital/[campaignId]/suivi/map` | GET | Choroplethe CP du suivi (`?metric=hold\|cpm&bbox=`) — features GeoJSON pour SuiviMapLayer |
 | `/api/digital/[campaignId]/reconcile` | GET | Payload de reconciliation DSP ⇔ ad server (taux de mesure global, composition de l'achat par canal, tendance) — lit campaign_dsp_report + rollups |
 | `/api/digital/[campaignId]/reconcile/pull` | POST | (Re)construit le rapport DSP (requireAdmin) : demo → RPC simulate_dsp_report ; prod → lib/dsp/report par canal connecte (API, skipped si non connecte — jamais d'import fichier) |
@@ -906,7 +981,7 @@ emprunte. Deux pieges a connaitre avant de brancher la cle anon un jour :
 | `materialize_indicator_cp_values` | Materialise un indicateur du registre IRIS en valeurs par CP (agregation ponderee + fallback communal), table `indicator_cp_values` | Lancement wizard (matérialisation lazy), `api/bidding/strategies/` |
 | `refresh_campaign_rollups` | Reconstruit les rollups de suivi d'une campagne (daily + CP, plan copie de bidding_zone_configs) | Import DSP, absorb, armement, backfill lazy `api/digital/[id]/suivi/` |
 | `get_campaign_suivi` | Payload jsonb complet du cockpit (pacing, cpm, pression, objectif, alertes, depts, daily) — seuils d'alerte constants sql/108 | `api/digital/[id]/suivi/` |
-| `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | `api/digital/[id]/suivi/cps/` |
+| `get_campaign_suivi_cps` | CP d'un departement (drill, max 500, pires indices d'abord) | *orpheline sur cette branche* (Tache 16, 2026-09-15) — la route `api/digital/[id]/suivi/cps/` est supprimee avec `SuiviTable.tsx`, son seul appelant. Reste EN BASE : `origin/main` (prod) a encore les deux, meme regle que les RPC `get_campaign_derive_*` ci-dessous |
 | `get_campaign_suivi_map` | Features CP (geometries ref_codes_postaux) pour la choroplethe hold/cpm | `api/digital/[id]/suivi/map/` |
 | `simulate_dsp_report` | Genere le rapport DSP demo (set-based depuis les rollups, part de budget, sur-declaration ×1,03) | `api/digital/[id]/reconcile/pull/` |
 | `get_campaign_reconciliation` | Payload reconciliation (global taux de mesure, par canal, tendance) | `api/digital/[id]/reconcile/` |

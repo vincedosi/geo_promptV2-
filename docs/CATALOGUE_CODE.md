@@ -4,11 +4,11 @@
 > Ne JAMAIS éditer ce fichier à la main — toute modification manuelle sera écrasée au
 > prochain lancement, et une correction faite ici mentirait dès le prochain import.
 >
-> Généré le 2026-09-13 — commit `c295a21`.
+> Généré le 2026-09-15 — commit `43a3f96`.
 
 ## Totaux
 
-- Exports morts : 188
+- Exports morts : 197
 - Fichiers morts : 4
 - Dépendances inutilisées : 3
 
@@ -38,10 +38,11 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/dialog.tsx` | 6 | DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogFooter, DialogDescription | — |
 | `lib/bidding-ml/client.ts` | 5 | predictForStrategy, detectDrift | ExecutionMode, PredictResponse, DriftResponse |
 | `lib/meteo/types.ts` | 5 | — | GridPoint, MeteoSquare, MeteoMeta, MeteoSummary, MeteoApiResponse |
-| `lib/campaigns/suivi-metrics.ts` | 5 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviDaily, SuiviMedia |
+| `lib/campaigns/suivi-metrics.ts` | 5 | — | SuiviAlert, SuiviLevel1Row, SuiviDeptRow, SuiviCpRow, SuiviMedia |
 | `lib/import/types.ts` | 4 | INSEE_CARREAUX_INDICATORS | ImportConfig, DryRunStats, LogLevel |
 | `types/spatial.ts` | 4 | — | BattleData, ChatMessage, GeoJSONFeatureCollection, SpatialResult |
 | `app/_components/agent/index.ts` | 3 | useAgent, AgentRecommendationCard, AgentAutonomyBadge | — |
+| `lib/isochrones/fetcher.ts` | 3 | ORS_MAX_RETRIES, ORS_RETRY_DELAY, ORS_DELAI_MS | — |
 | `app/admin/sources/_hooks/usePoiAdmin.ts` | 3 | emptyPoiForm | PoiForm, PoiModalState |
 | `lib/dsp/report/index.ts` | 3 | selectReporter | DspReportRow, DspReporter |
 | `components/ui/GeoSkeleton.tsx` | 3 | SkeletonCard, SkeletonChart, SkeletonMap | — |
@@ -51,8 +52,7 @@ Trié par nombre d’occurrences décroissant.
 | `components/ui/table.tsx` | 2 | TableFooter, TableCaption | — |
 | `app/copilote/_lib/constants.ts` | 2 | applyChoropleth, CATEGORY_COLORS | — |
 | `app/map/_components/CivicIndicatorsLayer.tsx` | 2 | CIVIC_VARIABLES, getCivicLegendStops | — |
-| `lib/isochrones/fetcher.ts` | 2 | ORS_MAX_RETRIES, ORS_RETRY_DELAY | — |
-| `lib/campaigns/derive-metrics.ts` | 2 | nextMesh, prevMesh | — |
+| `lib/meteo/requete.ts` | 2 | ARCHIVE_CUTOFF, daysBetween | — |
 | `lib/campaigns/suivi-chat.ts` | 2 | ChatTurnSchema | CampaignChatBody |
 | `lib/dsp/dv360/auth.ts` | 2 | DV360_SCOPES, buildOAuthClient | — |
 | `lib/prompting/code-generation/adform.ts` | 2 | ADFORM_PROMPT_SECTION | AdformRule |
@@ -60,7 +60,6 @@ Trié par nombre d’occurrences décroissant.
 | `lib/demo/constants.ts` | 2 | PERIOD_LEN_DAYS, CALENDAR_START | — |
 | `lib/geo/locations.ts` | 2 | VILLES, REGIONS | — |
 | `lib/dsp-mapping/loader.ts` | 2 | listAvailableDsps, invalidateMappingsCache | — |
-| `lib/import/geocoder.ts` | 2 | reverseGeocodeRows | ReverseResult |
 | `lib/import/schemas.ts` | 2 | MappageChampsSchema, ConfigGeoSchema | — |
 | `lib/bidding-ml/comparison.ts` | 2 | aggregateByDate | DailyComparison |
 | `lib/bidding-ml/targeting-kpis.ts` | 2 | quantile, selectTargetZones | — |
@@ -68,20 +67,26 @@ Trié par nombre d’occurrences décroissant.
 | `lib/prompting/rate-limiter.ts` | 2 | getClientKey, rateLimitResponse | — |
 | `lib/iris-crawler/parser.ts` | 2 | GEO_COLUMNS, classifyColumns | — |
 | `lib/smart-prompt/geo-resolver.ts` | 2 | resolveZoneToBbox | ZoneResolution |
+| `lib/donnees/registre-fraicheur.ts` | 2 | — | CoutMesure, JournalSource |
 | `lib/agent/types.ts` | 2 | — | ActionRisk, ActionType |
 | `lib/dsp/validation.ts` | 2 | — | Dv360ConnectInput, Dv360OAuthConfigInput |
 | `lib/smart-prompt/types.ts` | 2 | — | GeoParams, PoiStats |
 | `lib/dsp/report/types.ts` | 2 | — | ReportStatus, DspReportRow |
 | `lib/chat/tools/types.ts` | 2 | — | BillboardRaw, CarreauRow |
-| `lib/version.ts` | 1 | APP_NAME | — |
+| `components/campagne/BarreContexteCampagne.tsx` | 1 | libellePeriode | — |
 | `lib/auth.ts` | 1 | createServerClient | — |
 | `lib/geo/region-lookup-server.ts` | 1 | invalidateRegionCache | — |
-| `lib/campaigns/actor-metrics.ts` | 1 | toneColor | — |
+| `lib/http/lecture-avec-reprise.ts` | 1 | ATTENTE_MAX_MS | — |
+| `lib/version.ts` | 1 | APP_NAME | — |
+| `lib/campagne/constats.ts` | 1 | SEUIL_ECART_SIGNALE_PCT | — |
+| `lib/campagne/graphique-ecart.ts` | 1 | LIMITE_COURBE | — |
+| `components/campagne/suivi-v2/TableauDeregles.tsx` | 1 | LIGNES_MAX | — |
 | `lib/dsp-mapping/parser.ts` | 1 | parseRow | — |
 | `lib/campaigns/platform-links.ts` | 1 | PlatformLinksSchema | — |
 | `lib/civic-health/atmofrance-client.ts` | 1 | AASQA_REGION_CODES | — |
 | `lib/pacing/rebid.ts` | 1 | REBID_EPSILON | — |
 | `lib/demo/rng.ts` | 1 | hashStr | — |
+| `lib/geo/dept-lookup-server.ts` | 1 | invalidateDeptCache | — |
 | `lib/prompting/code-generation/dv360.ts` | 1 | DV360_PROMPT_SECTION | — |
 | `lib/auth/roles.ts` | 1 | ROLES_MEMBRE | — |
 | `lib/iris-crawler/db-columns.ts` | 1 | getCoreColumnType | — |
@@ -90,6 +95,7 @@ Trié par nombre d’occurrences décroissant.
 | `lib/import/column-detector.ts` | 1 | normalizeColumnName | — |
 | `lib/civic-health/provider.ts` | 1 | _resetProvider | — |
 | `lib/metrics-display/loader.ts` | 1 | invalidateMetricsCache | — |
+| `lib/campagne/cache-alignement.ts` | 1 | invaliderAlignementPartage | — |
 | `app/map/_components/filter-panel/styles.ts` | 1 | hexToRgb | — |
 | `lib/dsp-mapping/transformer.ts` | 1 | listKnownTransforms | — |
 | `lib/dsp/push/simulated.ts` | 1 | buildPayloadSummary | — |
@@ -99,9 +105,11 @@ Trié par nombre d’occurrences décroissant.
 | `lib/clustering/feature-themes.ts` | 1 | resolveThemesFromFeatures | — |
 | `components/ui/input.tsx` | 1 | — | InputProps |
 | `lib/logger.ts` | 1 | — | Logger |
+| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
 | `types/admin.ts` | 1 | — | HealthCheck |
 | `app/admin/import/_components/GeocodeStep.tsx` | 1 | — | GeocodeFilter |
-| `lib/supabase/tables.ts` | 1 | — | TableUpdate |
+| `lib/campagne/vignette-carte.ts` | 1 | — | Maille |
+| `lib/campaigns/actor-metrics.ts` | 1 | — | ActorsPayload |
 | `lib/dsp-mapping/types.ts` | 1 | — | TargetLocation |
 | `lib/campaigns/reconciliation-metrics.ts` | 1 | — | ReconChannelRow |
 | `lib/civic-health/civic-ingest.ts` | 1 | — | CivicDatasetSummary |
