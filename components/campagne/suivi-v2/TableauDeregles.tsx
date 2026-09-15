@@ -43,6 +43,7 @@ import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext'
 import type { Maille } from '@/lib/campagne/session-types'
 import { LIBELLES_MAILLE } from './BarreMaille'
 import { formaterNombre } from '@/lib/format/nombre'
+import { RAMPE_CSS, trancheDivergente } from '@/lib/campagne/palette-divergente'
 
 const fInter = "'Inter', system-ui, sans-serif"
 const fMono = "'JetBrains Mono', monospace"
@@ -109,15 +110,28 @@ export function largeurBarre(ecartPct: number): { cote: 'gauche' | 'droite'; pct
   }
 }
 
-/** Ton sémantique d'un écart — même seuil de sévérité que le reste de `suivi-v2/` (au-delà de 25 %, c'est massif). */
-export function tonEcart(ecartPct: number): 'bad' | 'warn' | 'cool' {
-  if (ecartPct < -25) return 'bad'
-  if (ecartPct < 0) return 'warn'
-  return 'cool'
-}
-
-const COULEUR_TON: Record<'bad' | 'warn' | 'cool', string> = {
-  bad: 'var(--danger)', warn: 'var(--warning)', cool: 'var(--info)',
+/**
+ * Indice de gravité (0-6) sur l'échelle divergente PARTAGÉE
+ * (`trancheDivergente`/`BORNES_DIVERGENTES`, `lib/campagne/
+ * palette-divergente.ts`) — la MÊME échelle, sur le MÊME champ `ecart_pct`,
+ * que `GraphiqueEcart.tsx`, `CarteVignette.tsx` et `DiffusionMapLayer.tsx`.
+ *
+ * Ruling T14-2 : ce fichier avait sa propre échelle de gravité, asymétrique
+ * à trois teintes (`--danger`/`--warning`/`--info`), où toute sur-livraison
+ * — même à +900 % — restait `--info`, la teinte la plus calme de
+ * l'application, alors que le score d'alignement pénalise les deux sens à
+ * égalité. `graviteEcart` délègue entièrement à `trancheDivergente` : aucune
+ * seconde marche de seuils écrite ici.
+ *
+ * Une unité `hors_plan` (`ecart_pct` non définissable, plan nul) vaut
+ * TOUJOURS l'indice le plus extrême côté sur-pression (6) — même convention
+ * que `trierDeregles` ci-dessus et `constats.ts` (ruling T11-2, « la
+ * sur-pression la plus pure qui soit ») : validée sans réserve à la relecture
+ * précédente, non modifiée ici.
+ */
+export function graviteEcart(ecartPct: number | null, horsPlan?: boolean): number {
+  if (ecartPct == null || horsPlan) return RAMPE_CSS.length - 1
+  return trancheDivergente(ecartPct)
 }
 
 function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; horsPlan?: boolean }) {
@@ -127,6 +141,7 @@ function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; hors
       style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, background: 'var(--border-default)' }}
     />
   )
+  const couleur = RAMPE_CSS[graviteEcart(ecartPct, horsPlan)]
 
   if (ecartPct == null || horsPlan) {
     // Hors plan : la sur-pression la plus pure — la barre remplit toute la
@@ -138,7 +153,7 @@ function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; hors
           aria-hidden="true"
           style={{
             position: 'absolute', top: 4, height: 10, borderRadius: 2,
-            left: '50%', width: '50%', background: 'var(--diverge-sur-3)',
+            left: '50%', width: '50%', background: couleur,
           }}
         />
       </div>
@@ -153,7 +168,7 @@ function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; hors
         aria-hidden="true"
         style={{
           position: 'absolute', top: 4, height: 10, borderRadius: 2,
-          background: cote === 'gauche' ? 'var(--diverge-sous-2)' : 'var(--diverge-sur-2)',
+          background: couleur,
           ...(cote === 'gauche' ? { right: '50%', width: `${pct / 2}%` } : { left: '50%', width: `${pct / 2}%` }),
         }}
       />
@@ -162,21 +177,21 @@ function BarreDivergente({ ecartPct, horsPlan }: { ecartPct: number | null; hors
 }
 
 function EcartTag({ u }: { u: UniteMaille }) {
+  const couleur = RAMPE_CSS[graviteEcart(u.ecart_pct, u.hors_plan)]
   if (u.ecart_pct == null || u.hors_plan) {
     return (
       <span style={{
         display: 'inline-flex', fontSize: 12, fontWeight: 500, padding: '2px 8px',
-        borderRadius: 6, background: 'var(--bg-level-3)', color: 'var(--diverge-sur-3)',
+        borderRadius: 6, background: 'var(--bg-level-3)', color: couleur,
       }}>
         hors plan
       </span>
     )
   }
-  const ton = tonEcart(u.ecart_pct)
   return (
     <span style={{
       display: 'inline-flex', fontSize: 12, fontWeight: 500, padding: '2px 8px',
-      borderRadius: 6, background: 'var(--bg-level-3)', color: COULEUR_TON[ton],
+      borderRadius: 6, background: 'var(--bg-level-3)', color: couleur,
     }}>
       {u.ecart_pct > 0 ? '+' : ''}{formaterNombre(u.ecart_pct)} %
     </span>

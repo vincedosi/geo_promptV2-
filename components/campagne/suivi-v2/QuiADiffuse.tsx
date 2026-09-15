@@ -16,28 +16,21 @@
  * `CoutEtRythme.tsx` : réutilisé plutôt que réécrit une seconde fois — ce
  * projet comptait quinze copies de `fmtNum` avant leur unification, on ne
  * recommence pas avec un prédicat de seuil.
+ *
+ * Ruling T14-1 : `ActorRow` et `actorKindLabel` (« DSP »/« Social »/« Régie »)
+ * viennent de `lib/campaigns/actor-metrics.ts` — TROIS autres composants
+ * consomment déjà la même route `/actors` avec ces mêmes types. La première
+ * version de ce fichier redéclarait `CanalRow` champ pour champ à l'identique
+ * et réimplémentait le même mapping de libellés ; rien ne l'a fait échouer
+ * (les deux formes sont structurellement compatibles, `tsc` ne voit aucune
+ * duplication), c'est exactement le patron des quinze `fmtNum`.
  */
 import { cpmHorsPrevu } from './CoutEtRythme'
 import { formaterNombre, formaterNombreAbrege } from '@/lib/format/nombre'
+import { actorKindLabel, type ActorRow } from '@/lib/campaigns/actor-metrics'
 
 const fInter = "'Inter', system-ui, sans-serif"
 const fMono = "'JetBrains Mono', monospace"
-
-export interface CanalRow {
-  actor: string
-  kind: string
-  impressions: number
-  spend: number
-  cpm: number | null
-  share_pct: number | null
-}
-
-const LIBELLE_NATURE: Record<string, string> = { dsp: 'DSP', social: 'Social', régie: 'Régie' }
-
-/** « DSP » / « Social » / « Régie » — sentence case sauf l'acronyme métier DSP (CLAUDE.md). Inconnu -> tel quel. */
-function libelleNature(kind: string): string {
-  return LIBELLE_NATURE[kind] ?? kind
-}
 
 /**
  * Largeur de barre relative au canal le plus gros du lot — jamais une
@@ -51,7 +44,7 @@ export function largeurBarreCanal(sharePct: number | null, maxSharePct: number):
   return Math.min(100, (sharePct / max) * 100)
 }
 
-export function QuiADiffuse({ canaux, cpmMoyen }: { canaux: CanalRow[]; cpmMoyen: number | null }) {
+export function QuiADiffuse({ canaux, cpmMoyen }: { canaux: ActorRow[]; cpmMoyen: number | null }) {
   if (canaux.length === 0) {
     return (
       <div>
@@ -83,7 +76,7 @@ export function QuiADiffuse({ canaux, cpmMoyen }: { canaux: CanalRow[]; cpmMoyen
                   fontSize: 11, color: 'var(--text-tertiary)', border: '0.5px solid var(--border-default)',
                   borderRadius: 5, padding: '1px 6px', marginLeft: 7,
                 }}>
-                  {libelleNature(c.kind)}
+                  {actorKindLabel(c.kind)}
                 </span>
               </div>
               <div style={{ height: 10, borderRadius: 3, background: 'var(--bg-level-3)' }}>
