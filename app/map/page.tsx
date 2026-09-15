@@ -76,6 +76,7 @@ import { HelpOverlay } from '@/components/map/overlays/HelpOverlay';
 import { useMagelianOverlay } from '@/components/magelian/MagelianOverlayContext';
 import { useCampagneSession } from '@/lib/campagne/CampagneSessionContext';
 import { CampagneActiveCard } from '@/components/magelian/CampagneActiveCard';
+import { BarreContexteCampagne } from '@/components/campagne/BarreContexteCampagne';
 import { ENTREES_NAVIGATION, LARGEUR_RAIL, entreeParRaccourci, type EntreeId } from '@/lib/navigation/config';
 import { ignorerRaccourciClavier } from '@/lib/navigation/garde-saisie';
 import { empiler, depiler, fermerLePlusHaut } from '@/lib/carte/pile-echap';
@@ -119,6 +120,15 @@ export default function MapPage() {
   const [zoneData, setZoneData] = useState<ZoneData | null>(null);
   const [railMasque, setRailMasque] = useState(false);
   const [entreeActive, setEntreeActive] = useState<EntreeId | null>(null);
+  // Monté côté client uniquement (Tâche 15) : `CampagneSessionProvider` seme
+  // sa session de façon SYNCHRONE dès son premier rendu client (lecture
+  // immédiate de l'URL/localStorage, `CampagneSessionContext.tsx`) — un rendu
+  // serveur qui n'a JAMAIS `window` reste toujours sur `SESSION_DEFAUT`. Tout
+  // JSX de cette page qui ajoute/retire un noeud DOM selon `campagneSession.vue`
+  // doit donc attendre ce flag, sans quoi le tout premier rendu client (avant
+  // hydratation) peut déjà diverger du HTML serveur — mismatch d'hydratation.
+  const [monte, setMonte] = useState(false);
+  useEffect(() => { setMonte(true); }, []);
   const { open: magelianOverlayOpen, openOverlay, requestClose: requestCloseMagelianOverlay, setFiltreActif } = useMagelianOverlay();
   const { toast } = useToast();
   // Campagne active (SuiviMapLayer) : statut rediffusé par ce composant à
@@ -1044,6 +1054,25 @@ export default function MapPage() {
       transition: 'padding-left 200ms var(--ease-out), padding-top 200ms var(--ease-out)',
     }}>
       {!railMasque && <MapTopBar />}
+      {/* Barre de contexte commune aux deux vues de Suivi V2 (Tâche 15) — ne
+          se montre qu'en vue carte : en vue suivi, la MÊME barre vit en tête
+          de `SuiviV2`, dans l'overlay MAGELIAN. `zIndex` au-dessus de
+          `CampagneActiveCard` (34) : les deux s'ancrent au même endroit
+          (top-gauche sous la top bar) — `CampagneActiveCard` est donc masquée
+          ci-dessous tant que cette barre est affichée, plutôt que de laisser
+          son texte disparaître derrière un panneau opaque (constaté à
+          l'écran, Tâche 15). `FiltreChip` (z 35, sous la top bar) reste
+          affiché tel quel : son information (filtre carte) n'est pas
+          redondante avec cette barre — collision non vérifiée à ce jour,
+          signalée au rapport plutôt que corrigée à l'aveugle. */}
+      {monte && campagneSession.vue === 'carte' && (
+        <div style={{
+          position: 'fixed', top: railMasque ? 0 : MAP_TOPBAR_HEIGHT,
+          left: railMasque ? 0 : LARGEUR_RAIL, right: 0, zIndex: 46,
+        }}>
+          <BarreContexteCampagne />
+        </div>
+      )}
       <RailNavigation
         entreeActive={entreeActive}
         onEntree={handleEntree}
@@ -1052,7 +1081,7 @@ export default function MapPage() {
         pastille={filtre !== null}
       />
       <FiltreChip filtre={filtre} onRetirer={() => setFiltre(retirerFiltre())} />
-      <CampagneActiveCard />
+      {!(monte && campagneSession.vue === 'carte') && <CampagneActiveCard />}
       {entreeActiveDef?.type === 'tiroir-droit' && (
         <AIOverlay
           chatSlot={chatSlotContent}

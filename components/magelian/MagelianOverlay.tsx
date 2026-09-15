@@ -7,7 +7,7 @@ import { X, Info } from 'lucide-react';
 import { adminFetch } from '@/lib/admin-fetch';
 import { partitionCampaigns } from '@/lib/campaigns/overlay-partition';
 import { CampaignCockpit } from '@/components/campaign/CampaignCockpit';
-import { CampaignSuivi } from '@/components/campaign/CampaignSuivi';
+import { SuiviV2 } from '@/components/campagne/suivi-v2/SuiviV2';
 import { CampaignOverview } from '@/components/campaign/CampaignOverview';
 import { ActivationPanel } from '@/components/campaign/ActivationPanel';
 import { CreationHall } from './CreationHall';
@@ -527,9 +527,13 @@ export function MagelianOverlay() {
         ))}
       </div>
 
-      {/* Sélecteur de consultation — partagé par Suivi et Aperçu uniquement :
-          on choisit LA campagne à regarder. Stratégie a son propre hall. */}
-      {tab !== 'strategie' && (
+      {/* Sélecteur de consultation — partagé par Activation et Aperçu :
+          on choisit LA campagne à regarder. Stratégie a son propre hall.
+          Suivi a désormais le sien, dans `BarreContexteCampagne` (Tâche 15,
+          `SuiviV2`) — ce sélecteur-ci ne double plus l'écran de suivi, sans
+          quoi changer de campagne depuis SuiviV2 laisserait ce menu-ci
+          affiché sur l'ancienne valeur. */}
+      {tab !== 'strategie' && tab !== 'suivi' && (
         <div style={{ padding: '12px 16px 10px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <label
             htmlFor="magelian-campaign-select"
@@ -652,7 +656,7 @@ export function MagelianOverlay() {
 
         {tab === 'suivi' && (
           selectedId ? (
-            <CampaignSuivi key={selectedId} campaignId={selectedId} mapAvailable={onMap} onShowedMap={handleClose} />
+            <SuiviV2 key={selectedId} campaignId={selectedId} />
           ) : campaigns !== null ? (
             <div style={{ fontFamily: fInter, fontSize: 13, color: 'var(--text-tertiary)', padding: '24px 0' }}>
               Aucune campagne à consulter — crée ta première campagne dans l&apos;onglet Stratégie.
