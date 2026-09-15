@@ -85,8 +85,13 @@ import {
 } from '@/lib/campagne/vignette-carte';
 import { BORNES_DIVERGENTES, RAMPE_MAPLIBRE } from '@/lib/campagne/palette-divergente';
 import { COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
+import {
+  lireJetonCarte, apresApplicationDuTheme,
+  JETON_CONTOUR_CARTE, JETON_HALO_CARTE, JETON_TEXTE_CARTE,
+} from '@/components/map/jetons-carte';
 import { zonesAAnnoter, centreFeature, bboxVersParametre } from '@/lib/campagne/diffusion-carte';
 import { libelleVariation, type ReponseAlignement } from '@/components/campagne/suivi-v2/ScoreAlignement';
+import { avecSemaphore } from '@/components/campagne/suivi-v2/avec-semaphore';
 import { formaterNombre, formaterNombreArrondi } from '@/lib/format/nombre';
 
 const fInter = "'Inter', system-ui, sans-serif";
@@ -117,10 +122,11 @@ interface Props {
 function expressionLigne(
   codeSelectionne: string | null,
   teal: string,
+  contour: string,
 ): { couleur: maplibregl.ExpressionSpecification; largeur: maplibregl.ExpressionSpecification } {
   const estSelectionnee = ['==', ['get', 'code'], codeSelectionne] as unknown as maplibregl.ExpressionSpecification;
   return {
-    couleur: ['case', estSelectionnee, teal, 'rgba(255,255,255,0.16)'] as unknown as maplibregl.ExpressionSpecification,
+    couleur: ['case', estSelectionnee, teal, contour] as unknown as maplibregl.ExpressionSpecification,
     largeur: ['case', estSelectionnee, 2.5, 0.4] as unknown as maplibregl.ExpressionSpecification,
   };
 }
@@ -141,6 +147,15 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
   const [score, setScore] = useState<ReponseAlignement | null>(null);
 
   const dernierBboxRef = useRef<string | null>(null);
+  /** Jeton de séquence : seule la réponse du DERNIER appel lancé a le droit
+   *  d'écrire dans l'état. Sans lui, deux déplacements de carte espacés de
+   *  plus du délai de réponse (972 ms mesurés côté RPC sur la maille CP)
+   *  laissent la réponse de l'ANCIEN viewport écraser celle du nouveau, et la
+   *  carte affiche les écarts d'une zone que l'utilisateur ne regarde plus,
+   *  sans rien signaler. */
+  const sequenceRef = useRef(0);
+  /** Requête en vol, annulée dès qu'une plus récente part. */
+  const avortRef = useRef<AbortController | null>(null);
   const dernierClicRef = useRef<string | null>(null);
   const dernierCentrageRef = useRef<string | null>(null);
   const clickRef = useRef<((e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => void) | null>(null);
@@ -152,25 +167,42 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
   // ── Chargement de la géométrie — jamais toute la France (bbox obligatoire) ──
   const chargerGeometrie = useCallback(async (bbox: string) => {
     if (!campaignId) return;
+    avortRef.current?.abort();
+    const controleur = new AbortController();
+    avortRef.current = controleur;
+    const sequence = ++sequenceRef.current;
+    const estCourant = () => sequence === sequenceRef.current;
+
     setChargement(true);
     try {
       const params = new URLSearchParams({ maille: session.maille, bbox });
       if (session.parent) params.set('parent', session.parent);
-      const res = await adminFetch(
+      // Sémaphore PARTAGÉ de l'écran de suivi : en vue Diffusion l'overlay
+      // MAGELIAN reste monté (masqué), donc SuiviV2 demande déjà jusqu'à 3
+      // requêtes pour le même geste. Sans cette place réservée, un changement
+      // de maille en totalisait 5 en vol (budget CLAUDE.md : 3).
+      const res = await avecSemaphore(() => adminFetch(
         `/api/campaigns/${campaignId}/alignement/maille/map?${params.toString()}`,
-        { cache: 'no-store' },
-      );
+        { cache: 'no-store', signal: controleur.signal },
+      ));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as ReponseAlignementMailleGeo;
+      if (!estCourant()) return;
       setFeatures(data.features ?? []);
       setNTotal(data.n_total ?? 0);
       setErreur(null);
-    } catch {
+    } catch (e) {
+      // Une requête annulée n'est PAS une panne : l'afficher en erreur ferait
+      // clignoter « Impossible de charger » à chaque déplacement de carte.
+      if ((e as Error)?.name === 'AbortError' || !estCourant()) return;
       setErreur('Impossible de charger la carte de diffusion.');
     } finally {
-      setChargement(false);
+      if (estCourant()) setChargement(false);
     }
   }, [campaignId, session.maille, session.parent]);
+
+  // Une requête encore en vol au démontage n'a plus personne à servir.
+  useEffect(() => () => { avortRef.current?.abort(); }, []);
 
   // ── Activation / changement de campagne, maille ou fil d'Ariane : force un
   // rafraîchissement même à bbox inchangée (la garde moveend ci-dessous ne
@@ -216,7 +248,9 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
     let annule = false;
     (async () => {
       try {
-        const res = await adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' });
+        const res = await avecSemaphore(
+          () => adminFetch(`/api/campaigns/${campaignId}/alignement`, { cache: 'no-store' }),
+        );
         if (!res.ok) return;
         const data = await res.json() as ReponseAlignement;
         if (!annule) setScore(data);
@@ -272,7 +306,7 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
       });
       map.addLayer({
         id: LINE_ID, type: 'line', source: SOURCE_ID,
-        paint: { 'line-color': 'rgba(255,255,255,0.16)', 'line-width': 0.4 },
+        paint: { 'line-color': lireJetonCarte(JETON_CONTOUR_CARTE), 'line-width': 0.4 },
       });
       map.addSource(LABELS_SOURCE_ID, { type: 'geojson', data: fcLabels });
       map.addLayer({
@@ -285,8 +319,11 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
           'text-justify': 'center',
         },
         paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': 'rgba(0,0,0,0.75)',
+          // Jetons lus au moment de l'appel et réappliqués au changement de
+          // thème (effet dédié plus bas) : un `#ffffff` en dur laissait les
+          // noms des zones déréglées en blanc sur halo noir en thème clair.
+          'text-color': lireJetonCarte(JETON_TEXTE_CARTE),
+          'text-halo-color': lireJetonCarte(JETON_HALO_CARTE),
           'text-halo-width': 1.4,
         },
       });
@@ -331,14 +368,27 @@ export function DiffusionMapLayer({ mapRef, mapReady, visible }: Props) {
     const map = mapRef.current;
     if (!visible || !map) return;
     const reapply = () => {
-      if (!map.getLayer(LINE_ID)) return;
-      const teal = getComputedStyle(document.documentElement).getPropertyValue('--brand-teal').trim() || '#4ecdc4';
-      const { couleur, largeur } = expressionLigne(session.uniteSelectionnee, teal);
-      map.setPaintProperty(LINE_ID, 'line-color', couleur);
-      map.setPaintProperty(LINE_ID, 'line-width', largeur);
+      const teal = lireJetonCarte('--brand-teal', '#4ecdc4');
+      const contour = lireJetonCarte(JETON_CONTOUR_CARTE);
+      if (map.getLayer(LINE_ID)) {
+        const { couleur, largeur } = expressionLigne(session.uniteSelectionnee, teal, contour);
+        map.setPaintProperty(LINE_ID, 'line-color', couleur);
+        map.setPaintProperty(LINE_ID, 'line-width', largeur);
+      }
+      // Les étiquettes des zones déréglées suivent le thème au même titre que
+      // les contours : leur `paint` est posé une seule fois à la création.
+      if (map.getLayer(LABELS_LAYER_ID)) {
+        map.setPaintProperty(LABELS_LAYER_ID, 'text-color', lireJetonCarte(JETON_TEXTE_CARTE));
+        map.setPaintProperty(LABELS_LAYER_ID, 'text-halo-color', lireJetonCarte(JETON_HALO_CARTE));
+      }
     };
-    if (map.isStyleLoaded()) reapply(); else map.once('load', reapply);
-  }, [visible, session.uniteSelectionnee, theme, mapRef]);
+    // Le thème n'est posé sur <html> que par l'effet du ThemeProvider PARENT,
+    // exécuté après celui-ci : lire les jetons tout de suite rendrait encore
+    // les couleurs du thème quitté (voir `apresApplicationDuTheme`).
+    return apresApplicationDuTheme(() => {
+      if (map.isStyleLoaded()) reapply(); else map.once('load', reapply);
+    });
+  }, [visible, session.uniteSelectionnee, theme, features, mapRef]);
 
   // ── Centrage sur une sélection venue d'AILLEURS (épingle d'une ligne du
   // tableau, Tâche 14) — jamais sur notre propre clic (`dernierClicRef`), qui
