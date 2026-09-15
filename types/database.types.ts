@@ -5267,6 +5267,15 @@ export type Database = {
           score: number
         }[]
       }
+      calculer_score_composite_jsonb: {
+        Args: {
+          p_codes_postaux: string[]
+          p_indicateurs: string[]
+          p_poids: number[]
+          p_sens: string[]
+        }
+        Returns: Json
+      }
       check_iso_hits_new_carreaux: {
         Args: { p_iso_geojson: string; p_since: string }
         Returns: boolean

@@ -55,6 +55,20 @@
  *    (sql/154). Corrigé par la jumelle `codes_postaux_du_perimetre_jsonb`
  *    (sql/168, `RETURNS jsonb`, jamais tronquée) — seule cette route l'appelle.
  *
+ * 5. **La MÊME troncature, une étape plus loin (2026-09-15, sql/170).**
+ *    `codes_postaux_du_perimetre_jsonb` avait réglé la RÉSOLUTION du
+ *    périmètre ; `calculer_score_composite` (sql/146), qui CALCULE, était
+ *    resté `RETURNS TABLE` et rend une ligne par code postal — mesuré à
+ *    6 186 lignes sur les 6 187 CP du référentiel, donc tronqué à 5 000 par
+ *    PostgREST sans erreur, 1 186 codes postaux non coloriés sur la carte et
+ *    un `n_scores: 5000` figé dans `analyses.resultat`. La recette ne l'avait
+ *    pas vu parce qu'elle avait été jouée avec `rev_median` SEUL (1 952 CP de
+ *    couverture), sous le seuil. Corrigé par la jumelle
+ *    `calculer_score_composite_jsonb` (sql/170), que cette route appelle ;
+ *    la forme TABLE en devient une enveloppe mince (même patron que sql/169),
+ *    et `/api/custom-geo/source/score` (plafond 1 500 CP) la garde sans
+ *    changement.
+ *
  * Mesure (`EXPLAIN ANALYZE`, périmètre de 500 CP, 2 indicateurs) :
  * 23,5 ms, 632 blocs en cache, 13 lus. Périmètre France (6 187 CP, 2
  * indicateurs) : 159 ms, `shared hit=2795 read=80` (640 Ko).
@@ -106,6 +120,13 @@ const MAX_INDICATEURS = 6;
  * une Map locale, qui ne limiterait rien sur Vercel (CLAUDE.md).
  */
 const limiteur = createRateLimiter({ max: 12, window: '60 s', prefix: 'geo:rl:analyse-score' });
+
+/** Une ligne de `calculer_score_composite_jsonb` (sql/170). */
+interface LigneScore {
+  postal_code: string;
+  score: number;
+  n_indicateurs: number;
+}
 
 const IndicateurSchema = z.object({
   code: z.string().min(1).max(100),
@@ -248,7 +269,15 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 4. Le score ───────────────────────────────────────────────────────
-  const { data: lignes, error: erreurScore } = await supabase.rpc('calculer_score_composite', {
+  // `_jsonb` et non `calculer_score_composite` (RETURNS TABLE, sql/146) : la
+  // RPC rend UNE LIGNE PAR CODE POSTAL et PostgREST tronque à 5 000 lignes
+  // même une RPC RETURNS TABLE. Mesuré le 2026-09-15 : 6 186 lignes pour les
+  // 6 187 CP du référentiel, donc 1 186 codes postaux perdus SANS ERREUR sur
+  // le périmètre national — la choroplèthe les laissait non coloriés et
+  // `analyses.resultat` figeait `n_scores: 5000`. Même piège que le point 4
+  // de l'en-tête, une étape plus loin dans la chaîne : sql/168 avait corrigé
+  // la fonction qui RÉSOUT le périmètre, sql/170 corrige celle qui le CALCULE.
+  const { data: donneesScore, error: erreurScore } = await supabase.rpc('calculer_score_composite_jsonb', {
     p_indicateurs: codes,
     p_poids: indicateurs.map((i) => i.poids),
     p_sens: indicateurs.map((i) => i.sens),
@@ -259,7 +288,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Calcul du score impossible.' }, { status: 500 });
   }
 
-  const scores = (lignes ?? []).map((l) => ({
+  const lignes = rpcJson<LigneScore[]>(donneesScore) ?? [];
+  const scores = lignes.map((l) => ({
     code: l.postal_code,
     score: Number(l.score),
     n_indicateurs: l.n_indicateurs,
